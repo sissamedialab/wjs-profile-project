@@ -1,9 +1,7 @@
 """My views. Looking for a way to "enrich" Janeway's `edit_profile`."""
 from django.shortcuts import render
-from wjs_profession.forms import JCOMProfileForm
-from wjs_profession.forms import JCOMProfileFormDerived
+from wjs.jcom_profile.forms import JCOMProfileForm
 from django.contrib.auth.decorators import login_required
-from core.forms import EditAccountForm
 
 
 @login_required

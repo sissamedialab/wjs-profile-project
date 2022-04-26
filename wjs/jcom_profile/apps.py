@@ -4,8 +4,8 @@ from django.apps import AppConfig
 class JCOMProfileConfig(AppConfig):
     """Configuration for this django app."""
 
-    name = "wjs_profession"
-    verbose_name = 'WJS account profession'
+    name = "wjs.jcom_profile"
+    verbose_name = 'WJS JCOM profile'
 
     def ready(self):
         """Call during initialization."""

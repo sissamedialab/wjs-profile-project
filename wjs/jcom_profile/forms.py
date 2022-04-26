@@ -2,16 +2,7 @@
 
 from django.forms import ModelForm
 # from wjs_profession.models import AccountProfession
-from wjs_profession.models import JCOMProfile
-from core.forms import EditAccountForm
-
-
-# class JCOMProfileForm(EditAccountForm):
-#     """Additional fields of the JCOM profile."""
-
-#     class Meta:
-#         model = AccountProfession
-#         fields = '__all__'
+from wjs.jcom_profile.models import JCOMProfile
 
 
 class JCOMProfileForm(ModelForm):
