@@ -1,0 +1,13 @@
+# virtual env
+v
+
+# emacs backups
+*~
+
+# cache & co.
+*.pyc
+__pycache__
+*egg-info
+
+# django dummy project
+scaffold
