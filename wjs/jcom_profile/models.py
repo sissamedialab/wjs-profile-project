@@ -2,6 +2,7 @@
 
 from django.db import models
 from core.models import Account
+from core.models import AccountManager
 # TODO: use settings.AUTH_USER_MODEL
 # from django.conf import settings
 
@@ -18,9 +19,8 @@ PROFESSIONS = (
 class JCOMProfile(Account):
     """An enrichment of Janeway's Account."""
 
-    # user = models.OneToOneField(Account,
-    #                             primary_key=True,
-    #                             on_delete=models.CASCADE)
+    objects = AccountManager()
+
     profession = models.IntegerField(
         null=False,
         # If there is no "default", when an Account is created, a
