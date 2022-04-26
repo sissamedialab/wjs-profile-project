@@ -11,6 +11,7 @@ class JCOMProfileInline(admin.StackedInline):
     """Helper class to "inline" account profession."""
 
     model = JCOMProfile
+    # TODO: No! this repeats all the fields (first name, password,...)
 
 
 # TODO: use settings.AUTH_USER_MODEL
