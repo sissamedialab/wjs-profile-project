@@ -17,5 +17,12 @@ def create_profile_handler(sender, instance, created, **kwargs):
     if not created:
         return
     # Create the profile object, only if it is newly created
-    profile = JCOMProfile(user=instance)
+
+    # TODO: move defalt to model OR
+    # change the user-creation form OR
+    # do something else?
+    default_profession = 3
+    profile = JCOMProfile(profession=default_profession)
     profile.save()
+    instance.profession = profile
+    instance.save()
