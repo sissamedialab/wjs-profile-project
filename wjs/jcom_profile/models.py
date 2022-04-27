@@ -20,15 +20,6 @@ class JCOMProfile(Account):
     """An enrichment of Janeway's Account."""
 
     objects = AccountManager()
-    # USERNAME_FIELD = 'username'
-    # REQUIRED_FIELDS = ['email']
-
-    # DOES NOT WORK:
-    # def clean(self, *args, **kwargs):
-    #     """Call ancestor.
-    #     This should not be necessary...
-    #     """
-    #     super().clean(*args, **kwargs)
 
     profession = models.IntegerField(
         null=False,
