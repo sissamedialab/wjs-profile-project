@@ -1,7 +1,6 @@
 """Forms for the additional fields in this profile extension."""
 
 from django.forms import ModelForm
-# from wjs_profession.models import AccountProfession
 from wjs.jcom_profile.models import JCOMProfile
 
 
