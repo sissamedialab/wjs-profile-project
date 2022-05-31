@@ -3,7 +3,7 @@
 from django.test import TestCase
 from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
-from wjs.jcome_profile.models import AccountProfession
+from wjs.jcom_profile.models import AccountProfession
 # from utils.testing import helpers
 
 
