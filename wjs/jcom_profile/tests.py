@@ -70,3 +70,17 @@ class AccountProfessionModelTests(TestCase):
 
 # TODO: test that django admin interface has an inline with the
 # profile extension. Do I really care?
+
+class JCOMProfileURLs(TestCase):
+
+    def test_registerURL_points_to_plugin(self):
+        """The "register" link points to the plugin's registration form."""
+        from django.test.utils import setup_test_environment
+        setup_test_environment()
+        from django.test import Client
+        client = Client()
+        journal_path = "/JCOM/"
+        response = client.get(journal_path)
+        expected_register_link = \
+            '/JCOM/plugins/wjs_jcom_profile/register/step/1/">Register'
+        self.assertContains(response, expected_register_link)

@@ -1,12 +1,48 @@
 """Forms for the additional fields in this profile extension."""
 
+import uuid
+from django import forms
 from django.forms import ModelForm
+from django.utils import timezone
+from django.utils.translation import ugettext_lazy as _
+from utils.forms import CaptchaForm
 from wjs.jcom_profile.models import JCOMProfile
+from core.forms import EditAccountForm
 
 
-class JCOMProfileForm(ModelForm):
+class JCOMProfileForm(EditAccountForm):
     """Additional fields of the JCOM profile."""
 
     class Meta:
         model = JCOMProfile
-        fields = '__all__'
+        exclude = ('email', 'username', 'activation_code', 'email_sent',
+                   'date_confirmed', 'confirmation_code', 'is_active',
+                   'is_staff', 'is_admin', 'date_joined', 'password',
+                   'is_superuser', 'janeway_account')
+
+
+class JCOMRegistrationForm(ModelForm, CaptchaForm):
+    """A form that creates a user.
+
+    With no privileges, from the given username and password.
+
+    """
+
+    password_1 = forms.CharField(
+        widget=forms.PasswordInput, label=_('Password'))
+    password_2 = forms.CharField(
+        widget=forms.PasswordInput, label=_('Repeat Password'))
+
+    class Meta:
+        model = JCOMProfile
+        fields = ('email', 'salutation', 'first_name', 'middle_name',
+                  'last_name', 'department', 'institution', 'country',
+                  'profession')
+
+    def clean_password_2(self):
+        """Validate password."""
+        password_1 = self.cleaned_data.get("password_1")
+        password_2 = self.cleaned_data.get("password_2")
+        if password_1 and password_2 and password_1 != password_2:
+            raise forms.ValidationError(
+                'Your passwords do not match.',

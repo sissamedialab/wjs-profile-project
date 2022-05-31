@@ -21,9 +21,19 @@ def create_profile_handler(sender, instance, created, **kwargs):
     # change the user-creation form OR
     # do something else?
     default_profession = 3
-    JCOMProfile(
+    JCOMProfile.objects.create(
         janeway_account=instance,
-        profession=default_profession).save()
-    # If I don't `save()` the instance again, an empty record is created
-    # (not sure what's happening here...)
+        profession=default_profession)
+
+    # If I don't `save()` the instance also, an empty record is
+    # created.
+    #
+    # I think this is because the post_save message is emitted by one
+    # of core.forms.RegistrationForm's ancestor (l.133) but with
+    # `commit=False`, so that the form's data is not yet in the DB.
     instance.save()
+
+    # NB: instance.save_m2m() fails with
+    # AttributeError: 'Account' object has no attribute 'save_m2m'
+    # because this is not a many-to-many relation
+    # https://django.readthedocs.io/en/stable/topics/forms/modelforms.html?highlight=save_m2m#the-save-method
