@@ -46,3 +46,19 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm):
         if password_1 and password_2 and password_1 != password_2:
             raise forms.ValidationError(
                 'Your passwords do not match.',
+                code='password_mismatch',
+            )
+
+        return password_2
+
+    def save(self, commit=True):
+        user = super(JCOMRegistrationForm, self).save(commit=False)
+        user.set_password(self.cleaned_data["password_1"])
+        user.is_active = False
+        user.confirmation_code = uuid.uuid4()
+        user.email_sent = timezone.now()
+
+        if commit:
+            user.save()
+
+        return user
