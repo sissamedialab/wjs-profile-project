@@ -41,7 +41,7 @@ class JCOMProfileProfessionModelTests(TestCase):
         userX.save()
         again = Account.objects.get(username=self.username)
         self.assertEqual(again.username, self.username)
-        self.assertIsNone(again.accountprofession.profession)
+        self.assertIsNone(again.jcomprofile.profession)
 
     def test_account_can_save_profession(self):
         """One can set and save a profession onto an account."""
@@ -56,16 +56,16 @@ class JCOMProfileProfessionModelTests(TestCase):
         # (or something similar)
         # I think not...
         profession_id = 2
-        profile_extension = JCOMProfile(userX)
-        profile_extension.profession = profession_id
-        profile_extension.save()
+        jcom_profile = JCOMProfile(janeway_account=userX)
+        jcom_profile.profession = profession_id
+        jcom_profile.save()
 
-        userX.accountprofession = profile_extension
+        userX.accountprofession = jcom_profile
         userX.save()
 
         again = Account.objects.get(username=self.username)
         self.assertEqual(again.username, self.username)
-        self.assertEqual(again.accountprofession.profession, profession_id)
+        self.assertEqual(again.jcomprofile.profession, profession_id)
 
 
 # TODO: test that django admin interface has an inline with the
