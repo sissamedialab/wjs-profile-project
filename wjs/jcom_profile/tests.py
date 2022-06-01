@@ -3,11 +3,11 @@
 from django.test import TestCase
 from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
-from wjs.jcom_profile.models import AccountProfession
+from wjs.jcom_profile.models import JCOMProfile
 # from utils.testing import helpers
 
 
-class AccountProfessionModelTests(TestCase):
+class JCOMProfileProfessionModelTests(TestCase):
 
     def setUp(self):
         """Do setup."""
@@ -56,7 +56,7 @@ class AccountProfessionModelTests(TestCase):
         # (or something similar)
         # I think not...
         profession_id = 2
-        profile_extension = AccountProfession(userX)
+        profile_extension = JCOMProfile(userX)
         profile_extension.profession = profession_id
         profile_extension.save()
 
@@ -82,5 +82,5 @@ class JCOMProfileURLs(TestCase):
         journal_path = "/JCOM/"
         response = client.get(journal_path)
         expected_register_link = \
-            '/JCOM/plugins/wjs_jcom_profile/register/step/1/">Register'
+            '/JCOM/plugins/register/step/1/">Register'
         self.assertContains(response, expected_register_link)
