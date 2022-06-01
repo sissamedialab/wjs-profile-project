@@ -30,10 +30,9 @@ class JCOMProfile(Account):
         on_delete=models.CASCADE,
         primary_key=True,
     )
+    # Even if EO wants "profession" to be mandatory, we cannot set it
+    # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
+    # have this data for most of our existing users.
     profession = models.IntegerField(
-        null=False,
-        # If there is no "default", when an Account is created, a
-        # profession must be provided. Otherwise the
-        # account.accountprofession results missing.
-        # default=3,
+        null=True,
         choices=PROFESSIONS)

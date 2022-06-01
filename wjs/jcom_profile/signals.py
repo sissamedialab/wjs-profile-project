@@ -17,13 +17,8 @@ def create_profile_handler(sender, instance, created, **kwargs):
     if not created:
         return
 
-    # TODO: move defalt to model OR
-    # change the user-creation form OR
-    # do something else?
-    default_profession = 3
     JCOMProfile.objects.create(
-        janeway_account=instance,
-        profession=default_profession)
+        janeway_account=instance)
 
     # If I don't `save()` the instance also, an empty record is
     # created.
