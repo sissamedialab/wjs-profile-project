@@ -73,10 +73,34 @@ class JCOMProfileProfessionModelTests(TestCase):
 
 class JCOMProfileURLs(TestCase):
 
+    def setUp(self):
+        """Prepare a journal with "JCOM" graphical theme."""
+        self.journal_code = 'JCOM'
+        self.create_journal()
+
+    def create_journal(self):
+        """Create a journal and set the graphical theme."""
+        from journal.models import Journal
+        self.journal = Journal.objects.create(
+            code=self.journal_code,
+            description="Journal description - not used",
+        )
+        # The field "description" in the journal model is not
+        # used. Instead, a "journal_description" property is set.
+        # See also: https://github.com/BirkbeckCTP/janeway/pull/2903
+        # See also: core/templatetags/settings.py
+        from core.models import Setting
+        from utils import setting_handler
+        used_description = Setting.objects.get(name='journal_description')
+        setting_handler.save_setting(
+            used_description.group.name,
+            used_description.name,
+            self.journal,
+            "Journal description - in settings")
+        # TODO: set grahpical theme
+
     def test_registerURL_points_to_plugin(self):
         """The "register" link points to the plugin's registration form."""
-        from django.test.utils import setup_test_environment
-        setup_test_environment()
         from django.test import Client
         client = Client()
         journal_path = "/JCOM/"
