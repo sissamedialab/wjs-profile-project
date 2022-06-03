@@ -75,7 +75,7 @@ class JCOMProfileURLs(TestCase):
 
     def setUp(self):
         """Prepare a journal with "JCOM" graphical theme."""
-        self.journal_code = 'JCOM'
+        self.journal_code = 'PIPPO'
         self.create_journal()
 
     def create_journal(self):
@@ -97,14 +97,22 @@ class JCOMProfileURLs(TestCase):
             used_description.name,
             self.journal,
             "Journal description - in settings")
-        # TODO: set grahpical theme
+
+        # Set graphical theme
+        theme = 'JCOM'
+        theme_setting = Setting.objects.get(name='journal_theme')
+        setting_handler.save_setting(
+            theme_setting.group.name,
+            theme_setting.name,
+            self.journal,
+            theme)
 
     def test_registerURL_points_to_plugin(self):
         """The "register" link points to the plugin's registration form."""
         from django.test import Client
         client = Client()
-        journal_path = "/JCOM/"
+        journal_path = f"/{self.journal_code}/"
         response = client.get(journal_path)
         expected_register_link = \
-            '/JCOM/plugins/register/step/1/">Register'
+            f'/{self.journal_code}/plugins/register/step/1/">Register'
         self.assertContains(response, expected_register_link)
