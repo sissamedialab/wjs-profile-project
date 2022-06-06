@@ -8,6 +8,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from django.test.client import RequestFactory
 from journal.tests.utils import make_test_journal
 from press.models import Press
+from django.test import Client
 
 
 class JCOMProfileProfessionModelTests(TestCase):
@@ -87,7 +88,7 @@ class JCOMProfileURLs(TestCase):
         # but the following does not work. I guess because pytest
         # "swallows" the `set_trace()` in same magic way...
         # import ipdb; ipdb.set_trace()
-        self.press.delete()
+        # self.press.delete()
 
     def create_journal(self):
         """Create a press/journal and set the graphical theme."""
@@ -106,7 +107,6 @@ class JCOMProfileURLs(TestCase):
     @pytest.mark.skip(reason="Package installed as app (not as plugin).")
     def test_registerURL_points_to_plugin(self):
         """The "register" link points to the plugin's registration form."""
-        from django.test import Client
         client = Client()
         journal_path = f"/{self.journal_code}/"
         response = client.get(journal_path)
@@ -124,4 +124,52 @@ class JCOMProfileURLs(TestCase):
     # teardown has already been called.
     # def test_break(self):
     #     """Debug."""
+    #     self.assertFalse(True)
+
+    # @pytest.mark.django_db(transaction=True)
+    @pytest.mark.django_db
+    def test_registrationForm_has_fieldProfession(self):
+        """The field "profession" must appear in the registration form.
+
+        The journal must use the JCOM graphical theme.
+        """
+        # Set graphical theme
+        from core.models import Setting
+        from utils import setting_handler
+        theme = 'JCOM'
+        theme_setting = Setting.objects.get(name='journal_theme')
+        setting_handler.save_setting(
+            theme_setting.group.name,
+            theme_setting.name,
+            self.journal,
+            theme)
+
+        client = Client()
+        response = client.get(f"/{self.journal_code}/register/step/1/")
+        fragments = [
+            '<select name="profession" class="validate" required '
+            'id="id_profession">',
+            #
+            '<label for="id_profession" data-error="" data-success="" '
+            'id="label_profession">Profession</label>',
+        ]
+        for fragment in fragments:
+            self.assertContains(response, fragment)
+
+        # import psycopg2
+        # with psycopg2.connect(dbname='test_j2',
+        #                       user='janeway',
+        #                       password='pass',
+        #                       host='localhost') as connection:
+        #     cursor = connection.cursor()
+        #     x = cursor.execute("select * from press_press")
+        #     connection.commit()
+        #     y = cursor.execute("select * from journal_journal")
+        #     connection.commit()
+        #     self.assertFalse(True)
+
+
+    # def test_dummy(self):
+    #     import sys
+    #     sys.stdin.read(1)
     #     self.assertFalse(True)
