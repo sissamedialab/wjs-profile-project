@@ -173,3 +173,33 @@ class JCOMProfileURLs(TestCase):
     #     import sys
     #     sys.stdin.read(1)
     #     self.assertFalse(True)
+
+class TestJCOMProve:
+    """Prove di DB maintenance."""
+
+    # def test_aaa(self):
+    #     """AAA."""
+    #     Account.objects.create(username="AAA",
+    #                            first_name="Afirst",
+    #                            last_name="Alast")
+
+    @pytest.mark.django_db
+    def test_bbb(self):
+        """BBB."""
+        Account.objects.create(username="BBB",
+                               first_name="Bfirst",
+                               last_name="Blast")
+        import sys
+        sys.stdin.readline()
+        assert(False)
+
+
+    @pytest.mark.django_db(transaction=True)
+    def test_ccc(self):
+        """CCC."""
+        Account.objects.create(username="CCC",
+                               first_name="Cfirst",
+                               last_name="Clast")
+        import sys
+        sys.stdin.readline()
+        assert(False)
