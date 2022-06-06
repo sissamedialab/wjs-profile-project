@@ -79,34 +79,23 @@ class JCOMProfileURLs(TestCase):
         self.create_journal()
 
     def create_journal(self):
-        """Create a journal and set the graphical theme."""
-        from journal.models import Journal
-        self.journal = Journal.objects.create(
+        """Create a press/journal and set the graphical theme."""
+        # copied from journal.tests.test_models
+        from django.test.client import RequestFactory
+        from journal.tests.utils import make_test_journal
+        from press.models import Press
+        self.request_factory = RequestFactory()
+        self.press = Press(domain="sitetestpress.org")
+        self.press.save()
+        self.request_factory
+        journal_kwargs = dict(
             code=self.journal_code,
-            description="Journal description - not used",
+            domain="sitetest.org",
+            # journal_theme='JCOM',  # No!
         )
-        # The field "description" in the journal model is not
-        # used. Instead, a "journal_description" property is set.
-        # See also: https://github.com/BirkbeckCTP/janeway/pull/2903
-        # See also: core/templatetags/settings.py
-        from core.models import Setting
-        from utils import setting_handler
-        used_description = Setting.objects.get(name='journal_description')
-        setting_handler.save_setting(
-            used_description.group.name,
-            used_description.name,
-            self.journal,
-            "Journal description - in settings")
+        self.journal = make_test_journal(**journal_kwargs)
 
-        # Set graphical theme
-        theme = 'JCOM'
-        theme_setting = Setting.objects.get(name='journal_theme')
-        setting_handler.save_setting(
-            theme_setting.group.name,
-            theme_setting.name,
-            self.journal,
-            theme)
-
+    @pytest.mark.skip(reason="Package installed as app (not as plugin).")
     def test_registerURL_points_to_plugin(self):
         """The "register" link points to the plugin's registration form."""
         from django.test import Client
