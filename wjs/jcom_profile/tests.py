@@ -5,7 +5,9 @@ from django.test import TestCase
 from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
 from wjs.jcom_profile.models import JCOMProfile
-# from utils.testing import helpers
+from django.test.client import RequestFactory
+from journal.tests.utils import make_test_journal
+from press.models import Press
 
 
 class JCOMProfileProfessionModelTests(TestCase):
@@ -79,12 +81,17 @@ class JCOMProfileURLs(TestCase):
         self.journal_code = 'PIPPO'
         self.create_journal()
 
+    def tearDown(self):
+        """Clean up my mess (remove the test journal)."""
+        # I wanted to inspect the DB _before_ teardown,
+        # but the following does not work. I guess because pytest
+        # "swallows" the `set_trace()` in same magic way...
+        # import ipdb; ipdb.set_trace()
+        self.press.delete()
+
     def create_journal(self):
         """Create a press/journal and set the graphical theme."""
         # copied from journal.tests.test_models
-        from django.test.client import RequestFactory
-        from journal.tests.utils import make_test_journal
-        from press.models import Press
         self.request_factory = RequestFactory()
         self.press = Press(domain="sitetestpress.org")
         self.press.save()
@@ -111,3 +118,10 @@ class JCOMProfileURLs(TestCase):
         #    f'/{self.journal_code}/register/step/1/"> Register'
         #                          ^_ no "/plugins" path
         self.assertContains(response, expected_register_link)
+
+    # I wanted to inspect the DB _before_ teardown,
+    # but the following does not work. When pytest's debug starts,
+    # teardown has already been called.
+    # def test_break(self):
+    #     """Debug."""
+    #     self.assertFalse(True)
