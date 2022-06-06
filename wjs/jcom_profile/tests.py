@@ -1,5 +1,6 @@
 """Tests (first attempt)."""
 
+import pytest
 from django.test import TestCase
 from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
@@ -103,5 +104,10 @@ class JCOMProfileURLs(TestCase):
         journal_path = f"/{self.journal_code}/"
         response = client.get(journal_path)
         expected_register_link = \
-            f'/{self.journal_code}/plugins/register/step/1/">Register'
+            f'/{self.journal_code}/plugins/register/step/1/"> Register'
+        #                          ^^^^^^^
+        # Attenzione allo spazio prima di "Register"!
+        # In the case of an app, use the following:
+        #    f'/{self.journal_code}/register/step/1/"> Register'
+        #                          ^_ no "/plugins" path
         self.assertContains(response, expected_register_link)
