@@ -23,24 +23,23 @@ def drop_userX():
 
 
 @pytest.fixture
-def userX(django_db_blocker):
+def userX():
     """Create / reset a user in the DB.
 
     Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
     """
-    with django_db_blocker.unblock():
-        # Delete the test user (just in case...).
-        drop_userX()
+    # Delete the test user (just in case...).
+    drop_userX()
 
-        userX = Account(username=USERNAME,
-                        first_name="User", last_name="Ics")
-        userX.save()
-        yield userX
-        # drop_userX()
+    userX = Account(username=USERNAME,
+                    first_name="User", last_name="Ics")
+    userX.save()
+    yield userX
 
 
 class TestJCOMProfileProfessionModelTests:
 
+    @pytest.mark.django_db
     def test_new_account_has_profession_but_it_is_not_set(self, userX):
         """A newly created account must have a profession associated.
 
@@ -157,6 +156,7 @@ class TestJCOMWIP:
     @pytest.mark.django_db
     def test_fieldProfession_label(self, userX):
         """The label of field "profession" must be "profession"."""
+        # https://developer.mozilla.org/en-US/docs/Learn/Server-side/Django/Testing#models
         # TODO: what about translations?
         # TODO: what about Uppercase?
         profile = JCOMProfile.objects.get(id=userX.id)
