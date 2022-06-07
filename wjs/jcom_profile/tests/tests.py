@@ -39,8 +39,9 @@ def userX():
 
 class TestJCOMProfileProfessionModelTests:
 
-    @pytest.mark.django_db(transaction=True)
-    def test_new_account_has_profession_but_it_is_not_set(userX):
+    def test_new_account_has_profession_but_it_is_not_set(
+            userX,
+            db_access_without_rollback_and_truncate):
         """A newly created account must have a profession associated.
 
         However, the profession is not set by default.
