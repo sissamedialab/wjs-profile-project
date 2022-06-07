@@ -4,6 +4,7 @@ import pytest
 from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
 from journal.tests.utils import make_test_journal
 from press.models import Press
 from django.test import Client
@@ -22,26 +23,25 @@ def drop_userX():
 
 
 @pytest.fixture
-def userX():
+def userX(django_db_blocker):
     """Create / reset a user in the DB.
 
     Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
     """
-    # Delete the user (just in case...).
-    drop_userX()
+    with django_db_blocker.unblock():
+        # Delete the test user (just in case...).
+        drop_userX()
 
-    userX = Account(username=USERNAME,
-                    first_name="User", last_name="Ics")
-    userX.save()
-    yield userX
-    drop_userX()
+        userX = Account(username=USERNAME,
+                        first_name="User", last_name="Ics")
+        userX.save()
+        yield userX
+        # drop_userX()
 
 
 class TestJCOMProfileProfessionModelTests:
 
-    def test_new_account_has_profession_but_it_is_not_set(
-            userX,
-            db_access_without_rollback_and_truncate):
+    def test_new_account_has_profession_but_it_is_not_set(self, userX):
         """A newly created account must have a profession associated.
 
         However, the profession is not set by default.
@@ -51,7 +51,7 @@ class TestJCOMProfileProfessionModelTests:
         assert again.jcomprofile.profession is None
 
     @pytest.mark.django_db
-    def test_account_can_save_profession(userX):
+    def test_account_can_save_profession(self, userX):
         """One can set and save a profession onto an account."""
         # Not sure if it would be cleaner to
         #    from .models import PROFESSIONS
@@ -109,7 +109,7 @@ class TestJCOMProfileURLs():
         # In the case of an app, use the following:
         #    f'/{JOURNAL_CODE}/register/step/1/"> Register'
         #                          ^_ no "/plugins" path
-        assert expected_register_link in response
+        assert expected_register_link in response.content.decode()
 
     @pytest.mark.django_db
     def test_registrationForm_has_fieldProfession(self, journalPippo):
@@ -138,17 +138,21 @@ class TestJCOMProfileURLs():
             'id="label_profession">Profession</label>',
         ]
         for fragment in fragments:
-            assert fragment in response
+            assert fragment in response.content.decode()
 
 
 class TestJCOMWIP:
     """Tests in `pytest`-style."""
 
-    @pytest.mark.skip(reason="WRITE ME!")
-    @pytest.mark.django_db
-    def test_fieldProfession_isMandatory(self):
+    def test_registrationForm_fieldProfession_isMandatory(self):
         """The field "profession" is mandatory in the registration form."""
-        assert False, "WRITE ME!"
+        form = JCOMRegistrationForm()
+        assert form.fields.get('profession').required
+
+    def test_profileForm_fieldProfession_isMandatory(self):
+        """The field "profession" is mandatory in the profile form."""
+        form = JCOMProfileForm()
+        assert form.fields.get('profession').required
 
     @pytest.mark.django_db
     def test_fieldProfession_label(self, userX):
