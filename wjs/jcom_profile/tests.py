@@ -1,59 +1,57 @@
 """Tests (first attempt)."""
 
 import pytest
-from django.test import TestCase
 from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
 from wjs.jcom_profile.models import JCOMProfile
-from django.test.client import RequestFactory
 from journal.tests.utils import make_test_journal
 from press.models import Press
 from django.test import Client
 
+USERNAME = 'userX'
 
-class JCOMProfileProfessionModelTests(TestCase):
 
-    def setUp(self):
-        """Do setup."""
-        self.username = 'userX'
-        self.drop_userX()
+def drop_userX():
+    """Delete the test user."""
+    try:
+        userX = Account.objects.get(username=USERNAME)
+    except ObjectDoesNotExist:
+        pass
+    else:
+        userX.delete()
 
-    # TODO: check
-    # https://docs.djangoproject.com/en/4.0/topics/testing/overview/#rollback-emulation
-    def drop_userX(self):
-        """
-        Remove "userX".
 
-        Because I'm expecting to re-use the same DB for multiple
-        tests.
-        """
-        try:
-            userX = Account.objects.get(username=self.username)
-        except ObjectDoesNotExist:
-            pass
-        else:
-            userX.delete()
+@pytest.fixture
+def userX():
+    """Create / reset a user in the DB.
 
-    def test_new_account_has_profession_but_it_is_not_set(self):
+    Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
+    """
+    # Delete the user (just in case...).
+    drop_userX()
+
+    userX = Account(username=USERNAME,
+                    first_name="User", last_name="Ics")
+    userX.save()
+    yield userX
+    drop_userX()
+
+
+class TestJCOMProfileProfessionModelTests:
+
+    @pytest.mark.django_db(transaction=True)
+    def test_new_account_has_profession_but_it_is_not_set(userX):
         """A newly created account must have a profession associated.
 
         However, the profession is not set by default.
         """
-        self.drop_userX()
-        userX = Account(username=self.username,
-                        first_name="User", last_name="Ics")
-        userX.save()
-        again = Account.objects.get(username=self.username)
-        self.assertEqual(again.username, self.username)
-        self.assertIsNone(again.jcomprofile.profession)
+        again = Account.objects.get(username=USERNAME)
+        assert again.username == USERNAME
+        assert again.jcomprofile.profession is None
 
-    def test_account_can_save_profession(self):
+    @pytest.mark.django_db
+    def test_account_can_save_profession(userX):
         """One can set and save a profession onto an account."""
-        self.drop_userX()
-        userX = Account(username=self.username,
-                        first_name="User", last_name="Ics")
-        userX.save()
-
         # Not sure if it would be cleaner to
         #    from .models import PROFESSIONS
         #    profession = PROFESSIONS[random.randint(0, len(PROFESSIONS))]
@@ -67,68 +65,53 @@ class JCOMProfileProfessionModelTests(TestCase):
         userX.accountprofession = jcom_profile
         userX.save()
 
-        again = Account.objects.get(username=self.username)
-        self.assertEqual(again.username, self.username)
-        self.assertEqual(again.jcomprofile.profession, profession_id)
+        again = Account.objects.get(username=USERNAME)
+        assert again.username == USERNAME
+        assert again.jcomprofile.profession == profession_id
 
 
 # TODO: test that django admin interface has an inline with the
 # profile extension. Do I really care?
 
-class JCOMProfileURLs(TestCase):
+JOURNAL_CODE = 'PIPPO'
 
-    def setUp(self):
-        """Prepare a journal with "JCOM" graphical theme."""
-        self.journal_code = 'PIPPO'
-        self.create_journal()
 
-    def tearDown(self):
-        """Clean up my mess (remove the test journal)."""
-        # I wanted to inspect the DB _before_ teardown,
-        # but the following does not work. I guess because pytest
-        # "swallows" the `set_trace()` in same magic way...
-        # import ipdb; ipdb.set_trace()
-        # self.press.delete()
+@pytest.fixture
+def journalPippo():
+    """Prepare a journal with "JCOM" graphical theme."""
+    # I need a "press" where the journal can live:
+    # (copied from journal.tests.test_models)
+    press = Press(domain="sitetestpress.org")
+    press.save()
+    journal_kwargs = dict(
+        code=JOURNAL_CODE,
+        domain="sitetest.org",
+        # journal_theme='JCOM',  # No!
+    )
+    journal = make_test_journal(**journal_kwargs)
+    yield journal
+    press.delete()
 
-    def create_journal(self):
-        """Create a press/journal and set the graphical theme."""
-        # copied from journal.tests.test_models
-        self.request_factory = RequestFactory()
-        self.press = Press(domain="sitetestpress.org")
-        self.press.save()
-        self.request_factory
-        journal_kwargs = dict(
-            code=self.journal_code,
-            domain="sitetest.org",
-            # journal_theme='JCOM',  # No!
-        )
-        self.journal = make_test_journal(**journal_kwargs)
+
+class TestJCOMProfileURLs():
 
     @pytest.mark.skip(reason="Package installed as app (not as plugin).")
-    def test_registerURL_points_to_plugin(self):
+    def test_registerURL_points_to_plugin(self, journalPippo):
         """The "register" link points to the plugin's registration form."""
         client = Client()
-        journal_path = f"/{self.journal_code}/"
+        journal_path = f"/{JOURNAL_CODE}/"
         response = client.get(journal_path)
         expected_register_link = \
-            f'/{self.journal_code}/plugins/register/step/1/"> Register'
+            f'/{JOURNAL_CODE}/plugins/register/step/1/"> Register'
         #                          ^^^^^^^
         # Attenzione allo spazio prima di "Register"!
         # In the case of an app, use the following:
-        #    f'/{self.journal_code}/register/step/1/"> Register'
+        #    f'/{JOURNAL_CODE}/register/step/1/"> Register'
         #                          ^_ no "/plugins" path
-        self.assertContains(response, expected_register_link)
+        assert expected_register_link in response
 
-    # I wanted to inspect the DB _before_ teardown,
-    # but the following does not work. When pytest's debug starts,
-    # teardown has already been called.
-    # def test_break(self):
-    #     """Debug."""
-    #     self.assertFalse(True)
-
-    # @pytest.mark.django_db(transaction=True)
     @pytest.mark.django_db
-    def test_registrationForm_has_fieldProfession(self):
+    def test_registrationForm_has_fieldProfession(self, journalPippo):
         """The field "profession" must appear in the registration form.
 
         The journal must use the JCOM graphical theme.
@@ -141,11 +124,11 @@ class JCOMProfileURLs(TestCase):
         setting_handler.save_setting(
             theme_setting.group.name,
             theme_setting.name,
-            self.journal,
+            journalPippo,
             theme)
 
         client = Client()
-        response = client.get(f"/{self.journal_code}/register/step/1/")
+        response = client.get(f"/{JOURNAL_CODE}/register/step/1/")
         fragments = [
             '<select name="profession" class="validate" required '
             'id="id_profession">',
@@ -154,52 +137,24 @@ class JCOMProfileURLs(TestCase):
             'id="label_profession">Profession</label>',
         ]
         for fragment in fragments:
-            self.assertContains(response, fragment)
-
-        # import psycopg2
-        # with psycopg2.connect(dbname='test_j2',
-        #                       user='janeway',
-        #                       password='pass',
-        #                       host='localhost') as connection:
-        #     cursor = connection.cursor()
-        #     x = cursor.execute("select * from press_press")
-        #     connection.commit()
-        #     y = cursor.execute("select * from journal_journal")
-        #     connection.commit()
-        #     self.assertFalse(True)
+            assert fragment in response
 
 
-    # def test_dummy(self):
-    #     import sys
-    #     sys.stdin.read(1)
-    #     self.assertFalse(True)
+class TestJCOMWIP:
+    """Tests in `pytest`-style."""
 
-class TestJCOMProve:
-    """Prove di DB maintenance."""
-
-    # def test_aaa(self):
-    #     """AAA."""
-    #     Account.objects.create(username="AAA",
-    #                            first_name="Afirst",
-    #                            last_name="Alast")
+    @pytest.mark.skip(reason="WRITE ME!")
+    @pytest.mark.django_db
+    def test_fieldProfession_isMandatory(self):
+        """The field "profession" is mandatory in the registration form."""
+        assert False, "WRITE ME!"
 
     @pytest.mark.django_db
-    def test_bbb(self):
-        """BBB."""
-        Account.objects.create(username="BBB",
-                               first_name="Bfirst",
-                               last_name="Blast")
-        import sys
-        sys.stdin.readline()
-        assert(False)
-
-
-    @pytest.mark.django_db(transaction=True)
-    def test_ccc(self):
-        """CCC."""
-        Account.objects.create(username="CCC",
-                               first_name="Cfirst",
-                               last_name="Clast")
-        import sys
-        sys.stdin.readline()
-        assert(False)
+    def test_fieldProfession_label(self, userX):
+        """The label of field "profession" must be "profession"."""
+        # TODO: what about translations?
+        # TODO: what about Uppercase?
+        profile = JCOMProfile.objects.get(id=userX.id)
+        field_label = profile._meta.get_field('profession').verbose_name
+        expected_label = "profession"
+        assert field_label == expected_label
