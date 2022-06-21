@@ -110,8 +110,22 @@ class TestJCOMProfileURLs():
         #                          ^_ no "/plugins" path
         assert expected_register_link in response.content.decode()
 
+    @pytest.mark.parametrize(
+        'theme,fragments',
+        [
+            ('clean',
+             ('<select name="profession" class="form-control" title="" required id="id_profession">',
+              '<label class="form-control-label" for="id_profession">Profession</label>')),
+            ('material',
+             ('<select name="profession" class="form-control" title="" required id="id_profession">',
+              '<label class="form-control-label" for="id_profession">Profession</label>',)),
+            ('OLH',
+             ('<select name="profession" class="form-control" title="" required id="id_profession">',
+              '<label class="form-control-label" for="id_profession">Profession</label>')),
+        ])
     @pytest.mark.django_db
-    def test_registrationForm_has_fieldProfession(self, journalPippo):
+    def test_registrationForm_has_fieldProfession(self, journalPippo,
+                                                  theme, fragments):
         """The field "profession" must appear in the registration form.
 
         The journal must use the JCOM graphical theme.
@@ -119,7 +133,6 @@ class TestJCOMProfileURLs():
         # Set graphical theme
         from core.models import Setting
         from utils import setting_handler
-        theme = 'JCOM'
         theme_setting = Setting.objects.get(name='journal_theme')
         setting_handler.save_setting(
             theme_setting.group.name,
@@ -129,13 +142,6 @@ class TestJCOMProfileURLs():
 
         client = Client()
         response = client.get(f"/{JOURNAL_CODE}/register/step/1/")
-        fragments = [
-            '<select name="profession" class="validate" required '
-            'id="id_profession">',
-            #
-            '<label for="id_profession" data-error="" data-success="" '
-            'id="label_profession">Profession</label>',
-        ]
         for fragment in fragments:
             assert fragment in response.content.decode()
 
