@@ -6,8 +6,10 @@ from django.core.exceptions import ObjectDoesNotExist
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
 from journal.tests.utils import make_test_journal
+from utils.testing import helpers
 from press.models import Press
 from django.test import Client
+from django.urls import reverse
 
 USERNAME = 'userX'
 
@@ -77,12 +79,19 @@ JOURNAL_CODE = 'PIPPO'
 
 
 @pytest.fixture
-def journalPippo():
-    """Prepare a journal with "JCOM" graphical theme."""
-    # I need a "press" where the journal can live:
-    # (copied from journal.tests.test_models)
+def press():
+    """Prepare a press."""
+    # Copied from journal.tests.test_models
     press = Press(domain="sitetestpress.org")
     press.save()
+    yield press
+    press.delete()
+
+
+@pytest.fixture
+def journalPippo(press):
+    """Prepare a journal."""
+    # The  graphical theme is set by the single tests.
     journal_kwargs = dict(
         code=JOURNAL_CODE,
         domain="sitetest.org",
@@ -90,7 +99,7 @@ def journalPippo():
     )
     journal = make_test_journal(**journal_kwargs)
     yield journal
-    press.delete()
+    journal.delete()
 
 
 class TestJCOMProfileURLs():
@@ -110,27 +119,39 @@ class TestJCOMProfileURLs():
         #                          ^_ no "/plugins" path
         assert expected_register_link in response.content.decode()
 
+    PROFESSION_SELECT_FRAGMENTS = [
+        (
+            "clean",
+            (
+                '<select name="profession" class="form-control" title="" required id="id_profession">',
+                '<label class="form-control-label" for="id_profession">Profession</label>',
+            ),
+        ),
+        (
+            "material",
+            (
+                '<select name="profession" class="form-control" title="" required id="id_profession">',
+                '<label class="form-control-label" for="id_profession">Profession</label>',
+            ),
+        ),
+        (
+            "OLH",
+            (
+                '<select name="profession" class="form-control" title="" required id="id_profession">',
+                '<label class="form-control-label" for="id_profession">Profession</label>',
+            ),
+        ),
+    ]
+
     @pytest.mark.parametrize(
         'theme,fragments',
-        [
-            ('clean',
-             ('<select name="profession" class="form-control" title="" required id="id_profession">',
-              '<label class="form-control-label" for="id_profession">Profession</label>')),
-            ('material',
-             ('<select name="profession" class="form-control" title="" required id="id_profession">',
-              '<label class="form-control-label" for="id_profession">Profession</label>',)),
-            ('OLH',
-             ('<select name="profession" class="form-control" title="" required id="id_profession">',
-              '<label class="form-control-label" for="id_profession">Profession</label>')),
-        ])
+        PROFESSION_SELECT_FRAGMENTS)
     @pytest.mark.django_db
-    def test_registrationForm_has_fieldProfession(self, journalPippo,
-                                                  theme, fragments):
-        """The field "profession" must appear in the registration form.
-
-        The journal must use the JCOM graphical theme.
-        """
-        # Set graphical theme
+    def test_journalregistrationForm_has_fieldProfession(self, journalPippo,
+                                                         theme, fragments):
+        """The field "profession" must appear in the journal registration form."""
+        # Set graphical theme.
+        # Do not use `journal.theme`: it has been deprecated!
         from core.models import Setting
         from utils import setting_handler
         theme_setting = Setting.objects.get(name='journal_theme')
@@ -142,6 +163,22 @@ class TestJCOMProfileURLs():
 
         client = Client()
         response = client.get(f"/{JOURNAL_CODE}/register/step/1/")
+        for fragment in fragments:
+            assert fragment in response.content.decode()
+
+    @pytest.mark.parametrize(
+        'theme,fragments',
+        PROFESSION_SELECT_FRAGMENTS)
+    @pytest.mark.django_db
+    def test_pressregistrationForm_has_fieldProfession(self, press,
+                                                       theme, fragments):
+        """The field "profession" must appear in the press registration form."""
+        # Set graphical theme
+        press.theme = theme
+        press.save()
+
+        client = Client()
+        response = client.get(reverse("core_register"))
         for fragment in fragments:
             assert fragment in response.content.decode()
 
