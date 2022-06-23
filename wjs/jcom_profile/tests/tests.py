@@ -198,7 +198,7 @@ class TestJCOMProfileURLs:
         press.save()
 
         client = Client()
-        response = client.get(reverse("core_register"))
+        response = client.get("/register/step/1/")
         for fragment in fragments:
             assert fragment in response.content.decode()
 
