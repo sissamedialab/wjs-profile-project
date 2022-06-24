@@ -10,7 +10,7 @@ from journal.tests.utils import make_test_journal
 # from utils.testing import helpers
 from press.models import Press
 from django.test import Client
-from django.urls import reverse
+from django.urls import reverse, clear_script_prefix
 
 USERNAME = "userX"
 
@@ -98,12 +98,26 @@ def journalPippo(press):
     )
     journal = make_test_journal(**journal_kwargs)
     yield journal
+    # probably redundant because of django db transactions rollbacks
     journal.delete()
+
+
+@pytest.fixture
+def clear_script_prefix_fix():
+    """Clear django's script prefix at the end of the test.
+
+    Otherwise `reverse()` might produce unexpected results.
+
+    This fixture clears the script prefix before and after the test.
+    """
+    clear_script_prefix()
+    yield None
+    clear_script_prefix()
 
 
 class TestJCOMProfileURLs:
     @pytest.mark.skip(reason="Package installed as app (not as plugin).")
-    def test_registerURL_points_to_plugin(self, journalPippo):
+    def test_registerURL_points_to_plugin(self, journalPippo, clear_script_prefix_fix):
         """The "register" link points to the plugin's registration form."""
         client = Client()
         journal_path = f"/{JOURNAL_CODE}/"
@@ -168,7 +182,7 @@ class TestJCOMProfileURLs:
     @pytest.mark.parametrize("theme,fragments", PROFESSION_SELECT_FRAGMENTS_JOURNAL)
     @pytest.mark.django_db
     def test_journalregistrationForm_has_fieldProfession(
-        self, journalPippo, theme, fragments
+        self, journalPippo, theme, fragments, clear_script_prefix_fix
     ):
         """The field "profession" must appear in the journal registration form."""
         # Set graphical theme.
@@ -186,9 +200,6 @@ class TestJCOMProfileURLs:
         for fragment in fragments:
             assert fragment in response.content.decode()
 
-    # @override_settings(URL_CONFIG="path")
-    # @override_settings(URL_CONFIG="domain", CAPTCHA_TYPE=None)
-    # @override_settings(DEFAULT_HOST="http://testserver")
     @pytest.mark.parametrize("theme,fragments", PROFESSION_SELECT_FRAGMENTS_PRESS)
     @pytest.mark.django_db
     def test_pressregistrationForm_has_fieldProfession(self, press, theme, fragments):
@@ -226,3 +237,30 @@ class TestJCOMWIP:
         field_label = profile._meta.get_field("profession").verbose_name
         expected_label = "profession"
         assert field_label == expected_label
+
+
+# Historical
+# ==========
+#
+# Tengo questi pezzetti ad imperitura memoria della sofferenza
+# causatami dalla gestione di django dello "script_prefix" tra una
+# request e l'altra.
+#
+# class TestProva:
+#     """Prova ad usare o non usare `journalPippo`."""
+
+#     @pytest.mark.django_db
+#     def test_confixture(self, journalPippo):
+#         """This test uses the journal fixture."""
+#         assert reverse('core_register') == '/register/step/1/'
+#         client = Client()
+#         response = client.get(f"/{journalPippo.code}/register/step/1/")
+#         assert response.status_code == 200
+
+# class TestProvaBis:
+#     """Prova ad usare o non usare `journalPippo`."""
+
+#     def test_senzafixture(self):
+#         """This test does NOT use the journal fixture."""
+#         clear_script_prefix()
+#         assert reverse('core_register') == '/register/step/1/'
