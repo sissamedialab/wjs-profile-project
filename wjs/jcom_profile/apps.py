@@ -1,7 +1,7 @@
 """Configure this application."""
 # https://docs.djangoproject.com/en/4.0/ref/applications/
 from django.apps import AppConfig
-import logging
+# import logging
 
 
 class JCOMProfileConfig(AppConfig):
@@ -16,7 +16,7 @@ class JCOMProfileConfig(AppConfig):
         from wjs.jcom_profile import signals
         from wjs.jcom_profile import urls
 
-        logging.warning("✨CALLED")
+        # logging.warning("✨CALLED")
         self.register_hooks()
 
     def register_hooks(self):
