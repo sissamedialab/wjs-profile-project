@@ -78,6 +78,8 @@ class UserCod(models.Model):
     )
     source = models.IntegerField(choices=sources)
 
+    note = models.TextField(blank=True, null=True)
+
     class Meta:
         """Model's Meta."""
 
