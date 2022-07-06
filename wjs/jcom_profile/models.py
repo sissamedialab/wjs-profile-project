@@ -1,6 +1,8 @@
 """The model for a field "profession" for JCOM authors."""
 
 from django.db import models
+from django.contrib.postgres.fields import JSONField
+from django.core.serializers.json import DjangoJSONEncoder
 from core.models import Account
 from core.models import AccountManager
 
@@ -43,7 +45,7 @@ class JCOMProfile(Account):
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
 
 
-class UserCod(models.Model):
+class Correspondence(models.Model):
     """Storage area for wjapp, PoS, SGP,... userCods."""
 
     # TODO: drop pk and use the three fields as pk
@@ -51,34 +53,24 @@ class UserCod(models.Model):
     account = models.ForeignKey(
         to=Account, on_delete=models.CASCADE, related_name="usercods"
     )
-    userCod = models.CharField(max_length=100)
+    userCod = models.PositiveIntegerField()
 
     # django >= 3.0
     # class Sources(models.IntegerChoices):
-    #     """Source of the userCod."""
-    #     jhep = 0
-    #     pos = 1
-    #     jcap = 2
-    #     jinst = 3
-    #     jstat = 4
-    #     jcom = 5
-    #     jcomal = 6
-    #     sgp = 7
-    # source = models.IntegerField(choices=Sources.choices)
-
     sources = (
-        (0, "jhep"),
-        (1, "pos"),
-        (2, "jcap"),
-        (3, "jinst"),
-        (4, "jstat"),
-        (5, "jcom"),
-        (6, "jcomal"),
-        (7, "sgp"),
+        ("jhep", "jhep"),
+        ("pos", "pos"),
+        ("jcap", "jcap"),
+        ("jstat", "jstat"),
+        ("jinst", "jinst"),
+        ("jcom", "jcom"),
+        ("jcomal", "jcomal"),
+        ("sgp", "sgp"),
     )
-    source = models.IntegerField(choices=sources)
-
-    note = models.TextField(blank=True, null=True)
+    source = models.CharField(max_length=6, choices=sources)
+    notes = JSONField(blank=True, null=True, encoder=DjangoJSONEncoder)
+    email = models.EmailField(blank=True, null=True)
+    used = models.BooleanField(blank=True, null=False, default=False)
 
     class Meta:
         """Model's Meta."""
