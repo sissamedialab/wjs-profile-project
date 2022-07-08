@@ -70,6 +70,7 @@ class Correspondence(models.Model):
     source = models.CharField(max_length=6, choices=sources)
     notes = JSONField(blank=True, null=True, encoder=DjangoJSONEncoder)
     email = models.EmailField(blank=True, null=True)
+    orcid = models.CharField(max_length=40, null=True, blank=True)
     used = models.BooleanField(blank=True, null=False, default=False)
 
     class Meta:
