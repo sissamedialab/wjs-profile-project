@@ -6,6 +6,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 from core.models import Account
 from core.models import AccountManager
 
+from django.utils.translation import ugettext_lazy as _
+
 # TODO: use settings.AUTH_USER_MODEL
 # from django.conf import settings
 
@@ -23,7 +25,6 @@ PROFESSIONS = (
     (2, "An active scientist"),
     (3, "Other"),
 )
-
 
 class JCOMProfile(Account):
     """An enrichment of Janeway's Account."""
@@ -43,6 +44,7 @@ class JCOMProfile(Account):
     # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
     # have this data for most of our existing users.
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
+    gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
 
 
 class Correspondence(models.Model):

@@ -15,3 +15,5 @@ scaffold
 # build dirs
 build
 dist
+
+.idea
