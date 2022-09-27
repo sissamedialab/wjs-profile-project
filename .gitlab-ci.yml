@@ -24,8 +24,8 @@ stages:
 
 build-job:
   stage: build
-  rules:
-     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+  only:
+    - tags
   script:
     - python setup.py sdist bdist_wheel
     - pip install twine
