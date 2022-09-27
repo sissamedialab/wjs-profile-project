@@ -1,32 +1,5 @@
-"""Do not cleanup / use a read only database."""
-
-# You can replace the ordinary django_db_setup to completely avoid
-# database creation/migrations. If you have no need for rollbacks or
-# truncating tables, you can simply avoid blocking the database and
-# use it directly. When using this method you must ensure that your
-# tests do not change the database state.
-
-# https://pytest-django.readthedocs.io/en/latest/database.html
-
-
-# @pytest.fixture(scope='session')
-# def django_db_setup():
-#     """Avoid creating/setting up the test database."""
-#     pass
-
-
-# @pytest.fixture
-# def db_access_without_rollback_and_truncate(
-#         request,
-#         django_db_setup, django_db_blocker):
-#     """Do not clean the DB."""
-#     django_db_blocker.unblock()
-#     request.addfinalizer(django_db_blocker.restore)
+"""pytest common stuff and fixtures."""
 import pytest
-from django.core.exceptions import ObjectDoesNotExist
-from django.urls import clear_script_prefix
-
-from core.models import Account
 from journal.tests.utils import make_test_journal
 from press.models import Press
 
@@ -101,7 +74,7 @@ PROFESSION_SELECT_FRAGMENTS_PRESS = [
             <label for="id_profession">
                 Profession
                 <span class="red">*</span>
-                
+
             </label>
             """
         ),
@@ -130,15 +103,23 @@ def user():
     user.save()
     yield user
 
+# Only works at module "resolution", i.e. not for the single test
+# https://docs.pytest.org/en/7.1.x/reference/reference.html#globalvar-collect_ignore
+# collect_ignore = [
+#     'test_app.py',
+# ]
+
 
 @pytest.fixture
 def press():
     """Prepare a press."""
     # Copied from journal.tests.test_models
-    press = Press.objects.create(domain="testserver", is_secure=False, name="Medialab")
-    press.save()
-    yield press
-    press.delete()
+    apress = Press.objects.create(
+        domain="testserver", is_secure=False, name="Medialab"
+    )
+    apress.save()
+    yield apress
+    apress.delete()
 
 
 @pytest.fixture
