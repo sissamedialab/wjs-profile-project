@@ -1,0 +1,6 @@
+{% if activated %}
+    <h2>Thank for your acceptance, we will send an email to you to set your password</h2>
+{% else %}
+    <h2> Your account is already active.</h2>
+    <p>Please, go to <a href="{% url "core_login" %}">login page</a>.</p>
+{% endif %}

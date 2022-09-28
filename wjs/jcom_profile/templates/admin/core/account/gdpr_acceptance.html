@@ -1,0 +1,10 @@
+{% if error %}
+    <p>The account does not exist.</p>
+{% else %}
+    <h1>Ciao {{ first_name }} {{ last_name }}!</h1>
+    <form action="" method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input type="submit" class="default" value="{% trans "Accept invitation" %}"/>
+    </form>
+{% endif %}
