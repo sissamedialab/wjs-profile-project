@@ -13,6 +13,14 @@ from django.urls import reverse
 from django.utils.functional import lazy
 
 
+class GDPRAcceptanceForm(forms.Form):
+    """
+    A GDPR form, consisting in a checkbox. It is sued by JCOMRegistrationForm to let user explicitly
+    accept the GDPR Policy.
+    """
+    gdpr_checkbox = forms.BooleanField(initial=False, required=True)
+
+
 class JCOMProfileForm(EditAccountForm):
     """Additional fields of the JCOM profile."""
 
@@ -24,7 +32,7 @@ class JCOMProfileForm(EditAccountForm):
                    'is_superuser', 'janeway_account')
 
 
-class JCOMRegistrationForm(ModelForm, CaptchaForm):
+class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
     """A form that creates a user.
 
     With no privileges, from the given username and password.
@@ -66,3 +74,15 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm):
             user.save()
 
         return user
+
+
+class InviteUserForm(forms.Form):
+    """
+    The form used from staff to invite external users to join a journal for review activities.
+    """
+    first_name = forms.CharField()
+    last_name = forms.CharField()
+    email = forms.EmailField()
+    institution = forms.CharField()
+    department = forms.CharField()
+    message = forms.CharField(widget=forms.Textarea)

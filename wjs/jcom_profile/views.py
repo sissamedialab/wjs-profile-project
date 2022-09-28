@@ -1,6 +1,9 @@
 """My views. Looking for a way to "enrich" Janeway's `edit_profile`."""
+import base64
+import json
 
 from django.urls import reverse
+from django.conf import settings
 from django.contrib import messages
 from django.db import IntegrityError
 from django.shortcuts import render, redirect
@@ -8,10 +11,12 @@ from django.shortcuts import get_object_or_404
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
+from django.core.mail import send_mail
 
 from core import logic
 from core import models as core_models
 
+from wjs.jcom_profile import forms
 from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
 
@@ -139,5 +144,55 @@ def register(request):
     context = {
         'form': form,
     }
+
+    return render(request, template, context)
+
+
+def confirm_gdpr_acceptance(request, token):
+    """
+    The view for explicit GDPR acceptance for invited users.
+    The token encodes base user information (name, surname and email)
+    """
+    template = "admin/core/account/gdpr_acceptance.html"
+
+    # verify the account existence
+    try:
+        account = JCOMProfile.objects.get(invitation_token=token)
+    except JCOMProfile.DoesNotExist:
+        context = {"error": True}
+        return render(request, template, context, status=404)
+
+    context = {
+        "first_name": account.first_name,
+        "last_name": account.last_name,
+        "form": forms.GDPRAcceptanceForm(),
+    }
+    if request.POST:
+        form = forms.GDPRAcceptanceForm(request.POST)
+        if form.is_valid():
+            template = "admin/core/account/thankyou.html"
+            # if the form is valid and the existing account does not have the GDPR policy accepted, it is updated
+            if not account.gdpr_checkbox:
+                account.is_active = True
+                account.gdpr_checkbox = True
+                account.invitation_token = ""
+                account.save()
+                context["activated"] = True
+                # Generate a temporary token to set a brand-new password
+                core_models.PasswordResetToken.objects.filter(account=account).update(expired=True)
+                reset_token = core_models.PasswordResetToken.objects.create(account=account)
+                reset_psw_url = request.build_absolute_uri(
+                    reverse("core_reset_password", kwargs={"token": reset_token.token}))
+                # Send email.
+                # FIXME: Email setting should be handled using the janeway settings framework.
+                # See https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/4
+                send_mail(
+                    settings.RESET_PASSWORD_SUBJECT,
+                    settings.RESET_PASSWORD_BODY.format(account.first_name, account.last_name, reset_psw_url),
+                    settings.DEFAULT_FROM_EMAIL,
+                    [account.email]
+                )
+        else:
+            context["form"] = form
 
     return render(request, template, context)
