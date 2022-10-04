@@ -76,3 +76,25 @@ def test_shy_user_cannot_navigate_bis(journal, client):
 
     response = client.get("/contact/")
     assert response.status_code == 302
+
+
+@pytest.mark.django_db
+def test_middleware_honors_settings(journal, client, settings):
+    """Test that the middleware lets shy user navigate configured URLs."""
+    shy_user = Account.objects.get_or_create(username="testuser")[0]
+    shy_user.is_active = True
+    shy_user.jcomprofile.gdpr_checkbox = False
+    shy_user.jcomprofile.save()
+    shy_user.save()
+    client.force_login(shy_user)
+
+    settings.CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = ["/profile/", "/logout/"]
+    response = client.get("/profile/")
+    assert response.status_code == 200
+    response = client.get("/contact/")
+    assert response.status_code == 302
+    settings.CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = ["/contact/", ]
+    response = client.get("/profile/")
+    assert response.status_code == 302
+    response = client.get("/contact/")
+    assert response.status_code == 200
