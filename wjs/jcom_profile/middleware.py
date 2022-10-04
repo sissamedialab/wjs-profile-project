@@ -1,6 +1,7 @@
 """Middleware for JCOM account profile."""
 from django.contrib import messages
 from django.shortcuts import redirect, reverse
+
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,8 +34,11 @@ class PrivacyAcknowledgedMiddleware:
         #     "core_edit_profile",
         #     "core_logout",
         # ):
-        if request.path.endswith("/logout/") or request.path.endswith(
-            "/profile/"
+        logger.debug("request.path: %s", request.path)
+        if (
+            request.path.endswith("/logout/")
+            or request.path.endswith("/profile/")
+            or request.path.startswith("/admin/")
         ):
             return None
 
