@@ -1,11 +1,12 @@
 """pytest common stuff and fixtures."""
 import pytest
+from core.models import Account
+from django.core.exceptions import ObjectDoesNotExist
+from django.urls.base import clear_script_prefix
 from journal.tests.utils import make_test_journal
 from press.models import Press
-
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
-
 
 USERNAME = "user"
 JOURNAL_CODE = "CODE"
@@ -22,14 +23,14 @@ PROFESSION_SELECT_FRAGMENTS_JOURNAL = [
         "material",
         (
             '<select name="profession" required id="id_profession">',
-            '<label>Profession</label>',
+            "<label>Profession</label>",
         ),
     ),
     (
         "OLH",
         (
             '<select name="profession" required id="id_profession">',
-            '<label for="id_profession">'
+            '<label for="id_profession">',
         ),
     ),
 ]
@@ -67,7 +68,7 @@ PROFESSION_SELECT_FRAGMENTS_PRESS = [
         "material",
         (
             '<select name="profession" required id="id_profession">',
-            '<label>Profession</label>',
+            "<label>Profession</label>",
         ),
     ),
     (
@@ -80,7 +81,7 @@ PROFESSION_SELECT_FRAGMENTS_PRESS = [
                 <span class="red">*</span>
 
             </label>
-            """
+            """,
         ),
     ),
 ]
@@ -102,13 +103,21 @@ def drop_user():
 
 @pytest.fixture
 def admin():
-    return Account.objects.create(username="admin", email="admin@admin.it", is_active=True, is_staff=True,
-                                  is_admin=True, is_superuser=True)
+    """Create admin user."""
+    return Account.objects.create(
+        username="admin",
+        email="admin@admin.it",
+        is_active=True,
+        is_staff=True,
+        is_admin=True,
+        is_superuser=True,
+    )
 
 
 @pytest.fixture
 def user():
     """Create / reset a user in the DB.
+
     Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
     """
     # Delete the test user (just in case...).
@@ -116,6 +125,7 @@ def user():
     user = Account(username=USERNAME, first_name="User", last_name="Ics")
     user.save()
     yield user
+
 
 # Only works at module "resolution", i.e. not for the single test
 # https://docs.pytest.org/en/7.1.x/reference/reference.html#globalvar-collect_ignore
@@ -126,9 +136,7 @@ def user():
 
 @pytest.fixture()
 def invited_user():
-    """
-    Create an user invited by staff, with minimal data
-    """
+    """Create an user invited by staff, with minimal data."""
     email = "invited_user@mail.it"
     return JCOMProfile.objects.create(
         first_name="Invited",
@@ -138,7 +146,7 @@ def invited_user():
         institution="1",
         is_active=False,
         gdpr_checkbox=False,
-        invitation_token=generate_token(email)
+        invitation_token=generate_token(email),
     )
 
 
