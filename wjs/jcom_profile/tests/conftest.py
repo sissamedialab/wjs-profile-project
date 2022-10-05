@@ -75,13 +75,9 @@ PROFESSION_SELECT_FRAGMENTS_PRESS = [
         "OLH",
         (
             '<select name="profession" required id="id_profession">',
-            """
-            <label for="id_profession">
+            """<label for="id_profession">
                 Profession
-                <span class="red">*</span>
-
-            </label>
-            """,
+                <span class="red">*</span>""",
         ),
     ),
 ]
