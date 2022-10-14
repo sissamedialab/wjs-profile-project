@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:13.8
+    restart: always
+    # Must match with test_settings.DATABASES
+    environment:
+      - POSTGRES_USER=janeway
+      - POSTGRES_PASSWORD=janeway
+      - POSTGRES_DB=janeway
+    # NB: db runs on 5432 (postgres's default) and service "janeway" sees it there
+    #     the port 2345 is exposed to the HOST, not to other services!
+    ports:
+      - '2345:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
+
+    # Must set user (-U) or get `FATAL: role "postgres" does not
+    # exist` (or role "root")
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U janeway"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+
+  janeway:
+    build: ./
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+volumes:
+  db:
+    driver: local
