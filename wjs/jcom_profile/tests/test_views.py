@@ -125,3 +125,22 @@ def test_gdpr_acceptance_for_non_existing_user(admin, journal):
     response = client.get(url)
     assert response.status_code == 404
     assert response.context.get("error")
+
+
+@pytest.mark.django_db
+def test_email_are_sent_to_author_and_coauthors_after_article_submission_(admin, article, coauthors_setting):
+    client = Client()
+    client.force_login(admin)
+    url = reverse("submit_review", args=(article.pk,))
+    coauthors_email = list(
+        article.authors.exclude(email=article.correspondence_author.email).values_list("email", flat=True))
+
+    response = client.post(url, data={"next_step": "next_step"})
+    assert response.status_code == 302
+    assert len(mail.outbox) == article.authors.count()
+
+    for m in mail.outbox:
+        if m.subject == f"[{article.journal.code}] Coauthor - Article Submission":
+            assert m.to == coauthors_email
+        else:
+            assert m.to == [article.correspondence_author.email]

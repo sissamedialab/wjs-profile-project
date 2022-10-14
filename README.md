@@ -20,9 +20,20 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
 1. Activate your Janeway's virtual environment and install in development mode:
    `pip install -e .../wjs-profile-project`
 
-1. Migrations should be run specifying the sub-package name:
+2. Migrations should be run specifying the sub-package name:
    `./manage.py migrate jcom_profile`
+3. From `janeway/src`, run the following command:
 
+   ```
+   python manage.py run_customizations
+   ```
+   It will add all our customization to Janeway project.
+
+### Available customization commands
+| command                                   | arguments | description                                                      |
+|-------------------------------------------|-----------|------------------------------------------------------------------|
+| `add_coauthors_submission_email_settings` | -         | Add email settings to notify coauthors after article submission. |
+| `run_customizations`                      | -         | Run all customization commands to Janeway.                       |
 
 ### TODO: (aka "not yet implemented"...)
 
