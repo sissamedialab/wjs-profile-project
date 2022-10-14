@@ -6,8 +6,6 @@ from django.urls.base import clear_script_prefix
 from django.utils import translation
 from django.core import management
 
-
-
 from core.models import Account
 from wjs.jcom_profile.models import JCOMProfile
 from submission.models import Article
@@ -17,7 +15,6 @@ from submission import models as submission_models
 
 from utils.install import update_xsl_files, update_settings, update_issue_types
 from journal import models as journal_models
-
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
@@ -130,11 +127,13 @@ def admin():
 @pytest.fixture
 def coauthor():
     """Create coauthor user."""
-    return Account.objects.create(
+    return JCOMProfile.objects.create(
         username="coauthor",
         email="coauthor@coauthor.it",
         first_name="Coauthor",
         last_name="Coauthor",
+        is_active=True,
+        gdpr_checkbox=True
     )
 
 
