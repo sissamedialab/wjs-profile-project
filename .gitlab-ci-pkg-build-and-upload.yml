@@ -1,0 +1,22 @@
+# Build this python package
+# and upload it to our package registry/repo.
+.upload-package:
+
+  stage: build
+
+  variables:
+    # CI_API_V4_URL: The GitLab API v4 root URL.
+    # CI_PROJECT_ID: The ID of the current project.
+
+    # Project 60 is *OMlPI*
+    # Open Medialab Package Index - a public repository of software for our packages
+    PACKAGE_REGISTRY_PROJECT_ID: 60
+
+    TWINE_PASSWORD: ${CI_JOB_TOKEN}
+    TWINE_USERNAME: "gitlab-ci-token"
+
+  script:
+    - python setup.py sdist bdist_wheel
+    - pip install twine
+    - python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${PACKAGE_REGISTRY_PROJECT_ID}/packages/pypi dist/*
+    - echo "Package successfully published."

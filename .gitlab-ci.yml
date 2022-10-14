@@ -1,33 +1,56 @@
-# Build this django app as a python package
-# and upload it to our package registry/repo.
-#
-# See also https://gitlab.sissamedialab.it/wjs/wjs-utils-project/-/blob/master/.gitlab-ci.yml
-
 default:
-  image: python
+  image: python:3.9
+  # Default runner tag
+  tags:
+    - inasset
 
 variables:
-  # CI_API_V4_URL: The GitLab API v4 root URL.
-  # CI_PROJECT_ID: The ID of the current project.
-
-  # Project 60 is *OMlPI*
-  # Open Medialab Package Index - a public repository of software for our packages
-  PACKAGE_REGISTRY_PROJECT_ID: 60
-
-  TWINE_PASSWORD: ${CI_JOB_TOKEN}
-  TWINE_USERNAME: "gitlab-ci-token"
+  PACKAGE_NAME: 'wjs.jcom_profile'
 
 # Not running any tests (at the moment), because they require a
 # working installation of Janeway, with this django app installed.
 stages:
+  - test
   - build
+  - deploy
 
-build-job:
-  stage: build
+
+include:
+  - project: 'wjs/wjs-profile-project'
+    ref: master
+    file: '.gitlab-ci-pkg-build-and-upload.yml'
+  - project: 'wjs/wjs-profile-project'
+    ref: master
+    file: '.gitlab-ci-pkg-deploy-to-test.yml'
+  - project: 'wjs/wjs-profile-project'
+    ref: master
+    file: '.gitlab-ci-run-tests.yml'
+
+
+run-tests:
+  # Always run tests, except for tags, which have tests already run on
+  # them when the commit is made.
+  except:
+    - tags
+
+  extends:
+    - .run-tests
+
+upload-package:
   only:
     - tags
-  script:
-    - python setup.py sdist bdist_wheel
-    - pip install twine
-    - python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${PACKAGE_REGISTRY_PROJECT_ID}/packages/pypi dist/*
-    - echo "Package successfully published."
+
+  extends:
+    - .upload-package
+
+deploy-to-test:
+  only:
+    - tags
+
+  extends:
+    - .deploy-to-test
+
+  # Deploy basically means `pip install`, so the package must already
+  # be in the package registry.
+  needs:
+    - upload-package

@@ -17,3 +17,6 @@ build
 dist
 
 .idea
+
+# sensitive variables
+.env

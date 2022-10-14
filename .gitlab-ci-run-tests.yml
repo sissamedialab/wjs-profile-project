@@ -1,0 +1,30 @@
+.run-tests:
+  stage: test
+
+  image: registry.gitlab.sissamedialab.it/wjs/wjs-profile-project/debian-python-git-janeway
+
+  # TODO: Must match with test_settings.DATABASES
+  variables:
+    POSTGRES_USER: janeway
+    POSTGRES_PASSWORD: janeway
+    POSTGRES_DB: janeway
+    DJANGO_SETTINGS_MODULE: core.test_settings
+    # Use the following after force-pushes:
+    GIT_STRATEGY: clone
+    # see e.g.:
+    # - https://docs.gitlab.com/ee/ci/runners/configure_runners.html#git-strategy
+    # - https://stackoverflow.com/a/66519431/1581629
+
+  services:
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
+      alias: db
+
+  script:
+    - cp test_settings.py /janeway/src/core
+    - pip install ./[test]
+    - cd /janeway/src
+    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -x
+
+
+# lintme:
+#   extends: .run-tests
