@@ -1,0 +1,128 @@
+{% extends "admin/core/base.html" %}
+{% load static from staticfiles %}
+{% load i18n %}
+
+{% block title-section %}{% trans "Upload files" %}{% endblock %}
+{% block css %}
+    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet">{% endblock %}
+
+{% block body %}
+
+    <article class="box">
+        <div class="row expanded">
+            {% if error %}
+                <p>**{{ error }}**</p>
+            {% endif %}
+            {% csrf_token %}
+            {% include "submission/timeline.html" with data=article %}
+        </div>
+
+        <div class="row expanded">
+            <div class="large-12 columns">
+
+                {{ journal_settings.general.file_submission_guidelines|safe }}
+
+                <div class="title-area">
+                    <h2>{{ request.journal.submissionconfiguration.submission_file_text }}</h2>
+                </div>
+                <div class="row expanded">
+                    <div class="large-3 columns">
+                        <form method="POST" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <a href="#" data-open="manuscript" class="button success" name="data">
+                              <i class="fa fa-upload">&nbsp;</i>{% trans "Upload" %}
+                            </a>
+                        </form>
+                    </div>
+                    <div class="large-9 columns col-md-offset-1">
+                        <table class="scroll small">
+                            <tr>
+                                <th>{% trans "Label" %}</th>
+                                <th>{% trans "File Name" %}</th>
+                                <th></th>
+                            </tr>
+                            <form method="POST">
+                                {% csrf_token %}
+
+                                {% for file in article.manuscript_files.all %}
+                                    <tr>
+                                        <td>{{ file.label }}</td>
+                                        <td>{{ file }}</td>
+                                        <td>
+                                            <button name="delete" type="submit" value="{{ file.pk }}">
+                                              <i class="fa fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3">{% trans "No files uploaded" %}</td>
+                                    </tr>
+                                {% endfor %}
+                            </form>
+                        </table>
+                    </div>
+                </div>
+
+                {% if request.journal.submissionconfiguration.figures_data %}
+                    <div class="title-area">
+                      {{ journal_settings.styling.submission_figures_data_title|safe }}
+                    </div>
+                    <div class="row expanded">
+                        <div class="large-3 columns">
+                            <a href="#" data-open="data" class="button success" name="data"><i class="fa fa-upload">
+                                &nbsp;</i>{% trans "Upload" %}
+                            </a>
+                        </div>
+                        <div class="large-9 columns col-md-offset-1">
+                            <table class="scroll small">
+                                <tr>
+                                    <th>{% trans "Label" %}</th>
+                                    <th>{% trans "File Name" %}</th>
+                                    <th></th>
+                                </tr>
+                                <form method="POST">
+                                    {% csrf_token %}
+                                    {% for file in article.data_figure_files.all %}
+                                        <tr>
+                                            <td>{{ file.label }}</td>
+                                            <td>{{ file }}</td>
+                                            <td>
+                                                <button name="delete" type="submit" value="{{ file.pk }}"><i
+                                                        class="fa fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="3">{% trans "No files uploaded" %}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </form>
+                            </table>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+
+            <div class="large-12 columns">
+                <form method="POST">
+                    {% csrf_token %}
+                    <button class="button success pull-right" type="submit" name="next_step"><i class="fa fa-check">
+                        &nbsp;</i>{% trans "Save and Continue" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </article>
+
+    {% include "admin/elements/submit/file.html" with modaltype="manuscript" %}
+    {% include "admin/elements/submit/file.html" with modaltype="data" %}
+
+{% endblock body %}
+
+{% block js %}
+    {% if modal %}
+        {% include "admin/elements/open_modal.html" with target=modal %}
+    {% endif %}
+{% endblock %}
