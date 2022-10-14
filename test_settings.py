@@ -161,4 +161,10 @@ RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}
 """
 
+TEMPLATES[0]["OPTIONS"]["loaders"] = [
+    "django.template.loaders.app_directories.Loader",
+    "utils.template_override_middleware.Loader",
+    "django.template.loaders.filesystem.Loader",
+]
+
 print("🍠")
