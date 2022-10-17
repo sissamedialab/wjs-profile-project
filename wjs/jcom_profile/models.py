@@ -1,12 +1,11 @@
 """The model for a field "profession" for JCOM authors."""
 
-from django.db import models
+from core.models import Account, AccountManager
 from django.contrib.postgres.fields import JSONField
 from django.core.serializers.json import DjangoJSONEncoder
-from core.models import Account
-from core.models import AccountManager
-
+from django.db import models
 from django.utils.translation import ugettext_lazy as _
+from submission.models import Article
 
 # TODO: use settings.AUTH_USER_MODEL
 # from django.conf import settings
@@ -26,6 +25,7 @@ PROFESSIONS = (
     (3, "Other"),
 )
 
+
 class JCOMProfile(Account):
     """An enrichment of Janeway's Account."""
 
@@ -44,8 +44,12 @@ class JCOMProfile(Account):
     # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
     # have this data for most of our existing users.
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
-    gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
-    invitation_token = models.CharField(_("Invitation token"), max_length=500, default="")
+    gdpr_checkbox = models.BooleanField(
+        _("GDPR acceptance checkbox"), default=False
+    )
+    invitation_token = models.CharField(
+        _("Invitation token"), max_length=500, default=""
+    )
 
 
 class Correspondence(models.Model):
@@ -84,3 +88,44 @@ class Correspondence(models.Model):
         #     models.UniqueConstraint(fields=("account", "userCod", "source")),
         # ]
         unique_together = ("account", "userCod", "source")
+
+
+class SpecialIssue(models.Model):
+    """Stub for a special issue data model."""
+
+    name = models.CharField(max_length=121)
+    is_open_for_submission = models.BooleanField(
+        blank=True, null=False, default=False
+    )
+
+    def __str__(self):
+        """Show representation (used in admin UI)."""
+        if self.is_open_for_submission:
+            return self.name
+        else:
+            return f"{self.name} - closed"
+
+
+# class ArticleWrapper(Article):
+class ArticleWrapper(models.Model):
+    """An enrichment of Janeway's Article."""
+
+    # Do not inherit from Article, otherwise we get Article's method
+    # `save()` which does things that raise IntegrityError when called
+    # from here...
+
+    # redundant:
+    # objects = models.Manager()
+
+    janeway_article = models.OneToOneField(
+        Article,
+        on_delete=models.CASCADE,
+        parent_link=True,
+        primary_key=True,
+    )
+    special_issue = models.ForeignKey(
+        to=SpecialIssue,
+        on_delete=models.DO_NOTHING,  # TODO: check me!
+        related_name="special_issue",
+        null=True,
+    )

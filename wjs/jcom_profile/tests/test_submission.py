@@ -3,9 +3,12 @@
 import pytest
 from core.models import Account, Role, Setting, SettingGroup, SettingValue
 from django.test import Client
+from django.urls import reverse
 from submission import logic
 from submission.models import Article
 from django.core.cache import cache
+from wjs.jcom_profile.models import SpecialIssue
+
 
 class TestFilesStage:
     """Tests related to the file-submission stage."""
@@ -84,3 +87,40 @@ class TestFilesStage:
         ru = response.wsgi_request.user
         assert ru is not None
         assert ru.is_authenticated
+
+    @pytest.mark.django_db
+    def test_choose_si_skipped_when_no_si_open(self, admin, article):
+        """Test that the SI-choosing page just redirects if there are no open SIs."""
+        client = Client()
+        client.force_login(admin)
+        # visit the correct page
+        url = reverse("submit_info", args=(article.pk,))
+        response = client.get(url)
+        assert response.status_code == 302
+        assert response.url == reverse("submit_info_original", args=(article.pk,))
+
+        # expect the same with existing but closed SI
+        SpecialIssue.objects.create(name="Test SI", is_open_for_submission=False)
+        assert not SpecialIssue.objects.filter(is_open_for_submission=True).exists()
+        assert SpecialIssue.objects.filter(is_open_for_submission=False).exists()
+        response = client.get(url)
+        assert response.status_code == 302
+        assert response.url == reverse("submit_info_original", args=(article.pk,))
+
+    @pytest.mark.django_db
+    def test_choose_si_shown_when_si_open(self, admin, article):
+        """Test that the SI-choosing page is shown if there are open SIs."""
+        client = Client()
+        client.force_login(admin)
+        SpecialIssue.objects.create(name="Test SI", is_open_for_submission=True)
+        assert SpecialIssue.objects.filter(is_open_for_submission=True).exists()
+        # visit the correct page
+        url = reverse("submit_info", args=(article.pk,))
+        response = client.get(url)
+
+        assert response.status_code == 200
+        targets = ("<h1>Submission Destination",
+                   "Choose Submission Destination",)
+        content = response.content.decode()
+        for target in targets:
+            assert target in content

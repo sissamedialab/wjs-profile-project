@@ -47,10 +47,12 @@ class PrivacyAcknowledgedMiddleware:
         if not request.user.is_authenticated:
             return None
 
-        if hasattr(request.user, "jcomprofile"):
+        # import pudb; pudb.set_trace()
+        if not hasattr(request.user, "jcomprofile"):
             logger.warning(f"User {request.user.id} has no extended profile!")
-            if request.user.jcomprofile.gdpr_checkbox:
-                return None
+            # TODO: raise exception
+        if request.user.jcomprofile.gdpr_checkbox:
+            return None
 
         message_text = """Please acknowledge privacy note (see checkbox below)
         or log-out to continue navigate the site.

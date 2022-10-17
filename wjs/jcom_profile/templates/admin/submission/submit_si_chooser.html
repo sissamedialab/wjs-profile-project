@@ -1,0 +1,37 @@
+{% extends "admin/core/base.html" %}
+{% load static from staticfiles %}
+{% load foundation %}
+{% load i18n %}
+
+{% block title-section %}{% trans "Submission Destination" %}{% endblock %}
+{% block css %}
+    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet">{% endblock %}
+
+{% block body %}
+    <article>
+        <div class="box">
+            <form method="POST"{% if journal_settings.general.abstract_required %} novalidate{% endif %}>
+                {% csrf_token %}
+
+                {% if article.is_preprint %}{% trans "This article is a preprint" %}{% endif %}
+                {% include "submission/timeline.html" with data=article %}
+
+                <div class="row expanded">
+                    <div class="title-area">
+                        <h2>{% trans "Choose Special Issue" %}</h2>
+                    </div>
+                    <div class="content">
+                      {% include "elements/forms/errors.html" with form=form %}
+                      {{ form }}
+                    </div>
+
+                    <div class="large-12 columns">
+                        <button class="success button pull-right" type="submit" name="start_submission"><i
+                                class="fa fa-check">&nbsp;</i>{% trans "Save and Continue" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </article>
+{% endblock body %}
