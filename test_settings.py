@@ -2,18 +2,16 @@
 
 import os
 
-from core.janeway_global_settings import *
+from core.janeway_global_settings import *  # NOQA
 
 # Install my stuff
-INSTALLED_APPS.extend(
+INSTALLED_APPS.extend(  # NOQA
     [
         "wjs.jcom_profile",
-    ]
+    ],
 )
 
-MIDDLEWARE_CLASSES += (
-    "wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",
-)
+MIDDLEWARE_CLASSES += ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)  # NOQA
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # You should change this key before you go live!
@@ -58,7 +56,7 @@ DATABASES = {
         "PASSWORD": "janeway",
         "HOST": "db",
         "PORT": "5432",
-    }
+    },
 }
 
 # Set DEBUG to True or static assets are not served by `runserver`
@@ -70,7 +68,6 @@ EMAIL_HOST = "localhost"
 EMAIL_PORT = 1025
 EMAIL_USE_TLS = False
 
-
 INTERNAL_IPS = [
     # ...
     "127.0.0.1",
@@ -79,7 +76,6 @@ INTERNAL_IPS = [
 
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
-
 
 # already defined in janeway_global_settings.py (but not visible here...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -92,14 +88,11 @@ LOGGING = {
     },
     "formatters": {
         "default": {
-            "format": "%(levelname)s %(asctime)s %(module)s "
-            "P:%(process)d T:%(thread)d %(message)s",
+            "format": "%(levelname)s %(asctime)s %(module)s " "P:%(process)d T:%(thread)d %(message)s",
         },
         "coloured": {
             "()": "colorlog.ColoredFormatter",
-            "format": "%(log_color)s%(levelname)s %(asctime)s M:%(module)s: "
-            "%(message)s",
-            # 'P:%(process)d T:%(thread)d %(message)s',
+            "format": "%(log_color)s%(levelname)s %(asctime)s M:%(module)s: %(message)s",
             "log_colors": {
                 "DEBUG": "cyan",
                 "WARNING": "yellow",
@@ -161,7 +154,7 @@ RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}
 """
 
-TEMPLATES[0]["OPTIONS"]["loaders"] = [
+TEMPLATES[0]["OPTIONS"]["loaders"] = [  # NOQA
     "django.template.loaders.app_directories.Loader",
     "utils.template_override_middleware.Loader",
     "django.template.loaders.filesystem.Loader",

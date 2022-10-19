@@ -1,21 +1,18 @@
 """pytest common stuff and fixtures."""
 import pytest
-
+from core.models import Account
+from django.core import management
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls.base import clear_script_prefix
 from django.utils import translation
-from django.core import management
-
-from core.models import Account
-from wjs.jcom_profile.models import JCOMProfile
-from submission.models import Article
+from journal import models as journal_models
 from journal.tests.utils import make_test_journal
 from press.models import Press
 from submission import models as submission_models
+from submission.models import Article
+from utils.install import update_issue_types, update_settings, update_xsl_files
 
-from utils.install import update_xsl_files, update_settings, update_issue_types
-from journal import models as journal_models
-
+from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
 USERNAME = "user"
@@ -48,21 +45,15 @@ PROFESSION_SELECT_FRAGMENTS_JOURNAL = [
 GDPR_FRAGMENTS_JOURNAL = [
     (
         "clean",
-        (
-            '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',
-        ),
+        ('<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',),
     ),
     (
         "material",
-        (
-            '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',
-        ),
+        ('<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',),
     ),
     (
         "OLH",
-        (
-            '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',
-        ),
+        ('<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',),
     ),
 ]
 
@@ -93,18 +84,18 @@ PROFESSION_SELECT_FRAGMENTS_PRESS = [
 ]
 
 INVITE_BUTTON = """<li>
-    <a href="/admin/core/account/invite/" class="btn btn-high btn-success">Invite</a>
-</li>"""
+        <a href="/admin/core/account/invite/" class="btn btn-high btn-success">Invite</a>
+    </li>"""
 
 
 def drop_user():
     """Delete the test user."""
     try:
-        userX = Account.objects.get(username=USERNAME)
+        user_x = Account.objects.get(username=USERNAME)
     except ObjectDoesNotExist:
         pass
     else:
-        userX.delete()
+        user_x.delete()
 
 
 @pytest.fixture
@@ -119,7 +110,7 @@ def admin():
         is_staff=True,
         is_admin=True,
         is_superuser=True,
-        gdpr_checkbox=True
+        gdpr_checkbox=True,
     )
 
 
@@ -132,7 +123,7 @@ def coauthor():
         first_name="Coauthor",
         last_name="Coauthor",
         is_active=True,
-        gdpr_checkbox=True
+        gdpr_checkbox=True,
     )
 
 
@@ -147,13 +138,6 @@ def user():
     user = Account(username=USERNAME, first_name="User", last_name="Ics")
     user.save()
     yield user
-
-
-# Only works at module "resolution", i.e. not for the single test
-# https://docs.pytest.org/en/7.1.x/reference/reference.html#globalvar-collect_ignore
-# collect_ignore = [
-#     'test_app.py',
-# ]
 
 
 @pytest.fixture()
@@ -176,9 +160,7 @@ def invited_user():
 def press():
     """Prepare a press."""
     # Copied from journal.tests.test_models
-    apress = Press.objects.create(
-        domain="testserver", is_secure=False, name="Medialab"
-    )
+    apress = Press.objects.create(domain="testserver", is_secure=False, name="Medialab")
     apress.save()
     yield apress
     apress.delete()
@@ -187,12 +169,10 @@ def press():
 @pytest.fixture
 def journal(press):
     """Prepare a journal."""
-    # The  graphical theme is set by the single tests.
-    journal_kwargs = dict(
-        code=JOURNAL_CODE,
-        domain="sitetest.org",
-        # journal_theme='JCOM',  # No!
-    )
+    journal_kwargs = {
+        "code": JOURNAL_CODE,
+        "domain": "sitetest.org",
+    }
     journal = make_test_journal(**journal_kwargs)
     yield journal
     # probably redundant because of django db transactions rollbacks
@@ -201,6 +181,7 @@ def journal(press):
 
 @pytest.fixture
 def article_journal(press):
+    """Create a journal for a test article."""
     # FIXME: Can't figure out why the journal fixtures does not work with article submission
     update_xsl_files()
     update_settings()
@@ -214,6 +195,7 @@ def article_journal(press):
 
 @pytest.fixture
 def article(admin, coauthor, article_journal):
+    """Create a test article."""
     with translation.override("en"):
         section = submission_models.Section.objects.create(
             journal=article_journal,
@@ -228,7 +210,7 @@ def article(admin, coauthor, article_journal):
         correspondence_author=admin,
         owner=admin,
         date_submitted=None,
-        section=section
+        section=section,
     )
     article.authors.add(admin, coauthor)
     return article
@@ -236,6 +218,7 @@ def article(admin, coauthor, article_journal):
 
 @pytest.fixture
 def coauthors_setting():
+    """Run add_coauthors_submission_email_settings command to install custom settings for coauthors email."""
     management.call_command("add_coauthors_submission_email_settings")
 
 

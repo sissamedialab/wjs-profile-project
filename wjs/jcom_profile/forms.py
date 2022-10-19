@@ -7,9 +7,9 @@ from django import forms
 from django.forms import ModelForm
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from wjs.jcom_profile.models import ArticleWrapper, JCOMProfile, SpecialIssue
-
 from utils.forms import CaptchaForm
+
+from wjs.jcom_profile.models import ArticleWrapper, JCOMProfile, SpecialIssue
 
 
 class GDPRAcceptanceForm(forms.Form):
@@ -52,12 +52,8 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
 
     """
 
-    password_1 = forms.CharField(
-        widget=forms.PasswordInput, label=_("Password")
-    )
-    password_2 = forms.CharField(
-        widget=forms.PasswordInput, label=_("Repeat Password")
-    )
+    password_1 = forms.CharField(widget=forms.PasswordInput, label=_("Password"))
+    password_2 = forms.CharField(widget=forms.PasswordInput, label=_("Repeat Password"))
     gdpr_checkbox = forms.BooleanField(initial=False, required=True)
 
     class Meta:
@@ -88,7 +84,8 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         return password_2
 
     def save(self, commit=True):
-        user = super(JCOMRegistrationForm, self).save(commit=False)
+        """Check and saves user's password."""
+        user = super().save(commit=False)
         user.set_password(self.cleaned_data["password_1"])
         user.is_active = False
         user.confirmation_code = uuid.uuid4()

@@ -1,7 +1,6 @@
 """Register the models with the admin interface."""
 from core.admin import AccountAdmin
 from core.models import Account
-# from django.contrib.admin.sites import NotRegistered
 from django.conf import settings
 from django.conf.urls import url
 from django.contrib import admin, messages
@@ -9,6 +8,7 @@ from django.core.mail import send_mail
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
+
 from wjs.jcom_profile import forms, models
 from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
 from wjs.jcom_profile.utils import generate_token
@@ -23,20 +23,20 @@ class JCOMProfileInline(admin.StackedInline):
 
 
 # TODO: use settings.AUTH_USER_MODEL
-# from django.conf import settings
 class UserAdmin(AccountAdmin):
     """Another layer..."""
 
     inlines = (JCOMProfileInline,)
 
     def get_urls(self):
+        """Get admin urls."""
         urls = super().get_urls()
         import_users_url = [
             url(
                 "invite/",
                 self.admin_site.admin_view(self.invite),
                 name="invite",
-            )
+            ),
         ]
         return import_users_url + urls
 
@@ -72,9 +72,7 @@ class UserAdmin(AccountAdmin):
                     # FIXME: Email setting should be handled using the
                     # janeway settings framework.  See
                     # https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/4
-                    acceptance_url = request.build_absolute_uri(
-                        reverse("accept_gdpr", kwargs={"token": token})
-                    )
+                    acceptance_url = request.build_absolute_uri(reverse("accept_gdpr", kwargs={"token": token}))
                     send_mail(
                         settings.JOIN_JOURNAL_SUBJECT,
                         settings.JOIN_JOURNAL_BODY.format(
@@ -95,9 +93,7 @@ class UserAdmin(AccountAdmin):
                         request=request,
                         message="An account with the specified email already exists.",
                     )
-                return HttpResponseRedirect(
-                    reverse("admin:core_account_changelist")
-                )
+                return HttpResponseRedirect(reverse("admin:core_account_changelist"))
 
         template = "admin/core/account/invite.html"
         context = {

@@ -1,16 +1,13 @@
 import pytest
-
+from core import models as core_models
 from django.conf import settings
 from django.core import mail
 from django.test import Client
 from django.test.client import RequestFactory
-
 from django.urls import reverse
 
-from core import models as core_models
-
-from wjs.jcom_profile.tests.conftest import INVITE_BUTTON
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.tests.conftest import INVITE_BUTTON
 from wjs.jcom_profile.utils import generate_token
 
 
@@ -36,7 +33,7 @@ def test_invite_function_creates_inactive_user(admin, journal):
         "email": "email@email.it",
         "institution": "Institution",
         "department": "Department",
-        "message": "Message"
+        "message": "Message",
     }
     response = client.post(url, data=data)
     assert response.status_code == 302
@@ -60,8 +57,12 @@ def test_invite_function_creates_inactive_user(admin, journal):
     assert invitation_mail.from_email == settings.DEFAULT_FROM_EMAIL
     assert invitation_mail.to == [invited_user.email]
     assert invitation_mail.subject == settings.JOIN_JOURNAL_SUBJECT
-    assert invitation_mail.body == settings.JOIN_JOURNAL_BODY.format(invited_user.first_name, invited_user.last_name,
-                                                                     data['message'], gdpr_acceptance_url)
+    assert invitation_mail.body == settings.JOIN_JOURNAL_BODY.format(
+        invited_user.first_name,
+        invited_user.last_name,
+        data["message"],
+        gdpr_acceptance_url,
+    )
 
 
 @pytest.mark.django_db
@@ -76,7 +77,7 @@ def test_invite_existing_email_user(admin, user, journal):
         "email": user.email,
         "institution": user.institution,
         "department": user.department,
-        "message": "Message"
+        "message": "Message",
     }
     response = client.post(url, data=data)
     assert response.status_code == 200
@@ -105,14 +106,16 @@ def test_gdpr_acceptance(admin, invited_user, journal):
     assert len(mail.outbox) == 1
 
     invitation_mail = mail.outbox[0]
-    reset_psw_url = request.build_absolute_uri(
-        reverse("core_reset_password", kwargs={"token": reset_token.token}))
+    reset_psw_url = request.build_absolute_uri(reverse("core_reset_password", kwargs={"token": reset_token.token}))
 
     assert invitation_mail.from_email == settings.DEFAULT_FROM_EMAIL
     assert invitation_mail.to == [invited_user.email]
     assert invitation_mail.subject == settings.RESET_PASSWORD_SUBJECT
-    assert invitation_mail.body == settings.RESET_PASSWORD_BODY.format(invited_user.first_name, invited_user.last_name,
-                                                                       reset_psw_url)
+    assert invitation_mail.body == settings.RESET_PASSWORD_BODY.format(
+        invited_user.first_name,
+        invited_user.last_name,
+        reset_psw_url,
+    )
 
 
 @pytest.mark.django_db
@@ -133,7 +136,8 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(admin,
     client.force_login(admin)
     url = reverse("submit_review", args=(article.pk,))
     coauthors_email = list(
-        article.authors.exclude(email=article.correspondence_author.email).values_list("email", flat=True))
+        article.authors.exclude(email=article.correspondence_author.email).values_list("email", flat=True),
+    )
 
     response = client.post(url, data={"next_step": "next_step"})
     assert response.status_code == 302

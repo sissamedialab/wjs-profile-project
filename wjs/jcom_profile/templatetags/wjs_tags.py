@@ -1,5 +1,6 @@
 """WJS tags."""
 from django import template
+
 from wjs.jcom_profile.models import SpecialIssue
 
 register = template.Library()

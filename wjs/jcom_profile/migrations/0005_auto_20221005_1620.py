@@ -6,12 +6,12 @@ from django.utils.translation import ugettext_lazy as _
 
 def add_submission_figures_data_title(apps, schema_editor):
     """Add a new setting."""
-    Setting = apps.get_model('core', 'Setting')
-    SettingValue = apps.get_model('core', 'SettingValue')
-    Group = apps.get_model('core', 'SettingGroup')
+    Setting = apps.get_model("core", "Setting")
+    SettingValue = apps.get_model("core", "SettingValue")
+    Group = apps.get_model("core", "SettingGroup")
 
     # TODO: other choices: general | app:wjs
-    styling_settings_group = Group.objects.get(name='styling')
+    styling_settings_group = Group.objects.get(name="styling")
 
     submission_figures_data_title = Setting.objects.create(
         name="submission_figures_data_title",
@@ -19,7 +19,7 @@ def add_submission_figures_data_title(apps, schema_editor):
         types="rich-text",
         pretty_name=_("Files Submission - Title of Figures and Data Files Field"),
         description=_("Displayed on the Files Submission page."),
-        is_translatable=True
+        is_translatable=True,
     )
 
     SettingValue.objects.create(
@@ -37,7 +37,7 @@ def add_submission_figures_data_title(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('jcom_profile', '0003_jcomprofile_invitation_token'),
+        ("jcom_profile", "0003_jcomprofile_invitation_token"),
     ]
 
     operations = [

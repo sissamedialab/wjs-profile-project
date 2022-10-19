@@ -8,18 +8,15 @@ from django.utils.translation import ugettext_lazy as _
 from submission.models import Article
 
 # TODO: use settings.AUTH_USER_MODEL
-# from django.conf import settings
 
 PROFESSIONS = (
     (
         0,
-        "A researcher in S&T studies,"
-        " science communication or neighbouring field",
+        "A researcher in S&T studies," " science communication or neighbouring field",
     ),
     (
         1,
-        "A practitioner in S&T"
-        " (e.g. journalist, museum staff, writer, ...)",
+        "A practitioner in S&T" " (e.g. journalist, museum staff, writer, ...)",
     ),
     (2, "An active scientist"),
     (3, "Other"),
@@ -44,12 +41,8 @@ class JCOMProfile(Account):
     # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
     # have this data for most of our existing users.
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
-    gdpr_checkbox = models.BooleanField(
-        _("GDPR acceptance checkbox"), default=False
-    )
-    invitation_token = models.CharField(
-        _("Invitation token"), max_length=500, default=""
-    )
+    gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
+    invitation_token = models.CharField(_("Invitation token"), max_length=500, default="")
 
 
 class Correspondence(models.Model):
@@ -57,13 +50,8 @@ class Correspondence(models.Model):
 
     # TODO: drop pk and use the three fields as pk
 
-    account = models.ForeignKey(
-        to=Account, on_delete=models.CASCADE, related_name="usercods"
-    )
-    userCod = models.PositiveIntegerField()
-
-    # django >= 3.0
-    # class Sources(models.IntegerChoices):
+    account = models.ForeignKey(to=Account, on_delete=models.CASCADE, related_name="usercods")
+    user_cod = models.PositiveIntegerField()
     sources = (
         ("jhep", "jhep"),
         ("pos", "pos"),
@@ -83,20 +71,14 @@ class Correspondence(models.Model):
     class Meta:
         """Model's Meta."""
 
-        # django >= 2...
-        # constraints = [
-        #     models.UniqueConstraint(fields=("account", "userCod", "source")),
-        # ]
-        unique_together = ("account", "userCod", "source")
+        unique_together = ("account", "user_cod", "source")
 
 
 class SpecialIssue(models.Model):
     """Stub for a special issue data model."""
 
     name = models.CharField(max_length=121)
-    is_open_for_submission = models.BooleanField(
-        blank=True, null=False, default=False
-    )
+    is_open_for_submission = models.BooleanField(blank=True, null=False, default=False)
 
     def __str__(self):
         """Show representation (used in admin UI)."""
@@ -113,10 +95,6 @@ class ArticleWrapper(models.Model):
     # Do not inherit from Article, otherwise we get Article's method
     # `save()` which does things that raise IntegrityError when called
     # from here...
-
-    # redundant:
-    # objects = models.Manager()
-
     janeway_article = models.OneToOneField(
         Article,
         on_delete=models.CASCADE,
