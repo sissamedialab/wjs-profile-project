@@ -11,7 +11,8 @@ class JCOMProfileConfig(AppConfig):
 
     def ready(self):
         """Call during initialization."""
-        from wjs.jcom_profile import signals, urls
+        # TODO: Clarify this line (unused import but without them process breaks)
+        from wjs.jcom_profile import signals, urls  # NOQA
 
         self.register_hooks()
         self.register_events()
@@ -19,13 +20,7 @@ class JCOMProfileConfig(AppConfig):
     def register_hooks(self):
         """Register my functions to Janeway's hooks."""
         hooks = [
-            # dict(nav_block=dict(module='wjs.jcom_profile.hooks',
-            #                     function='prova_hook')),
-            dict(
-                extra_corefields=dict(
-                    module="wjs.jcom_profile.hooks", function="prova_hook"
-                )
-            ),
+            {"extra_corefields": {"module": "wjs.jcom_profile.hooks", "function": "prova_hook"}},
         ]
         # NB: do not `import core...` before `ready()`,
         # otherwise django setup process breaks
@@ -35,10 +30,11 @@ class JCOMProfileConfig(AppConfig):
 
     def register_events(self):
         """Register our function in Janeway's events logic."""
-        from wjs.jcom_profile.events.wjs_events import \
-            notify_coauthors_article_submission
-
         from events import logic as events_logic
+
+        from wjs.jcom_profile.events.wjs_events import (
+            notify_coauthors_article_submission,
+        )
 
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,

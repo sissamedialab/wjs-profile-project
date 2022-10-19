@@ -65,9 +65,7 @@ def test_shy_user_cannot_navigate_bis(journal, client):
     username = "user1"
     password = "bar"
     email = "e@mail.it"
-    user = Account.objects.create_user(
-        username=username, password=password, email=email
-    )
+    user = Account.objects.create_user(username=username, password=password, email=email)
     user.is_active = True
     user.jcomprofile.gdpr_checkbox = False
     user.jcomprofile.save()
@@ -93,7 +91,9 @@ def test_middleware_honors_settings(journal, client, settings):
     assert response.status_code == 200
     response = client.get("/contact/")
     assert response.status_code == 302
-    settings.CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = ["/contact/", ]
+    settings.CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
+        "/contact/",
+    ]
     response = client.get("/profile/")
     assert response.status_code == 302
     response = client.get("/contact/")

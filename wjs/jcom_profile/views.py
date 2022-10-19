@@ -12,12 +12,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.generic import TemplateView
 from submission import models as submission_models
-from wjs.jcom_profile import forms
-from wjs.jcom_profile.forms import (JCOMProfileForm, JCOMRegistrationForm,
-                                    SIForm)
-from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
-
 from utils.logger import get_logger
+
+from wjs.jcom_profile import forms
+from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm, SIForm
+from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
 
 logger = get_logger(__name__)
 
@@ -27,9 +26,8 @@ def prova(request):
     """Una prova."""
     user = JCOMProfile.objects.get(pk=request.user.id)
     form = JCOMProfileForm(instance=user)
-    # import ipdb; ipdb.set_trace()
+    # copied from core.views.py::edit_profile:358ss
 
-    # from core.views.py::edit_profile:358ss
     if request.POST:
         if "email" in request.POST:
             email_address = request.POST.get("email_address")
@@ -59,46 +57,31 @@ def prova(request):
             if old_password and request.user.check_password(old_password):
 
                 if new_pass_one == new_pass_two:
-                    problems = request.user.password_policy_check(
-                        request, new_pass_one
-                    )
+                    problems = request.user.password_policy_check(request, new_pass_one)
                     if not problems:
                         request.user.set_password(new_pass_one)
                         request.user.save()
-                        messages.add_message(
-                            request, messages.SUCCESS, "Password updated."
-                        )
+                        messages.add_message(request, messages.SUCCESS, "Password updated.")
                     else:
-                        [
-                            messages.add_message(
-                                request, messages.INFO, problem
-                            )
-                            for problem in problems
-                        ]
+                        [messages.add_message(request, messages.INFO, problem) for problem in problems]
                 else:
-                    messages.add_message(
-                        request, messages.WARNING, "Passwords do not match"
-                    )
+                    messages.add_message(request, messages.WARNING, "Passwords do not match")
 
             else:
-                messages.add_message(
-                    request, messages.WARNING, "Old password is not correct."
-                )
+                messages.add_message(request, messages.WARNING, "Old password is not correct.")
 
         elif "edit_profile" in request.POST:
             form = JCOMProfileForm(request.POST, request.FILES, instance=user)
 
             if form.is_valid():
                 form.save()
-                messages.add_message(
-                    request, messages.SUCCESS, "Profile updated."
-                )
+                messages.add_message(request, messages.SUCCESS, "Profile updated.")
                 return redirect(reverse("core_edit_profile"))
 
         elif "export" in request.POST:
             return logic.export_gdpr_user_profile(user)
 
-    context = dict(form=form, user_to_edit=user)
+    context = {"form": form, "user_to_edit": user}
     template = "core/accounts/edit_profile.html"
     return render(request, template, context)
 
@@ -188,26 +171,20 @@ def confirm_gdpr_acceptance(request, token):
                 account.save()
                 context["activated"] = True
                 # Generate a temporary token to set a brand-new password
-                core_models.PasswordResetToken.objects.filter(
-                    account=account
-                ).update(expired=True)
-                reset_token = core_models.PasswordResetToken.objects.create(
-                    account=account
-                )
+                core_models.PasswordResetToken.objects.filter(account=account).update(expired=True)
+                reset_token = core_models.PasswordResetToken.objects.create(account=account)
                 reset_psw_url = request.build_absolute_uri(
                     reverse(
                         "core_reset_password",
                         kwargs={"token": reset_token.token},
-                    )
+                    ),
                 )
                 # Send email.
                 # FIXME: Email setting should be handled using the janeway settings framework.
                 # See https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/4
                 send_mail(
                     settings.RESET_PASSWORD_SUBJECT,
-                    settings.RESET_PASSWORD_BODY.format(
-                        account.first_name, account.last_name, reset_psw_url
-                    ),
+                    settings.RESET_PASSWORD_BODY.format(account.first_name, account.last_name, reset_psw_url),
                     settings.DEFAULT_FROM_EMAIL,
                     [account.email],
                 )
@@ -230,9 +207,7 @@ class SpecialIssues(TemplateView):
         that is created if not already present.
 
         """
-        article = get_object_or_404(
-            submission_models.Article, pk=kwargs["article_id"]
-        )
+        article = get_object_or_404(submission_models.Article, pk=kwargs["article_id"])
         form = self.form_class(self.request.POST, instance=article.articlewrapper)
         if form.is_valid():
             article_wrapper = form.save()
@@ -240,9 +215,9 @@ class SpecialIssues(TemplateView):
                 reverse(
                     "submit_info_original",
                     kwargs={"article_id": article_wrapper.janeway_article.id},
-                )
+                ),
             )
-        context = dict(form=form, article=article)
+        context = {"form": form, "article": article}
         return render(
             self.request,
             template_name=self.template_name,
@@ -253,27 +228,20 @@ class SpecialIssues(TemplateView):
         """Show a form to choose the special issue to which one is submitting."""
         # The following should be safe, since article_id is not part
         # of the query string but of the path
-        article = get_object_or_404(
-            submission_models.Article, pk=kwargs["article_id"]
-        )
-        # The following is no-go: no `article` in the request
-        # article = self.request.article
-
+        article = get_object_or_404(submission_models.Article, pk=kwargs["article_id"])
         # TODO: this is a stub: SI should be linked to the journal
-        if not SpecialIssue.objects.filter(
-            is_open_for_submission=True
-        ).exists():
+        if not SpecialIssue.objects.filter(is_open_for_submission=True).exists():
             return redirect(
                 reverse(
                     "submit_info_original",
                     kwargs={"article_id": kwargs["article_id"]},
-                )
+                ),
             )
         form = self.form_class(instance=article.articlewrapper)
 
         # NB: templates (base and timeline and all) expect to find
         # "article" in context!
-        context = dict(form=form, article=article)
+        context = {"form": form, "article": article}
         return render(
             self.request,
             template_name=self.template_name,

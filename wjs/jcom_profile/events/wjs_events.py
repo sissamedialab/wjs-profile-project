@@ -14,21 +14,19 @@ def notify_coauthors_article_submission(**kwargs):
     #  notify coauthors
     article = kwargs["article"]
     request = kwargs["request"]
-    coauthors = [
-        c for c in article.authors.all() if c != article.correspondence_author
-    ]
+    coauthors = [c for c in article.authors.all() if c != article.correspondence_author]
 
     # generate URL
     review_unassigned_article_url = request.journal.site_url(
         path=reverse(
             "review_unassigned_article",
             kwargs={"article_id": article.pk},
-        )
+        ),
     )
 
     log_dict = {
         "level": "Info",
-        "action_text": "A new article {0} was submitted".format(article.title),
+        "action_text": "A new article {} was submitted".format(article.title),
         "types": "New Submission Acknowledgement",
         "target": article,
     }

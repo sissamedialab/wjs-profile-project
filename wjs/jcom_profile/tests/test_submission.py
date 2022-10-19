@@ -2,11 +2,12 @@
 
 import pytest
 from core.models import Account, Role, Setting, SettingGroup, SettingValue
+from django.core.cache import cache
 from django.test import Client
 from django.urls import reverse
 from submission import logic
 from submission.models import Article
-from django.core.cache import cache
+
 from wjs.jcom_profile.models import SpecialIssue
 
 
@@ -19,12 +20,8 @@ class TestFilesStage:
         # set the setting
         value = "<h2>Qui ci metto un po' <strong>di</strong> tutto</h2>"
         setting_group = SettingGroup.objects.get(name="styling")
-        setting = Setting.objects.get(
-            name="submission_figures_data_title", group=setting_group
-        )
-        setting_value, _ = SettingValue.objects.get_or_create(
-            journal=journal, setting=setting
-        )
+        setting = Setting.objects.get(name="submission_figures_data_title", group=setting_group)
+        setting_value, _ = SettingValue.objects.get_or_create(journal=journal, setting=setting)
         setting_value.value = value
         setting_value.save()
 
@@ -119,8 +116,10 @@ class TestFilesStage:
         response = client.get(url)
 
         assert response.status_code == 200
-        targets = ("<h1>Submission Destination",
-                   "Choose Submission Destination",)
+        targets = (
+            "<h1>Submission Destination",
+            "Choose Submission Destination",
+        )
         content = response.content.decode()
         for target in targets:
             assert target in content

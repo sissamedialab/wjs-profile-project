@@ -2,9 +2,10 @@
 {% load static from staticfiles %}
 {% load i18n %}
 
-{% block title-section %}{% trans "Upload files" %}{% endblock %}
+{% block title-section %}{% trans "Upload files" %}{% endblock title-section %}
 {% block css %}
-    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet">{% endblock %}
+    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet"/>
+{% endblock css %}
 
 {% block body %}
 
@@ -27,10 +28,10 @@
                 </div>
                 <div class="row expanded">
                     <div class="large-3 columns">
-                        <form method="POST" enctype="multipart/form-data">
+                        <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
                             <a href="#" data-open="manuscript" class="button success" name="data">
-                              <i class="fa fa-upload">&nbsp;</i>{% trans "Upload" %}
+                                <i class="fa fa-upload">&nbsp;</i>{% trans "Upload" %}
                             </a>
                         </form>
                     </div>
@@ -41,7 +42,7 @@
                                 <th>{% trans "File Name" %}</th>
                                 <th></th>
                             </tr>
-                            <form method="POST">
+                            <form method="post">
                                 {% csrf_token %}
 
                                 {% for file in article.manuscript_files.all %}
@@ -50,7 +51,7 @@
                                         <td>{{ file }}</td>
                                         <td>
                                             <button name="delete" type="submit" value="{{ file.pk }}">
-                                              <i class="fa fa-trash"></i>
+                                                <i class="fa fa-trash"></i>
                                             </button>
                                         </td>
                                     </tr>
@@ -66,7 +67,7 @@
 
                 {% if request.journal.submissionconfiguration.figures_data %}
                     <div class="title-area">
-                      {{ journal_settings.styling.submission_figures_data_title|safe }}
+                        {{ journal_settings.styling.submission_figures_data_title|safe }}
                     </div>
                     <div class="row expanded">
                         <div class="large-3 columns">
@@ -81,7 +82,7 @@
                                     <th>{% trans "File Name" %}</th>
                                     <th></th>
                                 </tr>
-                                <form method="POST">
+                                <form method="post">
                                     {% csrf_token %}
                                     {% for file in article.data_figure_files.all %}
                                         <tr>
@@ -103,10 +104,8 @@
                     </div>
                 {% endif %}
             </div>
-
-
             <div class="large-12 columns">
-                <form method="POST">
+                <form method="post">
                     {% csrf_token %}
                     <button class="button success pull-right" type="submit" name="next_step"><i class="fa fa-check">
                         &nbsp;</i>{% trans "Save and Continue" %}
@@ -125,4 +124,4 @@
     {% if modal %}
         {% include "admin/elements/open_modal.html" with target=modal %}
     {% endif %}
-{% endblock %}
+{% endblock js %}

@@ -1,8 +1,9 @@
 """My URLs. Looking for a way to "enrich" Janeway's `edit_profile`."""
 
 from core import include_urls
-from submission import views as submission_views
 from django.conf.urls import url
+from submission import views as submission_views
+
 from wjs.jcom_profile import views
 
 urlpatterns = [
