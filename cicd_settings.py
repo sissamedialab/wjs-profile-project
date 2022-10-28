@@ -1,17 +1,8 @@
-"""Merge janeway_global_settings and custom settings for pytest."""
+"""Custom django settings for Janeway."""
 
 import os
 
-from core.janeway_global_settings import *  # NOQA
-
-# Install my stuff
-INSTALLED_APPS.extend(  # NOQA
-    [
-        "wjs.jcom_profile",
-    ],
-)
-
-MIDDLEWARE_CLASSES += ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)  # NOQA
+from core import plugin_installed_apps
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # You should change this key before you go live!
@@ -77,6 +68,15 @@ INTERNAL_IPS = [
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 
+# INSTALLED_APPS and MIDDLEWARE_CLASSES defined here are merged by
+# `manage.py` (and `wsgi.py` probably)
+INSTALLED_APPS = [
+    "wjs.jcom_profile",
+]
+
+MIDDLEWARE_CLASSES = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
+
+
 # already defined in janeway_global_settings.py (but not visible here...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGGING = {
@@ -88,7 +88,7 @@ LOGGING = {
     },
     "formatters": {
         "default": {
-            "format": "%(levelname)s %(asctime)s %(module)s " "P:%(process)d T:%(thread)d %(message)s",
+            "format": "%(levelname)s %(asctime)s %(module)s P:%(process)d T:%(thread)d %(message)s",
         },
         "coloured": {
             "()": "colorlog.ColoredFormatter",
@@ -154,10 +154,62 @@ RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}
 """
 
-TEMPLATES[0]["OPTIONS"]["loaders"] = [  # NOQA
-    "django.template.loaders.app_directories.Loader",
-    "utils.template_override_middleware.Loader",
-    "django.template.loaders.filesystem.Loader",
+# See also CORE_THEMES in janeway_global_settings
+#
+# This is the last place where J. will go look for templates and plays
+# a role if the press uses a non-core theme. It must contain all
+# templates (i.e. be one of the core themes).
+#
+INSTALLATION_BASE_THEME = "material"
+
+CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
+    "/profile/",
+    "/logout/",
 ]
+
+
+# issue-25 start
+# https://gitlab.sissamedialab.it/wjs/specs/-/issues/25
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        # "APP_DIRS": True,  # either APP_DIRS or DIRS, not both!
+        "DIRS": (
+            [
+                os.path.join(BASE_DIR, "templates"),
+                os.path.join(BASE_DIR, "templates", "common"),
+                os.path.join(BASE_DIR, "templates", "admin"),
+            ]
+            + plugin_installed_apps.load_plugin_templates(BASE_DIR)
+            + plugin_installed_apps.load_homepage_element_templates(BASE_DIR)
+        ),
+        "OPTIONS": {
+            "string_if_invalid": "INVALID 🡆%s🡄",  # Debug only!
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+                "core.context_processors.journal",
+                "core.context_processors.journal_settings",
+                "core.context_processors.press",
+                "core.context_processors.active",
+                "core.context_processors.navigation",
+                "django_settings_export.settings_export",
+                "django.template.context_processors.i18n",
+            ],
+            "loaders": [
+                "django.template.loaders.app_directories.Loader",
+                "utils.template_override_middleware.Loader",
+                "django.template.loaders.filesystem.Loader",
+            ],
+            "builtins": [
+                "core.templatetags.fqdn",
+                "django.templatetags.i18n",
+            ],
+        },
+    },
+]
+# issue-25 end
 
 print("🍠")

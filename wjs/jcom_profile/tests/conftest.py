@@ -2,7 +2,7 @@
 import os
 
 import pytest
-from core.models import Account
+from core.models import Account, Setting
 from django.conf import settings
 from django.core import management
 from django.core.exceptions import ObjectDoesNotExist
@@ -12,6 +12,7 @@ from journal import models as journal_models
 from journal.tests.utils import make_test_journal
 from press.models import Press
 from submission import models as submission_models
+from utils import setting_handler
 from utils.install import update_issue_types, update_settings, update_xsl_files
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -20,69 +21,12 @@ from wjs.jcom_profile.utils import generate_token
 USERNAME = "user"
 JOURNAL_CODE = "CODE"
 
-PROFESSION_SELECT_FRAGMENTS_JOURNAL = [
-    (
-        "clean",
-        (
-            '<select name="profession" class="form-control" title="" required id="id_profession">',
-            '<label class="form-control-label" for="id_profession">Profession</label>',
-        ),
-    ),
-    (
-        "material",
-        (
-            '<select name="profession" required id="id_profession">',
-            "<label>Profession</label>",
-        ),
-    ),
-    (
-        "OLH",
-        (
-            '<select name="profession" required id="id_profession">',
-            '<label for="id_profession">',
-        ),
-    ),
-]
-
-GDPR_FRAGMENTS_JOURNAL = [
-    (
-        "clean",
-        ('<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',),
-    ),
-    (
-        "material",
-        ('<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',),
-    ),
-    (
-        "OLH",
-        ('<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',),
-    ),
-]
-
-PROFESSION_SELECT_FRAGMENTS_PRESS = [
-    (
-        "clean",
-        (
-            '<select name="profession" class="form-control" title="" required id="id_profession">',
-            '<label class="form-control-label" for="id_profession">Profession</label>',
-        ),
-    ),
-    (
-        "material",
-        (
-            '<select name="profession" required id="id_profession">',
-            "<label>Profession</label>",
-        ),
-    ),
-    (
-        "OLH",
-        (
-            '<select name="profession" required id="id_profession">',
-            """<label for="id_profession">
-                Profession
-                <span class="red">*</span>""",
-        ),
-    ),
+EXTRAFIELDS_FRAGMENTS = [
+    # Profession - a <select>
+    '<select name="profession" required id="id_profession">',
+    "<label>Profession</label>",
+    # GDPR - a checkbox
+    '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />',
 ]
 
 INVITE_BUTTON = """<li>
@@ -159,13 +103,24 @@ def invited_user():
 
 
 @pytest.fixture
-def press():
+def press(install_jcom_theme):
     """Prepare a press."""
     # Copied from journal.tests.test_models
     apress = Press.objects.create(domain="testserver", is_secure=False, name="Medialab")
+    apress.theme = "JCOM-theme"
     apress.save()
     yield apress
     apress.delete()
+
+
+def set_jcom_theme(journal):
+    """Set the journal's theme to JCOM-theme."""
+    theme = "JCOM-theme"
+    theme_setting = Setting.objects.get(name="journal_theme")
+    setting_handler.save_setting(theme_setting.group.name, theme_setting.name, journal, theme)
+    base_theme = "material"
+    base_theme_setting = Setting.objects.get(name="journal_base_theme")
+    setting_handler.save_setting(base_theme_setting.group.name, base_theme_setting.name, journal, base_theme)
 
 
 @pytest.fixture
@@ -176,6 +131,7 @@ def journal(press):
         "domain": "sitetest.org",
     }
     journal = make_test_journal(**journal_kwargs)
+    set_jcom_theme(journal)
     yield journal
     # probably redundant because of django db transactions rollbacks
     journal.delete()
@@ -191,6 +147,7 @@ def article_journal(press):
     journal_one.title = "Test Journal: A journal of tests"
     journal_one.save()
     update_issue_types(journal_one)
+    set_jcom_theme(journal_one)
 
     return journal_one
 
@@ -239,6 +196,12 @@ def roles():
     roles_relative_path = "utils/install/roles.json"
     roles_path = os.path.join(settings.BASE_DIR, roles_relative_path)
     management.call_command("loaddata", roles_path)
+
+
+@pytest.fixture
+def install_jcom_theme():
+    """JCOM-theme must be installed in J. code base for its templates to be found."""
+    management.call_command("install_themes")
 
 
 @pytest.fixture

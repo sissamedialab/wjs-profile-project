@@ -1,3 +1,5 @@
+# Run as (e.g.):
+# docker-compose -f docker-compose-test-env.yml up --build --force-recreate
 services:
   db:
     image: postgres:13.8

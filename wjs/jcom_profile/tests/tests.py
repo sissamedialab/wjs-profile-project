@@ -1,17 +1,14 @@
 """Tests (first attempt)."""
 
 import pytest
-from core.models import Account, Setting
+from core.models import Account
 from django.test import Client
-from utils import setting_handler
 
 from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import (
-    GDPR_FRAGMENTS_JOURNAL,
+    EXTRAFIELDS_FRAGMENTS,
     JOURNAL_CODE,
-    PROFESSION_SELECT_FRAGMENTS_JOURNAL,
-    PROFESSION_SELECT_FRAGMENTS_PRESS,
     USERNAME,
 )
 
@@ -20,6 +17,7 @@ class TestJCOMProfileProfessionModelTests:
     @pytest.mark.django_db
     def test_new_account_has_profession_but_it_is_not_set(self, user):
         """A newly created account must have a profession associated.
+
         However, the profession is not set by default.
         """
         again = Account.objects.get(username=USERNAME)
@@ -56,52 +54,47 @@ class TestJCOMProfileURLs:
         expected_register_link = f'/{JOURNAL_CODE}/plugins/register/step/1/"> Register'
         assert expected_register_link in response.content.decode()
 
-    @pytest.mark.parametrize("theme,fragments", PROFESSION_SELECT_FRAGMENTS_JOURNAL)
+    @pytest.mark.parametrize("fragments", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    def test_journalregistration_form_has_field_profession(self, journal, theme, fragments, clear_script_prefix_fix):
-        """The field "profession" must appear in the journal registration form."""
-        # Set graphical theme.
-        # Do not use `journal.theme`: it has been deprecated!
-        theme_setting = Setting.objects.get(name="journal_theme")
-        setting_handler.save_setting(theme_setting.group.name, theme_setting.name, journal, theme)
-
+    def test_journal_registration_form_has_extrafields(self, journal, fragments, clear_script_prefix_fix):
+        """The extra fields must appear in the **journal** registration form."""
         client = Client()
         response = client.get(f"/{JOURNAL_CODE}/register/step/1/")
         for fragment in fragments:
             assert fragment in response.content.decode()
 
-    @pytest.mark.parametrize("theme,fragments", GDPR_FRAGMENTS_JOURNAL)
+    @pytest.mark.parametrize("fragments", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    def test_journal_registration_form_has_gdpr_checkbox(self, journal, theme, fragments, clear_script_prefix_fix):
-        theme_setting = Setting.objects.get(name="journal_theme")
-        setting_handler.save_setting(theme_setting.group.name, theme_setting.name, journal, theme)
-
-        client = Client()
-        response = client.get(f"/{JOURNAL_CODE}/register/step/1/")
-        for fragment in fragments:
-            assert fragment in response.content.decode()
-
-    @pytest.mark.parametrize("theme,fragments", PROFESSION_SELECT_FRAGMENTS_PRESS)
-    @pytest.mark.django_db
-    def test_pressregistration_form_has_field_profession(self, press, theme, fragments):
-        """The field "profession" must appear in the press registration form."""
-        # Set graphical theme
-        press.theme = theme
-        press.save()
-
+    # No need for the fixture "clear_script_prefix_fix" because we
+    # don't visit URLs related to a journal.
+    def test_press_registration_form_has_extrafields(self, press, fragments):
+        """The extra fields must appear in the **press** registration form."""
+        # The press "theme" is managed by INSTALLATION_BASE_THEME.
         client = Client()
         response = client.get("/register/step/1/")
         for fragment in fragments:
             assert fragment in response.content.decode()
 
-    @pytest.mark.parametrize("theme,fragments", GDPR_FRAGMENTS_JOURNAL)
+    @pytest.mark.parametrize("fragments", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    def test_press_registration_form_has_gdpr_checkbox(self, journal, theme, fragments, clear_script_prefix_fix):
-        theme_setting = Setting.objects.get(name="journal_theme")
-        setting_handler.save_setting(theme_setting.group.name, theme_setting.name, journal, theme)
-
+    def test_journal_user_profile_form_has_extrafields(self, admin, journal, fragments, clear_script_prefix_fix):
+        """The extra fields must appear in the **journal** user profile form."""
         client = Client()
-        response = client.get("/register/step/1/")
+        client.force_login(admin)
+        response = client.get(f"/{JOURNAL_CODE}/profile/")
+        for fragment in fragments:
+            assert fragment in response.content.decode()
+
+    @pytest.mark.parametrize("fragments", EXTRAFIELDS_FRAGMENTS)
+    @pytest.mark.django_db
+    # No need for the fixture "clear_script_prefix_fix" because we
+    # don't visit URLs related to a journal.
+    def test_press_user_profile_form_has_extrafields(self, admin, press, fragments):
+        """The extra fields must appear in the **press** user profile form."""
+        # The press "theme" is managed by INSTALLATION_BASE_THEME.
+        client = Client()
+        client.force_login(admin)
+        response = client.get("/profile/")
         for fragment in fragments:
             assert fragment in response.content.decode()
 
