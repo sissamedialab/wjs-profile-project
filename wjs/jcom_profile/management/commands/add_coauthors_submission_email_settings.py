@@ -79,5 +79,4 @@ class Command(BaseCommand):
             self._create_coauthors_submission_email_template_setting(email_settings_group)
             self._create_coauthors_submission_email_subject_setting(email_subject_settings_group)
         else:
-            # TODO: Create an ad hoc command to handle this case? I don't know if it could happen.
             self.stdout.write(self.style.ERROR(f"Check out your groups (email and email_subjects) settings before."))

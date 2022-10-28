@@ -5,6 +5,8 @@ from django.core import mail
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
+from submission import models as submission_models
+from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import INVITE_BUTTON
@@ -148,3 +150,38 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(admin,
             assert m.to == coauthors_email
         else:
             assert m.to == [article.correspondence_author.email]
+
+
+@pytest.mark.parametrize("user_as_main_author", (True, False))
+@pytest.mark.django_db
+def test_submitting_user_is_main_author_when_setting_is_on(
+    user_as_main_author_setting,
+    admin,
+    article_journal,
+    roles,
+    user_as_main_author,
+):
+    setting_handler.save_setting("general", "user_automatically_author", None, "on")
+    setting_handler.save_setting("general", "user_automatically_main_author", None, "on" if user_as_main_author else "")
+
+    client = Client()
+    client.force_login(admin)
+
+    data = {
+        "publication_fees": "on",
+        "submission_requirements": "on",
+        "copyright_notice": "on",
+        "competing_interests": None,
+        "comments_editor": None,
+        "start_submission": None,
+    }
+    url = reverse("submission_start")
+    response = client.post(url, data=data)
+    assert response.status_code == 302
+    assert submission_models.Article.objects.count() == 1
+
+    article = submission_models.Article.objects.first()
+    if user_as_main_author:
+        assert article.correspondence_author == admin.janeway_account
+    else:
+        assert not article.correspondence_author

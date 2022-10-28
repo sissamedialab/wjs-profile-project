@@ -1,6 +1,9 @@
 """pytest common stuff and fixtures."""
+import os
+
 import pytest
 from core.models import Account
+from django.conf import settings
 from django.core import management
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls.base import clear_script_prefix
@@ -9,7 +12,6 @@ from journal import models as journal_models
 from journal.tests.utils import make_test_journal
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Article
 from utils.install import update_issue_types, update_settings, update_xsl_files
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -194,15 +196,19 @@ def article_journal(press):
 
 
 @pytest.fixture
-def article(admin, coauthor, article_journal):
-    """Create a test article."""
+def section(article_journal):
     with translation.override("en"):
         section = submission_models.Section.objects.create(
             journal=article_journal,
             name="section",
             public_submissions=False,
         )
-    article = Article.objects.create(
+    return section
+
+
+@pytest.fixture
+def article(admin, coauthor, article_journal, section):
+    article = submission_models.Article.objects.create(
         abstract="Abstract",
         journal=article_journal,
         journal_id=article_journal.id,
@@ -220,6 +226,19 @@ def article(admin, coauthor, article_journal):
 def coauthors_setting():
     """Run add_coauthors_submission_email_settings command to install custom settings for coauthors email."""
     management.call_command("add_coauthors_submission_email_settings")
+
+
+@pytest.fixture
+def user_as_main_author_setting():
+    management.call_command("add_user_as_main_author_setting")
+
+
+@pytest.fixture
+def roles():
+    # TODO: Let's discuss this, I  Think we should decide how to deal with tests
+    roles_relative_path = "utils/install/roles.json"
+    roles_path = os.path.join(settings.BASE_DIR, roles_relative_path)
+    management.call_command("loaddata", roles_path)
 
 
 @pytest.fixture
