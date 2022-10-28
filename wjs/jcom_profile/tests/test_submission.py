@@ -86,8 +86,8 @@ class TestFilesStage:
         assert ru.is_authenticated
 
     @pytest.mark.django_db
-    def test_choose_si_skipped_when_no_si_open(self, admin, article):
-        """Test that the SI-choosing page just redirects if there are no open SIs."""
+    def test_choose_si_skipped_when_no_si_exist(self, admin, article):
+        """Test that the SI-choosing page just redirects if there are no SIs."""
         client = Client()
         client.force_login(admin)
         # visit the correct page
@@ -96,10 +96,15 @@ class TestFilesStage:
         assert response.status_code == 302
         assert response.url == reverse("submit_info_original", args=(article.pk,))
 
-        # expect the same with existing but closed SI
+    @pytest.mark.django_db
+    def test_choose_si_skipped_when_no_open_si(self, admin, article):
+        """Test that the SI-choosing page just redirects if there are no _open_ SIs."""
+        client = Client()
+        client.force_login(admin)
         SpecialIssue.objects.create(name="Test SI", is_open_for_submission=False)
         assert not SpecialIssue.objects.filter(is_open_for_submission=True).exists()
         assert SpecialIssue.objects.filter(is_open_for_submission=False).exists()
+        url = reverse("submit_info", args=(article.pk,))
         response = client.get(url)
         assert response.status_code == 302
         assert response.url == reverse("submit_info_original", args=(article.pk,))

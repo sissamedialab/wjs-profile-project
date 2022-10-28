@@ -23,7 +23,7 @@ include:
     ref: master
     file: '.gitlab-ci-pkg-deploy-to-test.yml'
   - project: 'wjs/wjs-profile-project'
-    ref: master
+    ref: ${CI_COMMIT_BRANCH}
     file: '.gitlab-ci-run-tests.yml'
 
 
