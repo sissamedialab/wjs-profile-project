@@ -11,11 +11,16 @@ from django.db import IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.generic import TemplateView
+from repository import models as preprint_models
+from security.decorators import submission_authorised
+from submission import decorators
+from submission import forms as submission_forms
+from submission import logic as submission_logic
 from submission import models as submission_models
+from utils import setting_handler
 from utils.logger import get_logger
 
 from wjs.jcom_profile import forms
-from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm, SIForm
 from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
 
 logger = get_logger(__name__)
@@ -25,7 +30,7 @@ logger = get_logger(__name__)
 def prova(request):
     """Una prova."""
     user = JCOMProfile.objects.get(pk=request.user.id)
-    form = JCOMProfileForm(instance=user)
+    form = forms.JCOMProfileForm(instance=user)
     # copied from core.views.py::edit_profile:358ss
 
     if request.POST:
@@ -71,7 +76,7 @@ def prova(request):
                 messages.add_message(request, messages.WARNING, "Old password is not correct.")
 
         elif "edit_profile" in request.POST:
-            form = JCOMProfileForm(request.POST, request.FILES, instance=user)
+            form = forms.JCOMProfileForm(request.POST, request.FILES, instance=user)
 
             if form.is_valid():
                 form.save()
@@ -100,10 +105,10 @@ def register(request):
     if token:
         token_obj = get_object_or_404(core_models.OrcidToken, token=token)
 
-    form = JCOMRegistrationForm()
+    form = forms.JCOMRegistrationForm()
 
     if request.POST:
-        form = JCOMRegistrationForm(request.POST)
+        form = forms.JCOMRegistrationForm(request.POST)
 
         password_policy_check = logic.password_policy_check(request)
 
@@ -197,7 +202,7 @@ def confirm_gdpr_acceptance(request, token):
 class SpecialIssues(TemplateView):
     """Views used to link an article to a special issue during submission."""
 
-    form_class = SIForm
+    form_class = forms.SIForm
     template_name = "admin/submission/submit_si_chooser.html"
 
     def post(self, *args, **kwargs):
@@ -247,3 +252,56 @@ class SpecialIssues(TemplateView):
             template_name=self.template_name,
             context=context,
         )
+
+
+@login_required
+@decorators.submission_is_enabled
+@submission_authorised
+def start(request, type=None):  # NOQA
+    """Start the submission process."""
+    # TODO: See submission.views.start
+    #  This view should be added to janeway core, avoiding useless code duplication.
+    #  Expected behaviour: check user_automatically_author and user_automatically_main_author settings to eventually
+    #  add article main author automatically.
+    form = submission_forms.ArticleStart(journal=request.journal)
+
+    if not request.user.is_author(request):
+        request.user.add_account_role("author", request.journal)
+
+    if request.POST:
+        form = submission_forms.ArticleStart(request.POST, journal=request.journal)
+
+        if form.is_valid():
+            new_article = form.save(commit=False)
+            new_article.owner = request.user
+            new_article.journal = request.journal
+            new_article.current_step = 1
+            new_article.article_agreement = submission_logic.get_agreement_text(request.journal)
+            new_article.save()
+
+            if type == "preprint":
+                preprint_models.Preprint.objects.create(article=new_article)
+
+            user_automatically_author = setting_handler.get_setting(
+                "general",
+                "user_automatically_author",
+                request.journal,
+            ).processed_value
+            user_automatically_main_author = setting_handler.get_setting(
+                "general",
+                "user_automatically_main_author",
+                request.journal,
+            ).processed_value
+
+            if user_automatically_author:
+                submission_logic.add_user_as_author(request.user, new_article)
+                if user_automatically_main_author:
+                    new_article.correspondence_author = request.user
+                new_article.save()
+
+            return redirect(reverse("submit_info", kwargs={"article_id": new_article.pk}))
+
+    template = "admin/submission/start.html"
+    context = {"form": form}
+
+    return render(request, template, context)

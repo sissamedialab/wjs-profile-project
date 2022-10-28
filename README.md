@@ -30,10 +30,11 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
 
 ### Available customization commands
 
-| command                                  | arguments | description                                                      |
-|------------------------------------------|-----------|------------------------------------------------------------------|
-| `add_coauthors_submission_email_settings` | -         | Add email settings to notify coauthors after article submission. |
-| `run_customizations`                     | -         | Run all customization commands to Janeway.                       |
+| command                                    | arguments | description                                                      |
+|--------------------------------------------|-----------|------------------------------------------------------------------|
+| `add_user_as_main_author_setting`          | -         | Add `user_automatically_main_author` setting.                    |
+| `add_coauthors_submission_email_settings`  | -         | Add email settings to notify coauthors after article submission. |
+| `run_customizations`                       | -         | Run all customization commands to Janeway.                       |
 
 ### pre-commit
 

@@ -7,6 +7,7 @@ from submission import views as submission_views
 from wjs.jcom_profile import views
 
 urlpatterns = [
+    url(r"^(?P<type>[-\w.]+)/start/$", views.start, name="submission_start"),
     url(r"^profile/$", views.prova, name="core_edit_profile"),
     url(r"^register/step/1/$", views.register, name="core_register"),
     url(
