@@ -6,6 +6,7 @@ from core.models import Account, Setting
 from django.conf import settings
 from django.core import management
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.serializers import deserialize
 from django.urls.base import clear_script_prefix
 from django.utils import translation
 from journal import models as journal_models
@@ -192,10 +193,12 @@ def user_as_main_author_setting():
 
 @pytest.fixture
 def roles():
-    # TODO: Let's discuss this, I  Think we should decide how to deal with tests
     roles_relative_path = "utils/install/roles.json"
     roles_path = os.path.join(settings.BASE_DIR, roles_relative_path)
-    management.call_command("loaddata", roles_path)
+    with open(roles_path, encoding="utf-8") as f:
+        roles = f.read()
+        for role in deserialize("json", roles):
+            role.save()
 
 
 @pytest.fixture
