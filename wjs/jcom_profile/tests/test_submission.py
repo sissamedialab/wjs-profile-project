@@ -17,6 +17,7 @@ class TestFilesStage:
     @pytest.mark.django_db
     def test_additional_files_form_title_obeys_setting(self, journal, clear_script_prefix_fix):
         """The title of the additional files field should obey its setting."""
+        # TODO: flip-flapping when the order of the tests change!!!
         # set the setting
         value = "<h2>Qui ci metto un po' <strong>di</strong> tutto</h2>"
         setting_group = SettingGroup.objects.get(name="styling")
