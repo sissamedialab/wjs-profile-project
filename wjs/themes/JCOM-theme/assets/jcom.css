@@ -1,0 +1,45 @@
+:root {
+    --primary: #0066cc;
+    --primary-light: #5c93ff;
+    --primary-dark: #003d9a;
+    --primary-variant: #0098ff;
+    --secondary: #cc6600;
+    /* --secondary-variant:; */
+    --background: #f5f5f5;
+    --surface: #f5f5f5;
+    --error: #cc0066;
+    --on-primary: #fff;
+    --on-secondary: #fff;
+    --on-background: #666;
+    --on-surface: #666;
+    --on-error: #666;
+}
+
+body {
+    background-color: var(--background);
+}
+
+.btn, .btn-large {
+	background-color: var(--primary);
+}
+.btn:hover, .btn-large:hover {
+	background-color: var(--primary-light);
+}
+
+/* Used in article_listing.html to show publication date and article type (section) in article listings */
+div.left-right {
+  display: flex;
+  justify-content: space-between;
+}
+
+
+/* submission form */
+.button.success {
+	background-color: var(--primary);
+	color: var(--on-primary);
+}
+
+.button.success:hover, .button.success:focus {
+	background-color: var(--primary-light);
+	color: var(--on-primary);
+}
