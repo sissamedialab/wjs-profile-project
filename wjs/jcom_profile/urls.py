@@ -30,6 +30,26 @@ urlpatterns = [
         submission_views.submit_info,
         name="submit_info_original",
     ),
+    # Special Issues mgmt
+    #     add, view, update
+    url(r"^manage/si/new$", views.SICreate.as_view(template_name="admin/core/si_new.html"), name="si-create"),
+    url(r"^si/(?P<pk>\d+)/$", views.SIDetails.as_view(template_name="si_details.html"), name="si-details"),
+    url(
+        r"^manage/si/(?P<pk>\d+)/edit$",
+        views.SIUpdate.as_view(template_name="admin/core/si_update.html"),
+        name="si-update",
+    ),
+    #     files (aka documents; upload & download)
+    url(
+        r"^si/(?P<special_issue_id>\d+)/file/(?P<file_id>\d+)/",
+        views.serve_special_issue_file,
+        name="special_issue_file_download",
+    ),
+    url(
+        r"^si_file_upload/(?P<special_issue_id>\d+)/",
+        views.SIFileUpload.as_view(),
+        name="special_issue_file_upload",
+    ),
 ]
 
 urlpatterns.extend(include_urls.urlpatterns)

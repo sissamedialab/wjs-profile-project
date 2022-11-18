@@ -1,0 +1,38 @@
+<!-- TODO: refactor with si_update.html -->
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% load i18n %}
+{% block title-section %}
+    {% trans "Create a new Special Issue" %}
+{% endblock title-section %}
+{% block body %}
+    <div class="card">
+        <div class="card-section">
+            {% include "elements/forms/errors.html" with form=form %}
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="large-12 columns">{{ form.name|foundation }}</div>
+                    <div class="large-6 columns">{{ form.short_name|foundation }}</div>
+                    <div class="large-6 columns">{{ form.journal|foundation }}</div>
+                    <div class="large-12 columns">{{ form.description|foundation }}</div>
+                </div>
+                <div class="row">
+                    <!-- TODO: use same calendar/time widget used in admin -->
+                    <div class="large-6 columns">{{ form.open_date|foundation }}</div>
+                    <div class="large-6 columns">{{ form.close_date|foundation }}</div>
+                </div>
+                <div class="row"
+                    <div class="large-12 columns">
+                        <p>You will be able to load documents to the special issue only once it has been created.</p>
+                    </div>
+                </div>
+                <div class="row"
+                    <div class="large-6 columns">
+                        <input type="submit" value="Save" />
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock body %}
