@@ -1,11 +1,14 @@
 """The model for a field "profession" for JCOM authors."""
-
 from core.models import Account, AccountManager
 from django.contrib.postgres.fields import JSONField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from journal.models import Journal
 from submission.models import Article
+from utils import logic as utils_logic
 
 # TODO: use settings.AUTH_USER_MODEL
 
@@ -74,11 +77,70 @@ class Correspondence(models.Model):
         unique_together = ("account", "user_cod", "source")
 
 
-class SpecialIssue(models.Model):
-    """Stub for a special issue data model."""
+class SIQuerySet(models.QuerySet):
+    """Query sets (filters) for Special Issues."""
 
-    name = models.CharField(max_length=121)
-    is_open_for_submission = models.BooleanField(blank=True, null=False, default=False)
+    def open_for_submission(self):
+        """Build a queryset of Special Issues open for submission."""
+        _now = timezone.now()
+        return self.filter(models.Q(close_date__isnull=True) | models.Q(close_date__gte=_now), open_date__lte=_now)
+
+    def current_journal(self):
+        """Build a queryset of all Special Issues of the "requested" journal."""
+        request = utils_logic.get_current_request()
+        if request and request.journal:
+            return self.filter(journal=request.journal)
+        else:
+            return self.none()
+
+
+class SpecialIssue(models.Model):
+    """A Special Issue.
+
+    A "container" of articles to which authors (maybe directly
+    invited) can direct their submission.
+
+    Special Issues are relative to a single journal and can be set to
+    accept submission only for a limited time span. They may contain
+    also additional material, that can or cannot be made visible to
+    the public.
+
+    """
+
+    objects = SIQuerySet().as_manager()
+
+    name = models.CharField(max_length=121, help_text="Name / title / long name", blank=False, null=False)
+    short_name = models.SlugField(
+        max_length=21,
+        help_text="Short name or code (please only [a-zA-Z0-9_-]",
+        blank=False,
+        null=False,
+    )
+    description = models.TextField(help_text="Description or abstract", blank=False, null=False)
+
+    open_date = models.DateTimeField(
+        help_text="Authors can submit to this special issue only after this date",
+        blank=True,
+        null=False,
+        default=timezone.now,
+    )
+    close_date = models.DateTimeField(
+        help_text="Authors cannot submit to this special issue after this date",
+        blank=True,
+        null=True,
+    )
+    journal = models.ForeignKey(to=Journal, on_delete=models.CASCADE)
+    documents = models.ManyToManyField(to="core.File", limit_choices_to={"article_id": None})
+
+    def get_absolute_url(self):
+        """Get the absolute URL (where create-view redirects on success)."""
+        return reverse("si-update", kwargs={"pk": self.pk})
+
+    def is_open_for_submission(self):
+        """Compute if this special issue is open for submission."""
+        # WARNING: must be coherent with queryset SIQuerySet
+        now = timezone.now()
+        return self.open_date <= now and self.close_date >= now
 
     def __str__(self):
         """Show representation (used in admin UI)."""

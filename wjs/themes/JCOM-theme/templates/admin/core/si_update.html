@@ -1,0 +1,122 @@
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% load i18n %}
+{% load static from staticfiles %}
+{% load hooks %}
+{% load files %}
+{% load securitytags %}
+{% block title-section %}
+    {% trans "Edit Special Issue" %} {{ object.name }} — <a href="{% url 'si-details' object.pk %}">view</a>
+{% endblock title-section %}
+{% block body %}
+    {{ forma.media }}
+    <div class="card">
+        <div class="card-section">
+            {% include "elements/forms/errors.html" with form=form %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="large-12 columns">{{ form.name|foundation }}</div>
+                    <div class="large-6 columns">{{ form.short_name|foundation }}</div>
+                    <div class="large-6 columns">{{ form.journal|foundation }}</div>
+                    <div class="large-12 columns">{{ form.description|foundation }}</div>
+                </div>
+                <div class="row">
+                    <!-- TODO: use same calendar/time widget used in admin -->
+                    <div class="large-6 columns">{{ form.open_date|foundation }}</div>
+                    <div class="large-6 columns">{{ form.close_date|foundation }}</div>
+                </div>
+                <div class="row">
+                    <div class="large-6 columns">
+                        <input type="submit" value="Save" />
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="card-section">
+            <div class="row">
+                <div class="large-12 columns">
+                    <table id="files" class="small files">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Label</th>
+                                <th>Uploaded</th>
+                                <th>Modified</th>
+                                <th>Filename</th>
+                                <th>Download</th>
+                                <th>History</th>
+                                <th>Replace</th>
+                                <th>Delete</th>
+                                <th>Privacy</th>
+                                {% if request.user.is_admin %}<th>Admin</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for file in object.documents.all %}
+                                {% can_edit_file file article as can_edit_file_flag %}
+                                {% can_view_file file as can_view_file_flag %}
+                                {% can_view_file_history file article as can_view_file_history_flag %}
+                                <tr>
+                                    <td>{{ file.pk }}</td>
+                                    <td class="wrap-long-text">
+                                        {% if not file.label %}No Label{% endif %}
+                                        {{ file.label }}
+                                    </td>
+                                    <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
+                                    <td>{{ file.last_modified|date:"Y-m-d G:i" }}</td>
+                                    <td class="wrap-long-text">{{ file }}</td>
+                                    <td>
+                                        {% if can_view_file_flag %}
+                                            <a href="{% url 'special_issue_file_download' object.pk file.pk %}"><i class="fa fa-download">
+                                            &nbsp;</i></a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_view_file_history_flag %}
+                                            <!-- url 'file_history' article.pk file.pk %}?return={{ request.path|urlencode }} -->
+                                            <a href="#"><i class="fa fa-history">
+                                            &nbsp;</i></a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_file_flag %}
+                                            <!-- url 'article_file_replace' 'id_FIXME_' article.pk file.pk %}?return={{ request.path|urlencode }}%3Freturn%3D{{ request.GET.return|urlencode }} -->
+                                            <a href="#"><i class="fa fa-cloud-upload">&nbsp;</i></a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_file_flag %}
+                                            <a href="{% url 'file_delete' 1 file.pk %}?return={{ request.path|urlencode }}%3Freturn%3D{{ request.GET.return|urlencode }}"><i class="fa fa-trash">
+                                            &nbsp;</i></a>
+                                        {% endif %}
+                                    </td>
+                                    <td>TODO: REPLACE WITH core.File "PRIVACY"</td>
+                                    {% if request.user.is_admin %}
+                                        <td>
+                                            <a target="_blank" href="{% url 'admin:core_file_change' file.pk %}"><span class="fa fa-cogs">&nbsp;</span>Edit</a>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="row">
+                <div class="large-12 columns">
+                    <form method="post"
+                          enctype="multipart/form-data"
+                          action="{% url 'special_issue_file_upload' object.id %}">
+                        {% csrf_token %}
+                        <input type="file" name="new-file"/>
+                        <input type="submit" value="Upload" />
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}
+{% block js %}
+    {% include "admin/elements/datatables.html" with target="#files" %}
+{% endblock js %}
