@@ -8,7 +8,7 @@ from wjs.jcom_profile import views
 
 urlpatterns = [
     url(r"^(?P<type>[-\w.]+)/start/$", views.start, name="submission_start"),
-    url(r"^profile/$", views.prova, name="core_edit_profile"),
+    url(r"^profile/$", views.edit_profile, name="core_edit_profile"),
     url(r"^register/step/1/$", views.register, name="core_register"),
     url(
         r"^register/activate/gdpr/(?P<token>.+)/",
@@ -29,6 +29,11 @@ urlpatterns = [
         r"^submit/(?P<article_id>\d+)/info-metadata/$",
         submission_views.submit_info,
         name="submit_info_original",
+    ),
+    url(
+        r"^update/parameters/$",
+        views.EditorAssignmentParametersUpdate.as_view(),
+        name="assignment_parameters",
     ),
     # Special Issues mgmt
     #     add, view, update

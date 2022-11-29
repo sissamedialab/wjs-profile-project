@@ -21,10 +21,20 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
 
 2. Migrations should be run specifying the sub-package name:
    `./manage.py migrate jcom_profile`
-3. From `janeway/src`, run the following command:
+3. Add the following to your local custom janeway settings:
+   ```python
+   WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
+       None: "wjs.jcom_profile.events.assignment.assign_editors_to_articles",
+
+}
 
    ```
-   python manage.py run_customizations
+4. From `janeway/src`, run the following command:
+
+   ```
+
+python manage.py run_customizations
+
    ```
    It will add all our customization to Janeway project.
 
@@ -47,6 +57,7 @@ on `.pre-commit-config.yaml` rules basis.
    ```shell
    pip install pre-commit
    ```
+
 2. Install `pre-commit` hooks script in repository root:
    ```shell
    pre-commit install

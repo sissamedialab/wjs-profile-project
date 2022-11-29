@@ -13,6 +13,7 @@ from django.db import IntegrityError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.translation import ugettext_lazy as _
 from django.views import View
 from django.views.generic import CreateView, DetailView, TemplateView, UpdateView
 from repository import models as preprint_models
@@ -24,16 +25,22 @@ from submission import models as submission_models
 from utils import setting_handler
 from utils.logger import get_logger
 
+from wjs.jcom_profile.forms import UpdateAssignmentParametersForm
+from wjs.jcom_profile.models import (
+    EditorAssignmentParameters,
+    JCOMProfile,
+    SpecialIssue,
+)
+
 from . import forms
-from .models import JCOMProfile, SpecialIssue
 from .utils import PATH_PARTS, save_file_to_special_issue
 
 logger = get_logger(__name__)
 
 
 @login_required
-def prova(request):
-    """Una prova."""
+def edit_profile(request):
+    """Edit profile view for wjs app."""
     user = JCOMProfile.objects.get(pk=request.user.id)
     form = forms.JCOMProfileForm(instance=user)
     # copied from core.views.py::edit_profile:358ss
@@ -395,3 +402,22 @@ class SIFileDelete(PermissionRequiredMixin, View):
         file_obj = get_object_or_404(core_models.File, pk=file_id)
         file_obj.delete()
         return redirect(request.GET["return"])
+
+
+class EditorAssignmentParametersUpdate(UpdateView):
+    model = EditorAssignmentParameters
+    form_class = UpdateAssignmentParametersForm
+    template_name = "submission/update_editor_parameters.html"
+
+    def get_object(self, queryset=None):  # noqa
+        editor, journal = self.request.user, self.request.journal
+        parameters, _ = EditorAssignmentParameters.objects.get_or_create(editor=editor, journal=journal)
+        return parameters
+
+    def get_success_url(self):  # noqa
+        messages.add_message(
+            self.request,
+            messages.SUCCESS,
+            _("Parameters updated successfully"),
+        )
+        return reverse("assignment_parameters")

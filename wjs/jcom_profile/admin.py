@@ -10,7 +10,12 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from wjs.jcom_profile import forms, models
-from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
+from wjs.jcom_profile.models import (
+    EditorAssignmentParameters,
+    EditorKeyword,
+    JCOMProfile,
+    SpecialIssue,
+)
 from wjs.jcom_profile.utils import generate_token
 
 
@@ -109,3 +114,13 @@ admin.site.register(Account, UserAdmin)
 @admin.register(SpecialIssue)
 class SpecialIssueAdmin(admin.ModelAdmin):
     """Helper class to "admin" special issues."""
+
+
+@admin.register(EditorAssignmentParameters)
+class EditorAssignmentParametersAdmin(admin.ModelAdmin):
+    """Helper class to "admin" editor assignment parameters."""
+
+
+@admin.register(EditorKeyword)
+class EditorKeywordAdmin(admin.ModelAdmin):
+    """Helper class to "admin" editor keyword."""

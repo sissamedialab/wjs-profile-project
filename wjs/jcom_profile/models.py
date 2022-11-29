@@ -169,3 +169,28 @@ class ArticleWrapper(models.Model):
         related_name="special_issue",
         null=True,
     )
+
+
+class EditorAssignmentParameters(models.Model):
+    # FIXME: Change keywords field when Keyword will be linked to a specific Journal
+    keywords = models.ManyToManyField("submission.Keyword", through="EditorKeyword")
+    editor = models.ForeignKey("core.Account")
+    journal = models.ForeignKey("journal.Journal")
+    workload = models.PositiveSmallIntegerField(default=0)
+    brake_on = models.PositiveSmallIntegerField(default=0)
+
+    def __str__(self):  #
+        return f"{self.editor} - Assignment parameters"
+
+
+class EditorKeyword(models.Model):
+    editor_parameters = models.ForeignKey(EditorAssignmentParameters)
+    keyword = models.ForeignKey("submission.Keyword")
+    weight = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # TODO: Not sure about this.
+        auto_created = True
+
+    def __str__(self):  # NOQA: D105
+        return f"{self.editor_parameters.editor} - Editor keyword: {self.keyword}"

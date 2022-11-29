@@ -2,6 +2,8 @@
 # https://docs.djangoproject.com/en/4.0/ref/applications/
 from django.apps import AppConfig
 
+from wjs.jcom_profile.events.assignment import dispatch_assignment
+
 
 class JCOMProfileConfig(AppConfig):
     """Configuration for this django app."""
@@ -21,6 +23,12 @@ class JCOMProfileConfig(AppConfig):
         """Register my functions to Janeway's hooks."""
         hooks = [
             {"extra_corefields": {"module": "wjs.jcom_profile.hooks", "function": "prova_hook"}},
+            {
+                "extra_edit_profile_parameters": {
+                    "module": "wjs.jcom_profile.hooks",
+                    "function": "extra_edit_profile_parameters_hook",
+                },
+            },
         ]
         # NB: do not `import core...` before `ready()`,
         # otherwise django setup process breaks
@@ -39,4 +47,9 @@ class JCOMProfileConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,
             notify_coauthors_article_submission,
+        )
+
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_SUBMITTED,
+            dispatch_assignment,
         )

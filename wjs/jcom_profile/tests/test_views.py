@@ -6,10 +6,11 @@ from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from submission import models as submission_models
+from submission.models import Keyword
 from utils import setting_handler
 
-from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.tests.conftest import INVITE_BUTTON
+from wjs.jcom_profile.models import EditorAssignmentParameters, JCOMProfile
+from wjs.jcom_profile.tests.conftest import ASSIGNMENT_PARAMETERS_SPAN, INVITE_BUTTON
 from wjs.jcom_profile.utils import generate_token
 
 
@@ -162,7 +163,12 @@ def test_submitting_user_is_main_author_when_setting_is_on(
     user_as_main_author,
 ):
     setting_handler.save_setting("general", "user_automatically_author", None, "on")
-    setting_handler.save_setting("general", "user_automatically_main_author", None, "on" if user_as_main_author else "")
+    setting_handler.save_setting(
+        "general",
+        "user_automatically_main_author",
+        None,
+        "on" if user_as_main_author else "",
+    )
 
     client = Client()
     client.force_login(admin)
@@ -185,3 +191,70 @@ def test_submitting_user_is_main_author_when_setting_is_on(
         assert article.correspondence_author == admin.janeway_account
     else:
         assert not article.correspondence_author
+
+
+@pytest.mark.parametrize("user_role", ("staff", "editor", "other"))
+@pytest.mark.django_db
+def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_staff_or_editor(
+    user,
+    roles,
+    user_role,
+    journal,
+):
+    jcom_user = JCOMProfile.objects.get(janeway_account=user)
+    jcom_user.gdpr_checkbox = True
+    jcom_user.is_active = True
+    # User are staff or editor
+    if user_role == "staff":
+        jcom_user.is_staff = True
+
+    elif user_role == "editor":
+        user.add_account_role("editor", journal)
+    jcom_user.save()
+
+    jcom_user.refresh_from_db()
+    client = Client()
+    client.force_login(jcom_user)
+    url = f"/{journal.code}/profile/"
+    response = client.get(url)
+    assert response.status_code == 200
+    if user_role in ["staff", "editor"]:
+        assert ASSIGNMENT_PARAMETERS_SPAN in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_assignment_parameters_button_is_not_without_journal(
+    admin,
+    journal,
+):
+    client = Client()
+    client.force_login(admin)
+    url = "/profile/"
+    response = client.get(url)
+    assert response.status_code == 200
+    assert ASSIGNMENT_PARAMETERS_SPAN not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_update_editor_assignment_parameters(user, roles, keywords, journal):
+    user.add_account_role("editor", journal)
+    jcom_user = JCOMProfile.objects.get(janeway_account=user)
+    jcom_user.gdpr_checkbox = True
+    jcom_user.is_active = True
+    jcom_user.save()
+
+    keywords_id = Keyword.objects.all().values_list("id", flat=True)
+    workload = 10
+
+    client = Client()
+    client.force_login(jcom_user)
+    url = reverse("assignment_parameters")
+    data = {"keywords": list(keywords_id), "workload": workload}
+    response = client.post(url, data)
+    assert response.status_code == 302
+
+    assignment_parameters = EditorAssignmentParameters.objects.get(editor=jcom_user, journal=journal)
+    editor_keywords = assignment_parameters.editorkeyword_set.all()
+    assert assignment_parameters.workload == workload
+    for keyword in keywords:
+        assert keyword.word in list(editor_keywords.values_list("keyword__word", flat=True))

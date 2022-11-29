@@ -70,12 +70,9 @@ USE_X_FORWARDED_PORT = True
 
 # INSTALLED_APPS and MIDDLEWARE_CLASSES defined here are merged by
 # `manage.py` (and `wsgi.py` probably)
-INSTALLED_APPS = [
-    "wjs.jcom_profile",
-]
+INSTALLED_APPS = ["wjs.jcom_profile", "easy_select2"]
 
 MIDDLEWARE_CLASSES = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
-
 
 # already defined in janeway_global_settings.py (but not visible here...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -167,7 +164,6 @@ CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
     "/logout/",
 ]
 
-
 # issue-25 start
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/25
 TEMPLATES = [
@@ -211,5 +207,9 @@ TEMPLATES = [
     },
 ]
 # issue-25 end
+
+WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
+    None: "wjs.jcom_profile.events.assignment.default_assign_editors_to_articles",
+}
 
 print("🍠")
