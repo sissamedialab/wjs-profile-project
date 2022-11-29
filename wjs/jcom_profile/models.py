@@ -173,7 +173,7 @@ class ArticleWrapper(models.Model):
 
 class EditorAssignmentParameters(models.Model):
     # FIXME: Change keywords field when Keyword will be linked to a specific Journal
-    keywords = models.ManyToManyField("submission.Keyword", through="EditorKeyword")
+    keywords = models.ManyToManyField("submission.Keyword", through="EditorKeyword", blank=True)
     editor = models.ForeignKey("core.Account")
     journal = models.ForeignKey("journal.Journal")
     workload = models.PositiveSmallIntegerField(default=0)
