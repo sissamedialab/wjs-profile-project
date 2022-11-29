@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block body %}
+    <div>
+        <form method="post">
+            {% csrf_token %}
+            {{ formset.management_form }}
+            {{ formset.as_p }}
+            <div class="input-field col s12">
+                {{ form.workload }}
+                <label for={{ form.workload.id }}>Workload</label>
+            </div>
+            <div class="input-field col s12">
+                {{ form.brake_on }}
+                <label for={{ form.brake_on.id }}>Brake On</label>
+            </div>
+            <div class="input-field col s12">
+                <input type="submit"/>
+            </div>
+        </form>
+    </div>
+{% endblock body %}
+
+{% block footer %}
+    <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+
+    {{ form.media }}
+
+{% endblock footer %}

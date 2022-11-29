@@ -35,6 +35,11 @@ urlpatterns = [
         views.EditorAssignmentParametersUpdate.as_view(),
         name="assignment_parameters",
     ),
+    url(
+        r"^update/parameters/(?P<editor_pk>\d+)/$",
+        views.DirectorEditorAssignmentParametersUpdate.as_view(),
+        name="assignment_parameters",
+    ),
     # Special Issues mgmt
     #     add, view, update
     url(r"^manage/si/new$", views.SICreate.as_view(template_name="admin/core/si_new.html"), name="si-create"),

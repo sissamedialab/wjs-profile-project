@@ -1,0 +1,69 @@
+{% extends "admin/core/base.html" %}
+{% load static from staticfiles %}
+
+{% block title %}{{ role.name }}{% endblock title %}
+{% block title-section %}Roles{% endblock title-section %}
+{% block title-sub %}Users with the {{ role.name }} role{% endblock title-sub %}
+
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li><a href="{% url 'core_manager_index' %}">Manager</a></li>
+    <li><a href="{% url 'core_manager_roles' %}">Roles</a></li>
+    <li><a href="{% url 'core_manager_role' role.slug %}">{{ role.name }}</a></li>
+{% endblock breadcrumbs %}
+
+{% block body %}
+    <div class="large-12 columns">
+        <div class="box">
+            <div class="title-area">
+                <h2>Users with this role</h2>
+            </div>
+            <div class="content">
+                <p>To enrol users use the <a
+                        href="{% url 'core_manager_enrol_users' %}?return={% url 'core_manager_role' role.slug %}">Enrol
+                    Users</a> interface.</p>
+                <table class="small scroll" cellspacing="0" width="100%" id="users-with">
+                    <thead>
+                    <tr>
+                        <th width="25%">First Name</th>
+                        <th width="25%">Last Name</th>
+                        <th width="30%">Email</th>
+                        <th width="20%"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for assignment in account_roles %}
+                        <tr>
+                            <td>{{ assignment.user.first_name }}</td>
+                            <td>{{ assignment.user.last_name }}</td>
+                            <td>{{ assignment.user.email }}</td>
+                            <td width="20%"><a class="tiny alert button"
+                                               href="{% url 'core_manager_role_action' role.slug assignment.user.id 'remove' %}"><i
+                                    class="fa fa-times"></i> &nbsp;&nbsp;Remove Role</a>
+                                {% if user.is_staff and role.slug == "editor" %}
+                                    <a class="tiny primary button"
+                                       href="{% url 'assignment_parameters' assignment.user.id %}">&nbsp;Assignment
+                                        Parameters</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}</tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock body %}
+
+{% block js %}
+    {% include "admin/elements/datatables.html" with target="#users-with" %}
+    <script>
+        $(document).ready(function () {
+            $('#users-with').DataTable({
+                "page_length": 25,
+                "lengthMenu": [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]]
+            });
+        });
+    </script>
+
+
+{% endblock js %}

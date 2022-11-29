@@ -42,6 +42,18 @@ INVITE_BUTTON = """<li>
 
 ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
 
+ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span>"""
+
+
+@pytest.fixture
+def roles():
+    roles_relative_path = "utils/install/roles.json"
+    roles_path = os.path.join(settings.BASE_DIR, roles_relative_path)
+    with open(roles_path, encoding="utf-8") as f:
+        roles = f.read()
+        for role in deserialize("json", roles):
+            role.save()
+
 
 @pytest.fixture
 def admin():
@@ -82,6 +94,16 @@ def user():
     user = Account(username=USERNAME, first_name="User", last_name="Ics")
     user.save()
     yield user
+
+
+@pytest.fixture()
+def editor(user, roles, journal, keywords):
+    editor = JCOMProfile.objects.get(janeway_account=user)
+    editor.gdpr_checkbox = True
+    editor.is_active = True
+    editor.add_account_role("editor", journal)
+    editor.save()
+    return editor
 
 
 @pytest.fixture()
@@ -183,16 +205,6 @@ def coauthors_setting():
 @pytest.fixture
 def user_as_main_author_setting():
     management.call_command("add_user_as_main_author_setting")
-
-
-@pytest.fixture
-def roles():
-    roles_relative_path = "utils/install/roles.json"
-    roles_path = os.path.join(settings.BASE_DIR, roles_relative_path)
-    with open(roles_path, encoding="utf-8") as f:
-        roles = f.read()
-        for role in deserialize("json", roles):
-            role.save()
 
 
 @pytest.fixture
