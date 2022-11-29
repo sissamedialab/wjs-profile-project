@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+{# Don't forget that one ! #}
+{% load static %}
+
+{% block body %}
+    <div>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <input type="submit"/>
+        </form>
+    </div>
+{% endblock body %}
+
+{% block css %}
+    {{ block.super }}
+    {{ form.media.css }}
+{% endblock css %}
+
+{% block js %}
+    {{ block.super }}
+    {{ form.media.js }}
+{% endblock js %}
+
+{% block footer %}
+    <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+
+    {{ form.media }}
+
+{% endblock footer %}

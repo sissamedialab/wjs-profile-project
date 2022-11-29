@@ -11,7 +11,7 @@ include = '/((wjs)/.*\.pyi?|.*\.py)$'
 profile = "black"
 
 [tool.pydocstyle]
-ignore = ["D101","D104","D106","D212","D203","D213"]
+ignore = ["D101","D104", "D105","D106","D212","D203","D213"]
 
 [tool.djlint]
 profile="django"

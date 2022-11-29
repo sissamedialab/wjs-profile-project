@@ -7,9 +7,16 @@ from django import forms
 from django.forms import ModelForm
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from easy_select2.widgets import Select2Multiple
+from submission.models import Keyword
 from utils.forms import CaptchaForm
 
-from wjs.jcom_profile.models import ArticleWrapper, JCOMProfile, SpecialIssue
+from wjs.jcom_profile.models import (
+    ArticleWrapper,
+    EditorAssignmentParameters,
+    JCOMProfile,
+    SpecialIssue,
+)
 
 
 class GDPRAcceptanceForm(forms.Form):
@@ -153,3 +160,19 @@ class SIForm(forms.ModelForm):
     #    |   |   |   Special Issue 3                        |
     #    |   +---+                                          |
     #    +--------------------------------------------------+
+
+
+class UpdateAssignmentParametersForm(forms.ModelForm):
+    keywords = forms.ModelMultipleChoiceField(
+        label=_("Keywords"),
+        queryset=Keyword.objects.all(),
+        # TODO: Ad this in app.css .select2-container {width: 100% !important;}
+        widget=Select2Multiple(),
+    )
+
+    class Meta:
+        model = EditorAssignmentParameters
+        fields = (
+            "keywords",
+            "workload",
+        )

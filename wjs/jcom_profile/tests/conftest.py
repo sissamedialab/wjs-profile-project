@@ -5,7 +5,6 @@ import pytest
 from core.models import Account, Setting
 from django.conf import settings
 from django.core import management
-from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers import deserialize
 from django.urls.base import clear_script_prefix
 from django.utils import translation
@@ -13,6 +12,7 @@ from journal import models as journal_models
 from journal.tests.utils import make_test_journal
 from press.models import Press
 from submission import models as submission_models
+from submission.models import Keyword
 from utils import setting_handler
 from utils.install import update_issue_types, update_settings, update_xsl_files
 
@@ -40,15 +40,7 @@ INVITE_BUTTON = """<li>
         <a href="/admin/core/account/invite/" class="btn btn-high btn-success">Invite</a>
     </li>"""
 
-
-def drop_user():
-    """Delete the test user."""
-    try:
-        user_x = Account.objects.get(username=USERNAME)
-    except ObjectDoesNotExist:
-        pass
-    else:
-        user_x.delete()
+ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
 
 
 @pytest.fixture
@@ -87,7 +79,6 @@ def user():
     Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
     """
     # Delete the test user (just in case...).
-    drop_user()
     user = Account(username=USERNAME, first_name="User", last_name="Ics")
     user.save()
     yield user
@@ -117,7 +108,6 @@ def press(install_jcom_theme):
     apress.theme = "JCOM-theme"
     apress.save()
     yield apress
-    apress.delete()
 
 
 def set_jcom_theme(journal):
@@ -140,8 +130,6 @@ def journal(press):
     journal = make_test_journal(**journal_kwargs)
     set_jcom_theme(journal)
     yield journal
-    # probably redundant because of django db transactions rollbacks
-    journal.delete()
 
 
 @pytest.fixture
@@ -224,3 +212,10 @@ def clear_script_prefix_fix():
     clear_script_prefix()
     yield None
     clear_script_prefix()
+
+
+@pytest.fixture
+def keywords():
+    for i in range(3):
+        Keyword.objects.create(word=f"{i}-keyword")
+    return Keyword.objects.all()
