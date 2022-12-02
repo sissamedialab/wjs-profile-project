@@ -9,7 +9,7 @@
     {% trans "Edit Special Issue" %} {{ object.name }} — <a href="{% url 'si-details' object.pk %}">view</a>
 {% endblock title-section %}
 {% block body %}
-    {{ forma.media }}
+    {{ form.media }}
     <div class="card">
         <div class="card-section">
             {% include "elements/forms/errors.html" with form=form %}
@@ -25,6 +25,9 @@
                     <!-- TODO: use same calendar/time widget used in admin -->
                     <div class="large-6 columns">{{ form.open_date|foundation }}</div>
                     <div class="large-6 columns">{{ form.close_date|foundation }}</div>
+                </div>
+                <div class="row">
+                    <div class="large-6 columns">{{ form.allowed_sections|foundation }}</div>
                 </div>
                 <div class="row">
                     <div class="large-6 columns">

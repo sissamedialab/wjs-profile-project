@@ -24,7 +24,7 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
 3. Add the following to your local custom janeway settings:
    ```python
    WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-       None: "wjs.jcom_profile.events.assignment.assign_editors_to_articles",
+       None: "wjs.jcom_profile.events.assignment.default_assign_editors_to_articles",
 
 }
 

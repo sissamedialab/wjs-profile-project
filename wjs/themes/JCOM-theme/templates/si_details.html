@@ -11,36 +11,40 @@
     {% if request.user %}
         {% user_has_role request 'editor' as user_is_editor %}
     {% endif %}
-    <div class="row">
-        <div class="col m12">
-            {{ object.short_name }} — {{ object.name }}
-            {% if request.user and request.user.is_staff or user_is_editor %}
-                <a href="{% url 'si-update' object.pk %}"><i class="fa fa-edit">&nbsp;</i></a>
-            {% endif %}
-            <a href=""></a>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col m12">
-            <div>{{ object.description }}</div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col m12">
-            <div>
-                Open for submission between {{ object.open_date }} and {{ object.close_date|default:"-" }} in {{ object.journal.code }}
+    <div class="container">
+        <div class="section">
+            <div class="row">
+                <div class="col m12">
+                    {{ object.short_name }} — {{ object.name }}
+                    {% if request.user and request.user.is_staff or user_is_editor %}
+                        <a href="{% url 'si-update' object.pk %}"><i class="fa fa-edit">&nbsp;</i></a>
+                    {% endif %}
+                    <a href=""></a>
+                </div>
             </div>
-            <div>
-                <ul>
-                    {% for file in object.documents.all %}
-                        {% can_view_file file as can_view_file_flag %}
-                        {% if can_view_file_flag %}
-                            <li>
-                                <a href="{% url 'special_issue_file_download' object.pk file.pk %}"><i class="fa fa-download"> {{ file }}</i></a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                </ul>
+            <div class="row">
+                <div class="col m12">
+                    <div>{{ object.description }}</div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col m12">
+                    <div>
+                        Open for submission between {{ object.open_date }} and {{ object.close_date|default:"-" }} in {{ object.journal.code }}
+                    </div>
+                    <div>
+                        <ul>
+                            {% for file in object.documents.all %}
+                                {% can_view_file file as can_view_file_flag %}
+                                {% if can_view_file_flag %}
+                                    <li>
+                                        <a href="{% url 'special_issue_file_download' object.pk file.pk %}"><i class="fa fa-download"> {{ file }}</i></a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
