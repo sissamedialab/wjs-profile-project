@@ -175,9 +175,33 @@ class UpdateAssignmentParametersForm(forms.ModelForm):
     class Meta:
         model = EditorAssignmentParameters
         fields = (
-            "keywords",
+            # "keywords",
             "workload",
         )
+
+    def __init__(self, *args, **kwargs):
+        """Know your kwds."""
+        if "initial" not in kwargs:
+            kwargs["initial"] = {}
+
+        kwargs["initial"]["keywords"] = kwargs["instance"].keywords.all()
+
+        super().__init__(*args, **kwargs)
+
+    def save(self, commit=True):
+        """Save m2m with through and with not _meta.auto_created."""
+        # salviamo il form senza il m2m per le kwds: solo worload
+        instance = super().save(commit=commit)
+
+        kwds = self.cleaned_data["keywords"]
+        for kwd in kwds:
+            through, _ = EditorKeyword.objects.get_or_create(keyword=kwd, editor_parameters=instance)
+            # don't look at weight, because the editor does not set it
+            # (it is managed by the director).
+            # ... through.weight = ...
+
+        EditorKeyword.objects.filter(editor_parameters=instance).exclude(keyword__in=kwds).delete()
+        return instance
 
 
 class DirectorEditorAssignmentParametersForm(forms.ModelForm):

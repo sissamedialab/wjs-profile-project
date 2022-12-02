@@ -188,9 +188,5 @@ class EditorKeyword(models.Model):
     keyword = models.ForeignKey("submission.Keyword")
     weight = models.PositiveIntegerField(default=0)
 
-    class Meta:
-        # TODO: Not sure about this.
-        auto_created = True
-
     def __str__(self):  # NOQA: D105
         return f"{self.editor_parameters.editor} - Editor keyword: {self.keyword}"
