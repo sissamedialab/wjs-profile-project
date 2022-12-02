@@ -2,7 +2,6 @@
 
 from core import include_urls
 from django.conf.urls import url
-from submission import views as submission_views
 
 from wjs.jcom_profile import views
 
@@ -27,7 +26,8 @@ urlpatterns = [
     # able to get back in the loop
     url(
         r"^submit/(?P<article_id>\d+)/info-metadata/$",
-        submission_views.submit_info,
+        # was submission_views.submit_info, but I'm also overriding this part:
+        views.submit_info,
         name="submit_info_original",
     ),
     url(

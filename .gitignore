@@ -20,3 +20,6 @@ dist
 
 # sensitive variables
 .env
+
+# django fixtures (db data) dir
+fixtures
