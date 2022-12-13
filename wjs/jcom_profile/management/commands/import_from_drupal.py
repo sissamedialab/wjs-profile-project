@@ -1,14 +1,18 @@
 """Data migration POC."""
-from datetime import timedelta
+from collections import namedtuple
+from datetime import datetime, timedelta
 
-import lxml
 import requests
+from core import models as core_models
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from journal.models import Journal
-from submission.models import STAGE_PUBLISHED
+from journal import models as journal_models
+from production.logic import save_galley
+from submission import models as submission_models
 
-from wjs.jcom_profile.factories import ArticleFactory, UserFactory
+from wjs.jcom_profile import models as wjs_models
+
+FakeRequest = namedtuple("FakeRequest", ["user"])
 
 
 class Command(BaseCommand):
@@ -26,7 +30,9 @@ class Command(BaseCommand):
             "field_id": "JCOM_2106_2022_A01",
         }
         response = requests.get(url, params)
-        self.process(response.json())
+        # Note that, by calling .../node?xxx=yyy, we are doing a query and getting a list
+        # Internal methods don't care, so we pass along only the interesting piece.
+        self.process(response.json()["list"][0])
 
     def add_arguments(self, parser):
         """Add arguments to command."""
@@ -43,26 +49,100 @@ class Command(BaseCommand):
 
     def process(self, raw_data):
         """Process an article's raw json data."""
-        self.import_files(raw_data)
+        self.create_article(raw_data)
+        self.set_files(raw_data)
 
-    def import_files(self, raw_data):
-        """Find info about the article "attacchments", download them and import them."""
-        attachments = raw_data["list"][0]["field_attachments"]
+    def create_article(self, raw_data):
+        """Create a stub for an article with basics metadata.
+
+        - [ ] All the rest (author, kwds, etc.) will be added by someone else.
+
+        - [ ] If article already exists in Janeway, update it.
+
+        - [ ] Empty fields set the value to NULL, but undefined field do nothing (the old value is preserverd).
+        """
+        # TODO: add Drupal's "nid" (node-id) to ArticleWrapper
+        #       Drupal also has a "vid" (version-id), but JCOM does not use it, so we can ignore it
+        # e.g.: article_wrapper, created = wjs_models.ArticleWrapper.objects.get_or_create(nid=int(raw_data["nid"]))
+        journal = journal_models.Journal.objects.get(code="JCOM")
+        title = raw_data["title"]
+        article = submission_models.Article.objects.create(
+            journal=journal,
+            title=title,
+        )
+        self.set_history(article, raw_data)
+        self.set_body_and_abstract(article, raw_data)
+        self.set_files(article, raw_data)
+        self.set_keywords(article, raw_data)
+        self.set_sections(article, raw_data)
+        self.set_issue(article, raw_data)
+        self.set_authors(article, raw_data)
+        self.publish_article(article)
+
+    def set_history(self, article, raw_data):
+        """Set the review history date: received, accepted, published dates."""
+        # received / submitted
+        article.date_submitted = datetime.fromtimestamp(int(raw_data["field_received_date"]))
+        article.date_accepted = datetime.fromtimestamp(int(raw_data["field_accepted_date"]))
+        article.date_published = datetime.fromtimestamp(int(raw_data["field_published_date"]))
+        article.save()
+
+    def set_body_and_abstract(self, article, raw_data):
+        """Set body and abstract.
+
+        Take care of escaping & co.
+        Take care of images included in body.
+        """
+
+    def set_files(self, article, raw_data):
+        """Find info about the article "attachments", download them and import them as galleys."""
+        attachments = raw_data["field_attachments"]
+        # TODO: who whould this user be???
+        admin = core_models.Account.objects.filter(is_admin=True).first()
+        fake_request = FakeRequest(user=admin)
+
         for file_dict in attachments:
             file_uri = file_dict["file"]["uri"]
             file_uri += ".json"
             response = requests.get(file_uri)
             file_download_url = response.json()["url"]
+            uploaded_file = self.upload_file(file_download_url)
+            save_galley(
+                article,
+                request=fake_request,
+                uploaded_file=uploaded_file,  # how does this compare with `save_to_disk`???
+                is_galley=True,
+                label=file_dict["description"],
+                save_to_disk=True,
+                public=True,
+            )
             self.stdout.write(file_download_url)
 
-    def _create_user(self, **options):
-        """Create a user for the author."""
-        # E.g.: user = UserFactory.create(...
+    def set_keywords(self, article, raw_data):
+        """Create and set keywords."""
 
-    def _create_article(self, user, **options):
-        """Create the article.
+    def set_sections(self, article, raw_data):
+        """Create and set article types / sections."""
 
-        If article already exists in Janeway, update it.
-        Empty fields set the value to NULL, but undefined field do nothing (the old value is preserverd).
-        """
-        # E.g. article = ArticleFactory.create(...
+    def set_issue(self, article, raw_data):
+        """Create and set issue / collection and volume."""
+
+    def set_authors(self, article, raw_data):
+        """Find and set the article's authors, creating them if necessary."""
+        # TODO: article.owner = user
+        # TODO: article.authors = [user]
+        # article.correspondence_author = ???  # This info is missing / lost
+
+    def publish_article(self, article):
+        """Publish an article."""
+        # see src/journal/views.py:1078
+        article.stage = submission_models.STAGE_PUBLISHED
+        article.snapshot_authors()
+        article.close_core_workflow_objects()
+        article.date_published = timezone.now() - timedelta(days=1)
+        article.save()
+
+    def uploaded_file(self, url):
+        """Download a file from the given url and upload it into Janeway."""
+        response = requests.get(url)
+        return response.content
