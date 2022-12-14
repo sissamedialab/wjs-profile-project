@@ -1,18 +1,27 @@
 """Data migration POC."""
+
 from collections import namedtuple
 from datetime import datetime, timedelta
+from io import BytesIO
 
+import pytz
 import requests
 from core import models as core_models
+from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+from identifiers import models as identifiers_models
 from journal import models as journal_models
 from production.logic import save_galley
+from requests.auth import HTTPBasicAuth
 from submission import models as submission_models
+from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
 
+logger = get_logger(__name__)
 FakeRequest = namedtuple("FakeRequest", ["user"])
+rome_timezone = pytz.timezone("Europe/Rome")
 
 
 class Command(BaseCommand):
@@ -22,6 +31,11 @@ class Command(BaseCommand):
         """Command entry point."""
         url = options["base_url"]
         url += "node.json"
+
+        self.basic_auth = None
+        if options["auth"]:
+            self.basic_auth = HTTPBasicAuth(*(options["auth"].split(":")))
+
         # cannot use "path aliases", so we go through the "/node"
         # path, but we can _filter_ any document by giving the name of
         # the filtering field as first parameter in the query
@@ -29,7 +43,8 @@ class Command(BaseCommand):
         params = {
             "field_id": "JCOM_2106_2022_A01",
         }
-        response = requests.get(url, params)
+        response = requests.get(url, params, auth=self.basic_auth)
+        assert response.status_code == 200, f"Got {response.status_code}!"
         # Note that, by calling .../node?xxx=yyy, we are doing a query and getting a list
         # Internal methods don't care, so we pass along only the interesting piece.
         self.process(response.json()["list"][0])
@@ -46,11 +61,15 @@ class Command(BaseCommand):
             help='Base URL. Defaults to "%(default)s)".',
             default="https://staging.jcom.sissamedialab.it/",
         )
+        parser.add_argument(
+            "--auth",
+            help='HTTP Basic Auth in the form "user:passwd" (should be useful only for test sites).',
+        )
 
     def process(self, raw_data):
         """Process an article's raw json data."""
+        logger.debug("Processing %s", raw_data["nid"])
         self.create_article(raw_data)
-        self.set_files(raw_data)
 
     def create_article(self, raw_data):
         """Create a stub for an article with basics metadata.
@@ -69,7 +88,9 @@ class Command(BaseCommand):
         article = submission_models.Article.objects.create(
             journal=journal,
             title=title,
+            is_import=True,
         )
+        self.set_identifiers(article, raw_data)
         self.set_history(article, raw_data)
         self.set_body_and_abstract(article, raw_data)
         self.set_files(article, raw_data)
@@ -77,15 +98,44 @@ class Command(BaseCommand):
         self.set_sections(article, raw_data)
         self.set_issue(article, raw_data)
         self.set_authors(article, raw_data)
-        self.publish_article(article)
+        self.publish_article(article, raw_data)
+
+    def set_identifiers(self, article, raw_data):
+        """Set DOI and publication ID onto the article."""
+        # TODO: HHAAAAAAAAAA non unique (identifier, identifier_type, article) at DB level!?!
+        doi = raw_data["field_doi"]
+        assert doi.startswith("10.22323")
+        identifiers_models.Identifier.objects.create(
+            identifier=doi,
+            article=article,
+            id_type="doi",  # should be a member of the set identifiers_models.IDENTIFIER_TYPES
+            enabled=True,
+        )
+        pubid = raw_data["field_id"]
+        identifiers_models.Identifier.objects.create(
+            identifier=pubid,
+            article=article,
+            id_type="pubid",
+            enabled=True,
+        )
+        # Drupal's node id "nid"
+        nid = raw_data["nid"]
+        identifiers_models.Identifier.objects.create(
+            identifier=nid,
+            article=article,
+            id_type="id",
+            enabled=True,
+        )
+        article.save()
 
     def set_history(self, article, raw_data):
         """Set the review history date: received, accepted, published dates."""
         # received / submitted
-        article.date_submitted = datetime.fromtimestamp(int(raw_data["field_received_date"]))
-        article.date_accepted = datetime.fromtimestamp(int(raw_data["field_accepted_date"]))
-        article.date_published = datetime.fromtimestamp(int(raw_data["field_published_date"]))
+        article.date_submitted = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_received_date"])))
+        article.date_accepted = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_accepted_date"])))
+        article.date_published = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_published_date"])))
         article.save()
+        logger.debug("  %s - history", raw_data["nid"])
 
     def set_body_and_abstract(self, article, raw_data):
         """Set body and abstract.
@@ -101,22 +151,24 @@ class Command(BaseCommand):
         admin = core_models.Account.objects.filter(is_admin=True).first()
         fake_request = FakeRequest(user=admin)
 
-        for file_dict in attachments:
-            file_uri = file_dict["file"]["uri"]
+        for file_node in attachments:
+            file_uri = file_node["file"]["uri"]
             file_uri += ".json"
-            response = requests.get(file_uri)
-            file_download_url = response.json()["url"]
-            uploaded_file = self.upload_file(file_download_url)
+            response = requests.get(file_uri, auth=self.basic_auth)
+            assert response.status_code == 200
+            file_dict = response.json()
+            file_download_url = file_dict["url"]
+            uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
             save_galley(
                 article,
                 request=fake_request,
                 uploaded_file=uploaded_file,  # how does this compare with `save_to_disk`???
                 is_galley=True,
-                label=file_dict["description"],
+                label=file_node["description"],
                 save_to_disk=True,
                 public=True,
             )
-            self.stdout.write(file_download_url)
+        logger.debug("  %s - attachments (as galleys)", raw_data["nid"])
 
     def set_keywords(self, article, raw_data):
         """Create and set keywords."""
@@ -133,7 +185,7 @@ class Command(BaseCommand):
         # TODO: article.authors = [user]
         # article.correspondence_author = ???  # This info is missing / lost
 
-    def publish_article(self, article):
+    def publish_article(self, article, raw_data):
         """Publish an article."""
         # see src/journal/views.py:1078
         article.stage = submission_models.STAGE_PUBLISHED
@@ -141,8 +193,9 @@ class Command(BaseCommand):
         article.close_core_workflow_objects()
         article.date_published = timezone.now() - timedelta(days=1)
         article.save()
+        logger.debug("  %s - Janeway publication process", raw_data["nid"])
 
-    def uploaded_file(self, url):
+    def uploaded_file(self, url, name):
         """Download a file from the given url and upload it into Janeway."""
-        response = requests.get(url)
-        return response.content
+        response = requests.get(url, auth=self.basic_auth)
+        return File(BytesIO(response.content), name)
