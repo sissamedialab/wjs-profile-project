@@ -246,8 +246,7 @@ class Command(BaseCommand):
             },
         )
         if created:
-            issue_type = journal_models.IssueType.objects.get(
-                code="issue", journal=article.journal)
+            issue_type = journal_models.IssueType.objects.get(code="issue", journal=article.journal)
             issue.issue_type = issue_type
             issue.save()
             logger.debug("  %s - new issue %s", raw_data["nid"], issue)
