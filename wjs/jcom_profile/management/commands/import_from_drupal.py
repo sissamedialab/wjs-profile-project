@@ -155,14 +155,21 @@ class Command(BaseCommand):
         Take care of escaping & co.
         Take care of images included in body.
         """
+        # TODO: try plugins.imports.logic.rewrite_image_paths
 
     def set_files(self, article, raw_data):
         """Find info about the article "attachments", download them and import them as galleys."""
+        # First, let's drop all existing files
+        # see plugin imports.ojs.importers.import_galleys
+        for galley in article.galley_set.all():
+            galley.unlink_files()
+            galley.delete()
+
         attachments = raw_data["field_attachments"]
         # TODO: who whould this user be???
         admin = core_models.Account.objects.filter(is_admin=True).first()
         fake_request = FakeRequest(user=admin)
-
+        # "attachments" are only references to "file" nodes
         for file_node in attachments:
             file_uri = file_node["file"]["uri"]
             file_uri += ".json"
@@ -171,7 +178,6 @@ class Command(BaseCommand):
             file_dict = response.json()
             file_download_url = file_dict["url"]
             uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
-            # TODO: check if galley with same ?? name ?? exists and overwrite
             save_galley(
                 article,
                 request=fake_request,
