@@ -197,6 +197,67 @@ class Command(BaseCommand):
 
     def set_issue(self, article, raw_data):
         """Create and set issue / collection and volume."""
+        # adapting imports.ojs.importers.get_or_create_issue
+        issue_uri = raw_data["field_issue"]["uri"] + ".json"
+        response = requests.get(issue_uri, auth=self.basic_auth)
+        assert response.status_code == 200
+        issue_data = response.json()
+
+        # in Drupal, volume is a dedicated document type, but in
+        # Janeway it is only a number
+        volume_uri = issue_data["field_volume"]["uri"] + ".json"
+        # sanity check (apparently Drupal exposes volume uri in article and issue json):
+        assert raw_data["field_volume"]["uri"] == issue_data["field_volume"]["uri"]
+
+        response = requests.get(volume_uri, auth=self.basic_auth)
+        assert response.status_code == 200
+        volume_data = response.json()
+
+        volume_num = int(volume_data["field_id"])
+
+        # I don't use the volume's title in Janeway, here I only want
+        # to double check data's sanity. The volume's title always has the form
+        # "Volume 01, 2002"
+        volume_title = volume_data["title"]
+        year = 2001 + volume_num
+        assert volume_title == f"Volume {volume_num:02}, {year}"
+
+        issue_num = int(issue_data["field_number"])
+
+        # Drupal has "created" and "changed", but they are not what we
+        # need here.
+        # TODO: can I leave this empty??? should I evince from the issue number???
+        date_published = timezone.now()
+
+        # TODO: JCOM has "special issues" published alongside normal
+        # issues, while Janeway has "collections", that are orthogonal
+        # (i.e. one article can belong to only one issue, but to
+        # multiple collections). Also, issues are enumerated in a
+        # dedicated page, but this page does not include collections.
+        issue_type__code = "issue"
+        issue, created = journal_models.Issue.objects.get_or_create(
+            journal=article.journal,
+            volume=volume_num,
+            issue=issue_num,
+            issue_type__code=issue_type__code,
+            defaults={
+                "date": date_published,
+                "issue_title": issue_data["title"],
+            },
+        )
+        if created:
+            issue_type = journal_models.IssueType.objects.get(
+                code="issue", journal=article.journal)
+            issue.issue_type = issue_type
+            issue.save()
+            logger.debug("  %s - new issue %s", raw_data["nid"], issue)
+
+        if issue_data.get("description"):
+            logger.error("Matteo doesn't expect this. Don't confuse him please!!!")
+            issue.issue_description = issue_data["description"]
+
+        issue.save()
+        return issue
 
     def set_authors(self, article, raw_data):
         """Find and set the article's authors, creating them if necessary."""
