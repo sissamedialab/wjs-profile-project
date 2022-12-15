@@ -95,7 +95,6 @@ class Command(BaseCommand):
             identifier_type="doi",
             identifier=raw_data["field_doi"],
         )
-        assert article.articlewrapper.nid == raw_data["nid"]
         if not article:
             logger.debug("Cannot find article with DOI=%s. Creating a new one.", raw_data["field_doi"])
             article = submission_models.Article.objects.create(
@@ -104,23 +103,28 @@ class Command(BaseCommand):
                 is_import=True,
             )
             article.save()
-            article.articlewrapper.nid = raw_data["nid"]
+            article.articlewrapper.nid = int(raw_data["nid"])
             article.articlewrapper.save()
+        assert article.articlewrapper.nid == int(raw_data["nid"])
         return article
 
     def set_identifiers(self, article, raw_data):
         """Set DOI and publication ID onto the article."""
-        # TODO: HHAAAAAAAAAA non unique (identifier, identifier_type, article) at DB level!?!
+        # I use `get_or_create` because
+        # (identifier x identifier_type x article) has no "unique"
+        # constraint at DB level, so if issue a `create` it would just
+        # work and the same article will end up with multiple
+        # identical identifiers.
         doi = raw_data["field_doi"]
         assert doi.startswith("10.22323")
-        identifiers_models.Identifier.objects.create(
+        identifiers_models.Identifier.objects.get_or_create(
             identifier=doi,
             article=article,
             id_type="doi",  # should be a member of the set identifiers_models.IDENTIFIER_TYPES
             enabled=True,
         )
         pubid = raw_data["field_id"]
-        identifiers_models.Identifier.objects.create(
+        identifiers_models.Identifier.objects.get_or_create(
             identifier=pubid,
             article=article,
             id_type="pubid",
@@ -128,7 +132,7 @@ class Command(BaseCommand):
         )
         # Drupal's node id "nid"
         nid = raw_data["nid"]
-        identifiers_models.Identifier.objects.create(
+        identifiers_models.Identifier.objects.get_or_create(
             identifier=nid,
             article=article,
             id_type="id",
