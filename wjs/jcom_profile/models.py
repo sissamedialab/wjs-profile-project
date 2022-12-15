@@ -197,6 +197,12 @@ class ArticleWrapper(models.Model):
         related_name="articles",
         null=True,
     )
+    nid = models.IntegerField(
+        help_text="Drupal's Node ID. Keeping for future reference and extra check during import.",
+        unique=True,
+        blank=True,
+        null=True,
+    )
 
 
 class EditorAssignmentParameters(models.Model):

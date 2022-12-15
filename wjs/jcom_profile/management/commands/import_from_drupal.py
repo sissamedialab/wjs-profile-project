@@ -41,7 +41,7 @@ class Command(BaseCommand):
         # the filtering field as first parameter in the query
         # string. E.g. https://staging.jcom.sissamedialab.it/node.json?field_id=JCOM_2106_2022_A01
         params = {
-            "field_id": "JCOM_2106_2022_A01",
+            "field_id": options["id"],
         }
         response = requests.get(url, params, auth=self.basic_auth)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -69,7 +69,16 @@ class Command(BaseCommand):
     def process(self, raw_data):
         """Process an article's raw json data."""
         logger.debug("Processing %s", raw_data["nid"])
-        self.create_article(raw_data)
+        article = self.create_article(raw_data)
+        self.set_identifiers(article, raw_data)
+        self.set_history(article, raw_data)
+        self.set_body_and_abstract(article, raw_data)
+        self.set_files(article, raw_data)
+        self.set_keywords(article, raw_data)
+        self.set_sections(article, raw_data)
+        self.set_issue(article, raw_data)
+        self.set_authors(article, raw_data)
+        self.publish_article(article, raw_data)
 
     def create_article(self, raw_data):
         """Create a stub for an article with basics metadata.
@@ -80,25 +89,24 @@ class Command(BaseCommand):
 
         - [ ] Empty fields set the value to NULL, but undefined field do nothing (the old value is preserverd).
         """
-        # TODO: add Drupal's "nid" (node-id) to ArticleWrapper
-        #       Drupal also has a "vid" (version-id), but JCOM does not use it, so we can ignore it
-        # e.g.: article_wrapper, created = wjs_models.ArticleWrapper.objects.get_or_create(nid=int(raw_data["nid"]))
         journal = journal_models.Journal.objects.get(code="JCOM")
-        title = raw_data["title"]
-        article = submission_models.Article.objects.create(
+        article = submission_models.Article.get_article(
             journal=journal,
-            title=title,
-            is_import=True,
+            identifier_type="doi",
+            identifier=raw_data["field_doi"],
         )
-        self.set_identifiers(article, raw_data)
-        self.set_history(article, raw_data)
-        self.set_body_and_abstract(article, raw_data)
-        self.set_files(article, raw_data)
-        self.set_keywords(article, raw_data)
-        self.set_sections(article, raw_data)
-        self.set_issue(article, raw_data)
-        self.set_authors(article, raw_data)
-        self.publish_article(article, raw_data)
+        assert article.articlewrapper.nid == raw_data["nid"]
+        if not article:
+            logger.debug("Cannot find article with DOI=%s. Creating a new one.", raw_data["field_doi"])
+            article = submission_models.Article.objects.create(
+                journal=journal,
+                title=raw_data["title"],
+                is_import=True,
+            )
+            article.save()
+            article.articlewrapper.nid = raw_data["nid"]
+            article.articlewrapper.save()
+        return article
 
     def set_identifiers(self, article, raw_data):
         """Set DOI and publication ID onto the article."""
@@ -159,6 +167,7 @@ class Command(BaseCommand):
             file_dict = response.json()
             file_download_url = file_dict["url"]
             uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
+            # TODO: check if galley with same ?? name ?? exists and overwrite
             save_galley(
                 article,
                 request=fake_request,
