@@ -420,3 +420,37 @@ class TestInfoStage:
             assert str(section.id) in values
             section_text = str(section)
             assert section_text in texts
+
+
+@pytest.mark.django_db
+def test_normal_issue_article_show_normal_issue_type_in_article_info(admin, article, coauthors_setting):
+    client = Client()
+    client.force_login(admin)
+    url = reverse("submit_review", args=(article.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    html = lxml.html.fromstring(response.content.decode())
+    article_info_table = html.get_element_by_id(id="article-info-table")
+    assert "Normal Issue" in [
+        td.text for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
+    ]
+
+
+@pytest.mark.django_db
+def test_special_issue_article_show_issue_name_in_article_info(admin, article, coauthors_setting, special_issue):
+    client = Client()
+    client.force_login(admin)
+    # TODO: Rework this using speical_issue fixture from #84!
+
+    url = reverse("submit_review", args=(article.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    html = lxml.html.fromstring(response.content.decode())
+    article_info_table = html.get_element_by_id(id="article-info-table")
+    assert special_issue.name in [
+        td.text for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
+    ]
