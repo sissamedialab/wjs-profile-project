@@ -281,18 +281,18 @@ class IMUForm(forms.Form):
         help_text=_("All new contributions will have the choosen section (article type)."),
     )
 
-    def __init__(self, special_issue_id, request_post=None, request_files=None):
+    def __init__(self, *args, **kwargs):
         """Populate type_of_new_articles queryset from the allowed_section of the current s.i."""
-        if not request_post:
-            super().__init__()
+        special_issue_id = kwargs.pop("special_issue_id")
+        super().__init__(*args, **kwargs)
+        if not self.data.get("type_of_new_articles", None):
             special_issue = SpecialIssue.objects.get(pk=special_issue_id)
             queryset = special_issue.allowed_sections.all()
             self.fields["type_of_new_articles"].queryset = queryset
             self.fields["type_of_new_articles"].initial = queryset.first()
         else:
-            super().__init__(request_post, request_files)
             self.fields["type_of_new_articles"].queryset = Section.objects.filter(
-                pk=request_post["type_of_new_articles"],
+                pk=self.data["type_of_new_articles"],
             )
 
 

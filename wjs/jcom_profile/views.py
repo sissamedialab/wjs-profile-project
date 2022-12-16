@@ -730,8 +730,8 @@ class IMUStep1(TemplateView):
         """Receive the data file, process it and redirect along to the next step."""
         form = self.form_class(
             special_issue_id=kwargs["pk"],
-            request_post=self.request.POST,
-            request_files=self.request.FILES,
+            data=self.request.POST,
+            files=self.request.FILES,
         )
         if not form.is_valid():
             return render(
