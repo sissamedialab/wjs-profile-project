@@ -19,7 +19,7 @@ from utils import setting_handler
 from utils.install import update_issue_types, update_settings, update_xsl_files
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 
-from wjs.jcom_profile.factories import ArticleFactory
+from wjs.jcom_profile.factories import ArticleFactory, SpecialIssueFactory, UserFactory
 from wjs.jcom_profile.models import (
     ArticleWrapper,
     EditorAssignmentParameters,
@@ -255,13 +255,6 @@ def keywords():
     return Keyword.objects.all()
 
 
-# Name the fixture a bit differently. This code, without the second
-# option, would produce a "article_factory" fixture (i.e. a factory of
-# article objects) and a fixture named "article" (i.e. one article
-# object) that would clash with the one defined above.
-pytest_factoryboy.register(ArticleFactory, "fb_article")
-
-
 @pytest.fixture
 def directors(director_role, article_journal):
     directors = []
@@ -324,3 +317,20 @@ def special_issue(article, editors, article_journal, director_role):
     article_wrapper.save()
 
     return special_issue
+
+
+# Name the fixture a bit differently. This code, without the second
+# option, would produce a "article_factory" fixture (i.e. a factory of
+# article objects) and a fixture named "article" (i.e. one article
+# object) that would clash with the one defined above.
+pytest_factoryboy.register(ArticleFactory, "fb_article")
+# Make a fixture that returns a user "already existing" in the DB
+pytest_factoryboy.register(
+    UserFactory,
+    "existing_user",
+    first_name="Iam",
+    last_name="Sum",
+    email="iamsum@example.com",
+    institution="ML",
+)
+pytest_factoryboy.register(SpecialIssueFactory, "fb_special_issue")

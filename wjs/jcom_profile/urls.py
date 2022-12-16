@@ -60,6 +60,24 @@ urlpatterns = [
         views.SIFileUpload.as_view(),
         name="special_issue_file_upload",
     ),
+    #
+    # IMU - Insert Many Users
+    #
+    url(
+        r"^si/(?P<pk>\d+)/imu1-upload$",
+        views.IMUStep1.as_view(template_name="admin/core/si_imu_upload.html"),
+        name="si-imu-1",
+    ),
+    url(
+        r"^si/(?P<pk>\d+)/imu2-import$",
+        views.IMUStep2.as_view(template_name="admin/core/si_imu_imported.html"),
+        name="si-imu-2",
+    ),
+    url(
+        r"^si/(?P<pk>\d+)/imu3-edit$",
+        views.IMUStep3.as_view(),
+        name="si-imu-3",
+    ),
 ]
 
 urlpatterns.extend(include_urls.urlpatterns)
