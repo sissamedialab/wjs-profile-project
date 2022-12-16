@@ -1,5 +1,4 @@
 """pytest common stuff and fixtures."""
-import datetime
 import os
 import random
 
@@ -9,7 +8,7 @@ from core.models import Account, Role, Setting
 from django.conf import settings
 from django.core import management
 from django.urls.base import clear_script_prefix
-from django.utils import translation
+from django.utils import timezone, translation
 from journal import models as journal_models
 from journal.tests.utils import make_test_journal
 from press.models import Press
@@ -306,8 +305,8 @@ def special_issue(article, editors, article_journal, director_role):
         name="Special issue",
         short_name="special-issue",
         journal=article_journal,
-        open_date=datetime.datetime.now(),
-        close_date=datetime.datetime.now() + datetime.timedelta(days=1),
+        open_date=timezone.now(),
+        close_date=timezone.now() + timezone.timedelta(1),
     )
     for editor in editors:
         special_issue.editors.add(editor)
@@ -334,3 +333,10 @@ pytest_factoryboy.register(
     institution="ML",
 )
 pytest_factoryboy.register(SpecialIssueFactory, "fb_special_issue")
+yesterday = timezone.now() - timezone.timedelta(1)
+pytest_factoryboy.register(
+    SpecialIssueFactory,
+    "open_special_issue",
+    open_date=yesterday,
+    close_date=None,
+)

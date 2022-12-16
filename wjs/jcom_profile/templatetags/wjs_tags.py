@@ -12,7 +12,7 @@ def journal_has_open_si(journal):
     """Return true if this journal has any special issue open for submission."""
     # The timeline.html template should show/hide the SI step as
     # necessary.
-    has_open_si = SpecialIssue.objects.current_journal().open_for_submission().exists()
+    has_open_si = SpecialIssue.objects.current_journal().open_for_submission().current_user().exists()
     return has_open_si
 
 
