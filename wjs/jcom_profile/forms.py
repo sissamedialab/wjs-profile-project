@@ -136,7 +136,9 @@ class SIForm(forms.ModelForm):
         """Init the query set now, otherwise we are missing a current_journal."""
         # https://docs.djangoproject.com/en/4.1/ref/forms/fields/#fields-which-handle-relationships
         super().__init__(*args, **kwargs)
-        self.fields["special_issue"].queryset = SpecialIssue.objects.current_journal().open_for_submission()
+        self.fields["special_issue"].queryset = (
+            SpecialIssue.objects.current_journal().open_for_submission().current_user()
+        )
 
     # TODO: how do I represent the "no special issue" case?
     # - A1 keep a special issue called "normal submission" always open

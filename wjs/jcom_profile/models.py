@@ -3,6 +3,7 @@ from core.models import Account, AccountManager
 from django.contrib.postgres.fields import JSONField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -93,6 +94,20 @@ class SIQuerySet(models.QuerySet):
         else:
             return self.none()
 
+    def current_user(self):
+        """Build a queryset of Special Issues available to the current user.
+
+        This means Special Issues without invitees
+        or with the user in the invitees.
+        """
+        request = utils_logic.get_current_request()
+        if request and request.user:
+            return self.filter(
+                Q(invitees__isnull=True) | Q(invitees=request.user),
+            )
+        else:
+            return self.none()
+
 
 class SpecialIssue(models.Model):
     """A Special Issue.
@@ -130,7 +145,7 @@ class SpecialIssue(models.Model):
         null=True,
     )
     journal = models.ForeignKey(to=Journal, on_delete=models.CASCADE)
-    documents = models.ManyToManyField(to="core.File", limit_choices_to={"article_id": None})
+    documents = models.ManyToManyField(to="core.File", limit_choices_to={"article_id": None}, blank=True, null=True)
     invitees = models.ManyToManyField(
         to="core.Account",
         related_name="special_issue_invited",

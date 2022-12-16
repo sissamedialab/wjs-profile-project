@@ -258,11 +258,8 @@ class SpecialIssues(TemplateView):
 
     def get(self, *args, **kwargs):
         """Show a form to choose the special issue to which one is submitting."""
-        # The following should be safe, since article_id is not part
-        # of the query string but of the path
         article = get_object_or_404(submission_models.Article, pk=kwargs["article_id"])
-        # TODO: this is a stub: SI should be linked to the journal
-        if not SpecialIssue.objects.current_journal().open_for_submission().exists():
+        if not SpecialIssue.objects.current_journal().open_for_submission().current_user().exists():
             return redirect(
                 reverse(
                     "submit_info_original",
