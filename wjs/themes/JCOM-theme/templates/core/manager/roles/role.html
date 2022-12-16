@@ -1,4 +1,5 @@
 {% extends "admin/core/base.html" %}
+{% load roles %}
 {% load static from staticfiles %}
 
 {% block title %}{{ role.name }}{% endblock title %}
@@ -13,10 +14,12 @@
 {% endblock breadcrumbs %}
 
 {% block body %}
+    {% user_has_role request 'director' as user_is_director %}
     <div class="large-12 columns">
         <div class="box">
             <div class="title-area">
                 <h2>Users with this role</h2>
+                <p>{% user_has_role request 'director' %}</p>
             </div>
             <div class="content">
                 <p>To enrol users use the <a
@@ -40,7 +43,7 @@
                             <td width="20%"><a class="tiny alert button"
                                                href="{% url 'core_manager_role_action' role.slug assignment.user.id 'remove' %}"><i
                                     class="fa fa-times"></i> &nbsp;&nbsp;Remove Role</a>
-                                {% if user.is_staff and role.slug == "editor" %}
+                                {% if user_is_director and role.slug == "editor" %}
                                     <a class="tiny primary button"
                                        href="{% url 'assignment_parameters' assignment.user.id %}">&nbsp;Assignment
                                         Parameters</a>
