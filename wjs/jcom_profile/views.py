@@ -1,4 +1,9 @@
 """My views. Looking for a way to "enrich" Janeway's `edit_profile`."""
+from collections import namedtuple
+from dataclasses import dataclass
+from typing import Iterable
+
+import pandas as pd
 from core import files as core_files
 from core import logic
 from core import models as core_models
@@ -10,10 +15,11 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.db import IntegrityError
+from django.forms import modelformset_factory
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils import translation
+from django.utils import timezone, translation
 from django.views import View
 from django.views.generic import CreateView, DetailView, TemplateView, UpdateView
 from repository import models as preprint_models
@@ -32,6 +38,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile.forms import (
     DirectorEditorAssignmentParametersForm,
     EditorKeywordFormset,
+    IMUHelperForm,
     UpdateAssignmentParametersForm,
 )
 from wjs.jcom_profile.models import (
@@ -567,3 +574,504 @@ class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
             "Parameters updated successfully",
         )
         return reverse("assignment_parameters", args=(self.kwargs.get("editor_pk"),))
+
+
+ODSLine = namedtuple("ODSLine", ["first_name", "middle_name", "last_name", "email", "institution"])
+
+
+@dataclass
+class PartitionLine:
+    """A line representing a collection partition.
+
+    Or the section of a conference.
+    """
+
+    index: int
+    name: str
+    # something to ease discriminating between PartitionLinse and
+    # ContributionLines in templates
+    is_just_a_name = True
+
+
+@dataclass
+class ErrorLine:
+    """An error in the input."""
+
+    index: int
+    first_name: str
+    middle_name: str
+    last_name: str
+    email: str
+    institution: str
+    title: str
+    error: str
+
+
+@dataclass
+class SuggestionLine:
+    """A merge-with-db / merge+edit suggestion."""
+
+    first_name: str
+    middle_name: str
+    last_name: str
+    email: str
+    institution: str
+    pk: int
+    is_best_suggestion: bool = False
+
+    def __init__(self, core_account, line: "ContributionLine"):
+        """Build a SuggestionLine from an item of a queryset."""
+        self.first_name = core_account.first_name
+        self.middle_name = core_account.middle_name or ""
+        self.last_name = core_account.last_name
+        self.email = core_account.email
+        self.institution = core_account.institution or ""
+        self.pk = core_account.id
+        # We compare emails case-insensitively
+        if line.email.upper() == core_account.email.upper():
+            self.is_best_suggestion = True
+            line.disable_new = True
+
+
+@dataclass
+class ContributionLine:
+    """A line representing a contribution.
+
+    Here we also keep "suggestions" of similar authors from the database.
+    """
+
+    first_name: str
+    middle_name: str
+    last_name: str
+    email: str
+    institution: str
+    title: str
+    suggestions: Iterable[SuggestionLine]
+
+    def __init__(self, line: dict):
+        """Build a ContributionLine."""
+        self.first_name = line["first_name"]
+        self.middle_name = line["middle_name"]
+        self.last_name = line["last_name"]
+        self.email = line["email"]
+        self.institution = line["institution"]
+        self.title = line["title"]
+        self.index = line["index"]
+        self.suggestions = []
+        self.disable_new = False
+
+    def __eq__(self, other):
+        """Two lines are equal if the name and title are the same."""
+        # This "equality" is useful when testing for repeated lines
+        # (e.g. spurious copy-paste), but there is also a different
+        # scenario: when two lines with the same email have different
+        # first/middle/last name or institution. This is taken care of
+        # elsewhere.
+        return (
+            self.first_name == other.first_name
+            and self.middle_name == other.middle_name
+            and self.last_name == other.last_name
+            and self.title == other.title
+        )
+
+    def __hash__(self):
+        """Let's say these suffice..."""
+        return hash(f"{self.first_name}{self.middle_name}{self.last_name}{self.title}")
+
+    def author_eq(self, other):
+        """Two authors are "equal" if first/middle/last name or institution match.
+
+        Here I don't check the email because it is used as a
+        dictionary key to keep track of who we already saw. If we see
+        the same email more than once, we expect that the authors of
+        the two lines are equal.
+
+        """
+        return (
+            self.first_name == other.first_name
+            and self.middle_name == other.middle_name
+            and self.last_name == other.last_name
+            # and self.email == other.email  # just add also the email, it does not hurt
+            and self.institution == other.institution
+        )
+
+    def to_error_line(self, error_message):
+        """Use this line to build an ErrorLine with the given error message and return it."""
+        return ErrorLine(
+            index=self.index,
+            first_name=self.first_name,
+            middle_name=self.middle_name,
+            last_name=self.last_name,
+            email=self.email,
+            institution=self.institution,
+            title=self.title,
+            error=error_message,
+        )
+
+
+class IMUStep1(TemplateView):
+    """Insert Many Users - first step.
+
+    Manage the data file upload form.
+    """
+
+    form_class = forms.IMUForm
+
+    def get(self, *args, **kwargs):
+        """Show a form to start the IMU process - upload the data file."""
+        form = self.form_class(special_issue_id=kwargs["pk"])
+        return render(
+            self.request,
+            template_name=self.template_name,
+            context={"form": form},
+        )
+
+    def post(self, *args, **kwargs):
+        """Receive the data file, process it and redirect along to the next step."""
+        form = self.form_class(
+            special_issue_id=kwargs["pk"],
+            request_post=self.request.POST,
+            request_files=self.request.FILES,
+        )
+        if not form.is_valid():
+            return render(
+                self.request,
+                template_name=self.template_name,
+                context={"form": form},
+            )
+        data_file = form.files["data_file"]
+        context = {
+            "lines": self.process_data_file(data_file),
+            "special_issue_id": kwargs["pk"],
+            "create_articles_on_import": form.data.get("create_articles_on_import", ""),
+            "type_of_new_articles": form.data.get("type_of_new_articles", ""),
+        }
+        return render(
+            self.request,
+            template_name="admin/core/si_imu_check.html",
+            context=context,
+        )
+
+    def process_data_file(self, data_file) -> Iterable[ContributionLine]:
+        """Prepare data file to be presented in the input/merge form."""
+        result_lines = []
+
+        columns_names = ("first_name", "middle_name", "last_name", "email", "institution", "title")
+        sheet_index = 0
+        df = pd.read_excel(
+            data_file.read(),
+            sheet_name=sheet_index,
+            header=None,
+            names=columns_names,
+            dtype="string",
+            na_filter=False,
+            engine="odf",
+        )
+        # Check for extra copy paste: two lines with same author and same title.
+        seen_titles = {}
+        # Check for uncleare data: two lines with same email, but different author metadata.
+        seen_authors = {}
+        for row in df.itertuples(index=True):
+            line = self.examine_row(row)
+            if not isinstance(line, ContributionLine):
+                result_lines.append(line)
+                continue
+
+            if line in seen_titles:
+                line = line.to_error_line(
+                    f"Line {line.index} is the same as {seen_titles[line]}",
+                )
+            elif line.email in seen_authors and not line.author_eq(seen_authors[line.email]):
+                line = line.to_error_line(
+                    f"Line {line.index} has same email but different data than {seen_authors[line.email].index}",
+                )
+            else:
+                seen_titles[line] = line.index
+                seen_authors[line.email] = line
+            result_lines.append(line)
+        return result_lines
+
+    def examine_row(self, row: namedtuple) -> ContributionLine:
+        """Parse a odt row (pandas namedtuple) into a Line.
+
+        Line can be a PartitionLine or a ContributionLine with its suggestions.
+        """
+        # Allow for dirty data: if I'm missing lastname and email,
+        # I'll consider this a PartitionLine and just use the
+        # firstname column as the partition name.
+        if not row.last_name and not row.email:
+            return PartitionLine(index=row.Index, name=row.first_name)
+
+        # But filter untreatable errors: if the title is missing and
+        # the flag `create_articles_on_import` is True, treat the line
+        # as an error
+        if self.request.POST["create_articles_on_import"] and not row.title:
+            return ErrorLine(*[*row], error="Missing title!")
+
+        # Validate the rest
+        validation_form = IMUHelperForm(
+            data={
+                "first_name": row.first_name,
+                "middle_name": row.middle_name,
+                "last_name": row.last_name,
+                "email": row.email,
+                "institution": row.institution,
+                "title": row.title,
+            },
+        )
+        if not validation_form.is_valid():
+            return ErrorLine(validation_form.cleaned_data, error=validation_form.errors)
+
+        validation_form.cleaned_data["index"] = row.Index  # watch out for "Index" uppercase "I"
+        line = ContributionLine(validation_form.cleaned_data)
+        line.suggestions = self.make_suggestion(line)
+        return line
+
+    def make_suggestion(self, line: ContributionLine) -> Iterable[SuggestionLine]:
+        """Take a contribution line and find similar users in the DB."""
+        suggestions = []
+        try:
+            # Find similar users in the DB by email
+            # expect at most one and when one is found that is sufficient
+            user_with_same_email = core_models.Account.objects.get(email=line.email)
+        except core_models.Account.DoesNotExist:
+            suggestions = self.make_more_suggestions(line)
+        else:
+            suggestions.append(SuggestionLine(user_with_same_email, line))
+
+        return suggestions
+
+    def make_more_suggestions(self, line: ContributionLine) -> Iterable[SuggestionLine]:
+        """Take a contribution line and find similar users in the DB by euristics."""
+        # TODO: use self.form.cleaned_data.match_euristic
+        return [
+            SuggestionLine(suggestion, line)
+            for suggestion in core_models.Account.objects.filter(
+                last_name__iexact=line.last_name,
+                first_name__istartswith=line.first_name[0],
+            )
+        ]
+
+
+imu_edit_formset_factory = modelformset_factory(
+    model=core_models.Account,
+    form=forms.IMUEditExistingAccounts,
+    extra=0,
+)
+
+
+# TODO: protect me!
+class IMUStep2(TemplateView):
+    """Insert Many Users - second step.
+
+    We should receive a "list" of users/contributions to process.
+    """
+
+    def post(self, *args, **kwargs):
+        """Process things an necessary.
+
+        We will:
+        - create users accounts
+        - create articles (linked to the given special issue) if necessary
+        - prepare existing accounts for editing if necessary
+        """
+        # Procedure
+        # - while scanning received lines
+        #   - accumulate instances of core.Accounts to edit
+        #   - also accumulate ODT data, paired with the Accounts
+        # - after scanning all lines
+        #   - build a queryset ...filter(pk__in( [pk for pk in line] ) )
+        #   - use the suggestion pk as key in a dictionary of ODT lines
+        # - in the template
+        #   - layout all lines (i.e. give a feedback on how the import went)
+        #   - cycle for form in formset
+        #     - layout the DB data
+        #     - layout the ODT data
+        #     - layout the form
+
+        # fetch the special issue object; it will be used by all
+        # methods that create an article
+        self.special_issue = SpecialIssue.objects.get(pk=kwargs["pk"])
+
+        # collect accounts we should present for editing and the
+        # relative new possible data
+        self.accounts_to_edit = []
+        self.accounts_new_data = {}
+
+        # TODO: validate... single fields? somthing else???
+        self.extra_context = {"lines": [], "edit_suggestions": {}}
+        for i in range(int(self.request.POST["tot_lines"])):
+            if f"just_the_name_{i}" in self.request.POST:
+                # this is just a partition, nothing to do
+                self.extra_context["lines"].append(f"{i} - PARTITION")
+                continue
+            self.process(i)
+
+        # save the special issue because invitees have probably been added
+        self.special_issue.save()
+        formset = imu_edit_formset_factory(queryset=core_models.Account.objects.filter(pk__in=self.accounts_to_edit))
+        return self.render_to_response(
+            context=self.get_context_data(
+                formset=formset,
+                accounts_new_data=self.accounts_new_data,
+                special_issue_id=kwargs["pk"],
+            ),
+        )
+
+    def process(self, index: int):
+        """Process line "index"."""
+        # Actions come in these forms:
+        # - action-1 → skip
+        # - action-1 → new
+        # - action-1 → db_123
+        # - action-1 → edit_123
+        # Here we just find to where we should dispatch the processing to.
+        action_suggestion = self.request.POST.get(f"action-{index}", "unspecified")
+        action, *suggestion = action_suggestion.split("_")
+        func = getattr(self, f"action_{action}")
+        try:
+            if suggestion:
+                func(index, int(suggestion[0]))
+            else:
+                func(index)
+        except Exception as e:
+            self.add_line(index, msg=f"ERROR - {action.upper()} - {e}", css_class="error")
+
+    def action_new(self, index):
+        """Create a contribution and a new core.Account."""
+        # It is possible that a new author has multiple entries in the
+        # spreadsheet. The first time that we encounter him, it's easy
+        # and we create him, but, subsequent encounters should trigger
+        # an IntegrityError because the email is constrained as
+        # unique. If this happens, to be safe, we must assume that
+        # there might be some differences between the two lines of
+        # this contributor (misspelled name, different
+        # affiliation,...), and so we check.
+        form = IMUHelperForm(
+            data={
+                "first_name": self.request.POST[f"first_name_{index}"],
+                "middle_name": self.request.POST[f"middle_name_{index}"],
+                "last_name": self.request.POST[f"last_name_{index}"],
+                "email": self.request.POST[f"email_{index}"],
+                "institution": self.request.POST[f"institution_{index}"],
+            },
+        )
+        if not form.is_valid():
+            self.add_line(
+                index,
+                msg="ERROR - some error in the data. Doing nothing.",
+                css_class="error",
+            )
+            return
+
+        author, created = core_models.Account.objects.get_or_create(email=form.cleaned_data["email"])
+        if created:
+            author.first_name = form.cleaned_data["first_name"]
+            author.middle_name = form.cleaned_data["middle_name"]
+            author.last_name = form.cleaned_data["last_name"]
+            author.institution = form.cleaned_data["institution"]
+            author.save()
+        else:
+            if (
+                author.first_name != form.cleaned_data["first_name"]
+                or author.middle_name != form.cleaned_data["middle_name"]
+                or author.last_name != form.cleaned_data["last_name"]
+                or author.institution != form.cleaned_data["institution"]
+            ):
+                self.add_line(
+                    index,
+                    msg=f'ERROR - different data for existing user with email "{form.cleaned_data["email"]}".',
+                    css_class="error",
+                )
+                return
+        # No need to check if `author` is already in
+        # `special_issue.invitees` (django takes care 🎉)
+        self.special_issue.invitees.add(author)
+
+        article = self.create_article(index, author)
+        self.add_line(index, msg=f"NEW - {article}")
+
+    def action_skip(self, index):
+        """Skip."""
+        self.add_line(index, msg="SKIP")
+
+    def action_db(self, index, pk):
+        """Create a contribution and using the suggested author (core.Account) as-is."""
+        author = core_models.Account.objects.get(pk=pk)
+        self.special_issue.invitees.add(author)
+        article = self.create_article(index, author)
+        self.add_line(index, msg=f"DB - {article} by {author}")
+
+    def action_edit(self, index, pk):
+        """Create a contribution and prepare the suggested author (core.Account) for editing."""
+        author = core_models.Account.objects.get(pk=pk)
+        self.special_issue.invitees.add(author)
+        article = self.create_article(index, author)
+
+        # I'd prefer to use the author directly, but the formset wants
+        # a queryset, not a list...
+        # ...accounts_to_edit.append(author)
+        self.accounts_to_edit.append(pk)
+
+        odsline = ODSLine(
+            first_name=self.request.POST[f"first_name_{index}"],
+            middle_name=self.request.POST[f"middle_name_{index}"],
+            last_name=self.request.POST[f"last_name_{index}"],
+            email=self.request.POST[f"email_{index}"],
+            institution=self.request.POST[f"institution_{index}"],
+        )
+        self.accounts_new_data[pk] = odsline
+        self.add_line(index, msg=f"EDIT - {article} by {author}", must_edit=True)
+
+    def action_unspecified(self, index):
+        """Report 💩."""
+        self.add_line(index, msg="UNSPECIFIED - 💩", css_class="error")
+
+    def add_line(self, index, **kwargs):
+        """Add a line of data in extra_context."""
+        kwargs["index"] = index
+        self.extra_context["lines"].append(kwargs)
+
+    def create_article(self, index, author):
+        """Create an article with data from the given index and author."""
+        if not self.request.POST.get("create_articles_on_import", False):
+            return
+        article = submission_models.Article(
+            # do I need this? last_modified=now()
+            journal=self.request.journal,
+            # TODO: use only cleaned data (don't use POST directly)
+            title=self.request.POST[f"title_{index}"],
+            owner=author,
+            # TODO: use only cleaned data (don't use POST directly)
+            section=submission_models.Section.objects.get(
+                pk=self.request.POST["type_of_new_articles"],
+                journal=self.request.journal,
+            ),
+            # TODO: enable choosing a license in the first step
+            license=submission_models.Licence.objects.filter(journal=self.request.journal).first(),
+            date_started=timezone.now(),
+            # date_submitted=... NOPE! this indicates when the submission has been "finished"
+            # TODO: find out which "steps" we can choose from and their relation with "stages"
+            current_step=1,
+            stage=submission_models.STAGE_UNSUBMITTED,
+        )
+        article.save()  # why doesn't it get saved using `create`?!?
+        article.authors.set([author])
+        article.articlewrapper.special_issue = self.special_issue
+        article.articlewrapper.save()
+        article.save()
+        return article
+
+
+# TODO: protect me!
+class IMUStep3(TemplateView):
+    """Insert Many Users - last step.
+
+    Edit existing accounts and redirect to special issue ? update / detail ?.
+    """
+
+    def post(self, *args, **kwargs):
+        """Edit existing accounts."""
+        formset = imu_edit_formset_factory(self.request.POST)
+        formset.save()
+        return redirect(to=reverse("si-update", kwargs={"pk": kwargs["pk"]}))

@@ -3,11 +3,12 @@
 Used in management commands and tests.
 """
 import factory
+from django.utils import timezone
 from faker.providers import lorem
 from journal.models import Journal
 from submission.models import Article
 
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
 
 factory.Faker.add_provider(lorem)
 
@@ -59,4 +60,36 @@ class ArticleFactory(factory.django.DjangoModelFactory):
     # + link with SubFactory also fails during teardown (credo...)
     #   - section = factory.SubFactory(SectionFactory)
     #
+    # TODO: try me!
+    # ... journal = factory.LazyAttribute(lambda x: factory.Iterator(Journal.objects.all()))
+    # oppure
+    # @factory.post_generation
+    # def set1(foo, create, value, **kwargs):
+    #     ... foo.value = 1
+
     # TODO: use dall.e (https://labs.openai.com) to fill `thumbnail_image_file`
+
+
+def yesterday():
+    """Return a datetime obj representing yesterday."""
+    yesterday = timezone.now() - timezone.timedelta(1)
+    return yesterday
+
+
+class SpecialIssueFactory(factory.django.DjangoModelFactory):
+    """Special issues."""
+
+    class Meta:
+        model = SpecialIssue
+
+    name = factory.Faker("sentence", nb_words=5)
+    short_name = factory.Faker("slug")
+    description = factory.Faker("paragraph", nb_sentences=5)
+    open_date = factory.LazyFunction(yesterday)
+    # wrong:
+    # ... = factory.LazyAttribute(lambda x: factory.Iterator(Journal.objects.all()))
+    # gives:
+    # ValueError: Cannot assign "<factory.declarations.Iterator object at ...>":
+    # "SpecialIssue.journal" must be a "Journal" instance.
+
+    journal = factory.LazyAttribute(lambda x: Journal.objects.first())

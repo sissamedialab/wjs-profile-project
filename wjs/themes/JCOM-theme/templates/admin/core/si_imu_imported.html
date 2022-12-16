@@ -1,0 +1,84 @@
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% load i18n %}
+{% load wjs_tags %}
+{% block title-section %}
+    {% trans "Insert Users" %} — {% trans "Step 3/3" %}
+{% endblock title-section %}
+{% block css %}
+    <style>
+  table.merge {
+      border: 1px solid gray;
+  }
+  .error {
+      color: red;
+  }
+    </style>
+{% endblock css %}
+{% block body %}
+    <div class="card">
+        <div class="card-section">
+            {% for line in view.extra_context.lines %}
+                <div class="row {{ line.css_class }}">
+                    <div class="large-1 columns">{{ line.index }}</div>
+                    <div class="large-11 columns">{{ line.msg }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-section">
+            {% include "elements/forms/errors.html" with form=form %}
+            <form method="post" action="{% url 'si-imu-3' pk=special_issue_id %}">
+                {% csrf_token %}
+                {{ formset.management_form }}
+                {% for form in formset %}
+                    {{ form.id }}
+                    {% with odsline=accounts_new_data|keyvalue:form.instance.id %}
+                        <div class="row">
+                            <div class="large-12 columns">
+                                <table class="merge">
+                                    <tbody>
+                                        <tr>
+                                            <th>ODS</th>
+                                            <td>{{ odsline.first_name }}</td>
+                                            <td>{{ odsline.middle_name|default_if_none:"" }}</td>
+                                            <td>{{ odsline.last_name }}</td>
+                                            <td>{{ odsline.email }}</td>
+                                            <td>{{ odsline.institution|default_if_none:"" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>DB</th>
+                                            <td>{{ form.first_name.value }}</td>
+                                            <td>{{ form.middle_name.value|default_if_none:"" }}</td>
+                                            <td>{{ form.last_name.value }}</td>
+                                            <td>{{ form.email.value }}</td>
+                                            <td>{{ form.institution.value|default_if_none:"" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td>{{ form.apply_changes }}</td>
+                                            <td>{{ form.first_name }}</td>
+                                            <td>{{ form.middle_name }}</td>
+                                            <td>{{ form.last_name }}</td>
+                                            <td>{{ form.email }}</td>
+                                            <td>{{ form.institution }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% endwith %}
+                {% endfor %}
+                <div class="row">
+                    <div class="large-12 columns">
+                        {% if formset|length > 0 %}
+                            <input type="submit" value='{% trans "Update selected users" %}' />
+                        {% else %}
+                            <input type="submit" value='{% trans "Continue" %}' />
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock body %}

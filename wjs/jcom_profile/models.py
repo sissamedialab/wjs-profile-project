@@ -131,6 +131,10 @@ class SpecialIssue(models.Model):
     )
     journal = models.ForeignKey(to=Journal, on_delete=models.CASCADE)
     documents = models.ManyToManyField(to="core.File", limit_choices_to={"article_id": None})
+    invitees = models.ManyToManyField(
+        to="core.Account",
+        related_name="special_issue_invited",
+    )
     # A S.I. can impose a filter on submittable article types ("sections")
     allowed_sections = models.ManyToManyField(to="submission.Section")
     editors = models.ManyToManyField("core.Account", blank=True)
@@ -175,7 +179,7 @@ class ArticleWrapper(models.Model):
     special_issue = models.ForeignKey(
         to=SpecialIssue,
         on_delete=models.DO_NOTHING,  # TODO: check me!
-        related_name="special_issue",
+        related_name="articles",
         null=True,
     )
 

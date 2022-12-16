@@ -1,0 +1,99 @@
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% load i18n %}
+{% block title-section %}
+    {% trans "Insert Users" %} — {% trans "Step 1/3" %}
+{% endblock title-section %}
+{% block body %}
+    {{ form.media }}
+    <div class="card">
+        <div class="card-section">
+            <div class="row">
+                <div class="large-12 columns">
+                    <h2>{% trans "Intro" %}</h2>
+                    <p>You can limit submission to this collection to invited users only. The process has are 3 steps:</p>
+                    <ol>
+                        <li>upload the data file with the list of invitees</li>
+                        <li>check uploaded data and merge users</li>
+                        <li>tidy up users data (if necessary)</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-section">
+          {% include "elements/forms/errors.html" with form=form %}
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="large-12 columns">
+                        {% blocktrans %}
+                        <p>
+                            The data file must be an <b>OASIS <a href="https://en.wikipedia.org/wiki/OpenDocument">OpenDocument</a> Spreadsheet</b>
+                            (that means "an OpenOffice 2 version of excel file") with data on the
+                            first sheet and with the following structure:
+                        </p>
+                        {% endblocktrans %}
+                        <div id="ods">
+                            <table>
+                                <tbody>
+                                    <tr>
+                                        <td>{% trans "session (optional)" %}</td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>{% trans "first name" %}</td>
+                                        <td>{% trans "middle name" %}</td>
+                                        <td>{% trans "last name" %}</td>
+                                        <td>{% trans "e-mail" %}</td>
+                                        <td>{% trans "institution / affiliation" %}</td>
+                                        <td>{% trans "contribution title" %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>...</td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        {% blocktrans %}
+                        <p>
+                            Warning: if you check "create articles on import" the title is mandatory.
+                            <br/>
+                            Warning: only middle name and affiliation are optional. All other fields are mandatory (for the title, see above).
+                            <br/>
+                            Warning: order is important.
+                        </p>
+                        {% endblocktrans %}
+                    </div>
+                    <div class="large-12 columns">{{ form.data_file|foundation }}</div>
+                </div>
+                <div class="row">
+                    <div class="large-6 columns">{{ form.create_articles_on_import|foundation }}</div>
+                    <div class="large-6 columns">
+                        {{ form.match_euristic|foundation }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="large-6 columns">
+                        {{ form.type_of_new_articles|foundation }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="large-6 columns">
+                        <input type="submit" value="Upload..." />
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock body %}

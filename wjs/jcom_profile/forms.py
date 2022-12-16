@@ -2,6 +2,7 @@
 
 import uuid
 
+from core import models as core_models
 from core.forms import EditAccountForm
 from django import forms
 from django.forms import ModelForm, inlineformset_factory
@@ -243,6 +244,100 @@ EditorKeywordFormset = inlineformset_factory(
     can_delete=False,
     form=EditorKeywordForm,
 )
+
+
+class IMUForm(forms.Form):
+    """Import Many Users.
+
+    Let the op upload a spreadsheet with author/title data.
+    """
+
+    # This feature was called "IMU" on PoS (:nostalgic:)
+
+    data_file = forms.FileField(
+        allow_empty_file=False,
+        required=True,
+        help_text=_("Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."),
+    )
+    create_articles_on_import = forms.BooleanField(
+        required=False,
+        initial=True,
+        help_text=_("If set to false, articles are not created. The authors must start a submission themselves."),
+    )
+    EURISTICS = (
+        ("optimistic", "Optimistic - risk to merge different people"),
+        ("convervative", "Conservative - risk multiple accounts for the same person"),
+    )
+    match_euristic = forms.ChoiceField(
+        choices=EURISTICS,
+        required=True,
+        initial="optimistic",
+        label=_("Match euristics - NOT IMPLEMENTED"),
+        help_text=_("Being optimistic ... TODO WRITE ME!"),
+    )
+    type_of_new_articles = forms.ModelChoiceField(
+        queryset=Section.objects.none(),
+        required=True,
+        help_text=_("All new contributions will have the choosen section (article type)."),
+    )
+
+    def __init__(self, special_issue_id, request_post=None, request_files=None):
+        """Populate type_of_new_articles queryset from the allowed_section of the current s.i."""
+        if not request_post:
+            super().__init__()
+            special_issue = SpecialIssue.objects.get(pk=special_issue_id)
+            queryset = special_issue.allowed_sections.all()
+            self.fields["type_of_new_articles"].queryset = queryset
+            self.fields["type_of_new_articles"].initial = queryset.first()
+        else:
+            super().__init__(request_post, request_files)
+            self.fields["type_of_new_articles"].queryset = Section.objects.filter(
+                pk=request_post["type_of_new_articles"],
+            )
+
+
+class IMUEditExistingAccounts(forms.ModelForm):
+    """Form to allow the modification of exising account during IMU process."""
+
+    apply_changes = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text=_("Apply changes to this user account"),
+    )
+
+    class Meta:
+        model = core_models.Account
+        fields = [
+            "first_name",
+            "middle_name",
+            "last_name",
+            "email",
+            "institution",
+        ]
+
+
+class IMUHelperForm(forms.Form):
+    """Form to help in the validation of user data from step 2 used in step 3.
+
+    Fields should agree with fields of core.Account collected from the ods.
+    """
+
+    first_name = forms.CharField(max_length=300, required=True, strip=True)
+    middle_name = forms.CharField(
+        max_length=300,
+        required=False,
+        strip=True,
+        empty_value=None,
+    )
+    last_name = forms.CharField(max_length=300, required=True, strip=True)
+    email = forms.EmailField(required=True)
+    institution = forms.CharField(
+        max_length=1000,
+        required=False,
+        strip=True,
+        empty_value=None,
+    )
+    title = forms.CharField(max_length=999, required=False, strip=True, empty_value=None)
 
 
 class SIUpdateForm(forms.ModelForm):

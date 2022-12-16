@@ -1,0 +1,199 @@
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% load i18n %}
+{% block title-section %}
+    {% trans "Insert Users" %} — {% trans "Step 2/3" %}
+{% endblock title-section %}
+{% block css %}
+    <style>
+td.suggestion {
+    color: gray;
+}
+tr.error td {
+    color: red;
+}
+tr.error td.error {
+    background-color: red;
+    color: white;
+}
+table { border-collapse: collapse; }
+table tbody tr:nth-child(even) {
+    border-bottom: 0;
+    background-color: #fefefe;
+}
+table tbody tr {
+    border-top: 1px solid #f1f1f1;
+}
+table tbody tr.suggestion {
+    border: none;
+}
+    </style>
+{% endblock css %}
+{% block body %}
+    <div class="card">
+        <div class="card-section">
+            {% include "elements/forms/errors.html" with form=form %}
+            <form method="post" action="{% url 'si-imu-2' pk=special_issue_id %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="large-12 columns">
+                        <input type="hidden" name="tot_lines" value="{{ lines|length }}"/>
+                        <input type="hidden"
+                               name="create_articles_on_import"
+                               value="{{ create_articles_on_import }}"/>
+                        <input type="hidden"
+                               name="type_of_new_articles"
+                               value="{{ type_of_new_articles }}"/>
+                        <table>
+                            <thead>
+                                <th>&nbsp</th>
+                                <th>{% trans "first" %}</th>
+                                <th>{% trans "middle" %}</th>
+                                <th>{% trans "last" %}</th>
+                                <th>{% trans "email" %}</th>
+                                <th>{% trans "institution" %}</th>
+                                <th>{% trans "title" %}</th>
+                                <th>&nbsp</th>
+                            </thead>
+                            <tbody>
+                                {% for line in lines %}
+                                    {% if line.is_just_a_name %}
+                                        <tr>
+                                            <td colspan="8">{{ line.name }}</td>
+                                        </tr>
+                                        <input type="hidden"
+                                               name="just_the_name_{{ line.index }}"
+                                               value="{{ line.name }}"/>
+                                    {% elif line.error %}
+                                        <tr class="error">
+                                            <td>{{ line.index }}</td>
+                                            <td>{{ line.first_name }}</td>
+                                            <td>{{ line.middle_name|default_if_none:"" }}</td>
+                                            <td>{{ line.last_name }}</td>
+                                            <td>{{ line.email }}</td>
+                                            <td>{{ line.institution|default_if_none:"" }}</td>
+                                            <td>{{ line.title }}</td>
+                                            <td class="error">{{ line.error }}</td>
+                                        </tr>
+                                    {% else %}
+                                        <input type="hidden"
+                                               name="first_name_{{ line.index }}"
+                                               value="{{ line.first_name }}"/>
+                                        <input type="hidden"
+                                               name="middle_name_{{ line.index }}"
+                                               value="{{ line.middle_name|default_if_none:"" }}"/>
+                                        <input type="hidden"
+                                               name="last_name_{{ line.index }}"
+                                               value="{{ line.last_name }}"/>
+                                        <input type="hidden" name="email_{{ line.index }}" value="{{ line.email }}"/>
+                                        <input type="hidden"
+                                               name="institution_{{ line.index }}"
+                                               value="{{ line.institution|default_if_none:"" }}"/>
+                                        <input type="hidden" name="title_{{ line.index }}" value="{{ line.title }}"/>
+                                        <tr>
+                                            <td>{{ line.index }}</td>
+                                            <td>{{ line.first_name }}</td>
+                                            <td>{{ line.middle_name|default_if_none:"" }}</td>
+                                            <td>{{ line.last_name }}</td>
+                                            <td>{{ line.email }}</td>
+                                            <td>{{ line.institution }}</td>
+                                            <td>{{ line.title }}</td>
+                                            <td>
+                                                <input type="radio"
+                                                       name="action-{{ line.index }}"
+                                                       value="new"
+                                                       {% if not line.suggestions %}checked="checked"{% endif %}
+                                                       required=""
+                                                       {% if line.disable_new %}disabled="disabled"{% endif %}/>
+                                                {% trans "new" %}
+                                                <input type="radio" name="action-{{ line.index }}" value="skip" required="" />
+                                                {% trans "skip" %}
+                                            </td>
+                                        </tr>
+                                        {% for suggestion in line.suggestions %}
+                                            <tr class="suggestion">
+                                                <td>&nbsp;</td>
+                                                <td>{{ suggestion.first_name }}</td>
+                                                <td>
+                                                    {{ suggestion.middle_name }}
+                                                </td>
+                                                <td>
+                                                    {{ suggestion.last_name }}
+                                                </td>
+                                                <td>
+                                                    {{ suggestion.email }}
+                                                </td>
+                                                <td>
+                                                    {{ suggestion.institution }}
+                                                </td>
+                                                <td>
+                                                    {{ suggestion.pk }}
+                                                </td>
+                                                <td>
+                                                    <input type="radio"
+                                                           name="action-{{ line.index }}"
+                                                           value="DB_{{ suggestion.pk }}"
+                                                           required=""/>
+                                                    DB
+                                                    <input type="radio"
+                                                           name="action-{{ line.index }}"
+                                                           value="edit_{{ suggestion.pk }}"
+                                                           {% if suggestion.is_best_suggestion %}checked="checked"{% endif %}
+                                                           required=""/>
+                                                    edit...
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="large-12 columns">
+                        <input type="submit" value="Import..." />
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="card-section">
+            <div class="row">
+                <div class="large-12 columns">
+                    <h2>
+                        {% trans "Legend" %}
+                    </h2>
+                    {% blocktrans %}
+                    For each row in the uploaded spreadsheet, please mind the following meanings
+                    <dl>
+                        <dt>
+                            new
+                        </dt>
+                        <dd>
+                            create a new account in the DB. Naturally this is not possible if the email is the same as that of an already existing account.
+                        </dd>
+                        <dt>
+                            skip
+                        </dt>
+                        <dd>
+                            just ignore this line and do nothing, as if it was not present in the uploaded spreadsheed.
+                        </dd>
+                        <dt>
+                            DB
+                        </dt>
+                        <dd>
+                            use this existing account without any modification. If articles should be created, this account will be the owner and main author of the new article with the given title.
+                        </dd>
+                        <dt>
+                            edit...
+                        </dt>
+                        <dd>
+                            use this existing account, but let me change something. In the next step, a form will be available where you will be able to edit the account. You will be presented with the current data present in the DB and with the "new" ones uploaded with the spreasheet.
+                        </dd>
+                    </dl>
+                    {% endblocktrans %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}

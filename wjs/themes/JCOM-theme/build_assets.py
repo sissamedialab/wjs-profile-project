@@ -37,6 +37,29 @@ def process_journals():
                 copy_file(file, override_css_file)
 
 
+def process_admin():
+    """Process css that override "admin" stuff.
+
+    Temporary workaround waiting for proper configuration.
+    """
+    # similar to wjs.jcom_profile.management.commands.install_theme
+    destination = os.path.realpath(os.path.join(settings.BASE_DIR, "static/admin/css/app.css"))
+    import wjs.jcom_profile as me
+
+    app_css_path = os.path.realpath(os.path.join(me.__file__, "../..", "themes/JCOM-theme/assets/app.css"))
+    try:
+        os.symlink(app_css_path, destination)
+    except FileExistsError:
+        if os.path.islink(destination) and os.readlink(destination) == app_css_path:
+            print("...link to app.css already there, nothing to do.")
+        else:
+            print("...different file exists! Please check.")
+            print(f"{app_css_path} VS {os.path.realpath(destination)}")
+    else:
+        print("...done.")
+
+
 def build():
     """Build assets and copy them to static folder."""
     process_journals()
+    process_admin()
