@@ -24,6 +24,19 @@ FakeRequest = namedtuple("FakeRequest", ["user"])
 rome_timezone = pytz.timezone("Europe/Rome")
 
 
+# TODO: rethink sections order?
+# SECTION_ORDER =
+#     "Editorial":
+#     "Focus":
+#     "Article":
+#     "Practice insight":
+#     "Essay":
+#     "Comment":
+#     "Letter":
+#     "Book Review":
+#     "Conference Review": 9,
+
+
 class Command(BaseCommand):
     help = "Import an article."  # NOQA
 
@@ -171,11 +184,7 @@ class Command(BaseCommand):
         fake_request = FakeRequest(user=admin)
         # "attachments" are only references to "file" nodes
         for file_node in attachments:
-            file_uri = file_node["file"]["uri"]
-            file_uri += ".json"
-            response = requests.get(file_uri, auth=self.basic_auth)
-            assert response.status_code == 200
-            file_dict = response.json()
+            file_dict = self.fetch_data_dict(file_node["file"]["uri"])
             file_download_url = file_dict["url"]
             uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
             save_galley(
@@ -198,20 +207,13 @@ class Command(BaseCommand):
     def set_issue(self, article, raw_data):
         """Create and set issue / collection and volume."""
         # adapting imports.ojs.importers.get_or_create_issue
-        issue_uri = raw_data["field_issue"]["uri"] + ".json"
-        response = requests.get(issue_uri, auth=self.basic_auth)
-        assert response.status_code == 200
-        issue_data = response.json()
+        issue_data = self.fetch_data_dict(raw_data["field_issue"]["uri"])
 
         # in Drupal, volume is a dedicated document type, but in
         # Janeway it is only a number
-        volume_uri = issue_data["field_volume"]["uri"] + ".json"
-        # sanity check (apparently Drupal exposes volume uri in article and issue json):
+        # sanity check (apparently Drupal exposes volume uri in both article and issue json):
         assert raw_data["field_volume"]["uri"] == issue_data["field_volume"]["uri"]
-
-        response = requests.get(volume_uri, auth=self.basic_auth)
-        assert response.status_code == 200
-        volume_data = response.json()
+        volume_data = self.fetch_data_dict(issue_data["field_volume"]["uri"])
 
         volume_num = int(volume_data["field_id"])
 
@@ -227,6 +229,7 @@ class Command(BaseCommand):
         # Drupal has "created" and "changed", but they are not what we
         # need here.
         # TODO: can I leave this empty??? should I evince from the issue number???
+        #       maybe I can use the publication date of the issue's editorial?
         date_published = timezone.now()
 
         # TODO: JCOM has "special issues" published alongside normal
@@ -235,6 +238,8 @@ class Command(BaseCommand):
         # multiple collections). Also, issues are enumerated in a
         # dedicated page, but this page does not include collections.
         issue_type__code = "issue"
+        if "Special" in issue_data["title"]:
+            issue_type__code = "collection"
         issue, created = journal_models.Issue.objects.get_or_create(
             journal=article.journal,
             volume=volume_num,
@@ -246,7 +251,10 @@ class Command(BaseCommand):
             },
         )
         if created:
-            issue_type = journal_models.IssueType.objects.get(code="issue", journal=article.journal)
+            issue_type = journal_models.IssueType.objects.get(
+                code=issue_type__code,
+                journal=article.journal,
+            )
             issue.issue_type = issue_type
             issue.save()
             logger.debug("  %s - new issue %s", raw_data["nid"], issue)
@@ -256,7 +264,35 @@ class Command(BaseCommand):
             issue.issue_description = issue_data["description"]
 
         issue.save()
-        return issue
+
+        # might have an image
+        if issue_data.get("field_image", None):
+            issue_data.get("field_image")
+
+        # must ensure that a SectionOrdering exists for this issue,
+        # otherwise issue.articles.add() will fail
+        section_data = self.fetch_data_dict(raw_data["field_type"]["uri"])
+        section_name = section_data["name"]
+        section, _ = submission_models.Section.objects.get_or_create(
+            journal=article.journal,
+            name=section_name,
+        )
+        # TODO: J. has order of sections in issue + order of articles in section
+        #       we just do order of article in issue (no relation with article's section)
+        # Temporary workaround:
+        section_order = int(section_data["weight"])
+        # As an alternative, I could impose it:
+        # ... = SECTION_ORDER(section_name)
+        journal_models.SectionOrdering.objects.get_or_create(
+            issue=issue,
+            section=section,
+            defaults={"order": section_order},
+        )
+
+        article.primary_issue = issue
+        article.save()
+        issue.articles.add(article)
+        issue.save()
 
     def set_authors(self, article, raw_data):
         """Find and set the article's authors, creating them if necessary."""
@@ -278,3 +314,13 @@ class Command(BaseCommand):
         """Download a file from the given url and upload it into Janeway."""
         response = requests.get(url, auth=self.basic_auth)
         return File(BytesIO(response.content), name)
+
+    def fetch_data_dict(self, uri):
+        """Fetch the json data from the given uri.
+
+        Append .json to the uri, do a GET and return the result as a dictionary.
+        """
+        uri += ".json"
+        response = requests.get(uri, auth=self.basic_auth)
+        assert response.status_code == 200
+        return response.json()
