@@ -1,12 +1,13 @@
 """pytest common stuff and fixtures."""
+import datetime
 import os
+import random
 
 import pytest
 import pytest_factoryboy
-from core.models import Account, Setting
+from core.models import Account, Role, Setting
 from django.conf import settings
 from django.core import management
-from django.core.serializers import deserialize
 from django.urls.base import clear_script_prefix
 from django.utils import translation
 from journal import models as journal_models
@@ -16,9 +17,15 @@ from submission import models as submission_models
 from submission.models import Keyword
 from utils import setting_handler
 from utils.install import update_issue_types, update_settings, update_xsl_files
+from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 
 from wjs.jcom_profile.factories import ArticleFactory
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.models import (
+    ArticleWrapper,
+    EditorAssignmentParameters,
+    JCOMProfile,
+    SpecialIssue,
+)
 from wjs.jcom_profile.utils import generate_token
 
 USERNAME = "user"
@@ -49,12 +56,8 @@ ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span
 
 @pytest.fixture
 def roles():
-    roles_relative_path = "utils/install/roles.json"
-    roles_path = os.path.join(settings.BASE_DIR, roles_relative_path)
-    with open(roles_path, encoding="utf-8") as f:
-        roles = f.read()
-        for role in deserialize("json", roles):
-            role.save()
+    roles_path = os.path.join(settings.BASE_DIR, ROLES_RELATIVE_PATH)
+    management.call_command("loaddata", roles_path)
 
 
 @pytest.fixture
@@ -106,6 +109,17 @@ def editor(user, roles, journal, keywords):
     editor.add_account_role("editor", journal)
     editor.save()
     return editor
+
+
+@pytest.fixture()
+def director(user, roles, journal, director_role):
+    director = JCOMProfile.objects.get(janeway_account=user)
+    director.gdpr_checkbox = True
+    director.is_active = True
+    director.add_account_role("editor", journal)
+    director.add_account_role("director", journal)
+    director.save()
+    return director
 
 
 @pytest.fixture()
@@ -199,6 +213,12 @@ def article(admin, coauthor, article_journal, section):
 
 
 @pytest.fixture
+def director_role(roles):
+    """Create Director Role."""
+    Role.objects.get_or_create(name="Director", slug="director")
+
+
+@pytest.fixture
 def coauthors_setting():
     """Run add_coauthors_submission_email_settings command to install custom settings for coauthors email."""
     management.call_command("add_coauthors_submission_email_settings")
@@ -240,3 +260,67 @@ def keywords():
 # article objects) and a fixture named "article" (i.e. one article
 # object) that would clash with the one defined above.
 pytest_factoryboy.register(ArticleFactory, "fb_article")
+
+
+@pytest.fixture
+def directors(director_role, article_journal):
+    directors = []
+    for i in range(3):
+        director = Account.objects.create(
+            username=f"Director{i}",
+            email=f"Director{i}@Director{i}.it",
+            first_name=f"Director{i}",
+            last_name=f"Director{i}",
+            is_active=True,
+        )
+        EditorAssignmentParameters.objects.create(
+            editor=director,
+            journal=article_journal,
+            workload=random.randint(1, 10),
+        )
+        director.add_account_role("director", article_journal)
+        directors.append(director)
+    return directors
+
+
+@pytest.fixture
+def editors(roles, article_journal):
+    editors = []
+    for i in range(3):
+        editor = Account.objects.create(
+            username=f"Editor{i}",
+            email=f"Editor{i}@Editor{i}.it",
+            first_name=f"Editor{i}",
+            last_name=f"Editor{i}",
+            is_active=True,
+        )
+        editor.add_account_role("editor", article_journal)
+        editor.save()
+
+        EditorAssignmentParameters.objects.create(
+            editor=editor,
+            journal=article_journal,
+            workload=random.randint(1, 10),
+        )
+
+        editors.append(editor)
+    return editors
+
+
+@pytest.fixture
+def special_issue(article, editors, article_journal, director_role):
+    special_issue = SpecialIssue.objects.create(
+        name="Special issue",
+        short_name="special-issue",
+        journal=article_journal,
+        open_date=datetime.datetime.now(),
+        close_date=datetime.datetime.now() + datetime.timedelta(days=1),
+    )
+    for editor in editors:
+        special_issue.editors.add(editor)
+        special_issue.save()
+    article_wrapper = ArticleWrapper.objects.get(janeway_article=article)
+    article_wrapper.special_issue = special_issue
+    article_wrapper.save()
+
+    return special_issue

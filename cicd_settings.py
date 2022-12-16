@@ -210,6 +210,7 @@ TEMPLATES = [
 
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     None: "wjs.jcom_profile.events.assignment.default_assign_editors_to_articles",
+    "TST": "wjs.jcom_profile.events.assignment.jcom_assign_editors_to_articles",
 }
 
 print("🍠")

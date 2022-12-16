@@ -138,7 +138,12 @@ def test_gdpr_acceptance_for_non_existing_user(admin, journal):
 
 
 @pytest.mark.django_db
-def test_email_are_sent_to_author_and_coauthors_after_article_submission_(admin, article, coauthors_setting):
+def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
+    admin,
+    article,
+    coauthors_setting,
+    director_role,
+):
     client = Client()
     client.force_login(admin)
     url = reverse("submit_review", args=(article.pk,))
@@ -262,6 +267,7 @@ def test_editor_can_change_his_parameters(journal, roles, user_role, user):
     else:
         assert response.status_code == 403
 
+
 @pytest.mark.django_db
 def test_update_editor_assignment_parameters(editor, roles, keywords, journal):
     keywords_id = Keyword.objects.all().values_list("id", flat=True)
@@ -280,10 +286,20 @@ def test_update_editor_assignment_parameters(editor, roles, keywords, journal):
     for keyword in keywords:
         assert keyword.word in list(editor_keywords.values_list("keyword__word", flat=True))
 
+
 @pytest.mark.django_db
-def test_assignment_parameter_button_is_present_in_editors_interface(admin, editor, journal):
+@pytest.mark.skip(reason="We have to further investigate how to deal with director role.")
+def test_assignment_parameter_button_is_present_in_editors_interface_if_the_user_is_director(
+    director,
+    editor,
+    journal,
+):
+    # TODO: To be implemented the backend part, see https://gitlab.sissamedialab.it/wjs/specs/-/issues/84
+    #  See also core.views.role and core.views.roles
+    director.add_account_role("director", journal)
+    director.save()
     client = Client()
-    client.force_login(admin)
+    client.force_login(director)
     url = f"/{journal.code}/manager/roles/editor/"
     response = client.get(url)
     assert response.status_code == 200
