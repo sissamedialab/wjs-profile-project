@@ -88,7 +88,6 @@ class Command(BaseCommand):
         self.set_body_and_abstract(article, raw_data)
         self.set_files(article, raw_data)
         self.set_keywords(article, raw_data)
-        self.set_sections(article, raw_data)
         self.set_issue(article, raw_data)
         self.set_authors(article, raw_data)
         self.publish_article(article, raw_data)
@@ -201,9 +200,6 @@ class Command(BaseCommand):
     def set_keywords(self, article, raw_data):
         """Create and set keywords."""
 
-    def set_sections(self, article, raw_data):
-        """Create and set article types / sections."""
-
     def set_issue(self, article, raw_data):
         """Create and set issue / collection and volume."""
         # adapting imports.ojs.importers.get_or_create_issue
@@ -268,6 +264,7 @@ class Command(BaseCommand):
         # might have an image
         if issue_data.get("field_image", None):
             issue_data.get("field_image")
+            logger.error("Import issue image!!!")
 
         # must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail
@@ -277,6 +274,8 @@ class Command(BaseCommand):
             journal=article.journal,
             name=section_name,
         )
+        article.section = section
+
         # TODO: J. has order of sections in issue + order of articles in section
         #       we just do order of article in issue (no relation with article's section)
         # Temporary workaround:
