@@ -389,6 +389,54 @@ class Command(BaseCommand):
         # TODO: article.owner = user
         # TODO: article.authors = [user]
         # article.correspondence_author = ???  # This info is missing / lost
+        # Add authors
+        first_author = None
+        for order, author_node in enumerate(raw_data["field_authors"]):
+            author_dict = self.fetch_data_dict(author_node["uri"])
+            # TODO: Here I'm expecting emails to be already lowercase and NFKC-normalized.
+            author, _ = core_models.Account.objects.get_or_create(
+                email=author_dict["field_email"],
+                first_name=author_dict["field_name"],  # TODO: this contains first+middle; split!
+                last_name=author_dict["field_surname"],
+            )
+            author.add_account_role("author", article.journal)
+
+            # Store away wjapp's userCod
+            if author_dict["field_id"]:
+                source = "jcom"
+                assert article.journal.code == "JCOM"
+                mapping, _ = wjs_models.Correspondence.objects.get_or_create(
+                    account=author,
+                    user_cod=int(author_dict["field_id"]),
+                    source=source,
+                )
+                # `used` indicates that this usercod from this source
+                # has been used to create the core.Account record
+                mapping.used = True
+                mapping.save()
+
+            # Arbitrarly selecting the first author as owner and
+            # correspondence_author for this article. This is a
+            # necessary workaround for those paper that never went
+            # through wjapp. For those that we know about (i.e. those
+            # that went through wjapp), see
+            # https://gitlab.sissamedialab.it/wjs/specs/-/issues/146
+            if not first_author:
+                first_author = author
+
+            # Add authors to m2m and create an order record
+            article.authors.add(author)
+            order, _ = submission_models.ArticleAuthorOrder.objects.get_or_create(
+                article=article,
+                author=author,
+                order=order,
+            )
+
+        # Set the primary author
+        article.owner = first_author
+        article.correspondence_author = first_author
+        article.save()
+        logger.debug("  %s - authors (%s)", raw_data["nid"], article.authors.count())
 
     def publish_article(self, article, raw_data):
         """Publish an article."""
