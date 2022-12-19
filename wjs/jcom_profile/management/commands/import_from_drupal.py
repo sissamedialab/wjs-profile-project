@@ -330,10 +330,27 @@ class Command(BaseCommand):
 
         issue.save()
 
-        # might have an image
+        # Handle cover image
         if issue_data.get("field_image", None):
-            issue_data.get("field_image")
-            logger.error("Import issue image!!!")
+            image_node = issue_data.get("field_image")
+            assert image_node["file"]["resource"] == "file"
+            # Drop eventual existing cover images
+            if issue.cover_image:
+                issue.cover_image.delete()
+            if issue.large_image:
+                issue.large_image.delete()
+            # Get the new cover
+            # see imports.ojs.importers.import_issue_metadata
+            file_dict = self.fetch_data_dict(image_node["file"]["uri"])
+            issue_cover = self.uploaded_file(file_dict["url"], file_dict["name"])
+            # A Janeway issue has both cover_image ("Image
+            # representing the the cover of a printed issue or
+            # volume"), and large_image ("landscape hero image used in
+            # the carousel and issue page"). The second one appears in
+            # the issue page. Using that.
+            # NO: issue.cover_image = ..
+            issue.large_image = issue_cover
+            logger.debug("  %s - issue cover (%s)", raw_data["nid"], file_dict["name"])
 
         # must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail
@@ -361,6 +378,7 @@ class Command(BaseCommand):
         article.save()
         issue.articles.add(article)
         issue.save()
+        logger.debug("  %s - issue (%s)", raw_data["nid"], issue.id)
 
     def set_authors(self, article, raw_data):
         """Find and set the article's authors, creating them if necessary."""
