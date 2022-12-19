@@ -255,6 +255,19 @@ class Command(BaseCommand):
 
     def set_keywords(self, article, raw_data):
         """Create and set keywords."""
+        # Drop all article's kwds (and KeywordArticles, used for kwd ordering)
+        article.keywords.all().delete()
+        for order, kwd_node in enumerate(raw_data.get("field_keywords", [])):
+            kwd_dict = self.fetch_data_dict(kwd_node["uri"])
+            keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_dict["name"])
+            submission_models.KeywordArticle.objects.get_or_create(
+                article=article,
+                keyword=keyword,
+                order=order,
+            )
+            article.keywords.add(keyword)
+        article.save()
+        logger.debug("  %s - keywords (%s)", raw_data["nid"], article.keywords.count())
 
     def set_issue(self, article, raw_data):
         """Create and set issue / collection and volume."""
