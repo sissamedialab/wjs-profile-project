@@ -85,8 +85,8 @@ class Command(BaseCommand):
         article = self.create_article(raw_data)
         self.set_identifiers(article, raw_data)
         self.set_history(article, raw_data)
-        self.set_body_and_abstract(article, raw_data)
         self.set_files(article, raw_data)
+        self.set_body_and_abstract(article, raw_data)
         self.set_keywords(article, raw_data)
         self.set_issue(article, raw_data)
         self.set_authors(article, raw_data)
@@ -167,7 +167,63 @@ class Command(BaseCommand):
         Take care of escaping & co.
         Take care of images included in body.
         """
-        # TODO: try plugins.imports.logic.rewrite_image_paths
+        expected_language = "und"
+        if raw_data["language"] != expected_language:
+            logger.error(
+                "Abstract's language is %s (different from expected %s).",
+                raw_data["language"],
+                expected_language,
+            )
+
+        # Abstract
+        abstract_dict = raw_data["field_abstract"]
+        abstract = abstract_dict.get("value", None)
+        if abstract and "This item is available only in the original language." in abstract:
+            abstract = None
+        expected_format = "filtered_html"
+        if abstract_dict["format"] != expected_format:
+            logger.error(
+                "Abstract's format is %s (different from expected %s).",
+                abstract_dict["format"],
+                expected_format,
+            )
+        if abstract_dict["summary"] != "":
+            logger.error("Abstract has a summary. What should I do?")
+        article.abstract = abstract
+        logger.debug("  %s - abstract", raw_data["nid"])
+
+        # Body (NB: it's a galley with mime-type in files.HTML_MIMETYPES)
+        body_dict = raw_data["body"]
+        body = body_dict.get("value", None)
+        if body and "This item is available only in the original language." in body:
+            body = None
+        expected_format = "full"
+        if body_dict["format"] != expected_format:
+            logger.error(
+                "Body's format is %s (different from expected %s).",
+                body_dict["format"],
+                expected_format,
+            )
+        if body_dict["summary"] != "":
+            if body_dict["summary"] != '<div class="tex2jax"></div>':
+                logger.error("Body has a summary. What should I do?")
+
+        name = "body.html"
+        admin = core_models.Account.objects.filter(is_admin=True).first()
+        fake_request = FakeRequest(user=admin)
+        body_as_file = File(BytesIO(body_dict["value"].encode()), name)
+        save_galley(
+            article,
+            request=fake_request,
+            uploaded_file=body_as_file,
+            is_galley=True,
+            label="Body (TBV)",
+            save_to_disk=True,
+            public=True,
+        )
+        article.body = body
+        article.save()
+        logger.debug("  %s - body (as html galley)", raw_data["nid"])
 
     def set_files(self, article, raw_data):
         """Find info about the article "attachments", download them and import them as galleys."""
