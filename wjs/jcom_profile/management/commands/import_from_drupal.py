@@ -327,6 +327,10 @@ class Command(BaseCommand):
         if issue_data.get("description"):
             logger.error("Matteo doesn't expect this. Don't confuse him please!!!")
             issue.issue_description = issue_data["description"]
+        # issue.short_description or issue.issue_description is shown
+        # in the "collections" page. Temporarily using the title. See
+        # also https://gitlab.sissamedialab.it/wjs/specs/-/issues/145
+        issue.issue_description = issue_data["title"]
 
         issue.save()
 
