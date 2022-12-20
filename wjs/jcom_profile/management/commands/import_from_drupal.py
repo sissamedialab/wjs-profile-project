@@ -343,13 +343,19 @@ class Command(BaseCommand):
         year = 2001 + volume_num
         assert volume_title == f"Volume {volume_num:02}, {year}"
 
-        issue_num = int(issue_data["field_number"])
+        # Arbitrarly force the issue num to "3" for issue "3-4"
+        if issue_data["field_number"] == "3-4":
+            issue_num = 3
+        else:
+            issue_num = int(issue_data["field_number"])
 
         # Drupal has "created" and "changed", but they are not what we
         # need here.
-        # TODO: can I leave this empty??? should I evince from the issue number???
-        #       maybe I can use the publication date of the issue's editorial?
-        date_published = timezone.now()
+        # TODO:
+        # - can I leave this empty??? ⇨ no, it defaults to now()
+        # - should I evince from the issue number??? ⇨ maybe...
+        # - maybe I can use the publication date of the issue's editorial? ⇨ not all issues have an editorial
+        date_published = timezone.datetime(year, 1, 1)
 
         # TODO: JCOM has "special issues" published alongside normal
         # issues, while Janeway has "collections", that are orthogonal
