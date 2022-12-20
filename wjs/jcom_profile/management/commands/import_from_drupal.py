@@ -43,7 +43,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Command entry point."""
-        for raw_data in self.find_articles(**options):
+        self.options = options
+        for raw_data in self.find_articles():
             # TODO: cycle through pagination
             try:
                 self.process(raw_data)
@@ -67,8 +68,13 @@ class Command(BaseCommand):
             "--auth",
             help='HTTP Basic Auth in the form "user:passwd" (should be useful only for test sites).',
         )
+        parser.add_argument(
+            "--skip-files",
+            help="Skip files download/uplaod (only import metadata).",
+            action="store_true",
+        )
 
-    def find_articles(self, **options):
+    def find_articles(self):
         """Find all articles to process.
 
         We go through the "/node" entry point and we _filter_ any
@@ -79,17 +85,17 @@ class Command(BaseCommand):
         or
         https://staging.jcom.sissamedialab.it/node.json?type=Document
         """
-        url = options["base_url"]
+        url = self.options["base_url"]
         url += "node.json"
 
         self.basic_auth = None
-        if options["auth"]:
-            self.basic_auth = HTTPBasicAuth(*(options["auth"].split(":")))
+        if self.options["auth"]:
+            self.basic_auth = HTTPBasicAuth(*(self.options["auth"].split(":")))
 
         # Find the first batch
         params = {}
-        if options["id"]:
-            params.setdefault("field_id", options["id"])
+        if self.options["id"]:
+            params.setdefault("field_id", self.options["id"])
         else:
             params.setdefault("type", "Document")
         response = requests.get(url, params, auth=self.basic_auth)
@@ -242,6 +248,10 @@ class Command(BaseCommand):
             article.abstract = abstract
             logger.debug("  %s - abstract", raw_data["field_id"])
 
+        if self.options["skip_files"]:
+            article.save()
+            return
+
         # Body (NB: it's a galley with mime-type in files.HTML_MIMETYPES)
         body_dict = raw_data["body"]
         if not body_dict:
@@ -287,25 +297,26 @@ class Command(BaseCommand):
             galley.unlink_files()
             galley.delete()
 
-        attachments = raw_data["field_attachments"]
-        # TODO: who whould this user be???
-        admin = core_models.Account.objects.filter(is_admin=True).first()
-        fake_request = FakeRequest(user=admin)
-        # "attachments" are only references to "file" nodes
-        for file_node in attachments:
-            file_dict = self.fetch_data_dict(file_node["file"]["uri"])
-            file_download_url = file_dict["url"]
-            uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
-            save_galley(
-                article,
-                request=fake_request,
-                uploaded_file=uploaded_file,  # how does this compare with `save_to_disk`???
-                is_galley=True,
-                label=file_node["description"],
-                save_to_disk=True,
-                public=True,
-            )
-        logger.debug("  %s - attachments (as galleys)", raw_data["field_id"])
+        if not self.options["skip_files"]:
+            attachments = raw_data["field_attachments"]
+            # TODO: who whould this user be???
+            admin = core_models.Account.objects.filter(is_admin=True).first()
+            fake_request = FakeRequest(user=admin)
+            # "attachments" are only references to "file" nodes
+            for file_node in attachments:
+                file_dict = self.fetch_data_dict(file_node["file"]["uri"])
+                file_download_url = file_dict["url"]
+                uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
+                save_galley(
+                    article,
+                    request=fake_request,
+                    uploaded_file=uploaded_file,  # how does this compare with `save_to_disk`???
+                    is_galley=True,
+                    label=file_node["description"],
+                    save_to_disk=True,
+                    public=True,
+                )
+            logger.debug("  %s - attachments (as galleys)", raw_data["field_id"])
 
     def set_keywords(self, article, raw_data):
         """Create and set keywords."""
@@ -343,7 +354,11 @@ class Command(BaseCommand):
         year = 2001 + volume_num
         assert volume_title == f"Volume {volume_num:02}, {year}"
 
-        # Arbitrarly force the issue num to "3" for issue "3-4"
+        # Force the issue num to "3" for issue "3-4"
+        # article in that issue have publication ID in the form
+        # JCOM1203(2013)A03
+        # and similar "how to cite":
+        # ...JCOM 12(03) (2013) A03.
         if issue_data["field_number"] == "3-4":
             issue_num = 3
         else:
@@ -375,6 +390,10 @@ class Command(BaseCommand):
                 "issue_title": issue_data["title"],
             },
         )
+
+        # Force this to correct previous imports
+        issue.date = date_published
+
         if created:
             issue_type = journal_models.IssueType.objects.get(
                 code=issue_type__code,
@@ -394,27 +413,28 @@ class Command(BaseCommand):
 
         issue.save()
 
-        # Handle cover image
-        if issue_data.get("field_image", None):
-            image_node = issue_data.get("field_image")
-            assert image_node["file"]["resource"] == "file"
-            # Drop eventual existing cover images
-            if issue.cover_image:
-                issue.cover_image.delete()
-            if issue.large_image:
-                issue.large_image.delete()
-            # Get the new cover
-            # see imports.ojs.importers.import_issue_metadata
-            file_dict = self.fetch_data_dict(image_node["file"]["uri"])
-            issue_cover = self.uploaded_file(file_dict["url"], file_dict["name"])
-            # A Janeway issue has both cover_image ("Image
-            # representing the the cover of a printed issue or
-            # volume"), and large_image ("landscape hero image used in
-            # the carousel and issue page"). The second one appears in
-            # the issue page. Using that.
-            # NO: issue.cover_image = ..
-            issue.large_image = issue_cover
-            logger.debug("  %s - issue cover (%s)", raw_data["field_id"], file_dict["name"])
+        if not self.options["skip_files"]:
+            # Handle cover image
+            if issue_data.get("field_image", None):
+                image_node = issue_data.get("field_image")
+                assert image_node["file"]["resource"] == "file"
+                # Drop eventual existing cover images
+                if issue.cover_image:
+                    issue.cover_image.delete()
+                if issue.large_image:
+                    issue.large_image.delete()
+                # Get the new cover
+                # see imports.ojs.importers.import_issue_metadata
+                file_dict = self.fetch_data_dict(image_node["file"]["uri"])
+                issue_cover = self.uploaded_file(file_dict["url"], file_dict["name"])
+                # A Janeway issue has both cover_image ("Image
+                # representing the the cover of a printed issue or
+                # volume"), and large_image ("landscape hero image used in
+                # the carousel and issue page"). The second one appears in
+                # the issue page. Using that.
+                # NO: issue.cover_image = ..
+                issue.large_image = issue_cover
+                logger.debug("  %s - issue cover (%s)", raw_data["field_id"], file_dict["name"])
 
         # must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail
