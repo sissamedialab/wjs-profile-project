@@ -3,6 +3,7 @@
 from collections import namedtuple
 from datetime import datetime, timedelta
 from io import BytesIO
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 import pytz
 import requests
@@ -42,32 +43,20 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Command entry point."""
-        url = options["base_url"]
-        url += "node.json"
-
-        self.basic_auth = None
-        if options["auth"]:
-            self.basic_auth = HTTPBasicAuth(*(options["auth"].split(":")))
-
-        # cannot use "path aliases", so we go through the "/node"
-        # path, but we can _filter_ any document by giving the name of
-        # the filtering field as first parameter in the query
-        # string. E.g. https://staging.jcom.sissamedialab.it/node.json?field_id=JCOM_2106_2022_A01
-        params = {
-            "field_id": options["id"],
-        }
-        response = requests.get(url, params, auth=self.basic_auth)
-        assert response.status_code == 200, f"Got {response.status_code}!"
-        # Note that, by calling .../node?xxx=yyy, we are doing a query and getting a list
-        # Internal methods don't care, so we pass along only the interesting piece.
-        self.process(response.json()["list"][0])
+        for raw_data in self.find_articles(**options):
+            # TODO: cycle through pagination
+            try:
+                self.process(raw_data)
+            except Exception as e:
+                logger.critical("Failed import for %s!\n%s", raw_data["nid"], e)
+                # raise e
 
     def add_arguments(self, parser):
         """Add arguments to command."""
         parser.add_argument(
             "--id",
-            help='Pubication ID of the article to process. Defaults to "%(default)s".',
-            default="JCOM_2106_2022_A01",
+            help='Pubication ID of the article to process (e.g. "JCOM_2106_2022_A01").'
+            " If not given, all articles are queried and processed.",
         )
         parser.add_argument(
             "--base-url",
@@ -78,6 +67,59 @@ class Command(BaseCommand):
             "--auth",
             help='HTTP Basic Auth in the form "user:passwd" (should be useful only for test sites).',
         )
+
+    def find_articles(self, **options):
+        """Find all articles to process.
+
+        We go through the "/node" entry point and we _filter_ any
+        document by giving the name of the filtering field as first
+        parameter in the query string,.
+        E.g.
+        https://staging.jcom.sissamedialab.it/node.json?field_id=JCOM_2106_2022_A01
+        or
+        https://staging.jcom.sissamedialab.it/node.json?type=Document
+        """
+        url = options["base_url"]
+        url += "node.json"
+
+        self.basic_auth = None
+        if options["auth"]:
+            self.basic_auth = HTTPBasicAuth(*(options["auth"].split(":")))
+
+        # Find the first batch
+        params = {}
+        if options["id"]:
+            params.setdefault("field_id", options["id"])
+        else:
+            params.setdefault("type", "Document")
+        response = requests.get(url, params, auth=self.basic_auth)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        response_json = response.json()
+        batch = response_json["list"]
+        while True:
+            if not batch:
+                if "next" not in response_json:
+                    break
+                # next batch
+                u = urlsplit(response_json["next"])
+                url = urlunsplit(
+                    [
+                        u.scheme,
+                        u.netloc,
+                        u.path,
+                        "",
+                        "",
+                    ],
+                )
+                # Warning: url cannot be used as it is: it lacks the ".json"
+                url += ".json"
+                params = dict(parse_qsl(u.query))
+                response = requests.get(url, params, auth=self.basic_auth)
+                response_json = response.json()
+                batch.extend(response_json["list"])
+                logger.debug(" ------------- Next batch -------------")
+            raw_data = batch.pop(0)
+            yield raw_data
 
     def process(self, raw_data):
         """Process an article's raw json data."""
@@ -154,10 +196,15 @@ class Command(BaseCommand):
 
     def set_history(self, article, raw_data):
         """Set the review history date: received, accepted, published dates."""
-        # received / submitted
-        article.date_submitted = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_received_date"])))
-        article.date_accepted = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_accepted_date"])))
-        article.date_published = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_published_date"])))
+        for date, field_name in (
+            ("field_received_date", "date_submitted"),
+            ("field_accepted_date", "date_accepted"),
+            ("field_published_date", "date_published"),
+        ):
+            if not raw_data[date]:
+                logger.warning("Missing %s in %s", date, raw_data["nid"])
+            else:
+                setattr(article, field_name, rome_timezone.localize(datetime.fromtimestamp(int(raw_data[date]))))
         article.save()
         logger.debug("  %s - history", raw_data["nid"])
 
@@ -177,23 +224,30 @@ class Command(BaseCommand):
 
         # Abstract
         abstract_dict = raw_data["field_abstract"]
-        abstract = abstract_dict.get("value", None)
-        if abstract and "This item is available only in the original language." in abstract:
-            abstract = None
-        expected_format = "filtered_html"
-        if abstract_dict["format"] != expected_format:
-            logger.error(
-                "Abstract's format is %s (different from expected %s).",
-                abstract_dict["format"],
-                expected_format,
-            )
-        if abstract_dict["summary"] != "":
-            logger.error("Abstract has a summary. What should I do?")
-        article.abstract = abstract
-        logger.debug("  %s - abstract", raw_data["nid"])
+        if not abstract_dict:
+            logger.warning("Missing abstract in %s", raw_data["nid"])
+        else:
+            abstract = abstract_dict.get("value", None)
+            if abstract and "This item is available only in the original language." in abstract:
+                abstract = None
+            expected_format = "filtered_html"
+            if abstract_dict["format"] != expected_format:
+                logger.error(
+                    "Abstract's format is %s (different from expected %s).",
+                    abstract_dict["format"],
+                    expected_format,
+                )
+            if abstract_dict["summary"] != "":
+                logger.error("Abstract has a summary. What should I do?")
+            article.abstract = abstract
+            logger.debug("  %s - abstract", raw_data["nid"])
 
         # Body (NB: it's a galley with mime-type in files.HTML_MIMETYPES)
         body_dict = raw_data["body"]
+        if not body_dict:
+            logger.warning("Missing body in %s", raw_data["nid"])
+            article.save()
+            return
         body = body_dict.get("value", None)
         if body and "This item is available only in the original language." in body:
             body = None
@@ -394,8 +448,12 @@ class Command(BaseCommand):
         for order, author_node in enumerate(raw_data["field_authors"]):
             author_dict = self.fetch_data_dict(author_node["uri"])
             # TODO: Here I'm expecting emails to be already lowercase and NFKC-normalized.
+            email = author_dict["field_email"]
+            if not email:
+                email = f"{author_dict['field_id']}@invalid.com"
+                logger.warning("Missing email for %s.", raw_data["nid"])
             author, _ = core_models.Account.objects.get_or_create(
-                email=author_dict["field_email"],
+                email=email,
                 first_name=author_dict["field_name"],  # TODO: this contains first+middle; split!
                 last_name=author_dict["field_surname"],
             )
@@ -405,15 +463,25 @@ class Command(BaseCommand):
             if author_dict["field_id"]:
                 source = "jcom"
                 assert article.journal.code == "JCOM"
-                mapping, _ = wjs_models.Correspondence.objects.get_or_create(
-                    account=author,
-                    user_cod=int(author_dict["field_id"]),
-                    source=source,
-                )
-                # `used` indicates that this usercod from this source
-                # has been used to create the core.Account record
-                mapping.used = True
-                mapping.save()
+                try:
+                    usercod = int(author_dict["field_id"])
+                except ValueError:
+                    logger.warning(
+                        "Non-integer usercod for author %s on %s: %s.",
+                        author_dict["field_surname"],
+                        raw_data["nid"],
+                        author_dict["field_id"],
+                    )
+                else:
+                    mapping, _ = wjs_models.Correspondence.objects.get_or_create(
+                        account=author,
+                        user_cod=usercod,
+                        source=source,
+                    )
+                    # `used` indicates that this usercod from this source
+                    # has been used to create the core.Account record
+                    mapping.used = True
+                    mapping.save()
 
             # Arbitrarly selecting the first author as owner and
             # correspondence_author for this article. This is a
@@ -460,5 +528,5 @@ class Command(BaseCommand):
         """
         uri += ".json"
         response = requests.get(uri, auth=self.basic_auth)
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Got {response.status_code}!"
         return response.json()
