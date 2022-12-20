@@ -123,7 +123,7 @@ class Command(BaseCommand):
 
     def process(self, raw_data):
         """Process an article's raw json data."""
-        logger.debug("Processing %s", raw_data["nid"])
+        logger.debug("Processing %s (nid=%s)", raw_data["field_id"], raw_data["nid"])
         article = self.create_article(raw_data)
         self.set_identifiers(article, raw_data)
         self.set_history(article, raw_data)
@@ -206,7 +206,7 @@ class Command(BaseCommand):
             else:
                 setattr(article, field_name, rome_timezone.localize(datetime.fromtimestamp(int(raw_data[date]))))
         article.save()
-        logger.debug("  %s - history", raw_data["nid"])
+        logger.debug("  %s - history", raw_data["field_id"])
 
     def set_body_and_abstract(self, article, raw_data):
         """Set body and abstract.
@@ -240,7 +240,7 @@ class Command(BaseCommand):
             if abstract_dict["summary"] != "":
                 logger.error("Abstract has a summary. What should I do?")
             article.abstract = abstract
-            logger.debug("  %s - abstract", raw_data["nid"])
+            logger.debug("  %s - abstract", raw_data["field_id"])
 
         # Body (NB: it's a galley with mime-type in files.HTML_MIMETYPES)
         body_dict = raw_data["body"]
@@ -277,7 +277,7 @@ class Command(BaseCommand):
         )
         article.body = body
         article.save()
-        logger.debug("  %s - body (as html galley)", raw_data["nid"])
+        logger.debug("  %s - body (as html galley)", raw_data["field_id"])
 
     def set_files(self, article, raw_data):
         """Find info about the article "attachments", download them and import them as galleys."""
@@ -305,7 +305,7 @@ class Command(BaseCommand):
                 save_to_disk=True,
                 public=True,
             )
-        logger.debug("  %s - attachments (as galleys)", raw_data["nid"])
+        logger.debug("  %s - attachments (as galleys)", raw_data["field_id"])
 
     def set_keywords(self, article, raw_data):
         """Create and set keywords."""
@@ -321,7 +321,7 @@ class Command(BaseCommand):
             )
             article.keywords.add(keyword)
         article.save()
-        logger.debug("  %s - keywords (%s)", raw_data["nid"], article.keywords.count())
+        logger.debug("  %s - keywords (%s)", raw_data["field_id"], article.keywords.count())
 
     def set_issue(self, article, raw_data):
         """Create and set issue / collection and volume."""
@@ -376,7 +376,7 @@ class Command(BaseCommand):
             )
             issue.issue_type = issue_type
             issue.save()
-            logger.debug("  %s - new issue %s", raw_data["nid"], issue)
+            logger.debug("  %s - new issue %s", raw_data["field_id"], issue)
 
         if issue_data.get("description"):
             logger.error("Matteo doesn't expect this. Don't confuse him please!!!")
@@ -408,7 +408,7 @@ class Command(BaseCommand):
             # the issue page. Using that.
             # NO: issue.cover_image = ..
             issue.large_image = issue_cover
-            logger.debug("  %s - issue cover (%s)", raw_data["nid"], file_dict["name"])
+            logger.debug("  %s - issue cover (%s)", raw_data["field_id"], file_dict["name"])
 
         # must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail
@@ -436,7 +436,7 @@ class Command(BaseCommand):
         article.save()
         issue.articles.add(article)
         issue.save()
-        logger.debug("  %s - issue (%s)", raw_data["nid"], issue.id)
+        logger.debug("  %s - issue (%s)", raw_data["field_id"], issue.id)
 
     def set_authors(self, article, raw_data):
         """Find and set the article's authors, creating them if necessary."""
@@ -504,7 +504,7 @@ class Command(BaseCommand):
         article.owner = first_author
         article.correspondence_author = first_author
         article.save()
-        logger.debug("  %s - authors (%s)", raw_data["nid"], article.authors.count())
+        logger.debug("  %s - authors (%s)", raw_data["field_id"], article.authors.count())
 
     def publish_article(self, article, raw_data):
         """Publish an article."""
@@ -514,7 +514,7 @@ class Command(BaseCommand):
         article.close_core_workflow_objects()
         article.date_published = timezone.now() - timedelta(days=1)
         article.save()
-        logger.debug("  %s - Janeway publication process", raw_data["nid"])
+        logger.debug("  %s - Janeway publication process", raw_data["field_id"])
 
     def uploaded_file(self, url, name):
         """Download a file from the given url and upload it into Janeway."""
