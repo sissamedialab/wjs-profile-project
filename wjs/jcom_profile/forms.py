@@ -127,9 +127,8 @@ class SIForm(forms.ModelForm):
     special_issue = forms.ModelChoiceField(
         queryset=None,
         required=False,
-        # cannot use blank=True,  # django > 1.11
-        empty_label="➙ Normal submission ➙",
-        # TODO: maybe widget=forms.RadioSelect()
+        empty_label="Normal Issue",
+        widget=forms.RadioSelect(),
     )
 
     def __init__(self, *args, **kwargs):
