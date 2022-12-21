@@ -48,7 +48,7 @@ class TestSIInvitees:
 
         # The SI is among the choices
         # NB: don't just `assert <Element...>`: elements are False if they don't have children
-        assert html.find(f".//option[@value='{open_special_issue.id}']") is not None
+        assert html.find(f".//input[@value='{open_special_issue.id}']") is not None
 
     @pytest.mark.django_db
     def test_has_invitees_but_i_am_out(
@@ -113,7 +113,7 @@ class TestSIInvitees:
         assert html.xpath(".//h1[text()='Submission Destination']")
 
         # The SI is among the choices
-        assert html.find(f".//option[@value='{open_special_issue.id}']") is not None
+        assert html.find(f".//input[@value='{open_special_issue.id}']") is not None
 
     @pytest.mark.django_db
     def test_all_three_cases(
@@ -157,7 +157,6 @@ class TestSIInvitees:
         assert html.xpath(".//h1[text()='Submission Destination']")
 
         # I can see the expected SIs
-        assert html.find(".//option[@value='']") is not None  # option for "normal" submission
-        assert html.find(f".//option[@value='{si_no_invitees.id}']") is not None
-        assert html.find(f".//option[@value='{si_vodka.id}']") is not None
-        assert len(html.findall(".//option")) == 3  # 2 SIs + normal submission
+        assert html.find(f".//input[@value='{si_no_invitees.id}']") is not None
+        assert html.find(f".//input[@value='{si_vodka.id}']") is not None
+        assert len(html.findall(".//input[@name='special_issue']")) == 3  # 2 SIs + normal submission

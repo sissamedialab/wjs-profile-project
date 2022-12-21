@@ -13,22 +13,31 @@
         <div class="box">
             <form method="post"{% if journal_settings.general.abstract_required %} novalidate{% endif %}>
                 {% csrf_token %}
-
                 {% if article.is_preprint %}{% trans "This article is a preprint" %}{% endif %}
-                {% include "submission/timeline.html" with data=article %}
-
                 <div class="row expanded">
+                    {% include "submission/timeline.html" with data=article %}
+                    <p>If your submission is not related to any special issue, click here to continue </p>
+                    <div class="large-12 columns">
+                        <button class="btn btn-primary button success pull-right" id="proceed-normal-issue-btn"><i
+                                class="fa fa-check" type="submit">&nbsp;</i>{% trans "Proceed with Normal Issue" %}
+                        </button>
+                    </div>
                     <div class="title-area">
                         <h2>{% trans "Choose Special Issue" %}</h2>
                     </div>
                     <div class="content">
                         {% include "elements/forms/errors.html" with form=form %}
-                        {{ form }}
+                        {% for choice in form.special_issue %}
+                            <div class="{% if forloop.counter0 == 0 %}hide{% endif %} radio">{{ choice }}</div>
+                        {% endfor %}
+
                     </div>
 
-                    <div class="large-12 columns">
-                        <button class="success button pull-right" type="submit" name="start_submission"><i
-                                class="fa fa-check">&nbsp;</i>{% trans "Save and Continue" %}
+                    <div class="large-12 columns text-right">
+                        <button class="button warning " name="clear_radio" type="reset">{% trans "Clear selection" %}
+                        </button>
+                        <button class="success button" type="submit" name="start_submission"><i
+                                class="fa fa-check">&nbsp;</i>{% trans "Proceed with Special Issue" %}
                         </button>
                     </div>
                 </div>
@@ -36,3 +45,14 @@
         </div>
     </article>
 {% endblock body %}
+
+{% block js %}
+    <script>
+        $(document).ready(function () {
+            var normalIssueBtn = $('#proceed-normal-issue-btn')
+            normalIssueBtn.click(function () {
+                $('#id_special_issue_0').prop("checked", true);
+            })
+        });
+    </script>
+{% endblock js %}
