@@ -2,6 +2,7 @@
 
 from core import include_urls
 from django.conf.urls import url
+from journal import views as journal_views
 
 from wjs.jcom_profile import views
 
@@ -77,6 +78,14 @@ urlpatterns = [
         r"^si/(?P<pk>\d+)/imu3-edit$",
         views.IMUStep3.as_view(),
         name="si-imu-3",
+    ),
+    #
+    # JCOM has "()" in some pubid identifiers; I need to overwrite
+    # "article_view" from journal.urls
+    url(
+        r"^article/(?P<identifier_type>pubid)/(?P<identifier>[\w().-]+)/$",
+        journal_views.article,
+        name="article_view",
     ),
 ]
 
