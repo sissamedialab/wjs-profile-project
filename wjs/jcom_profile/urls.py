@@ -87,6 +87,11 @@ urlpatterns = [
         journal_views.article,
         name="article_view",
     ),
+    url(
+        r"^update/newsletters/$",
+        views.NewsletterParametersUpdateView.as_view(),
+        name="edit_newsletters",
+    ),
 ]
 
 urlpatterns.extend(include_urls.urlpatterns)

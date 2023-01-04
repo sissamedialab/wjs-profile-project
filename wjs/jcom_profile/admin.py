@@ -14,6 +14,7 @@ from wjs.jcom_profile.models import (
     EditorAssignmentParameters,
     EditorKeyword,
     JCOMProfile,
+    Recipient,
     SpecialIssue,
 )
 from wjs.jcom_profile.utils import generate_token
@@ -124,3 +125,8 @@ class EditorAssignmentParametersAdmin(admin.ModelAdmin):
 @admin.register(EditorKeyword)
 class EditorKeywordAdmin(admin.ModelAdmin):
     """Helper class to "admin" editor keyword."""
+
+
+@admin.register(Recipient)
+class RecipientAdmin(admin.ModelAdmin):
+    """Helper class to "admin" recipient."""
