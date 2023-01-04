@@ -32,6 +32,10 @@ class GDPRAcceptanceForm(forms.Form):
     gdpr_checkbox = forms.BooleanField(initial=False, required=True)
 
 
+class AnonymousNewsletterSubscriptionAcceptanceForm(forms.Form):
+    accepted_subscription = forms.BooleanField(initial=False, required=True)
+
+
 class JCOMProfileForm(EditAccountForm):
     """Additional fields of the JCOM profile."""
 
@@ -369,3 +373,9 @@ class NewsletterTopicForm(forms.ModelForm):
             "topics",
             "news",
         )
+
+
+class RegisterUserNewsletterForm(forms.Form):
+    """Register an Anonymous user to a newsletter."""
+
+    email = forms.EmailField(required=True)

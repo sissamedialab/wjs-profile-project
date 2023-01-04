@@ -84,6 +84,11 @@ def roles():
 
 
 @pytest.fixture
+def custom_newsletter_setting():
+    management.call_command("add_custom_subscribe_email_message_settings")
+
+
+@pytest.fixture
 def admin():
     """Create admin user."""
     return JCOMProfile.objects.create(

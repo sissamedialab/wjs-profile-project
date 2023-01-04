@@ -1,0 +1,9 @@
+{% if error %}
+    <p>{% trans "The requested subscription does not exist." %}</p>
+{% else %}
+    <form action="" method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input type="submit" class="default" value="{% trans "Accept subscription" %}"/>
+    </form>
+{% endif %}

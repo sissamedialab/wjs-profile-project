@@ -25,26 +25,25 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
    ```python
    WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
        None: "wjs.jcom_profile.events.assignment.default_assign_editors_to_articles",
-
-}
+     }
 
    ```
+
 4. From `janeway/src`, run the following command:
 
    ```
-
-python manage.py run_customizations
-
+   python manage.py run_customizations
    ```
    It will add all our customization to Janeway project.
 
 ### Available customization commands
 
-| command                                    | arguments | description                                                      |
-|--------------------------------------------|-----------|------------------------------------------------------------------|
-| `add_user_as_main_author_setting`          | -         | Add `user_automatically_main_author` setting.                    |
-| `add_coauthors_submission_email_settings`  | -         | Add email settings to notify coauthors after article submission. |
-| `run_customizations`                       | -         | Run all customization commands to Janeway.                       |
+| command                                            | arguments | description                                                      |
+|----------------------------------------------------|-----------|------------------------------------------------------------------|
+| `add_user_as_main_author_setting`                  | -         | Add `user_automatically_main_author` setting.                    |
+| `add_coauthors_submission_email_settings`          | -         | Add email settings to notify coauthors after article submission. |
+| `add_custom_subscribe_email_message_settings.py`   | -         | Add email message body for anonymous newsletter subscriptions.   |
+| `run_customizations`                               | -         | Run all customization commands to Janeway.                       |
 
 ### pre-commit
 
