@@ -1,0 +1,53 @@
+{% extends "admin/core/base.html" %}
+{% load static from staticfiles %}
+{% load foundation %}
+{% load i18n %}
+
+{% block body %}
+    <h2>Newsletters </h2>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="success button" type="submit"><i
+                class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
+        </button>
+        <button class="button" type="submit" id="unsubsribe-button"><i
+                class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
+        </button>
+
+    </form>
+{% endblock body %}
+
+{% block css %}
+    {{ block.super }}
+    {{ form.media.css }}
+{% endblock css %}
+
+{% block js %}
+    {{ block.super }}
+    {{ form.media.js }}
+    <script>
+        $(document).ready(function () {
+            var unsubscribeBtn = $('#unsubsribe-button')
+
+            function unselect() {
+                $.each($("#id_topics option:selected"), function () {
+                    $(this).prop('selected', false);
+                });
+            }
+
+            unsubscribeBtn.click(function () {
+                $('#id_news').prop("checked", false);
+                unselect()
+            })
+        });
+    </script>
+{% endblock js %}
+
+{% block footer %}
+    <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+
+    {{ form.media }}
+
+{% endblock footer %}

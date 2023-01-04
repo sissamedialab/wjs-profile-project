@@ -35,15 +35,10 @@ from submission import models as submission_models
 from utils import setting_handler
 from utils.logger import get_logger
 
-from wjs.jcom_profile.forms import (
-    DirectorEditorAssignmentParametersForm,
-    EditorKeywordFormset,
-    IMUHelperForm,
-    UpdateAssignmentParametersForm,
-)
 from wjs.jcom_profile.models import (
     EditorAssignmentParameters,
     JCOMProfile,
+    Recipient,
     SpecialIssue,
 )
 
@@ -495,7 +490,7 @@ class EditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
     """Change editor's own submission parameters."""
 
     model = EditorAssignmentParameters
-    form_class = UpdateAssignmentParametersForm
+    form_class = forms.UpdateAssignmentParametersForm
     template_name = "submission/update_editor_parameters.html"
     raise_exception = True
 
@@ -529,7 +524,7 @@ class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
     """
 
     model = EditorAssignmentParameters
-    form_class = DirectorEditorAssignmentParametersForm
+    form_class = forms.DirectorEditorAssignmentParametersForm
     template_name = "submission/director_update_editor_parameters.html"
     raise_exception = True
 
@@ -548,10 +543,10 @@ class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
     def get_context_data(self, **kwargs):  # noqa
         context = super().get_context_data()
         if self.request.POST:
-            formset = EditorKeywordFormset(data=self.request.POST, instance=self.object)
+            formset = forms.EditorKeywordFormset(data=self.request.POST, instance=self.object)
             formset.is_valid()
         else:
-            formset = EditorKeywordFormset(instance=self.object)
+            formset = forms.EditorKeywordFormset(instance=self.object)
         context["formset"] = formset
         return context
 
@@ -806,7 +801,7 @@ class IMUStep1(TemplateView):
             return ErrorLine(*[*row], error="Missing title!")
 
         # Validate the rest
-        validation_form = IMUHelperForm(
+        validation_form = forms.IMUHelperForm(
             data={
                 "first_name": row.first_name,
                 "middle_name": row.middle_name,
@@ -944,7 +939,7 @@ class IMUStep2(TemplateView):
         # there might be some differences between the two lines of
         # this contributor (misspelled name, different
         # affiliation,...), and so we check.
-        form = IMUHelperForm(
+        form = forms.IMUHelperForm(
             data={
                 "first_name": self.request.POST[f"first_name_{index}"],
                 "middle_name": self.request.POST[f"middle_name_{index}"],
@@ -1072,3 +1067,28 @@ class IMUStep3(TemplateView):
         formset = imu_edit_formset_factory(self.request.POST)
         formset.save()
         return redirect(to=reverse("si-update", kwargs={"pk": kwargs["pk"]}))
+
+
+class NewsletterParametersUpdateView(UpdateView):
+    model = Recipient
+    template_name = "elements/accounts/edit_newsletters_subscription.html"
+    form_class = forms.NewsletterTopicForm
+
+    def get_object(self, queryset=None):  # noqa
+        user, journal = self.request.user, self.request.journal
+        recipient, _ = Recipient.objects.get_or_create(user=user, journal=journal)
+        return recipient
+
+    def get_success_url(self):  # noqa
+        if "topics" not in self.request.POST and "news" not in self.request.POST:
+            message = "Unsubscription successful."
+            message_type = messages.ERROR
+        else:
+            message = "Newsletter preferences updated."
+            message_type = messages.SUCCESS
+        messages.add_message(
+            self.request,
+            message_type,
+            message,
+        )
+        return reverse("edit_newsletters")

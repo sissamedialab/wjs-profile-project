@@ -54,6 +54,30 @@ ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span
 
 
 @pytest.fixture
+def user():
+    """Create / reset a user in the DB.
+
+    Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
+    """
+    # Delete the test user (just in case...).
+    user = Account(username=USERNAME, first_name="User", last_name="Ics")
+    user.save()
+    yield user
+
+
+@pytest.fixture
+def jcom_user(user):
+    """
+    Create standard jcom user
+    """
+    jcom_user = JCOMProfile.objects.get(janeway_account=user)
+    jcom_user.gdpr_checkbox = True
+    jcom_user.is_active = True
+    jcom_user.save()
+    return jcom_user
+
+
+@pytest.fixture
 def roles():
     roles_path = os.path.join(settings.BASE_DIR, ROLES_RELATIVE_PATH)
     management.call_command("loaddata", roles_path)
@@ -88,37 +112,17 @@ def coauthor():
     )
 
 
-@pytest.fixture
-def user():
-    """Create / reset a user in the DB.
-
-    Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
-    """
-    # Delete the test user (just in case...).
-    user = Account(username=USERNAME, first_name="User", last_name="Ics")
-    user.save()
-    yield user
+@pytest.fixture()
+def editor(jcom_user, roles, journal, keywords):
+    jcom_user.add_account_role("editor", journal)
+    return jcom_user
 
 
 @pytest.fixture()
-def editor(user, roles, journal, keywords):
-    editor = JCOMProfile.objects.get(janeway_account=user)
-    editor.gdpr_checkbox = True
-    editor.is_active = True
-    editor.add_account_role("editor", journal)
-    editor.save()
-    return editor
-
-
-@pytest.fixture()
-def director(user, roles, journal, director_role):
-    director = JCOMProfile.objects.get(janeway_account=user)
-    director.gdpr_checkbox = True
-    director.is_active = True
-    director.add_account_role("editor", journal)
-    director.add_account_role("director", journal)
-    director.save()
-    return director
+def director(jcom_user, roles, journal, director_role):
+    jcom_user.add_account_role("editor", journal)
+    jcom_user.add_account_role("director", journal)
+    return jcom_user
 
 
 @pytest.fixture()
@@ -249,7 +253,7 @@ def clear_script_prefix_fix():
 
 @pytest.fixture
 def keywords():
-    for i in range(3):
+    for i in range(10):
         Keyword.objects.create(word=f"{i}-keyword")
     return Keyword.objects.all()
 

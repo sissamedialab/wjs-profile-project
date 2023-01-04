@@ -6,7 +6,7 @@ from django.db import models
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext as _
 from journal.models import Journal
 from submission.models import Article, Section
 from utils import logic as utils_logic
@@ -224,3 +224,17 @@ class EditorKeyword(models.Model):
 
     def __str__(self):  # NOQA: D105
         return f"{self.editor_parameters.editor} - Editor keyword: {self.keyword}"
+
+
+class Recipient(models.Model):
+    user = models.OneToOneField(Account, verbose_name=_("Newsletter topics user"), on_delete=models.CASCADE)
+    journal = models.ForeignKey(Journal, verbose_name=_("Newsletter topics' journal"), on_delete=models.CASCADE)
+    topics = models.ManyToManyField("submission.Keyword", verbose_name=_("Newsletters topics"), blank=True)
+    news = models.BooleanField(verbose_name=_("Generic news topic"), default=False)
+
+    class Meta:
+        verbose_name = _("recipient")
+        verbose_name_plural = _("recipients")
+
+    def __str__(self):
+        return _(f"Recipient user: {self.user} - journal: {self.journal} ")

@@ -29,6 +29,12 @@ class JCOMProfileConfig(AppConfig):
                     "function": "extra_edit_profile_parameters_hook",
                 },
             },
+            {
+                "extra_edit_subscription": {
+                    "module": "wjs.jcom_profile.hooks",
+                    "function": "extra_edit_subscription_hook",
+                },
+            },
         ]
         # NB: do not `import core...` before `ready()`,
         # otherwise django setup process breaks
