@@ -227,14 +227,16 @@ class EditorKeyword(models.Model):
 
 
 class Recipient(models.Model):
-    user = models.OneToOneField(Account, verbose_name=_("Newsletter topics user"), on_delete=models.CASCADE)
+    user = models.OneToOneField(Account, verbose_name=_("Newsletter topics user"), on_delete=models.CASCADE, null=True)
     journal = models.ForeignKey(Journal, verbose_name=_("Newsletter topics' journal"), on_delete=models.CASCADE)
     topics = models.ManyToManyField("submission.Keyword", verbose_name=_("Newsletters topics"), blank=True)
     news = models.BooleanField(verbose_name=_("Generic news topic"), default=False)
+    newsletter_token = models.CharField(_("newsletter token for anonymous users"), max_length=500, blank=True)
+    email = models.EmailField(_("Anonymous user email"), blank=True, null=True, unique=True)
 
     class Meta:
         verbose_name = _("recipient")
         verbose_name_plural = _("recipients")
 
     def __str__(self):
-        return _(f"Recipient user: {self.user} - journal: {self.journal} ")
+        return _(f"Recipient user: {self.user if self.user else self.email} - journal: {self.journal} ")

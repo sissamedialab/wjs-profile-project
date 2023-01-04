@@ -1,4 +1,5 @@
 import random
+from urllib.parse import urlencode
 
 import pytest
 from core import models as core_models
@@ -404,18 +405,97 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
 
 
 @pytest.mark.django_db
-def test_newsletter_unsubscription(jcom_user, keywords, journal):
+def test_registered_user_newsletter_unsubscription(jcom_user, journal):
     client = Client()
     client.force_login(jcom_user)
-    url = f"/{journal.code}/update/newsletters/"
-    data = {}
-    response = client.post(url, data, follow=True)
-    assert response.status_code == 200
+    user_recipient = Recipient.objects.create(user=jcom_user, journal=journal)
 
-    user_recipient = Recipient.objects.get(user=jcom_user, journal=journal)
+    url = f"/{journal.code}/newsletters/unsubscribe/{user_recipient.pk}"
+    response = client.get(url, follow=True)
+    redirect_url, status_code = response.redirect_chain[-1]
+    user_recipient.refresh_from_db()
+
+    assert status_code == 302
+    assert redirect_url == reverse("core_edit_profile")
+
     assert not user_recipient.topics.all()
     assert not user_recipient.news
 
     messages = list(response.context["messages"])
     assert len(messages) == 1
-    assert messages[0].message == "Unsubscription successful."
+    assert messages[0].message == "Unsubscription successful"
+
+
+@pytest.mark.django_db
+def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_setting):
+    client = Client()
+    url = f"/{journal.code}/register/newsletters/"
+    anonymous_email = "anonymous@email.com"
+    newsletter_token = generate_token(anonymous_email)
+
+    response_get = client.get(url)
+    request = RequestFactory().get(url)
+    assert response_get.status_code == 200
+
+    data = {"email": anonymous_email}
+    response_register = client.post(url, data, follow=True)
+    redirect_url, status_code = response_register.redirect_chain[-1]
+
+    anonymous_recipient = Recipient.objects.get(email=anonymous_email)
+
+    assert status_code == 302
+    assert redirect_url == reverse("register_newsletters_email_sent")
+    assert len(mail.outbox) == 1
+    newsletter_email = mail.outbox[0]
+    acceptance_url = (
+        request.build_absolute_uri(reverse("edit_newsletters")) + f"?{urlencode({'token': newsletter_token})}"
+    )
+    assert newsletter_email.subject == "Newsletter registration"
+    assert newsletter_email.body == setting_handler.get_setting(
+        "email",
+        "subscribe_custom_email_message",
+        journal,
+    ).processed_value.format(journal, acceptance_url)
+    assert anonymous_recipient.newsletter_token == newsletter_token
+
+
+@pytest.mark.django_db
+def test_anonymous_user_newsletter_edit_without_token_raises_error(journal):
+    client = Client()
+    url = f"/{journal.code}/update/newsletters/"
+    response = client.get(url)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_anonymous_user_newsletter_edit_with_nonexistent_token_raises_error(journal):
+    client = Client()
+    anonymous_email = "anonymous@email.com"
+    nonexistent_newsletter_token = generate_token(anonymous_email)
+    url = f"/{journal.code}/update/newsletters/?{urlencode({'token': nonexistent_newsletter_token})}"
+    response = client.get(url)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_anonymous_user_newsletter_unsubscription(journal):
+    client = Client()
+    anonymous_email = "anonymous@email.com"
+    newsletter_token = generate_token(anonymous_email)
+    anonymous_recipient = Recipient.objects.create(
+        email=anonymous_email,
+        newsletter_token=newsletter_token,
+        journal=journal,
+    )
+
+    url = f"/{journal.code}/newsletters/unsubscribe/{anonymous_recipient.pk}"
+    response = client.get(url, follow=True)
+    redirect_url, status_code = response.redirect_chain[-1]
+
+    assert status_code == 302
+    assert redirect_url == reverse("website_index")
+    assert not Recipient.objects.filter(pk=anonymous_recipient.pk)
+
+    messages = list(response.context["messages"])
+    assert len(messages) == 1
+    assert messages[0].message == "Unsubscription successful"
