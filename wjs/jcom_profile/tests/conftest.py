@@ -1,4 +1,5 @@
 """pytest common stuff and fixtures."""
+import datetime
 import os
 import random
 
@@ -194,18 +195,19 @@ def article_journal(press):
 
 
 @pytest.fixture
-def section(article_journal):
+def sections(article_journal):
     with translation.override("en"):
-        section = submission_models.Section.objects.create(
-            journal=article_journal,
-            name="section",
-            public_submissions=False,
-        )
-    return section
+        for i in range(3):
+            submission_models.Section.objects.create(
+                journal=article_journal,
+                name=f"section{i}",
+                public_submissions=False,
+            )
+    return submission_models.Section.objects.all()
 
 
 @pytest.fixture
-def article(admin, coauthor, article_journal, section):
+def article(admin, coauthor, article_journal, sections):
     article = submission_models.Article.objects.create(
         abstract="Abstract",
         journal=article_journal,
@@ -214,10 +216,34 @@ def article(admin, coauthor, article_journal, section):
         correspondence_author=admin,
         owner=admin,
         date_submitted=None,
-        section=section,
+        section=random.choice(sections),
     )
     article.authors.add(admin, coauthor)
     return article
+
+
+@pytest.fixture
+def published_articles(admin, editor, article_journal, sections, keywords):
+    """Create articles in published stage.
+
+    Correspondence author (owner), keywords and section are random"""
+    for i in range(10):
+        owner = random.choice([admin, editor])
+        article = submission_models.Article.objects.create(
+            abstract=f"Abstract{i}",
+            journal=article_journal,
+            journal_id=article_journal.id,
+            title=f"Title{i}",
+            correspondence_author=owner,
+            owner=owner,
+            date_submitted=datetime.datetime.now(),
+            date_accepted=datetime.datetime.now(),
+            date_published=datetime.datetime.now(),
+            section=random.choice(sections),
+            stage="Published",
+        )
+        article.keywords.add(random.choice(keywords))
+    return submission_models.Article.objects.all()
 
 
 @pytest.fixture

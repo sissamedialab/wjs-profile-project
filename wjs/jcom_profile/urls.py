@@ -107,6 +107,9 @@ urlpatterns = [
         views.unsubscribe_newsletter,
         name="unsubscribe_newsletter",
     ),
+    url(r"^articles/keyword/(?P<keyword>[\w.-]+)/$", views.filter_articles, name="articles_by_keyword"),
+    url(r"^articles/section/(?P<section>[\w.-]+)/$", views.filter_articles, name="articles_by_section"),
+    url(r"^articles/author/(?P<author>[\w.-]+)/$", views.filter_articles, name="articles_by_author"),
 ]
 
 urlpatterns.extend(include_urls.urlpatterns)

@@ -23,6 +23,54 @@ from wjs.jcom_profile.utils import generate_token
 
 
 @pytest.mark.django_db
+def test_filter_articles_by_author(editor, published_articles):
+    client = Client()
+    author = editor.pk
+    url = reverse("articles_by_author", kwargs={"author": author})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["title"] == "Filter by author"
+    assert response.context["paragraph"] == "Articles by the author are listed below."
+    assert response.context["filtered_object"] == editor.full_name()
+
+    for article in response.context["articles"]:
+        assert article.owner.pk == author
+
+
+@pytest.mark.django_db
+def test_filter_articles_by_section(editor, published_articles, sections):
+    client = Client()
+    section = random.choice(sections)
+    url = reverse("articles_by_section", kwargs={"section": section.pk})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["title"] == "Filter by section"
+    assert response.context["paragraph"] == "Articles that use this section are listed below."
+    assert response.context["filtered_object"] == section.name
+
+    for article in response.context["articles"]:
+        assert article.section.pk == section.pk
+
+
+@pytest.mark.django_db
+def test_filter_articles_by_keyword(editor, published_articles, keywords):
+    client = Client()
+    keyword = random.choice(keywords)
+    url = reverse("articles_by_keyword", kwargs={"keyword": keyword.pk})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["title"] == "Filter by keyword"
+    assert response.context["paragraph"] == "Articles that use this keyword are listed below."
+    assert response.context["filtered_object"] == keyword.word
+
+    for article in response.context["articles"]:
+        assert keyword.pk in article.keywords.values_list("pk", flat=True)
+
+
+@pytest.mark.django_db
 def test_invite_button_is_in_account_admin_interface(admin, journal):
     client = Client()
     client.force_login(admin)
