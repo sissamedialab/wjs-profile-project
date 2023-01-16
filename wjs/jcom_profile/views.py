@@ -8,6 +8,7 @@ import pandas as pd
 from core import files as core_files
 from core import logic
 from core import models as core_models
+from core.models import Account
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -40,6 +41,7 @@ from submission import decorators
 from submission import forms as submission_forms
 from submission import logic as submission_logic
 from submission import models as submission_models
+from submission.models import Article, Keyword, Section
 from utils import setting_handler
 from utils.logger import get_logger
 
@@ -1185,3 +1187,34 @@ def unsubscribe_newsletter(request, recipient_pk):
         _("Unsubscription successful"),
     )
     return response
+
+
+def filter_articles(request, section=None, keyword=None, author=None):
+    """
+    Filter articles by section, author or keyword.
+
+    Section, author and keyword are provided in the url.
+    """
+    filters = {"stage": submission_models.STAGE_PUBLISHED}
+    title, paragraph, filtered_object = "", "", None
+    if section:
+        filters["section"] = section
+        title = _("Filter by section")
+        paragraph = _("Articles that use this section are listed below.")
+        filtered_object = get_object_or_404(Section, pk=section).name
+    if keyword:
+        filters["keywords__pk"] = keyword
+        title = _("Filter by keyword")
+        paragraph = _("Articles that use this keyword are listed below.")
+        filtered_object = get_object_or_404(Keyword, pk=keyword).word
+    if author:
+        filters["owner"] = author
+        title = _("Filter by author")
+        paragraph = _("Articles by the author are listed below.")
+        filtered_object = get_object_or_404(Account, pk=author).full_name()
+
+    articles = Article.objects.filter(**filters).order_by("date_published")
+
+    template = "journal/filtered_articles.html"
+    context = {"articles": articles, "title": title, "paragraph": paragraph, "filtered_object": filtered_object}
+    return render(request, template, context)
