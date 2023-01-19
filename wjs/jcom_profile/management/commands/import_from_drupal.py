@@ -59,13 +59,14 @@ COUNTRIES_MAPPING = {
 SECTION_ORDER = {
     "Editorial": 1,
     "Article": 2,
-    "Practice insight": 3,
-    "Essay": 4,
-    "Focus": 5,
-    "Comment": 6,
-    "Letter": 7,
-    "Book Review": 8,
-    "Conference Review": 9,
+    "Review Article": 3,
+    "Practice insight": 4,
+    "Essay": 5,
+    "Focus": 6,
+    "Comment": 7,
+    "Letter": 8,
+    "Book Review": 9,
+    "Conference Review": 10,
 }
 
 
@@ -540,6 +541,8 @@ class Command(BaseCommand):
         else:
             section_data = self.fetch_data_dict(raw_data["field_type"]["uri"])
             section_name = section_data["name"]
+            if section_name == "review article":
+                section_name = "Review Article"
             section, _ = submission_models.Section.objects.get_or_create(
                 journal=article.journal,
                 name=section_name,
