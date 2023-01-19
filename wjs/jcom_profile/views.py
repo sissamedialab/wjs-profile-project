@@ -1208,12 +1208,12 @@ def filter_articles(request, section=None, keyword=None, author=None):
         paragraph = _("Articles that use this keyword are listed below.")
         filtered_object = get_object_or_404(Keyword, pk=keyword).word
     if author:
-        filters["owner"] = author
+        filters["frozenauthor__author"] = author
         title = _("Filter by author")
         paragraph = _("Articles by the author are listed below.")
         filtered_object = get_object_or_404(Account, pk=author).full_name()
 
-    articles = Article.objects.filter(**filters).order_by("date_published")
+    articles = Article.objects.filter(**filters).order_by("-date_published")
 
     template = "journal/filtered_articles.html"
     context = {"articles": articles, "title": title, "paragraph": paragraph, "filtered_object": filtered_object}

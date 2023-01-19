@@ -1,5 +1,4 @@
 """pytest common stuff and fixtures."""
-import datetime
 import os
 import random
 
@@ -236,9 +235,9 @@ def published_articles(admin, editor, article_journal, sections, keywords):
             title=f"Title{i}",
             correspondence_author=owner,
             owner=owner,
-            date_submitted=datetime.datetime.now(),
-            date_accepted=datetime.datetime.now(),
-            date_published=datetime.datetime.now(),
+            date_submitted=timezone.now(),
+            date_accepted=timezone.now(),
+            date_published=timezone.now(),
             section=random.choice(sections),
             stage="Published",
         )

@@ -35,7 +35,7 @@ def test_filter_articles_by_author(editor, published_articles):
     assert response.context["filtered_object"] == editor.full_name()
 
     for article in response.context["articles"]:
-        assert article.owner.pk == author
+        assert author in list(article.frozenauthor_set.values_list("pk"))
 
 
 @pytest.mark.django_db
