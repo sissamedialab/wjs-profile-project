@@ -1,0 +1,14 @@
+.deploy-to-pp:
+
+  stage: deploy
+
+  variables:
+    PIP: "/home/wjs/.virtualenvs/j-pp/bin/pip"
+    PIP_INDEX_URL: "https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
+    # touch this file to restart the uwsgi server
+    UWSGI_VASSAL: "/home/wjs/uwsgi/janeway-pp.ini"
+
+  script:
+    - echo "Deploy to pre-production server"
+    - chmod og= $ID_RSA
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "( cd janeway-pp && $PIP install --index-url=$PIP_INDEX_URL -U $PACKAGE_NAME && touch --no-dereference $UWSGI_VASSAL )"
