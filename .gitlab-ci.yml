@@ -25,6 +25,9 @@ include:
   - project: 'wjs/wjs-profile-project'
     ref: ${CI_COMMIT_REF_NAME}
     file: '.gitlab-ci-run-tests.yml'
+  - project: 'wjs/wjs-profile-project'
+    ref: master
+    file: '.gitlab-ci-pkg-deploy-to-pp.yml'
 
 
 run-tests:
@@ -54,3 +57,9 @@ deploy-to-test:
   # be in the package registry.
   needs:
     - upload-package
+
+deploy-to-pp:
+  extends:
+    - .deploy-to-pp
+  when: manual
+  environment: pre-production
