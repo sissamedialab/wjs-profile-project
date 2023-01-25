@@ -8,13 +8,14 @@ import pandas as pd
 from core import files as core_files
 from core import logic
 from core import models as core_models
-from core.models import Account
+from core.models import Account, Galley
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import PermissionRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.core.validators import validate_email
 from django.db import IntegrityError
 from django.forms import modelformset_factory
@@ -28,9 +29,11 @@ from django.views.generic import (
     CreateView,
     DetailView,
     FormView,
+    RedirectView,
     TemplateView,
     UpdateView,
 )
+from journal.models import Issue
 from repository import models as preprint_models
 from security.decorators import (
     article_edit_user_required,
@@ -1213,8 +1216,71 @@ def filter_articles(request, section=None, keyword=None, author=None):
         paragraph = _("Articles by the author are listed below.")
         filtered_object = get_object_or_404(Account, pk=author).full_name()
 
-    articles = Article.objects.filter(**filters).order_by("-date_published")
+    filtered_articles = Article.objects.filter(**filters).order_by("-date_published")
+
+    paginator = Paginator(filtered_articles, 10)
+    page = request.GET.get("page")
+    try:
+        articles = paginator.page(page)
+    except PageNotAnInteger:
+        articles = paginator.page(1)
+    except EmptyPage:
+        articles = paginator.page(paginator.num_pages)
 
     template = "journal/filtered_articles.html"
     context = {"articles": articles, "title": title, "paragraph": paragraph, "filtered_object": filtered_object}
     return render(request, template, context)
+
+
+class JcomIssueRedirect(RedirectView):
+    permanent = False
+    query_string = True
+
+    def get_redirect_url(self, *args, **kwargs):  # noqa
+        issues = Issue.objects.filter(volume=kwargs["volume"], issue=kwargs["issue"]).order_by("-date")
+        if issues.count() > 1:
+            logger.warning(
+                f"Warning, more than 1 issue found for volume {kwargs['volume']} and issue {kwargs['issue']}",
+            )
+        if not issues.first():
+            raise Http404()
+
+        return reverse(
+            "journal_issue",
+            kwargs={
+                "issue_id": issues.first().pk,
+            },
+        )
+
+
+class JcomArticleRedirect(RedirectView):
+    permanent = False
+    query_string = True
+
+    def get_redirect_url(self, *args, **kwargs):  # noqa
+        return reverse(
+            "article_view_custom_identifier",
+            kwargs={
+                "identifier_type": "pubid",
+                "identifier": kwargs["jcom_id"],
+            },
+        )
+
+
+class JcomFileRedirect(RedirectView):
+    permanent = False
+    query_string = True
+
+    def get_redirect_url(self, *args, **kwargs):  # noqa
+        try:
+            galley = Galley.objects.get(file__original_filename=kwargs["jcom_file"], public=True)
+        except Galley.DoesNotExist:
+            raise Http404()
+
+        return reverse(
+            "article_download_galley",
+            kwargs={
+                "article_id": galley.article.pk,
+                "galley_id": galley.pk,
+            },
+        )

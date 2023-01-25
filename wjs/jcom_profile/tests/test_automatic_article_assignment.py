@@ -57,7 +57,7 @@ def test_default_normal_issue_articles_automatic_assignment(
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)
 
-        url = reverse("submit_review", args=(article.pk,))
+        url = f"/{article.journal.code}/submit/{article.pk}/review/"
 
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
