@@ -7,6 +7,7 @@ import pytest_factoryboy
 from core.models import Account, File, Role, Setting
 from django.conf import settings
 from django.core import management
+from django.core.cache import cache
 from django.urls.base import clear_script_prefix
 from django.utils import timezone, translation
 from identifiers.models import Identifier
@@ -53,6 +54,13 @@ INVITE_BUTTON = f"""<li>
 ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
 
 ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span>"""
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """Clear cache after any test to avoid flip-flapping test results due Janeway journal/press domain."""
+    yield
+    cache.clear()
 
 
 @pytest.fixture
