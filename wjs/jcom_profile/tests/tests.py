@@ -80,6 +80,8 @@ class TestJCOMProfileURLs:
         client = Client()
         client.force_login(admin)
         response = client.get(f"/{JOURNAL_CODE}/profile/")
+
+        assert response.status_code == 200
         assert fragment in response.content.decode()
 
     @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
