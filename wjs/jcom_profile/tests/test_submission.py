@@ -46,7 +46,6 @@ class TestFilesStage:
         logic.add_user_as_author(user=jcom_user.janeway_account, article=article)
 
         # visit the correct page
-        cache.clear()
         client.force_login(jcom_user.janeway_account)
         url = f"/{journal.code}/submit/{article.pk}/files/"
         response = client.get(url)
