@@ -15,6 +15,7 @@ from core.logic import (
     handle_article_thumb_image_file,
     resize_and_crop,
 )
+from django.conf import settings
 from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -914,9 +915,9 @@ class Command(BaseCommand):
             if rome_timezone.localize(datetime.fromtimestamp(int(timestamp))) < HISTORY_EXPECTED_DATE:
                 return {}
 
-        # Should parametrize url and store apikey outside repo, but exposed data is public anyway.
+        # Should parametrize url
         url = "https://jcom.sissa.it/jcom/services/jsonpublished"
-        apikey = "3zqDa8V4EpXq"
+        apikey = settings.WJAPP_JCOM_APIKEY
         params = {
             "pubId": raw_data["field_id"],
             "apiKey": apikey,
