@@ -248,6 +248,41 @@ def published_articles(admin, editor, journal, sections, keywords):
 
 
 @pytest.fixture
+def published_article_with_standard_galleys(journal, article_factory):
+    """Create articles in published stage with PDF and EPUB galleys."""
+    article = article_factory(
+        journal=journal,
+        date_published=timezone.now(),
+        stage="Published",
+    )
+    Identifier.objects.create(
+        id_type="pubid",
+        article=article,
+        identifier="JCOM_0102_2023_A04",
+    )
+    for extension in ["pdf", "epub"]:
+        for language in ["en", "pt", ""]:
+            file_obj = File.objects.create(
+                # TODO: we could use the original_filename to match the
+                # requested galley, but first we must verify if the
+                # original file name always appears in the link (check
+                # simple galleys, original language vs. translations and
+                # any combination of these with the manual errors _0
+                # _1...) and verify if during import we collect and store
+                # the original file name in the galley.
+                original_filename=f"Anything.{extension}",
+            )
+            galley = create_galley(article, file_obj)
+            galley.article = article
+            galley.last_modified = timezone.now()
+            galley.label = extension.upper()
+            if language:
+                galley.label += f" ({language})"  # The label is used to find the correct galley
+            galley.save()
+    return article
+
+
+@pytest.fixture
 def director_role(roles):
     """Create Director Role."""
     Role.objects.get_or_create(name="Director", slug="director")
