@@ -1237,7 +1237,10 @@ class JcomIssueRedirect(RedirectView):
     query_string = True
 
     def get_redirect_url(self, *args, **kwargs):  # noqa
-        issues = Issue.objects.filter(volume=kwargs["volume"], issue=kwargs["issue"]).order_by("-date")
+        issues = Issue.objects.filter(
+            volume=kwargs["volume"],
+            issue=int(kwargs["issue"]),
+        ).order_by("-date")
         if issues.count() > 1:
             logger.warning(
                 f"Warning, more than 1 issue found for volume {kwargs['volume']} and issue {kwargs['issue']}",
@@ -1253,29 +1256,64 @@ class JcomIssueRedirect(RedirectView):
         )
 
 
-class JcomArticleRedirect(RedirectView):
-    permanent = False
-    query_string = True
-
-    def get_redirect_url(self, *args, **kwargs):  # noqa
-        return reverse(
-            "article_view_custom_identifier",
-            kwargs={
-                "identifier_type": "pubid",
-                "identifier": kwargs["jcom_id"],
-            },
-        )
-
-
 class JcomFileRedirect(RedirectView):
+    """Redirect files (galleys).
+
+    Take language in consideration (JCOM accepts submissions in some
+    languages other than english).
+
+    The url path can also contain an "error" parts that is discarded.
+
+    Examples
+    --------
+    - simplest case
+      JCOM_2106_2022_A04.epub     --> galley.label == "EPUB"
+
+    - language in file name _en _pt ...
+      JCOM_2107_2022_A05_pt.epub  --> galley.label == "EPUB (pt)"
+      JCOM_2107_2022_A05_en.epub  --> galley.label == "EPUB (en)"
+
+    - errors in file name  _0 _1 ...
+      JCOM_2106_2022_A04_0.epub    --> galley.label == "EPUB"
+      JCOM_2107_2022_A05_en_0.epub --> galley.label == "EPUB (en)"
+
+    """
+
     permanent = False
     query_string = True
 
     def get_redirect_url(self, *args, **kwargs):  # noqa
+        galley_label = kwargs["extension"].upper()
+        splitted_pubid = kwargs["pubid"].split("_")
+        language = None
+        # Very messy... but regex seems not working. I think this logic should also live in another file.
+        if splitted_pubid[-1].isdigit():
+            # If last split group of char is digit, it is an error, so I don't want to use it (drop).
+            splitted_pubid = splitted_pubid[:-1]
+        if splitted_pubid[-1].isalpha():
+            # If last split group of char is alpha, it must be language
+            language = splitted_pubid[-1]
+            splitted_pubid = splitted_pubid[:-1]
+        # Build real pubid
+        pubid = "_".join(splitted_pubid)
+
         try:
-            galley = Galley.objects.get(file__original_filename=kwargs["jcom_file"], public=True)
-        except Galley.DoesNotExist:
+            article = Article.get_article(
+                journal=self.request.journal,
+                identifier_type="pubid",
+                identifier=pubid,
+            )
+        except Article.DoesNotExist:
             raise Http404()
+
+        if language:
+            galley_label = f"{galley_label} ({language})"
+
+        galley = get_object_or_404(
+            Galley,
+            label=galley_label,
+            article=article,
+        )
 
         return reverse(
             "article_download_galley",
