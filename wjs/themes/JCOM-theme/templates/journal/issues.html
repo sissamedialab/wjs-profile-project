@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}
+{% load staticfiles %}
+{% load i18n %}
+{% load roles %}
+{% block title %}
+    {% trans "Volumes and Issues" %}
+{% endblock title %}
+{% block body %}
+    <h2>{% trans "Volumes and Issues" %}</h2>
+    {% regroup issues by volume as volumes %}
+    {% for volume in volumes %}
+        {% with volume_meta=volume.list|first %}
+            <h3>Volume {{ volume_meta.volume }}, {{ volume_meta.date.year }}</h3>
+        {% endwith %}
+        {% for issue in volume.list %}
+            <ul>
+                <li>
+                    <a href="{% url 'journal_issue' issue.id %}">{% trans "Issue" %} {{ issue.issue }}, {{ issue.date.year }}</a> <span class="count">({{ issue.get_sorted_articles.count }} {% trans "items" %})</span>
+                </li>
+            </ul>
+        {% endfor %}
+    {% endfor %}
+{% endblock body %}
