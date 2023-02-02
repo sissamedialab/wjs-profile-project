@@ -115,8 +115,30 @@ urlpatterns = [
         views.JcomIssueRedirect.as_view(),
         name="jcom_redirect_issue",
     ),
+    # Drupal-style supplementary file url
+    #    RewriteRule "^/archive/.*/(JCOM[^/]+_ATTACH_[^/]+)$"
+    #    /dl-tracker/download.php [NC,L,E=virtual:/sites/default/files/documents/additional_file/$1]
     url(
-        r"sites/default/files/documents/(?P<pubid>[\w.()-]+)?\.(?P<extension>pdf|epub)$",
+        r"archive/.*/(?P<pubid>[\w.()-]+?)(?P<attachment>_ATTACH_[^/]+)$",
+        views.JcomFileRedirect.as_view(),
+        name="jcom_redirect_file",
+    ),
+    # Drupal-style galley url
+    #     sites/default/files/documents/jcom_123.pdf
+    # and old form of citation_pdf_url
+    #     RewriteRule "^/archive/.*/(JCOM[^/]+\.pdf)"
+    #     /dl-tracker/download.php [NC,L,E=virtual:/sites/default/files/documents/$1]
+    url(
+        r"(?P<root>archive/.*/|sites/default/files/documents/)"
+        r"(?P<pubid>[\w.()-]+?)(?:_(?P<language>[a-z]{2}))?(?P<error>_\d)?\.(?P<extension>pdf|epub)$",
+        views.JcomFileRedirect.as_view(),
+        name="jcom_redirect_file",
+    ),
+    # Search engines (google scholar & co.) want the PDF file in the
+    # same subfolder as the paper's landing page (see #107);
+    # citation_pdf_url have the form article/pubid/JCOM123/galley.id
+    url(
+        r"article/pubid/(?P<pubid>[\w.()-]+)/(?P<galley_id>\d+)",
         views.JcomFileRedirect.as_view(),
         name="jcom_redirect_file",
     ),

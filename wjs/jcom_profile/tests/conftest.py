@@ -4,7 +4,7 @@ import random
 
 import pytest
 import pytest_factoryboy
-from core.models import Account, File, Role, Setting
+from core.models import Account, File, Role, Setting, SupplementaryFile
 from django.conf import settings
 from django.core import management
 from django.core.cache import cache
@@ -255,10 +255,11 @@ def published_article_with_standard_galleys(journal, article_factory):
         date_published=timezone.now(),
         stage="Published",
     )
+    pubid = "JCOM_0102_2023_A04"
     Identifier.objects.create(
         id_type="pubid",
         article=article,
-        identifier="JCOM_0102_2023_A04",
+        identifier=pubid,
     )
     for extension in ["pdf", "epub"]:
         for language in ["en", "pt", ""]:
@@ -279,6 +280,18 @@ def published_article_with_standard_galleys(journal, article_factory):
             if language:
                 galley.label += f" ({language})"  # The label is used to find the correct galley
             galley.save()
+    # Add some supplementary material (aka attachment): a pdf file
+    # with a conventional label. E.g.
+    # https://jcom.sissa.it/archive/21/06/JCOM_2106_2022_Y01 has
+    # "JCOM_0102_2023_A04_ATTACH_1.pdf"
+    convetional_label = f"{pubid}_ATTACH_1.pdf"
+    file_obj = File.objects.create(
+        original_filename="Supplementary.pdf",
+        is_galley=False,
+        label=convetional_label,
+    )
+    supplementary_obj = SupplementaryFile.objects.create(file=file_obj)
+    article.supplementary_files.add(supplementary_obj)
     return article
 
 
