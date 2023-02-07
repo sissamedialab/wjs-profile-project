@@ -9,7 +9,9 @@
                          alt="{{ article.title|striptags|escape }}"
                          class="responsive-img"/>
                 {% elif request.journal.thumbnail_image %}
-                    <img src="{% url 'journal_cover_download' %}" class="responsive-img" alt="Journal cover"/>
+                    <img src="{% url 'journal_cover_download' %}"
+                         class="responsive-img"
+                         alt="Journal cover"/>
                 {% else %}
                     <img src="{% static 'common/img/icons/article.png' %}"
                          alt="{{ article.title|striptags|escape }}"
@@ -27,8 +29,8 @@
             </div>
             <p>
                 <a href="{% if article.is_remote %}{{ article.remote_url }}{% else %}{{ article.url }}{% endif %}">
-            <h5 class="article-title">{{ article.title|safe }}</h5>
-            </a>
+                    <h5 class="article-title">{{ article.title|safe }}</h5>
+                </a>
             </p>
             <p>
                 <!-- TODO: link authors names to authors pages -->
@@ -39,12 +41,7 @@
                             {% trans "and" %}
                         {% endif %}
                     {% endif %}
-                    <a href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>
-                    {% if not forloop.last %}
-                        {% if not forloop.counter == article.frozen_authors.all|length|add:-1 %}
-                            ,
-                        {% endif %}
-                    {% endif %}
+                    <a href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>{# djlint:off #}{% if not forloop.last %}{% if not forloop.counter == article.frozen_authors.all|length|add:-1 %}, {% endif %}{% endif %}{# djlint:on #}
                 {% endfor %}
             </p>
             <p>
@@ -60,14 +57,29 @@
                         {% if other != article.issue %}
                             <p>
                                 <i class="fa fa-book"></i>
-                                <a class="issue-link"
-                                   href="{{ other.url }}">{{ other.issue_type.pretty_name }}: {{ other.display_title }}</a>
+                                <a class="issue-link" href="{{ other.url }}">{{ other.issue_type.pretty_name }}: {{ other.display_title }}</a>
                             </p>
                         {% endif %}
                     {% endfor %}
                 {% endif %}
             </p>
-            <div>{% autoescape off %}{{ article.abstract }}{% endautoescape %}</div>
+            <div>
+                {% autoescape off %}
+                    {{ article.abstract }}
+                {% endautoescape %}
+            </div>
+            {% if article.genealogy.children.exists %}
+                <div class="genealogy">
+                    {% for kid in article.genealogy.children.all %}
+                        <h6>
+                            <a href="{% url 'article_view' 'id' kid.pk %}">{{ kid.title }}</a>
+                        </h6>
+                        by {% for au in kid.frozen_authors.all %}
+                            <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
