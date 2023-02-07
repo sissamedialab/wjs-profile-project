@@ -9,57 +9,57 @@ https://janeway.readthedocs.io/en/latest/configuration.html#theming
 
 import os
 
+import sass
 from django.conf import settings
-from journal import models as journal_models
+from django.core.management import call_command
 
-# Cannot directly use themes.material.build_assets.process_journals
-# because destination dir is hardcoded
-from themes.material.build_assets import copy_file
-
-
-def process_journals():
-    """Copy css overrides to static/JCOM-theme folder."""
-    journals = journal_models.Journal.objects.all()
-    # TODO: rely on journal's base theme
-    # Don't use a sub-theme: the base.html template has "material" hardcoded
-    theme_name = "material"
-    for journal in journals:
-        for file in journal.scss_files:
-            if file.endswith("material_override.css"):
-                print("Copying material override file for {name}".format(name=journal.name))
-                override_css_dir = os.path.join(settings.BASE_DIR, "static", theme_name, "css")
-                override_css_file = os.path.join(override_css_dir, "journal{}_override.css".format(str(journal.id)))
-
-                # test if the journal CSS directory exists and create it if not
-                os.makedirs(override_css_dir, exist_ok=True)
-
-                # copy file to static
-                copy_file(file, override_css_file)
+BASE_THEME_DIR = os.path.join(settings.BASE_DIR, "static", "JCOM-theme")
+THEME_CSS_FILE = os.path.join(BASE_THEME_DIR, "css", "jcom.css")
 
 
-def process_admin():
-    """Process css that override "admin" stuff.
+def process_scss():
+    """Compiles SCSS into CSS in the Static Assets folder."""
+    app_scss_file = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "sass",
+        "jcom.scss",
+    )
+    include_path_materialize = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "materialize-src",
+        "sass",
+    )
+    include_path_jcom = os.path.dirname(app_scss_file)
+    compiled_css_from_file = sass.compile(
+        filename=app_scss_file,
+        include_paths=[include_path_jcom, include_path_materialize],
+    )
 
-    Temporary workaround waiting for proper configuration.
-    """
-    # similar to wjs.jcom_profile.management.commands.install_theme
-    destination = os.path.realpath(os.path.join(settings.BASE_DIR, "static/admin/css/app.css"))
-    import wjs.jcom_profile as me
+    # Open the CSS file and write into it
+    with open(THEME_CSS_FILE, "w", encoding="utf-8") as write_file:
+        write_file.write(compiled_css_from_file)
 
-    app_css_path = os.path.realpath(os.path.join(me.__file__, "../..", "themes/JCOM-theme/assets/app.css"))
-    try:
-        os.symlink(app_css_path, destination)
-    except FileExistsError:
-        if os.path.islink(destination) and os.readlink(destination) == app_css_path:
-            print("...link to app.css already there, nothing to do.")
-        else:
-            print("...different file exists! Please check.")
-            print(f"{app_css_path} VS {os.path.realpath(destination)}")
-    else:
-        print("...done.")
+
+def create_paths():
+    """Create destination dirs for css & co."""
+    folders = [
+        "css",
+        # "js",
+    ]
+
+    for folder in folders:
+        os.makedirs(os.path.join(BASE_THEME_DIR, folder), exist_ok=True)
+    return os.path.join(BASE_THEME_DIR, "css")
 
 
 def build():
     """Build assets and copy them to static folder."""
-    process_journals()
-    process_admin()
+    print("JCOM SCSS START")
+    create_paths()
+    print("JCOM PATHS DONE")
+    process_scss()
+    print("JCOM SCSS DONE")
+    call_command("collectstatic", "--noinput")
+    print("JCOM collectstatic DONE")

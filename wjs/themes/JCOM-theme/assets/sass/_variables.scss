@@ -1,0 +1,81 @@
+// ==========================================================================
+// Materialize variables
+// ==========================================================================
+//
+// Table of Contents:
+//
+//  1. Colors
+//  2. Badges
+//  3. Buttons
+//  4. Cards
+//  5. Carousel
+//  6. Collapsible
+//  7. Chips
+//  8. Date + Time Picker
+//  9. Dropdown
+//  10. Fonts
+//  11. Forms
+//  12. Global
+//  13. Grid
+//  14. Navigation Bar
+//  15. Side Navigation
+//  16. Photo Slider
+//  17. Spinners | Loaders
+//  18. Tabs
+//  19. Tables
+//  20. Toasts
+//  21. Typography
+//  22. Footer
+//  23. Flow Text
+//  24. Collections
+//  25. Progress Bar
+
+// To customize variables, copy the variables from `materialize-src/sass/variables` and write it here removing the !default
+
+// 1. Colors
+// ==========================================================================
+
+$primary-color: color("jcom-blue", "darken-2") !default;
+$primary-color-light: lighten("jcom-blue", 15%) !default;
+$primary-color-dark: darken("jcom-blue", 15%) !default;
+$primary-blue: color("jcom-blue", "base") !default;
+
+$secondary-color: color("teal", "lighten-1") !default;
+$success-color: color("green", "base") !default;
+$error-color: color("red", "base") !default;
+$link-color: color("light-blue", "darken-1") !default;
+
+
+// 14. Navigation Bar
+// ==========================================================================
+
+$navbar-height: auto;
+$navbar-line-height: $navbar-height;
+$navbar-height-mobile: 56px;
+$navbar-line-height-mobile: $navbar-height-mobile;
+$navbar-font-size: 1rem;
+$navbar-font-color: color("blue-grey", "darken-4");
+$navbar-bg-color:  color("blue-grey", "lighten-5");
+$navbar-brand-font-size: 2.1rem;
+
+
+
+// 22. Footer
+// ==========================================================================
+
+$footer-font-color: color("grey", "darken-2");
+$footer-bg-color: color("grey", "lighten-5");
+$footer-copyright-font-color: color("blue-grey", "darken-2");
+$footer-copyright-bg-color: rgba(51,51,51,.08);
+
+// 21. Typography
+// ==========================================================================
+
+$off-black: rgba(0, 0, 0, 0.87);
+// Header Styles
+$h1-fontsize: 2.5rem;
+$h2-fontsize: 2.2rem;
+$h3-fontsize: 2.0rem;
+$h4-fontsize: 1.8rem;
+$h5-fontsize: 1.6rem;
+$h6-fontsize: 1rem;

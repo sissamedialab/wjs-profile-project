@@ -43,3 +43,10 @@ div.left-right {
 	background-color: var(--primary-light);
 	color: var(--on-primary);
 }
+
+.pagination {
+
+  li {
+    &.active { background-color: $primary-blue; };
+  }
+}
