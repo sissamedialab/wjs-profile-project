@@ -36,6 +36,8 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
    ```
    It will add all our customization to Janeway project.
 
+Please see [this wiki](https://pre-commit.com/) for a detailed list of installation steps.
+
 ### Available customization commands
 
 | command                                            | arguments | description                                                      |
