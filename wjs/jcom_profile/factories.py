@@ -5,7 +5,7 @@ Used in management commands and tests.
 import factory
 from django.utils import timezone
 from faker.providers import lorem
-from journal.models import Journal, Issue, IssueType
+from journal.models import Issue, IssueType, Journal
 from submission.models import Article
 
 from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
