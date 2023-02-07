@@ -6,10 +6,7 @@ introductory one.
 
 """
 import pytest
-from conftest import simulate_middleware
 from conftest import yesterday
-from django.utils import timezone
-from journal.views import articles
 
 from wjs.jcom_profile.models import Genealogy
 
@@ -86,18 +83,15 @@ class TestChildrenExclusion:
     - [ ] filters "by-author", "by-section", "by-keyword" do **not** exclude children
     """
 
-    def test_articles(self, related_and_not_related_articles, admin, rf):
+    def test_articles(self, related_and_not_related_articles, admin, client):
         """Articles listing excludes children."""
         article, parent, child = related_and_not_related_articles
         # View's URL
-        url = f"/{article.journal.code}/articles"
+        url = f"/{article.journal.code}/articles/"
         # ...or I could also do:
         # * client.get(f"/{article.journal.code}/")
         # * url = reverse("journal_articles")
-        request = rf.get(url)
-        simulate_middleware(request, user=admin, journal=article.journal)
-
-        response = articles(request)
+        response = client.get(url)
         content = response.content.decode()
         assert article.title in content
         assert parent.title in content
