@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext as _
 from journal.models import Journal
+from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article, Section
 from utils import logic as utils_logic
 
@@ -240,3 +241,21 @@ class Recipient(models.Model):
 
     def __str__(self):
         return _(f"Recipient user: {self.user if self.user else self.email} - journal: {self.journal} ")
+
+
+class Genealogy(models.Model):
+    """Maintain relations of type parent/children between articles."""
+
+    parent = models.OneToOneField(
+        Article,
+        verbose_name=_("Introduction"),
+        on_delete=models.CASCADE,
+        related_name="genealogy",
+    )
+    children = SortedManyToManyField(
+        Article,
+        related_name="ancestors",
+    )
+
+    def __str__(self):
+        return f"Genealogy: article {self.parent} has {self.children.count()} kids"
