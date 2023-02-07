@@ -39,7 +39,7 @@ class TestGenealogyModel:
 
 
 @pytest.fixture
-def related_and_not_related_articles(journal, article_factory):
+def related_and_not_related_articles(journal, article_factory, fb_issue):
     """Setup a journal with related and non-related articles."""
     section = journal.section_set.first()
     a = article_factory(
@@ -68,6 +68,11 @@ def related_and_not_related_articles(journal, article_factory):
     )
     genealogy = Genealogy.objects.create(parent=p)
     genealogy.children.add(c)
+    fb_issue.journal = journal
+    fb_issue.articles.add(a)
+    fb_issue.articles.add(p)
+    fb_issue.articles.add(c)
+    fb_issue.save()
     return (a, p, c)
 
 
@@ -83,7 +88,7 @@ class TestChildrenExclusion:
     - [ ] filters "by-author", "by-section", "by-keyword" do **not** exclude children
     """
 
-    def test_articles(self, related_and_not_related_articles, admin, client):
+    def test_articles(self, related_and_not_related_articles, client):
         """Articles listing excludes children."""
         article, parent, child = related_and_not_related_articles
         # View's URL
@@ -100,9 +105,19 @@ class TestChildrenExclusion:
         assert parent.abstract in content
         assert child.abstract not in content  # ⇦ child's abstrac NOT IN content
 
-    def test_issue(self):
+    def test_issue(self, related_and_not_related_articles, client):
         """Issue lising excludes children."""
-        assert False
+        article, parent, child = related_and_not_related_articles
+        issue_id = article.issues.first().id
+        url = f"/{article.journal.code}/issue/{issue_id}/info/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title in content
+        assert parent.title in content
+        assert child.title in content
+        assert article.abstract in content
+        assert parent.abstract in content
+        assert child.abstract not in content
 
     def test_search(self):
         """Search results do **not** exclude children."""

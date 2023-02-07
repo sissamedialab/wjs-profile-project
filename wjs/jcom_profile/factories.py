@@ -5,7 +5,7 @@ Used in management commands and tests.
 import factory
 from django.utils import timezone
 from faker.providers import lorem
-from journal.models import Journal
+from journal.models import Journal, Issue, IssueType
 from submission.models import Article
 
 from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
@@ -93,3 +93,17 @@ class SpecialIssueFactory(factory.django.DjangoModelFactory):
     # "SpecialIssue.journal" must be a "Journal" instance.
 
     journal = factory.LazyAttribute(lambda x: Journal.objects.first())
+
+
+class IssueFactory(factory.django.DjangoModelFactory):
+    """Standard Issue."""
+
+    class Meta:
+        model = Issue
+
+    journal = factory.SubFactory(JournalFactory)
+    volume = 1
+    issue = "1"
+    # JCOM issue don't usually have a title
+    issue_title = ""
+    issue_type = factory.LazyAttribute(lambda x: IssueType.objects.first())

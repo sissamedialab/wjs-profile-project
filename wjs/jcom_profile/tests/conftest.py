@@ -21,7 +21,12 @@ from utils.install import update_issue_types
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 from utils.testing.helpers import create_galley
 
-from wjs.jcom_profile.factories import ArticleFactory, SpecialIssueFactory, UserFactory
+from wjs.jcom_profile.factories import (
+    ArticleFactory,
+    IssueFactory,
+    SpecialIssueFactory,
+    UserFactory,
+)
 from wjs.jcom_profile.models import (
     ArticleWrapper,
     EditorAssignmentParameters,
@@ -442,3 +447,4 @@ pytest_factoryboy.register(
     open_date=yesterday,
     close_date=None,
 )
+pytest_factoryboy.register(IssueFactory, "fb_issue")
