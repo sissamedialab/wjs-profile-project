@@ -4,10 +4,8 @@ import random
 
 import pytest
 import pytest_factoryboy
-from core.middleware import SiteSettingsMiddleware
 from core.models import Account, File, Role, Setting, SupplementaryFile
 from django.conf import settings
-from django.contrib.sessions.middleware import SessionMiddleware
 from django.core import management
 from django.core.cache import cache
 from django.urls.base import clear_script_prefix
@@ -422,32 +420,11 @@ def issue(issue_type, published_articles):
     return issue
 
 
-def simulate_middleware(request, **kwargs):
-    """Simulate Janeway's middleware."""
-    # simulate login
-    request.user = kwargs["user"]
-    # simulate session middleware (it is needed because the
-    # template of the response uses the templatetag
-    # "hijack_notification")
-    SessionMiddleware().process_request(request)
-    # simulate J. middleware
-    request.journal = kwargs["journal"]
-    SiteSettingsMiddleware.process_request(request)
-    # https://youtu.be/vZraNnWnYXE?t=10
-
-
 # Name the fixture a bit differently. This code, without the second
 # option, would produce a "article_factory" fixture (i.e. a factory of
 # article objects) and a fixture named "article" (i.e. one article
 # object) that would clash with the one defined above.
 pytest_factoryboy.register(ArticleFactory, "fb_article")
-pytest_factoryboy.register(
-    ArticleFactory,
-    "article_published",
-    date_published=timezone.now(),
-    stage="Published",
-)
-
 # Make a fixture that returns a user "already existing" in the DB
 pytest_factoryboy.register(
     UserFactory,

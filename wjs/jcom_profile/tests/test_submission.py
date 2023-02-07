@@ -1,7 +1,8 @@
 """Tests related to the submission process."""
 import lxml.html
 import pytest
-from conftest import simulate_middleware
+from core.middleware import SiteSettingsMiddleware
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.cache import cache
 from django.test import Client
 from django.urls import reverse
@@ -242,7 +243,7 @@ class TestInfoStage:
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
-        simulate_middleware(request, user=admin, journal=journal_with_three_sections)
+        self.simulate_middleware(request, user=admin, journal=journal_with_three_sections)
 
         # NB: do NOT use unnamed args as in ...submit_info(request, article.id)!!!
         response = views.submit_info(request, article_id=article.id)
@@ -277,7 +278,7 @@ class TestInfoStage:
 
         url = reverse("submit_info", args=(fb_article.pk,))
         request = rf.get(url)
-        simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
+        self.simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
 
         response = views.submit_info(request, article_id=fb_article.id)
         assert response.status_code == 200
@@ -307,7 +308,7 @@ class TestInfoStage:
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
-        simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
+        self.simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
 
         response = views.submit_info(request, article_id=article.id)
         assert response.status_code == 200
@@ -346,7 +347,7 @@ class TestInfoStage:
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
-        simulate_middleware(request, user=admin, journal=journal_with_three_sections)
+        self.simulate_middleware(request, user=admin, journal=journal_with_three_sections)
 
         response = views.submit_info(request, article_id=article.id)
         assert response.status_code == 200
@@ -376,7 +377,7 @@ class TestInfoStage:
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
-        simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
+        self.simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
 
         response = views.submit_info(request, article_id=article.id)
         assert response.status_code == 200
@@ -385,6 +386,19 @@ class TestInfoStage:
         # expect only si's public sections + the empty label
         si_public_sections = special_issue_with_two_sections.allowed_sections.filter(public_submissions=True)
         self.compare(got=got, expected=si_public_sections)
+
+    def simulate_middleware(self, request, **kwargs):
+        """Simulate Janeway's middleware."""
+        # simulate login
+        request.user = kwargs["user"]
+        # simulate session middleware (it is needed because the
+        # template of the response uses the templatetag
+        # "hijack_notification")
+        SessionMiddleware().process_request(request)
+        # simulate J. middleware
+        request.journal = kwargs["journal"]
+        SiteSettingsMiddleware.process_request(request)
+        # https://youtu.be/vZraNnWnYXE?t=10
 
     def sections_in_the_form(self, response):
         """Extract the options of the section select tag."""
