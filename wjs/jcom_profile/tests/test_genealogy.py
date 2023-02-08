@@ -119,13 +119,43 @@ class TestChildrenExclusion:
         assert parent.abstract in content
         assert child.abstract not in content
 
-    def test_search(self):
+    def test_search(self, related_and_not_related_articles, client):
         """Search results do **not** exclude children."""
-        assert False
+        article, parent, child = related_and_not_related_articles
+        url = f"/{article.journal.code}/search/"
+
+        response = client.get(url, {"article_search": article.title})
+        content = response.content.decode()
+        assert article.title in content
+        assert parent.title not in content
+        assert child.title not in content
+
+        response = client.get(url, {"article_search": parent.title})
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title in content
+        assert child.title in content
+        assert child.abstract not in content
+
+        response = client.get(url, {"article_search": child.title})
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title not in content
+        assert child.title in content
 
     def test_filter_by_author(self):
         """Filter by author do **not** exclude children."""
-        assert False
+        article, parent, child = related_and_not_related_articles
+        issue_id = article.issues.first().id
+        url = f"/{article.journal.code}/issue/{issue_id}/info/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title in content
+        assert parent.title in content
+        assert child.title in content
+        assert article.abstract in content
+        assert parent.abstract in content
+        assert child.abstract not in content
 
     def test_filter_by_section(self):
         """Filter by section do **not** exclude children."""
