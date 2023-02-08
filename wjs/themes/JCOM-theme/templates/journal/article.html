@@ -33,6 +33,10 @@
         div#toc-card {
             display: none;
         }
+
+        h6 {
+        font-size: 1.3rem;
+        }
     </style>
 {% endblock css %}
 {% block body %}
@@ -51,6 +55,14 @@
                                 {{ article.title|safe }}
                             </div>
                         </span>
+                        {% if article.ancestors.exists %}
+                            {% with parent=article.ancestors.first.parent %}
+                                <p>
+                                    <span>{% trans "part of" %}</span>
+                                    <a href="{% url 'article_view' 'id' parent.pk %}">{{ parent.title }}</a>
+                                </p>
+                            {% endwith %}
+                        {% endif %}
                         <span class="card-title" id="font-size-17">
                             <div class="carousel-text-wrapper show-on-small hide-on-med-and-up">
                                 <small>
@@ -91,18 +103,6 @@
                                     {% if not forloop.last %},{% endif %}
                                 {% endfor %}
                             </p>
-                            <div class="spacer">
-                                <div class="divider"></div>
-                            </div>
-                        {% endif %}
-                        {% if article.ancestors.exists %}
-                            {% with parent=article.ancestors.first.parent %}
-                                <h2>{% trans "Main document" %}</h2>
-                                <p>
-                                    {# TODO: trans!!! #}
-                                    Please read <a href="{% url 'article_view' 'id' parent.pk %}">the main document here</a>
-                                </p>
-                            {% endwith %}
                             <div class="spacer">
                                 <div class="divider"></div>
                             </div>
@@ -170,26 +170,39 @@
                         </div>
                     </div>
                     {% if article.genealogy.children.exists %}
+                        <!-- TODO: Fix me!!! -->
                         <div class="row genealogy-children">
                             <div class="col m12 l12 s12">
                                 <div class="card">
-                                    <div class="card-content">
-                                        <h2>{% trans "Invited documents" %}</h2>
-                                        <div>
+                                    <div class="card-content collapsible">
+                                        <details>
+                                            <summary>
+                                                <h2 class="collapsible-header">{% trans "Invited documents" %} ▼</h2>
+                                            </summary>
+                                            <!-- <div class="collapsible-body"> -->
                                             {% for kid in article.genealogy.children.all %}
-                                                <h3>
+                                                <h6>
                                                     <a href="{% url 'article_view' 'id' kid.pk %}">{{ kid.title }}</a>
-                                                </h3>
-                                                by
-                                                {% for au in kid.frozen_authors.all %}
-                                                    <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
-                                                {% endfor %}
+                                                </h6>
                                                 <div>
-                                                    {{ kid.abstract|safe }}
+                                                    <div style="float:left;">
+                                                        by
+                                                        {% for au in kid.frozen_authors.all %}
+                                                            <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
+                                                        {% endfor %}
+                                                    </div>
+                                                    <div style="float:right;">
+                                                        <span class="date"><i class="fa fa-calendar">{{ kid.date_published|date:"Y-m-d" }}</i></span>
+                                                    </div>
+                                                    <div style="clear:both;">
+                                                    </div>
                                                 </div>
-                                                <!-- <div><a href="{% url 'article_view' 'id' kid.pk %}">Read More</a></div> -->
+                                                <div style="margin-bottom:1em;">
+                                                    {{ kid.abstract|safe|truncatewords_html:23 }}
+                                                </div>
                                             {% endfor %}
-                                        </div>
+                                            <!-- </div> -->
+                                        </details>
                                     </div>
                                 </div>
                             </div>
