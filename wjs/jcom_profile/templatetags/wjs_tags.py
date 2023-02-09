@@ -29,3 +29,12 @@ def article(article_wrapper):
     # `article_wrapper.janeway_article` results in an error
     # `'ArticleWrapper' object has no attribute 'id'`
     return Article.objects.get(pk=article_wrapper.janeway_article_id)
+
+
+@register.filter
+def has_attr(obj, attr):
+    """Return True is the given object has the given attribute.
+
+    Example usage: {% if article|hasattr:"genealogy" %}
+    """
+    return hasattr(obj, attr)

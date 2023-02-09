@@ -1,5 +1,6 @@
 {% load static %}
 {% load i18n %}
+{% load wjs_tags %}
 <div class="card-panel">
     <div class="row">
         {% if not journal_settings.article.disable_article_thumbnails %}
@@ -67,7 +68,7 @@
                     {{ article.abstract }}
                 {% endautoescape %}
             </div>
-            {% if article.genealogy.children.exists %}
+            {% if article|has_attr:"genealogy" and article.genealogy.children.exists %}
                 <div class="genealogy">
                     {% for kid in article.genealogy.children.all %}
                         <h6>
