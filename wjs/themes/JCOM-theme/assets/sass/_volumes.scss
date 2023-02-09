@@ -1,0 +1,25 @@
+.volumes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  &__title {
+    color: var(--primary);
+    font-weight: bold;
+  }
+}
+
+.volume {
+  background: white;
+  padding: 20px;
+
+  &__title {
+    color: var(--primary-light);
+  }
+}
+
+.volumes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

@@ -1,6 +1,16 @@
-{% if activated %}
-    <h2>Thank for your acceptance, we will send an email to you to set your password</h2>
-{% else %}
-    <h2> Your account is already active.</h2>
-    <p>Please, go to <a href="{% url "core_login" %}">login page</a>.</p>
-{% endif %}
+{% extends "core/base.html" %}
+
+{% block body %}
+<div class="row">
+    <div class="s12 center">
+        {% if activated %}
+            <h2> {% trans "Thank for your acceptance" %}</h2>
+            <p>{% trans "We will send an email to you to set your password" %}</p>
+        {% else %}
+            <h2>{% trans "Your account is already active." %}</h2>
+            <p>{% trans "Please, go to" %}</p>
+            <a href="{% url "core_login" %}">{% trans "login page." %}</a>.
+        {% endif %}
+    </div>
+</div>
+{% endblock body %}

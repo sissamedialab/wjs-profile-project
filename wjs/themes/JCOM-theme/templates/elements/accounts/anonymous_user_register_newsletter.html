@@ -1,10 +1,16 @@
-<form action="" method="post">
-    {% csrf_token %}
-    {% if form.errors %}
-        {% for err in form.errors %}
-            <p>{{ err }}</p>
-        {% endfor %}
-    {% endif %}
-    {{ form.as_p }}
-    <input type="submit" class="default" value="{% trans "Subscribe" %}"/>
-</form>
+{% extends "core/base.html" %}
+
+{% block body %}
+    <div class="row">
+        <form action="" class="col s4" method="post">
+            {% csrf_token %}
+            {% if form.errors %}
+                {% for err in form.errors %}
+                    <p>{{ err }}</p>
+                {% endfor %}
+            {% endif %}
+            {{ form.as_p }}
+            <input type="submit" class="default btn" value="{% trans "Subscribe" %}"/>
+        </form>
+    </div>
+{% endblock body %}

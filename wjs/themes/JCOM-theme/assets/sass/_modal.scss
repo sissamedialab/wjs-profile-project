@@ -1,0 +1,12 @@
+.modal {
+  width: fit-content;
+
+  .card {
+    margin: 0;
+    padding: 20px;
+
+    &-section {
+      text-align: center;
+    }
+  }
+}

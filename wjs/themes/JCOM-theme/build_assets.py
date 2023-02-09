@@ -10,6 +10,7 @@ https://janeway.readthedocs.io/en/latest/configuration.html#theming
 import os
 
 import sass
+import shutil
 from django.conf import settings
 from django.core.management import call_command
 
@@ -61,5 +62,21 @@ def build():
     print("JCOM PATHS DONE")
     process_scss()
     print("JCOM SCSS DONE")
+    copy_file('themes/JCOM-theme/assets/materialize-src/js/bin/materialize.min.js', 'static/JCOM-theme/materialize.min.js')
     call_command("collectstatic", "--noinput")
     print("JCOM collectstatic DONE")
+
+def copy_file(source, destination):
+    """
+    :param source: The source of the folder for copying
+    :param destination: The destination folder for the file
+    :return:
+    """
+
+    destination_folder = os.path.join(settings.BASE_DIR, os.path.dirname(destination))
+
+    if not os.path.exists(destination_folder):
+        os.mkdir(destination_folder)
+
+    shutil.copy(os.path.join(settings.BASE_DIR, source),
+                os.path.join(settings.BASE_DIR, destination))

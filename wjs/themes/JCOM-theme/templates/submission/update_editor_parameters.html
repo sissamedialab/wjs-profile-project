@@ -3,11 +3,11 @@
 {% load static %}
 
 {% block body %}
-    <div>
-        <form method="post">
+    <div class="row">
+        <form method="post" class="col s4">
             {% csrf_token %}
             {{ form.as_p }}
-            <input type="submit"/>
+            <input type="submit" class="btn"/>
         </form>
     </div>
 {% endblock body %}

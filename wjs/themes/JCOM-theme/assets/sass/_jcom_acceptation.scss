@@ -1,0 +1,15 @@
+.acceptation {
+  &-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+
+    .form-group-label {
+      line-height: 1.5;
+    }
+  }
+
+  &-title {
+    padding: 0 .75rem;
+  }
+}

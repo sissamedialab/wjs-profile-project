@@ -1,22 +1,26 @@
-{% extends "admin/core/base.html" %}
+{% extends "core/base.html" %}
 {% load static from staticfiles %}
 {% load foundation %}
 {% load i18n %}
 
 {% block body %}
-    <h2>Newsletters </h2>
+<div class="row">
+    <div class="col s12 l8">
+        <h2>{% trans "Newsletters" %}</h2>
 
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button class="success button" type="submit"><i
-                class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
-        </button>
-        <a data-open="unsubscription-confirmation" class="button" id="unsubscribe-button"><i
-                class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
-        </a>
-    </form>
-    {% include "elements/unsubscribe_confirmation_modal.html" %}
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button class="btn" type="submit"><i
+                    class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
+            </button>
+            <a href="#modal1" class="btn modal-trigger"><i
+                    class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
+            </a>
+        </form>
+        {% include "elements/unsubscribe_confirmation_modal.html" %}
+    </div>
+</div>
 {% endblock body %}
 
 {% block css %}
@@ -28,12 +32,11 @@
     {{ block.super }}
     {{ form.media.js }}
     <script>
+        $(document).ready(function(){
+            $('.modal').modal();
+        });
     </script>
 {% endblock js %}
 
 {% block footer %}
-    <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
-    <script src="{% static "admin/js/modal.js" %}"></script>
-    {{ form.media }}
-
 {% endblock footer %}
