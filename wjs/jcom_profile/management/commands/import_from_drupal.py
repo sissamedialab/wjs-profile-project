@@ -628,8 +628,11 @@ class Command(BaseCommand):
         # multiple collections). Also, issues are enumerated in a
         # dedicated page, but this page does not include collections.
         issue_type__code = "issue"
+        # No title for standard issues.
+        issue_title = ""
         if "Special" in issue_data["title"]:
             issue_type__code = "collection"
+            issue_title = issue_data["title"]
         issue, created = journal_models.Issue.objects.get_or_create(
             journal=article.journal,
             volume=volume_num,
@@ -637,10 +640,12 @@ class Command(BaseCommand):
             issue_type__code=issue_type__code,
             defaults={
                 "date": date_published,
-                "issue_title": issue_data["title"],
+                "issue_title": issue_title,
             },
         )
         Command.seen_issues[issue_uri] = issue.pk
+
+        issue.issue_title = issue_title
 
         # Force this to correct previous imports
         issue.date = date_published
