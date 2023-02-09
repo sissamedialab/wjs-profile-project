@@ -102,11 +102,11 @@ class TestChildrenExclusion:
     """Views listing articles shoule hide papers that are "children" of other papers.
 
     Here we test that:
-    - [ ] general articles listing excludes children (e.g. https://jcom-test.sissamedialab.it/articles/)
-    - [ ] specific issue listing excludes children; (e.g. https://jcom-test.sissamedialab.it/issue/192/info/)
-    - [ ] search results do **not** exclude children;
+    - general articles listing excludes children (e.g. https://jcom-test.sissamedialab.it/articles/)
+    - specific issue listing excludes children; (e.g. https://jcom-test.sissamedialab.it/issue/192/info/)
+    - search results do **not** exclude children;
           e.g. https://jcom-test.sissamedialab.it/search/?article_search=What+is+‘‘science+communication’’&sort=title
-    - [ ] filters "by-author", "by-section", "by-keyword" do **not** exclude children
+    - filters "by-author", "by-section", "by-keyword" do **not** exclude children
     """
 
     def test_articles(self, related_and_not_related_articles, client):
