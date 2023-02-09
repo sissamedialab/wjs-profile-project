@@ -3,6 +3,7 @@
 {% load hooks %}
 {% load i18n %}
 {% load files %}
+{% load wjs_tags %}
 {% block page_title %}
     {% if article.preprint %}
         {% trans "Preprint" %}
@@ -169,7 +170,7 @@
                             {% endif %}
                         </div>
                     </div>
-                    {% if article.genealogy.children.exists %}
+                    {% if article|has_attr:"genealogy" and article.genealogy.children.exists %}
                         <!-- TODO: Fix me!!! -->
                         <div class="row genealogy-children">
                             <div class="col m12 l12 s12">
