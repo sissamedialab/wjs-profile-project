@@ -33,7 +33,6 @@
                 </a>
             </p>
             <p>
-                <!-- TODO: link authors names to authors pages -->
                 by
                 {% for author in article.frozen_authors.all %}
                     {% if forloop.last %}
@@ -75,7 +74,7 @@
                             <a href="{% url 'article_view' 'id' kid.pk %}">{{ kid.title }}</a>
                         </h6>
                         by {% for au in kid.frozen_authors.all %}
-                            <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
+                            <a href="{% url 'articles_by_author' au.author.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
                         {% endfor %}
                     {% endfor %}
                 </div>
