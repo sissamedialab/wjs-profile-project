@@ -22,8 +22,12 @@ from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 from utils.testing.helpers import create_galley
 
 from wjs.jcom_profile.factories import (
+    AccountFactory,
     ArticleFactory,
     IssueFactory,
+    JCOMProfileFactory,
+    KeywordFactory,
+    SectionFactory,
     SpecialIssueFactory,
     UserFactory,
 )
@@ -37,6 +41,7 @@ from wjs.jcom_profile.utils import generate_token
 
 USERNAME = "user"
 JOURNAL_CODE = "TST"
+yesterday = timezone.now() - timezone.timedelta(1)
 
 EXTRAFIELDS_FRAGMENTS = [
     # Profession - a <select>
@@ -439,8 +444,9 @@ pytest_factoryboy.register(
     email="iamsum@example.com",
     institution="ML",
 )
+pytest_factoryboy.register(JCOMProfileFactory)
+pytest_factoryboy.register(AccountFactory)
 pytest_factoryboy.register(SpecialIssueFactory, "fb_special_issue")
-yesterday = timezone.now() - timezone.timedelta(1)
 pytest_factoryboy.register(
     SpecialIssueFactory,
     "open_special_issue",
@@ -448,3 +454,5 @@ pytest_factoryboy.register(
     close_date=None,
 )
 pytest_factoryboy.register(IssueFactory, "fb_issue")
+pytest_factoryboy.register(SectionFactory)
+pytest_factoryboy.register(KeywordFactory)

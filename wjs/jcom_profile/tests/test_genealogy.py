@@ -39,33 +39,54 @@ class TestGenealogyModel:
 
 
 @pytest.fixture
-def related_and_not_related_articles(journal, article_factory, fb_issue):
+def related_and_not_related_articles(
+    journal,
+    article_factory,
+    fb_issue,
+    account_factory,
+    section_factory,
+    keyword_factory,
+):
     """Setup a journal with related and non-related articles."""
-    section = journal.section_set.first()
+    author_a = account_factory()
     a = article_factory(
         title="Lone wolf",
         abstract="Lonewolfabstract",
         journal=journal,
         date_published=yesterday,
         stage="Published",
-        section=section,
+        correspondence_author=author_a,
+        section=section_factory(),
     )
+    a.keywords.add(keyword_factory())
+    a.authors.add(author_a)
+    a.snapshot_authors()
+    author_p = account_factory()
     p = article_factory(
         title="Parent",
         abstract="Parentabstract",
         journal=journal,
         date_published=yesterday,
         stage="Published",
-        section=section,
+        correspondence_author=author_p,
+        section=section_factory(),
     )
+    p.keywords.add(keyword_factory())
+    p.authors.add(author_p)
+    p.snapshot_authors()
+    author_c = account_factory()
     c = article_factory(
         title="Children",
         abstract="Childrenabstract",
         journal=journal,
         date_published=yesterday,
         stage="Published",
-        section=section,
+        correspondence_author=author_c,
+        section=section_factory(),
     )
+    c.keywords.add(keyword_factory())
+    c.authors.add(author_c)
+    c.snapshot_authors()
     genealogy = Genealogy.objects.create(parent=p)
     genealogy.children.add(c)
     fb_issue.journal = journal
@@ -103,7 +124,7 @@ class TestChildrenExclusion:
         assert child.title in content
         assert article.abstract in content
         assert parent.abstract in content
-        assert child.abstract not in content  # ⇦ child's abstrac NOT IN content
+        assert child.abstract not in content  # ⇦ child's abstract NOT IN content
 
     def test_issue(self, related_and_not_related_articles, client):
         """Issue lising excludes children."""
@@ -143,24 +164,86 @@ class TestChildrenExclusion:
         assert parent.title not in content
         assert child.title in content
 
-    def test_filter_by_author(self):
+    def test_filter_by_author(self, related_and_not_related_articles, client):
         """Filter by author do **not** exclude children."""
         article, parent, child = related_and_not_related_articles
-        issue_id = article.issues.first().id
-        url = f"/{article.journal.code}/issue/{issue_id}/info/"
+        journal_code = article.journal.code
+
+        url = f"/{journal_code}/articles/author/{article.correspondence_author.id}/"
         response = client.get(url)
         content = response.content.decode()
         assert article.title in content
+        assert parent.title not in content
+        assert child.title not in content
+
+        url = f"/{journal_code}/articles/author/{parent.correspondence_author.id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title not in content
         assert parent.title in content
-        assert child.title in content
-        assert article.abstract in content
         assert parent.abstract in content
+        assert child.title in content
         assert child.abstract not in content
 
-    def test_filter_by_section(self):
-        """Filter by section do **not** exclude children."""
-        assert False
+        url = f"/{journal_code}/articles/author/{child.correspondence_author.id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title not in content
+        assert child.title in content
 
-    def test_filter_by_keyword(self):
+    def test_filter_by_section(self, related_and_not_related_articles, client):
+        """Filter by section do **not** exclude children."""
+        article, parent, child = related_and_not_related_articles
+        journal_code = article.journal.code
+
+        url = f"/{journal_code}/articles/section/{article.section.id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title in content
+        assert parent.title not in content
+        assert child.title not in content
+
+        url = f"/{journal_code}/articles/section/{parent.section.id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title in content
+        assert parent.abstract in content
+        assert child.title in content
+        assert child.abstract not in content
+
+        url = f"/{journal_code}/articles/section/{child.section.id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title not in content
+        assert child.title in content
+
+    def test_filter_by_keyword(self, related_and_not_related_articles, client):
         """Filter by keyword do **not** exclude children."""
-        assert False
+        article, parent, child = related_and_not_related_articles
+        journal_code = article.journal.code
+
+        url = f"/{journal_code}/articles/keyword/{article.keywords.first().id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title in content
+        assert parent.title not in content
+        assert child.title not in content
+
+        url = f"/{journal_code}/articles/keyword/{parent.keywords.first().id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title in content
+        assert parent.abstract in content
+        assert child.title in content
+        assert child.abstract not in content
+
+        url = f"/{journal_code}/articles/keyword/{child.keywords.first().id}/"
+        response = client.get(url)
+        content = response.content.decode()
+        assert article.title not in content
+        assert parent.title not in content
+        assert child.title in content
