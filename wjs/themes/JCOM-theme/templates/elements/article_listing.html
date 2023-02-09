@@ -1,5 +1,6 @@
 {% load static %}
 {% load i18n %}
+{% load wjs_tags %}
 <div class="card-panel">
     <div class="row">
         {% if not journal_settings.article.disable_article_thumbnails %}
@@ -33,7 +34,6 @@
                 </a>
             </p>
             <p>
-                <!-- TODO: link authors names to authors pages -->
                 by
                 {% for author in article.frozen_authors.all %}
                     {% if forloop.last %}
@@ -68,14 +68,14 @@
                     {{ article.abstract }}
                 {% endautoescape %}
             </div>
-            {% if article.genealogy.children.exists %}
+            {% if article|has_attr:"genealogy" and article.genealogy.children.exists %}
                 <div class="genealogy">
                     {% for kid in article.genealogy.children.all %}
                         <h6>
                             <a href="{% url 'article_view' 'id' kid.pk %}">{{ kid.title }}</a>
                         </h6>
                         by {% for au in kid.frozen_authors.all %}
-                            <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
+                            <a href="{% url 'articles_by_author' au.author.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
                         {% endfor %}
                     {% endfor %}
                 </div>

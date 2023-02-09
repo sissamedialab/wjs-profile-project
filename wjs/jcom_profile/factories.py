@@ -3,10 +3,11 @@
 Used in management commands and tests.
 """
 import factory
+from core.models import Account
 from django.utils import timezone
 from faker.providers import lorem
-from journal.models import Journal
-from submission.models import Article
+from journal.models import Issue, IssueType, Journal
+from submission.models import Article, Keyword, Section
 
 from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
 
@@ -18,7 +19,7 @@ factory.Faker.add_provider(lorem)
 
 
 class UserFactory(factory.django.DjangoModelFactory):
-    """User factory."""
+    """User factory. OBSOLETE! To be replaced by JCOMProfileFactory and AccountFactory."""
 
     class Meta:
         model = JCOMProfile  # ← is this correct? maybe core.Account?
@@ -29,6 +30,38 @@ class UserFactory(factory.django.DjangoModelFactory):
     username = email
     is_admin = False
     is_active = True
+
+
+class AccountFactory(factory.django.DjangoModelFactory):
+    """Account with JCOM profile."""
+
+    class Meta:
+        model = Account
+
+    first_name = factory.Faker("first_name")
+    last_name = factory.Faker("last_name")
+    email = factory.Faker("email")
+    username = email
+    is_admin = False
+    is_active = True
+
+    # DO NOT `jcomprofile = factory.SubFactory(JCOMProfileFactory)`
+    # you'd hit wjs/specs#192 (probably...)
+
+
+class JCOMProfileFactory(factory.django.DjangoModelFactory):
+    """JCOM profile factory."""
+
+    class Meta:
+        model = JCOMProfile
+
+    gdpr_checkbox = True
+    profession = 4
+    invitation_token = "x"
+
+    # DO NOT `janeway_account = factory.SubFactory(AccountFactory)`
+    # I think it's "circular" and would try to create the Account again...
+    # DETAIL:  Key (janeway_account_id)=(1) already exists.
 
 
 class JournalFactory(factory.django.DjangoModelFactory):
@@ -93,3 +126,37 @@ class SpecialIssueFactory(factory.django.DjangoModelFactory):
     # "SpecialIssue.journal" must be a "Journal" instance.
 
     journal = factory.LazyAttribute(lambda x: Journal.objects.first())
+
+
+class IssueFactory(factory.django.DjangoModelFactory):
+    """Standard Issue."""
+
+    class Meta:
+        model = Issue
+
+    journal = factory.SubFactory(JournalFactory)
+    volume = 1
+    issue = "1"
+    # JCOM issue don't usually have a title
+    issue_title = ""
+    issue_type = factory.LazyAttribute(lambda x: IssueType.objects.first())
+
+
+class SectionFactory(factory.django.DjangoModelFactory):
+    """Section factory."""
+
+    class Meta:
+        model = Section
+
+    journal = factory.LazyAttribute(lambda x: Journal.objects.first())
+    name = factory.Faker("sentence", nb_words=1)
+    public_submissions = False
+
+
+class KeywordFactory(factory.django.DjangoModelFactory):
+    """Keyword factory."""
+
+    class Meta:
+        model = Keyword
+
+    word = factory.Faker("sentence", nb_words=2)
