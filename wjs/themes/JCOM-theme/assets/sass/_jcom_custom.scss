@@ -50,3 +50,8 @@ div.left-right {
     &.active { background-color: $primary-blue; };
   }
 }
+
+.select2-container {
+  margin-top: 10px !important;
+  width: 100% !important;
+}

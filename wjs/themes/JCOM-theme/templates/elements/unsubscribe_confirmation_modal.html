@@ -1,19 +1,17 @@
 {% load static from staticfiles %}
 
-<div class="reveal" id="unsubscription-confirmation" data-reveal data-animation-in="slide-in-up"
-     data-animation-out="slide-out-down">
+<div id="modal1" class="modal">
     <div class="card">
         <div class="card-divider">
-            <h4><i class="fa fa-check">&nbsp;</i>{% trans "Newsletter unsubscription" %}</h4>
+            <h4>{% trans "Newsletter unsubscription" %}</h4>
         </div>
         <div class="card-section">
             <p>{% trans "Are you sure to unsubscribe?" %}</p>
             <form method="post">
                 {% csrf_token %}
-                <a type="submit" href="{% url "unsubscribe_newsletter" object.pk %}" class="button success"
-                   name="unsubscription-confirmation"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" %}
+                <a type="submit" href="{% url "unsubscribe_newsletter" object.pk %}" class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" %}
                 </a>
-                <a data-close type="submit" class="button error" name="unsubscription-confirmation"><i
+                <a class="btn modal-close red" name="unsubscription-confirmation"><i
                         class="fa fa-times">&nbsp;</i>{% trans "No" %}
                 </a>
             </form>

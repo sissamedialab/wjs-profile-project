@@ -6,18 +6,22 @@
     {% trans "Volumes and Issues" %}
 {% endblock title %}
 {% block body %}
-    <h2>{% trans "Volumes and Issues" %}</h2>
     {% regroup issues by volume as volumes %}
-    {% for volume in volumes %}
-        {% with volume_meta=volume.list|first %}
-            <h3>Volume {{ volume_meta.volume }}, {{ volume_meta.date.year }}</h3>
-        {% endwith %}
-        {% for issue in volume.list %}
-            <ul>
-                <li>
-                    <a href="{% url 'journal_issue' issue.id %}">{% trans "Issue" %} {{ issue.issue }}, {{ issue.date.year }}</a> <span class="count">({{ issue.get_sorted_articles.count }} {% trans "items" %})</span>
-                </li>
-            </ul>
+    <div class="volumes-container">
+    <h1 class="volumes-container__title">{% trans "Volumes and Issues" %}</h1>
+        {% for volume in volumes %}
+            <div class="volume">
+                {% with volume_meta=volume.list|first %}
+                    <h3 class="volume__title">Volume {{ volume_meta.volume }}, {{ volume_meta.date.year }}</h3>
+                {% endwith %}
+                <ul class="volumes-list">
+                    {% for issue in volume.list %}
+                        <li>
+                            <a href="{% url 'journal_issue' issue.id %}">{% trans "Issue" %} {{ issue.issue }}, {{ issue.date.year }}</a> <span class="count">({{ issue.get_sorted_articles.count }} {% trans "items" %})</span>     
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
         {% endfor %}
-    {% endfor %}
+    </div>
 {% endblock body %}

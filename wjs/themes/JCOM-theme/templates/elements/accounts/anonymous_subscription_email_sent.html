@@ -1,1 +1,10 @@
-<h2>{% trans "Thank for your acceptance, we have emailed you where a link is attached to edit your newsletter preferences" %}</h2>
+{% extends "core/base.html" %}
+
+{% block body %}
+<div class="row">
+    <div class="s12 center">
+        <h2>{% trans "Thank for your acceptance" %}</h2>
+        <p>{% trans "We have emailed you where a link is attached to edit your newsletter preferences" %}</p>
+    </div>
+</div>
+{% endblock body %}

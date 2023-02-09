@@ -2,8 +2,8 @@
 {% load static %}
 
 {% block body %}
-    <div>
-        <form method="post">
+    <div class="row">
+        <form method="post" class="col s4">
             {% csrf_token %}
             {{ formset.management_form }}
             {{ formset.as_p }}
@@ -16,7 +16,7 @@
                 <label for={{ form.brake_on.id }}>Brake On</label>
             </div>
             <div class="input-field col s12">
-                <input type="submit"/>
+                <input type="submit" class="btn"/>
             </div>
         </form>
     </div>
