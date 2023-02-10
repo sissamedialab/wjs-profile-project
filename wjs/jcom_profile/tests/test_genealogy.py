@@ -163,6 +163,7 @@ class TestChildrenExclusion:
         assert article.title not in content
         assert parent.title not in content
         assert child.title in content
+        assert child.abstract in content
 
     def test_filter_by_author(self, related_and_not_related_articles, client):
         """Filter by author do **not** exclude children."""
@@ -191,6 +192,7 @@ class TestChildrenExclusion:
         assert article.title not in content
         assert parent.title not in content
         assert child.title in content
+        assert child.abstract in content
 
     def test_filter_by_section(self, related_and_not_related_articles, client):
         """Filter by section do **not** exclude children."""
@@ -219,6 +221,7 @@ class TestChildrenExclusion:
         assert article.title not in content
         assert parent.title not in content
         assert child.title in content
+        assert child.abstract in content
 
     def test_filter_by_keyword(self, related_and_not_related_articles, client):
         """Filter by keyword do **not** exclude children."""
@@ -247,3 +250,4 @@ class TestChildrenExclusion:
         assert article.title not in content
         assert parent.title not in content
         assert child.title in content
+        assert child.abstract in content
