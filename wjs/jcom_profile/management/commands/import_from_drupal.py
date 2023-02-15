@@ -75,7 +75,7 @@ SECTION_ORDER = {
     "Practice insight": 4,
     "Essay": 5,
     "Focus": 6,
-    "Comment": 7,
+    "Commentary": 7,
     "Letter": 8,
     "Book Review": 9,
     "Conference Review": 10,
@@ -626,11 +626,15 @@ class Command(BaseCommand):
             section_name = section_data["name"]
             if section_name == "review article":
                 section_name = "Review Article"
+            # Change all Comment to Commentary. See #211
+            if section_name == "Comment":
+                section_name = "Commentary"
             section, _ = submission_models.Section.objects.get_or_create(
                 journal=article.journal,
                 name=section_name,
             )
             Command.seen_sections[section_uri] = section.pk
+
         article.section = section
 
         if article.section.name in NON_PEER_REVIEWED:
