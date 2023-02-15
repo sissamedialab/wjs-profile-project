@@ -1,0 +1,137 @@
+.article {
+  &-title {
+    color: var(--primary);
+    font-size: 2rem;
+    font-weight: bold;
+  }
+
+  &-authors {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 10px;
+
+    .email-link {
+      margin-right: 5px;
+    }
+  }
+
+  &-author {
+    font-size: 1.2rem;
+    margin-left:10px;
+    margin-right: 5px;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+
+  &-documents {
+    align-items: center;
+    border-bottom: 0;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 0;
+
+    &-title {
+      color: var(--primary);
+      font-size: 1.5rem;
+    }
+
+    i {
+      transition: linear .3s;
+    }
+
+    &.active {
+      i {
+        transform: rotate(-180deg);
+        transition: linear .3s;
+      }
+    }
+
+    &-list {
+      border-bottom: 0;
+      border-top: 1px solid $collapsible-border-color;
+
+      &-item {
+        border-bottom: 1px solid $collapsible-border-color;
+        margin-bottom: 20px;
+      }
+
+      &-item-title {
+        margin: 0 0 10px 0;
+        max-width: 80%;
+      }
+
+      &-item-header {
+        align-items: flex-start;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+    }
+  }
+
+  &-body {
+    h2,
+    h3,
+    h4 {
+      color: var(--primary);
+      font-size: 1.5rem;
+    }
+
+    .card .card-content p {
+      margin-bottom: 20px;
+    }
+
+    dd {
+      margin-left: 0;
+    }
+  }
+
+  &-sidebar {
+    &-title {
+      color: var(--primary-light);
+      font-size: 1.5rem;
+    }
+
+    &-keywords-list {
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+
+      li {
+        width: 100%;
+      }
+    }
+
+    .spacer {
+      margin: 10px 0;
+    }
+  }
+}
+
+
+.article-listing-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+
+  &-header {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 10px;
+
+    .article-title {
+      margin-top: 0;
+      max-width: 80%;
+    }
+  }
+
+  &-volume {
+    text-align: right;
+  }
+}

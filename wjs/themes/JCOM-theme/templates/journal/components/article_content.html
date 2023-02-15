@@ -1,0 +1,11 @@
+{% load i18n hooks %}
+{% if article_content %}
+    <div id="main_article" itemprop="articleBody" class="article-body">
+        <div class="card">
+            <div class="card-content">
+                {{ article_content|safe }}
+                {% hook 'article_footer_block' %}
+            </div>
+        </div>
+    </div>
+{% endif %}
