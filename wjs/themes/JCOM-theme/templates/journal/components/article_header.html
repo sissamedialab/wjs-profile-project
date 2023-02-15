@@ -1,8 +1,11 @@
 {% load i18n %}
+{% load wjs_tags %}
 <header class="card">
     <div class="card-content">
-      <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
-        {% if journal_settings.article.disable_article_large_image %}<h1 class="article-title">{{ article.title|safe }}</h1>{% endif %}
+        <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
+        {% if journal_settings.article.disable_article_large_image %}
+            <h1 class="article-title">{{ article.title|safe }}</h1>
+        {% endif %}
         {% if article|has_attr:"ancestors" and article.ancestors.exists %}
             {% with parent=article.ancestors.first.parent %}
                 <p>
@@ -11,33 +14,33 @@
                 </p>
             {% endwith %}
         {% endif %}
-
         {% if article.frozen_authors.count > 0 %}
-        <div class="article-authors">
-          {% for author in article.frozen_authors.all %}
-              {% if not forloop.first %}<br/>{% endif %}
-              <a class="article-author" href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>
-              {% if author.orcid %}
-                  <a href="https://orcid.org/{{ author.orcid }}" class="">
-                      <img src="https://orcid.org/sites/default/files/images/orcid_16x16.png"
-                          alt="orcid logo"/>
-                  </a>
-              {% endif %}
-              {% if author.institution and author.institution != " " %}
-                  <span itemprop="worksFor"
-                        itemscope
-                        itemtype="http://schema.org/CollegeOrUniversity"></span>
-                  <span itemprop="name">({{ author.institution }})</span>
-              {% endif %}
-              {% if author.display_email and not journal_settings.article.hide_author_email_links %}
-                  <a itemprop="email"
-                    href="mailto:{{ author.email }}"
-                    class="fa fa-envelope email-link"></a>
-              {% endif %}
-              {% if not forloop.last %},{% endif %}
-          {% endfor %}
-      {% endif %}
-    </div>
+            <div class="article-authors">
+                {% for author in article.frozen_authors.all %}
+                    {% if not forloop.first %}<br/>{% endif %}
+                    <a class="article-author"
+                       href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>
+                    {% if author.orcid %}
+                        <a href="https://orcid.org/{{ author.orcid }}" class="">
+                            <img src="https://orcid.org/sites/default/files/images/orcid_16x16.png"
+                                 alt="orcid logo"/>
+                        </a>
+                    {% endif %}
+                    {% if author.institution and author.institution != " " %}
+                        <span itemprop="worksFor"
+                              itemscope
+                              itemtype="http://schema.org/CollegeOrUniversity"></span>
+                        <span itemprop="name">({{ author.institution }})</span>
+                    {% endif %}
+                    {% if author.display_email and not journal_settings.article.hide_author_email_links %}
+                        <a itemprop="email"
+                           href="mailto:{{ author.email }}"
+                           class="fa fa-envelope email-link"></a>
+                    {% endif %}
+                    {% if not forloop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
         {% if article.abstract and article.abstract != '' %}<p>{{ article.abstract | safe }}</p>{% endif %}
     </div>
 </header>

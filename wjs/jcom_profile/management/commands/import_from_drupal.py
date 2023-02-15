@@ -7,6 +7,7 @@ from io import BytesIO
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 import lxml.html
+import pycountry
 import pytz
 import requests
 from core import models as core_models
@@ -38,12 +39,19 @@ rome_timezone = pytz.timezone("Europe/Rome")
 # I'll consider the first issue of 2017 as a boundary date (first
 # document published 2017-01-11).
 BODY_EXPECTED_DATE = timezone.datetime(2017, 1, 1, tzinfo=rome_timezone)
+
 # Expect to have review dates (submitted/accepted) since this
 # date. The first paper managed by wjapp has: submitted 2015-03-04 /
 # published 2015-03-03 (published before submitted!?!).  All
 # publication dates up to 29 Sep 2015 have timestamp at "00:00" and
 # they are probably artificial.
 HISTORY_EXPECTED_DATE = timezone.datetime(2015, 9, 29, tzinfo=rome_timezone)
+
+# Licences:
+# - up to last issue of 2008: Copyright Sissa, all right reserved
+# - from last issue 2008 to today: CC BY NC ND, but no explicit copyright
+# (and all articles in the next-to-last issue have been published 2009-09-19)
+LICENCE_CCBY_FROM_DATE = timezone.datetime(2008, 9, 20, tzinfo=rome_timezone)
 
 # Janeway and wjapp country names do not completely overlap (sigh...)
 COUNTRIES_MAPPING = {
@@ -54,6 +62,9 @@ COUNTRIES_MAPPING = {
     "United States of America (the)": "United States",
     "Taiwan": "Taiwan, Province of China",
 }
+
+JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}
+assert len(JANEWAY_LANGUAGES_BY_CODE) == len(submission_models.LANGUAGE_CHOICES)
 
 # Default order of sections in any issue.
 # It is not possible to mix different types (e.g. A1 E1 A2...)
@@ -70,6 +81,9 @@ SECTION_ORDER = {
     "Conference Review": 10,
 }
 
+# Non-peer reviewd sections (#200)
+NON_PEER_REVIEWED = ("Editorial", "Comment")
+
 
 class Command(BaseCommand):
     help = "Import an article."  # NOQA
@@ -84,6 +98,9 @@ class Command(BaseCommand):
     seen_keywords = {}
     seen_sections = {}
     seen_authors = {}
+    # and when I import children before parents, I can fall into
+    # importing the same child twice, so I keep track of articles also
+    seen_articles = {}
 
     def handle(self, *args, **options):
         """Command entry point."""
@@ -95,6 +112,15 @@ class Command(BaseCommand):
         self.prepare()
 
         for raw_data in self.find_articles():
+            if interesting_year := self.options["year"]:
+                article_year = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_year"]))).year
+                if article_year < int(interesting_year):
+                    continue
+            elif interesting_pubids := self.options["ids"]:
+                interesting_pubids = interesting_pubids.split(",")
+                if raw_data["field_id"] not in interesting_pubids:
+                    continue
+
             try:
                 self.process(raw_data)
             except Exception as e:
@@ -115,6 +141,10 @@ class Command(BaseCommand):
             "--year",
             help="Process all articles of this year.",
         )
+        filters.add_argument(
+            "--ids",
+            help="Comma-separated lists of pubids to import. E.g. --ids=JCOM_2107_2022_C01,JCOM_2107_2022_C02",
+        )
         parser.add_argument(
             "--base-url",
             help='Base URL. Defaults to "%(default)s)".',
@@ -131,9 +161,9 @@ class Command(BaseCommand):
             " See also https://janeway.readthedocs.io/en/latest/published/articles.html#images",
         )
         parser.add_argument(
-            "--article-image-no-thumbnail",
+            "--article-image-thumbnail",
             action="store_true",
-            help="Do NOT create a thumbnail for the article from the large image.",
+            help="Do create a thumbnail for the article from the large image.",
         )
 
     def find_articles(self):
@@ -191,12 +221,12 @@ class Command(BaseCommand):
 
     def process(self, raw_data):
         """Process an article's raw json data."""
-        if interesting_year := self.options["year"]:
-            article_year = rome_timezone.localize(datetime.fromtimestamp(int(raw_data["field_year"]))).year
-            if article_year < int(interesting_year):
-                return
-
         logger.debug("Processing %s (nid=%s)", raw_data["field_id"], raw_data["nid"])
+        if article_pk := Command.seen_articles.get(raw_data["field_id"], None):
+            logger.debug("  %s - already imported. Just retrieving from DB (%s).", raw_data["field_id"], article_pk)
+            article = submission_models.Article.objects.get(pk=article_pk)
+            return article
+
         self.wjapp = self.data_from_wjapp(raw_data)
         article = self.create_article(raw_data)
         self.set_identifiers(article, raw_data)
@@ -209,6 +239,7 @@ class Command(BaseCommand):
         self.set_keywords(article, raw_data)
         self.set_issue(article, raw_data)
         self.set_authors(article, raw_data)
+        self.set_license(article, raw_data)
         self.publish_article(article, raw_data)
         self.set_children(article, raw_data)
         return article
@@ -240,6 +271,8 @@ class Command(BaseCommand):
             article.articlewrapper.nid = int(raw_data["nid"])
             article.articlewrapper.save()
         assert article.articlewrapper.nid == int(raw_data["nid"])
+        article.save()
+        Command.seen_articles.setdefault(raw_data["field_id"], article.pk)
         return article
 
     def set_identifiers(self, article, raw_data):
@@ -274,7 +307,11 @@ class Command(BaseCommand):
             id_type="id",
             enabled=True,
         )
+        # If we don't refresh the article object, we get an error when saving:
+        # Key (render_galley_id)=(29294) is not present in table "core_galley".
+        article.refresh_from_db()
         article.save()
+        logger.debug("  %s - identifiers set", raw_data["field_id"])
 
     def set_history(self, article, raw_data):
         """Set the review history date: received, accepted, published dates.
@@ -325,7 +362,10 @@ class Command(BaseCommand):
         logger.debug("  %s - history", raw_data["field_id"])
 
     def set_files(self, article, raw_data):
-        """Find info about the article "attachments", download them and import them as galleys."""
+        """Find info about the article "attachments", download them and import them as galleys.
+
+        Here we also set the article's language, as it depends on which galleys we find.
+        """
         # See also plugin imports.ojs.importers.import_galleys.
 
         # First, let's drop all existing galleys
@@ -338,6 +378,15 @@ class Command(BaseCommand):
             galley.delete()
         article.galley_set.clear()
         article.render_galley = None
+        article.save()
+
+        # Set default language to English. This will be overridden
+        # later if we find a non-English galley.
+        #
+        # I'm not sure that it is correct to set a language different
+        # from English when the doi points to English-only metadata
+        # (even if there are two PDF files). But see #194.
+        article.language = "eng"
 
         attachments = raw_data["field_attachments"]
         # Drupal "attachments" are only references to "file" nodes
@@ -345,7 +394,19 @@ class Command(BaseCommand):
             file_dict = self.fetch_data_dict(file_node["file"]["uri"])
             file_download_url = file_dict["url"]
             uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
-            label = self.decide_galley_label(raw_data, file_node, file_dict)
+            label, language = self.decide_galley_label(raw_data, file_node, file_dict)
+            if language and language != "en":
+                if article.language != "eng":
+                    # We can have 2 non-English galleys (PDF and EPUB),
+                    # they are supposed to be of the same language. Not checking.
+                    #
+                    # If the article language is different from
+                    # english, this means that a non-English gally has
+                    # already been processed and there is no need to
+                    # set the language again.
+                    pass
+                else:
+                    self.set_language(article, language)
             save_galley(
                 article,
                 request=self.fake_request,
@@ -361,7 +422,7 @@ class Command(BaseCommand):
         """Decide the galley's label."""
         # Remember that we can have ( PDF + EPUB galley ) x languages (usually two),
         # so a label of just "PDF" might not be sufficient.
-        lang = re.search(r"_([a-z]{2,3})\.", file_dict["name"])
+        lang_match = re.search(r"_([a-z]{2,3})\.", file_dict["name"])
         mime_to_extension = {
             "application/pdf": "PDF",
             "application/epub+zip": "EPUB",
@@ -370,9 +431,11 @@ class Command(BaseCommand):
         if label is None:
             logger.error("""Unknown mime type "%s" for %s""", file_dict["mime"], raw_data["field_id"])
             label = "Other"
-        if lang is not None:
-            label = f"{label} ({lang.group(1)})"
-        return label
+        language = None
+        if lang_match is not None:
+            language = lang_match.group(1)
+            label = f"{label} ({language})"
+        return (label, language)
 
     def set_supplementary_material(self, article, raw_data):
         """Import JCOM's supllementary material as another galley."""
@@ -426,7 +489,7 @@ class Command(BaseCommand):
             article.meta_image = image_file
         else:
             handle_article_large_image_file(image_file, article, self.fake_request)
-        if not self.options["article_image_no_thumbnail"]:
+        if self.options["article_image_thumbnail"]:
             image_file.name = self.make_thumb_name(image_file.name)
             handle_article_thumb_image_file(image_file, article, self.fake_request)
             thumb_size = [138, 138]
@@ -482,7 +545,7 @@ class Command(BaseCommand):
         body_dict = raw_data["body"]
         if not body_dict:
             if article.date_published > BODY_EXPECTED_DATE:
-                logger.warning("Missing body in (%s)", raw_data["field_id"], raw_data["nid"])
+                logger.warning("Missing body in (%s)", raw_data["field_id"])
             article.save()
             return
         body = body_dict.get("value", None)
@@ -508,6 +571,16 @@ class Command(BaseCommand):
             save_to_disk=True,
             public=True,
         )
+        expected_mimetype = "text/html"
+        if new_galley.file.mime_type != expected_mimetype:
+            logger.warning(
+                "Wrong mime type %s for %s (%s)",
+                new_galley.file.mime_type,
+                new_galley.file.uuid_filename,
+                raw_data["field_id"],
+            )
+            new_galley.file.mime_type = "text/html"
+            new_galley.file.save()
         article.render_galley = new_galley
         self.mangle_images(article)
         article.save()
@@ -559,6 +632,9 @@ class Command(BaseCommand):
             )
             Command.seen_sections[section_uri] = section.pk
         article.section = section
+
+        if article.section.name in NON_PEER_REVIEWED:
+            article.peer_reviewed = False
 
         # Must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail.
@@ -782,6 +858,14 @@ class Command(BaseCommand):
         article.save()
         logger.debug("  %s - authors (%s)", raw_data["field_id"], article.authors.count())
 
+    def set_license(self, article, raw_data):
+        """Set the license (based on the publication date)."""
+        if article.date_published < LICENCE_CCBY_FROM_DATE:
+            article.license = self.license_copyright
+        else:
+            article.license = self.license_ccbyncnd
+        article.save()
+
     def publish_article(self, article, raw_data):
         """Publish an article."""
         # see src/journal/views.py:1078
@@ -962,7 +1046,21 @@ class Command(BaseCommand):
 
     def prepare(self):
         """Run una-tantum operations before starting any import."""
-        logger.error("CREATE LICENCES - WRITEME!")
+        logger.debug("Setup licences.")
+        # This one is the standard one created by Janeway for every
+        # journal. We just know it's there.
+        self.license_ccbyncnd = submission_models.Licence.objects.get(
+            short_name="CC BY-NC-ND 4.0",
+        )
+        # This one is Sissa-special, we must create it
+        self.license_copyright, created = submission_models.Licence.objects.get_or_create(
+            name="© Sissa",
+            short_name="Sissa",
+            text="""Copyright Sissa, all right reserved""",
+            url="https://www.sissa.it/",
+            available_for_submission=False,
+            journal=self.license_ccbyncnd.journal,
+        )
 
     def tidy_up(self):
         """Run una-tantum operations at the end of the import process."""
@@ -981,3 +1079,29 @@ class Command(BaseCommand):
             logger.debug("  %s - retrieving child %s", raw_data["field_id"], child_raw_data["field_id"])
             child_article = self.process(child_raw_data)
             genealogy.children.add(child_article)
+
+    def set_language(self, article, language):
+        """Set the article's language.
+
+        Must map from Drupal's iso639-2 (two chars) to Janeway iso639-3 (three chars).
+        """
+        lang = pycountry.languages.get(alpha_2=language)
+        if lang.alpha_3 not in JANEWAY_LANGUAGES_BY_CODE:
+            logger.error(
+                'Unknown language "%s" (from "%s") for %s. Keeping default "English"',
+                lang.alpha_3,
+                language,
+                article.get_identifier("pubid"),
+            )
+            return
+
+        article.language = JANEWAY_LANGUAGES_BY_CODE[lang.alpha_3]
+        if lang.name not in JANEWAY_LANGUAGES_BY_CODE.values():
+            logger.warning(
+                """ISO639 language for "%s" is "%s" and is different from Janeway's "%s" (using the latter) for %s""",
+                language,
+                lang.name,
+                JANEWAY_LANGUAGES_BY_CODE[lang.alpha_3],
+                article.get_identifier("pubid"),
+            )
+        article.save()
