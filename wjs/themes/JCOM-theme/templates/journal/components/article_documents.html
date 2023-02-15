@@ -1,0 +1,40 @@
+{% load i18n %}
+{% if article|has_attr:"genealogy" and article.genealogy.children.exists %}
+    <div class="genealogy-children">
+        <div class="card">
+            <ul class="card-content collapsible" data-collapsible="accordion">
+                    <li>
+                      <div class="article-documents collapsible-header">
+                        <h2 class="article-documents-title">{% trans "Invited documents" %}</h2>
+                        <i class="fa fa-caret-down"></i>
+                      </div>
+                    
+                      <div class="article-documents-list collapsible-body">
+                        {% for kid in article.genealogy.children.all %}
+                        <div class="article-documents-list-item">
+                            <div class="article-documents-list-item-header">
+                              <h6 class="article-documents-list-item-title">
+                                <a href="{{ kid.url }}">{{ kid.title }}</a>
+                            </h6>
+
+                              <div class="date">
+                                <i class="fa fa-calendar"></i>
+                                {{ kid.date_published|date:"Y-m-d" }}
+                              </div>
+                            </div>
+                            <div class="collapsible-author">
+                                by
+                                {% for au in kid.frozen_authors.all %}
+                                    <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
+                                {% endfor %}
+                            </div>
+                            
+                            <div style="margin-bottom:1em;">{{ kid.abstract|safe|truncatewords_html:23 }}</div>
+                          </div>
+                        {% endfor %}
+                    </div>
+                  </li>
+                  </ul>
+        </div>
+    </div>
+{% endif %}

@@ -1,0 +1,93 @@
+span.badge {
+  height: auto;
+  padding: 10px;
+
+  &.new {
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: 500;
+
+    &.color-section {
+      &-1 {
+        background-color: #c72929; // article new
+
+        &:hover {
+          background-color: #f37070;
+        }
+      }
+    
+      &-2 {
+        background-color: #df7a08; // editorial New
+        
+        &:hover {
+          background-color: #f09e41;
+        }
+      }
+    
+      &-3 {
+        background-color: #dab900; // practice insight new
+  
+        &:hover {
+          background-color: #f5d836;
+        }
+      }
+    
+      &-4 {
+        background-color: #3b9408; // book review new
+
+        &:hover {
+          background-color: #75d83c;
+        }
+      }
+    
+      &-5 {
+        background-color: #00aa9c; // essay new
+
+        &:hover {
+          background-color: #38d1c4;
+        }
+      }
+    
+      &-6 {
+        background-color: #2166c0; // conference review new
+  
+        &:hover {
+          background-color: #4b80c5;
+        }
+      }
+    
+      &-7 {
+        background-color: #0f0099; // comment new
+
+        &:hover {
+          background-color: #4837e7;
+        }
+      }
+    
+      &-8 {
+        background-color: #6a00ce;
+  
+        &:hover {
+          background-color: #944bd8;
+        }
+      }
+    
+      &-9 {
+        background-color: #be00b5;
+
+        &:hover {
+          background-color: #f35fec;
+        }
+      }
+    
+      &-10 {
+        background-color: #f700a4;
+
+        &:hover {
+          background-color: #e6a3cf;
+        }
+      }
+    }
+  }
+}
+
