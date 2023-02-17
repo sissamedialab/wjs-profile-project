@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load wjs_tags %}
 <aside class="card article-sidebar">
     <div class="card-content">
         {% include "common/elements/altmetric_badges.html" with article=article %}
@@ -22,7 +23,7 @@
             {% endif %}
             {% if article.is_published and not journal_settings.article.suppress_how_to_cite %}
                 <h2 class="article-sidebar-title">{% trans "How to Cite" %}</h2>
-                {{ article.how_to_cite | safe }}
+                {{ article|how_to_cite|safe }}
                 <div class="spacer">
                     <div class="divider"></div>
                 </div>
@@ -211,7 +212,7 @@
                     <h4 class="article-sidebar-title">
                         {% trans "Publication date" %}
                     </h4>
-                    
+
                     {{ article.date_published|date:"F d,Y" }}
 
                     <div class="spacer">
