@@ -23,3 +23,34 @@
   flex-direction: column;
   gap: 10px;
 }
+
+.issue-archive {
+  &-volume {
+    align-items: center;
+    background-color: var(--primary-light);
+    color: white;
+    flex-direction: row;
+    justify-content: space-between;
+
+    h5{
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    i {
+      transition: linear .3s;
+    }
+
+    &.active {
+      i {
+        transform: rotate(-180deg);
+        transition: linear .3s;
+      }
+    }
+  }
+
+  &-volume-list {
+    padding: 0;
+  }
+  
+}

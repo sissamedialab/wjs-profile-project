@@ -1,0 +1,12 @@
+.collection {
+  a.collection-item {
+    background: white;
+    color: $link-color;
+
+    &.active {
+      background: white;
+      color: $link-color;
+      font-weight: bold;
+    }
+  }
+}

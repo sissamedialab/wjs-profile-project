@@ -55,3 +55,15 @@ div.left-right {
   margin-top: 10px !important;
   width: 100% !important;
 }
+
+.main-title {
+  color: var(--primary);
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.secondary-title {
+  color: var(--primary-variant);
+  font-size: 1.5rem;
+  font-weight: bold;
+}
