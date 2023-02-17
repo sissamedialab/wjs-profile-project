@@ -38,13 +38,16 @@
             {% if article|has_attr:"genealogy" and article.genealogy.children.exists %}
                 <div class="genealogy">
                     {% for kid in article.genealogy.children.all %}
+                    <div class="genealogy-item">
                         <h6>
                             <a href="{{ kid.url }}">{{ kid.title }}</a>
                         </h6>
                         by {% for au in kid.frozen_authors.all %}
                             <a href="{% url 'articles_by_author' au.author.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
                         {% endfor %}
+                    </div>
                     {% endfor %}
+                    
                 </div>
             {% endif %}
             

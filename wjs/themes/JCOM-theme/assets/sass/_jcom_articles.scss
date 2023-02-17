@@ -116,7 +116,7 @@
 .article-listing-card {
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 0 20px;
 
   &-header {
     align-items: center;
@@ -133,5 +133,17 @@
 
   &-volume {
     text-align: right;
+  }
+  
+  .genealogy {
+    h6 {
+      font-size: 1.15rem;
+    }
+
+    &-item {
+      border-bottom: 1px solid $collapsible-border-color;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+    }
   }
 }

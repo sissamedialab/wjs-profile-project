@@ -7,9 +7,13 @@ span.badge {
     font-size: 1rem;
     font-weight: 500;
 
+    &:after {
+      display: none;
+    }
+
     &.color-section {
       &-1 {
-        background-color: #c72929; // article new
+        background-color: #c72929; // article 
 
         &:hover {
           background-color: #f37070;
@@ -17,7 +21,7 @@ span.badge {
       }
     
       &-2 {
-        background-color: #df7a08; // editorial New
+        background-color: #df7a08; // editorial 
         
         &:hover {
           background-color: #f09e41;
@@ -25,7 +29,7 @@ span.badge {
       }
     
       &-3 {
-        background-color: #dab900; // practice insight new
+        background-color: #dab900; // practice insight 
   
         &:hover {
           background-color: #f5d836;
@@ -33,7 +37,7 @@ span.badge {
       }
     
       &-4 {
-        background-color: #3b9408; // book review new
+        background-color: #3b9408; // book review 
 
         &:hover {
           background-color: #75d83c;
@@ -41,7 +45,7 @@ span.badge {
       }
     
       &-5 {
-        background-color: #00aa9c; // essay new
+        background-color: #00aa9c; // essay 
 
         &:hover {
           background-color: #38d1c4;
@@ -49,7 +53,7 @@ span.badge {
       }
     
       &-6 {
-        background-color: #2166c0; // conference review new
+        background-color: #2166c0; // conference review 
   
         &:hover {
           background-color: #4b80c5;
@@ -57,7 +61,7 @@ span.badge {
       }
     
       &-7 {
-        background-color: #0f0099; // comment new
+        background-color: #0f0099; // comment 
 
         &:hover {
           background-color: #4837e7;
