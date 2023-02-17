@@ -1,5 +1,6 @@
 nav {
   height: auto;
+  line-height: 1;
 
   .brand-logo {
     padding: 20px 0 0 0;
@@ -12,6 +13,10 @@ nav {
 
    // Collapse button
   .button-collapse {
+    @media #{$medium-and-down} {
+      padding: 0;
+    }
+
     float: right;
     height: $navbar-height-mobile;
     margin: 0;
@@ -50,6 +55,8 @@ nav {
   }
 
   li {
+    line-height: 56px;
+    
     &:last-child {
       float:right;
     }
@@ -58,6 +65,17 @@ nav {
       display: flex;
     }
   }
+}
+
+.top-nav {
+  margin: 0;
+}
+
+.bottom-nav {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 }
 
 .side-nav {
