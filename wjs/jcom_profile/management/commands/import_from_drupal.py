@@ -29,6 +29,7 @@ from submission import models as submission_models
 from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
+from wjs.jcom_profile.utils import from_pubid_to_eid
 
 logger = get_logger(__name__)
 FakeRequest = namedtuple("FakeRequest", ["user"])
@@ -82,7 +83,7 @@ SECTION_ORDER = {
 }
 
 # Non-peer reviewd sections (#200)
-NON_PEER_REVIEWED = ("Editorial", "Comment")
+NON_PEER_REVIEWED = ("Editorial", "Commentary")
 
 
 class Command(BaseCommand):
@@ -271,6 +272,8 @@ class Command(BaseCommand):
             article.articlewrapper.nid = int(raw_data["nid"])
             article.articlewrapper.save()
         assert article.articlewrapper.nid == int(raw_data["nid"])
+        eid = from_pubid_to_eid(raw_data["field_id"])
+        article.page_numbers = eid
         article.save()
         Command.seen_articles.setdefault(raw_data["field_id"], article.pk)
         return article
@@ -1056,12 +1059,15 @@ class Command(BaseCommand):
         self.license_ccbyncnd = submission_models.Licence.objects.get(
             short_name="CC BY-NC-ND 4.0",
         )
+        if "NoDerivatives" not in self.license_ccbyncnd.name:
+            logger.warning('Please fix the text of the ND licenses: should read "NoDerivatives".')
+
         # This one is Sissa-special, we must create it
         self.license_copyright, created = submission_models.Licence.objects.get_or_create(
             name="© Sissa",
             short_name="Sissa",
             text="""Copyright Sissa, all right reserved""",
-            url="https://www.sissa.it/",
+            url="https://medialab.sissa.it/en",
             available_for_submission=False,
             journal=self.license_ccbyncnd.journal,
         )
