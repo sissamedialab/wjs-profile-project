@@ -9,21 +9,20 @@
     align-items: center;
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     margin-bottom: 10px;
 
     .email-link {
-      margin-right: 5px;
+      margin-left: 10px;
     }
   }
 
   &-author {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
     font-size: 1.2rem;
-    margin-left:10px;
-    margin-right: 5px;
-
-    &:first-child {
-      margin-left: 0;
-    }
+    margin-right: 10px;
   }
 
   &-documents {
@@ -116,6 +115,7 @@
 .article-listing-card {
   display: flex;
   flex-direction: column;
+  margin: 0;
   padding: 0 20px;
 
   &-header {
@@ -125,6 +125,10 @@
     justify-content: space-between;
     margin-bottom: 10px;
 
+    &-authors {
+      margin: 0;
+    }
+
     .article-title {
       margin-top: 0;
       max-width: 80%;
@@ -132,6 +136,7 @@
   }
 
   &-volume {
+    margin: 0;
     text-align: right;
   }
   

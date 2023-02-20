@@ -13,34 +13,36 @@ span.badge {
 
     &.color-section {
       &-1 {
-        background-color: #0475ad; // article
+        background-color: #88ccee; // article
+        color: #000;
 
         &:hover {
-          background-color: #88ccee;
+          background-color: #bae2f7;
         }
       }
     
       &-2 {
-        background-color: #df7a08; // editorial
+        background-color: #882255; // editorial
         
         &:hover {
-          background-color: #f09e41;
+          background-color: #d44c90;
         }
       }
     
       &-3 {
-        background-color: #b89900; // practice insight
+        background-color: #ddcc77; // practice insight
+        color: #000;
   
         &:hover {
-          background-color: #b89900;
+          background-color: #fff3b9;
         }
       }
     
       &-4 {
-        background-color: #3b9408; // book review
+        background-color: #aa4499; // book review
 
         &:hover {
-          background-color: #75d83c;
+          background-color: #ffa5f0;
         }
       }
     
@@ -69,26 +71,18 @@ span.badge {
       }
     
       &-8 {
-        background-color: #cc6677;
+        background-color: #cc6677; // letter
   
         &:hover {
           background-color: #fc9eae;
         }
       }
-    
+
       &-9 {
-        background-color: #aa4499;
-
+        background-color: #e48100; // review article
+  
         &:hover {
-          background-color: #eb59d2;
-        }
-      }
-    
-      &-10 {
-        background-color: #832152;
-
-        &:hover {
-          background-color: #d679a8;
+          background-color: #ffcc8a;
         }
       }
     }
