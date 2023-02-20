@@ -2,7 +2,9 @@
 {% load wjs_tags %}
 <header class="card">
     <div class="card-content">
-        <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
+        <a href="{% url 'articles_by_section' article.section.pk %}">
+            <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
+        </a>
         {% if journal_settings.article.disable_article_large_image %}
             <h1 class="article-title">{{ article.title|safe }}</h1>
         {% endif %}
@@ -17,8 +19,8 @@
         {% if article.frozen_authors.count > 0 %}
             <div class="article-authors">
                 {% for author in article.frozen_authors.all %}
-                    {% if not forloop.first %}<br/>{% endif %}
-                    <a class="article-author"
+                <span class="article-author">
+                    <a 
                        href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>
                     {% if author.orcid %}
                         <a href="https://orcid.org/{{ author.orcid }}" class="">
@@ -38,6 +40,7 @@
                            class="fa fa-envelope email-link"></a>
                     {% endif %}
                     {% if not forloop.last %},{% endif %}
+                    </span>
                 {% endfor %}
             {% endif %}
         </div>
