@@ -1,0 +1,9 @@
+.special-issue-card {
+  display: flex;
+  flex-direction: row;
+
+  &-image {
+    align-items: center;
+    display: flex;
+  }
+}
