@@ -21,7 +21,7 @@
                         >
                             </div>
                         <div class="card-content col s8">
-                          <span class="date"><i class="fa fa-calendar"></i> {{ collection.date|date:"Y-m-d" }}</span>
+                          <span class="date"><i class="fa fa-calendar"></i> {{ collection.date|date:"M d, Y" }}</span>
                             
                             <h5 class="article-title">
                               <a href="{% url 'journal_collection' collection.id %}">{{ collection.issue_title }}</a>
