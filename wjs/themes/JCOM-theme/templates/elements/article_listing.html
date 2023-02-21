@@ -6,7 +6,7 @@
         <div class="article-listing-card-header">
             <span class="date">
                 <i class="fa fa-calendar"></i>
-                {{ article.date_published|date:"Y-m-d" }}
+                {{ article.date_published|date:"M d, Y" }}
             </span>
 
             <a href="{% url 'articles_by_section' article.section.pk %}">
