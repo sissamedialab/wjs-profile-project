@@ -27,6 +27,9 @@ from wjs.jcom_profile.factories import (
     IssueFactory,
     JCOMProfileFactory,
     KeywordFactory,
+    NewsItemFactory,
+    NewsletterFactory,
+    RecipientFactory,
     SectionFactory,
     SpecialIssueFactory,
     UserFactory,
@@ -40,7 +43,7 @@ from wjs.jcom_profile.models import (
 from wjs.jcom_profile.utils import generate_token
 
 USERNAME = "user"
-JOURNAL_CODE = "TST"
+JOURNAL_CODE = "JCOM"
 yesterday = timezone.now() - timezone.timedelta(1)
 
 EXTRAFIELDS_FRAGMENTS = [
@@ -456,3 +459,6 @@ pytest_factoryboy.register(
 pytest_factoryboy.register(IssueFactory, "fb_issue")
 pytest_factoryboy.register(SectionFactory)
 pytest_factoryboy.register(KeywordFactory)
+pytest_factoryboy.register(RecipientFactory)
+pytest_factoryboy.register(NewsItemFactory)
+pytest_factoryboy.register(NewsletterFactory)

@@ -242,6 +242,18 @@ class Recipient(models.Model):
     def __str__(self):
         return _(f"Recipient user: {self.user if self.user else self.email} - journal: {self.journal} ")
 
+    @property
+    def newsletter_destination_email(self):
+        """
+        Select the email address to which send the newsletter.
+
+        :return: A string representing an email
+        """
+        if self.user:
+            return self.user.email
+        else:
+            return self.email
+
 
 class Genealogy(models.Model):
     """Maintain relations of type parent/children between articles."""
@@ -259,3 +271,10 @@ class Genealogy(models.Model):
 
     def __str__(self):
         return f"Genealogy: article {self.parent} has {self.children.count()} kids"
+
+
+class Newsletter(models.Model):
+    last_sent = models.DateTimeField(
+        verbose_name=_("Last time newsletter emails have been sent to users"),
+        auto_now=True,
+    )

@@ -3,15 +3,17 @@
 Used in management commands and tests.
 """
 import factory
+from comms.models import NewsItem
 from core.models import Account
 from django.utils import timezone
 from faker.providers import lorem
 from journal.models import Issue, IssueType, Journal
 from submission.models import Article, Keyword, Section
 
-from wjs.jcom_profile.models import JCOMProfile, SpecialIssue
+from wjs.jcom_profile.models import JCOMProfile, Newsletter, Recipient, SpecialIssue
 
 factory.Faker.add_provider(lorem)
+
 
 # Not using model-baker because I could find a way to define a fake field
 # that depend on another one (since in J. username == email). E.g.:
@@ -160,3 +162,29 @@ class KeywordFactory(factory.django.DjangoModelFactory):
         model = Keyword
 
     word = factory.Faker("sentence", nb_words=2)
+
+
+class RecipientFactory(factory.django.DjangoModelFactory):
+    """Recipient factory."""
+
+    class Meta:
+        model = Recipient
+
+    journal = factory.LazyAttribute(lambda x: Journal.objects.first())
+    news = factory.Faker("pybool")
+
+
+class NewsItemFactory(factory.django.DjangoModelFactory):
+    """NewsItem factory."""
+
+    class Meta:
+        model = NewsItem
+
+
+class NewsletterFactory(factory.django.DjangoModelFactory):
+    """Newsletter factory."""
+
+    class Meta:
+        model = Newsletter
+
+    last_sent = factory.LazyFunction(yesterday)
