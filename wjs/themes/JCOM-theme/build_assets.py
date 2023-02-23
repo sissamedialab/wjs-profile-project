@@ -47,7 +47,8 @@ def create_paths():
     """Create destination dirs for css & co."""
     folders = [
         "css",
-        # "js",
+        "js",
+        "fonts",
     ]
 
     for folder in folders:
@@ -62,11 +63,12 @@ def build():
     print("JCOM PATHS DONE")
     process_scss()
     print("JCOM SCSS DONE")
-    copy_file('themes/JCOM-theme/assets/materialize-src/js/bin/materialize.min.js', 'static/JCOM-theme/materialize.min.js')
+    copy_file('themes/JCOM-theme/assets/materialize-src/fonts', 'static/JCOM-theme/fonts', False)
+    copy_file('themes/JCOM-theme/assets/materialize-src/js/bin/materialize.min.js', 'static/JCOM-theme/js/materialize.min.js')
     call_command("collectstatic", "--noinput")
     print("JCOM collectstatic DONE")
 
-def copy_file(source, destination):
+def copy_file(source, destination, is_file=True):
     """
     :param source: The source of the folder for copying
     :param destination: The destination folder for the file
@@ -75,8 +77,12 @@ def copy_file(source, destination):
 
     destination_folder = os.path.join(settings.BASE_DIR, os.path.dirname(destination))
 
-    if not os.path.exists(destination_folder):
-        os.mkdir(destination_folder)
 
-    shutil.copy(os.path.join(settings.BASE_DIR, source),
-                os.path.join(settings.BASE_DIR, destination))
+    if is_file:
+        if not os.path.exists(destination_folder):
+            os.makedirs(destination_folder, exist_ok=True)
+        shutil.copy(os.path.join(settings.BASE_DIR, source),
+                    os.path.join(settings.BASE_DIR, destination))
+    else:
+        shutil.copytree(os.path.join(settings.BASE_DIR, source),
+                    os.path.join(settings.BASE_DIR, destination), dirs_exist_ok=True)
