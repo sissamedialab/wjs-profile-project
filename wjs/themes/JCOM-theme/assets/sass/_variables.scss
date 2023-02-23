@@ -35,6 +35,8 @@
 // 1. Colors
 // ==========================================================================
 
+$roboto-font-path: "../fonts/roboto/";
+
 $primary-color: color("jcom-blue", "darken-2") !default;
 $primary-color-light: lighten("jcom-blue", 15%) !default;
 $primary-color-dark: darken("jcom-blue", 15%) !default;
