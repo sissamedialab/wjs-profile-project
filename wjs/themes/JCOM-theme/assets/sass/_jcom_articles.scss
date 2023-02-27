@@ -104,6 +104,33 @@
         width: 100%;
       }
     }
+    
+    &-download {
+      &:before {
+        font-family: 'Flaticon';
+        font-size: 1.6em;
+        font-style: normal;
+        margin-left: 0 !important;
+        margin-right: 0.4em;
+        content:"";
+        text-decoration: none;
+        display: inline-block;
+      }
+
+      &-pdf {
+        &:before {
+          color: #c62828;
+          content: "\f10a";
+        }
+      }
+
+      &-epub {
+        &:before {
+          color: #85b916;
+          content: "\f102";
+        }
+      }
+    }
 
     .spacer {
       margin: 10px 0;

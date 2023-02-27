@@ -61,3 +61,21 @@ def how_to_cite(article):
         f" https://doi.org/{article.get_doi()}"
     )
     return htc
+
+@register.filter
+def news_part(news_item, part):
+    """Return the requested part of the new item body by splitting on the first <hr> occurence"""
+    parts = news_item.body.partition('<hr>')
+
+    if part == 'abstract':
+        if parts[1]:
+            return parts[0]
+        else:
+            return ''
+    else:
+        if parts[1]:
+            return parts[2]
+        else:
+            return parts[1]
+
+

@@ -1,0 +1,53 @@
+{% extends "core/base.html" %}
+{% load truncate %}
+{% load i18n %}
+{% load wjs_tags %}
+
+{% block title %}{{ journal_settings.news.news_title }}{% endblock title %}
+
+{% block body %}
+    <div class="row">
+        <div class="col m12">
+            <h3>{{ journal_settings.news.news_title }}</h3>
+            {% if tag %}<h3>{% trans "Filtering tag" %}: {{ tag }}</h3>{% endif %}
+        </div>
+        {% for item in news_items %}
+            <div class="col m12">
+                <div class="card full-width-card">
+                    {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %}
+                    <div class="card-image full-width-card-image col s12 m4">
+                        <img src="{{ item.best_image_url }}" alt="{{ item.title }}"/>
+                    </div>
+                    {% endif %}
+                    <div class="card-content col s12 {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %} m8{% else %} m12{% endif%}">
+                        {% if not item.large_image_file or request.journal and not request.journal.default_large_image or not request.press.default_carousel_image %}
+                        <span class="date"><i class="fa fa-calendar"></i> {{ item.posted|date:"M d, Y" }}</span>  
+                        <h5 class="article-title">
+                            <a href="{% url 'core_news_item' item.pk %}">{{ item.title }}</a>
+                          </h5>
+                        {% endif %}
+                        {{ item|news_part:'abstract'|safe }}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <h4>{% trans "This journal currently has no items to display." %}</h4>
+        {% endfor %}
+    </div>
+    <div class="pagination-block">{{ page }}
+        <ul class="d-flex justify-content-center">
+            {% if news_items.has_previous %}
+                <a href="?page={{ news_items.previous_page_number }}" class="btn btn-outline-primary">&laquo;</a>
+                &nbsp;{% endif %}
+            {{ news_items.page.page_range }}
+            {% for page in news_items.paginator.page_range %}
+                <a href="?page={{ page }}"
+                   class="btn {% if news_items.number == page %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ page }}</a>
+                &nbsp;
+            {% endfor %}
+            {% if news_items.has_next %}
+                <a href="?page={{ news_items.next_page_number }}" class="btn btn-outline-primary">&raquo;</a>
+            {% endif %}
+        </ul>
+    </div>
+{% endblock %}
