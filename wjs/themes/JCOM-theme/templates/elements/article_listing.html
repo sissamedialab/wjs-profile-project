@@ -53,7 +53,7 @@
         <p class="article-listing-card-volume">
             {% if article.issue %}
                 <i class="fa fa-book"></i>
-                <a class="issue-link" href="{{ article.issue.url }}">{{ article.issue_title }}</a>
+                <a class="issue-link" href="{{ article.issue.url }}">{{ article.issue.display_title }}</a>
             {% endif %}
             {% if article.issues.count > 1 %}
                 <p>

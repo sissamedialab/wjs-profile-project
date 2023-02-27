@@ -19,7 +19,7 @@
         {% regroup issues by volume as by_volume %}
         {% for volume in by_volume %}
         <li>
-            <div class="collapsible-header issue-archive-volume">
+            <div class="collapsible-header issue-archive-volume {% if issue.volume == volume.grouper %}active{% endif %}">
                 <h5>Volume {{ volume.grouper }}</h5> 
                 <i class="fa fa-caret-down"></i>
             </div>

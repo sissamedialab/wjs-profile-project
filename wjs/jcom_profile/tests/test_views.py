@@ -31,7 +31,7 @@ def test_filter_articles_by_author(editor, published_articles):
 
     assert response.status_code == 200
     assert response.context["title"] == "Filter by author"
-    assert response.context["paragraph"] == "Articles by the author are listed below."
+    assert response.context["paragraph"] == "All author's publications are listed below."
     assert response.context["filtered_object"] == editor.full_name()
 
     for article in response.context["articles"]:
@@ -47,7 +47,7 @@ def test_filter_articles_by_section(editor, published_articles, sections):
 
     assert response.status_code == 200
     assert response.context["title"] == "Filter by section"
-    assert response.context["paragraph"] == "Articles that use this section are listed below."
+    assert response.context["paragraph"] == "Publications included in this section."
     assert response.context["filtered_object"] == section.name
 
     for article in response.context["articles"]:
@@ -63,7 +63,7 @@ def test_filter_articles_by_keyword(editor, published_articles, keywords):
 
     assert response.status_code == 200
     assert response.context["title"] == "Filter by keyword"
-    assert response.context["paragraph"] == "Articles that use this keyword are listed below."
+    assert response.context["paragraph"] == "Publications that use this keyword are listed below."
     assert response.context["filtered_object"] == keyword.word
 
     for article in response.context["articles"]:

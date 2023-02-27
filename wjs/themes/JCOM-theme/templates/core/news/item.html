@@ -1,0 +1,58 @@
+{% extends "core/base.html" %}
+{% load truncate %}
+{% load i18n %}
+{% load wjs_tags %}
+
+{% block title %}{{ journal_settings.news.news_title}} - {{ news_item.title }}{% endblock title %}
+
+{% block head %}
+{% include "elements/social_meta.html" %}
+{% endblock head %}
+
+{% block body %}
+    <div class="row">
+        <div class="col m12">
+
+            <div class="card-action">
+                <a href="{% url 'core_news_list' %}">
+                    <i class="fa fa-caret-left"></i>
+                    {% trans "Browse" %} {{ journal_settings.news.news_title }}
+                </a>
+            </div>
+
+            <div class="card full-width-card">
+                    {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %}
+                    <div class="card-image full-width-card-image col s12 m4">
+                        <img src="{{ news_item.best_image_url }}"
+                            alt="{{ news_item.title }}"/>
+                    </div>
+                    {% endif %}
+                
+                <div class="card-content col s12 {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %} m8{% else %} m12{% endif%}">
+                <span class="date">
+                    <i class="fa fa-calendar"></i>
+                    {{ news_item.posted|date:"Y-m-d" }}
+                </span>
+                {% if not news_item.large_image_file or request.journal and not request.journal.default_large_image or not request.press.default_carousel_image %}
+                    <h2 class="article-title">{{ news_item.title }}</h2>
+                {% endif %}
+                {{ news_item|news_part:'abstract'|safe }}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-content">
+                    <div class="news-body">{{ news_item|news_part:'body'|safe }}</div>
+                    {% if news_item.tags.all %}
+                        <br />
+                        <h7>{% trans "Tags" %} <i class="fa fa-tags">&nbsp;</i></h7>
+                        <p>{% for tag in news_item.tags.all %}
+                            <a href="{% url 'core_news_list_tag' tag.text %}"
+                               class="button success tiny">{{ tag.text }}</a>
+                            {% if not forloop.last %}&nbsp;{% endif %}{% endfor %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}
