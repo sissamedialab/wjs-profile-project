@@ -28,8 +28,6 @@
     {% endif %}
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{% static "JCOM-theme/css/jcom.css" %}">
-    <script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
-    <script type="text/javascript" src="{% static "JCOM-theme/js/materialize.min.js" %}"></script>
 
     {% if request.journal %}
         <link href="{% static "material/css/journal" %}{{ request.journal.id }}_override.css" rel="stylesheet">
@@ -78,8 +76,8 @@
 
 
 <!--  Scripts-->
-<script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
-<script src="{% static '/JCOM-theme/materialize.min.js' %}"></script>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+<script type="text/javascript" src="{% static "JCOM-theme/js/materialize.min.js" %}"></script>
 <script src="{% static "admin/js/csrf.js" %}"></script>
 <script src="{% static "common/js/timezone-setter.js" %}"></script>
 {% if  not request.timezone %}<script>setTimezone();</script>{% endif %}
