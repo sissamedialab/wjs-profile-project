@@ -278,3 +278,16 @@ class Newsletter(models.Model):
         verbose_name=_("Last time newsletter emails have been sent to users"),
         auto_now=True,
     )
+
+
+from journal.models import Issue
+
+def update_display_title(self, save=False):
+    if save:
+        self.save()
+        return self.cached_display_title
+    title = self.cached_display_title = self.pretty_issue_identifier
+
+    return title
+
+Issue.update_display_title = update_display_title

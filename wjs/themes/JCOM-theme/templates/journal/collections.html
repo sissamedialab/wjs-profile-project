@@ -16,17 +16,17 @@
                         <img
                             class="issue_image img-fluid"
                             src="{{ collection.hero_image_url }}"
-                            alt="{{ collection.issue_title }}"
+                            alt="{{ collection.display_title }}"
                             onerror="if (this.src !='{% static 'common/img/sample/article-small.jpg' %}') this.src='{% static 'common/img/sample/article-small.jpg' %}'"
                         >
                             </div>
                         <div class="card-content col s8">
                           <span class="date"><i class="fa fa-calendar"></i> {{ collection.date|date:"M d, Y" }}</span>
-                            
+
                             <h5 class="article-title">
-                              <a href="{% url 'journal_collection' collection.id %}">{{ collection.issue_title }}</a>
+                              <a href="{% url 'journal_collection' collection.id %}">{{ collection.display_title }}</a>
                             </h5>
-                    
+
                             {% if collection.short_description %}
                             <p>{{ collection.short_description|safe }}</p>
                             {% else %}

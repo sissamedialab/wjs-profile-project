@@ -693,7 +693,7 @@ class Command(BaseCommand):
         if issue_data["field_number"] == "3-4":
             issue_num = 3
         else:
-            issue_num = int(issue_data["field_number"])
+            issue_num = '{:02d}'.format(int(issue_data["field_number"]))
 
         # Drupal has "created" and "changed", but they are not what we
         # need here.
@@ -715,7 +715,7 @@ class Command(BaseCommand):
         issue_title = ""
         if "Special" in issue_data["title"]:
             issue_type__code = "collection"
-            issue_title = issue_data["title"]
+            issue_title = issue_data["title"][issue_data["title"].find("Special "):]
         issue, created = journal_models.Issue.objects.get_or_create(
             journal=article.journal,
             volume=volume_num,

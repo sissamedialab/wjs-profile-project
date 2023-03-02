@@ -1,5 +1,8 @@
 """WJS tags."""
 from django import template
+from django.utils import timezone
+
+from journal.models import Issue
 from submission.models import Article
 
 from wjs.jcom_profile.models import SpecialIssue
@@ -78,4 +81,10 @@ def news_part(news_item, part):
         else:
             return parts[1]
 
-
+@register.simple_tag(takes_context=True)
+def all_issues(context):
+    request = context["request"]
+    return  Issue.objects.filter(
+        journal=request.journal,
+        date__lte=timezone.now(),
+    )

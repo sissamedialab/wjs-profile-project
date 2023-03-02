@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load wjs_tags %}
 
 <div class="col m3 offset-m1">
     {% if issue.galley %}
@@ -16,11 +17,12 @@
         {% endif %}
     </h3>
     <ul class="collapsible">
+        {% all_issues as issues %}
         {% regroup issues by volume as by_volume %}
         {% for volume in by_volume %}
         <li>
             <div class="collapsible-header issue-archive-volume {% if issue.volume == volume.grouper %}active{% endif %}">
-                <h5>Volume {{ volume.grouper }}</h5> 
+                <h5>Volume {{ volume.grouper }}</h5>
                 <i class="fa fa-caret-down"></i>
             </div>
             <div class="collapsible-body issue-archive-volume-list">
@@ -31,10 +33,9 @@
                             href="{% url 'journal_issue' list_issue.id %}">{{ list_issue.display_title }}</a>
                         {% else %}
                             <a class="collection-item {% if list_issue == issue %}active{% endif %}"
-                            href="{% url 'journal_collection' list_issue.id %}">{{ list_issue.issue_title }} </a>
+                            href="{% url 'journal_collection' list_issue.id %}">{{ list_issue.display_title }} </a>
                         {% endif %}
                     {% endfor %}
-                </li>
                 </ul>
             </div>
         </li>

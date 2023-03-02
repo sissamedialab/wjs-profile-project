@@ -34,11 +34,13 @@ from django.views.generic import (
     UpdateView,
 )
 from journal.models import Issue
+from journal import decorators as journal_decorators
 from repository import models as preprint_models
 from security.decorators import (
     article_edit_user_required,
     article_is_not_submitted,
     submission_authorised,
+    has_journal,
 )
 from submission import decorators
 from submission import forms as submission_forms
@@ -1344,3 +1346,22 @@ class JcomFileRedirect(RedirectView):
             )
 
         return redirect
+
+
+@has_journal
+@journal_decorators.frontend_enabled
+def issues(request):
+    """ Renders the list of issues in the journal.
+
+    :param request: the request associated with this call
+    :return: a rendered template of all issues
+    """
+    issue_objects = Issue.objects.filter(
+        journal=request.journal,
+        date__lte=timezone.now(),
+    )
+    template = 'journal/issues.html'
+    context = {
+        'issues': issue_objects,
+    }
+    return render(request, template, context)
