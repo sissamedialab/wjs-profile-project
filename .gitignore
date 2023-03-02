@@ -23,3 +23,5 @@ dist
 
 # django fixtures (db data) dir
 fixtures
+
+.python-version

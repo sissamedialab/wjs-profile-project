@@ -1,0 +1,18 @@
+{% load wjs_tags %}
+
+{% if wjs_latest_news_list %}
+<h2>{{ wjs_latest_news_title }}</h2>
+<div class="card">
+    <div class="card-panel">
+        {% for item in wjs_latest_news_list %}
+            <div class="news-item">
+                <h5 class="article-title article-title--small"><a href="{% url 'core_news_item' item.pk %}">{{ item.title }}</a></h5>
+                {{ item|news_part:'abstract'|safe }}
+            </div>
+            {% if not forloop.last %}
+                <div class="divider"></div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

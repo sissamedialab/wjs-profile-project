@@ -13,4 +13,4 @@
   script:
     - echo "Deploy to testing server"
     - chmod og= $ID_RSA
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "( $PIP install --index-url=$PIP_INDEX_URL -U $PACKAGE_NAME && cd janeway/src && $PYTHON manage.py migrate && $PYTHON manage.py build_assets && $PYTHON manage.py collectstatic --noinput && touch --no-dereference $UWSGI_VASSAL )"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "(cd janeway && $PIP install --index-url=$PIP_INDEX_URL -U $PACKAGE_NAME && cd src && ./finalize-deploy.sh $PYTHON && touch --no-dereference $UWSGI_VASSAL )"
