@@ -38,14 +38,27 @@ This is a django app that should live inside Janeway. To use it, proceed as foll
 
 Please see [this wiki](https://pre-commit.com/) for a detailed list of installation steps.
 
+### Compile frontend assets
+
+To compile frontend assets in the JCOM-Theme theme::
+
+   `./build-assets.sh`
+
+In order for this to work you have to install `sudo apt install inotify-tools`.
+
+### Installing plugins
+
+Installin plugins is handled by `link_plugins` management command which links plugins in janeway directory (if not present already) and run the plugin installation process if not linked yet.
+
 ### Available customization commands
 
-| command                                            | arguments | description                                                      |
-|----------------------------------------------------|-----------|------------------------------------------------------------------|
-| `add_user_as_main_author_setting`                  | -         | Add `user_automatically_main_author` setting.                    |
-| `add_coauthors_submission_email_settings`          | -         | Add email settings to notify coauthors after article submission. |
-| `add_custom_subscribe_email_message_settings.py`   | -         | Add email message body for anonymous newsletter subscriptions.   |
-| `run_customizations`                               | -         | Run all customization commands to Janeway.                       |
+| command                                          | arguments | description                                                      |
+|--------------------------------------------------|-----------|------------------------------------------------------------------|
+| `add_user_as_main_author_setting`                | -         | Add `user_automatically_main_author` setting.                    |
+| `add_coauthors_submission_email_settings`        | -         | Add email settings to notify coauthors after article submission. |
+| `add_custom_subscribe_email_message_settings.py` | -         | Add email message body for anonymous newsletter subscriptions.   |
+| `link_plugins`                                   | -         | Link and install janeway plugins.                                |
+| `run_customizations`                             | -         | Run all customization commands to Janeway.                       |
 
 ### pre-commit
 

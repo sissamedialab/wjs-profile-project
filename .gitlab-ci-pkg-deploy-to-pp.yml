@@ -11,4 +11,4 @@
   script:
     - echo "Deploy to pre-production server"
     - chmod og= $ID_RSA
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "( cd janeway-pp && $PIP install --index-url=$PIP_INDEX_URL -U $PACKAGE_NAME && touch --no-dereference $UWSGI_VASSAL )"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "(cd janeway-pp && $PIP install --index-url=$PIP_INDEX_URL -U $PACKAGE_NAME && cd src && ./finalize-deploy.sh $PYTHON && touch --no-dereference $UWSGI_VASSAL )"

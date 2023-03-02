@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% load truncate %}
+
+{% block body %}
+
+<div class="homepage-grid">
+
+    {% for element in homepage_elements %}
+        <div class="homepage-element-{{ forloop.counter }}">
+            {% include element.template_path %}
+        </div>
+    {% endfor %}
+
+</div>
+
+{% endblock body %}

@@ -1,0 +1,25 @@
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% load static from staticfiles %}
+
+{% block title %}{{ PLUGIN_NAME }}{% endblock title %}
+{% block admin-header %}{{ PLUGIN_NAME }}{% endblock %}
+
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li><a href="{% url 'core_manager_index' %}">Manager</a></li>
+    <li><a href="{% url 'home_settings_index' %}">Journal Home Settings</a></li>
+    <li>{{ PLUGIN_NAME }}</li>
+{% endblock %}
+
+{% block body %}
+    <div class="large-12 columns">
+        <div class="box">
+            <form method="POST">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button type="submit" class="success button">Save</button>
+            </form>
+        </div>
+    </div>
+{% endblock body %}

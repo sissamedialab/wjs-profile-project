@@ -1,0 +1,40 @@
+.homepage-grid {
+  display: grid;
+  grid-template-areas:
+  'main main sidebar-element-2'
+  'main main sidebar-element-3'
+  'main main sidebar-element-4'
+  'main main sidebar-element-5'
+  'main main sidebar-element-6'
+  'main main sidebar-element-7'
+  ;
+  column-gap: 2rem;
+}
+
+.homepage-element-1 {
+  grid-area: main;
+}
+
+.homepage-element-2 {
+  grid-area: sidebar-element-2;
+}
+
+.homepage-element-3 {
+  grid-area: sidebar-element-3;
+}
+
+.homepage-element-4 {
+  grid-area: sidebar-element-4;
+}
+
+.homepage-element-5 {
+  grid-area: sidebar-element-5;
+}
+
+.homepage-element-6 {
+  grid-area: sidebar-element-6;
+}
+
+.homepage-element-7 {
+  grid-area: sidebar-element-7;
+}

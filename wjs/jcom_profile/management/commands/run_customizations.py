@@ -13,5 +13,6 @@ class Command(BaseCommand):
         management.call_command("add_coauthors_submission_email_settings")
         management.call_command("add_user_as_main_author_setting")
         management.call_command("install_themes")
+        management.call_command("link_plugins")
         management.call_command("create_role", "Director")
         management.call_command("add_custom_subscribe_email_message_settings")
