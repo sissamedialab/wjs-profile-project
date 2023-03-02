@@ -65,6 +65,7 @@ def how_to_cite(article):
     )
     return htc
 
+
 @register.filter
 def news_part(news_item, part):
     """Return the requested part of the new item body by splitting on the first <hr> occurence"""
@@ -79,7 +80,8 @@ def news_part(news_item, part):
         if parts[1]:
             return parts[2]
         else:
-            return parts[1]
+            return parts[0]
+
 
 @register.simple_tag(takes_context=True)
 def all_issues(context):
