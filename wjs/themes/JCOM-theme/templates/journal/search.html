@@ -16,7 +16,7 @@
    
     <div class="row">
         <div class="col m8">
-            <h2>{% trans "Articles" %}</h2>
+            <h2 class="main-title">{% trans "Articles" %}</h2>
             {% for article in articles %}
                 {% include "elements/article_listing.html" with article=article %}
                 {% empty %}
@@ -25,7 +25,7 @@
 
         </div>
         <div class="col m4">
-            <h2>{% trans "Searching" %}</h2>
+            <h2 class="main-title">{% trans "Searching" %}</h2>
             <div class="card-panel">
                 <form method="POST" action="{% url 'search' %}">
                     {% csrf_token %}
@@ -49,15 +49,7 @@
                         {{ search_form.sort.errors }}
                         {{ search_form.sort }}
                     </div>
-                    <div class="input-field">
-                        <button name="submit"
-                                class="btn">{% trans "Search" %}</button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-panel">
-                <form method="POST">
-                    {% csrf_token %}
+    
                     <div class="input-field">
                         <select name="show" class="form-control">
                             <option value="10"{% if show == 10 %} selected="selected"{% endif %}>10</option>
@@ -77,29 +69,26 @@
                         </select>
 
                     </div>
-                    <div class="form-group">
-                        <label>{% trans "Filter by section" %}</label><br/>
-                        {% for section in sections %}
-                            <input id="section-{{ section.id }}"
-                                   value="{{ section.id }}"
-                                   type="checkbox"
-                                   name="filter[]"
-                                   {% if section.id in filters %}checked="checked"{% endif %}>
-                            <label for="section-{{ section.id }}">{{ section.name }}</label>
-                            <br/>
-                        {% endfor %}
-                        <br/>
-                        <button type="submit" class="btn btn-primary">{% trans "Filter" %}</button>
-                        {% if active_filters %}
-                            <button type="submit" class="btn btn-primary"
-                                    name="clear">{% trans "Clear Filters" %}</button>{% endif %}
-                    </div>
-                </form>
-            </div>
-            <div class="card">
-                <div class="card-content">
-                    <form method="POST">
-                        {% csrf_token %}
+                    <ul class="form-group collapsible collapsible-search">
+                        <li>
+                            <div class="collapsible-header">
+                                {% trans "Filter by section" %}
+                                <span class="caret">&#9660;</span>
+                            </div>
+                            <div class="collapsible-body">   
+                            {% for section in sections %}
+                                <input id="section-{{ section.id }}"
+                                    value="{{ section.id }}"
+                                    type="checkbox"
+                                    name="filter[]"
+                                    {% if section.id in filters %}checked="checked"{% endif %}>
+                                <label for="section-{{ section.id }}">{{ section.name }}</label>
+                                <br/>
+                            {% endfor %}
+                            </div>
+                        </li>
+                    </ul>
+
                         {% if not keyword %}
                             <label for="{{ form.article_search.id_for_label }}">Search titles, keywords, and authors</label>
                         {% endif %}
@@ -116,18 +105,31 @@
                                 {{ form.sort.errors }}
                                 {{ form.sort }}
                         </div>
-                        <div class="form-group keywords">
-                            <label>{% trans "Keywords" %}</label>
-
-                                {% for keyword in all_keywords %}
-                                <div>
-                                    <a href="{% url 'search' %}?keyword={{ keyword.word }}">{{ keyword.word }}</a>{% if not forloop.last %}, {% endif %}
+                        <ul class="form-group collapsible collapsible-search">
+                            <li>
+                                <div class="collapsible-header">
+                                    {% trans "Keywords" %}
+                                    <span class="caret">&#9660;</span>
                                 </div>
+                                <div class="collapsible-body">
+                                {% for keyword in all_keywords %}
+                                        <div class="keyword">
+                                            <input id="{{ keyword }}"
+                                                value="{{ keyword }}"
+                                                type="checkbox"
+                                                name="filter[]">
+                                            <label for="{{ keyword }}">{{ keyword.word }}</label>
+                                        </div>
                                 {% endfor %}
-                        </div>
-                        <div class="input-field">
-                            <button name="submit" class="btn">{% trans "Search" %}</button>
-                        </div>
+                            </div>
+                            </li>
+                        </ul>
+
+                        <button type="submit" class="btn btn-primary">{% trans "Filter" %}</button>
+                        {% if active_filters %}
+                            <button type="submit" class="btn btn-primary" name="clear">{% trans "Clear Filters" %}</button>
+                        {% endif %}
+
                     </form>
                 </div>
             </div>
