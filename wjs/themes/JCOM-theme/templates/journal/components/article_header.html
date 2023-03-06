@@ -5,9 +5,8 @@
         <a href="{% url 'articles_by_section' article.section.pk %}">
             <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
         </a>
-        {% if journal_settings.article.disable_article_large_image %}
-            <h1 class="article-title">{{ article.title|safe }}</h1>
-        {% endif %}
+        
+        <h1 class="article-title">{{ article.title|safe }}</h1>
         {% if article|has_attr:"ancestors" and article.ancestors.exists %}
             {% with parent=article.ancestors.first.parent %}
                 <p>
