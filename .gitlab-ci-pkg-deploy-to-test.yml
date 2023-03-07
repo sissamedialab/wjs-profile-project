@@ -6,7 +6,6 @@
     VENV_BIN: "/home/wjs/.virtualenvs/j1-venv/bin"
     PYTHON: "${VENV_BIN}/python"
     PIP: "${VENV_BIN}/pip"
-    PIP_INDEX_URL: "https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
     # touch this file to restart the uwsgi server
     UWSGI_VASSAL: "/home/wjs/uwsgi/janeway.ini"
 

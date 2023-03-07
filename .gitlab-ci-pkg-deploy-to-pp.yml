@@ -4,7 +4,6 @@
 
   variables:
     PIP: "/home/wjs/.virtualenvs/j-pp/bin/pip"
-    PIP_INDEX_URL: "https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
     # touch this file to restart the uwsgi server
     UWSGI_VASSAL: "/home/wjs/uwsgi/janeway-pp.ini"
 
