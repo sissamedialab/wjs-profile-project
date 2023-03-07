@@ -3,48 +3,7 @@
 <aside class="card article-sidebar">
     <div class="card-content">
         {% include "common/elements/altmetric_badges.html" with article=article %}
-        {% if article.keywords.count > 0 %}
-            <h2 class="article-sidebar-title">{% trans "Keywords" %}</h2>
-            <ul class="article-sidebar-keywords-list">
-                {% for keyword in article.keywords.all %}
-                    <li>
-                        {% if journal_settings.general.keyword_list_page %}
-                        <a href="{% url 'articles_by_keyword' keyword.pk %}">
-                        {% endif %}
-                        {{ keyword.word }}
-                        {% if journal_settings.general.keyword_list_page %}</a>
-                        {% endif %}
-                    {% endfor %}
-                </li>
-            </ul>
-            <div class="spacer">
-                <div class="divider"></div>
-            </div>
-            {% endif %}
-            {% if article.is_published and not journal_settings.article.suppress_how_to_cite %}
-                <h2 class="article-sidebar-title">{% trans "How to Cite" %}</h2>
-                {{ article|how_to_cite|safe }}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-            {% endif %}
-            {% if article.rights %}
-                <h2 class="article-sidebar-title">{% trans "Rights" %}</h2>
-                {{ article.rights | safe }}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-            {% endif %}
-            {% if article.publisher_notes.all %}
-                <h2 class="article-sidebar-title">{% trans "Publisher Notes" %}</h2>
-                <ul>
-                    {% for note in article.publisher_notes.all %}<li>{{ note.text|safe }}</li>{% endfor %}
-                </ul>
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-            {% endif %}
-            {% if article.is_published and galleys %}
+        {% if article.is_published and galleys %}
                 <div class="show-on-small hide-on-med-and-up">
                     <h2 class="article-sidebar-title">{% trans "Download" %}</h2>
                     <p>
@@ -61,39 +20,7 @@
                     </p>
                 </div>
             {% endif %}
-            {% if article.funders.all %}
-                <div class="callout primary">
-                    <h2 class="article-sidebar-title">{% trans "Funding" %}</h2>
-                    <ul>
-                        {% for funder in article.funders.all %}
-                            <li>
-                                {% if funder.fundref_id %}
-                                    <a href="{% url "funder_articles" funder.fundref_id %}">
-                                    {% endif %}
-                                    {{ funder.name }}
-                                    {% if funder.fundref_id %}</a>{% endif %}
-                                    {% if funder.funding_id %}(grant {{ funder.funding_id }}){% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                {% endif %}
-                <h4 class="article-sidebar-title">{% trans "Share" %}</h4>
-                {% with article.get_doi_url as doi_url %}
-                    <a class="waves-effect waves-light btn btn-small facebook-bg"
-                       href="https://www.facebook.com/share.php?p[url]= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
-                       target="_blank"><i class="fa fa-facebook"></i></a>
-                    <a class="waves-effect waves-light btn btn-small twitter-bg"
-                       href="https://twitter.com/intent/tweet?text={{ article.title }} {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
-                       target="_blank"><i class="fa fa-twitter"></i></a>
-                    <a class="waves-effect waves-light btn btn-small linkedin-bg"
-                       href="https://www.linkedin.com/sharing/share-offsite?url= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
-                       target="_blank"><i class="fa fa-linkedin"></i></a>
-                {% endwith %}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-                {% if article.is_published and galleys %}
+            {% if article.is_published and galleys %}
                     <h4 class="article-sidebar-title">{% trans "Download" %}</h4>
                     <ul>
                         {% for galley in galleys %}
@@ -121,6 +48,82 @@
                 <div class="spacer">
                     <div class="divider"></div>
                 </div>
+                {% endif %}
+
+                <h4 class="article-sidebar-title">{% trans "Share" %}</h4>
+                {% with article.get_doi_url as doi_url %}
+                    <a class="waves-effect waves-light btn btn-small facebook-bg"
+                       href="https://www.facebook.com/share.php?p[url]= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
+                       target="_blank"><i class="fa fa-facebook"></i></a>
+                    <a class="waves-effect waves-light btn btn-small twitter-bg"
+                       href="https://twitter.com/intent/tweet?text={{ article.title }} {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
+                       target="_blank"><i class="fa fa-twitter"></i></a>
+                    <a class="waves-effect waves-light btn btn-small linkedin-bg"
+                       href="https://www.linkedin.com/sharing/share-offsite?url= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
+                       target="_blank"><i class="fa fa-linkedin"></i></a>
+                {% endwith %}
+                <div class="spacer">
+                    <div class="divider"></div>
+                </div>
+                {% if article.is_published and not journal_settings.article.suppress_how_to_cite %}
+                <h2 class="article-sidebar-title">{% trans "How to Cite" %}</h2>
+                {{ article|how_to_cite|safe }}
+                <div class="spacer">
+                    <div class="divider"></div>
+                </div>
+            {% endif %}
+        {% if article.keywords.count > 0 %}
+            <h2 class="article-sidebar-title">{% trans "Keywords" %}</h2>
+            <ul class="article-sidebar-keywords-list">
+                {% for keyword in article.keywords.all %}
+                    <li>
+                        {% if journal_settings.general.keyword_list_page %}
+                        <a href="{% url 'articles_by_keyword' keyword.pk %}">
+                        {% endif %}
+                        {{ keyword.word }}
+                        {% if journal_settings.general.keyword_list_page %}</a>
+                        {% endif %}
+                    {% endfor %}
+                </li>
+            </ul>
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+            {% endif %}
+            
+            {% if article.rights %}
+                <h2 class="article-sidebar-title">{% trans "Rights" %}</h2>
+                {{ article.rights | safe }}
+                <div class="spacer">
+                    <div class="divider"></div>
+                </div>
+            {% endif %}
+            {% if article.publisher_notes.all %}
+                <h2 class="article-sidebar-title">{% trans "Publisher Notes" %}</h2>
+                <ul>
+                    {% for note in article.publisher_notes.all %}<li>{{ note.text|safe }}</li>{% endfor %}
+                </ul>
+                <div class="spacer">
+                    <div class="divider"></div>
+                </div>
+            {% endif %}
+            
+            {% if article.funders.all %}
+                <div class="callout primary">
+                    <h2 class="article-sidebar-title">{% trans "Funding" %}</h2>
+                    <ul>
+                        {% for funder in article.funders.all %}
+                            <li>
+                                {% if funder.fundref_id %}
+                                    <a href="{% url "funder_articles" funder.fundref_id %}">
+                                    {% endif %}
+                                    {{ funder.name }}
+                                    {% if funder.fundref_id %}</a>{% endif %}
+                                    {% if funder.funding_id %}(grant {{ funder.funding_id }}){% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 {% endif %}
                 {% include "journal/article_issue_list.html" %}
                 <div class="spacer">
