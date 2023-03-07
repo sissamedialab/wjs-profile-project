@@ -1,13 +1,10 @@
 """Data migration POC."""
 import os
-import re
-from collections import namedtuple
 from datetime import datetime
 from io import BytesIO
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 import lxml.html
-import pycountry
 import pytz
 import requests
 from core import models as core_models
@@ -16,7 +13,6 @@ from core.logic import (
     handle_article_thumb_image_file,
     resize_and_crop,
 )
-from django.conf import settings
 from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -29,10 +25,19 @@ from submission import models as submission_models
 from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
+from wjs.jcom_profile.import_utils import (
+    decide_galley_label,
+    drop_existing_galleys,
+    fake_request,
+    process_body,
+    publish_article,
+    query_wjapp_by_pubid,
+    set_author_country,
+    set_language,
+)
 from wjs.jcom_profile.utils import from_pubid_to_eid
 
 logger = get_logger(__name__)
-FakeRequest = namedtuple("FakeRequest", ["user"])
 rome_timezone = pytz.timezone("Europe/Rome")
 # Expect a "body" to be available since last issue of 2016 (Issue 06,
 # 2016); the first document of that issue has been published
@@ -54,32 +59,19 @@ HISTORY_EXPECTED_DATE = timezone.datetime(2015, 9, 29, tzinfo=rome_timezone)
 # (and all articles in the next-to-last issue have been published 2009-09-19)
 LICENCE_CCBY_FROM_DATE = timezone.datetime(2008, 9, 20, tzinfo=rome_timezone)
 
-# Janeway and wjapp country names do not completely overlap (sigh...)
-COUNTRIES_MAPPING = {
-    "Netherlands (the)": "Netherlands",
-    "Philippines (the)": "Philippines",
-    "Russian Federation (the)": "Russian Federation",
-    "United Kingdom of Great Britain and Northern Ireland (the)": "United Kingdom",
-    "United States of America (the)": "United States",
-    "Taiwan": "Taiwan, Province of China",
-}
-
-JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}
-assert len(JANEWAY_LANGUAGES_BY_CODE) == len(submission_models.LANGUAGE_CHOICES)
-
 # Default order of sections in any issue.
 # It is not possible to mix different types (e.g. A1 E1 A2...)
 SECTION_ORDER = {
-    "Editorial": 1,
-    "Article": 2,
-    "Review Article": 3,
-    "Practice insight": 4,
-    "Essay": 5,
-    "Focus": 6,
-    "Commentary": 7,
-    "Letter": 8,
-    "Book Review": 9,
-    "Conference Review": 10,
+    "Editorial": (1, "Editorials"),
+    "Article": (2, "Articles"),
+    "Review Article": (3, "Review Articles"),
+    "Practice insight": (4, "Practice insights"),
+    "Essay": (5, "Essays"),
+    "Focus": (6, "Focus"),
+    "Commentary": (7, "Commentaries"),
+    "Letter": (8, "Letters"),
+    "Book Review": (9, "Book Reviews"),
+    "Conference Review": (10, "Conference Reviews"),
 }
 
 # Non-peer reviewd sections (#200)
@@ -106,10 +98,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Command entry point."""
         self.options = options
-        # TODO: who whould this user be???
-        admin = core_models.Account.objects.filter(is_admin=True).first()
-        self.fake_request = FakeRequest(user=admin)
-
         self.prepare()
 
         for raw_data in self.find_articles():
@@ -165,6 +153,11 @@ class Command(BaseCommand):
             "--article-image-thumbnail",
             action="store_true",
             help="Do create a thumbnail for the article from the large image.",
+        )
+        parser.add_argument(
+            "--journal-code",
+            default="JCOM",
+            help="Toward which journal to import. Defaults to %(default)s.",
         )
 
     def find_articles(self):
@@ -241,7 +234,7 @@ class Command(BaseCommand):
         self.set_issue(article, raw_data)
         self.set_authors(article, raw_data)
         self.set_license(article, raw_data)
-        self.publish_article(article, raw_data)
+        publish_article(article)
         self.set_children(article, raw_data)
         return article
 
@@ -254,7 +247,7 @@ class Command(BaseCommand):
           nothing (the old value is preserverd).
 
         """
-        journal = journal_models.Journal.objects.get(code="JCOM")
+        journal = journal_models.Journal.objects.get(code=self.options["journal_code"])
         # There is a document with no DOI (JCOM_1303_2014_RCR), so I use the "pubid"
         article = submission_models.Article.get_article(
             journal=journal,
@@ -372,16 +365,7 @@ class Command(BaseCommand):
         # See also plugin imports.ojs.importers.import_galleys.
 
         # First, let's drop all existing galleys
-        for galley in article.galley_set.all():
-            for file_obj in galley.images.all():
-                file_obj.delete()
-            galley.images.clear()
-            galley.file.delete()
-            galley.file = None
-            galley.delete()
-        article.galley_set.clear()
-        article.render_galley = None
-        article.save()
+        drop_existing_galleys(article)
 
         # Set default language to English. This will be overridden
         # later if we find a non-English galley.
@@ -397,7 +381,11 @@ class Command(BaseCommand):
             file_dict = self.fetch_data_dict(file_node["file"]["uri"])
             file_download_url = file_dict["url"]
             uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
-            label, language = self.decide_galley_label(raw_data, file_node, file_dict)
+            label, language = decide_galley_label(
+                pubid=raw_data["field_id"],
+                file_name=file_dict["name"],
+                file_mimetype=file_dict["mime"],
+            )
             if language and language != "en":
                 if article.language != "eng":
                     # We can have 2 non-English galleys (PDF and EPUB),
@@ -409,10 +397,10 @@ class Command(BaseCommand):
                     # set the language again.
                     pass
                 else:
-                    self.set_language(article, language)
+                    set_language(article, language)
             save_galley(
                 article,
-                request=self.fake_request,
+                request=fake_request,
                 uploaded_file=uploaded_file,  # how does this compare with `save_to_disk`???
                 is_galley=True,
                 label=label,
@@ -420,25 +408,6 @@ class Command(BaseCommand):
                 public=True,
             )
         logger.debug("  %s - attachments / galleys (%s)", raw_data["field_id"], len(attachments))
-
-    def decide_galley_label(self, raw_data, file_node, file_dict):
-        """Decide the galley's label."""
-        # Remember that we can have ( PDF + EPUB galley ) x languages (usually two),
-        # so a label of just "PDF" might not be sufficient.
-        lang_match = re.search(r"_([a-z]{2,3})\.", file_dict["name"])
-        mime_to_extension = {
-            "application/pdf": "PDF",
-            "application/epub+zip": "EPUB",
-        }
-        label = mime_to_extension.get(file_dict["mime"], None)
-        if label is None:
-            logger.error("""Unknown mime type "%s" for %s""", file_dict["mime"], raw_data["field_id"])
-            label = "Other"
-        language = None
-        if lang_match is not None:
-            language = lang_match.group(1)
-            label = f"{label} ({language})"
-        return (label, language)
 
     def set_supplementary_material(self, article, raw_data):
         """Import JCOM's supllementary material as another galley."""
@@ -455,7 +424,7 @@ class Command(BaseCommand):
             uploaded_file = self.uploaded_file(file_download_url, file_dict["name"])
             save_supp_file(
                 article,
-                request=self.fake_request,
+                request=fake_request,
                 uploaded_file=uploaded_file,  # how does this compare with `save_to_disk`???
                 label=file_node["description"],
             )
@@ -491,10 +460,10 @@ class Command(BaseCommand):
         if self.options["article_image_meta_only"]:
             article.meta_image = image_file
         else:
-            handle_article_large_image_file(image_file, article, self.fake_request)
+            handle_article_large_image_file(image_file, article, fake_request)
         if self.options["article_image_thumbnail"]:
             image_file.name = self.make_thumb_name(image_file.name)
-            handle_article_thumb_image_file(image_file, article, self.fake_request)
+            handle_article_thumb_image_file(image_file, article, fake_request)
             thumb_size = [138, 138]
             resize_and_crop(article.thumbnail_image_file.self_article_path(), thumb_size)
         article.save()
@@ -519,11 +488,13 @@ class Command(BaseCommand):
         abstract_dict = raw_data["field_abstract"]
         if not abstract_dict:
             logger.warning("Missing abstract in %s (%s)", raw_data["field_id"], raw_data["nid"])
+            article.abstract = ""
+            article.save()
             return
 
         abstract = abstract_dict.get("value", None)
         if abstract and "This item is available only in the original language." in abstract:
-            abstract = None
+            abstract = ""
         expected_formats = ("full", "filtered_html")
         if abstract_dict["format"] not in expected_formats:
             logger.error(
@@ -563,11 +534,11 @@ class Command(BaseCommand):
 
         name = "body.html"
         label = "HTML"
-        body_bytes = self.process_body(article, body)
+        body_bytes = process_body(body)
         body_as_file = File(BytesIO(body_bytes), name)
         new_galley = save_galley(
             article,
-            request=self.fake_request,
+            request=fake_request,
             uploaded_file=body_as_file,
             is_galley=True,
             label=label,
@@ -575,13 +546,17 @@ class Command(BaseCommand):
             public=True,
         )
         expected_mimetype = "text/html"
+        acceptable_mimetypes = [
+            "text/plain",
+        ]
         if new_galley.file.mime_type != expected_mimetype:
-            logger.warning(
-                "Wrong mime type %s for %s (%s)",
-                new_galley.file.mime_type,
-                new_galley.file.uuid_filename,
-                raw_data["field_id"],
-            )
+            if new_galley.file.mime_type not in acceptable_mimetypes:
+                logger.warning(
+                    "Wrong mime type %s for %s (%s)",
+                    new_galley.file.mime_type,
+                    new_galley.file.uuid_filename,
+                    raw_data["field_id"],
+                )
             new_galley.file.mime_type = "text/html"
             new_galley.file.save()
         article.render_galley = new_galley
@@ -635,6 +610,10 @@ class Command(BaseCommand):
             section, _ = submission_models.Section.objects.get_or_create(
                 journal=article.journal,
                 name=section_name,
+                defaults={
+                    "sequence": SECTION_ORDER[section_name][0],
+                    "plural": SECTION_ORDER[section_name][1],
+                },
             )
             Command.seen_sections[section_uri] = section.pk
 
@@ -648,7 +627,7 @@ class Command(BaseCommand):
         #
         # Drupal has a `section_data["weight"]`, but we decided to
         # go with a default ordereing, which seems more "orderly".
-        section_order = SECTION_ORDER[section.name]
+        section_order = SECTION_ORDER[section.name][0]
         journal_models.SectionOrdering.objects.get_or_create(
             issue=issue,
             section=section,
@@ -693,7 +672,7 @@ class Command(BaseCommand):
         if issue_data["field_number"] == "3-4":
             issue_num = 3
         else:
-            issue_num = '{:02d}'.format(int(issue_data["field_number"]))
+            issue_num = "{:02d}".format(int(issue_data["field_number"]))
 
         # Drupal has "created" and "changed", but they are not what we
         # need here.
@@ -705,17 +684,12 @@ class Command(BaseCommand):
         #   the publication date of the issue to the oldest of the two
         date_published = article.date_published
 
-        # TODO: JCOM has "special issues" published alongside normal
-        # issues, while Janeway has "collections", that are orthogonal
-        # (i.e. one article can belong to only one issue, but to
-        # multiple collections). Also, issues are enumerated in a
-        # dedicated page, but this page does not include collections.
         issue_type__code = "issue"
         # No title for standard issues.
         issue_title = ""
         if "Special" in issue_data["title"]:
             issue_type__code = "collection"
-            issue_title = issue_data["title"][issue_data["title"].find("Special "):]
+            issue_title = issue_data["title"][issue_data["title"].find("Special ") :]  # NOQA
         issue, created = journal_models.Issue.objects.get_or_create(
             journal=article.journal,
             volume=volume_num,
@@ -858,7 +832,7 @@ class Command(BaseCommand):
                 source = "jcom"
                 mapping = wjs_models.Correspondence.objects.get(user_cod=corresponding_author_usercod, source=source)
                 main_author = mapping.account
-                self.set_author_country(main_author)
+                set_author_country(main_author, self.wjapp)
 
         article.owner = main_author
         article.correspondence_author = main_author
@@ -872,18 +846,6 @@ class Command(BaseCommand):
         else:
             article.license = self.license_ccbyncnd
         article.save()
-
-    def publish_article(self, article, raw_data):
-        """Publish an article."""
-        # see src/journal/views.py:1078
-        article.stage = submission_models.STAGE_PUBLISHED
-        article.snapshot_authors()
-        article.close_core_workflow_objects()
-        if article.date_published < article.issue.date_published:
-            article.issue.date = article.date_published
-            article.issue.save()
-        article.save()
-        logger.debug("  %s - Janeway publication process", raw_data["field_id"])
 
     def uploaded_file(self, url, name):
         """Download a file from the given url and upload it into Janeway."""
@@ -899,76 +861,6 @@ class Command(BaseCommand):
         response = requests.get(uri, auth=self.basic_auth)
         assert response.status_code == 200, f"Got {response.status_code}!"
         return response.json()
-
-    def process_body(self, article, body: str) -> bytes:
-        """Rewrite and adapt body to match Janeway's expectations.
-
-        Take care of
-        - TOC (heading levels)
-        - how-to-cite
-
-        Images included in body are done elsewhere since they require an existing galley.
-        """
-        html = lxml.html.fromstring(body)
-
-        # src/themes/material/assets/toc.js expects
-        # - the root element of the article must have id="main_article"
-        html.set("id", "main_article")
-        # - the headings that go in the toc must be h2-level, but Drupal has them at h3-level
-        self.promote_headings(html)
-        self.drop_toc(html)
-        self.drop_how_to_cite(html)
-        return lxml.html.tostring(html)
-
-    def promote_headings(self, html: HtmlElement):
-        """Promote all h2-h6 headings by one level."""
-        for level in range(2, 7):
-            for heading in html.findall(f"h{level}"):
-                heading.tag = f"h{level-1}"
-
-    def drop_toc(self, html: HtmlElement):
-        """Drop the "manual" TOC present in Drupal body content."""
-        tocs = html.find_class("tableofcontents")
-        if len(tocs) == 0:
-            logger.warning("No TOC in WRITEME!!!")
-            return
-
-        if len(tocs) > 1:
-            logger.error("Multiple TOCs in WRITEME!!!")
-
-        tocs[0].drop_tree()
-
-    def drop_how_to_cite(self, html: HtmlElement):
-        """Drop the "manual" How-to-cite present in Drupal body content."""
-        htc_h2 = html.xpath(".//h2[text()='How to cite']")
-        if len(htc_h2) == 0:
-            logger.warning("No How-to-cite in WRITEME!!!")
-            return
-
-        if len(htc_h2) > 1:
-            logger.error("Multiple How-to-cites in WRITEME!!!")
-
-        htc_h2 = htc_h2[0]
-        max_expected = 3
-        count = 0
-        while True:
-            # we are going to `drop_tree` this element, so `getnext()`
-            # should provide for new elments
-            p = htc_h2.getnext()
-            count += 1
-            if count > max_expected:
-                logger.warning("Too many elements after How-to-cite's H2 in WRITEME!!!")
-                break
-            if p is None:
-                break
-            if p.tag != "p":
-                break
-            if p.text is not None and p.text.strip() == "":
-                p.drop_tree()
-                break
-            p.drop_tree()
-
-        htc_h2.drop_tree()
 
     # Adapted from plugins/imports/logic.py
     def mangle_images(self, article):
@@ -999,7 +891,7 @@ class Command(BaseCommand):
         image_file = self.uploaded_file(image_source_url, name=image_name)
         new_file: core_models.File = save_galley_image(
             article.get_render_galley,
-            request=self.fake_request,
+            request=fake_request,
             uploaded_file=image_file,
             label=image_name,  # [*]
         )
@@ -1019,37 +911,7 @@ class Command(BaseCommand):
         else:
             if rome_timezone.localize(datetime.fromtimestamp(int(timestamp))) < HISTORY_EXPECTED_DATE:
                 return {}
-
-        # Should parametrize url
-        url = "https://jcom.sissa.it/jcom/services/jsonpublished"
-        apikey = settings.WJAPP_JCOM_APIKEY
-        params = {
-            "pubId": raw_data["field_id"],
-            "apiKey": apikey,
-        }
-        response = requests.get(url=url, params=params)
-        if response.status_code != 200:
-            logger.warning(
-                "Got HTTP code %s from wjapp for %s",
-                response.status_code,
-                raw_data["field_id"],
-            )
-            return {}
-        return response.json()
-
-    def set_author_country(self, author: core_models.Account):
-        """Set the author's country according to wjapp info."""
-        country_name = self.wjapp["countryName"]
-        if country_name is None:
-            logger.warning("No country for %s", self.wjapp["userCod"])
-            return
-        country_name = COUNTRIES_MAPPING.get(country_name, country_name)
-        try:
-            country = core_models.Country.objects.get(name=country_name)
-        except core_models.Country.DoesNotExist:
-            logger.error("""Unknown country "%s" for %s""", country_name, self.wjapp["userCod"])
-        author.country = country
-        author.save()
+        return query_wjapp_by_pubid(raw_data["field_id"])
 
     def prepare(self):
         """Run una-tantum operations before starting any import."""
@@ -1058,6 +920,7 @@ class Command(BaseCommand):
         # journal. We just know it's there.
         self.license_ccbyncnd = submission_models.Licence.objects.get(
             short_name="CC BY-NC-ND 4.0",
+            journal=journal_models.Journal.objects.get(code=self.options["journal_code"]),
         )
         if "NoDerivatives" not in self.license_ccbyncnd.name:
             logger.warning('Please fix the text of the ND licenses: should read "NoDerivatives".')
@@ -1089,29 +952,3 @@ class Command(BaseCommand):
             logger.debug("  %s - retrieving child %s", raw_data["field_id"], child_raw_data["field_id"])
             child_article = self.process(child_raw_data)
             genealogy.children.add(child_article)
-
-    def set_language(self, article, language):
-        """Set the article's language.
-
-        Must map from Drupal's iso639-2 (two chars) to Janeway iso639-3 (three chars).
-        """
-        lang = pycountry.languages.get(alpha_2=language)
-        if lang.alpha_3 not in JANEWAY_LANGUAGES_BY_CODE:
-            logger.error(
-                'Unknown language "%s" (from "%s") for %s. Keeping default "English"',
-                lang.alpha_3,
-                language,
-                article.get_identifier("pubid"),
-            )
-            return
-
-        article.language = JANEWAY_LANGUAGES_BY_CODE[lang.alpha_3]
-        if lang.name not in JANEWAY_LANGUAGES_BY_CODE.values():
-            logger.warning(
-                """ISO639 language for "%s" is "%s" and is different from Janeway's "%s" (using the latter) for %s""",
-                language,
-                lang.name,
-                JANEWAY_LANGUAGES_BY_CODE[lang.alpha_3],
-                article.get_identifier("pubid"),
-            )
-        article.save()

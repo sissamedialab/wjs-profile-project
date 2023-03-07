@@ -24,7 +24,7 @@
 
   script:
     - cp cicd_settings.py cicd_merged_settings.py /janeway/src/core
-    - pip install ./[test]
+    - pip install --index-url=$PIP_INDEX_URL ./[test]
     - cd /janeway/src
     - JANEWAY_SETTINGS_MODULE=${JANEWAY_SETTINGS_MODULE} python3 ./manage.py install_themes
     - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -x
