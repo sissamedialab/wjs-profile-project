@@ -1,6 +1,9 @@
 {% load static %}
 {% load i18n %}
 {% load wjs_tags %}
+
+{% url 'articles_by_section' article.section.pk as by_url %}
+{% url 'articles_by_author' author.author.pk as by_author %}
 <div class="card-panel">
     <div class="row article-listing-card">
         <div class="article-listing-card-header">
@@ -9,7 +12,7 @@
                 {{ article.date_published|date:"M d, Y" }}
             </span>
 
-            <a href="{% url 'articles_by_section' article.section.pk %}">
+            <a href="{{ by_url }}">
                 <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
             </a>
         </div>
@@ -17,7 +20,7 @@
         <a href="{% if article.is_remote %}{{ article.remote_url }}{% else %}{{ article.url }}{% endif %}">
             <h5 class="article-title">{{ article.title|safe }}</h5>
         </a>
-        
+
         <p class="article-listing-card-header-authors">
             by
             {% for author in article.frozen_authors.all %}
@@ -26,7 +29,7 @@
                         {% trans "and" %}
                     {% endif %}
                 {% endif %}
-                <a href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>{# djlint:off #}{% if not forloop.last %}{% if not forloop.counter == article.frozen_authors.all|length|add:-1 %}, {% endif %}{% endif %}{# djlint:on #}
+                <a href="{{ by_author }}">{{ author.full_name }}</a>{# djlint:off #}{% if not forloop.last %}{% if not forloop.counter == article.frozen_authors.all|length|add:-1 %}, {% endif %}{% endif %}{# djlint:on #}
             {% endfor %}
         </p>
         <div>
@@ -46,10 +49,10 @@
                     {% endfor %}
                 </div>
                 {% endfor %}
-                
+
             </div>
         {% endif %}
-        
+
         <p class="article-listing-card-volume">
             {% if article.issue %}
                 <i class="fa fa-book"></i>
