@@ -1,10 +1,13 @@
 """My views. Looking for a way to "enrich" Janeway's `edit_profile`."""
+import re
 from collections import namedtuple
 from dataclasses import dataclass
 from typing import Iterable
 from urllib.parse import urlencode
 
 import pandas as pd
+from django.db.models import Count, Q
+
 from core import files as core_files
 from core import logic
 from core import models as core_models
@@ -34,7 +37,7 @@ from django.views.generic import (
     UpdateView,
 )
 from journal.models import Issue
-from journal import decorators as journal_decorators
+from journal import decorators as journal_decorators, logic as journal_logic
 from repository import models as preprint_models
 from security.decorators import (
     article_edit_user_required,
@@ -1364,4 +1367,85 @@ def issues(request):
     context = {
         'issues': issue_objects,
     }
+    return render(request, template, context)
+
+
+@journal_decorators.frontend_enabled
+def search(request):
+    """
+    Allows a user to search for articles by name or author name.
+    :param request: HttpRequest object
+    :return: HttpResponse object
+    """
+    search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
+    sections = request.GET.get('sections', "")
+    keywords = request.GET.get('keywords', "")
+    if sections.strip():
+        sections = sections.strip().split(",")
+    if keywords.strip():
+        keywords = keywords.strip().split(",")
+
+    if redir:
+        return redir
+
+    articles = submission_models.Article.objects.all()
+    if search_term:
+        escaped = re.escape(search_term)
+        # checks titles, keywords and subtitles first,
+        # then matches author based on below regex split search term.
+        split_term = [re.escape(word) for word in search_term.split(" ")]
+        split_term.append(escaped)
+        search_regex = "^({})$".format(
+            "|".join({name for name in split_term})
+        )
+        articles = articles.filter(
+            (
+                    Q(title__icontains=search_term) |
+                    Q(keywords__word__iregex=search_regex) |
+                    Q(subtitle__icontains=search_term)
+            )
+            |
+            (
+                    Q(frozenauthor__first_name__iregex=search_regex) |
+                    Q(frozenauthor__last_name__iregex=search_regex)
+            ),
+            journal=request.journal,
+            stage=submission_models.STAGE_PUBLISHED,
+            date_published__lte=timezone.now()
+        ).distinct().order_by(sort)
+
+    if keywords:
+        articles = articles.filter(
+            keywords__word__in=keywords,
+            journal=request.journal,
+            stage=submission_models.STAGE_PUBLISHED,
+            date_published__lte=timezone.now()
+        ).order_by(sort)
+
+    if sections:
+        articles = articles.filter(
+            section__id__in=sections,
+            journal=request.journal,
+            stage=submission_models.STAGE_PUBLISHED,
+            date_published__lte=timezone.now()
+        ).order_by(sort)
+
+    keyword_limit = 20
+    popular_keywords = submission_models.Keyword.objects.filter(
+        article__journal=request.journal,
+        article__stage=submission_models.STAGE_PUBLISHED,
+        article__date_published__lte=timezone.now(),
+    ).annotate(articles_count=Count('article')).order_by("-articles_count")[:keyword_limit]
+
+    template = 'journal/search.html'
+    context = {
+        'articles': articles,
+        'article_search': search_term,
+        'keywords': keywords,
+        'sections': sections,
+        'form': form,
+        'sort': sort,
+        'all_keywords': popular_keywords
+    }
+
     return render(request, template, context)

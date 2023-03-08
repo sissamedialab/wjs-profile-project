@@ -1,19 +1,20 @@
 {% extends "core/base.html" %}
 {% load i18n %}
 {% load hooks %}
+{% load wjs_tags %}
 
 {% hook 'filter_search' %}
 
 {% block title %}{% trans "Search" %}{% endblock %}
 
 {% block body %}
-   
+    {% sections as sections %}
     {% if search_term %}
         <h1>{% trans 'Searching for' %}: <i>{{ search_term }}</i></h1>
     {% elif keyword %}
         <h1>{% trans 'Keyword' %}: <i>{{ keyword }}</i></h1>
     {% endif %}
-   
+
     <div class="row">
         <div class="col m8">
             <h2 class="main-title">{% trans "Publications" %}</h2>
@@ -27,29 +28,64 @@
         <div class="col m4">
             <h2 class="main-title">{% trans "Searching" %}</h2>
             <div class="card-panel">
-                <form method="POST" action="{% url 'search' %}">
-                    {% csrf_token %}
+                <form method="GET" action="{% url 'search' %}">
                     {% if not keyword %}
-                        <label for="{{ search_form.article_search.id_for_label }}">Search
-                            titles, keywords, and authors</label>
+                        <label for="{{ form.article_search.id_for_label }}">{% trans "Search titles, keywords, and authors" %}</label>
                     {% endif %}
                     <div class="input-field">
                         {% if not keyword %}
-                            {{ search_form.article_search.errors }}
-                            {{ search_form.article_search }}
+                            {{ form.article_search.errors }}
+                            {{ form.article_search }}
                         {% else %}
-                            You are currently browsing by keyword.
-                            <p><a href="{% url 'search' %}">Search for an
-                                article.</a></p>
+                            {% trans "You are currently browsing by keyword" %}.
+                            <p><a href="{% url 'search' %}">{% trans "Search for an article" %}.</a></p>
                         {% endif %}
                     </div>
-                    <label for="{{ search_form.sort.id_for_label }}">Sort articles
-                        by</label>
+                    <ul class="form-group collapsible collapsible-search">
+                        <li>
+                            <div class="collapsible-header">
+                                {% trans "Filter by section" %}
+                                <span class="caret">&#9660;</span>
+                            </div>
+                            <div class="collapsible-body">
+                            {% for section in sections %}
+                                <input id="section-{{ section.id }}"
+                                    value="{{ section.id }}"
+                                    type="checkbox"
+                                    name="sections"
+                                    {% if section.id in sections %}checked="checked"{% endif %}>
+                                <label for="section-{{ section.id }}">{{ section.name }}</label>
+                                <br/>
+                            {% endfor %}
+                            </div>
+                        </li>
+                    </ul>
+                    <ul class="form-group collapsible collapsible-search">
+                        <li>
+                            <div class="collapsible-header">
+                                {% trans "Keywords" %}
+                                <span class="caret">&#9660;</span>
+                            </div>
+                            <div class="collapsible-body">
+                            {% for keyword in all_keywords %}
+                                    <div class="keyword">
+                                        <input id="{{ keyword }}"
+                                            value="{{ keyword }}"
+                                            type="checkbox"
+                                            name="keywords"
+                                            {% if keyword.word in keywords %}checked="checked"{% endif %}>
+                                        <label for="{{ keyword }}">{{ keyword.word }}</label>
+                                    </div>
+                            {% endfor %}
+                        </div>
+                        </li>
+                    </ul>
+                    <label for="{{ form.sort.id_for_label }}">{% trans "Sort articles by" %}</label>
                     <div class="input-field">
-                        {{ search_form.sort.errors }}
-                        {{ search_form.sort }}
+                        {{ form.sort.errors }}
+                        {{ form.sort }}
                     </div>
-    
+
                     <div class="input-field">
                         <select name="show" class="form-control">
                             <option value="10"{% if show == 10 %} selected="selected"{% endif %}>10</option>
@@ -69,66 +105,11 @@
                         </select>
 
                     </div>
-                    <ul class="form-group collapsible collapsible-search">
-                        <li>
-                            <div class="collapsible-header">
-                                {% trans "Filter by section" %}
-                                <span class="caret">&#9660;</span>
-                            </div>
-                            <div class="collapsible-body">   
-                            {% for section in sections %}
-                                <input id="section-{{ section.id }}"
-                                    value="{{ section.id }}"
-                                    type="checkbox"
-                                    name="filter[]"
-                                    {% if section.id in filters %}checked="checked"{% endif %}>
-                                <label for="section-{{ section.id }}">{{ section.name }}</label>
-                                <br/>
-                            {% endfor %}
-                            </div>
-                        </li>
-                    </ul>
 
-                        {% if not keyword %}
-                            <label for="{{ form.article_search.id_for_label }}">Search titles, keywords, and authors</label>
-                        {% endif %}
-                        <div class="input-field">
-                        {% if not keyword %}
-                                {{ form.article_search.errors }}                                
-                                {{ form.article_search }}
-                            {% else %}
-                                You are currently browsing by keyword. <p><a href="{% url 'search' %}">Search for an article.</a></p>
-                        {% endif %}
-                        </div>
-                        <label for="{{ form.sort.id_for_label }}">{% trans "Sort articles by" %}</label>
-                        <div class="input-field">                                
-                                {{ form.sort.errors }}
-                                {{ form.sort }}
-                        </div>
-                        <ul class="form-group collapsible collapsible-search">
-                            <li>
-                                <div class="collapsible-header">
-                                    {% trans "Keywords" %}
-                                    <span class="caret">&#9660;</span>
-                                </div>
-                                <div class="collapsible-body">
-                                {% for keyword in all_keywords %}
-                                        <div class="keyword">
-                                            <input id="{{ keyword }}"
-                                                value="{{ keyword }}"
-                                                type="checkbox"
-                                                name="filter[]">
-                                            <label for="{{ keyword }}">{{ keyword.word }}</label>
-                                        </div>
-                                {% endfor %}
-                            </div>
-                            </li>
-                        </ul>
-
-                        <button type="submit" class="btn btn-primary">{% trans "Filter" %}</button>
-                        {% if active_filters %}
-                            <button type="submit" class="btn btn-primary" name="clear">{% trans "Clear Filters" %}</button>
-                        {% endif %}
+                    <button type="submit" class="btn btn-primary">{% trans "Filter" %}</button>
+                    {% if active_filters %}
+                        <button type="submit" class="btn btn-primary" name="clear">{% trans "Clear Filters" %}</button>
+                    {% endif %}
 
                     </form>
                 </div>
