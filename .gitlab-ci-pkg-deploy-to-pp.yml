@@ -3,7 +3,9 @@
   stage: deploy
 
   variables:
-    PIP: "/home/wjs/.virtualenvs/j-pp/bin/pip"
+    VENV_BIN: "/home/wjs/.virtualenvs/j-pp/bin"
+    PYTHON: "${VENV_BIN}/python"
+    PIP: "${VENV_BIN}/pip"
     # touch this file to restart the uwsgi server
     UWSGI_VASSAL: "/home/wjs/uwsgi/janeway-pp.ini"
 
