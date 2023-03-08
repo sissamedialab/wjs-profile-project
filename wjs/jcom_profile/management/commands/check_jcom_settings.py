@@ -123,6 +123,7 @@ class Command(BaseCommand):
             #
             # Journal Uses HTTPS - Used for URL generation.
             ("general", "is_secure", "on"),
+            # WARNING: there is also a journal attribute!!!
             #
             # Journal Base Theme - When using a custom theme you can
             # set the base theme, when a template from a custom theme
@@ -320,6 +321,7 @@ class Command(BaseCommand):
             ("display_issue_title", True),
             ("display_issue_volume", True),
             ("display_issue_year", True),
+            ("is_secure", True),  # WARNING: there is also a journal setting!!!
         )
         journal = self.journal
         journal_changed = False
