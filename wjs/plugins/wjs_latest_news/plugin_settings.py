@@ -66,6 +66,6 @@ def get_plugin_context(request, homepage_elements):
 
     element = PluginConfig.objects.filter(journal=request.journal).first()
     return {
-        f"{SHORT_NAME}_list": NewsItem.objects.order_by("-posted")[: element.count if element else 10],
+        f"{SHORT_NAME}_list": NewsItem.objects.order_by("-start_display")[: element.count if element else 10],
         f"{SHORT_NAME}_title": element.title if element else "News",
     }
