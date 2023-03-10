@@ -3,7 +3,7 @@ from django import template
 from django.utils import timezone
 
 from journal.models import Issue
-from submission.models import Article
+from submission.models import Article, Section
 
 from wjs.jcom_profile.models import SpecialIssue
 from wjs.jcom_profile.utils import citation_name
@@ -86,7 +86,13 @@ def news_part(news_item, part):
 @register.simple_tag(takes_context=True)
 def all_issues(context):
     request = context["request"]
-    return  Issue.objects.filter(
+    return Issue.objects.filter(
         journal=request.journal,
         date__lte=timezone.now(),
     )
+
+
+@register.simple_tag(takes_context=True)
+def sections(context):
+    request = context["request"]
+    return Section.objects.filter(journal=request.journal, is_filterable=True)

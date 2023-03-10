@@ -63,7 +63,7 @@ def test_filter_articles_by_keyword(editor, published_articles, keywords):
 
     assert response.status_code == 200
     assert response.context["title"] == "Filter by keyword"
-    assert response.context["paragraph"] == "Publications that use this keyword are listed below."
+    assert response.context["paragraph"] == "Publications including this keyword are listed below."
     assert response.context["filtered_object"] == keyword.word
 
     for article in response.context["articles"]:

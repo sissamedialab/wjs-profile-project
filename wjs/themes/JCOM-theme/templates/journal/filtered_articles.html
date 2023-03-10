@@ -20,19 +20,5 @@
     {% for article in articles %}
         {% include "elements/article_listing.html" with article=article %}
     {% endfor %}
-    <div class="pagination-block">
-        <ul class="pagination">
-            {% if articles.has_previous %}
-                <li class="arrow"><a href="?page={{ articles.previous_page_number }}">«</a>
-                </li>{% endif %}
-            {{ articles.page.page_range }}
-            {% for page in articles|slice_pages:3 %}
-                <li class="{% if articles.number == page.number %}current{% endif %}"><a
-                        href="?page={{ page.number }}">{{ page.number }}</a></li>
-            {% endfor %}
-            {% if articles.has_next %}
-                <li class="arrow"><a href="?page={{ articles.next_page_number }}">»</a>
-                </li>{% endif %}
-        </ul>
-    </div>
+    {% include "elements/pagination.html" with page=articles %}
 {% endblock body %}

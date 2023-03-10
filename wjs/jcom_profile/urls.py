@@ -15,6 +15,9 @@ urlpatterns = [
         views.confirm_gdpr_acceptance,
         name="accept_gdpr",
     ),
+    # Override journal search
+    url(r"^search/$", views.search, name="search"),
+
     # Override submission's second step defined in submission.url ...
     # (remember that core.include_url adds a "prefix" to the pattern,
     # here "submit/")

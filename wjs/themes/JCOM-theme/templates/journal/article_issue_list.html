@@ -1,3 +1,4 @@
+{% load i18n %}
 {% with issue_length=article.issues_list|length %}
     <h4 class="article-sidebar-title">{% if issue_length > 1 %}Issues{% else %}Issue{% endif %}</h4>
 {% endwith %}
@@ -16,6 +17,6 @@
     {% for issue in article.issues_list %}
             {% if not issue == article.primary_issue %}<li><a href="{% url 'journal_issue' issue.pk %}">{{ issue.issue_type.pretty_name }}: {{ issue.display_title }}</a></li>{% endif %}
         {% empty %}
-        <li>This article is not a part of any issues.</li>
+        <li>{% trans "This article is not a part of any issues" %}.</li>
     {% endfor %}
 </ul>

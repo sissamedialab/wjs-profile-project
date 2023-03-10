@@ -40,7 +40,7 @@
                                     <i class="fa fa-rss"></i>
                                 </a>
                             </li>
-                        </ul>    
+                        </ul>
                     <ul>
                         {% if request.user.is_authenticated %}
                         <li><a class="dropdown-button" href="#!" data-activates="account">{% trans "Account" %}<i class="material-icons right">arrow_drop_down</i></a></li>
@@ -98,11 +98,7 @@
                     </ul>
 
                     <div class="bottom-nav-search">
-                        <form method="POST" action="{% url 'search' %}">
-                            {% csrf_token %}
-                            <!--<div class="input-field">
-                                <input type="text" name="article_search" maxlength="100" minlength="3" id="id_article_search" placeholder="Search">
-                            </div>-->
+                        <form method="GET" action="{% url 'search' %}">
                             <div class="input-field">
                                 <button name="submit" class="btn"><i class="fa fa-search"></i></button>
                             </div>
