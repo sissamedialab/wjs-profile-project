@@ -6,7 +6,7 @@
 <div class="homepage-grid">
 
     {% for element in homepage_elements %}
-        <div class="homepage-element-{{ forloop.counter }}">
+        <div class="homepage-element homepage-element-{{ forloop.counter }}">
             {% include element.template_path %}
         </div>
     {% endfor %}
