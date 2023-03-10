@@ -1151,10 +1151,14 @@ class AnonymousUserNewsletterRegistration(FormView):
             self.request.build_absolute_uri(reverse("edit_newsletters")) + f"?{urlencode({'token': token})}"
         )
         send_mail(
-            _("Newsletter registration"),
             setting_handler.get_setting(
                 "email",
-                "subscribe_custom_email_message",
+                "publication_alert_subscription_email_subject",
+                self.request.journal,
+            ).processed_value.format(journal, acceptance_url),
+            setting_handler.get_setting(
+                "email",
+                "publication_alert_subscription_email_body",
                 self.request.journal,
             ).processed_value.format(journal, acceptance_url),
             settings.DEFAULT_FROM_EMAIL,
