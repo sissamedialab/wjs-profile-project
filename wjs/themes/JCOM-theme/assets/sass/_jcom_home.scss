@@ -11,6 +11,16 @@
   column-gap: 2rem;
 }
 
+.homepage-element {
+  h2 {
+    @extend .main-title;
+  }
+
+  .card-panel h2 {
+    @extend .secondary-title;
+  }
+}
+
 .homepage-element-1 {
   grid-area: main;
 }
