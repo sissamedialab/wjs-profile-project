@@ -24,23 +24,11 @@
                 {% empty %}
                 <p>No articles to display.</p>
             {% endfor %}
-            <ul class="pagination">
-                {% if articles.has_previous %}
-                    <li class="waves-effect"><a href="?page={{ articles.previous_page_number }}">&laquo;</a></li>
-                    &nbsp;{% endif %}
-                {{ articles.page.page_range }}
-                {% for page in articles|slice_pages:3 %}
-                    <li class="waves-effect {% if articles.number == page.number %}active{% endif %}"><a href="?page={{ page.number }}">{{ page.number }}</a>&nbsp;
-                    </li>
-                {% endfor %}
-                {% if articles.has_next %}
-                    <li class="waves-effect"><a href="?page={{ articles.next_page_number }}">&raquo;</a>
-                    </li>
-                {% endif %}
-            </ul>
+            {% include "elements/pagination.html" with page=articles %}
         </div>
         <div class="col m4">
             <div class="card-panel">
+                <h2 class="main-title">{% trans "Search" %}</h2>
                 <form method="POST" action="{% url 'search' %}">
                     {% csrf_token %}
                     {% if not keyword %}
@@ -70,6 +58,7 @@
                 </form>
             </div>
             <div class="card-panel">
+                <h2 class="main-title">{% trans "Filter publications" %}</h2>
                 <form method="POST">
                     {% csrf_token %}
                     <div class="input-field">
@@ -84,10 +73,14 @@
                     <div class="form-group">
                         <label>{% trans "Sort" %}</label>
                         <select name="sort" class="form-control">
-                            <option value="-date_published"{% if sort == "date_published" %}
-                                    selected="selected"{% endif %}>{% trans "Date" %}</option>
                             <option value="title"{% if sort == "title" %}
-                                    selected="selected"{% endif %}>{% trans "Title" %}</option>
+                                    selected="selected"{% endif %}>{% trans "Title A-Z" %}</option>
+                            <option value="-title"{% if sort == "-title" %}
+                                    selected="selected"{% endif %}>{% trans "Title Z-A" %}</option>
+                            <option value="-date_published"{% if sort == "-date_published" %}
+                                    selected="selected"{% endif %}>{% trans "Newest" %}</option>
+                            <option value="date_published"{% if sort == "date_published" %}
+                                    selected="selected"{% endif %}>{% trans "Oldest" %}</option>
                         </select>
 
                     </div>

@@ -1,0 +1,16 @@
+{% load pages %}
+
+<ul class="pagination">
+    {% if page.has_previous %}
+        <li class="waves-effect"><a href="?page={{ page.previous_page_number }}">&laquo;</a></li>
+        &nbsp;{% endif %}
+    {{ page.page.page_range }}
+    {% for page in page|slice_pages:3 %}
+        <li class="waves-effect {% if page.number == page.number %}active{% endif %}"><a href="?page={{ page.number }}">{{ page.number }}</a>&nbsp;
+        </li>
+    {% endfor %}
+    {% if page.has_next %}
+        <li class="waves-effect"><a href="?page={{ page.next_page_number }}">&raquo;</a>
+        </li>
+    {% endif %}
+</ul>

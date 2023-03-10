@@ -21,7 +21,7 @@
                     {% endif %}
                     <div class="card-content col s12 {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %} m8{% else %} m12{% endif%}">
                         {% if not item.large_image_file or request.journal and not request.journal.default_large_image or not request.press.default_carousel_image %}
-                        <span class="date"><i class="fa fa-calendar"></i> {{ item.posted|date:"M d, Y" }}</span>  
+                        <span class="date"><i class="fa fa-calendar"></i> {{ item.posted|date:"M d, Y" }}</span>
                         <h5 class="article-title">
                             <a href="{% url 'core_news_item' item.pk %}">{{ item.title }}</a>
                           </h5>
@@ -34,20 +34,5 @@
             <h4>{% trans "This journal currently has no items to display." %}</h4>
         {% endfor %}
     </div>
-    <div class="pagination-block">{{ page }}
-        <ul class="d-flex justify-content-center">
-            {% if news_items.has_previous %}
-                <a href="?page={{ news_items.previous_page_number }}" class="btn btn-outline-primary">&laquo;</a>
-                &nbsp;{% endif %}
-            {{ news_items.page.page_range }}
-            {% for page in news_items.paginator.page_range %}
-                <a href="?page={{ page }}"
-                   class="btn {% if news_items.number == page %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ page }}</a>
-                &nbsp;
-            {% endfor %}
-            {% if news_items.has_next %}
-                <a href="?page={{ news_items.next_page_number }}" class="btn btn-outline-primary">&raquo;</a>
-            {% endif %}
-        </ul>
-    </div>
+    {% include "elements/pagination.html" with page=news_items %}
 {% endblock %}
