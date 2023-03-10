@@ -3,6 +3,7 @@ import random
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
+from django.urls import reverse
 
 from comms.models import NewsItem
 from django.core import mail, management
@@ -41,10 +42,10 @@ def check_email_body(outbox):
         news_items = NewsItem.objects.filter(posted__date__gt=timezone.now())
         if recipient.news:
             for item in news_items:
-                assert item.title in email.body
+                assert reverse("core_news_item", args=(item.pk,)) in email.body
         else:
             for item in news_items:
-                assert item.title not in email.body
+                assert reverse("core_news_item", args=(item.pk,)) not in email.body
 
 
 @pytest.mark.django_db
@@ -59,9 +60,8 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
     custom_newsletter_setting,
     keywords,
     journal,
-    settings,
+    mock_premailer_load_url
 ):
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     content_type = ContentType.objects.get_for_model(journal)
     users = []
@@ -110,9 +110,8 @@ def test_newsletters_with_news_items_only_must_be_sent(
     custom_newsletter_setting,
     keywords,
     journal,
-    settings
+    mock_premailer_load_url
 ):
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     news_user, no_news_user = account_factory(email="news@news.it"), account_factory(email="nonews@nonews.it")
     content_type = ContentType.objects.get_for_model(journal)
@@ -144,9 +143,8 @@ def test_newsletters_with_articles_only_must_be_sent(
     keyword_factory,
     custom_newsletter_setting,
     journal,
-    settings
+    mock_premailer_load_url
 ):
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     correspondence_author = account_factory()
     newsletter_user_keyword = keyword_factory()
@@ -202,9 +200,8 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     custom_newsletter_setting,
     keywords,
     journal,
-    settings
+    mock_premailer_load_url
 ):
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     content_type = ContentType.objects.get_for_model(journal)
     correspondence_author = account_factory()
@@ -258,7 +255,7 @@ def test_two_recipients_one_news(
     news_item_factory,
     custom_newsletter_setting,
     journal,
-    settings
+    mock_premailer_load_url
 ):
     """Service test.
 
@@ -269,7 +266,6 @@ def test_two_recipients_one_news(
 
     """
 
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     content_type = ContentType.objects.get_for_model(journal)
     # Two news recipients
@@ -303,7 +299,7 @@ def test_two_recipients_one_article(
     keyword_factory,
     custom_newsletter_setting,
     journal,
-    settings
+    mock_premailer_load_url
 ):
     """Service test.
 
@@ -314,7 +310,6 @@ def test_two_recipients_one_article(
 
     """
 
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
 
     # One published article, with a known kwd
@@ -344,13 +339,12 @@ def test_one_recipient_one_article_two_topics(
     keyword_factory,
     custom_newsletter_setting,
     journal,
-    settings
+    mock_premailer_load_url
 ):
     """
     Test recipients not related to any account.
     """
 
-    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
 
     # One published article, with a known kwd
