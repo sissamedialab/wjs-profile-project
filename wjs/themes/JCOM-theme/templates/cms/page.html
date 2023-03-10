@@ -1,0 +1,21 @@
+{% extends "core/base.html" %}
+{% load markdown_deux_tags %}
+
+{% block title %}{{ page.display_name }}{% endblock title %}
+
+{% block page_title %}{{ page.display_name }}{% endblock %}
+
+{% block body %}
+<div id="row">
+  <div class="col s12">
+    <div class="cms-page card"> 
+      <div class="cms-page-content card-content">
+        <h1 class="main-title">{{ page.display_name }}</h1>
+          <div class="cms-page-content-description">
+            {{ page.content|safe }}
+          </div>
+        </div>
+    </div>
+  </div>
+</div>
+{% endblock body %}
