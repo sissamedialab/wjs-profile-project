@@ -16,6 +16,7 @@ from django.core.management import call_command
 
 BASE_THEME_DIR = os.path.join(settings.BASE_DIR, "static", "JCOM-theme")
 THEME_CSS_FILE = os.path.join(BASE_THEME_DIR, "css", "jcom.css")
+NEWSLETTER_CSS_FILE = os.path.join(BASE_THEME_DIR, "css", "newsletter.css")
 
 
 def process_scss():
@@ -25,6 +26,12 @@ def process_scss():
         "assets",
         "sass",
         "jcom.scss",
+    )
+    newsletter_scss_file = os.path.join(
+        os.path.dirname(__file__),
+        "assets",
+        "sass",
+        "newsletter.scss",
     )
     include_path_materialize = os.path.join(
         os.path.dirname(__file__),
@@ -41,6 +48,15 @@ def process_scss():
     # Open the CSS file and write into it
     with open(THEME_CSS_FILE, "w", encoding="utf-8") as write_file:
         write_file.write(compiled_css_from_file)
+
+    compiled_newsletter_css_from_file = sass.compile(
+        filename=newsletter_scss_file,
+        include_paths=[include_path_jcom, include_path_materialize],
+    )
+
+    # Open the CSS file and write into it
+    with open(NEWSLETTER_CSS_FILE, "w", encoding="utf-8") as write_file:
+        write_file.write(compiled_newsletter_css_from_file)
 
 
 def create_paths():

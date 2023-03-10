@@ -227,13 +227,13 @@ class Command(BaseCommand):
             #
             # Email message that is sent when an anonymous user
             # subscribes to newsletters. - Message email body
-            (
-                "email",
-                "subscribe_custom_email_message",
-                "Hi,\nYou requested to subscribe to {} journal newsletters.\n"
-                "To continue click the following link:{}",
-            ),
-            # See also wjs/jcom_profile/management/commands/add_custom_subscribe_email_message_settings.py
+            # (
+            #     "email",
+            #     "subscribe_custom_email_message",
+            #     "Hi,\nYou requested to subscribe to {} journal newsletters.\n"
+            #     "To continue click the following link:{}",
+            # ),
+            # Managed by wjs/jcom_profile/management/commands/add_publication_alert_settings.py
             #
             # Janeway Support Contact for Staff - Support message to
             # display to editors and staff on Manager page.

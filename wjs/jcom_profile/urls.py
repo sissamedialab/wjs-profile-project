@@ -5,6 +5,7 @@ from django.conf.urls import url
 from journal import views as journal_views
 
 from wjs.jcom_profile import experimental_views, views
+from wjs.jcom_profile.newsletter import views as newsletter_views
 
 urlpatterns = [
     url(r"^(?P<type>[-\w.]+)/start/$", views.start, name="submission_start"),
@@ -149,11 +150,13 @@ urlpatterns = [
         views.JcomFileRedirect.as_view(),
         name="jcom_redirect_file",
     ),
+
 ]
 
 # Some experimental / Easter-egg URLs
 experimental_urls = [
     url("experimental/issues", experimental_views.IssuesForceGraph.as_view(), name="issues_forcegraph"),
+    url("newsletter/(?P<journal>[\w.()-]+)/", newsletter_views.newsletter, name="newsletter"),
 ]
 urlpatterns.extend(experimental_urls)
 

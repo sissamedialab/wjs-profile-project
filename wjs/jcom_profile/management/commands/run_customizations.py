@@ -15,4 +15,4 @@ class Command(BaseCommand):
         management.call_command("install_themes")
         management.call_command("link_plugins")
         management.call_command("create_role", "Director")
-        management.call_command("add_custom_subscribe_email_message_settings")
+        management.call_command("add_publication_alert_settings")

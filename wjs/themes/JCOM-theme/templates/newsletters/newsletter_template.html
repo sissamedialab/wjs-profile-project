@@ -1,21 +1,73 @@
+{% load i18n %}
+{% load static %}
+{% load svg_or_image from press_url %}
+<!DOCTYPE html>
+
 <html>
-<style type="text/css">
-    h1 {
-        border: 1px solid black
-    }
+  <head>
+    <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="Content-type" content="text/html" charset="UTF-8" />
+    <title>Publication Alert - {{ journal.name }}</title>
+    <link rel="stylesheet" href="{{ site_url }}{% static "JCOM-theme/css/newsletter.css" %}">
 
-    p {
-        color: red;
-    }
-</style>
-<h1 style="font-weight:bolder">{{ journal }}</h1>
+  </head>
 
-Ciao {{ subscriber.name }}
+  <body>
+    <table width="100%">
+      <tr>
+        <td align="left">
+            {% svg_or_image journal.default_cover_image %}
+        </td>
+        <td align="right">
+            {% svg_or_image journal.press_image_override %}
+        </td>
+        </tr>
+    </table>
 
-<table>
-    {{ articles|safe }}
-</table>
-<table>
-    {{ news|safe }}
-</table>
+    <div class="container">
+      <table>
+        {% if articles %}
+        <tr>
+            <td>
+                <h2>{% trans "New publications" %}</h2>
+            </td>
+        </tr>
+
+        <tr>
+          <td>{{ articles|safe }}</td>
+        </tr>
+        {% endif %}
+        {% if news %}
+        <tr>
+            <td>
+                <h2>{% trans "News" %}</h2>
+            </td>
+            </tr>
+            <tr>
+            <td>
+                {{ news|safe }}
+            </td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <table class="unsubscribe">
+        <tr>
+            <td>
+            <p>
+                {% blocktrans with unsubscribe_url=unsubscribe_url privacy_url=privacy_url %}
+                You have received this email because you have subscribed to JCOM
+                publication alert.<br>
+                <span><a href="{{ unsubscribe_url }}">Click here to modify your topics of interest.</a></span>
+                <span>|</span>
+                <span><a href="{{ unsubscribe_url }}">Click here to unsubscribe</a></span>.<br>
+                See our <a href="{{ privacy_url }}">privacy policy</a> for information on
+                how we use your personal data or contact us for general information
+                {% endblocktrans %}
+            </p>
+            </td>
+        </tr>
+    </table>
+  </body>
 </html>

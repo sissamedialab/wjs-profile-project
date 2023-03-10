@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap');
+
+a {
+  text-decoration: none;
+  color: color("jcom-blue", "darken-2");
+}
+
+body {
+  background: color("grey", "lighten-2");
+  font-family: 'Roboto', sans-serif;
+  padding: 5rem;
+  text-align: left;
+}
+
+.container {
+  background: color("grey", "lighten-5");
+  margin-bottom: 2.5rem;
+  padding: 1.25rem;
+  text-align: left;
+}
+
+.logos {
+  background: none;
+  margin-bottom: 1.25rem;
+}
+
+.logo {
+  width: 80%;
+}
+
+h2 {
+  background: color("grey", "lighten-5");
+  color: color("jcom-blue", "darken-2");
+  padding: 0.6rem
+}
+
+.section-name {
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-bottom: 0;
+  text-transform: uppercase;
+}
+
+.title {
+  color: color("jcom-blue", "darken-2");
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.author {
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-top: 0;
+}
+
+.date {
+  text-align: right;
+}
+
+.divider {
+  margin: 1.25rem 0;
+}
+
+.unsubscribe {
+  font-size: 0.75rem;
+  text-align: center;
+}

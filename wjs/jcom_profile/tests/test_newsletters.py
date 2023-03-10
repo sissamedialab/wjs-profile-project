@@ -2,6 +2,8 @@ import datetime
 import random
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
+
 from comms.models import NewsItem
 from django.core import mail, management
 from django.db.models import Q
@@ -28,16 +30,21 @@ def check_email_body(outbox):
     for email in outbox:
         user_email = email.to[0]
         try:
-            user_keywords = Recipient.objects.get(user__email=user_email).topics.all()
+            recipient = Recipient.objects.get(user__email=user_email)
         except Recipient.DoesNotExist:
-            user_keywords = Recipient.objects.get(email=user_email).topics.all()
+            recipient = Recipient.objects.get(email=user_email)
+        user_keywords = recipient.topics.all()
         for topic in user_keywords:
             articles = Article.objects.filter(keywords__in=[topic], date_published__date__gt=timezone.now())
             for article in articles:
                 assert article.title in email.body
         news_items = NewsItem.objects.filter(posted__date__gt=timezone.now())
-        for item in news_items:
-            assert item.title in email.body
+        if recipient.news:
+            for item in news_items:
+                assert item.title in email.body
+        else:
+            for item in news_items:
+                assert item.title not in email.body
 
 
 @pytest.mark.django_db
@@ -49,10 +56,14 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
     section_factory,
     newsletter_factory,
     keyword_factory,
+    custom_newsletter_setting,
     keywords,
     journal,
+    settings,
 ):
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
+    content_type = ContentType.objects.get_for_model(journal)
     users = []
     correspondence_author = account_factory()
     for _ in range(10):
@@ -60,6 +71,8 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
     for _ in range(10):
         news_item_factory(
             posted=timezone.now() + datetime.timedelta(days=-2),
+            content_type=content_type,
+            object_id=journal.pk,
         )
     for user in users:
         recipient = recipient_factory(
@@ -81,7 +94,7 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
         article.keywords.add(keyword_factory(word=f"{i}-interesting"))
         article.save()
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
@@ -94,19 +107,25 @@ def test_newsletters_with_news_items_only_must_be_sent(
     recipient_factory,
     newsletter_factory,
     news_item_factory,
+    custom_newsletter_setting,
     keywords,
     journal,
+    settings
 ):
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     news_user, no_news_user = account_factory(email="news@news.it"), account_factory(email="nonews@nonews.it")
+    content_type = ContentType.objects.get_for_model(journal)
 
     news_recipient = recipient_factory(user=news_user, news=True)
     news_item_factory(
         posted=timezone.now() + datetime.timedelta(days=1),
+        content_type=content_type,
+        object_id=journal.pk,
     )
     recipient_factory(user=no_news_user, news=False)
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 1
@@ -123,8 +142,11 @@ def test_newsletters_with_articles_only_must_be_sent(
     article_factory,
     section_factory,
     keyword_factory,
+    custom_newsletter_setting,
     journal,
+    settings
 ):
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
     correspondence_author = account_factory()
     newsletter_user_keyword = keyword_factory()
@@ -160,7 +182,7 @@ def test_newsletters_with_articles_only_must_be_sent(
 
     recipient_factory(user=no_newsletter_article_user, news=False)
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 1
@@ -177,14 +199,20 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     recipient_factory,
     section_factory,
     newsletter_factory,
+    custom_newsletter_setting,
     keywords,
     journal,
+    settings
 ):
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
+    content_type = ContentType.objects.get_for_model(journal)
     correspondence_author = account_factory()
     for _ in range(10):
         news_item_factory(
             posted=timezone.now() + datetime.timedelta(days=1),
+            content_type=content_type,
+            object_id=journal.pk,
         )
     for i in range(30):
         is_anonymous = random.choice([True, False])
@@ -209,7 +237,7 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
             article.keywords.add(keyword)
         article.save()
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
@@ -228,7 +256,9 @@ def test_two_recipients_one_news(
     recipient_factory,
     newsletter_factory,
     news_item_factory,
+    custom_newsletter_setting,
     journal,
+    settings
 ):
     """Service test.
 
@@ -238,15 +268,20 @@ def test_two_recipients_one_news(
     run this test (with pytest -s).
 
     """
+
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
+    content_type = ContentType.objects.get_for_model(journal)
     # Two news recipients
     nr1 = recipient_factory(user=account_factory(), news=True)
     nr2 = recipient_factory(user=account_factory(), news=True)
     news_item_factory(
         posted=timezone.now() + datetime.timedelta(days=1),
+        content_type=content_type,
+        object_id=journal.pk,
     )
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
@@ -266,7 +301,9 @@ def test_two_recipients_one_article(
     newsletter_factory,
     article_factory,
     keyword_factory,
+    custom_newsletter_setting,
     journal,
+    settings
 ):
     """Service test.
 
@@ -276,6 +313,8 @@ def test_two_recipients_one_article(
     run this test (with pytest -s).
 
     """
+
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
 
     # One published article, with a known kwd
@@ -290,7 +329,7 @@ def test_two_recipients_one_article(
     nr2 = recipient_factory(user=account_factory(), news=False)
     nr2.topics.add(kwd1)
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
@@ -303,12 +342,15 @@ def test_one_recipient_one_article_two_topics(
     newsletter_factory,
     article_factory,
     keyword_factory,
+    custom_newsletter_setting,
     journal,
+    settings
 ):
-    """Test recipients not related to any account.
-
-    Bozza! :)
     """
+    Test recipients not related to any account.
+    """
+
+    settings.NEWSLETTER_URL = "http://testserver.com"
     newsletter = newsletter_factory()
 
     # One published article, with a known kwd
@@ -327,7 +369,7 @@ def test_one_recipient_one_article_two_topics(
     nr2.topics.add(kwd1)
     nr2.topics.add(kwd2)
 
-    management.call_command("send_newsletter_notifications")
+    management.call_command("send_newsletter_notifications", journal.code)
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
