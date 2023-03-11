@@ -1384,7 +1384,7 @@ def search(request):
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
     sections = request.GET.get('sections', "")
     keywords = request.GET.get('keywords', "")
-    show = int(request.GET.get('show', 20))
+    show = int(request.GET.get('show', 10))
     page = int(request.GET.get('page', 1))
     if sections.strip():
         sections = sections.strip().split(",")
