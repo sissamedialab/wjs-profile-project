@@ -1,0 +1,21 @@
+{% load utils_forms %}
+
+<h5>{{ form_title }}</h5>
+
+{% for field in form %}
+    <div class="row">
+	    <div class="col s12">
+
+            {{field|addcss:"validate"}}
+            {% if not field|file_input %}
+                <label for="id_{{ field.name }}" data-error="{{ data_error }}" data-success="{{ data_success }}" id="label_{{ field.name }}">{{ field.label }}</label>
+            {% endif %}
+        </div>
+        <div class="right-align">
+            {% for error in field.errors %}
+                <label for="erros" class="red-text label-error">{{ error }}</label><br>
+            {% endfor %}
+        </div>
+    </div>
+{% endfor %}
+
