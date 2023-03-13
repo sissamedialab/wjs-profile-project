@@ -10,6 +10,7 @@ from django.core import mail, management
 from django.db.models import Q
 from django.utils import timezone
 from submission.models import Article
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import Recipient
 
@@ -23,13 +24,22 @@ def select_random_keywords(keywords):
     return random.sample(list(keywords), random.randint(1, len(keywords)))
 
 
-def check_email_body(outbox):
+def check_email_body(outbox, journal):
     """
     Check that expected news and articles are correctly rendered in newsletter for each user.
     :param outbox: Django mail.outbox containing email that are sent after send_newsletter_notifications call.
     """
+    from_email = get_setting(
+        "general",
+        "from_address",
+        journal,
+        create=False,
+        default=True,
+    )
+
     for email in outbox:
         user_email = email.to[0]
+        assert email.from_email == from_email.value
         try:
             recipient = Recipient.objects.get(user__email=user_email)
         except Recipient.DoesNotExist:
@@ -130,7 +140,7 @@ def test_newsletters_with_news_items_only_must_be_sent(
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [news_recipient.newsletter_destination_email]
 
-    check_email_body(mail.outbox)
+    check_email_body(mail.outbox, journal)
 
 
 @pytest.mark.django_db
@@ -186,7 +196,7 @@ def test_newsletters_with_articles_only_must_be_sent(
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [newsletter_article_recipient.newsletter_destination_email]
 
-    check_email_body(mail.outbox)
+    check_email_body(mail.outbox, journal)
 
 
 @pytest.mark.django_db
@@ -244,7 +254,7 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     ).distinct()
     assert len(mail.outbox) == emailed_subscribers.count()
 
-    check_email_body(mail.outbox)
+    check_email_body(mail.outbox, journal)
 
 
 @pytest.mark.django_db
@@ -287,7 +297,7 @@ def test_two_recipients_one_news(
     assert nr1.user.email in mail_recipients
     assert nr2.user.email in mail_recipients
 
-    check_email_body(mail.outbox)
+    check_email_body(mail.outbox, journal)
 
 
 @pytest.mark.django_db
@@ -328,7 +338,7 @@ def test_two_recipients_one_article(
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
-    check_email_body(mail.outbox)
+    check_email_body(mail.outbox, journal)
 
 
 @pytest.mark.django_db
@@ -367,4 +377,4 @@ def test_one_recipient_one_article_two_topics(
 
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
-    check_email_body(mail.outbox)
+    check_email_body(mail.outbox, journal)

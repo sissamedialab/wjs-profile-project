@@ -199,6 +199,10 @@ def set_jcom_theme(journal):
     setting_handler.save_setting(base_theme_setting.group.name, base_theme_setting.name, journal, base_theme)
 
 
+def set_jcom_settings(journal):
+    setting_handler.save_setting("general", "from_address", journal, "jcom-eo@jcom.sissa.it")
+
+
 @pytest.fixture
 def journal(press):
     """Prepare a journal."""
@@ -207,6 +211,7 @@ def journal(press):
     journal.save()
     update_issue_types(journal)
     set_jcom_theme(journal)
+    set_jcom_settings(journal)
 
     return journal
 
