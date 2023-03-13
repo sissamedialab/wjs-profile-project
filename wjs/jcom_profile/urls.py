@@ -111,7 +111,12 @@ urlpatterns = [
         name="register_newsletters_email_sent",
     ),
     url(
-        r"^newsletters/unsubscribe/(?P<recipient_pk>\d+)$",
+        r"^newsletters/unsubscribe/confirm/$",
+        views.UnsubscribeUserConfirmation.as_view(),
+        name="unsubscribe_newsletter_confirm",
+    ),
+    url(
+        r"^newsletters/unsubscribe/(?P<token>\w+)/$",
         views.unsubscribe_newsletter,
         name="unsubscribe_newsletter",
     ),

@@ -9,7 +9,11 @@
             <p>{% trans "Are you sure to unsubscribe?" %}</p>
             <form method="post">
                 {% csrf_token %}
-                <a type="submit" href="{% url "unsubscribe_newsletter" object.pk %}" class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" %}
+                {% if object.newsletter_token %}
+                    <a type="submit" href="{% url "unsubscribe_newsletter" object.newsletter_token %}" class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" %}
+                {% else %}
+                    <a type="submit" href="{% url "unsubscribe_newsletter" object.pk %}" class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" %}
+                {% endif %}
                 </a>
                 <a class="btn modal-close red" name="unsubscription-confirmation"><i
                         class="fa fa-times">&nbsp;</i>{% trans "No" %}
