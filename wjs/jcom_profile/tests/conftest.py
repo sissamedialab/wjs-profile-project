@@ -79,10 +79,7 @@ def clear_cache():
 @pytest.fixture
 def mock_premailer_load_url(mocker):
     """Provide a empty response for css when fetched by premailer."""
-    mock = mocker.patch(
-        "premailer.premailer.Premailer._load_external_url",
-        return_value=""
-    )
+    mock = mocker.patch("premailer.premailer.Premailer._load_external_url", return_value="")
     return mock
 
 
@@ -440,7 +437,7 @@ def issue(issue_type, published_articles):
     issue = Issue.objects.create(
         journal=issue_type.journal,
         date=timezone.now(),
-        issue="1",
+        issue="01",
         issue_title=f"Issue 01, {timezone.now().year}",
         issue_type=issue_type,
     )
