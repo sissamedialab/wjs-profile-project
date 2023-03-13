@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 {% load static from staticfiles %}
-{% load foundation %}
+{% load materialize %}
 {% load i18n %}
 
 {% block body %}
@@ -8,9 +8,9 @@
     <div class="col s12 l8">
         <h2>{% trans "Newsletters" %}</h2>
 
-        <form method="post">
+        <form method="post" class="newsletter-form">
             {% csrf_token %}
-            {{ form.as_p }}
+            {% materialize_form form %}
             <button class="btn" type="submit"><i
                     class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
             </button>
