@@ -3,6 +3,7 @@ import re
 
 import requests
 from django.core.management.base import BaseCommand
+from requests.auth import HTTPBasicAuth
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -61,10 +62,16 @@ class Command(BaseCommand):
         for request_path, expected_http_code, expected_location_path in TESTS:
             scheme_and_domain = f'{options["proto"]}://{options["domain"]}'
             url = f"{scheme_and_domain}{request_path}"
+
+            basic_auth = None
+            if options["auth"]:
+                basic_auth = HTTPBasicAuth(*(options["auth"].split(":")))
+
             response = requests.get(
                 url=url,
                 verify=options["ssl_no_verify"],
                 allow_redirects=False,
+                auth=basic_auth,
             )
 
             if response.status_code != expected_http_code:
@@ -105,4 +112,8 @@ class Command(BaseCommand):
             "--ssl-no-verify",
             action="store_false",
             help="Do not verify TLS certificate.",
+        )
+        parser.add_argument(
+            "--auth",
+            help='HTTP Basic Auth in the form "user:passwd" (should be useful only for test sites).',
         )
