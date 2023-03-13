@@ -446,10 +446,7 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
     topics = user_recipient.topics.all()
     for topic in topics:
         assert topic.word in [k[1] for k in keywords]
-
-    messages = list(response.context["messages"])
-    assert len(messages) == 1
-    assert messages[0].message == "Newsletter preferences updated."
+    assert "Newsletter preferences updated." in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -464,14 +461,11 @@ def test_registered_user_newsletter_unsubscription(jcom_user, journal):
     user_recipient.refresh_from_db()
 
     assert status_code == 302
-    assert redirect_url == reverse("core_edit_profile")
+    assert redirect_url == reverse("unsubscribe_newsletter_confirm")
 
     assert not user_recipient.topics.all()
     assert not user_recipient.news
 
-    messages = list(response.context["messages"])
-    assert len(messages) == 1
-    assert messages[0].message == "Unsubscription successful"
 
 
 @pytest.mark.django_db
@@ -540,14 +534,10 @@ def test_anonymous_user_newsletter_unsubscription(journal):
         journal=journal,
     )
 
-    url = f"/{journal.code}/newsletters/unsubscribe/{anonymous_recipient.pk}"
+    url = f"/{journal.code}/newsletters/unsubscribe/{anonymous_recipient.newsletter_token}/"
     response = client.get(url, follow=True)
     redirect_url, status_code = response.redirect_chain[-1]
 
     assert status_code == 302
-    assert redirect_url == reverse("website_index")
+    assert redirect_url == reverse("unsubscribe_newsletter_confirm")
     assert not Recipient.objects.filter(pk=anonymous_recipient.pk)
-
-    messages = list(response.context["messages"])
-    assert len(messages) == 1
-    assert messages[0].message == "Unsubscription successful"
