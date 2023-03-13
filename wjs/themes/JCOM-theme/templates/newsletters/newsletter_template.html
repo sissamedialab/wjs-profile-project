@@ -25,31 +25,7 @@
     </table>
 
     <div class="container">
-      <table>
-        {% if articles %}
-        <tr>
-            <td>
-                <h2>{% trans "New publications" %}</h2>
-            </td>
-        </tr>
-
-        <tr>
-          <td>{{ articles|safe }}</td>
-        </tr>
-        {% endif %}
-        {% if news %}
-        <tr>
-            <td>
-                <h2>{% trans "News" %}</h2>
-            </td>
-            </tr>
-            <tr>
-            <td>
-                {{ news|safe }}
-            </td>
-        </tr>
-        {% endif %}
-      </table>
+        {% block content %}{{ content }}{% endblock content %}
     </div>
 
     <table class="unsubscribe">

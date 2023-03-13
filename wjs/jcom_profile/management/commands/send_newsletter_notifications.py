@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from ...newsletter.service import SendNewsletter
+from ...newsletter.service import NewsletterMailerService
 
 import logging
 
@@ -13,7 +13,7 @@ class Command(BaseCommand):
         parser.add_argument("--force", action="store_true")
 
     def handle(self, *args, **options):
-        """Run SendNewsletter service to send newsletter"""
-        messages = SendNewsletter().render_and_send(options["journal"], options["force"])
+        """Run NewsletterMailerService service to send newsletter"""
+        messages = NewsletterMailerService().send_newsletter(options["journal"], options["force"])
         for message in messages:
             logger.debug(message)

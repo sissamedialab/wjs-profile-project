@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Tuple, Iterable, TypedDict
+from typing import List, Tuple, Iterable, TypedDict, Dict
 from unittest.mock import Mock
 
 from django.contrib.contenttypes.models import ContentType
@@ -22,6 +22,7 @@ from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import Newsletter, Recipient
+from urllib.parse import urlencode
 
 
 class NewsletterItem(TypedDict):
@@ -29,7 +30,7 @@ class NewsletterItem(TypedDict):
     content: str
 
 
-class SendNewsletter:
+class NewsletterMailerService:
     def site_url(self, journal: Journal):
         """
         Get base site URL.
@@ -69,7 +70,7 @@ class SendNewsletter:
         except Page.DoesNotExist:
             return ""
 
-    def render_message(
+    def _render_newsletter_message(
         self,
         journal: Journal,
         subscriber: Recipient,
@@ -94,45 +95,17 @@ class SendNewsletter:
         )
 
         content = render_to_string(
-            "newsletters/newsletter_template.html",
+            "newsletters/newsletter_issue.html",
             {
                 "subscriber": subscriber.user,
                 "articles": "".join(rendered_articles),
                 "news": "".join(rendered_news),
                 "intro_message": intro_message,
-                "journal": journal,
-                "site_url": self.site_url(journal),
-                "unsubscribe_url": self.get_unsubscribe_url(subscriber),
-                "privacy_url": self.get_privacy_url(journal),
+                **self.get_context_data(subscriber),
             },
         )
 
         return self.process_content(content, subscriber.journal)
-
-    def send_newsletter(self, subscriber: Recipient, newsletter_content: str) -> bool:
-        subject = get_setting(
-            "email",
-            "publication_alert_email_subject",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
-        from_email = get_setting(
-            "general",
-            "from_address",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
-
-        return send_mail(
-            subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
-            newsletter_content,
-            from_email,
-            [subscriber.newsletter_destination_email],
-            fail_silently=False,
-            html_message=newsletter_content,
-        )
 
     def _get_newsletter(self, force: bool = False) -> Tuple[Newsletter, datetime.datetime]:
         newsletter, created = Newsletter.objects.get_or_create()
@@ -199,7 +172,7 @@ class SendNewsletter:
                 rendered_news.append(news.rendered)
         return rendered_news
 
-    def render_newsletters(self, journal_code: str, last_sent: datetime.datetime) -> NewsletterItem:
+    def _render_newsletters_batch(self, journal_code: str, last_sent: datetime.datetime) -> NewsletterItem:
         """Generator that renders the content of the newsletter for each subscriber."""
         journal = Journal.objects.get(code=journal_code)
         request = self._get_request(journal)
@@ -213,17 +186,42 @@ class SendNewsletter:
             if rendered_news or rendered_articles:
                 yield NewsletterItem(
                     subscriber=subscriber,
-                    content=self.render_message(journal, subscriber, rendered_articles, rendered_news),
+                    content=self._render_newsletter_message(journal, subscriber, rendered_articles, rendered_news),
                 )
 
-    def render_sample(self, journal_code: str) -> str:
+    def _send_newsletter(self, subscriber: Recipient, newsletter_content: str) -> bool:
+        subject = get_setting(
+            "email",
+            "publication_alert_email_subject",
+            subscriber.journal,
+            create=False,
+            default=True,
+        )
+        from_email = get_setting(
+            "general",
+            "from_address",
+            subscriber.journal,
+            create=False,
+            default=True,
+        )
+
+        return send_mail(
+            subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
+            newsletter_content,
+            from_email.value,
+            [subscriber.newsletter_destination_email],
+            fail_silently=False,
+            html_message=newsletter_content,
+        )
+
+    def render_sample_newsletter(self, journal_code: str) -> str:
         """
         Render a sample message for one the existing subscribers for debugging.
         """
-        messages = list(self.render_newsletters(journal_code, self.send_always_timestamp))
+        messages = list(self._render_newsletters_batch(journal_code, self.send_always_timestamp))
         return messages[0]
 
-    def render_and_send(self, journal_code: str, force: bool = False) -> List[str]:
+    def send_newsletter(self, journal_code: str, force: bool = False) -> List[str]:
         """
         Use the unique Newsletter object (creating it if non-existing) to filter articles and news to be sent
         to users based on the last time newsletters have been delivered. Each user is notified considering their
@@ -232,11 +230,63 @@ class SendNewsletter:
         messages = []
 
         newsletter, last_sent = self._get_newsletter(force)
-        for rendered in self.render_newsletters(journal_code, last_sent):
+        for rendered in self._render_newsletters_batch(journal_code, last_sent):
             try:
-                self.send_newsletter(rendered["subscriber"], rendered["content"])
+                self._send_newsletter(rendered["subscriber"], rendered["content"])
             except Exception as e:
                 messages.append(str(e))
 
         newsletter.save()
         return messages
+
+    def get_context_data(self, subscriber: Recipient) -> Dict[str, any]:
+        return {
+            "journal": subscriber.journal,
+            "site_url": self.site_url(subscriber.journal),
+            "unsubscribe_url": self.get_unsubscribe_url(subscriber),
+            "privacy_url": self.get_privacy_url(subscriber.journal),
+        }
+
+    def send_subscription_confirmation(self, subscriber: Recipient):
+        subject = get_setting(
+            "email",
+            "publication_alert_subscription_email_subject",
+            subscriber.journal,
+            create=False,
+            default=True,
+        )
+        email_body = get_setting(
+            "email",
+            "publication_alert_subscription_email_body",
+            subscriber.journal,
+            create=False,
+            default=True,
+        )
+        from_email = get_setting(
+            "general",
+            "from_address",
+            subscriber.journal,
+            create=False,
+            default=True,
+        )
+
+        acceptance_url = f"{reverse('edit_newsletters')}?{urlencode({'token': subscriber.newsletter_token})}"
+
+        content = render_to_string(
+            "newsletters/newsletter_template.html",
+            {
+                "content": email_body.value.format(subscriber.journal, acceptance_url),
+                **self.get_context_data(subscriber),
+            },
+        )
+
+        newsletter_content = self.process_content(content, subscriber.journal)
+
+        send_mail(
+            subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
+            newsletter_content,
+            from_email.value,
+            [subscriber.newsletter_destination_email],
+            fail_silently=False,
+            html_message=newsletter_content,
+        )

@@ -11,6 +11,7 @@ from django.urls import reverse
 from submission import models as submission_models
 from submission.models import Keyword
 from utils import setting_handler
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import (
     EditorAssignmentParameters,
@@ -469,7 +470,7 @@ def test_registered_user_newsletter_unsubscription(jcom_user, journal):
 
 
 @pytest.mark.django_db
-def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_setting):
+def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_setting, mock_premailer_load_url):
     client = Client()
     url = f"/{journal.code}/register/newsletters/"
     anonymous_email = "anonymous@email.com"
@@ -497,12 +498,17 @@ def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_set
         "publication_alert_subscription_email_subject",
         journal,
     ).processed_value.format(journal, acceptance_url)
-    assert newsletter_email.body == setting_handler.get_setting(
-        "email",
-        "publication_alert_subscription_email_body",
-        journal,
-    ).processed_value.format(journal, acceptance_url)
+    assert anonymous_recipient.newsletter_token in newsletter_email.body
     assert anonymous_recipient.newsletter_token == newsletter_token
+
+    from_email = get_setting(
+        "general",
+        "from_address",
+        journal,
+        create=False,
+        default=True,
+    )
+    assert newsletter_email.from_email == from_email.value
 
 
 @pytest.mark.django_db
