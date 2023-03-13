@@ -2,6 +2,7 @@
 {% load hooks %}
 {% load i18n %}
 {% load pages %}
+{% load wjs_tags %}
 
 {% block page_title %}{% trans "Articles" %}{% endblock %}
 
@@ -28,80 +29,9 @@
         </div>
         <div class="col m4">
             <div class="card-panel">
-                <h2 class="main-title">{% trans "Search" %}</h2>
-                <form method="POST" action="{% url 'search' %}">
-                    {% csrf_token %}
-                    {% if not keyword %}
-                        <label for="{{ search_form.article_search.id_for_label }}">Search
-                            titles, keywords, and authors</label>
-                    {% endif %}
-                    <div class="input-field">
-                        {% if not keyword %}
-                            {{ search_form.article_search.errors }}
-                            {{ search_form.article_search }}
-                        {% else %}
-                            You are currently browsing by keyword.
-                            <p><a href="{% url 'search' %}">Search for an
-                                article.</a></p>
-                        {% endif %}
-                    </div>
-                    <label for="{{ search_form.sort.id_for_label }}">Sort articles
-                        by</label>
-                    <div class="input-field">
-                        {{ search_form.sort.errors }}
-                        {{ search_form.sort }}
-                    </div>
-                    <div class="input-field">
-                        <button name="submit"
-                                class="btn">{% trans "Search" %}</button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-panel">
-                <h2 class="main-title">{% trans "Filter publications" %}</h2>
-                <form method="POST">
-                    {% csrf_token %}
-                    <div class="input-field">
-                        <select name="show" class="form-control">
-                            <option value="10"{% if show == 10 %} selected="selected"{% endif %}>10</option>
-                            <option value="20"{% if show == 20 %} selected="selected"{% endif %}>20</option>
-                            <option value="50"{% if show == 50 %} selected="selected"{% endif %}>50</option>
-                            <option value="100"{% if show == 100 %} selected="selected"{% endif %}>100</option>
-                        </select>
-                        <label>{% trans "Show" %}</label>
-                    </div>
-                    <div class="form-group">
-                        <label>{% trans "Sort" %}</label>
-                        <select name="sort" class="form-control">
-                            <option value="title"{% if sort == "title" %}
-                                    selected="selected"{% endif %}>{% trans "Title A-Z" %}</option>
-                            <option value="-title"{% if sort == "-title" %}
-                                    selected="selected"{% endif %}>{% trans "Title Z-A" %}</option>
-                            <option value="-date_published"{% if sort == "-date_published" %}
-                                    selected="selected"{% endif %}>{% trans "Newest" %}</option>
-                            <option value="date_published"{% if sort == "date_published" %}
-                                    selected="selected"{% endif %}>{% trans "Oldest" %}</option>
-                        </select>
 
-                    </div>
-                    <div class="form-group">
-                        <label>{% trans "Filter by section" %}</label><br/>
-                        {% for section in sections %}
-                            <input id="section-{{ section.id }}"
-                                   value="{{ section.id }}"
-                                   type="checkbox"
-                                   name="filter[]"
-                                   {% if section.id in filters %}checked="checked"{% endif %}>
-                            <label for="section-{{ section.id }}">{{ section.name }}</label>
-                            <br/>
-                        {% endfor %}
-                        <br/>
-                        <button type="submit" class="btn btn-primary">{% trans "Filter" %}</button>
-                        {% if active_filters %}
-                            <button type="submit" class="btn btn-primary"
-                                    name="clear">{% trans "Clear Filters" %}</button>{% endif %}
-                    </div>
-                </form>
+                {% search_form as search_params %}
+                {% include "journal/components/search_sidebar.html" with form=search_params.form all_keywords=search_params.all_keywords %}
             </div>
         </div>
     </div>
