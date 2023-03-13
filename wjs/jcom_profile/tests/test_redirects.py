@@ -20,7 +20,7 @@ def test_redirect_issues_from_jcom_to_janeway_url(issue):
     response = client.get(url, follow=True)
     actual_redirect_url, status_code = response.redirect_chain[-1]
 
-    assert status_code == 302
+    assert status_code == 301
     assert expected_redirect_url == actual_redirect_url
 
 
@@ -57,7 +57,7 @@ def test_redirect_galley_from_jcom_to_janeway_url(issue, published_article_with_
         url = f"/{article.journal.code}/{pesky_url}"
         response = client.get(url, follow=True)
         actual_redirect_url, status_code = response.redirect_chain[-1]
-        assert status_code == 302
+        assert status_code == 301
 
         expected_redirect_url = reverse(
             "article_download_galley",
@@ -131,7 +131,7 @@ class TestRedirectCitationPdfUrl:
         # The above two calls are equivalent to f"/{journal.code}/article/pubid/{pubid}/{galley.id}"
         response = client.get(url, follow=True)
         actual_redirect_url, status_code = response.redirect_chain[-1]
-        assert status_code == 302
+        assert status_code == 301
         expected_redirect_url = reverse(
             "article_download_galley",  # ⇦ ...and this are *different*!
             kwargs={
@@ -159,7 +159,7 @@ class TestRedirectCitationPdfUrl:
         )
         response = client.get(url, follow=True)
         actual_redirect_url, status_code = response.redirect_chain[-1]
-        assert status_code == 302
+        assert status_code == 301
         expected_redirect_url = reverse(
             "article_download_galley",
             kwargs={
@@ -189,7 +189,7 @@ class TestRedirectCitationPdfUrl:
         )
         response = client.get(url, follow=True)
         actual_redirect_url, status_code = response.redirect_chain[-1]
-        assert status_code == 302
+        assert status_code == 301
         expected_redirect_url = reverse(
             "article_download_supp_file",
             kwargs={
