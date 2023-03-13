@@ -183,7 +183,7 @@ class Command(BaseCommand):
             # External Privacy Policy URL - URL to an external
             # privacy-policy, linked from the footer. If blank, it
             # links to the Janeway CMS page: /site/privacy.
-            ("general", "privacy_policy_url", "https://medialab.sissa.it/privacy"),
+            ("general", "privacy_policy_url", "https://medialab.sissa.it/en/privacy"),
             #
             # Publication Fees - Display of feeds for this
             # journal. Displayed on the About and the Submission
