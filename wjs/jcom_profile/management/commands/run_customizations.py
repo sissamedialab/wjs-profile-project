@@ -16,3 +16,4 @@ class Command(BaseCommand):
         management.call_command("link_plugins")
         management.call_command("create_role", "Director")
         management.call_command("add_publication_alert_settings")
+        management.call_command("add_generic_analytics_code_setting")

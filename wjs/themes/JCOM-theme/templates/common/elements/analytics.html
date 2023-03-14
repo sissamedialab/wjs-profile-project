@@ -1,0 +1,2 @@
+{% if journal_settings.general.analytics_code %}{{ journal_settings.general.analytics_code|safe }}{% endif %}
+{% if not request.journal and request.press.tracking_code %}{{ request.press.tracking_code|safe }}{% endif %}

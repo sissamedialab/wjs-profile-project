@@ -119,6 +119,11 @@ def custom_newsletter_setting():
 
 
 @pytest.fixture
+def generic_analytics_code_setting():
+    management.call_command("add_generic_analytics_code_setting")
+
+
+@pytest.fixture
 def admin():
     """Create admin user."""
     return JCOMProfile.objects.create(
