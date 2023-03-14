@@ -2,7 +2,12 @@
 <div class="row">
     <div class="col m10">
         <div class="text-left">
-            <ul class="list-inline"><p></p>
+            <ul class="list-inline">
+                <li class="list-inline-item">
+                    {% blocktrans %} 
+                        Except where otherwise noted, content on this site is licensed under a Creative Commons 4.0 license
+                    {% endblocktrans %}
+                </li>
             {% if request.journal.issn %}
                 <li class="list-inline-item">
                     ISSN: {{ request.journal.issn }}
@@ -45,7 +50,8 @@
                         </a>
                     </li>
                 {% endif %}
-                <li class="list-inline-item"><a href="{% url 'contact' %}">{% trans "Contact" %}</a></li>
+                <li class="list-inline-item"><a href="/site/cookie_policy/">{% trans "Cookie Policy" %}</a></li>
+                <li class="list-inline-item"><a href="/site/contact">{% trans "Contact" %}</a></li>
             </ul>
     </div>
 </div>
