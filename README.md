@@ -56,8 +56,10 @@ Installin plugins is handled by `link_plugins` management command which links pl
 |--------------------------------------------------|-----------|------------------------------------------------------------------|
 | `add_user_as_main_author_setting`                | -         | Add `user_automatically_main_author` setting.                    |
 | `add_coauthors_submission_email_settings`        | -         | Add email settings to notify coauthors after article submission. |
-| `add_custom_subscribe_email_message_settings.py` | -         | Add email message body for anonymous newsletter subscriptions.   |
+| `add_publication_alert_settings`                 | -         | Add email message body for anonymous newsletter subscriptions.   |
+| `add_generic_analytics_code_setting`             | -         | Add `analytics_code` setting.                                    |
 | `link_plugins`                                   | -         | Link and install janeway plugins.                                |
+| `install_themes`                                 | -         | Link WJS themes.                                                 |
 | `run_customizations`                             | -         | Run all customization commands to Janeway.                       |
 
 ### pre-commit
