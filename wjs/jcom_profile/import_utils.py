@@ -39,8 +39,18 @@ FUNNY_LANGUAGE_CODES = {
 
 
 FakeRequest = namedtuple("FakeRequest", ["user"])
-# TODO: who whould this user be???
-admin = Account.objects.filter(is_admin=True).first()
+# Use a "technical account" (that is created if not already present)
+admin, _ = Account.objects.get_or_create(
+    email="wjs-support@medialab.sissa.it",
+    defaults={
+        "first_name": "WJS",
+        "last_name": "Support",
+        "is_staff": True,
+        "is_admin": True,
+        "is_active": True,
+        "is_superuser": True,
+    },
+)
 fake_request = FakeRequest(user=admin)
 
 
