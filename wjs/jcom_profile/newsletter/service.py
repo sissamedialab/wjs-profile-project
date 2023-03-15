@@ -271,11 +271,12 @@ class NewsletterMailerService:
         )
 
         acceptance_url = f"{reverse('edit_newsletters')}?{urlencode({'token': subscriber.newsletter_token})}"
+        full_acceptance_url = f"{self.site_url(subscriber.journal).strip('/')}{acceptance_url}"
 
         content = render_to_string(
             "newsletters/newsletter_template.html",
             {
-                "content": email_body.value.format(subscriber.journal, acceptance_url),
+                "content": email_body.value.format(journal=subscriber.journal, acceptance_url=full_acceptance_url),
                 **self.get_context_data(subscriber),
             },
         )

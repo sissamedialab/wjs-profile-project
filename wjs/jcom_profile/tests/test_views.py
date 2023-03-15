@@ -447,7 +447,7 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
     topics = user_recipient.topics.all()
     for topic in topics:
         assert topic.word in [k[1] for k in keywords]
-    assert "Newsletter preferences updated." in response.content.decode()
+    assert "Thank you for setting your preferences." in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -487,7 +487,7 @@ def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_set
     anonymous_recipient = Recipient.objects.get(email=anonymous_email)
 
     assert status_code == 302
-    assert redirect_url == reverse("register_newsletters_email_sent")
+    assert redirect_url == reverse("register_newsletters_email_sent", args=(anonymous_recipient.pk,))
     assert len(mail.outbox) == 1
     newsletter_email = mail.outbox[0]
     acceptance_url = (

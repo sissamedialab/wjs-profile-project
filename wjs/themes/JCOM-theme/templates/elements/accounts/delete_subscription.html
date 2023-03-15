@@ -4,10 +4,20 @@
 {% load i18n %}
 
 {% block body %}
+
 <div class="row">
-    <div class="col s12 l8">
-        <h2>{% trans "Newsletters" %}</h2>
-        <p>{% trans "Unsubscribed." %}</p>
+    <div class="col s12">
+        <h2 class="main-title">{% trans "Publication alert" %}</h2>
+        <div class="card-panel">
+            <p>
+                {% blocktrans %}
+                    Thank you for unsubscribing to JCOM publication alert.<br>
+                    You will no longer receive any alerts from JCOM.<br>
+                    You can subscribe again to all or some publication alert at any time by using the
+                    “Publication alert” form on the <a href="/">JCOM home page</a>.
+                {% endblocktrans %}
+            </p>
+        </div>
     </div>
 </div>
 {% endblock body %}

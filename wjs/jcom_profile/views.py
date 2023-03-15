@@ -1136,6 +1136,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
 class AnonymousUserNewsletterRegistration(FormView):
     template_name = "elements/accounts/anonymous_user_register_newsletter.html"
     form_class = forms.RegisterUserNewsletterForm
+    object = None
 
     def form_valid(self, request, *args, **kwargs):  # noqa
         context = self.get_context_data()
@@ -1148,15 +1149,25 @@ class AnonymousUserNewsletterRegistration(FormView):
             journal=journal,
             newsletter_token=token,
         )
+        self.object = subscriber
         NewsletterMailerService().send_subscription_confirmation(subscriber)
         return super().form_valid(form)
 
     def get_success_url(self):  # noqa
-        return reverse("register_newsletters_email_sent")
+        if self.object:
+            return reverse("register_newsletters_email_sent", args=(self.object.pk,))
+        else:
+            return reverse("register_newsletters_email_sent")
 
 
 class AnonymousUserNewsletterConfirmationEmailSent(TemplateView):
     template_name = "elements/accounts/anonymous_subscription_email_sent.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.kwargs.get("id", None):
+            context["object"] = Recipient.objects.get(pk=self.kwargs.get("id", None))
+        return context
 
 
 class UnsubscribeUserConfirmation(TemplateView):

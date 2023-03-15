@@ -3,10 +3,10 @@
 <div id="modal1" class="modal">
     <div class="card">
         <div class="card-divider">
-            <h4>{% trans "Newsletter unsubscription" %}</h4>
+            <h4>{% trans "Publication alert subscription" %}</h4>
         </div>
         <div class="card-section">
-            <p>{% trans "Are you sure to unsubscribe?" %}</p>
+            <p>{% trans "Please confirm that you do not wish to receive any JCOM publication alert" %}</p>
             <form method="post">
                 {% csrf_token %}
                 {% if object.newsletter_token %}
