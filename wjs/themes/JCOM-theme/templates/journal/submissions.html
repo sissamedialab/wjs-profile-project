@@ -1,0 +1,91 @@
+{% extends "core/base.html" %}
+{% load i18n %}
+{% load static from staticfiles %}
+{% load hooks %}
+
+{% block title %}{% trans 'Submissions' %}{% endblock title %}
+
+{% block css %}
+    <style>
+        .fa-check {
+            color: green;
+        }
+
+        .fa-times {
+            color: darkred;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div class="row">
+      <div class="col s12">
+        <h1 class="main-title">{% trans "Submissions" %}</h1>
+      </div>
+        <div class="col s12 l8">
+            <div class="card">
+                <div class="card-content">
+                    {% if journal_settings.general.disable_journal_submission %}
+                    <p>{{ journal_settings.general.disable_journal_submission_message|safe }}</p>
+                    {% endif %}
+                    <div class="default-li">{{ journal_settings.general.submission_intro_text|safe }}</div>
+                    <br />
+                    {% if not journal_settings.general.disable_journal_submission %}
+                    <div class="button-group">
+                         {% if not request.user.is_authenticated %}<a href="{% url 'core_register' %}" class="btn btn-primary">{% trans 'Register' %}</a>
+                        <a href="{% url 'core_login' %}" class="btn btn-primary">{% trans 'Login' %}</a>{% else %}
+                        <a href="{% url 'submission_start' %}" class="btn btn-primary">{% trans 'Start Submission' %}</a>{% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="divider spacer"></div>
+
+                    {% for item in submission_items %}
+                        {% if item.title == 'licences' %}
+                            <span class="card-title">
+                                {{ item.title|capfirst }}
+                            </span>
+                            <p>{{ request.journal.name }} {% trans "allows the following licences for submission" %}:</p>
+                            {% include "elements/license_block.html" %}
+                        {% elif item.title == 'sections' %}
+                            <span class="card-title">
+                                {{ item.title|capfirst }}
+                            </span>
+                            {% include "elements/sections_display.html" %}
+                        {% else %}
+                            {% if item.get_display_text %}
+                                <span class="card-title">
+                                    {{ item.title|capfirst }}
+                                </span>
+                                {{ item.get_display_text|safe }}
+                                <div class="divider spacer"></div>
+                            {% endif %}
+                        {% endif %}
+
+                    {% empty %}
+                        <p>There are no submission page items to display for this journal.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="col s12 l4">
+            <div class="card submission-toc-card hide-on-small-only" id="toc-card">
+                <div class="card-content">
+                        <h4>{% trans "Table of Contents" %}</h4>
+
+                    <ul id="toc" class="section table-of-contents">
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}
+
+
+{% block js %}
+    <script src="{% static 'material/sub-toc.js' %}"></script>
+    <script>
+     $(document).ready(function () {
+            $('.scrollspy').scrollSpy();
+        });
+    </script>
+{% endblock %}

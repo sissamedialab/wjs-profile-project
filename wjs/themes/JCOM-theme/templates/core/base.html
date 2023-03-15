@@ -90,7 +90,10 @@
 </script>
 
 {% include "common/elements/analytics.html" %}
-{% block js %}{% endblock %}
+{% block js %}
+    {# Initialize mobile sidebar navigation #}
+    <script>$(".button-collapse").sideNav();</script>
+{% endblock %}
 
 {% if request.repository and request.repository.custom_js_code %}
 <script>

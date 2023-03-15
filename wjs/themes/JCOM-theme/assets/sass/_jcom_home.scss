@@ -1,4 +1,17 @@
+/* FIXME: add media queries to create a single column grid <1024 */
 .homepage-grid {
+  @media screen and (max-width: 1023px) {
+    grid-template-areas:
+    'main'
+    'sidebar-element-2'
+    'sidebar-element-3'
+    'sidebar-element-4'
+    'sidebar-element-5'
+    'sidebar-element-6'
+    'sidebar-element-7'
+    ;
+  }
+
   display: grid;
   grid-template-areas:
   'main main sidebar-element-2'
