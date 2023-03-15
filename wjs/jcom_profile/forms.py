@@ -365,7 +365,7 @@ class NewsletterTopicForm(forms.ModelForm):
         widget=Select2Multiple(),
         required=False,
     )
-    news = forms.BooleanField(required=False, label=_("News"))
+    news = forms.BooleanField(required=False, label=_("I want to receive alerts about news published in JCOM."))
 
     class Meta:
         model = Recipient
