@@ -1,11 +1,11 @@
 <div id="issue_top">
     <div class="card full-width-card">
         {% if issue.large_image %}
-            <div class="card-image full-width-card-image col s4">
+            <div class="card-image full-width-card-image">
                 <img class="issue_image img-fluid" src="{{ issue.hero_image_url }}" alt="{{ issue.display_title }}">
             </div>
         {% endif %}
-        <div class="card-content col{% if issue.large_image %} s8{% else %} s12{% endif %}">
+        <div class="card-content">
             {% if issue.issue_type.code != "issue" %}<span class="date"><i class="fa fa-calendar"></i> {{ issue.date|date:"M d, Y" }}</span>{% endif %}
             <h1 class="main-title">{{ issue.display_title }}</h1>
             {% if issue.issue_description %}<p>{{ issue.issue_description|safe }}</p>{% endif %}
