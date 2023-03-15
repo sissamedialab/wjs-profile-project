@@ -3,7 +3,6 @@
 {% load wjs_tags %}
 
 {% url 'articles_by_section' article.section.pk as by_url %}
-{% url 'articles_by_author' author.author.pk as by_author %}
 <div class="card-panel">
     <div class="row article-listing-card">
         <div class="article-listing-card-header">
@@ -24,6 +23,7 @@
         <p class="article-listing-card-header-authors">
             by
             {% for author in article.frozen_authors.all %}
+                {% url 'articles_by_author' author.author.pk as by_author %}
                 {% if forloop.last %}
                     {% if article.frozen_authors.all|length > 1 %}
                         {% trans "and" %}

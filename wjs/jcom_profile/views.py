@@ -1377,6 +1377,9 @@ def search(request):
     :param request: HttpRequest object
     :return: HttpResponse object
     """
+    get_dict = request.GET.copy()
+    get_dict["sort"] = request.GET.get('sort', '-date_published')
+    request.GET = get_dict
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
     sections = request.GET.get("sections", "")
     keywords = request.GET.get("keywords", "")
