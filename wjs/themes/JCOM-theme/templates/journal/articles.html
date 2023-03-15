@@ -13,7 +13,7 @@
         <div class="col m12">
             <h1 class="main-title">{% trans "Publications" %}</h1>
         </div>
-        <div class="col m8">
+        <div class="col s12 l8">
             {% if pinned_articles and articles.number == 1 and not active_filters %}
                 {% for article in pinned_articles %}
                     {% include "elements/article_listing.html" with article=article %}
@@ -27,7 +27,7 @@
             {% endfor %}
             {% include "elements/pagination.html" with page=articles %}
         </div>
-        <div class="col m4">
+        <div class="col s12 l4">
             <div class="card-panel">
 
                 {% search_form as search_params %}

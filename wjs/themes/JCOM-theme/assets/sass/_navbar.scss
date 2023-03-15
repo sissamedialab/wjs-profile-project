@@ -58,6 +58,10 @@ nav {
     line-height: 56px;
     
     &:last-child {
+      @media screen and (max-width: 1023px) {
+        float: none;
+      }
+
       float:right;
     }
 

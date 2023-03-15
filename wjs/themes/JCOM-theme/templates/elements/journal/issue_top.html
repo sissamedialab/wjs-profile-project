@@ -6,7 +6,7 @@
             </div>
         {% endif %}
         <div class="card-content col{% if issue.large_image %} s8{% else %} s12{% endif %}">
-            <span class="date"><i class="fa fa-calendar"></i> {{ issue.date|date:"M d, Y" }}</span>
+            {% if issue.type != "issue" %}<span class="date"><i class="fa fa-calendar"></i> {{ issue.date|date:"M d, Y" }}</span>{% endif %}
             <h1 class="main-title">{{ issue.display_title }}</h1>
             {% if issue.issue_description %}<p>{{ issue.issue_description|safe }}</p>{% endif %}
         </div>

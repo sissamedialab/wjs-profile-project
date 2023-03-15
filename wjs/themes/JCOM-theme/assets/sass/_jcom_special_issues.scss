@@ -1,6 +1,18 @@
 .full-width-card {
+  @media screen and (max-width: 1023px) {
+    flex-direction: column;
+  }
+
   display: flex;
   flex-direction: row;
+
+  .card-image {
+    flex: 1 0 auto;
+  }
+
+  .card-content {
+    flex: 1 0 auto;
+  }
 
   &-image {
     align-items: center;
