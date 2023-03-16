@@ -1,6 +1,7 @@
 # JCOM redirects
 RewriteEngine On
 
+RewriteRule "^/rss.xml" "/feed/articles/" [R=301,L]
 RewriteRule "^/.*/RSS$" "/feed/articles/" [R=301,L]
 RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-research-and-practice-challenges-and" "/news/1/" [R=301,L]
 
