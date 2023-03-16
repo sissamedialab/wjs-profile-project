@@ -195,7 +195,7 @@ class Command(BaseCommand):
             ("general", "publisher_name", "Sissa Medialab srl"),
             #
             # Publisher URL - URL of the Journal's Publisher.
-            ("general", "publisher_url", "https://medialab.sissa.it/"),
+            ("general", "publisher_url", "https://medialab.sissa.it/en/"),
             #
             # Reader Publication Notification - Email sent readers
             # when new articles are published.
