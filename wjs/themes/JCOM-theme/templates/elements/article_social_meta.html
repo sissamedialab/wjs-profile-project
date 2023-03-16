@@ -4,7 +4,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="{{ article.title }}">
 <meta name="twitter:description" content="{{ article|description }}">
-<meta name="twitter:image" content="{{ article.large_image_file.remote_url }}">
+{% if article.large_image_file.id %}<meta name="twitter:image" content="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}">{% endif %}
 
 <meta property="og:title" content="{{ article.title }}" />
 <meta property="og:type" content="article" />
@@ -15,6 +15,6 @@
 {# https://ogp.me/#optional #}
 <meta property="og:determiner" content="" />
 {% if article.last_modified %}<meta property="og:updated_time" content="{{ article.last_modified|date:"c" }}" />{% endif %}
-<meta property="og:image" content="{{ article.large_image_file.remote_url }}" />
+{% if article.large_image_file.id %}<meta property="og:image" content="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}" />{% endif %}
 {# TODO: Maybe fix the value in Journal.description to reflect what we want here? #}
 <meta property="og:site_name" content="{{ article.journal.code }} - {{ article.journal.name }}" />
