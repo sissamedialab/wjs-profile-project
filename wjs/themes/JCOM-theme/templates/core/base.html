@@ -29,13 +29,6 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{% static "JCOM-theme/css/jcom.css" %}">
 
-    {% if request.journal %}
-        <link href="{% static "material/css/journal" %}{{ request.journal.id }}_override.css" rel="stylesheet">
-    {% elif request.repository %}
-        <link href="{% static "common/css/repo.css" %}" rel="stylesheet">
-    {% else %}
-        <link href="{% static "material/css/press_override.css" %}" rel="stylesheet">
-    {% endif %}
     <link href="{% static "common/css/common.css" %}" rel="stylesheet">
     {% block css %}{% endblock %}
     {% hook 'base_head_css' %}
