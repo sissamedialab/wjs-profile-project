@@ -7,38 +7,27 @@
 
 
     <meta name="description" content="{{ article|description }}"/>
-    <link rel="image_src" href="{{article.large_image_file}}" />
+    {% if article.large_image_file.id %}<link rel="image_src" href="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}" />{% endif %}
     <link rel="canonical" href="{{ article.url }}"/>
     <meta http-equiv="content-language" content="{{ article.language }}" />
     {% if article.date_published %}<meta property="article:published_time" content="{{ article.date_published|date:"c" }}" />{% endif %}
     {% if article.last_modified %}<meta property="article:modified_time" content="{{ article.last_modified|date:"c" }}" />{% endif %}
 
-    <meta name="DC.Title" content="{{ article.title | striptags }}"/>
     {% for author in article.frozen_authors.all %}
-        <meta name="DC.creator" content="{{ author.dc_name_string }}"/>
+        <meta name="dcterms.creator" content="{{ author.dc_name_string }}" />
     {% endfor %}
-    <meta name="DC.Description" xml:lang="en" content="{{ article | description }}"/>
-    <meta name="DC.Format" scheme="IMT" content="xml"/>
-    <meta name="DC.Format" scheme="IMT" content="pdf"/>
-    <meta name="DC.Language" scheme="ISO639-1" content="{{ article.language }}"/>
-    {% if article.identifier.id_type == "doi" %}<meta name="DC.Identifier.DOI" content="{{ article.identifier.identifier }}"/>{% endif %}
-    <meta name="DC.Identifier.URI" content="{{ article.url }}"/>
-    {% if article.page_number %}<meta name="DC.Identifier.pageNumber" content="{{ article.page_number }}"/>{% endif %}
-
-    {% if article.date_published %}<meta name="DC.Date.created" scheme="ISO8601" content="{{ article.date_published|date:"Y-m-d" }}"/>{% endif %}
-    {% if article.date_submitted %}<meta name="DC.Date.dateSubmitted" scheme="ISO8601" content="{{ article.date_submitted|date:"Y-m-d" }}"/>{% endif %}
-    {% if article.date_published %}<meta name="DC.Date.issued" scheme="ISO8601" content="{{ article.date_published|date:"Y-m-d" }}"/>{% endif %}
-    {% if article.date_published %}<meta name="DC.Date.modified" scheme="ISO8601" content="{{ article.date_published|date:"Y-m-d"  }}"/>{% endif %}
-
-    <meta name="DC.Rights" content="{{ article.licence.text | striptags }}"/>
-    <meta name="DC.Source" content="{{ journal_settings.general.journal_name }}"/>
-    <meta name="DC.Source.ISSN" content="{{ article.journal.issn }}"/>
-    {% if article.issue.isbn %}<meta name="DC.Source.ISBN" content="{{ article.issue.isbn }}"/>{% endif %}
-    {% if article.issue.issue %}<meta name="DC.Source.Issue" content="{{ article.issue.issue }}"/>{% endif %}
-    {% if article.issue.volume %}<meta name="DC.Source.Volume" content="{{ article.issue.volume }}"/>{% endif %}
-    <meta name="DC.Source.URI" content="{% journal_url 'website_index' %}"/>
-
-
+    {% for keyword in article.keywords.all %}
+        <meta name="dcterms.subject" content="{{ keyword.word }}" />
+    {% endfor %}
+    <meta name="dcterms.title" content="{{ article.title|striptags }}" />
+    <meta name="dcterms.description" content="{{ article|description }}" />
+    <meta name="dcterms.publisher" content="{{ article.publisher }}" />
+    <meta name="dcterms.date" content="{{ article.date_published|date:"Y/m/d" }}" />
+    <meta name="dcterms.type" content="Text" />
+    {# Is it right? I tried to reproduce precisely what I see in the old website, for example https://jcom.sissa.it/archive/22/01/JCOM_2201_2023_R01 #}
+    {% if article.identifier.id_type == "doi" %}<meta name="dcterms.identifier" content="info:doi/{{ article.identifier.identifier}}" />{% endif %}
+    <meta name="dcterms.bibliographicCitation" content="{{ article.how_to_cite }}" />
+    <meta name="dcterms.isPartOf" content="urn:ISSN:{{ article.journal_issn }}" />
 
     {% if article.publisher_name%}<meta name="citation_publisher" content="{{ article.publisher_name }}"/>
     {% elif journal_settings.general.publisher_name %}<meta name="citation_publisher" content="{{ journal_settings.general.publisher_name }}"/>
@@ -74,4 +63,4 @@
     {% if article.pdfs.exists %}
     <meta name="citation_pdf_url" content="{% journal_url 'serve_article_pdf' 'id' article.id %}"/>
     {% endif %}
-    {% include "elements/journal/social_meta.html" %}
+    {% include "elements/article_social_meta.html" %}
