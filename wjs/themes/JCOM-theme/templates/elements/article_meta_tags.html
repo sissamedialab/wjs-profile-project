@@ -26,7 +26,7 @@
     <meta name="dcterms.type" content="Text" />
     {# Is it right? I tried to reproduce precisely what I see in the old website, for example https://jcom.sissa.it/archive/22/01/JCOM_2201_2023_R01 #}
     {% if article.identifier.id_type == "doi" %}<meta name="dcterms.identifier" content="info:doi/{{ article.identifier.identifier}}" />{% endif %}
-    <meta name="dcterms.bibliographicCitation" content="{{ article.how_to_cite }}" />
+    {# <meta name="dcterms.bibliographicCitation" content="{{ article.how_to_cite }}" /> #}
     <meta name="dcterms.isPartOf" content="urn:ISSN:{{ article.journal_issn }}" />
 
     {% if article.publisher_name%}<meta name="citation_publisher" content="{{ article.publisher_name }}"/>
