@@ -1,6 +1,9 @@
 # JCOM redirects
 RewriteEngine On
 
+RewriteRule "^/.*/RSS$" "/feed/articles/" [R=301,L]
+RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-research-and-practice-challenges-and" "/news/1/" [R=301,L]
+
 # Important! Papers' landing page
 # From: //jcom.sissa.it/archive/13/04/JCOM_1304_2014_E
 # To:   //jcom.sissa.it/article/pubid/JCOM_1304_2014_E
