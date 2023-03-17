@@ -15,6 +15,7 @@ from core.models import File as JanewayFile
 from django.core.files import File
 from django.core.management.base import BaseCommand
 from identifiers import models as identifiers_models
+from identifiers.models import Identifier
 from jcomassistant import make_epub, make_xhtml
 from jcomassistant.utils import TeXData, buildTag, read_tex
 from journal import models as journal_models
@@ -40,7 +41,7 @@ from wjs.jcom_profile.management.commands.import_from_drupal import (
     SECTION_ORDER,
     rome_timezone,
 )
-from wjs.jcom_profile.utils import from_pubid_to_eid
+from wjs.jcom_profile.utils import from_pubid_to_eid, generate_doi
 
 # Map wjapp article types to Janeway section names
 SECTIONS_MAPPING = {
@@ -248,6 +249,7 @@ class Command(BaseCommand):
         epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
         self.set_epub_galley(article, epub_galley_filename, pubid)
 
+        self.set_doi(article)
         publish_article(article)
         # Cleanup
         shutil.rmtree(tmpdir)
@@ -621,6 +623,26 @@ class Command(BaseCommand):
                 label=file_name,
             )
             logger.debug(f"Supplementary material {file_name} set onto {pubid}")
+
+    def set_doi(self, article):
+        """Check that the article has a DOI ala JCOM."""
+        # I'm not sure that wjapp is trustworty and Janeway's default
+        # is {prefix}/{journal.id}.{article.id}
+        expected_doi = generate_doi(article)
+        if existing_doi := article.get_identifier("doi"):
+            if existing_doi == expected_doi:
+                logger.debug(f"DOI {existing_doi} for {article.id} already present. Doing nothing")
+            else:
+                logger.critical(
+                    f"DOI {existing_doi} for {article.id} different from expected {expected_doi}! Doing nothing.",
+                )
+        else:
+            logger.debug(f"Did not receive a DOI from wjapp. Setting {expected_doi} on {article.id}.")
+            Identifier.objects.create(
+                identifier=expected_doi,
+                article=article,
+                id_type="doi",
+            )
 
 
 # TODO: consider refactoring with import_from_drupal
