@@ -3,23 +3,6 @@
 <aside class="card article-sidebar">
     <div class="card-content">
         {% include "common/elements/altmetric_badges.html" with article=article %}
-        {% if article.is_published and galleys %}
-                <div class="show-on-small hide-on-med-and-up">
-                    <h2 class="article-sidebar-title">{% trans "Download" %}</h2>
-                    <p>
-                        {% for galley in galleys %}
-                            <a href="{% url 'article_download_galley' article.id galley.id %}">{% trans "Download" %} {{ galley.label }}</a>
-                            <br/>
-                            {% if galley.file.mime_type == 'application/pdf' and journal.view_pdf_button %}
-                                <a class="download-test"target="_blank"
-                                   href="{% url 'article_view_galley' article.id galley.id %}">View
-                                PDF</a>
-                                <br/>
-                            {% endif %}
-                        {% endfor %}
-                    </p>
-                </div>
-            {% endif %}
             {% if article.is_published and galleys %}
                     <h4 class="article-sidebar-title">{% trans "Download" %}</h4>
                     <ul>
