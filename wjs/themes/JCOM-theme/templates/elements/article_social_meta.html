@@ -1,10 +1,11 @@
 {% load truncate %}
 {% load wjs_tags %}
+{% load fqdn %}
 
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="{{ article.title }}">
 <meta name="twitter:description" content="{{ article|description }}">
-{% if article.large_image_file.id %}<meta name="twitter:image" content="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}">{% endif %}
+{% if article.large_image_file.id %}<meta name="twitter:image" content="{% journal_url 'article_file_download' 'id' article.id article.large_image_file.id %}">{% endif %}
 
 <meta property="og:title" content="{{ article.title }}" />
 <meta property="og:type" content="article" />

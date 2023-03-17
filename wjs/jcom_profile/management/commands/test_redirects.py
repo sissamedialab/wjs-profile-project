@@ -11,16 +11,16 @@ logger = get_logger(__name__)
 # warning: remember that the last item is a regexp: () have special meaning
 TESTS = (
     # Landing page
-    ("/archive/21/07/JCOM_2107_2022_A02", 301, "/article/pubid/JCOM_2107_2022_A02"),
+    ("/archive/21/07/JCOM_2107_2022_A02", 301, "/article/pubid/JCOM_2107_2022_A02/"),
     ("/archive/21/07/JCOM_2107_2022_A02/", 301, "/article/pubid/JCOM_2107_2022_A02/"),
     ("/archive/21/07/JCOM_2107_2022_A02/ciao", 301, "/article/pubid/JCOM_2107_2022_A02/ciao"),
     #     - sub documents / children
-    ("/archive/16/01/JCOM_1601_2017_C01/JCOM_1601_2017_C02", 301, "/article/pubid/JCOM_1601_2017_C02"),
-    ("/archive/02/04/C020401/C020402", 301, "/article/pubid/C020402"),
-    ("/archive/09/04/Jcom0904(2010)C01/Jcom0904(2010)C02", 301, r"/article/pubid/Jcom0904\(2010\)C02"),
+    ("/archive/16/01/JCOM_1601_2017_C01/JCOM_1601_2017_C02", 301, "/article/pubid/JCOM_1601_2017_C02/"),
+    ("/archive/02/04/C020401/C020402", 301, "/article/pubid/C020402/"),
+    ("/archive/09/04/Jcom0904(2010)C01/Jcom0904(2010)C02", 301, r"/article/pubid/Jcom0904\(2010\)C02/"),
     #     - old-style pubid
-    ("/archive/01/01/E0101", 301, "/article/pubid/E0101"),
-    ("/archive/09/04/Jcom0904(2010)E", 301, r"/article/pubid/Jcom0904\(2010\)E"),
+    ("/archive/01/01/E0101", 301, "/article/pubid/E0101/"),
+    ("/archive/09/04/Jcom0904(2010)E", 301, r"/article/pubid/Jcom0904\(2010\)E/"),
     #
     # Issue
     ("/archive/03/03", 301, r"/issue/(\d+)/info"),

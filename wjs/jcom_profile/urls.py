@@ -150,11 +150,10 @@ urlpatterns = [
     ),
     # Search engines (google scholar & co.) want the PDF file in the
     # same subfolder as the paper's landing page (see #107);
-    # citation_pdf_url have the form article/pubid/JCOM123/galley.id
     url(
-        r"article/pubid/(?P<pubid>[\w.()-]+)/(?P<galley_id>\d+)",
-        views.JcomFileRedirect.as_view(),
-        name="jcom_redirect_file",
+        r"^article/(?P<identifier_type>pubid)/(?P<identifier>.+)/download/pdf/$",
+        journal_views.serve_article_pdf,
+        name="serve_article_pdf",
     ),
     # Redirects - end
 ]
