@@ -88,15 +88,17 @@ class TestRedirectCitationPdfUrl:
     the galleys now have a link in the page with the form
     article/id/45/galley/67/download
     in the HTML source of this page, the citation_pdf_url should point to
-    https://.../article/pubid/jcom_123/67
+    https://.../article/pubid/jcom_123/download/pdf/
 
     Here we test that the system redirects the citation_pdf_url to the real galley URL
-    article/pubid/jcom_123/67 -> article/45/galley/67/download
     for new-style URLs,
     old-style URLs,
     and old-style URLs of supplementary material (attachments)[**].
 
-    [*] NB: the URL can be
+    The citation_pdf_url article/pubid/jcom_123/download/pdf/ should
+    serve the main PDF file.
+
+    [*] NB: in Janeway, a paper's URL can be
     - article/id/ID
     - article/pubid/jcom_123
     - article/doi/10...
@@ -105,15 +107,20 @@ class TestRedirectCitationPdfUrl:
     - <meta name="citation_pdf_url"
     - <meta name=""citation_abstract_html_url
 
+    In any case we set citation_abstract_html_url to the pubid version
+    (which is also apparently the "main" URL for a paper in Janeway
+    when an not-doi Identifier exists)
+
     [**] Technically there should be no need for this... TODO: TBV!!!
+
     """
 
     @pytest.mark.django_db
-    def test_with_galley_id(self, journal, client, published_article_with_standard_galleys):
-        """Test new format: article/pubid/PUBID/GALLEYID."""
+    def test_download_pdf(self, journal, client, published_article_with_standard_galleys):
+        """Test new format: article/pubid/PUBID/download/pdf/ serves a PDF"""
         article = published_article_with_standard_galleys
         pubid = article.get_identifier(identifier_type="pubid")
-        galley = article.galley_set.get(label="PDF")
+        article.galley_set.get(label="PDF")  # TODO: do I need this?
         # TODO: reverse() uses the `script_prefix` which is set onto
         # the process's thread by (?) Janeway's middleware to keep
         # track of the journal (if using a path as opposet to a
@@ -122,24 +129,21 @@ class TestRedirectCitationPdfUrl:
         # set, it will create a URL without the journal code.
         client.get(f"/{journal.code}/")
         url = reverse(
-            "jcom_redirect_file",  # ⇦ This...
+            "serve_article_pdf",
             kwargs={
-                "pubid": pubid,
-                "galley_id": galley.id,
+                "identifier_type": "pubid",
+                "identifier": pubid,
             },
         )
-        # The above two calls are equivalent to f"/{journal.code}/article/pubid/{pubid}/{galley.id}"
-        response = client.get(url, follow=True)
-        actual_redirect_url, status_code = response.redirect_chain[-1]
-        assert status_code == 301
-        expected_redirect_url = reverse(
-            "article_download_galley",  # ⇦ ...and this are *different*!
-            kwargs={
-                "article_id": galley.article.pk,
-                "galley_id": galley.pk,
-            },
-        )
-        assert expected_redirect_url == actual_redirect_url
+        # The above two calls are equivalent to f"/{journal.code}/article/pubid/{pubid}/download/pdf/"
+        assert url == f"/{journal.code}/article/pubid/{pubid}/download/pdf/"
+        # NB: no redirect here!
+
+        # Unfortunately cannot test that the file is really served,
+        # because my test galley does not have a file! Since it would
+        # dirty the filesystem.
+        # So I will not `response = client.get(url)`
+        # nor `assert response.status_code == 200`
 
     @pytest.mark.django_db
     def test_with_pubid_and_extension(self, journal, client, published_article_with_standard_galleys):

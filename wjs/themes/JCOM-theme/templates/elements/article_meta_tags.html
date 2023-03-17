@@ -20,13 +20,13 @@
         <meta name="dcterms.subject" content="{{ keyword.word }}" />
     {% endfor %}
     <meta name="dcterms.title" content="{{ article.title|striptags }}" />
-    <meta name="dcterms.description" content="{{ article|description }}" />
+    <meta name="dcterms.description" content="{{ article.description|striptags }}" />
     <meta name="dcterms.publisher" content="{{ article.publisher }}" />
     <meta name="dcterms.date" content="{{ article.date_published|date:"Y/m/d" }}" />
     <meta name="dcterms.type" content="Text" />
     {# Is it right? I tried to reproduce precisely what I see in the old website, for example https://jcom.sissa.it/archive/22/01/JCOM_2201_2023_R01 #}
     {% if article.identifier.id_type == "doi" %}<meta name="dcterms.identifier" content="info:doi/{{ article.identifier.identifier}}" />{% endif %}
-    {# <meta name="dcterms.bibliographicCitation" content="{{ article.how_to_cite }}" /> #}
+    <meta name="dcterms.bibliographicCitation" content="{{ article|how_to_cite|striptags|force_escape }}" />
     <meta name="dcterms.isPartOf" content="urn:ISSN:{{ article.journal_issn }}" />
 
     {% if article.publisher_name%}<meta name="citation_publisher" content="{{ article.publisher_name }}"/>
@@ -40,11 +40,13 @@
         {% if not '@journal.org' in author.author.email %}
             <meta name="citation_author_email" content="{{ author.author.email }}"/>
         {% endif %}
-        <meta name="citation_author_institution" content="{{ author.institution }}"/>{% endfor %}
+        {% if author.institution %}<meta name="citation_author_institution" content="{{ author.institution }}"/>{% endif %}
+    {% endfor %}
     <meta name="citation_title" content="{{ article.title | striptags }}"/>
-    {% if article.date_published %}<meta name="citation_publication_date" content="{{ article.date_published|date:"Y-m-d" }}"/>{% endif %}
+    {# https://scholar.google.no/intl/en/scholar/inclusion.html#indexing 2.C #}
+    {% if article.date_published %}<meta name="citation_publication_date" content="{{ article.date_published|date:"Y/n/j" }}"/>{% endif %}
     {% if article.issue.volume %}<meta name="citation_volume" content="{{ article.issue.volume }}"/>{% endif %}
-    {% if article.issue.issue %}<meta name="citation_issue" content="{{ article.issue.issue }}"/>{% endif %}
+    {% if article.issue.issue %}<meta name="citation_issue" content="{{ article.issue.issue|floatformat }}"/>{% endif %}
     <meta name="citation_section" content="{{ article.section.name }}"/>
     {% if article.page_number %}
         <meta name="citation_firstpage" content="{{ article.page_number }}"/>
@@ -61,6 +63,6 @@
     {% endfor %}
     <meta name="citation_public_url" content="{{ article.url }}"/>
     {% if article.pdfs.exists %}
-    <meta name="citation_pdf_url" content="{% journal_url 'serve_article_pdf' 'id' article.id %}"/>
+    <meta name="citation_pdf_url" content="{{ article.url }}download/pdf/"/>
     {% endif %}
     {% include "elements/article_social_meta.html" %}

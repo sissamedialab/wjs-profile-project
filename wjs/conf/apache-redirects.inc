@@ -10,22 +10,40 @@ RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-res
 # To:   //jcom.sissa.it/article/pubid/JCOM_1304_2014_E
 #
 # Sub-documents / children
+# current-style - with something at the end
 RewriteCond %{REQUEST_URI} "!.*pdf$"
 RewriteCond %{REQUEST_URI} "!.*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)(?<rest>.*)$" "/article/pubid/$5$6$7" [R=301,L]
-# old style - /archive/02/04/C020401/C020402
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)/(?<rest>.*)$" "/article/pubid/$5$6/$7" [R=301,L]
 RewriteCond %{REQUEST_URI} "!.*pdf$"
 RewriteCond %{REQUEST_URI} "!.*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/([A-Z][0-9]{6})/([A-Z][0-9]{6})(?<rest>.*)$" "/article/pubid/$4$5" [R=301,L]
-# old style - /archive/09/04/Jcom0904%282010%29C01/Jcom0904%282010%29C02
-RewriteCond %{REQUEST_URI} "!.*pdf$"
-RewriteCond %{REQUEST_URI} "!.*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(Jcom[A-Z0-9()]{13})/(Jcom[A-Z0-9()]{13})(?<rest>.*)$" "/article/pubid/$4$5" [R=301,L]
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)$" "/article/pubid/$5$6/" [R=301,L]
 #
-# Normal documents
+# old style - /archive/02/04/C020401/C020402  - with something at the end
 RewriteCond %{REQUEST_URI} "!.*pdf$"
 RewriteCond %{REQUEST_URI} "!.*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[\w.()-]+)(?<rest>.*)$" "/article/pubid/$3$4" [R=301,L]
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/([A-Z][0-9]{6})/([A-Z][0-9]{6})/(?<rest>.*)$" "/article/pubid/$4/$5" [R=301,L]
+# ... and without
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/([A-Z][0-9]{6})/([A-Z][0-9]{6})$" "/article/pubid/$4/" [R=301,L]
+#
+# old style - /archive/09/04/Jcom0904%282010%29C01/Jcom0904%282010%29C02 - with something at the end
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(Jcom[A-Z0-9()]{13})/(Jcom[A-Z0-9()]{13})/(?<rest>.*)$" "/article/pubid/$4/$5" [R=301,L]
+# ... and without
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(Jcom[A-Z0-9()]{13})/(Jcom[A-Z0-9()]{13})$" "/article/pubid/$4/" [R=301,L]
+#
+# Normal documents - with something at the end
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[^/]+)/(?<rest>.*)$" "/article/pubid/$3/$4" [R=301,L]
+# Normal documents - without "/" at the end
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[^/]+)$" "/article/pubid/$3/" [R=301,L]
 # I wasn't able to use a back-reference in the rule's pattern...
 # RewriteRule "^/archive/.../(?<pubid_part>...)(?<eid_parent>...)/$3(?<eid_children>...)
 #                                                                 ^^

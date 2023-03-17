@@ -304,6 +304,7 @@ def published_article_with_standard_galleys(journal, article_factory):
                 original_filename=f"Anything.{extension}",
             )
             galley = create_galley(article, file_obj)
+            galley.type = extension  # "pdf" and "epub" are in core.models.galley_type_choices()
             galley.article = article
             galley.last_modified = timezone.now()
             galley.label = extension.upper()
