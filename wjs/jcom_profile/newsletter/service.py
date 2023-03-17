@@ -276,7 +276,10 @@ class NewsletterMailerService:
         content = render_to_string(
             "newsletters/newsletter_template.html",
             {
-                "content": email_body.value.format(journal=subscriber.journal, acceptance_url=full_acceptance_url),
+                "content": email_body.value.format(
+                    journal=subscriber.journal, email=subscriber.newsletter_destination_email,
+                    acceptance_url=full_acceptance_url
+                ),
                 **self.get_context_data(subscriber),
             },
         )
