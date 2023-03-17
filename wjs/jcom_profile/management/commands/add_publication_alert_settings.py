@@ -58,14 +58,13 @@ class Command(BaseCommand):
                 default_value="""
 Hello,
 <p>
-We have received a request to subscribe the email address leo@medialab.sissa.it to JCOM publication alert.
-To confirm your email address, activate your subscription and select your topics of interest click on the link below:
+We have received a request to subscribe the email address {email} to JCOM publication alert.
 </p>
 <p>
-<a href="{acceptance_url}">{acceptance_url}</a<
+To confirm your email address, activate your subscription and select your topics of interest click <a href="{acceptance_url}">on this link</a>.
 </p>
 <p>
-By clicking the above link you are agreeing to our <a href="https://medialab.sissa.it/en/privacy">privacy policy</a>.
+By clicking the above link you are agreeing to our <a href="https://medialab.sissa.it/en/privacy">privacy policy</a>.<br>
 You can unsubscribe at any time by using the link provided in every publication alert that you will receive.
 </p>
 <p>
