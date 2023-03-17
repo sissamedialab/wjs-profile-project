@@ -146,6 +146,14 @@
                 {% endif %}
 
                 <li>
+                    <form method="GET" action="{% url 'search' %}">
+                        <div class="input-field">
+                            <button name="submit" class="btn"><i class="fa fa-search"></i></button>
+                        </div>
+                    </form>
+                </li>
+
+                <li>
                     <ul class="social-media-links platforms inline horizontal">
                         <li class="facebook first">
                             <a href="https://www.facebook.com/jcom.sissa.it" target="_blank" title="Facebook">
