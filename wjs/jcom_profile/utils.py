@@ -4,10 +4,12 @@ import hashlib
 import os
 import re
 import shutil
+from typing import Optional
 from uuid import uuid4
 
 from core import files as core_files
 from django.conf import settings
+from submission.models import Article
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -175,3 +177,41 @@ def citation_name(author, sep=" "):
 
     abbreviated_given_names = abbreviate_first_middle(author, sep)
     return f"{author.last_name}, {abbreviated_given_names}"
+
+
+def generate_doi(article: Article) -> Optional[str]:
+    """Generate the DOI for the given article following journal-specific rules."""
+    if article.journal.code != "JCOM":
+        logger.error(f"Please implement the DOI-generation rule for {article.journal.code}")
+        return
+
+    # See specs#208 for specs on JCOM DOI
+    prefix = "10.22323"
+    system_number = "2"
+    volume = f"{article.issue.volume:02d}"
+    issue = f"{int(article.issue.issue):02d}"
+    eid = article.page_numbers
+    if len(eid) >= 3:
+        eid = re.sub("^[A-Z]", "", eid)
+    else:
+        eid = "01"
+    type_code_dict = {
+        "letter": "01",
+        "article": "02",
+        "commentary": "03",
+        "essay": "04",
+        "editorial": "05",
+        "conference review": "06",
+        "book review": "07",
+        "practice insight": "08",
+        "focus": "09",  # Warning: focus and review article have the same code!!!
+        "review article": "09",  # Probably not important: no focus for many years (as of 2023)!
+    }
+    section_name = article.section.name.lower()
+    type_code = type_code_dict.get(section_name, None)
+    if type_code is None:
+        logger.critical(f'Cannot generate DOI for {article}: unknown section "{section_name}"')
+        return
+
+    doi = f"{prefix}/{system_number}.{volume}{issue}{type_code}{eid}"
+    return doi
