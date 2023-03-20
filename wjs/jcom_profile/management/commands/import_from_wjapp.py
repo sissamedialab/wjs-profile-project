@@ -241,13 +241,13 @@ class Command(BaseCommand):
         self.set_pdf_galleys(article, xml_obj, pubid, workdir)
         self.set_supplementary_material(article, pubid, workdir)
 
-        # Generate the full-text html from the TeX sources
-        html_galley_filename = make_xhtml.make(tex_filename)
-        self.set_html_galley(article, html_galley_filename)
+        # # Generate the full-text html from the TeX sources
+        # html_galley_filename = make_xhtml.make(tex_filename)
+        # self.set_html_galley(article, html_galley_filename)
 
-        # Generate the EPUB from the TeX sources
-        epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
-        self.set_epub_galley(article, epub_galley_filename, pubid)
+        # # Generate the EPUB from the TeX sources
+        # epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
+        # self.set_epub_galley(article, epub_galley_filename, pubid)
 
         self.set_doi(article)
         publish_article(article)
