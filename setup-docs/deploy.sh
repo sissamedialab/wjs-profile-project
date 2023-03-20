@@ -30,11 +30,11 @@ UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
 
 # -- CONFIGURATION END --
 
-PIP="${VENV_BIN}/PIP"
+PIP="${VENV_BIN}/pip"
 PYTHON="${VENV_BIN}/python"
 MANAGE_DIR="${JANEWAY_ROOT}/src"
 
-$PIP install --index-url="$PIP_INDEX_URL" -U "$PACKAGE_NAME"
+$PIP install --index-url="$PIP_INDEX_URL" -U "wjs.jcom-profile"
 
 cd "$MANAGE_DIR"
 
