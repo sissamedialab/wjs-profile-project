@@ -15,19 +15,17 @@ stages:
   - deploy
 
 
+# TODO: restore ref of deploy to "master"
 include:
   - project: 'wjs/wjs-profile-project'
     ref: master
     file: '.gitlab-ci-pkg-build-and-upload.yml'
   - project: 'wjs/wjs-profile-project'
     ref: master
-    file: '.gitlab-ci-pkg-deploy-to-test.yml'
+    file: '.gitlab-ci-pkg-deploy.yml'
   - project: 'wjs/wjs-profile-project'
     ref: ${CI_COMMIT_REF_NAME}
     file: '.gitlab-ci-run-tests.yml'
-  - project: 'wjs/wjs-profile-project'
-    ref: master
-    file: '.gitlab-ci-pkg-deploy-to-pp.yml'
 
 
 run-tests:
@@ -39,6 +37,7 @@ run-tests:
   extends:
     - .run-tests
 
+
 upload-package:
   only:
     - tags
@@ -46,20 +45,29 @@ upload-package:
   extends:
     - .upload-package
 
+
 deploy-to-test:
   only:
     - tags
-
   extends:
-    - .deploy-to-test
+    - .deploy
 
   # Deploy basically means `pip install`, so the package must already
   # be in the package registry.
   needs:
     - upload-package
 
-deploy-to-pp:
+  variables:
+    # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
+    SERVER_IP: "$TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+
+
+deploy-to-production:
   extends:
-    - .deploy-to-pp
+    - .deploy
   when: manual
-  environment: pre-production
+  environment: production
+  variables:
+    SERVER_IP: "$PROD_SERVER_IP"
+    SERVER_USER: "$PROD_SERVER_USER"
