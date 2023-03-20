@@ -4,7 +4,7 @@
         <div class="text-left">
             <ul class="list-inline">
                 <li class="list-inline-item">
-                    {% blocktrans %} 
+                    {% blocktrans %}
                         Except where otherwise noted, content on this site is licensed under a Creative Commons 4.0 license
                     {% endblocktrans %}
                 </li>
@@ -31,7 +31,7 @@
                 </li>
             {% endif %}
             </ul>
-            
+
             <p>{% trans "VAT number: IT01097780322" %}</p>
         </div>
     </div>
@@ -40,13 +40,13 @@
                 {% if journal_settings.general.privacy_policy_url %}
                     <li class="list-inline-item">
                         <a href="{{ journal_settings.general.privacy_policy_url }}">
-                            {% trans "Privacy Policy" %}
+                            {% trans "Privacy" %}
                         </a>
                     </li>
                 {% else %}
                     <li class="list-inline-item">
                         <a href="{% url 'cms_page' 'privacy' %}">
-                            {% trans "Privacy Policy" %}
+                            {% trans "Privacy" %}
                         </a>
                     </li>
                 {% endif %}
@@ -55,5 +55,3 @@
             </ul>
     </div>
 </div>
-
-
