@@ -39,6 +39,15 @@ def article(article_wrapper):
 
 
 @register.filter
+def article_has_children(article):
+    """Return if article has children articles (commentary items)."""
+    try:
+        return article.genealogy.children.exists()
+    except AttributeError:
+        return False
+
+
+@register.filter
 def has_attr(obj, attr):
     """Return True is the given object has the given attribute.
 

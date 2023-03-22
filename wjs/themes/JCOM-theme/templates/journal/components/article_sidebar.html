@@ -3,35 +3,8 @@
 <aside class="card article-sidebar">
     <div class="card-content">
         {% include "common/elements/altmetric_badges.html" with article=article %}
-            {% if article.is_published and galleys %}
-                    <h4 class="article-sidebar-title">{% trans "Download" %}</h4>
-                    <ul>
-                        {% for galley in galleys %}
-                            <li>
-                                <a class="article-sidebar-download article-sidebar-download-{% if galley.file.mime_type == 'application/pdf' %}pdf{% elif galley.file.mime_type == 'application/epub+zip' %}epub{% endif %}"
-                                href="{% url 'article_download_galley' article.id galley.id %}">{% trans "Download" %} {{ galley.label }}</a>
-                                {% if galley.file.mime_type == 'application/pdf' and journal.view_pdf_button %}
-                                </li>
-                                <li>
-                                    <a  target="_blank"
-                                       href="{% url 'article_view_galley' article.id galley.id %}">{% trans "View" %} {{ galley.label }}</a>
-                                {% endif %}
-                            </li>
-                        {% endfor %}
-                    </ul>
-                    {% if article.supplementary_files.all %}
-                        <ul>
-                            {% for file in article.supplementary_files.all %}
-                                <li>
-                                    <a href="{{ file.url }}">{{ file.label }}</a>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                {% endif %}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-                {% endif %}
+        {% include "journal/components/article_downloads.html" with article=article show_spacer=True %}
+
 
                 <h4 class="article-sidebar-title">{% trans "Share" %}</h4>
                 {% with article.get_doi_url as doi_url %}
@@ -73,7 +46,7 @@
                 <div class="divider"></div>
             </div>
             {% endif %}
-            
+
             {% if article.rights %}
                 <h2 class="article-sidebar-title">{% trans "Rights" %}</h2>
                 {{ article.rights | safe }}
@@ -90,7 +63,7 @@
                     <div class="divider"></div>
                 </div>
             {% endif %}
-            
+
             {% if article.funders.all %}
                 <div class="callout primary">
                     <h2 class="article-sidebar-title">{% trans "Funding" %}</h2>
@@ -227,3 +200,6 @@
                 </div>
             </div>
         {% endif %}
+        <div class=" right-aligned right-align hide-on-large-only">
+            <a class="btn-floating waves-effect waves-light" href="#article-top"><i class="tiny material-icons">arrow_drop_up</i></a>
+        </div>

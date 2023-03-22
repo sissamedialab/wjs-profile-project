@@ -1,0 +1,33 @@
+{% load i18n %}
+{% load wjs_tags %}
+{% if article.is_published and galleys %}
+    <h4 class="article-sidebar-title">{% trans "Download" %}</h4>
+    <ul>
+        {% for galley in galleys %}
+            <li>
+                <a class="article-sidebar-download article-sidebar-download-{% if galley.file.mime_type == 'application/pdf' %}pdf{% elif galley.file.mime_type == 'application/epub+zip' %}epub{% endif %}"
+                   href="{% url 'article_download_galley' article.id galley.id %}">{% trans "Download" %} {{ galley.label }}</a>
+                {% if galley.file.mime_type == 'application/pdf' and journal.view_pdf_button %}
+                    </li>
+                    <li>
+                    <a target="_blank"
+                       href="{% url 'article_view_galley' article.id galley.id %}">{% trans "View" %} {{ galley.label }}</a>
+                {% endif %}
+                </li>
+        {% endfor %}
+    </ul>
+    {% if article.supplementary_files.all %}
+        <ul>
+            {% for file in article.supplementary_files.all %}
+                <li>
+                    <a href="{{ file.url }}">{{ file.label }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {% if show_spacer %}
+        <div class="spacer">
+            <div class="divider"></div>
+        </div>
+    {% endif %}
+{% endif %}

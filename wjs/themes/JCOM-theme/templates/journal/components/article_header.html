@@ -5,8 +5,8 @@
         <a href="{% url 'articles_by_section' article.section.pk %}">
             <span class="new badge color-section-{{ article.section.id }}">{{ article.section.name }}</span>
         </a>
-        
-        <h1 class="article-title">{{ article.title|safe }}</h1>
+
+        <h1 id="article-top" class="article-title">{{ article.title|safe }}</h1>
         {% if article|has_attr:"ancestors" and article.ancestors.exists %}
             {% with parent=article.ancestors.first.parent %}
                 <p>
@@ -19,7 +19,7 @@
             <div class="article-authors">
                 {% for author in article.frozen_authors.all %}
                 <span class="article-author">
-                    <a 
+                    <a
                        href="{% url 'articles_by_author' author.author.pk %}">{{ author.full_name }}</a>
                     {% if author.orcid %}
                         <a href="https://orcid.org/{{ author.orcid }}" class="">
