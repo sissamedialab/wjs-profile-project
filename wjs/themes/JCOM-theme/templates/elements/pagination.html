@@ -1,12 +1,13 @@
 {% load pages %}
 
+{% if page.paginator.count > 1 %}
 <ul class="pagination">
     {% if page.has_previous %}
         <li class="waves-effect"><a href="?page={{ page.previous_page_number }}">&laquo;</a></li>
         &nbsp;{% endif %}
     {{ page.page.page_range }}
-    {% for page in page|slice_pages:3 %}
-        <li class="waves-effect {% if page.number == page.number %}active{% endif %}"><a href="?page={{ page.number }}">{{ page.number }}</a>&nbsp;
+    {% for current in page|slice_pages:6 %}
+        <li class="waves-effect {% if page.number == current.number %}active{% endif %}"><a href="?page={{ current.number }}">{{ current.number }}</a>&nbsp;
         </li>
     {% endfor %}
     {% if page.has_next %}
@@ -14,3 +15,4 @@
         </li>
     {% endif %}
 </ul>
+{% endif %}

@@ -8,7 +8,7 @@
     <div class="col {% if not show_sidebar %}m12{% else %}l8{% endif %} s12">
         {% include "elements/journal/issue_block.html" %}
 
-        {% include "elements/journal/issue_paginator.html" %}
+        {% include "elements/pagination.html" with page=articles %}
     </div>
 
     {% if show_sidebar %}
