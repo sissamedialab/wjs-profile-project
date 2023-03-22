@@ -9,7 +9,7 @@
 <nav class="header-overrides" role="navigation">
     <div class="nav-wrapper{% if not request.journal.full_width_navbar %} container{% endif %}">
         <div class="row top-nav">
-            <div class="col s6 l8 left">
+            <div class="col s10 l8 left">
                 <a id="logo-container" href="{% url 'website_index' %}" class="brand-logo">
                 {% if request.journal %}
                     {% if request.journal.header_image %}
@@ -23,7 +23,7 @@
                 </a>
             </div>
 
-            <div class="s6 l4 right hide-on-med-and-down">
+            <div class="s2 l4 right hide-on-med-and-down">
                         <ul class="social-media-links platforms inline horizontal">
                             <li class="facebook first">
                                 <a href="https://www.facebook.com/jcom.sissa.it" target="_blank" title="Facebook">
@@ -50,7 +50,7 @@
 
 
 
-            <div class="col s6">
+            <div class="col s2">
                 <a href="#!" data-activates="nav-mobile" class="button-collapse"><i class="material-icons">{% trans "menu" %}</i></a>
             </div>
 
