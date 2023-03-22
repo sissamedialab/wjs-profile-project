@@ -43,6 +43,13 @@
 {% block body %}
     <article class="row">
         <div class="col s12">{% include "journal/components/article_header.html" %}</div>
+        <div class="col s12  hide-on-large-only">
+            <aside class="card">
+                <div class="card-content">
+                    {% include "journal/components/article_downloads.html" with article=article %}
+                </div>
+            </aside>
+        </div>
         {% if article_content %}
             <div class="col s12 l8">
                 {% include "journal/components/article_documents.html" %}
