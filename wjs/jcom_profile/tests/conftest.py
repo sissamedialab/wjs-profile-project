@@ -4,6 +4,9 @@ import random
 
 import pytest
 import pytest_factoryboy
+from mock import Mock
+
+from core.middleware import GlobalRequestMiddleware
 from core.models import Account, File, Role, Setting, SupplementaryFile
 from django.conf import settings
 from django.core import management
@@ -20,6 +23,7 @@ from utils import setting_handler
 from utils.install import update_issue_types
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 from utils.testing.helpers import create_galley
+from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile.factories import (
     AccountFactory,
@@ -81,6 +85,18 @@ def mock_premailer_load_url(mocker):
     """Provide a empty response for css when fetched by premailer."""
     mock = mocker.patch("premailer.premailer.Premailer._load_external_url", return_value="")
     return mock
+
+
+@pytest.fixture
+def fake_request(journal):
+    """Create a fake request suitable for rendering templates."""
+    # - cron/management/commands/send_publication_notifications.py
+    fake_request = create_fake_request(user=None, journal=journal)
+    # Workaround for possible override in DEBUG mode
+    # (please read utils.template_override_middleware:60)
+    fake_request.GET.get = Mock(return_value=False)
+    GlobalRequestMiddleware.process_request(fake_request)
+    return fake_request
 
 
 @pytest.fixture

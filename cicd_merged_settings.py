@@ -13,6 +13,9 @@ from .cicd_settings import INSTALLED_APPS as CUSTOM_APPS
 from .cicd_settings import MIDDLEWARE_CLASSES as CUSTOM_MIDDLEWARE
 
 INSTALLED_APPS.extend(CUSTOM_APPS)
+INSTALLED_APPS.extend(
+    ["wjs.plugins.wjs_subscribe_newsletter", "wjs.plugins.wjs_latest_news", "wjs.plugins.wjs_latest_articles"]
+)
 # MIDDLEWARE_CLASSES is a tuple, not a list
 MIDDLEWARE_CLASSES = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE
 

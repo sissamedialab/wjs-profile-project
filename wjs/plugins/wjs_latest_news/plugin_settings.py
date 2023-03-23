@@ -1,4 +1,7 @@
 from pathlib import Path
+from django.apps import apps
+from django.db.models import Q
+from django.utils.timezone import now
 
 from comms.models import NewsItem
 from core.models import HomepageElement
@@ -27,22 +30,26 @@ class WJSLatestArticles(plugins.Plugin):
     is_workflow_plugin = False
     manager_url = MANAGER_URL
 
+    @staticmethod
+    def create_home_page_elements():
+        journal = Journal.objects.first()
+        content_type = ContentType.objects.get_for_model(journal)
+        return HomepageElement.objects.get_or_create(
+            name=PLUGIN_NAME,
+            defaults=dict(
+                template_path="homepage_elements/wjs_news_list.html",
+                content_type=content_type,
+                object_id=journal.pk,
+                has_config=True,
+                configure_url=MANAGER_URL,
+            ),
+        )[0]
+
 
 def install():
     """Register the plugin instance and create the corresponding HomepageElement."""
     WJSLatestArticles.install()
-    journal = Journal.objects.first()
-    content_type = ContentType.objects.get_for_model(journal)
-    HomepageElement.objects.get_or_create(
-        name=PLUGIN_NAME,
-        defaults=dict(
-            template_path="homepage_elements/wjs_news_list.html",
-            content_type=content_type,
-            object_id=journal.pk,
-            has_config=True,
-            configure_url=MANAGER_URL,
-        ),
-    )
+    WJSLatestArticles.create_home_page_elements()
 
 
 def hook_registry():
@@ -62,10 +69,35 @@ def hook_registry():
 
 
 def get_plugin_context(request, homepage_elements):
-    from .models import PluginConfig
+    # using apps.get_model because if we import the model directly its path won't match the one at runtime because
+    # the plugins are imported from plugins package by janeway
+    PluginConfig = apps.get_model("wjs_latest_news.PluginConfig")
 
-    element = PluginConfig.objects.filter(journal=request.journal).first()
+    # Janeway provides the list of all the home page elements, which is rather weird
+    # we only need the first one as we only take the generic foreign key objects, which is the same for all
+    # home page elements
+    try:
+        base_element = homepage_elements[0]
+        journal = base_element.object
+        content_type = base_element.content_type
+    except IndexError:
+        journal = None
+        content_type = None
+
+    configuration = PluginConfig.objects.filter(journal=journal).first()
+
+    # filter news by
+    # - start display in the past
+    # - no end display or end display in the future
+    news_filter = Q(Q(start_display__lte=now()) & (Q(end_display__gte=now()) | Q(end_display__isnull=True)))
+
+    # - current journal if defined
+    if content_type and journal.pk:
+        news_filter &= Q(content_type=content_type) & Q(object_id=journal.pk)
+
+    news = NewsItem.objects.filter(news_filter).order_by("sequence", "-start_display")
+
     return {
-        f"{SHORT_NAME}_list": NewsItem.objects.order_by("-start_display")[: element.count if element else 10],
-        f"{SHORT_NAME}_title": element.title if element else "News",
+        f"{SHORT_NAME}_list": news[: configuration.count if configuration else 10],
+        f"{SHORT_NAME}_title": configuration.title if configuration else "News",
     }
