@@ -59,23 +59,50 @@ HISTORY_EXPECTED_DATE = timezone.datetime(2015, 9, 29, tzinfo=rome_timezone)
 # (and all articles in the next-to-last issue have been published 2009-09-19)
 LICENCE_CCBY_FROM_DATE = timezone.datetime(2008, 9, 20, tzinfo=rome_timezone)
 
-# Default order of sections in any issue.
-# It is not possible to mix different types (e.g. A1 E1 A2...)
-SECTION_ORDER = {
-    "Editorial": (1, "Editorials"),
-    "Article": (2, "Articles"),
-    "Review Article": (3, "Review Articles"),
-    "Practice insight": (4, "Practice insights"),
-    "Essay": (5, "Essays"),
-    "Focus": (6, "Focus"),
-    "Commentary": (7, "Commentaries"),
-    "Letter": (8, "Letters"),
-    "Book Review": (9, "Book Reviews"),
-    "Conference Review": (10, "Conference Reviews"),
-}
-
 # Non-peer reviewd sections (#200)
 NON_PEER_REVIEWED = ("Editorial", "Commentary")
+
+JOURNALS_DATA = {
+    "JCOM": {
+        "inception_year": 2001,
+        "correspondence_source": "jcom",
+        "wjapp_url": "https://jcom.sissa.it/jcom/services/jsonpublished",
+        "wjapp_api_key": "WJAPP_JCOM_APIKEY",
+        # Default order of sections in any issue.
+        # It is not possible to mix different types (e.g. A1 E1 A2...)
+        "section_order": {
+            "Editorial": (1, "Editorials"),
+            "Article": (2, "Articles"),
+            "Review Article": (3, "Review Articles"),
+            "Practice insight": (4, "Practice insights"),
+            "Essay": (5, "Essays"),
+            "Focus": (6, "Focus"),
+            "Commentary": (7, "Commentaries"),
+            "Letter": (8, "Letters"),
+            "Book Review": (9, "Book Reviews"),
+            "Conference Review": (10, "Conference Reviews"),
+        },
+        "expected_languages": ("und",),
+    },
+    "JCOMAL": {
+        "inception_year": 2017,
+        "correspondence_source": "jcomal",
+        "wjapp_url": "https://jcomal.sissa.it/jcomal/services/jsonpublished",
+        "wjapp_api_key": "WJAPP_JCOMAL_APIKEY",
+        "section_order": {
+            "Editorial": (1, "Editorials"),
+            "Article": (2, "Articles"),
+            "Review Article": (3, "Review Articles"),
+            "Practice Insight": (4, "Practice Insights"),
+            "Essay": (5, "Essays"),
+            "Focus": (6, "Focus"),
+            "Commentary": (7, "Commentaries"),
+            "Letter": (8, "Letters"),
+            "Review": (9, "Reviews"),
+        },
+        "expected_languages": ("es", "pt-br"),
+    },
+}
 
 
 class Command(BaseCommand):
@@ -216,6 +243,12 @@ class Command(BaseCommand):
     def process(self, raw_data):
         """Process an article's raw json data."""
         logger.debug("Processing %s (nid=%s)", raw_data["field_id"], raw_data["nid"])
+        self.journal_data = JOURNALS_DATA[self.options["journal_code"]]
+        self.nid = int(raw_data["nid"])
+        # Ugly hack in order not to overlap with JCOM imported papers.
+        # Also, do I really need to keep the Drupal node id?
+        if self.options["journal_code"] == "JCOMAL":
+            self.nid += 10000
         if article_pk := Command.seen_articles.get(raw_data["field_id"], None):
             logger.debug("  %s - already imported. Just retrieving from DB (%s).", raw_data["field_id"], article_pk)
             article = submission_models.Article.objects.get(pk=article_pk)
@@ -262,9 +295,9 @@ class Command(BaseCommand):
                 is_import=True,
             )
             article.save()
-            article.articlewrapper.nid = int(raw_data["nid"])
+            article.articlewrapper.nid = self.nid
             article.articlewrapper.save()
-        assert article.articlewrapper.nid == int(raw_data["nid"])
+        assert article.articlewrapper.nid == self.nid
         eid = from_pubid_to_eid(raw_data["field_id"])
         article.page_numbers = eid
         article.save()
@@ -296,7 +329,7 @@ class Command(BaseCommand):
             enabled=True,
         )
         # Drupal's node id "nid"
-        nid = raw_data["nid"]
+        nid = self.nid
         identifiers_models.Identifier.objects.get_or_create(
             identifier=nid,
             article=article,
@@ -477,12 +510,11 @@ class Command(BaseCommand):
 
     def set_abstract(self, article, raw_data):
         """Set the abstract."""
-        expected_language = "und"
-        if raw_data["language"] != expected_language:
+        if raw_data["language"] not in self.journal_data["expected_languages"]:
             logger.error(
                 "Abstract's language is %s (different from expected %s).",
                 raw_data["language"],
-                expected_language,
+                " ".join(self.journal_data["expected_languages"]),
             )
 
         abstract_dict = raw_data["field_abstract"]
@@ -534,7 +566,7 @@ class Command(BaseCommand):
 
         name = "body.html"
         label = "HTML"
-        body_bytes = process_body(body)
+        body_bytes = process_body(body, lang=article.language)
         body_as_file = File(BytesIO(body_bytes), name)
         new_galley = save_galley(
             article,
@@ -611,8 +643,8 @@ class Command(BaseCommand):
                 journal=article.journal,
                 name=section_name,
                 defaults={
-                    "sequence": SECTION_ORDER[section_name][0],
-                    "plural": SECTION_ORDER[section_name][1],
+                    "sequence": self.journal_data["section_order"][section_name][0],
+                    "plural": self.journal_data["section_order"][section_name][1],
                 },
             )
             Command.seen_sections[section_uri] = section.pk
@@ -627,7 +659,7 @@ class Command(BaseCommand):
         #
         # Drupal has a `section_data["weight"]`, but we decided to
         # go with a default ordereing, which seems more "orderly".
-        section_order = SECTION_ORDER[section.name][0]
+        section_order = self.journal_data["section_order"][section.name][0]
         journal_models.SectionOrdering.objects.get_or_create(
             issue=issue,
             section=section,
@@ -652,7 +684,12 @@ class Command(BaseCommand):
         # in Drupal, volume is a dedicated document type, but in
         # Janeway it is only a number
         # Sanity check (apparently Drupal exposes volume uri in both article and issue json):
-        assert raw_data["field_volume"]["uri"] == issue_data["field_volume"]["uri"]
+        if raw_data["field_volume"]["uri"] != issue_data["field_volume"]["uri"]:
+            logger.critical(
+                f'Volume uri in document {raw_data["field_volume"]["uri"]}'
+                f' and in issue {issue_data["field_volume"]["uri"]} differ!',
+            )
+            raise Exception
         volume_data = self.fetch_data_dict(issue_data["field_volume"]["uri"])
 
         volume_num = int(volume_data["field_id"])
@@ -661,8 +698,12 @@ class Command(BaseCommand):
         # to double check data's sanity. The volume's title always has the form
         # "Volume 01, 2002"
         volume_title = volume_data["title"]
-        year = 2001 + volume_num
-        assert volume_title == f"Volume {volume_num:02}, {year}"
+        inception_year = self.journal_data["inception_year"]
+        year = inception_year + volume_num
+        expected_title = f"Volume {volume_num:02}, {year}"
+        if volume_title != expected_title:
+            logger.critical(f"Unexpected volume title {volume_title} != {expected_title}!")
+            raise Exception
 
         # Force the issue num to "3" for issue "3-4"
         # article in that issue have publication ID in the form
@@ -771,18 +812,31 @@ class Command(BaseCommand):
                         logger.warning("Missing email for author %s on %s.", author_dict["field_id"], raw_data["nid"])
                 # yeah... one was not stripped... 😢
                 email = email.strip()
-                author, _ = core_models.Account.objects.get_or_create(
+                author, created = core_models.Account.objects.get_or_create(
                     email=email,
-                    first_name=author_dict["field_name"],  # TODO: this contains first+middle; split!
-                    last_name=author_dict["field_surname"],
+                    defaults={
+                        "first_name": author_dict["field_name"],
+                        "last_name": author_dict["field_surname"],
+                    },
                 )
+                if not created:
+                    if author.first_name != author_dict["field_name"]:
+                        logger.error(
+                            f'Different first name {author_dict["field_name"]}'
+                            f" for {author.email} ({author.first_name})",
+                        )
+                    if author.last_name != author_dict["field_surname"]:
+                        logger.error(
+                            f'Different last name {author_dict["field_surname"]}'
+                            f" for {author.email} ({author.last_name})",
+                        )
+
                 Command.seen_authors[author_uri] = author.pk
                 author.add_account_role("author", article.journal)
 
                 # Store away wjapp's userCod
                 if author_dict["field_id"]:
-                    source = "jcom"
-                    assert article.journal.code == "JCOM"
+                    source = self.journal_data["correspondence_source"]
                     try:
                         usercod = int(author_dict["field_id"])
                     except ValueError:
@@ -829,7 +883,7 @@ class Command(BaseCommand):
             if corresponding_author_usercod is None:
                 logger.warning("Cannot find corresponding author for %s from wjapp", raw_data["field_id"])
             else:
-                source = "jcom"
+                source = self.journal_data["correspondence_source"]
                 mapping = wjs_models.Correspondence.objects.get(user_cod=corresponding_author_usercod, source=source)
                 main_author = mapping.account
                 set_author_country(main_author, self.wjapp)
@@ -857,9 +911,16 @@ class Command(BaseCommand):
 
         Append .json to the uri, do a GET and return the result as a dictionary.
         """
+        lang_code = "es"
+        uri_nolang = uri.replace(f"/{lang_code}/", "/")
+        if uri_nolang != uri:
+            # Too much noise: logger.debug(f"Removed lang code {lang_code} from {uri}")
+            uri = uri_nolang
         uri += ".json"
         response = requests.get(uri, auth=self.basic_auth)
-        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.status_code != 200:
+            logger.critical(f"Got {response.status_code} for {uri}!")
+            raise FileNotFoundError()
         return response.json()
 
     # Adapted from plugins/imports/logic.py
@@ -911,7 +972,11 @@ class Command(BaseCommand):
         else:
             if rome_timezone.localize(datetime.fromtimestamp(int(timestamp))) < HISTORY_EXPECTED_DATE:
                 return {}
-        return query_wjapp_by_pubid(raw_data["field_id"])
+        return query_wjapp_by_pubid(
+            raw_data["field_id"],
+            url=self.journal_data["wjapp_url"],
+            api_key=self.journal_data["wjapp_api_key"],
+        )
 
     def prepare(self):
         """Run una-tantum operations before starting any import."""
@@ -935,8 +1000,12 @@ class Command(BaseCommand):
             journal=self.license_ccbyncnd.journal,
         )
 
+        self.correct_existing_users_metadata()
+
     def tidy_up(self):
         """Run una-tantum operations at the end of the import process."""
+        if self.options["journal_code"] == "JCOMAL":
+            translate_kwds()
 
     def set_children(self, article, raw_data):
         """Process children if present (mainly for commentaries)."""
@@ -952,3 +1021,145 @@ class Command(BaseCommand):
             logger.debug("  %s - retrieving child %s", raw_data["field_id"], child_raw_data["field_id"])
             child_article = self.process(child_raw_data)
             genealogy.children.add(child_article)
+
+    def correct_existing_users_metadata(self):
+        """Correct metadata of some known users."""
+        # country Mexico for author especializacion@dgdc.unam.mx (Spain).
+        # Set in wjapp (mg 2023-03-24)
+
+        # first name Carlos for chfioravanti@gmail.com (Carlos Henrique)
+        # Set in Drupal (mg 2023-03-23)
+
+        # first name Luiz Felipe for luiz.felipe@ufg.br (Luiz Felipe Fernandes)
+        a = core_models.Account.objects.get(email="luiz.felipe@ufg.br")
+        a.first_name = "Luiz Felipe"
+        a.last_name = "Fernandes Neves"
+        a.save()
+
+        # last name Crúz-Mena for cruzmena@dgdc.unam.mx (Cruz-Mena)
+        a = core_models.Account.objects.get(email="cruzmena@dgdc.unam.mx")
+        a.last_name = "Crúz-Mena"
+        a.save()
+
+        # last name de Régules for sergioderegules@gmail.com (de Regules)
+        a = core_models.Account.objects.get(email="sergioderegules@gmail.com")
+        a.last_name = "de Régules"
+        a.save()
+
+        # last name Fernandes Neves for luiz.felipe@ufg.br (Neves)
+        a = core_models.Account.objects.get(email="luiz.felipe@ufg.br")
+        a.last_name = "Fernandes Neves"
+        a.save()
+
+        # last name Herrera Lima for shl@iteso.mx (Herrera-Lima)
+        a = core_models.Account.objects.get(email="shl@iteso.mx")
+        a.last_name = "Herrera Lima"
+        a.save()
+
+        # last name Reynoso Haynes for elareyno@dgdc.unam.mx (Reynoso-Haynes)
+        a = core_models.Account.objects.get(email="elareyno@dgdc.unam.mx")
+        a.last_name = "Reynoso Haynes"
+        a.save()
+
+        # last name Sánchez Mora for masanche@dgdc.unam.mx (Sánchez-Mora)
+        a = core_models.Account.objects.get(email="masanche@dgdc.unam.mx")
+        a.last_name = "Sánchez Mora"
+        a.save()
+
+
+def translate_kwds():
+    """Translate JCOMAL kwds."""
+    # Adapted from https://jcomal.sissa.it/jcomal/help/keywordsList.jsp
+    keyword_list = (
+        ("Citizen science", "Ciência cidadã", "Ciencia ciudadana"),
+        ("Community action", "Ação comunitária", "Acción comunitaria"),
+        ("Environmental communication", "Comunicação ambiental", "Comunicación ambiental"),
+        ("Health communication", "Comunicação de saúde", "Comunicación en salud"),
+        (
+            "History of public communication of science",
+            "História da comunicação pública da ciência",
+            "Historia de la comunicación pública de la ciencia",
+        ),
+        (
+            "History of science communication",
+            "História da divulgação científica ",
+            "Historia de la divulgación de la ciencia",
+        ),
+        ("Informal learning", "Aprendizagem informal", "Aprendizaje informal"),
+        ("Outreach", "Extensão universitária", "Extensión universitaria"),
+        (
+            "Participation and science governance",
+            "Participação e governança científica",
+            "Participación y gobernanza de la ciencia",
+        ),
+        (
+            "Popularization of science and technology",
+            "Popularização da ciência e da tecnologia",
+            "Popularización de la ciencia y la tecnología",
+        ),
+        (
+            "Professionalism, professional development and training in science communication",
+            "Profissionalismo, desenvolvimento profissional e formação em divulgação científica",
+            "Profesionalidad, desarrollo profesional y formación en divulgación científica",
+        ),
+        (
+            "Public engagement with science and technology",
+            "Engajamento público com a ciência e a tecnologia",
+            "Compromiso público con la ciencia y la tecnología",
+        ),
+        (
+            "Public perception of science and technology",
+            "Percepção pública de ciência e tecnologia",
+            "Percepción pública de la ciencia y la tecnología",
+        ),
+        (
+            "Public understanding of science and technology",
+            "Entendimento público de ciência e tecnologia",
+            "Comprensión pública de la ciencia y la tecnología",
+        ),
+        (
+            "Representations of science and technology",
+            "Representações da ciência e da tecnologia",
+            "Representaciones de la ciencia y la tecnología",
+        ),
+        ("Risk communication", "Comunicação de risco", "Comunicación de riesgos"),
+        ("Scholarly communication", "Comunicação acadêmica", "Comunicación académica"),
+        ("Science and media", "Ciência e mídia", "Ciencia y medios"),
+        ("Science and policy-making", "Ciência e formulação de políticas", "Ciencia y formulación de políticas"),
+        ("Science and Society", "Ciência e Sociedade ", "Ciencia y Sociedad"),
+        (
+            "Science and technology, art and literature",
+            "Ciência e tecnologia, arte e literatura",
+            "Ciencia y tecnología, arte y literatura",
+        ),
+        ("Science centres and museums", "Centros e museus de ciência", "Centros y museos de ciencia"),
+        (
+            "Science communication in the developing world",
+            "Divulgação científica nos países em desenvolvimento",
+            "Divulgación de la ciencia en los países en desarrollo",
+        ),
+        (
+            "Science communication: theory and models",
+            "Divulgação científica: teoria e modelos",
+            "Comunicación científica: teoría y modelos",
+        ),
+        ("Science education", "Educação científica", "Enseñanza científica"),
+        ("Science journalism", "Jornalismo científico", "Periodismo científico"),
+        ("Science writing", "Redação científica", "Escritura científica"),
+        ("Social appropriation of science", "Apropriação social da ciência", "Apropriación social de la ciencia"),
+        ("Social inclusion", "Inclusão social", "Inclusión social"),
+        (
+            "Social studies of science and technology",
+            "Estudos sociais da ciência e da tecnologia",
+            "Estudios sociales de la ciencia y la tecnología",
+        ),
+        ("Visual communication", "Comunicação visual", "Comunicación visual"),
+        ("Women in science", "Mulheres na ciência", "La mujer en la ciencia"),
+    )
+    for eng_word, por_word, spa_word in keyword_list:
+        try:
+            keyword = submission_models.Keyword.objects.get(word=eng_word)
+        except submission_models.Keyword.DoesNotExist:
+            logger.error(f'Kwd "{eng_word}" does not exist. Please check!')
+            continue
+        logger.warning(f"Please translate {keyword} to {por_word} and {spa_word}")
