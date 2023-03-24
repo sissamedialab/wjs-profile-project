@@ -51,6 +51,7 @@ class NewsletterMailerService:
             content,
             base_url=self.site_url(journal),
             allow_network=True,
+            allow_insecure_ssl=getattr(settings, "NEWSLETTER_URL_INSECURE", False),
         )
         return processed
 
