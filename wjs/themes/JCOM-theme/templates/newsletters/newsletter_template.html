@@ -2,48 +2,42 @@
 {% load static %}
 {% load svg_or_image from press_url %}
 <!DOCTYPE html>
-
-<html>
-  <head>
+{# djlint:off #}<html>{# djlint:on #}
+<head>
     <meta name="viewport" content="width=device-width" />
     <meta http-equiv="Content-type" content="text/html" charset="UTF-8" />
     <title>Publication Alert - {{ journal.name }}</title>
-    <link rel="stylesheet" href="{{ site_url }}{% static "JCOM-theme/css/newsletter.css" %}">
-
-  </head>
-
-  <body>
+    <link rel="stylesheet"
+          href="{{ site_url }}{% static 'JCOM-theme/css/newsletter.css' %}"/>
+</head>
+<body>
     <table width="100%">
-      <tr>
-        <td align="left">
-            {% svg_or_image journal.default_cover_image %}
-        </td>
-        <td align="right">
-            {% svg_or_image journal.press_image_override %}
-        </td>
+        <tr>
+            <td align="left">{% svg_or_image journal.default_cover_image %}</td>
+            <td align="right">{% svg_or_image journal.press_image_override %}</td>
         </tr>
     </table>
-
     <div class="container">
-        {% block content %}{{ content|safe }}{% endblock content %}
+        {% block content %}
+            {{ content|safe }}
+        {% endblock content %}
     </div>
-
     <table class="unsubscribe">
         <tr>
             <td>
-            <p>
-                {% blocktrans with unsubscribe_url=unsubscribe_url privacy_url=privacy_url %}
+                <p>
+                    {% blocktrans with unsubscribe_url=unsubscribe_url privacy_url=privacy_url %}
                 You have received this email because you have subscribed to JCOM
-                publication alert.<br>
-                <span><a href="{{ unsubscribe_url }}">Click here to modify your topics of interest.</a></span>
+                publication alert<br>
+                <span><a href="{{ unsubscribe_url }}">Click here to modify your topics of interest</a></span>
                 <span>|</span>
-                <span><a href="{{ unsubscribe_url }}">Click here to unsubscribe</a></span>.<br>
+                <span><a href="{{ unsubscribe_url }}">Click here to unsubscribe</a></span><br>
                 See our <a href="{{ privacy_url }}">privacy policy</a> for information on
                 how we use your personal data or contact us for general information
                 {% endblocktrans %}
-            </p>
+                </p>
             </td>
         </tr>
     </table>
-  </body>
+</body>
 </html>
