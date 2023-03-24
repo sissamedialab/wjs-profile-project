@@ -382,7 +382,7 @@ SETTINGS = {
 </script>
 <!-- End Matomo Code -->
 """,
-        )
+        ),
         #
         # News Title - Title for the News Page and Homepage block
         ("news", "news_title", "News"),
@@ -641,7 +641,7 @@ SETTINGS = {
 </script>
 <!-- End Matomo Code -->
 """,
-        )
+        ),
         #
         # News Title - Title for the News Page and Homepage block
         ("news", "news_title", "News"),
