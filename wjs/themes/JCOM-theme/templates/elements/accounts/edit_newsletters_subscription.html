@@ -2,48 +2,45 @@
 {% load static from staticfiles %}
 {% load materialize %}
 {% load i18n %}
-
 {% block body %}
-<div class="row">
-    <div class="col s12">
-        <h2 class="main-title">{% trans "Publication alert" %}</h2>
-        <div class="card-panel">
-            {% if request.GET.update %}
-                <p class="center jcom-blue-text">{% trans "Thank you for setting your preferences." %}</p>
-            {% endif %}
-            <form method="post" class="newsletter-form">
-                {% csrf_token %}
-                {% if active %}
-                    <p>{% trans "Your subscription to JCOM publication alert is active." %}</p>
-                {% else %}
-                    <p>{% trans "Activate your subscription to JCOM publication alert." %}</p>
+    <div class="row">
+        <div class="col s12">
+            <h2 class="main-title">{% trans "Publication alert" %}</h2>
+            <div class="card-panel">
+                {% if request.GET.update %}
+                    <p class="center jcom-blue-text">{% trans "Thank you for setting your preferences" %}</p>
                 {% endif %}
-                <p>{% trans "If you wish to receive incoming alerts, please choose your topics of interest by clicking the box below. After clicking “Save Preferences”, you will be notified about newly published manuscripts that match your selection." %}</p>
-                {% materialize_form form %}
-                {% if active %}
-                    <button class="btn" type="submit"><i
-                            class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
-                    </button>
-                    <a href="#modal1" class="btn modal-trigger"><i
-                            class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
-                    </a>
-                {% else %}
-                    <button class="btn" type="submit"><i
-                            class="fa fa-check">&nbsp;</i>{% trans "Activate" %}
-                    </button>
-                {% endif %}
-            </form>
-            {% include "elements/accounts/unsubscribe_confirmation_modal.html" %}
+                <form method="post" class="newsletter-form">
+                    {% csrf_token %}
+                    {% if active %}
+                        <p>{% trans "Your subscription to JCOM publication alert is active." %}</p>
+                    {% else %}
+                        <p>
+                            {% trans "Click the box to select your topics of interest and activate your subscription to be notified about newly published manuscripts that match your selection." %}
+                        </p>
+                    {% endif %}
+                    {% materialize_form form %}
+                    {% if active %}
+                        <button class="btn" type="submit">
+                            <i class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
+                        </button>
+                        <a href="#modal1" class="btn modal-trigger"><i class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
+                        </a>
+                    {% else %}
+                        <button class="btn" type="submit">
+                            <i class="fa fa-check">&nbsp;</i>{% trans "Activate" %}
+                        </button>
+                    {% endif %}
+                </form>
+                {% include "elements/accounts/unsubscribe_confirmation_modal.html" %}
+            </div>
         </div>
     </div>
-</div>
 {% endblock body %}
-
 {% block css %}
     {{ block.super }}
     {{ form.media.css }}
 {% endblock css %}
-
 {% block js %}
     {{ block.super }}
     {{ form.media.js }}
@@ -53,6 +50,5 @@
         });
     </script>
 {% endblock js %}
-
 {% block footer %}
 {% endblock footer %}

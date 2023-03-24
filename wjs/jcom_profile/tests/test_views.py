@@ -447,7 +447,7 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
     topics = user_recipient.topics.all()
     for topic in topics:
         assert topic.word in [k[1] for k in keywords]
-    assert "Thank you for setting your preferences." in response.content.decode()
+    assert "Thank you for setting your preferences" in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -466,7 +466,6 @@ def test_registered_user_newsletter_unsubscription(jcom_user, journal):
 
     assert not user_recipient.topics.all()
     assert not user_recipient.news
-
 
 
 @pytest.mark.django_db
