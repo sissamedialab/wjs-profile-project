@@ -21,247 +21,8 @@ class Command(BaseCommand):
 
     def set_journal_settings(self):
         """Take care of the journal settings."""
-        jcom_settings = [
-            #
-            # Collection Name - Overrides the term "Collections" across all the templates.
-            ("general", "collection_name", "Special Issue"),
-            #
-            # Collection Name Plural - Overrides the term
-            # "Collections" across all the templates.
-            ("general", "collection_name_plural", "Special Issues"),
-            #
-            # Copyright Notice - Displayed on the About and Submission
-            # pages. You should update this to display the Journal's
-            # copyright requirements.
-            ("general", "copyright_notice", COPYRIGHT_NOTICE),
-            #
-            # Crossref Date Suffix - For migrated content where we
-            # need to tweak the crossref date.
-            ("crossref", "crossref_date_suffix", ""),
-            #
-            # Crossref depositor email - The email of the depositor
-            # for this journal on Crossref's system.
-            ("Identifiers", "crossref_email", "sysadmin@medialab.sissa.it"),
-            #
-            # Crossref depositor name - The name of the depositor for
-            # this journal on Crossref's system.
-            ("Identifiers", "crossref_name", "Sissa Medialab"),
-            #
-            # Crossref password - The password to log in to Crossref's deposit API.
-            ("Identifiers", "crossref_password", "PLEASE SET MANUALLY!"),
-            #
-            # Crossref prefix - The prefix for this journal on Crossref's system.
-            ("Identifiers", "crossref_prefix", "10.22323"),
-            #
-            # Crossref registrant name - The name of the registrant
-            # for this journal on Crossref's system.
-            ("Identifiers", "crossref_registrant", "Sissa Medialab"),
-            #
-            # Use Crossref test deposit server - Whether or not to use
-            # Crossref's test server.
-            ("Identifiers", "crossref_test", ""),
-            #
-            # Crossref username - The username to log in to Crossref's deposit API.
-            ("Identifiers", "crossref_username", "sissa"),
-            #
-            # Default Journal Language - The default language for the journal.
-            ("general", "default_journal_language", "en"),
-            #
-            # Disable article large image - If checked, the article
-            # large image will not be displayed on the article page
-            ("article", "disable_article_large_image", "on"),
-            #
-            # Disable article thumbnails - If checked, no article
-            # thumbnails will be rendered on public article lists
-            ("article", "disable_article_thumbnails", "on"),
-            #
-            # Disable Submission - If true, users cannot submit new articles.
-            ("general", "disable_journal_submission", "on"),
-            #
-            # Disabled Submission Message - A message that is
-            # displayed when Disable Submission is on.
-            # TBV: ("general", "disable_journal_submission_message", VALUE),
-            #
-            # Display Altmetric Badges - If enabled altmetric badges
-            # will be displayed in the sidebar.
-            ("article", "display_altmetric_badge", ""),
-            #
-            # DOI display prefix - Text to prepend to DOIs. Also used to generate URLs.
-            ("Identifiers", "doi_display_prefix", "https://doi.org/"),
-            #
-            # DOI display suffix - Text to append to DOIs. Also used to generate URLs.
-            ("Identifiers", "doi_display_suffix", ""),
-            #
-            # Article DOI Pattern - You can set your DOI pattern. The
-            # default is ``{{ article.journal.code }}.{{ article.pk
-            # }}``
-            ("Identifiers", "doi_pattern", "2.WRITEME"),  # e.g. 2.22010703
-            #
-            # Embargo Period (KBART) - Optional period of embargo this
-            # journal is subject to. It must follow the kbart format
-            # such as 'R2Y' or 'P1Y'
-            ("kbart", "embargo_period", ""),
-            #
-            # Enable Crosscheck - If enabled, links to crosscheck reports will be displayed
-            ("crosscheck", "enable", ""),
-            #
-            # Enable Editorial Team Display - If checked, editorial team link will display in Navigation
-            ("general", "enable_editorial_display", ""),
-            #
-            # Enable Editorial Team Image Display - If checked, Editorial Team images will display.
-            ("styling", "enable_editorial_images", ""),
-            #
-            # Focus and Scope - Journal's Focus and Scope, displayed on the Submissions page.
-            ("general", "focus_and_scope", FOCUS_AND_SCOPE),
-            #
-            # From Address - System emails are sent From this address.
-            ("general", "from_address", "jcom-eo@jcom.sissa.it"),
-            #
-            # Hide Author Email Links - If enabled the article page
-            # will not display links to email correspondence authors.
-            ("article", "hide_author_email_links", ""),
-            #
-            # Journal Uses HTTPS - Used for URL generation.
-            ("general", "is_secure", "on"),
-            # WARNING: there is also a journal attribute!!!
-            #
-            # Journal Base Theme - When using a custom theme you can
-            # set the base theme, when a template from a custom theme
-            # is missing templates from the base theme will be used as
-            # a backup.
-            ("general", "journal_base_theme", "material"),
-            #
-            # Journal Description - Localised description of the journal.
-            (
-                "general",
-                "journal_description",
-                "The Journal of Science Communication (JCOM) is a diamond open access,"
-                " peer reviewed journal focused on science communication."
-                " The Journal covers a broad range of issues pertinent to science communication"
-                " and public engagement with STEM, including citizen science"
-                " as well as environmental and health communication,"
-                " where these relate to communication of research. ",
-            ),
-            #
-            # Journal ISSN - The ISSN of the journal.
-            ("general", "journal_issn", "1824-2049"),
-            #
-            # TODO: broken in 1.4, fixed in 1.5 - see thread on Discord
-            # Journal Languages - Languages available for this journal.
-            # Just ignore for now: ("general", "journal_languages", ["en"]),
-            #
-            # Journal Name - Name of the journal.
-            ("general", "journal_name", "Journal of Science Communication"),
-            #
-            # Journal Theme - The HTML theme set to use for the journal.
-            ("general", "journal_theme", "JCOM-theme"),
-            #
-            # Enable the Keyword list page - Lists all of the keywords
-            # used by a journal and for each keyword a list of
-            # articles that use it.
-            ("general", "keyword_list_page", "on"),
-            #
-            # Main Contact - Primary contact for the journal.
-            # ("general", "main_contact", default is ok!),
-            #
-            # Matomo Tracking Code - Tracking code for Matomo.
-            ("general", "matromo_tracking_code", "WRITEME! #120"),
-            #
-            # News Title - Title for the News Page and Homepage block
-            ("news", "news_title", "News"),
-            #
-            # Number of Articles - Number of news articles to display on the homepage.
-            ("plugin:News", "number_of_articles", "11"),
-            #
-            # Number of Most Popular Articles to Display - Determines
-            # how many popular articles we should display.
-            ("plugin:Popular Articles", "num_most_popular", "10"),
-            #
-            # Print ISSN - The ISSN of the printed version of the journal.
-            ("general", "print_issn", ""),
-            #
-            # External Privacy Policy URL - URL to an external
-            # privacy-policy, linked from the footer. If blank, it
-            # links to the Janeway CMS page: /site/privacy.
-            ("general", "privacy_policy_url", "https://medialab.sissa.it/en/privacy"),
-            #
-            # Publication Fees - Display of feeds for this
-            # journal. Displayed on the About and the Submission
-            # pages.
-            # TBV: ("general", "publication_fees", VALUE),
-            #
-            # Publisher Name - Name of the Journal's
-            # Publisher. Displayed throughout the site and metadata.
-            ("general", "publisher_name", "Sissa Medialab srl"),
-            #
-            # Publisher URL - URL of the Journal's Publisher.
-            ("general", "publisher_url", "https://medialab.sissa.it/en/"),
-            #
-            # Reader Publication Notification - Email sent readers
-            # when new articles are published.
-            # Not used: ("email", "reader_publication_notification", VALUE),
-            # Don't confuse with `subscribe_custom_email_message`
-            #
-            # Auto-register issue-level DOIs - Automatically register
-            # issue DOIs on article publication, based on the issue
-            # DOI pattern
-            ("Identifiers", "register_issue_dois", ""),
-            #
-            # Reply-To Address - Address set as the 'Reply-to' for system emails.
-            ("general", "replyto_address", ""),
-            #
-            # Send Reader Notifications - If enabled Janeway will
-            # notify readers of new published articles.
-            # Not used: ("notifications", "send_reader_notifications", VALUE),
-            # Don't confuse with `subscribe_custom_email_message` (no enable/disable flag)
-            #
-            # Subject Reader Publication Notification - Subject for
-            # Submission Access Request Complete.
-            # Not used: ("email_subject", "subject_reader_publication_notification", VALUE),
-            # Don't confuse with `subscribe_custom_email_message` (subject hardcoded)
-            #
-            # Submission Checklist - Displayed on the About and
-            # Submission pages. You should update this with an ordered
-            # list of submission requirements.
-            # TBV: ("general", "submission_checklist", VALUE),
-            #
-            # Email message that is sent when an anonymous user
-            # subscribes to newsletters. - Message email body
-            # ("email", "subscribe_custom_email_message", ...
-            # Managed by wjs/jcom_profile/management/commands/add_publication_alert_settings.py
-            #
-            # Janeway Support Contact for Staff - Support message to
-            # display to editors and staff on Manager page.
-            # ("general", "support_contact_message_for_staff", default is ok!),
-            #
-            # Support Email - Support email address for editors and staff users.
-            ("general", "support_email", "wjs-support@medialab.sissa.it"),
-            #
-            # Suppress Citation Metrics - If enabled this will
-            # suppress the citations counter on the article page. The
-            # citation block will only appear for articles that have a
-            # citation. This setting is overruled by the Disable
-            # Metrics setting.
-            ("article", "suppress_citations_metric", "on"),
-            #
-            # Suppress How to Cite - If enabled this will suppress the
-            # how to cite block on the article page.
-            ("article", "suppress_how_to_cite", ""),
-            #
-            # Switch Language - Allow users to change their language.
-            ("general", "switch_language", ""),
-            #
-            # Twitter Handle - Journal's twitter handle.
-            ("general", "twitter_handle", "https://twitter.com/JsciCOM"),
-            #
-            # Use Crossref DOIs - Whether or not to use Crossref DOIs.
-            ("Identifiers", "use_crossref", "on"),
-            #
-            # Use Google Analytics 4 - Use cookieless GA 4 instead of traditional analytics.
-            ("general", "use_ga_four", ""),
-        ]
-
-        for group_name, setting_name, value in jcom_settings:
+        settings = SETTINGS[self.options["journal_code"]]
+        for group_name, setting_name, value in settings:
             current_setting = setting_handler.get_setting(
                 group_name,
                 setting_name,
@@ -362,16 +123,21 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--journal-code",
+            choices=("JCOM", "JCOMAL"),
             default="JCOM",
             help="The code of the journal that we are working on. Defaults to %(default)s.",
         )
 
 
-COPYRIGHT_NOTICE = """
+JCOM_COPYRIGHT_NOTICE = """
 <p><a href="https://jcom.sissa.it/jcom/help/JCOM/CR_OA.pdf">JCOM Open Access and Copyright Terms</a></p>
 """
 
-FOCUS_AND_SCOPE = """<p>JCOM -
+JCOMAL_COPYRIGHT_NOTICE = """
+<p><a href="https://jcomal.sissa.it/jcomal/help/JCOMAL/CR_OA.pdf">JCOMAL Open Access and Copyright Terms</a></p>
+"""
+
+JCOM_FOCUS_AND_SCOPE = """<p>JCOM -
 Journal of Science Communication welcomes original research,
 theoretical reflections, case studies of best practice and
 evaluations. JCOM seeks to provide a space which brings together
@@ -447,3 +213,527 @@ communication.</p>
         <li><p>Women in science</p>
 </ul>
 """
+
+JCOMAL_FOCUS_AND_SCOPE = "WRITE ME!"
+
+
+SETTINGS = {
+    "JCOM": [
+        #
+        # Collection Name - Overrides the term "Collections" across all the templates.
+        ("general", "collection_name", "Special Issue"),
+        #
+        # Collection Name Plural - Overrides the term
+        # "Collections" across all the templates.
+        ("general", "collection_name_plural", "Special Issues"),
+        #
+        # Copyright Notice - Displayed on the About and Submission
+        # pages. You should update this to display the Journal's
+        # copyright requirements.
+        ("general", "copyright_notice", JCOM_COPYRIGHT_NOTICE),
+        #
+        # Crossref Date Suffix - For migrated content where we
+        # need to tweak the crossref date.
+        ("crossref", "crossref_date_suffix", ""),
+        #
+        # Crossref depositor email - The email of the depositor
+        # for this journal on Crossref's system.
+        ("Identifiers", "crossref_email", "sysadmin@medialab.sissa.it"),
+        #
+        # Crossref depositor name - The name of the depositor for
+        # this journal on Crossref's system.
+        ("Identifiers", "crossref_name", "Sissa Medialab"),
+        #
+        # Crossref password - The password to log in to Crossref's deposit API.
+        ("Identifiers", "crossref_password", "PLEASE SET MANUALLY!"),
+        #
+        # Crossref prefix - The prefix for this journal on Crossref's system.
+        ("Identifiers", "crossref_prefix", "10.22323"),
+        #
+        # Crossref registrant name - The name of the registrant
+        # for this journal on Crossref's system.
+        ("Identifiers", "crossref_registrant", "Sissa Medialab"),
+        #
+        # Use Crossref test deposit server - Whether or not to use
+        # Crossref's test server.
+        ("Identifiers", "crossref_test", ""),
+        #
+        # Crossref username - The username to log in to Crossref's deposit API.
+        ("Identifiers", "crossref_username", "sissa"),
+        #
+        # Default Journal Language - The default language for the journal.
+        ("general", "default_journal_language", "en"),
+        #
+        # Disable article large image - If checked, the article
+        # large image will not be displayed on the article page
+        ("article", "disable_article_large_image", "on"),
+        #
+        # Disable article thumbnails - If checked, no article
+        # thumbnails will be rendered on public article lists
+        ("article", "disable_article_thumbnails", "on"),
+        #
+        # Disable Submission - If true, users cannot submit new articles.
+        ("general", "disable_journal_submission", "on"),
+        #
+        # Disabled Submission Message - A message that is
+        # displayed when Disable Submission is on.
+        # TBV: ("general", "disable_journal_submission_message", VALUE),
+        #
+        # Display Altmetric Badges - If enabled altmetric badges
+        # will be displayed in the sidebar.
+        ("article", "display_altmetric_badge", ""),
+        #
+        # DOI display prefix - Text to prepend to DOIs. Also used to generate URLs.
+        ("Identifiers", "doi_display_prefix", "https://doi.org/"),
+        #
+        # DOI display suffix - Text to append to DOIs. Also used to generate URLs.
+        ("Identifiers", "doi_display_suffix", ""),
+        #
+        # Article DOI Pattern - You can set your DOI pattern. The
+        # default is ``{{ article.journal.code }}.{{ article.pk
+        # }}``
+        ("Identifiers", "doi_pattern", "2.WRITEME"),  # e.g. 2.22010703
+        #
+        # Embargo Period (KBART) - Optional period of embargo this
+        # journal is subject to. It must follow the kbart format
+        # such as 'R2Y' or 'P1Y'
+        ("kbart", "embargo_period", ""),
+        #
+        # Enable Crosscheck - If enabled, links to crosscheck reports will be displayed
+        ("crosscheck", "enable", ""),
+        #
+        # Enable Editorial Team Display - If checked, editorial team link will display in Navigation
+        ("general", "enable_editorial_display", ""),
+        #
+        # Enable Editorial Team Image Display - If checked, Editorial Team images will display.
+        ("styling", "enable_editorial_images", ""),
+        #
+        # Focus and Scope - Journal's Focus and Scope, displayed on the Submissions page.
+        ("general", "focus_and_scope", JCOM_FOCUS_AND_SCOPE),
+        #
+        # From Address - System emails are sent From this address.
+        ("general", "from_address", "jcom-eo@jcom.sissa.it"),
+        #
+        # Hide Author Email Links - If enabled the article page
+        # will not display links to email correspondence authors.
+        ("article", "hide_author_email_links", ""),
+        #
+        # Journal Uses HTTPS - Used for URL generation.
+        ("general", "is_secure", "on"),
+        # WARNING: there is also a journal attribute!!!
+        #
+        # Journal Base Theme - When using a custom theme you can
+        # set the base theme, when a template from a custom theme
+        # is missing templates from the base theme will be used as
+        # a backup.
+        ("general", "journal_base_theme", "material"),
+        #
+        # Journal Description - Localised description of the journal.
+        (
+            "general",
+            "journal_description",
+            "The Journal of Science Communication (JCOM) is a diamond open access,"
+            " peer reviewed journal focused on science communication."
+            " The Journal covers a broad range of issues pertinent to science communication"
+            " and public engagement with STEM, including citizen science"
+            " as well as environmental and health communication,"
+            " where these relate to communication of research. ",
+        ),
+        #
+        # Journal ISSN - The ISSN of the journal.
+        ("general", "journal_issn", "1824-2049"),
+        #
+        # TODO: broken in 1.4, fixed in 1.5 - see thread on Discord
+        # Journal Languages - Languages available for this journal.
+        # Just ignore for now: ("general", "journal_languages", ["en"]),
+        #
+        # Journal Name - Name of the journal.
+        ("general", "journal_name", "Journal of Science Communication"),
+        #
+        # Journal Theme - The HTML theme set to use for the journal.
+        ("general", "journal_theme", "JCOM-theme"),
+        #
+        # Enable the Keyword list page - Lists all of the keywords
+        # used by a journal and for each keyword a list of
+        # articles that use it.
+        ("general", "keyword_list_page", "on"),
+        #
+        # Main Contact - Primary contact for the journal.
+        # ("general", "main_contact", default is ok!),
+        #
+        # Matomo Tracking Code - Tracking code for Matomo.
+        # ("general", "matromo_tracking_code",...
+        (
+            "general",
+            "analytics_code",
+            """<!-- Matomo -->
+<script>
+  var _paq = window._paq = window._paq || [];
+  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u="https://medialab.sissa.it/analytics/";
+    _paq.push(['setTrackerUrl', u+'matomo.php']);
+    _paq.push(['setSiteId', '3']);
+    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+  })();
+</script>
+<!-- End Matomo Code -->
+""",
+        )
+        #
+        # News Title - Title for the News Page and Homepage block
+        ("news", "news_title", "News"),
+        #
+        # Number of Articles - Number of news articles to display on the homepage.
+        ("plugin:News", "number_of_articles", "11"),
+        #
+        # Number of Most Popular Articles to Display - Determines
+        # how many popular articles we should display.
+        ("plugin:Popular Articles", "num_most_popular", "10"),
+        #
+        # Print ISSN - The ISSN of the printed version of the journal.
+        ("general", "print_issn", ""),
+        #
+        # External Privacy Policy URL - URL to an external
+        # privacy-policy, linked from the footer. If blank, it
+        # links to the Janeway CMS page: /site/privacy.
+        ("general", "privacy_policy_url", "https://medialab.sissa.it/en/privacy"),
+        #
+        # Publication Fees - Display of feeds for this
+        # journal. Displayed on the About and the Submission
+        # pages.
+        # TBV: ("general", "publication_fees", VALUE),
+        #
+        # Publisher Name - Name of the Journal's
+        # Publisher. Displayed throughout the site and metadata.
+        ("general", "publisher_name", "Sissa Medialab srl"),
+        #
+        # Publisher URL - URL of the Journal's Publisher.
+        ("general", "publisher_url", "https://medialab.sissa.it/en/"),
+        #
+        # Reader Publication Notification - Email sent readers
+        # when new articles are published.
+        # Not used: ("email", "reader_publication_notification", VALUE),
+        # Don't confuse with `subscribe_custom_email_message`
+        #
+        # Auto-register issue-level DOIs - Automatically register
+        # issue DOIs on article publication, based on the issue
+        # DOI pattern
+        ("Identifiers", "register_issue_dois", ""),
+        #
+        # Reply-To Address - Address set as the 'Reply-to' for system emails.
+        ("general", "replyto_address", ""),
+        #
+        # Send Reader Notifications - If enabled Janeway will
+        # notify readers of new published articles.
+        # Not used: ("notifications", "send_reader_notifications", VALUE),
+        # Don't confuse with `subscribe_custom_email_message` (no enable/disable flag)
+        #
+        # Subject Reader Publication Notification - Subject for
+        # Submission Access Request Complete.
+        # Not used: ("email_subject", "subject_reader_publication_notification", VALUE),
+        # Don't confuse with `subscribe_custom_email_message` (subject hardcoded)
+        #
+        # Submission Checklist - Displayed on the About and
+        # Submission pages. You should update this with an ordered
+        # list of submission requirements.
+        # TBV: ("general", "submission_checklist", VALUE),
+        #
+        # Email message that is sent when an anonymous user
+        # subscribes to newsletters. - Message email body
+        # ("email", "subscribe_custom_email_message", ...
+        # Managed by wjs/jcom_profile/management/commands/add_publication_alert_settings.py
+        #
+        # Janeway Support Contact for Staff - Support message to
+        # display to editors and staff on Manager page.
+        # ("general", "support_contact_message_for_staff", default is ok!),
+        #
+        # Support Email - Support email address for editors and staff users.
+        ("general", "support_email", "wjs-support@medialab.sissa.it"),
+        #
+        # Suppress Citation Metrics - If enabled this will
+        # suppress the citations counter on the article page. The
+        # citation block will only appear for articles that have a
+        # citation. This setting is overruled by the Disable
+        # Metrics setting.
+        ("article", "suppress_citations_metric", "on"),
+        #
+        # Suppress How to Cite - If enabled this will suppress the
+        # how to cite block on the article page.
+        ("article", "suppress_how_to_cite", ""),
+        #
+        # Switch Language - Allow users to change their language.
+        ("general", "switch_language", ""),
+        #
+        # Twitter Handle - Journal's twitter handle.
+        ("general", "twitter_handle", "https://twitter.com/JsciCOM"),
+        #
+        # Use Crossref DOIs - Whether or not to use Crossref DOIs.
+        ("Identifiers", "use_crossref", "on"),
+        #
+        # Use Google Analytics 4 - Use cookieless GA 4 instead of traditional analytics.
+        ("general", "use_ga_four", ""),
+    ],
+    "JCOMAL": [
+        #
+        # Collection Name - Overrides the term "Collections" across all the templates.
+        ("general", "collection_name", "Special Issue"),
+        #
+        # Collection Name Plural - Overrides the term
+        # "Collections" across all the templates.
+        ("general", "collection_name_plural", "Special Issues"),
+        #
+        # Copyright Notice - Displayed on the About and Submission
+        # pages. You should update this to display the Journal's
+        # copyright requirements.
+        ("general", "copyright_notice", JCOMAL_COPYRIGHT_NOTICE),
+        #
+        # Crossref Date Suffix - For migrated content where we
+        # need to tweak the crossref date.
+        ("crossref", "crossref_date_suffix", ""),
+        #
+        # Crossref depositor email - The email of the depositor
+        # for this journal on Crossref's system.
+        ("Identifiers", "crossref_email", "sysadmin@medialab.sissa.it"),
+        #
+        # Crossref depositor name - The name of the depositor for
+        # this journal on Crossref's system.
+        ("Identifiers", "crossref_name", "Sissa Medialab"),
+        #
+        # Crossref password - The password to log in to Crossref's deposit API.
+        ("Identifiers", "crossref_password", "PLEASE SET MANUALLY!"),
+        #
+        # Crossref prefix - The prefix for this journal on Crossref's system.
+        ("Identifiers", "crossref_prefix", "10.22323"),
+        #
+        # Crossref registrant name - The name of the registrant
+        # for this journal on Crossref's system.
+        ("Identifiers", "crossref_registrant", "Sissa Medialab"),
+        #
+        # Use Crossref test deposit server - Whether or not to use
+        # Crossref's test server.
+        ("Identifiers", "crossref_test", ""),
+        #
+        # Crossref username - The username to log in to Crossref's deposit API.
+        ("Identifiers", "crossref_username", "sissa"),
+        #
+        # Default Journal Language - The default language for the journal.
+        ("general", "default_journal_language", "es"),
+        #
+        # Disable article large image - If checked, the article
+        # large image will not be displayed on the article page
+        ("article", "disable_article_large_image", "on"),
+        #
+        # Disable article thumbnails - If checked, no article
+        # thumbnails will be rendered on public article lists
+        ("article", "disable_article_thumbnails", "on"),
+        #
+        # Disable Submission - If true, users cannot submit new articles.
+        ("general", "disable_journal_submission", "on"),
+        #
+        # Disabled Submission Message - A message that is
+        # displayed when Disable Submission is on.
+        # TBV: ("general", "disable_journal_submission_message", VALUE),
+        #
+        # Display Altmetric Badges - If enabled altmetric badges
+        # will be displayed in the sidebar.
+        ("article", "display_altmetric_badge", ""),
+        #
+        # DOI display prefix - Text to prepend to DOIs. Also used to generate URLs.
+        ("Identifiers", "doi_display_prefix", "https://doi.org/"),
+        #
+        # DOI display suffix - Text to append to DOIs. Also used to generate URLs.
+        ("Identifiers", "doi_display_suffix", ""),
+        #
+        # Article DOI Pattern - You can set your DOI pattern. The
+        # default is ``{{ article.journal.code }}.{{ article.pk
+        # }}``
+        ("Identifiers", "doi_pattern", "3.WRITEME"),  # e.g. 3.22010703
+        #
+        # Embargo Period (KBART) - Optional period of embargo this
+        # journal is subject to. It must follow the kbart format
+        # such as 'R2Y' or 'P1Y'
+        ("kbart", "embargo_period", ""),
+        #
+        # Enable Crosscheck - If enabled, links to crosscheck reports will be displayed
+        ("crosscheck", "enable", ""),
+        #
+        # Enable Editorial Team Display - If checked, editorial team link will display in Navigation
+        ("general", "enable_editorial_display", ""),
+        #
+        # Enable Editorial Team Image Display - If checked, Editorial Team images will display.
+        ("styling", "enable_editorial_images", ""),
+        #
+        # Focus and Scope - Journal's Focus and Scope, displayed on the Submissions page.
+        ("general", "focus_and_scope", JCOMAL_FOCUS_AND_SCOPE),
+        #
+        # From Address - System emails are sent From this address.
+        ("general", "from_address", "jcomal-eo@jcomal.sissa.it"),
+        #
+        # Hide Author Email Links - If enabled the article page
+        # will not display links to email correspondence authors.
+        ("article", "hide_author_email_links", ""),
+        #
+        # Journal Uses HTTPS - Used for URL generation.
+        ("general", "is_secure", "on"),
+        # WARNING: there is also a journal attribute!!!
+        #
+        # Journal Base Theme - When using a custom theme you can
+        # set the base theme, when a template from a custom theme
+        # is missing templates from the base theme will be used as
+        # a backup.
+        ("general", "journal_base_theme", "material"),
+        #
+        # Journal Description - Localised description of the journal.
+        (
+            "general",
+            "journal_description",
+            "The Journal of Science Communication (JCOM) is a diamond open access,"
+            " peer reviewed journal focused on science communication."
+            " The Journal covers a broad range of issues pertinent to science communication"
+            " and public engagement with STEM, including citizen science"
+            " as well as environmental and health communication,"
+            " where these relate to communication of research. ",
+        ),
+        #
+        # Journal ISSN - The ISSN of the journal.
+        ("general", "journal_issn", "2611-9986"),
+        #
+        # TODO: broken in 1.4, fixed in 1.5 - see thread on Discord
+        # Journal Languages - Languages available for this journal.
+        # Just ignore for now: ("general", "journal_languages", ["en"]),
+        #
+        # Journal Name - Name of the journal.
+        ("general", "journal_name", "Journal of Science Communication - America Latina"),
+        #
+        # Journal Theme - The HTML theme set to use for the journal.
+        ("general", "journal_theme", "JCOM-theme"),
+        #
+        # Enable the Keyword list page - Lists all of the keywords
+        # used by a journal and for each keyword a list of
+        # articles that use it.
+        ("general", "keyword_list_page", "on"),
+        #
+        # Main Contact - Primary contact for the journal.
+        # ("general", "main_contact", default is ok!),
+        #
+        # Matomo Tracking Code - Tracking code for Matomo.
+        # ("general", "matromo_tracking_code",...
+        (
+            "general",
+            "analytics_code",
+            """<!-- Matomo -->
+<script>
+  var _paq = window._paq = window._paq || [];
+  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u="https://medialab.sissa.it/analytics/";
+    _paq.push(['setTrackerUrl', u+'matomo.php']);
+    _paq.push(['setSiteId', '40']);
+    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+  })();
+</script>
+<!-- End Matomo Code -->
+""",
+        )
+        #
+        # News Title - Title for the News Page and Homepage block
+        ("news", "news_title", "News"),
+        #
+        # Number of Articles - Number of news articles to display on the homepage.
+        ("plugin:News", "number_of_articles", "11"),
+        #
+        # Number of Most Popular Articles to Display - Determines
+        # how many popular articles we should display.
+        ("plugin:Popular Articles", "num_most_popular", "10"),
+        #
+        # Print ISSN - The ISSN of the printed version of the journal.
+        ("general", "print_issn", ""),
+        #
+        # External Privacy Policy URL - URL to an external
+        # privacy-policy, linked from the footer. If blank, it
+        # links to the Janeway CMS page: /site/privacy.
+        ("general", "privacy_policy_url", "https://medialab.sissa.it/en/privacy"),
+        #
+        # Publication Fees - Display of feeds for this
+        # journal. Displayed on the About and the Submission
+        # pages.
+        # TBV: ("general", "publication_fees", VALUE),
+        #
+        # Publisher Name - Name of the Journal's
+        # Publisher. Displayed throughout the site and metadata.
+        ("general", "publisher_name", "SISSA Medialab srl"),
+        #
+        # Publisher URL - URL of the Journal's Publisher.
+        ("general", "publisher_url", "https://medialab.sissa.it/en/"),
+        #
+        # Reader Publication Notification - Email sent readers
+        # when new articles are published.
+        # Not used: ("email", "reader_publication_notification", VALUE),
+        # Don't confuse with `subscribe_custom_email_message`
+        #
+        # Auto-register issue-level DOIs - Automatically register
+        # issue DOIs on article publication, based on the issue
+        # DOI pattern
+        ("Identifiers", "register_issue_dois", ""),
+        #
+        # Reply-To Address - Address set as the 'Reply-to' for system emails.
+        ("general", "replyto_address", ""),
+        #
+        # Send Reader Notifications - If enabled Janeway will
+        # notify readers of new published articles.
+        # Not used: ("notifications", "send_reader_notifications", VALUE),
+        # Don't confuse with `subscribe_custom_email_message` (no enable/disable flag)
+        #
+        # Subject Reader Publication Notification - Subject for
+        # Submission Access Request Complete.
+        # Not used: ("email_subject", "subject_reader_publication_notification", VALUE),
+        # Don't confuse with `subscribe_custom_email_message` (subject hardcoded)
+        #
+        # Submission Checklist - Displayed on the About and
+        # Submission pages. You should update this with an ordered
+        # list of submission requirements.
+        # TBV: ("general", "submission_checklist", VALUE),
+        #
+        # Email message that is sent when an anonymous user
+        # subscribes to newsletters. - Message email body
+        # ("email", "subscribe_custom_email_message", ...
+        # Managed by wjs/jcom_profile/management/commands/add_publication_alert_settings.py
+        #
+        # Janeway Support Contact for Staff - Support message to
+        # display to editors and staff on Manager page.
+        # ("general", "support_contact_message_for_staff", default is ok!),
+        #
+        # Support Email - Support email address for editors and staff users.
+        ("general", "support_email", "wjs-support@medialab.sissa.it"),
+        #
+        # Suppress Citation Metrics - If enabled this will
+        # suppress the citations counter on the article page. The
+        # citation block will only appear for articles that have a
+        # citation. This setting is overruled by the Disable
+        # Metrics setting.
+        ("article", "suppress_citations_metric", "on"),
+        #
+        # Suppress How to Cite - If enabled this will suppress the
+        # how to cite block on the article page.
+        ("article", "suppress_how_to_cite", ""),
+        #
+        # Switch Language - Allow users to change their language.
+        ("general", "switch_language", "on"),
+        #
+        # Twitter Handle - Journal's twitter handle.
+        ("general", "twitter_handle", "https://www.twitter.com/JsciCOMal"),
+        #
+        # Use Crossref DOIs - Whether or not to use Crossref DOIs.
+        ("Identifiers", "use_crossref", "on"),
+        #
+        # Use Google Analytics 4 - Use cookieless GA 4 instead of traditional analytics.
+        ("general", "use_ga_four", ""),
+    ],
+}

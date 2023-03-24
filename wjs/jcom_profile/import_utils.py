@@ -54,9 +54,9 @@ admin, _ = Account.objects.get_or_create(
 fake_request = FakeRequest(user=admin)
 
 
-def query_wjapp_by_pubid(pubid, url="https://jcom.sissa.it/jcom/services/jsonpublished"):
+def query_wjapp_by_pubid(pubid, url="https://jcom.sissa.it/jcom/services/jsonpublished", api_key="WJAPP_JCOM_APIKEY"):
     """Get data from wjapp."""
-    apikey = settings.WJAPP_JCOM_APIKEY
+    apikey = getattr(settings, api_key)
     params = {
         "pubId": pubid,
         "apiKey": apikey,
@@ -64,8 +64,9 @@ def query_wjapp_by_pubid(pubid, url="https://jcom.sissa.it/jcom/services/jsonpub
     response = requests.get(url=url, params=params)
     if response.status_code != 200:
         logger.warning(
-            "Got HTTP code %s from wjapp for %s",
+            "Got HTTP code %s from wjapp (%s) for %s",
             response.status_code,
+            url,
             pubid,
         )
         return {}
@@ -83,8 +84,12 @@ def set_author_country(author: Account, json_data):
         country = Country.objects.get(name=country_name)
     except Country.DoesNotExist:
         logger.error("""Unknown country "%s" for %s""", country_name, json_data["userCod"])
-    author.country = country
-    author.save()
+    if author.country:
+        if author.country != country:
+            logger.error(f"Different country {country} for author {author.email} ({author.country}).")
+    else:
+        author.country = country
+        author.save()
 
 
 def drop_existing_galleys(article):
@@ -129,32 +134,34 @@ def set_language(article, language):
     """
     # Some non-standard language codes have been used in JCOM through the years...
     language = FUNNY_LANGUAGE_CODES.get(language, language)
-    lang = pycountry.languages.get(alpha_2=language)
-    if lang is None:
+    lang_obj = pycountry.languages.get(alpha_2=language)
+    if lang_obj is None:
         logger.error(
             'Unknown language code "%s" for %s. Keeping default "English"',
             language,
             article.get_identifier("pubid"),
         )
         return
-    if lang.alpha_3 not in JANEWAY_LANGUAGES_BY_CODE:
+    if lang_obj.alpha_3 not in JANEWAY_LANGUAGES_BY_CODE:
         logger.error(
             'Unknown language "%s" (from "%s") for %s. Keeping default "English"',
-            lang.alpha_3,
+            lang_obj.alpha_3,
             language,
             article.get_identifier("pubid"),
         )
         return
 
-    article.language = JANEWAY_LANGUAGES_BY_CODE[lang.alpha_3]
-    if lang.name not in JANEWAY_LANGUAGES_BY_CODE.values():
+    article.language = lang_obj.alpha_3
+
+    # Small sanity check
+    if lang_obj.name not in JANEWAY_LANGUAGES_BY_CODE.values():
         # We know about "Spanish" vs. "Spanish; Castilian" and it's ok to keep the latter.
-        if lang.name != "Spanish":
+        if lang_obj.name != "Spanish":
             logger.warning(
                 """ISO639 language for "%s" is "%s" and is different from Janeway's "%s" (using the latter) for %s""",
                 language,
-                lang.name,
-                JANEWAY_LANGUAGES_BY_CODE[lang.alpha_3],
+                lang_obj.name,
+                JANEWAY_LANGUAGES_BY_CODE[lang_obj.alpha_3],
                 article.get_identifier("pubid"),
             )
     article.save()
@@ -193,9 +200,14 @@ def drop_toc(html: HtmlElement):
     tocs[0].drop_tree()
 
 
-def drop_how_to_cite(html: HtmlElement):
+def drop_how_to_cite(html: HtmlElement, lang="eng"):
     """Drop the "manual" How-to-cite present in Drupal body content."""
-    htc_h2 = html.xpath(".//h2[text()='How to cite']")
+    how_to_cite = {
+        "eng": "How to cite",
+        "spa": "Cómo citar",
+        "por": "Como citar",
+    }
+    htc_h2 = html.xpath(f".//h2[text()='{how_to_cite[lang]}']")
     if len(htc_h2) == 0:
         logger.warning("No How-to-cite in WRITEME!!!")
         return
@@ -309,7 +321,7 @@ def remove_images_dimensions(html: HtmlElement):
         del img.attrib["height"]
 
 
-def process_body(body: str, style=None) -> bytes:
+def process_body(body: str, style=None, lang="eng") -> bytes:
     """Rewrite and adapt body / full-text HTML to match Janeway's expectations.
 
     Take care of
@@ -326,7 +338,7 @@ def process_body(body: str, style=None) -> bytes:
     # - the headings that go in the toc must be h2-level, but Drupal has them at h3-level
     promote_headings(html)
     drop_toc(html)
-    drop_how_to_cite(html)
+    drop_how_to_cite(html, lang=lang)
     if style == "wjapp":
         drop_frontmatter(html)
         remove_images_dimensions(html)
