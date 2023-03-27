@@ -37,8 +37,8 @@ from wjs.jcom_profile.import_utils import (
     set_language,
 )
 from wjs.jcom_profile.management.commands.import_from_drupal import (
+    JOURNALS_DATA,
     NON_PEER_REVIEWED,
-    SECTION_ORDER,
     rome_timezone,
 )
 from wjs.jcom_profile.utils import from_pubid_to_eid, generate_doi
@@ -163,6 +163,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Command entry point."""
         self.options = options
+        self.journal_data = JOURNALS_DATA[options["journal_code"]]
         self.read_from_watched_dir()
 
     def add_arguments(self, parser):
@@ -176,6 +177,11 @@ class Command(BaseCommand):
             "--store-dir",
             default="/home/wjs/received-from-wjapp",
             help="Where to keep zip files received from wjapp (and processed). Defaults to %(default)s",
+        )
+        parser.add_argument(
+            "--journal-code",
+            default="JCOM",
+            help="Toward which journal to import. Defaults to %(default)s.",
         )
 
     def read_from_watched_dir(self):
@@ -460,13 +466,13 @@ class Command(BaseCommand):
             logger.critical(f'Unknown article type "{section_name}" for {pubid}')
             raise UnknownSection(f'Unknown article type "{section_name}" for {pubid}')
         section_name = SECTIONS_MAPPING.get(section_name)
-
+        section_order_tuple = self.journal_data["section_order"]
         section, created = submission_models.Section.objects.get_or_create(
             journal=article.journal,
             name=section_name,
             defaults={
-                "sequence": SECTION_ORDER[section_name][0],
-                "plural": SECTION_ORDER[section_name][1],
+                "sequence": section_order_tuple[section_name][0],
+                "plural": section_order_tuple[section_name][1],
             },
         )
         if created:
@@ -482,7 +488,7 @@ class Command(BaseCommand):
         # Must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail.
         #
-        section_order = SECTION_ORDER[section.name][0]
+        section_order = section_order_tuple[section.name][0]
         journal_models.SectionOrdering.objects.get_or_create(
             issue=issue,
             section=section,
