@@ -9,6 +9,11 @@ RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-res
 # From: //jcom.sissa.it/archive/13/04/JCOM_1304_2014_E
 # To:   //jcom.sissa.it/article/pubid/JCOM_1304_2014_E
 #
+# Watch out: non-standard issue /archive/12/3-4/JCOM....(2013)...
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/archive/12/3-4/(JCOM\d{4}\(2013\)[A-Z0-9]{3}/)?(JCOM\d{4}\(2013\)[A-Z0-9]{3})$" "/article/pubid/$2/" [R=301,L]
+#
 # Sub-documents / children
 # current-style - with something at the end
 RewriteCond %{REQUEST_URI} "!.*pdf$"
