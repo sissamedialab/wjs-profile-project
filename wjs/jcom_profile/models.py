@@ -228,7 +228,13 @@ class EditorKeyword(models.Model):
 
 
 class Recipient(models.Model):
-    user = models.OneToOneField(Account, verbose_name=_("Newsletter topics user"), on_delete=models.CASCADE, null=True)
+    user = models.OneToOneField(
+        Account,
+        verbose_name=_("Newsletter topics user"),
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
     journal = models.ForeignKey(Journal, verbose_name=_("Newsletter topics' journal"), on_delete=models.CASCADE)
     topics = models.ManyToManyField("submission.Keyword", verbose_name=_("Newsletters topics"), blank=True)
     news = models.BooleanField(verbose_name=_("Generic news topic"), default=False)

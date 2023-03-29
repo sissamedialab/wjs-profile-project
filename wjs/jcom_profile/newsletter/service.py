@@ -248,17 +248,17 @@ class NewsletterMailerService:
             "privacy_url": self.get_privacy_url(subscriber.journal),
         }
 
-    def send_subscription_confirmation(self, subscriber: Recipient):
+    def send_subscription_confirmation(self, subscriber: Recipient, prefix: str):
         subject = get_setting(
             "email",
-            "publication_alert_subscription_email_subject",
+            f"{prefix}_email_subject",
             subscriber.journal,
             create=False,
             default=True,
         )
         email_body = get_setting(
             "email",
-            "publication_alert_subscription_email_body",
+            f"{prefix}_email_body",
             subscriber.journal,
             create=False,
             default=True,
