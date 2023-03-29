@@ -13,7 +13,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Command entry point."""
-        self.journal = Journal.objects.get(code=options["journal_code"])
+        self.journal = Journal.objects.get(code=options["journal-code"])
         self.options = options
         self.set_journal_settings()
         self.set_journal_attributes()
@@ -21,7 +21,7 @@ class Command(BaseCommand):
 
     def set_journal_settings(self):
         """Take care of the journal settings."""
-        settings = SETTINGS[self.options["journal_code"]]
+        settings = SETTINGS[self.options["journal-code"]]
         for group_name, setting_name, value in settings:
             current_setting = setting_handler.get_setting(
                 group_name,
@@ -35,11 +35,9 @@ class Command(BaseCommand):
                 if current_value != value:
                     logger.debug(f'Forcing {setting_name} to "{value}" (was "{current_value}")')
                 setting_handler.save_setting(group_name, setting_name, self.journal, value)
-            elif self.options["check_only"]:
+            else:
                 if current_value != value:
                     self.notice(f'Setting {setting_name} is "{current_value}" vs. expected "{value}"')
-            else:
-                raise Exception("Come sei arrivato qui?! qualcuno mi ha cambiato le opzioni??? 😠")
 
     def set_press_attributes(self):
         """Take care of the Press attibutes."""
@@ -59,11 +57,9 @@ class Command(BaseCommand):
                     logger.debug(f'Forcing press.{attribute} to "{value}" (was "{current_value}")')
                 setattr(press, attribute, value)
                 press_changed = True
-            elif self.options["check_only"]:
+            else:
                 if current_value != value:
                     self.notice(f'Press.{attribute} is "{current_value}" vs. expected "{value}"')
-            else:
-                raise Exception("Come sei arrivato qui?! qualcuno mi ha cambiato le opzioni??? 😠")
         if press_changed:
             press.save()
 
@@ -92,11 +88,9 @@ class Command(BaseCommand):
                     logger.debug(f'Forcing journal.{attribute} to "{value}" (was "{current_value}")')
                 setattr(journal, attribute, value)
                 journal_changed = True
-            elif self.options["check_only"]:
+            else:
                 if current_value != value:
                     self.notice(f'Journal.{attribute} is "{current_value}" vs. expected "{value}"')
-            else:
-                raise Exception("Come sei arrivato qui?! qualcuno mi ha cambiato le opzioni??? 😠")
         if journal_changed:
             journal.save()
 
@@ -110,22 +104,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Add arguments to command."""
-        behavior = parser.add_mutually_exclusive_group(required=True)
-        behavior.add_argument(
-            "--check-only",
-            action="store_true",
-            help="Just report the situation: do not set anything.",
-        )
-        behavior.add_argument(
+        parser.add_argument(
             "--force",
             action="store_true",
-            help="Set all. By default, we don't change anything that is different from the default/unset state",
+            help="Set all. The default behaviour is just to report.",
         )
         parser.add_argument(
-            "--journal-code",
+            "journal-code",
             choices=("JCOM", "JCOMAL"),
-            default="JCOM",
-            help="The code of the journal that we are working on. Defaults to %(default)s.",
+            help="The code of the journal that we are working on.",
         )
 
 
@@ -607,7 +594,7 @@ SETTINGS = {
         # Just ignore for now: ("general", "journal_languages", ["en"]),
         #
         # Journal Name - Name of the journal.
-        ("general", "journal_name", "Journal of Science Communication - America Latina"),
+        ("general", "journal_name", "Journal of Science Communication - América Latina"),
         #
         # Journal Theme - The HTML theme set to use for the journal.
         ("general", "journal_theme", "JCOM-theme"),
@@ -659,7 +646,7 @@ SETTINGS = {
         # External Privacy Policy URL - URL to an external
         # privacy-policy, linked from the footer. If blank, it
         # links to the Janeway CMS page: /site/privacy.
-        ("general", "privacy_policy_url", "https://medialab.sissa.it/en/privacy"),
+        ("general", "privacy_policy_url", ""),
         #
         # Publication Fees - Display of feeds for this
         # journal. Displayed on the About and the Submission
