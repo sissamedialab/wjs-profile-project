@@ -1,11 +1,9 @@
 """Data migration POC."""
 import datetime
 import os
-import re
 import shutil
 import tempfile
 import zipfile
-from difflib import get_close_matches
 from io import BytesIO
 from pathlib import Path
 
@@ -17,9 +15,8 @@ from django.core.management.base import BaseCommand
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
 from jcomassistant import make_epub, make_xhtml
-from jcomassistant.utils import TeXData, buildTag, read_tex
+from jcomassistant.utils import preprocess_xmlfile, read_tex
 from journal import models as journal_models
-from lxml import etree
 from lxml.html import HtmlElement
 from production.logic import save_galley, save_galley_image, save_supp_file
 from submission import models as submission_models
@@ -63,98 +60,7 @@ class UnknownSection(Exception):
     pass
 
 
-class WjappXMLError(Exception):
-    """Some error with the XML from wjapp."""
-
-
 logger = get_logger(__name__)
-
-
-def clean_string(string: str) -> str:
-    """Sostuisce alcuni caratteri che sappiamo creare problemi nell'XML."""
-    string = re.sub(r"\\@", "", string)
-    string = re.sub(r"\\emph{([^}]+)}", r"“\1”", string)
-    string = re.sub(r"\\[a-z]box{([^}]+)}", r"\1", string)
-    string = re.sub(r" --- ", " — ", string)
-    string = re.sub(r"--", "–", string)
-    string = re.sub(r'"([^"]+)"', r"“\1”", string)
-    string = re.sub(r"``([^']+)''", r"“\1”", string)
-    string = re.sub(r"\\ldots", "...", string)
-    string = re.sub(r"&amp;amp;", r"&amp;", string)
-    return string
-
-
-def clean_element(xml_obj, tag_name):
-    """Clean the text of _only_ the first element with the given tag name found in the given etree."""
-    if elements := xml_obj.findall(f".//{tag_name}", namespaces=None):
-        # I'm expecting only one element with tag_name
-        element = elements[0]
-        element.text = clean_string(element.text)
-    else:
-        logger.critical(f"Cannot find a {tag_name} tag. Please check!")
-        raise WjappXMLError(f"Cannot find a {tag_name} tag. Please check!")
-
-
-def preprocess_xmlfile(xml_file, tex_data: TeXData):
-    """Correct know errors in wjapp XML file.
-
-    - clean up residual TeX fragments from title and abstract
-    - correct authors' names
-    - re-order authors
-    """
-    logger.debug(f"Correcting {xml_file} known errors")
-    try:
-        xml_obj = etree.parse(xml_file)
-    except etree.XMLSyntaxError as error:
-        logger.critical(f"Unable to read XML in {xml_file}. Please check if it is well-formed")
-        raise error
-
-    # Fixing authors
-    xml_authors = xml_obj.findall("author", namespaces=None)
-    # Fixing authors --- Fix 1: author names
-    for author in xml_authors:
-        if author.text not in tex_data.authors:
-            if q := get_close_matches(author.text, tex_data.authors, n=1, cutoff=0.5):
-                logger.info(f'Found a discepancy in author names. Replacing: "{author.text}" with "{q[0]}"')
-                author.text = q[0]
-                lastname = tex_data.surnames[tex_data.authors.index(q[0])]
-                if f"{author.get('firstname')} {author.get('lastname')}" != q[0]:
-                    if s := re.search(rf"(.+?) ({lastname}.*)$", str(q[0])):
-                        author.attrib["firstname"] = s.group(1)
-                        author.attrib["lastname"] = s.group(2)
-                    else:
-                        logger.error(f"Cannot split correclty {q[0]}")
-                else:
-                    logger.debug("Author tag attributes are correct")
-            else:
-                logger.critical(f"Cannot find a match for:{author.text}")
-
-    # Fixing authors --- Fix 2: author order
-    xml_authors_text = [item.text for item in xml_authors]
-    if tex_data.authors != xml_authors_text:
-        logger.info(
-            "Found a discepancy in author order." f' Replacing: "{xml_authors_text}" with: "{tex_data.authors}"',
-        )
-        for i, author in enumerate(tex_data.authors):
-            if author != xml_authors[i].text:
-                try:
-                    j = xml_authors_text.index(author)
-                    xml_authors[i], xml_authors[j] = xml_authors[j], xml_authors[i]
-                except ValueError:
-                    logger.critical(f"Cannot reorder authors, unable to find {author}")
-        etree.strip_elements(xml_obj, "author")
-        for item in xml_authors:
-            xml_obj.find(".//document", namespaces=None).addprevious(item)
-            xml_obj.find(".//document/year", namespaces=None).addprevious(
-                buildTag("author", "", {"authorid": item.get("authorid")}),
-            )
-
-    # Fix abstract and title
-    clean_element(xml_obj, "abstract")
-    clean_element(xml_obj, "title")
-
-    etree.indent(xml_obj, space="  ")
-    return xml_obj
 
 
 class Command(BaseCommand):
@@ -163,7 +69,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Command entry point."""
         self.options = options
-        self.journal_data = JOURNALS_DATA[options["journal_code"]]
+        self.journal_data = JOURNALS_DATA[options["journal-code"]]
         self.read_from_watched_dir()
 
     def add_arguments(self, parser):
@@ -179,9 +85,9 @@ class Command(BaseCommand):
             help="Where to keep zip files received from wjapp (and processed). Defaults to %(default)s",
         )
         parser.add_argument(
-            "--journal-code",
-            default="JCOM",
-            help="Toward which journal to import. Defaults to %(default)s.",
+            "journal-code",
+            choices=["JCOM", "JCOMAL"],
+            help="Toward which journal to import.",
         )
 
     def read_from_watched_dir(self):
@@ -433,6 +339,9 @@ class Command(BaseCommand):
             logger.warning(f'Unexpected issue title "{issue_title}", consider this a "special issue"')
             issue_type__code = "collection"
             issue_title = issue_obj_a.text
+
+        # NB: we 0-pad the issue "number"
+        issue = f"{issue:02}"
 
         issue, created = journal_models.Issue.objects.get_or_create(
             journal=article.journal,
