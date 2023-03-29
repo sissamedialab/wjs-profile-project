@@ -19,4 +19,6 @@ INSTALLED_APPS.extend(
 # MIDDLEWARE_CLASSES is a tuple, not a list
 MIDDLEWARE_CLASSES = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE
 
+TIME_ZONE = "Europe/Rome"
+
 print("↣")

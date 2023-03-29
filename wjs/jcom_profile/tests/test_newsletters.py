@@ -1,5 +1,6 @@
 import datetime
 import random
+from zoneinfo import ZoneInfo
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
@@ -13,6 +14,7 @@ from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import Recipient
+from wjs.jcom_profile.newsletter.service import NewsletterMailerService
 
 
 def select_random_keywords(keywords):
@@ -378,3 +380,144 @@ def test_one_recipient_one_article_two_topics(
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
     check_email_body(mail.outbox, journal)
+
+
+rome_tz = ZoneInfo("Europe/Rome")
+last_sent_23 = datetime.datetime(2023, 3, 26, 23, 0, 3, tzinfo=rome_tz)
+last_sent_11 = datetime.datetime(2023, 3, 26, 11, 0, 3, tzinfo=rome_tz)
+CASES = (
+    # Papers imported from wjapp have dates set from info gathered
+    # from the XML, that only reports a date (i.e. not a datetime).
+    (last_sent_23, datetime.datetime(2023, 3, 27, tzinfo=rome_tz), False),
+    (last_sent_23, last_sent_23 + datetime.timedelta(hours=1), False),
+    (last_sent_23, last_sent_23 + datetime.timedelta(hours=2), False),
+    (last_sent_23, last_sent_23 + datetime.timedelta(hours=3), False),
+    (last_sent_23, last_sent_23 + datetime.timedelta(hours=4), False),
+    #
+    (last_sent_11, datetime.datetime(2023, 3, 27, tzinfo=rome_tz), False),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=1), True),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=2), True),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=3), True),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=4), True),
+    #
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=12), True),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=13), False),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=14), False),
+    (last_sent_11, last_sent_11 + datetime.timedelta(hours=15), False),
+)
+
+
+@pytest.mark.parametrize(["last_sent", "date_published", "empty"], CASES)
+@pytest.mark.django_db
+def test_last_sent_timezone(last_sent, date_published, empty, article_factory, journal):
+    nms = NewsletterMailerService()
+    a1 = article_factory(journal=journal, date_published=timezone.now())
+
+    a1.date_published = date_published
+    a1.save()
+    recipients, articles, news = nms._get_objects(journal, last_sent)
+    if empty:
+        assert len(articles) == 0
+    else:
+        assert len(articles) == 1
+        assert articles[0] == a1
+
+
+@pytest.mark.django_db
+def test_registration_as_non_logged_user_creates_a_recipient_and_redirects_to_email_sent_view(
+        client,
+        journal,
+        recipient_factory,
+        newsletter_factory,
+        article_factory,
+        keyword_factory,
+        custom_newsletter_setting,
+        mock_premailer_load_url,
+):
+    newsletter = newsletter_factory()
+    before_recipients = [x.pk for x in Recipient.objects.all()]
+    url = f"/{journal.code}/register/newsletters/"
+    response = client.post(url, {"email": "nr1@email.com"}, SERVER_NAME="testserver", follow=True)
+    new_recipients = Recipient.objects.exclude(pk__in=before_recipients)
+    assert new_recipients.count() == 1
+    new_recipient = new_recipients.first()
+    # Check new Recipient object's fields
+    assert new_recipient.user is None
+    assert new_recipient.email == "nr1@email.com"
+    assert new_recipient.journal == journal
+    assert len(new_recipient.newsletter_token) > 0
+    last_url, status_code = response.redirect_chain[-1]
+    assert last_url == f"/{journal.code}/register/newsletters/email-sent/{new_recipient.pk}/"
+    assert "reminder" not in response.context_data.keys()
+
+
+@pytest.mark.django_db
+def test_registration_as_non_logged_user_when_there_is_already_a_recipient(
+        client,
+        journal,
+        recipient_factory,
+        newsletter_factory,
+        article_factory,
+        keyword_factory,
+        custom_newsletter_setting,
+        mock_premailer_load_url,
+):
+    newsletter = newsletter_factory()
+    r1 = recipient_factory(journal=journal, news=False, email="nr1@email.com")
+    before_recipients = [x.pk for x in Recipient.objects.all()]
+    url = f"/{journal.code}/register/newsletters/"
+    response = client.post(url, {"email": "nr1@email.com"}, SERVER_NAME="testserver", follow=True)
+    new_recipients = Recipient.objects.exclude(pk__in=before_recipients)
+    # No new Recipient is created
+    assert new_recipients.count() == 0
+    last_url, status_code = response.redirect_chain[-1]
+    # Check that reminder=1 is in the url
+    assert last_url == f"/{journal.code}/register/newsletters/email-sent/{r1.pk}/?reminder=1"
+    assert response.context_data.get("reminder", None) == True
+    # Check the email
+    assert len(mail.outbox) == 1
+    from_email = get_setting(
+        "general",
+        "from_address",
+        journal,
+        create=False,
+        default=True,
+    )
+    mail_message = mail.outbox[0]
+    assert mail_message.from_email == from_email.value
+    assert mail_message.to == ["nr1@email.com"]
+    assert "Please note that you are already subscribed" in mail_message.body
+
+
+@pytest.mark.django_db
+def test_registration_as_logged_user_when_a_recipient_does_not_exist(
+        jcom_user,
+        client,
+        journal,
+        recipient_factory,
+        newsletter_factory,
+        article_factory,
+        keyword_factory,
+        custom_newsletter_setting,
+        mock_premailer_load_url,
+):
+    newsletter = newsletter_factory()
+    # Set an email for the user
+    jcom_user.email = "jcom_user@email.com"
+    jcom_user.save()
+    assert Recipient.objects.filter(user=jcom_user, journal=journal).count() == 0
+    # Login and make the POST call
+    client.force_login(jcom_user)
+    url = f"/{journal.code}/register/newsletters/"
+    response = client.post(url, {"email": jcom_user.email}, SERVER_NAME="testserver", follow=True)
+    # Check that a new Recipient was created
+    new_recipients = Recipient.objects.filter(user=jcom_user, journal=journal)
+    assert new_recipients.count() == 1
+    # Check the new Recipient's characteristics
+    new_recipient = new_recipients.first()
+    assert new_recipient.newsletter_token == ""
+    # Check the redirect
+    last_url, status_code = response.redirect_chain[-1]
+    assert last_url == f"/{journal.code}/update/newsletters/"
+    # Check the email
+    assert len(mail.outbox) == 0

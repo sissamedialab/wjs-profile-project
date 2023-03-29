@@ -88,6 +88,38 @@ JCOM - Journal of Science Communication
             )
             self._create_setting(
                 group=general_settings_group,
+                setting_name="publication_alert_reminder_email_body",
+                setting_description="Email body",
+                pretty_name="Body of the email sent when an anon user subscribes to an alert that is already subscribed to",    # noqa: E501
+                field_type="rich-text",
+                default_value="""
+Hello,
+<p>
+We have received a request to subscribe your email address to JCOM publication alert.
+</p>
+<p>
+Please note that you are already subscribed. If you wish to change your topics of interest use the link below.
+</p>
+<p>
+<a href="/update/newsletters/">Change topics of interest</a>
+</p>
+<p>
+Kind regards,
+</p>
+<p>
+JCOM - Journal of Science Communication
+</p>
+""",
+            )
+            self._create_setting(
+                group=general_settings_group,
+                setting_name="publication_alert_reminder_email_subject",
+                setting_description="Email subject",
+                pretty_name="Subject of the email sent when an anon user subscribes to an alert that is already subscribed to",    # noqa: E501
+                default_value="Your subscription to JCOM publication",
+            )
+            self._create_setting(
+                group=general_settings_group,
                 setting_name="publication_alert_email_intro_message",
                 setting_description="Email introduction message",
                 pretty_name="Introduction to the publication alert body.",

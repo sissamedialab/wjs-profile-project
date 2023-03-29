@@ -1121,7 +1121,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
         if user.is_anonymous():
             recipient = Recipient.objects.get(newsletter_token=self.request.GET.get("token"))
         else:
-            recipient, _ = Recipient.objects.get_or_create(user=user, journal=journal, email=user.email)
+            recipient, _ = Recipient.objects.get_or_create(user=user, journal=journal)
         return recipient
 
     def get_success_url(self):  # noqa
@@ -1139,25 +1139,52 @@ class AnonymousUserNewsletterRegistration(FormView):
     object = None
 
     def form_valid(self, request, *args, **kwargs):  # noqa
+        self.reminder = False
+        user = self.request.user
         context = self.get_context_data()
         form = context.get("form")
         email = form.data["email"]
         journal = self.request.journal
         token = generate_token(email)
-        subscriber, __ = Recipient.objects.get_or_create(
-            email=email,
-            journal=journal,
-            newsletter_token=token,
-        )
-        self.object = subscriber
-        NewsletterMailerService().send_subscription_confirmation(subscriber)
+        if not user.is_anonymous():
+            # User is logged in, get or create the Recipient based on user and journal
+            recipient, _ = Recipient.objects.get_or_create(user=user, journal=journal)
+        else:
+            # User is anonymous
+            try:
+                recipient = Recipient.objects.get(email=email, journal=journal)
+                NewsletterMailerService().send_subscription_confirmation(
+                    recipient,
+                    prefix="publication_alert_reminder",
+                )
+                self.reminder = True
+            except Recipient.DoesNotExist:
+                recipient = Recipient.objects.create(
+                    email=email,
+                    journal=journal,
+                    newsletter_token=token,
+                )
+                # Send a subscription email only if a non-logged-in user has just subscribed
+                NewsletterMailerService().send_subscription_confirmation(
+                    recipient, prefix="publication_alert_subscription",
+                )
+        self.object = recipient
         return super().form_valid(form)
 
     def get_success_url(self):  # noqa
-        if self.object:
-            return reverse("register_newsletters_email_sent", args=(self.object.pk,))
+        if self.object and self.object.user:
+            # The user was logged in, redirect to edit_newsletters
+            return reverse("edit_newsletters")
+        if self.reminder:
+            # Add a parameter to allow the target view to show different messages in the template
+            _url = reverse("register_newsletters_email_sent", kwargs={"id": self.object.pk})
+            return f"{_url}?reminder=1"
         else:
-            return reverse("register_newsletters_email_sent")
+            # Keep the existing flow
+            if self.object:
+                return reverse("register_newsletters_email_sent", args=(self.object.pk,))
+            else:
+                return reverse("register_newsletters_email_sent")
 
 
 class AnonymousUserNewsletterConfirmationEmailSent(TemplateView):
@@ -1167,6 +1194,9 @@ class AnonymousUserNewsletterConfirmationEmailSent(TemplateView):
         context = super().get_context_data(**kwargs)
         if self.kwargs.get("id", None):
             context["object"] = Recipient.objects.get(pk=self.kwargs.get("id", None))
+        # Variable to allow for different messages in the template
+        if self.request.GET.get("reminder", None):
+            context["reminder"] = True
         return context
 
 
