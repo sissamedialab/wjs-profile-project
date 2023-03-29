@@ -1,7 +1,8 @@
 """My URLs. Looking for a way to "enrich" Janeway's `edit_profile`."""
+from django.conf import settings
 
 from core import include_urls
-from django.conf.urls import url
+from django.conf.urls import url, include
 from journal import views as journal_views
 
 from wjs.jcom_profile import experimental_views, views
@@ -163,6 +164,12 @@ experimental_urls = [
     url("experimental/issues", experimental_views.IssuesForceGraph.as_view(), name="issues_forcegraph"),
     url(r"newsletter/(?P<journal>[\w.()-]+)/", newsletter_views.newsletter, name="newsletter"),
 ]
+
+if 'rosetta' in settings.INSTALLED_APPS:
+    urlpatterns += [
+        url(r'^rosetta/', include('rosetta.urls'))
+    ]
+
 urlpatterns.extend(experimental_urls)
 
 urlpatterns.extend(include_urls.urlpatterns)

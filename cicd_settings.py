@@ -70,7 +70,7 @@ USE_X_FORWARDED_PORT = True
 
 # INSTALLED_APPS and MIDDLEWARE_CLASSES defined here are merged by
 # `manage.py` (and `wsgi.py` probably)
-INSTALLED_APPS = ["wjs.jcom_profile", "easy_select2"]
+INSTALLED_APPS = ["wjs.jcom_profile", "easy_select2", "rosetta"]
 
 MIDDLEWARE_CLASSES = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
 
