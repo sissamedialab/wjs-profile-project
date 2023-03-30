@@ -9,9 +9,7 @@ from wjs.plugins.wjs_latest_articles.plugin_settings import WJSLatestArticles
 from wjs.plugins.wjs_latest_articles.plugin_settings import (
     get_plugin_context as get_articles_plugin_context,
 )
-from wjs.plugins.wjs_latest_news.plugin_settings import (
-    WJSLatestArticles as WJSLatestnews,
-)
+from wjs.plugins.wjs_latest_news.plugin_settings import WJSLatestNews
 from wjs.plugins.wjs_latest_news.plugin_settings import (
     get_plugin_context as get_news_plugin_context,
 )
@@ -19,11 +17,11 @@ from wjs.plugins.wjs_latest_news.plugin_settings import (
 
 @pytest.mark.django_db
 def test_news_context(fake_request, news_item_factory):
-    home_page_element = WJSLatestnews.create_home_page_elements()
-
     _now = now()
     news_count = 10
+
     journal = fake_request.journal
+    home_page_element = WJSLatestNews.create_home_page_elements(journal)
     content_type = ContentType.objects.get_for_model(journal)
     # required to ensure batch object sequence always starts at 0
     news_item_factory.reset_sequence()
@@ -52,11 +50,11 @@ def test_news_context(fake_request, news_item_factory):
 
 @pytest.mark.django_db
 def test_article_context(fake_request, article_factory):
-    home_page_element = WJSLatestArticles.create_home_page_elements()
-
     _now = now()
     items_count = 10
+
     journal = fake_request.journal
+    home_page_element = WJSLatestArticles.create_home_page_elements(journal)
     # required to ensure batch object sequence always starts at 0
     article_factory.reset_sequence()
     # creating a set of articles:

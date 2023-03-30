@@ -16,7 +16,7 @@ JANEWAY_VERSION = "1.4.3"
 MANAGER_URL = f"{SHORT_NAME}_manager"
 
 
-class WJSLatestArticles(plugins.Plugin):
+class WJSSubscribePublicationAlert(plugins.Plugin):
     short_name = SHORT_NAME
     plugin_name = PLUGIN_NAME
     display_name = DISPLAY_NAME
@@ -27,22 +27,27 @@ class WJSLatestArticles(plugins.Plugin):
     is_workflow_plugin = False
     manager_url = MANAGER_URL
 
+    @staticmethod
+    def create_home_page_elements(journal):
+        content_type = ContentType.objects.get_for_model(journal)
+        return HomepageElement.objects.get_or_create(
+            name=PLUGIN_NAME,
+            content_type=content_type,
+            object_id=journal.pk,
+            defaults=dict(
+                template_path="homepage_elements/wjs_publication_form.html",
+                has_config=True,
+                configure_url=MANAGER_URL,
+            ),
+        )[0]
+
 
 def install():
     """Register the plugin instance and create the corresponding HomepageElement."""
-    WJSLatestArticles.install()
-    journal = Journal.objects.first()
-    content_type = ContentType.objects.get_for_model(journal)
-    HomepageElement.objects.get_or_create(
-        name=PLUGIN_NAME,
-        defaults=dict(
-            template_path="homepage_elements/wjs_publication_form.html",
-            content_type=content_type,
-            object_id=journal.pk,
-            has_config=True,
-            configure_url=MANAGER_URL,
-        ),
-    )
+    WJSSubscribePublicationAlert.install()
+    journals = Journal.objects.all()
+    for journal in journals:
+        WJSSubscribePublicationAlert.create_home_page_elements(journal)
 
 
 def hook_registry():

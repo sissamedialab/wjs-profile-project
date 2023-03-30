@@ -32,15 +32,14 @@ class WJSLatestArticles(plugins.Plugin):
     manager_url = MANAGER_URL
 
     @staticmethod
-    def create_home_page_elements():
-        journal = Journal.objects.first()
+    def create_home_page_elements(journal):
         content_type = ContentType.objects.get_for_model(journal)
         return HomepageElement.objects.get_or_create(
             name=PLUGIN_NAME,
+            content_type=content_type,
+            object_id=journal.pk,
             defaults=dict(
                 template_path="homepage_elements/items_list.html",
-                content_type=content_type,
-                object_id=journal.pk,
                 has_config=True,
                 configure_url=MANAGER_URL,
             ),
@@ -50,7 +49,9 @@ class WJSLatestArticles(plugins.Plugin):
 def install():
     """Register the plugin instance and create the corresponding HomepageElement."""
     WJSLatestArticles.install()
-    WJSLatestArticles.create_home_page_elements()
+    journals = Journal.objects.all()
+    for journal in journals:
+        WJSLatestArticles.create_home_page_elements(journal)
 
 
 def hook_registry():
