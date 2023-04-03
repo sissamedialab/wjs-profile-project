@@ -1,0 +1,1316 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-03-31 11:26+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: jcom_profile/forms.py:69
+msgid "Password"
+msgstr ""
+
+#: jcom_profile/forms.py:70
+msgid "Repeat Password"
+msgstr ""
+
+#: jcom_profile/forms.py:175
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:32
+msgid "Keywords"
+msgstr ""
+
+#: jcom_profile/forms.py:226 themes/JCOM-theme/templates/journal/search.html:15
+msgid "Keyword"
+msgstr ""
+
+#: jcom_profile/forms.py:263
+msgid ""
+"Upload odt file with first, middle, last name, email, affiliation, paper "
+"title; one per row."
+msgstr ""
+
+#: jcom_profile/forms.py:268
+msgid ""
+"If set to false, articles are not created. The authors must start a "
+"submission themselves."
+msgstr ""
+
+#: jcom_profile/forms.py:278
+msgid "Match euristics - NOT IMPLEMENTED"
+msgstr ""
+
+#: jcom_profile/forms.py:279
+msgid "Being optimistic ... TODO WRITE ME!"
+msgstr ""
+
+#: jcom_profile/forms.py:284
+msgid "All new contributions will have the choosen section (article type)."
+msgstr ""
+
+#: jcom_profile/forms.py:308
+msgid "Apply changes to this user account"
+msgstr ""
+
+#: jcom_profile/forms.py:363
+msgid "Topics"
+msgstr ""
+
+#: jcom_profile/forms.py:368
+msgid "I want to receive alerts about news published in JCOM."
+msgstr ""
+
+#: jcom_profile/hooks.py:25
+msgid "Edit assignment parameters"
+msgstr ""
+
+#: jcom_profile/hooks.py:26
+msgid "Go to your your assignment parameters by clicking the button below."
+msgstr ""
+
+#: jcom_profile/hooks.py:27
+msgid "assignment_parameters"
+msgstr ""
+
+#: jcom_profile/hooks.py:28
+msgid "Assignment parameters"
+msgstr ""
+
+#: jcom_profile/hooks.py:40
+msgid "Newsletters"
+msgstr ""
+
+#: jcom_profile/hooks.py:41
+msgid "Edit your subscription settings by clicking the button below."
+msgstr ""
+
+#: jcom_profile/hooks.py:42
+msgid "edit_newsletters"
+msgstr ""
+
+#: jcom_profile/hooks.py:43
+msgid "Edit my subscription"
+msgstr ""
+
+#: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:16
+msgid "Submission Coauthors Acknowledgement"
+msgstr ""
+
+#: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:17
+msgid "Email sent to coauthors when they have submitted an article."
+msgstr ""
+
+#: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:43
+msgid "Submission Subject Coauthors Acknowledgement"
+msgstr ""
+
+#: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:44
+msgid ""
+"Subject for Email sent to coauthors when they have submitted an article."
+msgstr ""
+
+#: jcom_profile/management/commands/add_generic_analytics_code_setting.py:51
+msgid ""
+"Code added to every page of the journal in order to track visits and "
+"analytics. E.g. Google Analitics or Matomo complete tracking code. Not just "
+"the site code 🙂"
+msgstr ""
+
+#: jcom_profile/management/commands/add_generic_analytics_code_setting.py:55
+msgid "Analytics tracking code"
+msgstr ""
+
+#: jcom_profile/management/commands/add_user_as_main_author_setting.py:16
+msgid "User automatically as main author"
+msgstr ""
+
+#: jcom_profile/management/commands/add_user_as_main_author_setting.py:18
+msgid ""
+"If true, the submitting user is set as main author. To work, the setting "
+"'user_automatically_author' must be on."
+msgstr ""
+
+#: jcom_profile/migrations/0005_auto_20221005_1620.py:20
+msgid "Files Submission - Title of Figures and Data Files Field"
+msgstr ""
+
+#: jcom_profile/migrations/0005_auto_20221005_1620.py:21
+msgid "Displayed on the Files Submission page."
+msgstr ""
+
+#: jcom_profile/models.py:49
+msgid "GDPR acceptance checkbox"
+msgstr ""
+
+#: jcom_profile/models.py:50
+msgid "Invitation token"
+msgstr ""
+
+#: jcom_profile/models.py:233
+msgid "Newsletter topics user"
+msgstr ""
+
+#: jcom_profile/models.py:238
+msgid "Newsletter topics' journal"
+msgstr ""
+
+#: jcom_profile/models.py:239
+msgid "Newsletters topics"
+msgstr ""
+
+#: jcom_profile/models.py:240
+msgid "Generic news topic"
+msgstr ""
+
+#: jcom_profile/models.py:241
+msgid "newsletter token for anonymous users"
+msgstr ""
+
+#: jcom_profile/models.py:242
+msgid "Anonymous user email"
+msgstr ""
+
+#: jcom_profile/models.py:245
+msgid "recipient"
+msgstr ""
+
+#: jcom_profile/models.py:246
+msgid "recipients"
+msgstr ""
+
+#: jcom_profile/models.py:249
+msgid ""
+"Recipient user: {self.user if self.user else self.email} - journal: {self."
+"journal} "
+msgstr ""
+
+#: jcom_profile/models.py:269
+msgid "Introduction"
+msgstr ""
+
+#: jcom_profile/models.py:284
+msgid "Last time newsletter emails have been sent to users"
+msgstr ""
+
+#: jcom_profile/views.py:1238
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:18
+msgid "Filter by section"
+msgstr ""
+
+#: jcom_profile/views.py:1239
+msgid "Publications included in this section."
+msgstr ""
+
+#: jcom_profile/views.py:1243
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:37
+msgid "Filter by keyword"
+msgstr ""
+
+#: jcom_profile/views.py:1244
+msgid "Publications including this keyword are listed below."
+msgstr ""
+
+#: jcom_profile/views.py:1248
+msgid "Filter by author"
+msgstr ""
+
+#: jcom_profile/views.py:1249
+msgid "All author's publications are listed below."
+msgstr ""
+
+#: plugins/wjs_latest_articles/models.py:11
+#: plugins/wjs_latest_news/models.py:11
+#: plugins/wjs_subscribe_newsletter/models.py:11
+msgid "Section title"
+msgstr ""
+
+#: plugins/wjs_latest_articles/models.py:12
+#: plugins/wjs_latest_news/models.py:12
+msgid "Number of items shown in the home page"
+msgstr ""
+
+#: plugins/wjs_subscribe_newsletter/models.py:12
+msgid "Introduction text"
+msgstr ""
+
+#: plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:12
+msgid "Your email"
+msgstr ""
+
+#: plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:15
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:14
+msgid "Subscribe"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:7
+msgid "The account does not exist."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:9
+msgid "Hello"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:14
+msgid "Accept GDPR"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:16
+msgid "Accept invitation"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/invite.html:7
+msgid "Invite"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/thankyou.html:7
+msgid "Thank for your acceptance"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/thankyou.html:8
+msgid "We will send an email to you to set your password"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/thankyou.html:10
+msgid "Your account is already active."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/thankyou.html:11
+msgid "Please, go to"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/account/thankyou.html:12
+msgid "login page."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:5
+#: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:6
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:5
+msgid "Insert Users"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:5
+msgid "Step 2/3"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:50
+msgid "first"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:51
+msgid "middle"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:52
+msgid "last"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:53
+msgid "email"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:54
+msgid "institution"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:55
+msgid "title"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:108
+msgid "new"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:110
+msgid "skip"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:164
+msgid "Legend"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:166
+msgid ""
+"\n"
+"                    For each row in the uploaded spreadsheet, please mind "
+"the following meanings\n"
+"                    <dl>\n"
+"                        <dt>\n"
+"                            new\n"
+"                        </dt>\n"
+"                        <dd>\n"
+"                            create a new account in the DB. Naturally this "
+"is not possible if the email is the same as that of an already existing "
+"account.\n"
+"                        </dd>\n"
+"                        <dt>\n"
+"                            skip\n"
+"                        </dt>\n"
+"                        <dd>\n"
+"                            just ignore this line and do nothing, as if it "
+"was not present in the uploaded spreadsheed.\n"
+"                        </dd>\n"
+"                        <dt>\n"
+"                            DB\n"
+"                        </dt>\n"
+"                        <dd>\n"
+"                            use this existing account without any "
+"modification. If articles should be created, this account will be the owner "
+"and main author of the new article with the given title.\n"
+"                        </dd>\n"
+"                        <dt>\n"
+"                            edit...\n"
+"                        </dt>\n"
+"                        <dd>\n"
+"                            use this existing account, but let me change "
+"something. In the next step, a form will be available where you will be able "
+"to edit the account. You will be presented with the current data present in "
+"the DB and with the \"new\" ones uploaded with the spreasheet.\n"
+"                        </dd>\n"
+"                    </dl>\n"
+"                    "
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:6
+msgid "Step 3/3"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:75
+msgid "Update selected users"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:77
+msgid "Continue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:5
+msgid "Step 1/3"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:13
+msgid "Intro"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:31
+msgid ""
+"\n"
+"                        <p>\n"
+"                            The data file must be an <b>OASIS <a "
+"href=\"https://en.wikipedia.org/wiki/OpenDocument\">OpenDocument</a> "
+"Spreadsheet</b>\n"
+"                            (that means \"an OpenOffice 2 version of excel "
+"file\") with data on the\n"
+"                            first sheet and with the following structure:\n"
+"                        </p>\n"
+"                        "
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:42
+msgid "session (optional)"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:50
+msgid "first name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:51
+msgid "middle name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:52
+msgid "last name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:53
+msgid "e-mail"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:54
+msgid "institution / affiliation"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:55
+msgid "contribution title"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:68
+msgid ""
+"\n"
+"                        <p>\n"
+"                            Warning: if you check \"create articles on "
+"import\" the title is mandatory.\n"
+"                            <br/>\n"
+"                            Warning: only middle name and affiliation are "
+"optional. All other fields are mandatory (for the title, see above).\n"
+"                            <br/>\n"
+"                            Warning: order is important.\n"
+"                        </p>\n"
+"                        "
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_new.html:6
+msgid "Create a new Special Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:10
+msgid "Edit Special Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:10
+msgid "view"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:46
+msgid "ID"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:47
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:41
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:81
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:145
+msgid "Label"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:48
+msgid "Uploaded"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:49
+msgid "Modified"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:50
+msgid "Filename"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:51
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
+#: themes/JCOM-theme/templates/journal/components/article_downloads.html:4
+#: themes/JCOM-theme/templates/journal/components/article_downloads.html:9
+msgid "Download"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:52
+msgid "History"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:53
+msgid "Replace"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:54
+msgid "Delete"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:55
+#: themes/JCOM-theme/templates/elements/journal_footer.html:43
+#: themes/JCOM-theme/templates/elements/journal_footer.html:49
+msgid "Privacy"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:56
+#: themes/JCOM-theme/templates/core/nav.html:197
+#: themes/JCOM-theme/templates/core/nav.html:232
+msgid "Admin"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:123
+#: themes/JCOM-theme/templates/core/nav.html:69
+#: themes/JCOM-theme/templates/core/nav.html:118
+#: themes/JCOM-theme/templates/journal/articles.html:7
+#: themes/JCOM-theme/templates/journal/articles.html:9
+msgid "Articles"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:128
+msgid "Bulk-insert users"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:128
+msgid " (create multiple authors/article by uploading a spreadsheed)."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:139
+msgid "by"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/core/si_update.html:149
+msgid "Invitees"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:5
+msgid "Upload files"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:34
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:75
+msgid "Upload"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:42
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:82
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:146
+msgid "File Name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:60
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:98
+msgid "No files uploaded"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:111
+msgid "Save and Continue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:11
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:59
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:60
+#: themes/JCOM-theme/templates/submission/timeline.html:59
+#: themes/JCOM-theme/templates/submission/timeline.html:60
+msgid "Review"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:25
+msgid ""
+"Please review your submission use the details below. If you need to make "
+"changes\n"
+"                        use the links above to move back along the "
+"submission steps. You must click the Complete\n"
+"                        Submission button at the foot of this page to "
+"complete the submission process, you will then\n"
+"                        receive a receipt email. "
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:32
+msgid "Agreements"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:36
+msgid "Agreed to Publication Fees statement."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:40
+msgid "Agreed to Submission Checklist."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:44
+msgid "Agreed to Copyright statement."
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:51
+msgid "Comments to Editor"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:56
+msgid "Article Info"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:59
+msgid "Title"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:61
+msgid "Subtitle"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:71
+msgid "Issue Type"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:80
+msgid "Abstract"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:89
+msgid "Language"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:91
+msgid "Section"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:93
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:111
+msgid "Licence"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:115
+msgid "Author Info"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:120
+msgid "First Name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:121
+msgid "Middle Name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:122
+msgid "Last Name"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:123
+msgid "Email Address"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:124
+msgid "ORCID"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:125
+msgid "Affiliation"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:126
+msgid "Country"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:127
+msgid "Biography"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:142
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:43
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:44
+#: themes/JCOM-theme/templates/submission/timeline.html:43
+#: themes/JCOM-theme/templates/submission/timeline.html:44
+msgid "Article Files"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:161
+msgid "Figure/Data"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:171
+msgid "Complete"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:171
+#: themes/JCOM-theme/templates/core/nav.html:78
+#: themes/JCOM-theme/templates/core/nav.html:127
+msgid "Submission"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:6
+msgid "Submission Destination"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:16
+msgid "This article is a preprint"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:22
+msgid "Proceed with Normal Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:26
+msgid "Choose Special Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:37
+msgid "Clear selection"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:40
+msgid "Proceed with Special Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:7
+#: themes/JCOM-theme/templates/submission/timeline.html:7
+msgid "Submission Started"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:15
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:17
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:18
+#: themes/JCOM-theme/templates/submission/timeline.html:15
+#: themes/JCOM-theme/templates/submission/timeline.html:17
+#: themes/JCOM-theme/templates/submission/timeline.html:18
+msgid "Choose Submission Destination"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:26
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:28
+#: themes/JCOM-theme/templates/submission/timeline.html:26
+#: themes/JCOM-theme/templates/submission/timeline.html:28
+msgid "Article Information"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:35
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:36
+#: themes/JCOM-theme/templates/submission/timeline.html:35
+#: themes/JCOM-theme/templates/submission/timeline.html:36
+msgid "Author Information"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:51
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:52
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:69
+#: themes/JCOM-theme/templates/submission/timeline.html:51
+#: themes/JCOM-theme/templates/submission/timeline.html:52
+msgid "Funding"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:46
+#: themes/JCOM-theme/templates/core/nav.html:144
+msgid "Account"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:54
+msgid "menu"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:63
+#: themes/JCOM-theme/templates/core/nav.html:112
+msgid "Home"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:72
+#: themes/JCOM-theme/templates/core/nav.html:121
+msgid "Issues"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:75
+#: themes/JCOM-theme/templates/core/nav.html:124
+msgid "Editorial Team"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:81
+#: themes/JCOM-theme/templates/core/nav.html:130
+#: themes/JCOM-theme/templates/elements/journal_footer.html:54
+msgid "Contact"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:95
+msgid "Become a Reviewer"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:115
+#: themes/JCOM-theme/templates/newsletters/newsletter_issue.html:21
+msgid "News"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:183
+#: themes/JCOM-theme/templates/core/nav.html:204
+msgid "Dashboard"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:185
+#: themes/JCOM-theme/templates/core/nav.html:207
+msgid "Submit"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:187
+#: themes/JCOM-theme/templates/core/nav.html:205
+msgid "Kanban"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:188
+#: themes/JCOM-theme/templates/core/nav.html:210
+msgid "Manager"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:190
+#: themes/JCOM-theme/templates/core/nav.html:222
+msgid "Edit Article"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:193
+#: themes/JCOM-theme/templates/core/nav.html:225
+msgid "Edit Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:199
+#: themes/JCOM-theme/templates/core/nav.html:234
+msgid "Profile"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:200
+#: themes/JCOM-theme/templates/core/nav.html:235
+msgid "Logout"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:212
+msgid "Edit Submissions Page"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:213
+msgid "Edit Journal Info"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:216
+msgid "Edit Page"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:219
+msgid "Manage Editorial Team"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:228
+msgid "Edit News Item"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/news/index.html:12
+msgid "Filtering tag"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/news/index.html:34
+msgid "This journal currently has no items to display."
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/news/item.html:19
+msgid "Browse"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/news/item.html:48
+msgid "Tags"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:8
+#, python-format
+msgid "Your subscription to %(journal_code)s publication alert"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:12
+#, python-format
+msgid ""
+"\n"
+"                            Hello,\n"
+"                            <p>We have received a request to subscribe your "
+"email address to %(journal_code)s publication alert.</p>\n"
+"                            <p>Please note that you are already subscribed. "
+"If you wish to change your topics of interest use the link below:</p>\n"
+"                            <p><a href=\"%(url_link)s\">Change topics of "
+"interest</a></p>\n"
+"                            <p>Kind regards,</p>\n"
+"                            <p>%(journal_code)s - %(journal_name)s</p>\n"
+"                        "
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:23
+msgid "Subscription to be confirmed"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:27
+#, python-format
+msgid ""
+"\n"
+"                                An email with a confirmation link has been "
+"sent to your email address %(email)s.\n"
+"                                <br/>\n"
+"                                Please open the link to activate your "
+"publication alert.\n"
+"                            "
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:33
+msgid ""
+"\n"
+"                                An email with a confirmation link has been "
+"sent to your email address.\n"
+"                                <br/>\n"
+"                                Please open the link to activate your "
+"publication alert.\n"
+"                            "
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:9
+#: themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:8
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:8
+msgid "Publication alert"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:11
+msgid ""
+"\n"
+"              Thank you for unsubscribing from JCOM publication alert.<br>\n"
+"              You can subscribe again at any time form the <a href=\"/"
+"\">JCOM home page</a>.\n"
+"              "
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:11
+msgid "Thank you for setting your preferences"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:16
+msgid "Your subscription to JCOM publication alert is active."
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:19
+msgid ""
+"Click the box to select your topics of interest and activate your "
+"subscription to be notified about newly published manuscripts that match "
+"your selection."
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:25
+msgid "Save preferences"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:27
+msgid "Unsubscribe"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:31
+msgid "Activate"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:9
+msgid "Change Your Email Address"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:10
+msgid ""
+"If you want to change your email address you may do so below, however, you "
+"will be logged out and your account will be marked as inactive until you "
+"follow the instructions in the verification email."
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:11
+msgid "Note:"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:12
+msgid ""
+"Changing your email address will also change your username as these are one "
+"and the same."
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:16
+msgid "Current Email Address"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:20
+msgid "New Email Address"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:23
+msgid "Update Email Address"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:32
+msgid "Register for Article Notifications"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:35
+msgid ""
+"Use the button below to register to receive notifications of new articles\n"
+"                                published in this journal "
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:42
+msgid "Unsubscribe from Article Notifications"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:46
+msgid "Subscribe to Article Notifications"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:53
+msgid "Data Export"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:54
+msgid "You may export your data into a JSON file for reuse."
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:57
+msgid "Export"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:68
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:88
+msgid "Update Password"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:69
+msgid ""
+"You can update your password by entering your existing password plus your "
+"new password."
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:75
+msgid "Current Password"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:79
+msgid "New Password"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:83
+msgid "Enter Password Again"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:106
+msgid "Update"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:6
+msgid "Publication alert subscription"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:9
+msgid ""
+"Please confirm that you do not wish to receive any JCOM publication alert"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:13
+#: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:15
+msgid "Yes"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:19
+msgid "No"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/article_listing.html:29
+#: themes/JCOM-theme/templates/newsletters/newsletter_article.html:11
+msgid "and"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/article_listing.html:63
+msgid "Also a part of:"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:6
+msgid "Downloads"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
+msgid "Issue"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
+msgid "Collection"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:15
+msgid "Archive"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal_footer.html:7
+msgid ""
+"\n"
+"                        Except where otherwise noted, content on this site "
+"is licensed under a Creative Commons 4.0 license\n"
+"                    "
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal_footer.html:18
+msgid "Print ISSN:"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal_footer.html:23
+msgid "Published by"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal_footer.html:35
+msgid "VAT number: IT01097780322"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal_footer.html:53
+msgid "Cookie Policy"
+msgstr ""
+
+#: themes/JCOM-theme/templates/experimental/journal/issues.html:6
+#: themes/JCOM-theme/templates/experimental/journal/issues.html:21
+#: themes/JCOM-theme/templates/journal/issues.html:6
+#: themes/JCOM-theme/templates/journal/issues.html:11
+msgid "Volumes and Issues"
+msgstr ""
+
+#: themes/JCOM-theme/templates/field.html:8
+msgid "By registering an account you agree to our"
+msgstr ""
+
+#: themes/JCOM-theme/templates/field.html:10
+#: themes/JCOM-theme/templates/field.html:12
+msgid "Privacy Policy"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/article.html:9
+msgid "Preprint"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/article.html:11
+msgid "Article"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/article_issue_list.html:9
+msgid "Primary: "
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/article_issue_list.html:20
+msgid "This article is not a part of any issues"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/articles.html:14
+#: themes/JCOM-theme/templates/journal/search.html:20
+msgid "Publications"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/collections.html:38
+msgid "There are no collections to display"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_documents.html:9
+msgid "Invited commentaries"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_downloads.html:14
+msgid "View"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_header.html:13
+msgid "part of"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:9
+msgid "Share"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:25
+msgid "How to Cite"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:51
+msgid "Rights"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:58
+msgid "Publisher Notes"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:90
+msgid "Non Specialist Summary"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:92
+msgid "View Summary"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:100
+msgid "Publication date"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:125
+msgid "Competing Interests"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:138
+msgid "Identifiers"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:153
+msgid "Peer Review"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:157
+msgid "This article has been peer reviewed."
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:196
+#: themes/JCOM-theme/templates/journal/submissions.html:73
+msgid "Table of Contents"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:4
+msgid "Search titles, keywords, and authors"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:11
+msgid "You are currently browsing by keyword"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:12
+msgid "Search for an article"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:54
+msgid "Sort articles by"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:67
+msgid "Show"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:70
+#: themes/JCOM-theme/templates/journal/search.html:8
+#: themes/JCOM-theme/templates/journal/search.html:30
+msgid "Search"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/filtered_articles.html:12
+msgid "Browse all Publications"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/issues.html:21
+msgid "items"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/search.html:13
+msgid "Searching for"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/search.html:24
+msgid "No articles to display."
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/submissions.html:6
+#: themes/JCOM-theme/templates/journal/submissions.html:23
+msgid "Submissions"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/submissions.html:35
+msgid "Register"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/submissions.html:36
+msgid "Login"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/submissions.html:37
+msgid "Start Submission"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/submissions.html:47
+msgid "allows the following licences for submission"
+msgstr ""
+
+#: themes/JCOM-theme/templates/newsletters/newsletter_issue.html:10
+msgid "New publications"
+msgstr ""
+
+#: themes/JCOM-theme/templates/newsletters/newsletter_template.html:29
+#, python-format
+msgid ""
+"\n"
+"                You have received this email because you have subscribed to "
+"JCOM\n"
+"                publication alert<br>\n"
+"                <span><a href=\"%(unsubscribe_url)s\">Click here to modify "
+"your topics of interest</a></span>\n"
+"                <span>|</span>\n"
+"                <span><a href=\"%(unsubscribe_url)s\">Click here to "
+"unsubscribe</a></span><br>\n"
+"                See our <a href=\"%(privacy_url)s\">privacy policy</a> for "
+"information on\n"
+"                how we use your personal data or contact us for general "
+"information\n"
+"                "
+msgstr ""
+
+#: themes/JCOM-theme/templates/si_details.html:8
+msgid "Special Issues"
+msgstr ""
