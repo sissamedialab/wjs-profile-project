@@ -10,8 +10,13 @@ class Command(BaseCommand):
     help = "Create custom email settings (body message)"  # NOQA
 
     def _create_setting(
-        self, group: SettingGroup, setting_name: str, setting_description: str, pretty_name: str, default_value: str,
-            field_type: str = "text"
+        self,
+        group: SettingGroup,
+        setting_name: str,
+        setting_description: str,
+        pretty_name: str,
+        default_value: str,
+        field_type: str = "text",
     ):
         setting_obj, setting_created = Setting.objects.get_or_create(
             name=setting_name,
@@ -90,7 +95,7 @@ JCOM - Journal of Science Communication
                 group=general_settings_group,
                 setting_name="publication_alert_reminder_email_body",
                 setting_description="Email body",
-                pretty_name="Body of the email sent when an anon user subscribes to an alert that is already subscribed to",    # noqa: E501
+                pretty_name="Body of the email sent when an anon user subscribes to an alert that is already subscribed to",  # noqa: E501
                 field_type="rich-text",
                 default_value="""
 Hello,
@@ -101,7 +106,7 @@ We have received a request to subscribe your email address to JCOM publication a
 Please note that you are already subscribed. If you wish to change your topics of interest use the link below.
 </p>
 <p>
-<a href="/update/newsletters/">Change topics of interest</a>
+<a href="{acceptance_url}">Change topics of interest</a>
 </p>
 <p>
 Kind regards,
@@ -115,8 +120,8 @@ JCOM - Journal of Science Communication
                 group=general_settings_group,
                 setting_name="publication_alert_reminder_email_subject",
                 setting_description="Email subject",
-                pretty_name="Subject of the email sent when an anon user subscribes to an alert that is already subscribed to",    # noqa: E501
-                default_value="Your subscription to JCOM publication",
+                pretty_name="Subject of the email sent when an anon user subscribes to an alert that is already subscribed to",  # noqa: E501
+                default_value="Your subscription to JCOM publication alert",
             )
             self._create_setting(
                 group=general_settings_group,

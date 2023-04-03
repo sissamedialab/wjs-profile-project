@@ -1111,17 +1111,21 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
                 return False
         return True
 
-    def get_context_data(self, **kwargs):  # noqa
-        context = super().get_context_data(**kwargs)
-        context["active"] = self.object.news or self.object.topics.exists()
-        return context
-
     def get_object(self, queryset=None):  # noqa
         user, journal = self.request.user, self.request.journal
         if user.is_anonymous():
             recipient = Recipient.objects.get(newsletter_token=self.request.GET.get("token"))
+            if (not recipient.topics.exists()) and (recipient.news is False):
+                recipient.topics.set(recipient.journal.keywords.all())
+                recipient.news = True
+                recipient.save()
         else:
-            recipient, _ = Recipient.objects.get_or_create(user=user, journal=journal)
+            recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
+            if created:
+                recipient.topics.set(recipient.journal.keywords.all())
+                recipient.news = True
+                recipient.save()
+
         return recipient
 
     def get_success_url(self):  # noqa
@@ -1136,10 +1140,8 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
 class AnonymousUserNewsletterRegistration(FormView):
     template_name = "elements/accounts/anonymous_user_register_newsletter.html"
     form_class = forms.RegisterUserNewsletterForm
-    object = None
 
     def form_valid(self, request, *args, **kwargs):  # noqa
-        self.reminder = False
         user = self.request.user
         context = self.get_context_data()
         form = context.get("form")
@@ -1148,26 +1150,39 @@ class AnonymousUserNewsletterRegistration(FormView):
         token = generate_token(email)
         if not user.is_anonymous():
             # User is logged in, get or create the Recipient based on user and journal
-            recipient, _ = Recipient.objects.get_or_create(user=user, journal=journal)
+            recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
+            if created:
+                recipient.topics.set(recipient.journal.keywords.all())
+                recipient.news = True
+                recipient.save()
+
         else:
             # User is anonymous
-            try:
-                recipient = Recipient.objects.get(email=email, journal=journal)
-                NewsletterMailerService().send_subscription_confirmation(
-                    recipient,
-                    prefix="publication_alert_reminder",
-                )
-                self.reminder = True
-            except Recipient.DoesNotExist:
-                recipient = Recipient.objects.create(
-                    email=email,
-                    journal=journal,
-                    newsletter_token=token,
-                )
-                # Send a subscription email only if a non-logged-in user has just subscribed
-                NewsletterMailerService().send_subscription_confirmation(
-                    recipient, prefix="publication_alert_subscription",
-                )
+            recipient, created = Recipient.objects.get_or_create(
+                journal=journal,
+                email=email,
+                defaults={
+                    "newsletter_token": token,
+                },
+            )
+            if created:
+                prefix = "publication_alert_subscription"
+            else:
+                prefix = "publication_alert_reminder"
+                # It is possible that an anonymous user registers, but
+                # never clicks on the activation link, then
+                # re-registers. In this case the `Recipient` object
+                # already exists, but it's empty (no topics, no
+                # news). We prefer to treat this case as a new
+                # registration.
+                if recipient.topics.count() == 0 and recipient.news is False:
+                    prefix = "publication_alert_subscription"
+
+            NewsletterMailerService().send_subscription_confirmation(
+                recipient,
+                prefix=prefix,
+            )
+
         self.object = recipient
         return super().form_valid(form)
 
@@ -1175,29 +1190,12 @@ class AnonymousUserNewsletterRegistration(FormView):
         if self.object and self.object.user:
             # The user was logged in, redirect to edit_newsletters
             return reverse("edit_newsletters")
-        if self.reminder:
-            # Add a parameter to allow the target view to show different messages in the template
-            _url = reverse("register_newsletters_email_sent", kwargs={"id": self.object.pk})
-            return f"{_url}?reminder=1"
         else:
-            # Keep the existing flow
-            if self.object:
-                return reverse("register_newsletters_email_sent", args=(self.object.pk,))
-            else:
-                return reverse("register_newsletters_email_sent")
+            return reverse("register_newsletters_email_sent")
 
 
 class AnonymousUserNewsletterConfirmationEmailSent(TemplateView):
     template_name = "elements/accounts/anonymous_subscription_email_sent.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        if self.kwargs.get("id", None):
-            context["object"] = Recipient.objects.get(pk=self.kwargs.get("id", None))
-        # Variable to allow for different messages in the template
-        if self.request.GET.get("reminder", None):
-            context["reminder"] = True
-        return context
 
 
 class UnsubscribeUserConfirmation(TemplateView):
@@ -1205,21 +1203,18 @@ class UnsubscribeUserConfirmation(TemplateView):
 
 
 def unsubscribe_newsletter(request, token):
-    """
-    Unsubscribe from newsletter.
+    """Unsubscribe from newsletter.
 
-    Anonymous users' recipient subscription is deleted, while registered users' ones are emptied.
+    Recipient objects are deleted both for anonymous and registered
+    users so that the "fill-all-if-first-time" logic can apply.
     """
     user = request.user
     try:
         if user.is_anonymous():
             recipient = Recipient.objects.get(newsletter_token=token)
-            recipient.delete()
         else:
             recipient = Recipient.objects.get(user=request.user, journal=request.journal)
-            recipient.news = False
-            recipient.topics.clear()
-            recipient.save()
+        recipient.delete()
     except Recipient.DoesNotExist:
         return Http404
     return HttpResponseRedirect(reverse("unsubscribe_newsletter_confirm"))
@@ -1408,7 +1403,7 @@ def search(request):
     :return: HttpResponse object
     """
     get_dict = request.GET.copy()
-    get_dict["sort"] = request.GET.get('sort', '-date_published')
+    get_dict["sort"] = request.GET.get("sort", "-date_published")
     request.GET = get_dict
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
     sections = request.GET.get("sections", "")

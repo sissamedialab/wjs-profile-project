@@ -1,28 +1,27 @@
+"""Newsletter aka "Publication alerts" service."""
 import datetime
-from typing import List, Tuple, Iterable, TypedDict, Dict
+from typing import Dict, Iterable, List, Tuple, TypedDict
 from unittest.mock import Mock
-
-from django.contrib.contenttypes.models import ContentType
-from django.urls import reverse
-from premailer import transform
-
-from django.http import HttpRequest
-from django.utils.timezone import now
+from urllib.parse import urlencode
 
 from cms.models import Page
 from comms.models import NewsItem
 from core.middleware import GlobalRequestMiddleware
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db.models import Q
+from django.http import HttpRequest
 from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils.timezone import now
 from journal.models import Journal
+from premailer import transform
 from submission.models import Article
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import Newsletter, Recipient
-from urllib.parse import urlencode
 
 
 class NewsletterItem(TypedDict):
@@ -44,9 +43,14 @@ class NewsletterMailerService:
 
     @property
     def send_always_timestamp(self) -> datetime.datetime:
+        """Get timestamp that ensures that there will be something in the publication alert message.
+
+        Debug purposes only.
+        """
         return now() - datetime.timedelta(days=120)
 
     def process_content(self, content: str, journal: Journal):
+        """Process the message content with premailer."""
         processed = transform(
             content,
             base_url=self.site_url(journal),
@@ -86,7 +90,6 @@ class NewsletterMailerService:
         :param rendered_articles: The articles to be rendered in newsletter email.
         :param rendered_news: The news to be rendered in newsletter emails.
         """
-
         intro_message = get_setting(
             "email",
             "publication_alert_email_intro_message",
@@ -116,8 +119,9 @@ class NewsletterMailerService:
         return newsletter, last_sent
 
     def _get_request(self, journal: Journal) -> HttpRequest:
-        """
-        Create fake request for current journal and populate the local thread to use utils.logic.get_current_request.
+        """Create fake request.
+
+        Add the current journal to the request and populate the local thread to use utils.logic.get_current_request.
         """
         # - cron/management/commands/send_publication_notifications.py
         fake_request = create_fake_request(user=None, journal=journal)
@@ -128,7 +132,9 @@ class NewsletterMailerService:
         return fake_request
 
     def _get_objects(
-        self, journal: Journal, last_sent: datetime.datetime
+        self,
+        journal: Journal,
+        last_sent: datetime.datetime,
     ) -> Tuple[Iterable[Recipient], Iterable[Article], Iterable[NewsItem]]:
         content_type = ContentType.objects.get_for_model(journal)
 
@@ -158,7 +164,10 @@ class NewsletterMailerService:
         return rendered_articles
 
     def _render_news(
-        self, subscriber: Recipient, filtered_news: Iterable[NewsItem], request: HttpRequest
+        self,
+        subscriber: Recipient,
+        filtered_news: Iterable[NewsItem],
+        request: HttpRequest,
     ) -> List[str]:
         """Create the list of rendered news."""
         rendered_news = []
@@ -174,7 +183,7 @@ class NewsletterMailerService:
         return rendered_news
 
     def _render_newsletters_batch(self, journal_code: str, last_sent: datetime.datetime) -> NewsletterItem:
-        """Generator that renders the content of the newsletter for each subscriber."""
+        """Return a generator that yields the rendered content of the newsletter for each subscriber."""
         journal = Journal.objects.get(code=journal_code)
         request = self._get_request(journal)
 
@@ -216,14 +225,13 @@ class NewsletterMailerService:
         )
 
     def render_sample_newsletter(self, journal_code: str) -> str:
-        """
-        Render a sample message for one the existing subscribers for debugging.
-        """
+        """Render a sample message for one the existing subscribers for debugging."""
         messages = list(self._render_newsletters_batch(journal_code, self.send_always_timestamp))
         return messages[0]
 
     def send_newsletter(self, journal_code: str, force: bool = False) -> List[str]:
-        """
+        """Send the publication alerts.
+
         Use the unique Newsletter object (creating it if non-existing) to filter articles and news to be sent
         to users based on the last time newsletters have been delivered. Each user is notified considering their
         interests (i.e. topics saved in their Recipient object).
@@ -241,6 +249,7 @@ class NewsletterMailerService:
         return messages
 
     def get_context_data(self, subscriber: Recipient) -> Dict[str, any]:
+        """Return context data suitable to be used in the newsletter preference pages."""
         return {
             "journal": subscriber.journal,
             "site_url": self.site_url(subscriber.journal),
@@ -249,6 +258,12 @@ class NewsletterMailerService:
         }
 
     def send_subscription_confirmation(self, subscriber: Recipient, prefix: str):
+        """Send a confirmation email to anonymous users.
+
+        :param prefix: could be
+        - publication_alert_subscription - for email to "first time" recipients
+        - publication_alert_reminder - for "reminder" emails to existing recipients
+        """
         subject = get_setting(
             "email",
             f"{prefix}_email_subject",
@@ -278,8 +293,9 @@ class NewsletterMailerService:
             "newsletters/newsletter_template.html",
             {
                 "content": email_body.value.format(
-                    journal=subscriber.journal, email=subscriber.newsletter_destination_email,
-                    acceptance_url=full_acceptance_url
+                    journal=subscriber.journal,
+                    email=subscriber.newsletter_destination_email,
+                    acceptance_url=full_acceptance_url,
                 ),
                 **self.get_context_data(subscriber),
             },
