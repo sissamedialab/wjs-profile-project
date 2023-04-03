@@ -360,9 +360,9 @@ class SIUpdateForm(forms.ModelForm):
 
 class NewsletterTopicForm(forms.ModelForm):
     topics = forms.ModelMultipleChoiceField(
-        label=_("Topics"),
-        queryset=Keyword.objects.all(),
-        widget=Select2Multiple(),
+        label=_(""),
+        queryset=None,
+        widget=forms.CheckboxSelectMultiple,
         required=False,
     )
     news = forms.BooleanField(required=False, label=_("I want to receive alerts about news published in JCOM."))
@@ -373,6 +373,11 @@ class NewsletterTopicForm(forms.ModelForm):
             "topics",
             "news",
         )
+
+    def __init__(self, *args, **kwargs):
+        """Prepare the queryset for topics."""
+        self.base_fields["topics"].queryset = kwargs.get("instance").journal.keywords.all().order_by("word")
+        super().__init__(*args, **kwargs)
 
 
 class RegisterUserNewsletterForm(forms.Form):

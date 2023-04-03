@@ -1,0 +1,7 @@
+<br/>
+{% for id, i in field.field.widget.choices %}
+    <p>
+      <input type="checkbox" id="id_{{ field.name }}_{{ forloop.counter0 }}" value="{{ id }}" name="{{ field.name }}" {% if id in field.value %} checked=""{% endif %}/>
+      <label for="id_{{ field.name }}_{{ forloop.counter0 }}">{{ i }}</label>
+    </p>
+{% endfor %}

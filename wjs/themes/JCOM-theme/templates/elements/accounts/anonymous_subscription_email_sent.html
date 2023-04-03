@@ -1,45 +1,19 @@
 {% extends "core/base.html" %}
-
 {% block body %}
-<div class="row">
-    <div class="s12 center">
-        {% with journal_code=object.journal.code journal_name=object.journal.name %}
-            {% if reminder %}
-                <h2 class="main-title">{% blocktrans %}Your subscription to {{journal_code}} publication alert{% endblocktrans %}</h2>
-                <div class="card-panel">
-                    <p>
-                        {% url "edit_newsletters" as url_link %}
-                        {% blocktrans %}
-                            Hello,
-                            <p>We have received a request to subscribe your email address to {{journal_code}} publication alert.</p>
-                            <p>Please note that you are already subscribed. If you wish to change your topics of interest use the link below:</p>
-                            <p><a href="{{url_link}}">Change topics of interest</a></p>
-                            <p>Kind regards,</p>
-                            <p>{{journal_code}} - {{journal_name}}</p>
-                        {% endblocktrans %}
-                    </p>
-                </div>
-            {% else %}
+    <div class="row">
+        <div class="s12 center">
+            {% with journal_code=object.journal.code journal_name=object.journal.name %}
                 <h2 class="main-title">{% trans "Subscription to be confirmed" %}</h2>
                 <div class="card-panel">
                     <p>
-                        {% if object %}
-                            {% blocktrans with email=object.newsletter_destination_email %}
-                                An email with a confirmation link has been sent to your email address {{ email }}.
-                                <br/>
-                                Please open the link to activate your publication alert.
-                            {% endblocktrans %}
-                        {% else %}
-                            {% blocktrans %}
-                                An email with a confirmation link has been sent to your email address.
-                                <br/>
-                                Please open the link to activate your publication alert.
-                            {% endblocktrans %}
-                        {% endif %}
+                        {% blocktrans %}
+                        An email with a confirmation link has been sent to your email address.
+                        <br>
+                        Please open the link to activate your publication alert.
+                        {% endblocktrans %}
                     </p>
                 </div>
-            {% endif %}
-        {% endwith %}
+            {% endwith %}
+        </div>
     </div>
-</div>
 {% endblock body %}

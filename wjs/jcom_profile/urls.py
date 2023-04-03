@@ -109,11 +109,6 @@ urlpatterns = [
         name="register_newsletters_email_sent",
     ),
     url(
-        r"^register/newsletters/email-sent/(?P<id>\d+)/$",
-        views.AnonymousUserNewsletterConfirmationEmailSent.as_view(),
-        name="register_newsletters_email_sent",
-    ),
-    url(
         r"^newsletters/unsubscribe/confirm/$",
         views.UnsubscribeUserConfirmation.as_view(),
         name="unsubscribe_newsletter_confirm",
