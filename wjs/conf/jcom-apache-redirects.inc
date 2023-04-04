@@ -1,9 +1,17 @@
 # JCOM redirects
 RewriteEngine On
 
-RewriteRule "^/rss.xml" "/feed/articles/" [R=301,L]
-RewriteRule "^/.*/RSS$" "/feed/articles/" [R=301,L]
-RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-research-and-practice-challenges-and" "/news/1/" [R=301,L]
+# Obsolete as of 2023-03-20
+# RewriteRule "^/rss.xml" "/feed/articles/" [R=301,L]
+# RewriteRule "^/.*/RSS$" "/feed/articles/" [R=301,L]
+# RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-research-and-practice-challenges-and" "/news/1/" [R=301,L]
+
+# .abstract to landing page (#331)
+RewriteCond %{REQUEST_URI} "\.abstract/?$"
+RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>[0-9-]{2,3}).*/([^/]+).abstract/?$" "/article/pubid/$3/" [R=301,L]
+
+RewriteCond %{REQUEST_URI} "\.abstract/?$"
+RewriteRule "^/article/pubid/([^/]+).abstract/?$" "/article/pubid/$1/" [R=301,L]
 
 # Important! Papers' landing page
 # From: //jcom.sissa.it/archive/13/04/JCOM_1304_2014_E

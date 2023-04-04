@@ -10,6 +10,11 @@ logger = get_logger(__name__)
 
 # warning: remember that the last item is a regexp: () have special meaning
 TESTS = (
+    # .abstract to landing page
+    ("/archive/17/01/JCOM_1701_2018_Y01.abstract", 301, "/article/pubid/JCOM_1701_2018_Y01/"),
+    ("/archive/17/01/JCOM_1701_2018_Y01.abstract/", 301, "/article/pubid/JCOM_1701_2018_Y01/"),
+    ("/article/pubid/JCOM_2002_2021_Y01.abstract", 301, "/article/pubid/JCOM_2002_2021_Y01/"),
+    ("/article/pubid/JCOM_2002_2021_Y01.abstract/", 301, "/article/pubid/JCOM_2002_2021_Y01/"),
     # Landing page
     ("/archive/21/07/JCOM_2107_2022_A02", 301, "/article/pubid/JCOM_2107_2022_A02/"),
     ("/archive/21/07/JCOM_2107_2022_A02/", 301, "/article/pubid/JCOM_2107_2022_A02/"),
