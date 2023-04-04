@@ -13,6 +13,7 @@
     {% if article.date_published %}<meta property="article:published_time" content="{{ article.date_published|date:"c" }}" />{% endif %}
     {% if article.last_modified %}<meta property="article:modified_time" content="{{ article.last_modified|date:"c" }}" />{% endif %}
 
+    <meta name="dcterms.language" content="{{ article.language }}" />
     {% for author in article.frozen_authors.all %}
         <meta name="dcterms.creator" content="{{ author.dc_name_string }}" />
     {% endfor %}
@@ -25,11 +26,13 @@
     <meta name="dcterms.date" content="{{ article.date_published|date:"Y/m/d" }}" />
     <meta name="dcterms.type" content="Text" />
     {# Is it right? I tried to reproduce precisely what I see in the old website, for example https://jcom.sissa.it/archive/22/01/JCOM_2201_2023_R01 #}
-    {% if article.identifier.id_type == "doi" %}<meta name="dcterms.identifier" content="info:doi/{{ article.identifier.identifier}}" />{% endif %}
+    {% if article.identifier.id_type == "doi" %}<meta name="dcterms.identifier" content="info:doi/{{ article.identifier.identifier }}" />{% endif %}
     <meta name="dcterms.bibliographicCitation" content="{{ article|how_to_cite|striptags|force_escape }}" />
     <meta name="dcterms.isPartOf" content="urn:ISSN:{{ article.journal_issn }}" />
+    <meta name="dcterms.license" content="{{ article.license.url }}" />
+    <meta name="dcterms.rights" content="{{ request.journal.site_url }}/site/about-{{ journal.code|lower }}" />
 
-    {% if article.publisher_name%}<meta name="citation_publisher" content="{{ article.publisher_name }}"/>
+    {% if article.publisher_name %}<meta name="citation_publisher" content="{{ article.publisher_name }}"/>
     {% elif journal_settings.general.publisher_name %}<meta name="citation_publisher" content="{{ journal_settings.general.publisher_name }}"/>
     {% endif %}
     <meta name="citation_journal_title" content="{{ article.journal_title }}"/>
