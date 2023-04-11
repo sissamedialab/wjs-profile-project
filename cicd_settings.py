@@ -213,4 +213,10 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     "TST": "wjs.jcom_profile.events.assignment.jcom_assign_editors_to_articles",
 }
 
+
+TIME_ZONE = "Europe/Rome"
+
+# NB: cannot override Janeway languages here because they are referred
+# to in some migrations. See tests.conftest.sync_translation_fields
+
 print("🍠")

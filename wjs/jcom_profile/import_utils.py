@@ -35,6 +35,7 @@ FUNNY_LANGUAGE_CODES = {
     "sp": "es",  # Spanish, Castilian
     "dk": "da",  # Danish
     "po": "pt",  # Portuguese
+    "pt-br": "pt",  # This is not technically perfect (pt-br is better than just pt)
 }
 
 
@@ -164,6 +165,49 @@ def set_language(article, language):
                 JANEWAY_LANGUAGES_BY_CODE[lang_obj.alpha_3],
                 article.get_identifier("pubid"),
             )
+    article.save()
+
+
+def set_language_specific_field(article, field, value, clear_en=False):
+    """Set the given field for the article's language to given value.
+
+    Warning: I'm not going to "save()" the article!
+
+    We only know about JCOMAL, all other journals we just se the field.
+    """
+    if article.journal.code != "JCOMAL":
+        setattr(article, field, value)
+        return
+
+    if not article.language:
+        logger.error(f"No language set for {article.get_identifier('pubid')}")
+        return
+
+    # Remember that article.language is alpha3, but modeltranslation's adapted fields are alpha2
+    lang_obj = pycountry.languages.get(alpha_3=article.language)
+    if lang_obj is None:
+        logger.error(
+            'Unknown language code "%s" for %s. Keeping default "English"',
+            article.language,
+            article.get_identifier("pubid"),
+        )
+        return
+
+    language_specific_field = f"{field}_{lang_obj.alpha_2}"
+    if not hasattr(article, language_specific_field):
+        logger.error(f"Article {article.get_identifier('pubid')} has no field {language_specific_field}. Unexpected!")
+        return
+
+    setattr(article, language_specific_field, value)
+
+    # This is mainly a workaround for the fact that I use `title` to
+    # create the article.  There could be better ways but it doesn't
+    # seem worth the effort. See
+    # e.g. https://django-modeltranslation.readthedocs.io/en/latest/usage.html#multilingual-manager-1
+    if clear_en:
+        en_field = f"{field}_en"
+        setattr(article, en_field, None)
+
     article.save()
 
 
