@@ -8,6 +8,11 @@ from django.core.mail import send_mail
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
+from journal.admin import IssueAdmin
+from journal.models import Issue
+from modeltranslation.admin import TranslationAdmin
+from submission.admin import KeywordAdmin
+from submission.models import Keyword
 
 from wjs.jcom_profile import forms, models
 from wjs.jcom_profile.models import (
@@ -130,3 +135,19 @@ class EditorKeywordAdmin(admin.ModelAdmin):
 @admin.register(Recipient)
 class RecipientAdmin(admin.ModelAdmin):
     """Helper class to "admin" recipient."""
+
+
+class KeywordTranslationAdmin(KeywordAdmin, TranslationAdmin):
+    """Keyword translations."""
+
+
+admin.site.unregister(Keyword)
+admin.site.register(Keyword, KeywordTranslationAdmin)
+
+
+class IssueTranslationAdmin(IssueAdmin, TranslationAdmin):
+    """Issue translations."""
+
+
+admin.site.unregister(Issue)
+admin.site.register(Issue, IssueTranslationAdmin)

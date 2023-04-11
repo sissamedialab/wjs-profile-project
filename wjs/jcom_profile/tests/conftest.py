@@ -1,14 +1,13 @@
 """pytest common stuff and fixtures."""
 import os
 import random
+from unittest.mock import Mock
 
 import pytest
 import pytest_factoryboy
-from mock import Mock
-
 from core.middleware import GlobalRequestMiddleware
 from core.models import Account, File, Role, Setting, SupplementaryFile
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.core import management
 from django.core.cache import cache
 from django.urls.base import clear_script_prefix
@@ -20,10 +19,15 @@ from press.models import Press
 from submission import models as submission_models
 from submission.models import Keyword
 from utils import setting_handler
-from utils.install import update_issue_types
+from utils.install import (
+    update_emails,
+    update_issue_types,
+    update_settings,
+    update_xsl_files,
+)
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
-from utils.testing.helpers import create_galley
 from utils.management.commands.test_fire_event import create_fake_request
+from utils.testing.helpers import create_galley
 
 from wjs.jcom_profile.factories import (
     AccountFactory,
@@ -71,6 +75,17 @@ INVITE_BUTTON = f"""<li>
 ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
 
 ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span>"""
+
+
+@pytest.fixture
+def sync_translation_fields(db):
+    """Sync DB with translations settings.
+
+    See
+    https://django-modeltranslation.readthedocs.io/en/latest/registration.html#committing-fields-to-database
+    """
+    management.call_command("sync_translation_fields", "--noinput")
+    management.call_command("update_translation_fields")
 
 
 @pytest.fixture(autouse=True)
@@ -125,7 +140,7 @@ def jcom_user(user):
 
 @pytest.fixture
 def roles():
-    roles_path = os.path.join(settings.BASE_DIR, ROLES_RELATIVE_PATH)
+    roles_path = os.path.join(django_settings.BASE_DIR, ROLES_RELATIVE_PATH)
     management.call_command("loaddata", roles_path)
 
 
@@ -221,16 +236,26 @@ def set_jcom_settings(journal):
     setting_handler.save_setting("general", "from_address", journal, "jcom-eo@jcom.sissa.it")
 
 
+def set_general_settings():
+    """Define default settings to replace data defined in datamigration."""
+    update_xsl_files()
+    update_settings()
+    update_emails()
+    management.call_command("add_publication_alert_settings")
+    management.call_command("add_user_as_main_author_setting")
+    management.call_command("add_submission_figures_data_title")
+
+
 @pytest.fixture
 def journal(press):
     """Prepare a journal."""
+    set_general_settings()
     journal = journal_models.Journal.objects.create(code=JOURNAL_CODE, domain="testserver.org")
     journal.title = "Test Journal: A journal of tests"
     journal.save()
     update_issue_types(journal)
     set_jcom_theme(journal)
     set_jcom_settings(journal)
-
     return journal
 
 

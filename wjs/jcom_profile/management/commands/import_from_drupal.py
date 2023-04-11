@@ -34,6 +34,7 @@ from wjs.jcom_profile.import_utils import (
     query_wjapp_by_pubid,
     set_author_country,
     set_language,
+    set_language_specific_field,
 )
 from wjs.jcom_profile.utils import from_pubid_to_eid
 
@@ -182,9 +183,8 @@ class Command(BaseCommand):
             help="Do create a thumbnail for the article from the large image.",
         )
         parser.add_argument(
-            "--journal-code",
-            default="JCOM",
-            help="Toward which journal to import. Defaults to %(default)s.",
+            "journal-code",
+            help="Toward which journal to import.",
         )
 
     def find_articles(self):
@@ -243,11 +243,11 @@ class Command(BaseCommand):
     def process(self, raw_data):
         """Process an article's raw json data."""
         logger.debug("Processing %s (nid=%s)", raw_data["field_id"], raw_data["nid"])
-        self.journal_data = JOURNALS_DATA[self.options["journal_code"]]
+        self.journal_data = JOURNALS_DATA[self.options["journal-code"]]
         self.nid = int(raw_data["nid"])
         # Ugly hack in order not to overlap with JCOM imported papers.
         # Also, do I really need to keep the Drupal node id?
-        if self.options["journal_code"] == "JCOMAL":
+        if self.options["journal-code"] == "JCOMAL":
             self.nid += 10000
         if article_pk := Command.seen_articles.get(raw_data["field_id"], None):
             logger.debug("  %s - already imported. Just retrieving from DB (%s).", raw_data["field_id"], article_pk)
@@ -280,7 +280,7 @@ class Command(BaseCommand):
           nothing (the old value is preserverd).
 
         """
-        journal = journal_models.Journal.objects.get(code=self.options["journal_code"])
+        journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
         # There is a document with no DOI (JCOM_1303_2014_RCR), so I use the "pubid"
         article = submission_models.Article.get_article(
             journal=journal,
@@ -298,6 +298,13 @@ class Command(BaseCommand):
             article.articlewrapper.nid = self.nid
             article.articlewrapper.save()
         assert article.articlewrapper.nid == self.nid
+
+        # I explicitly receive the language info only for JCOMAL.
+        # For JCOM, I must infer it form the galleys that I find.
+        if journal.code == "JCOMAL":
+            set_language(article, raw_data["language"])
+
+        set_language_specific_field(article, "title", article.title, clear_en=True)
         eid = from_pubid_to_eid(raw_data["field_id"])
         article.page_numbers = eid
         article.save()
@@ -393,7 +400,12 @@ class Command(BaseCommand):
     def set_files(self, article, raw_data):
         """Find info about the article "attachments", download them and import them as galleys.
 
-        Here we also set the article's language, as it depends on which galleys we find.
+        For JCOM, here we also set the article's language, as it
+        depends on which galleys we find.
+
+        For JCOMAL we receive the language info explicitly so there is
+        no need to try to infer it from the galleys.
+
         """
         # See also plugin imports.ojs.importers.import_galleys.
 
@@ -406,7 +418,8 @@ class Command(BaseCommand):
         # I'm not sure that it is correct to set a language different
         # from English when the doi points to English-only metadata
         # (even if there are two PDF files). But see #194.
-        article.language = "eng"
+        if self.options["journal-code"] == "JCOM":
+            article.language = "eng"
 
         attachments = raw_data["field_attachments"]
         # Drupal "attachments" are only references to "file" nodes
@@ -419,18 +432,19 @@ class Command(BaseCommand):
                 file_name=file_dict["name"],
                 file_mimetype=file_dict["mime"],
             )
-            if language and language != "en":
-                if article.language != "eng":
-                    # We can have 2 non-English galleys (PDF and EPUB),
-                    # they are supposed to be of the same language. Not checking.
-                    #
-                    # If the article language is different from
-                    # english, this means that a non-English gally has
-                    # already been processed and there is no need to
-                    # set the language again.
-                    pass
-                else:
-                    set_language(article, language)
+            if self.options["journal-code"] == "JCOM":
+                if language and language != "en":
+                    if article.language != "eng":
+                        # We can have 2 non-English galleys (PDF and EPUB),
+                        # they are supposed to be of the same language. Not checking.
+                        #
+                        # If the article language is different from
+                        # english, this means that a non-English gally has
+                        # already been processed and there is no need to
+                        # set the language again.
+                        pass
+                    else:
+                        set_language(article, language)
             save_galley(
                 article,
                 request=fake_request,
@@ -540,7 +554,10 @@ class Command(BaseCommand):
                 raw_data["field_id"],
                 len(abstract_dict["summary"]),
             )
-        article.abstract = abstract
+        # I don't always set the (generic) field. Because this way it
+        # will be easier to find non-translated parts.
+        set_language_specific_field(article, "abstract", abstract)
+        article.save()
         logger.debug("  %s - abstract", raw_data["field_id"])
 
     def set_body(self, article, raw_data):
@@ -614,6 +631,7 @@ class Command(BaseCommand):
                 order=order,
             )
             article.keywords.add(keyword)
+        article.journal.keywords.add(keyword)
         article.save()
         logger.debug("  %s - keywords (%s)", raw_data["field_id"], article.keywords.count())
 
@@ -985,7 +1003,7 @@ class Command(BaseCommand):
         # journal. We just know it's there.
         self.license_ccbyncnd = submission_models.Licence.objects.get(
             short_name="CC BY-NC-ND 4.0",
-            journal=journal_models.Journal.objects.get(code=self.options["journal_code"]),
+            journal=journal_models.Journal.objects.get(code=self.options["journal-code"]),
         )
         if "NoDerivatives" not in self.license_ccbyncnd.name:
             logger.warning('Please fix the text of the ND licenses: should read "NoDerivatives".')
@@ -1004,8 +1022,16 @@ class Command(BaseCommand):
 
     def tidy_up(self):
         """Run una-tantum operations at the end of the import process."""
-        if self.options["journal_code"] == "JCOMAL":
-            translate_kwds()
+        if self.options["journal-code"] == "JCOMAL":
+            journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
+            translate_kwds(journal)
+            translate_sections(journal)
+
+            # curiosity:
+            all_kwds_count = submission_models.Keyword.objects.count()
+            jcom_kwds_count = journal_models.Journal.objects.get(code="JCOM").keywords.count()
+            jcomal_kwds_count = journal_models.Journal.objects.get(code="JCOMAL").keywords.count()
+            logger.debug(f"Kwds: {jcom_kwds_count} JCOM + {jcomal_kwds_count} JCOMAL / {all_kwds_count} tot.")
 
     def set_children(self, article, raw_data):
         """Process children if present (mainly for commentaries)."""
@@ -1067,7 +1093,7 @@ class Command(BaseCommand):
         a.save()
 
 
-def translate_kwds():
+def translate_kwds(journal):
     """Translate JCOMAL kwds."""
     # Adapted from https://jcomal.sissa.it/jcomal/help/keywordsList.jsp
     keyword_list = (
@@ -1158,8 +1184,58 @@ def translate_kwds():
     )
     for eng_word, por_word, spa_word in keyword_list:
         try:
+            # Do _not_ use journal's kwds only! Kwds can be "shared" among journals.
             keyword = submission_models.Keyword.objects.get(word=eng_word)
         except submission_models.Keyword.DoesNotExist:
-            logger.error(f'Kwd "{eng_word}" does not exist. Please check!')
+            logger.warning(f'Kwd "{eng_word}" did not exist (i.e. no articles linked). Created!')
+            keyword = submission_models.Keyword.objects.create(word=eng_word)
+        else:
+            keyword.word_pt = por_word
+            keyword.word_es = spa_word
+            keyword.save()
+            journal.keywords.add(keyword)
+            logger.debug(f"Translated {keyword} to {por_word} and {spa_word}")
+
+
+def translate_sections(journal):
+    """Translate JCOMAL sections."""
+    # See https://gitlab.sissamedialab.it/wjs/specs/-/issues/267#note_5073
+    section_list = (
+        # en, plural_en,   es, plural_es,   pt, plural_pt
+        ("Article", "Articles", "Artículo", "Artículos", "Artigo", "Artigos"),
+        ("Commentary", "Commentaries", "Comentario", "Comentarios", "Comentário", "Comentários"),
+        ("Editorial", "Editorials", "Editorial", "Editoriales", "Editorial", "Editoriais"),
+        ("Essay", "Essays", "Ensayo", "Ensayos", "Ensaio", "Ensaios"),
+        ("Letter", "Letters", "Carta", "Cartas", "Carta", "Cartas"),
+        (
+            "Practice Insight",
+            "Practice Insights",
+            "Practice insight",
+            "Practice insight",
+            "Insight da prática",
+            "Insight da prática",
+        ),
+        (
+            "Review Article",
+            "Review Articles",
+            "Artículo de revisión",
+            "Artículos de revisión",
+            "Artigo de revisão",
+            "Artigos de revisão",
+        ),
+        ("Review", "Reviews", "Reseña", "Reseñas", "Resenha", "Resenhas"),
+    )
+    for name, plural, name_es, plural_es, name_pt, plural_pt in section_list:
+        try:
+            section = submission_models.Section.objects.get(journal=journal, name=name)
+        except submission_models.Section.DoesNotExist:
+            logger.error(f'Section "{name}" does not exist. Please check!')
             continue
-        logger.warning(f"Please translate {keyword} to {por_word} and {spa_word}")
+        else:
+            section.plural = plural
+            section.name_pt = name_pt
+            section.name_es = name_es
+            section.plural_pt = plural_pt
+            section.plural_es = plural_es
+            section.save()
+            logger.debug(f"Translated {section} to {name_pt} and {name_es}")
