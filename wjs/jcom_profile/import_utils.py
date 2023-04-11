@@ -361,8 +361,10 @@ def drop_frontmatter(html: HtmlElement):
 def remove_images_dimensions(html: HtmlElement):
     """Remove dimensions from <img> tags, let Janeway decide."""
     for img in html.findall(".//img"):
-        del img.attrib["width"]
-        del img.attrib["height"]
+        if "width" in img.attrib:
+            del img.attrib["width"]
+        if "height" in img.attrib:
+            del img.attrib["height"]
 
 
 def process_body(body: str, style=None, lang="eng") -> bytes:
