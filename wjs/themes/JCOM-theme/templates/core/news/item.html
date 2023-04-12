@@ -21,14 +21,14 @@
             </div>
 
             <div class="card full-width-card">
-                    {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %}
-                    <div class="card-image full-width-card-image col s12 m4">
+                    {% if news_item.best_image_url %}
+                    <div class="card-image full-width-card-image">
                         <img src="{{ news_item.best_image_url }}"
                             alt="{{ news_item.title }}"/>
                     </div>
                     {% endif %}
 
-                <div class="card-content col s12 {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %} m8{% else %} m12{% endif%}">
+                <div class="card-content">
                 <span class="date">
                     <i class="fa fa-calendar"></i>
                     {{ news_item.posted|date:"Y-m-d" }}
