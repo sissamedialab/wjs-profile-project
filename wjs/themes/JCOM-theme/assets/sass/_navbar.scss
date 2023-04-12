@@ -56,7 +56,7 @@ nav {
 
   li {
     line-height: 56px;
-    
+
     &:last-child {
       @media screen and (max-width: 1023px) {
         float: none;
@@ -95,4 +95,74 @@ nav {
   }
 }
 
+nav {
+  .social-media-links {
+    display: flex;
+    padding-left: 15px;
 
+     li {
+       float: none;
+     }
+  }
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+
+  @media screen and (min-width: 1280px) {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  &-items {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.language-select {
+  height: 56px;
+  display: flex;
+  justify-content: flex-end;
+
+  @media screen and (max-width: 1023px) {
+    justify-content: center;
+  }
+
+  &__wrapper {
+    align-items: center;
+    display: flex;
+    margin: .9rem 0;
+
+    &:after {
+      content: " ";
+      border-right: 2px solid color("journal-color", "lighten-2");
+      height: 0.7rem;
+      margin: .5rem;
+    }
+  }
+
+  &__button {
+    background: transparent;
+    border: none;
+    color: color("shades", "black");
+    font-size: 0.8rem;
+    margin: 0 .5rem;
+    text-transform: uppercase;
+
+    &:focus {
+      background-color: transparent;
+    }
+
+    &:hover {
+      color: color("journal-color", "accent-1");
+    }
+
+    &--selected {
+      font-weight: 500;
+      color: color("journal-color", "base");
+    }
+  }
+}
