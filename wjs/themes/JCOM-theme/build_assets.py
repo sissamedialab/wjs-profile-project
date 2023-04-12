@@ -24,6 +24,7 @@ THEME_CSS_FILES = [
 
 def process_scss():
     """Compiles SCSS into CSS in the Static Assets folder."""
+    print("PATH",  os.path.dirname(__file__), __file__)
     include_path_materialize = os.path.join(
         os.path.dirname(__file__),
         "assets",
@@ -39,10 +40,10 @@ def process_scss():
             f"{os.path.splitext(os.path.basename(css_file))[0]}.scss"
         )
 
-        include_path_theme = os.path.dirname(app_scss_file)
+        include_path_jcom = os.path.dirname(app_scss_file)
         compiled_css_from_file = sass.compile(
             filename=app_scss_file,
-            include_paths=[include_path_theme, include_path_materialize],
+            include_paths=[include_path_jcom, include_path_materialize],
         )
 
         # Open the CSS file and write into it

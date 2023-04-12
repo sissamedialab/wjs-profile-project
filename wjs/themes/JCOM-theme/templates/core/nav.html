@@ -5,6 +5,9 @@
 {% load i18n %}
 {% load hooks %}
 
+{% get_current_language as LANGUAGE_CODE %}
+{% get_available_languages as LANGUAGES %}
+{% get_language_info_list for LANGUAGES as languages %}
 
 <nav class="header-overrides" role="navigation">
     <div class="nav-wrapper{% if not request.journal.full_width_navbar %} container{% endif %}">
@@ -23,29 +26,45 @@
                 </a>
             </div>
 
-            <div class="s2 l4 right hide-on-med-and-down">
-                        <ul class="social-media-links platforms inline horizontal">
-                            <li class="facebook first">
-                                <a href="https://www.facebook.com/jcom.sissa.it" target="_blank" title="Facebook">
-                                    <i class="fa fa-facebook"></i>
-                                </a>
-                            </li>
-                            <li class="twitter">
-                                <a href="http://www.twitter.com/JsciCOM" target="_blank" title="Twitter">
-                                    <i class="fa fa-twitter"></i>
-                                </a>
-                            </li>
-                            <li class="rss last">
-                                <a href="{% journal_url 'rss_articles' %}" target="_blank" title="RSS">
-                                    <i class="fa fa-rss"></i>
-                                </a>
-                            </li>
-                        </ul>
+            <div class="col l4 hide-on-med-and-down actions">
+                {% if request.available_languages|length > 1 %}
+                    <form class="language-select" action="{% url 'set_language' %}" method="post">{% csrf_token %}
+                        <input name="next" type="hidden" value="{{ request.PATH }}"/>
+                        {% for language in languages %}
+                            {% if language.code in request.available_languages %}
+                            <div class="language-select__wrapper">
+                                <button class="language-select__button {% if language.code == LANGUAGE_CODE %} language-select__button--selected{% endif %}" name="language" value="{{ language.code }}">
+                                    {{ language.code }}
+                                </button>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </form>
+                {% endif %}
+                <div class="actions-items">
+                    <ul class="social-media-links platforms inline horizontal">
+                        <li class="facebook">
+                            <a href="https://www.facebook.com/jcom.sissa.it" target="_blank" title="Facebook">
+                                <i class="fa fa-facebook"></i>
+                            </a>
+                        </li>
+                        <li class="twitter">
+                            <a href="http://www.twitter.com/JsciCOM" target="_blank" title="Twitter">
+                                <i class="fa fa-twitter"></i>
+                            </a>
+                        </li>
+                        <li class="rss">
+                            <a href="{% journal_url 'rss_articles' %}" target="_blank" title="RSS">
+                                <i class="fa fa-rss"></i>
+                            </a>
+                        </li>
+                    </ul>
                     <ul>
                         {% if request.user.is_authenticated %}
                         <li><a class="dropdown-button" href="#!" data-activates="account">{% trans "Account" context "USER FACING" %}<i class="material-icons right">arrow_drop_down</i></a></li>
                         {% endif %}
                     </ul>
+                </div>
             </div>
 
 
@@ -151,6 +170,23 @@
                             <button name="submit" class="btn"><i class="fa fa-search"></i></button>
                         </div>
                     </form>
+                </li>
+
+                <li>
+                    {% if request.available_languages|length > 1 %}
+                        <form class="language-select" action="{% url 'set_language' %}" method="post">{% csrf_token %}
+                            <input name="next" type="hidden" value="{{ request.PATH }}"/>
+                            {% for language in languages %}
+                                {% if language.code in request.available_languages %}
+                                <div class="language-select__wrapper">
+                                    <button class="language-select__button {% if language.code == LANGUAGE_CODE %} language-select__button--selected{% endif %}" name="language" value="{{ language.code }}">
+                                        {{ language.code }}
+                                    </button>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </form>
+                    {% endif %}
                 </li>
 
                 <li>
