@@ -1,6 +1,6 @@
 {% load pages %}
 
-{% if page.paginator.count > 1 %}
+{% if page.paginator.num_pages > 1 %}
 <ul class="pagination">
     {% if page.has_previous %}
         <li class="waves-effect"><a href="?page={{ page.previous_page_number }}">&laquo;</a></li>
