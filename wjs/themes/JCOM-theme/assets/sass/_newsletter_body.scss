@@ -2,7 +2,7 @@
 
 a {
   text-decoration: none;
-  color: color("jcom-blue", "darken-2");
+  color: color("journal-color", "darken-2");
 }
 
 body {
@@ -30,7 +30,7 @@ body {
 
 h2 {
   background: color("grey", "lighten-5");
-  color: color("jcom-blue", "darken-2");
+  color: color("journal-color", "darken-2");
   padding: 0.6rem
 }
 
@@ -42,7 +42,7 @@ h2 {
 }
 
 .title {
-  color: color("jcom-blue", "darken-2");
+  color: color("journal-color", "darken-2");
   font-size: 1.5rem;
   margin: 0;
 }

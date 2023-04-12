@@ -30,7 +30,7 @@
 //  24. Collections
 //  25. Progress Bar
 
-// To customize variables, copy the variables from `materialize-src/sass/variables` and write it here removing the !default
+// To customize variables, copy the variables from `materialize-src/sass/variables` and write it here removing the
 
 // 1. Colors
 // ==========================================================================
@@ -38,15 +38,15 @@
 $roboto-font-path: "../fonts/roboto/";
 $flaticon-font-path: "../fonts/flaticon/";
 
-$primary-color: color("jcom-blue", "darken-2") !default;
-$primary-color-light: lighten("jcom-blue", 15%) !default;
-$primary-color-dark: darken("jcom-blue", 15%) !default;
-$primary-blue: color("jcom-blue", "base") !default;
+$primary-color: color("journal-color", "darken-2");
+$primary-color-light: lighten($primary-color, 15%);
+$primary-color-dark: darken($primary-color, 15%);
+$primary-base: color("journal-color", "base");
 
-$secondary-color: color("teal", "lighten-1") !default;
-$success-color: color("green", "base") !default;
-$error-color: color("red", "base") !default;
-$link-color: color("light-blue", "darken-1") !default;
+$secondary-color: color("teal", "lighten-1");
+$success-color: color("green", "base");
+$error-color: color("red", "base");
+$link-color: color("journal-color", "darken-1");
 
 
 // 14. Navigation Bar
