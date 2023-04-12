@@ -1,6 +1,6 @@
 .article {
   &-title {
-    color: var(--primary);
+    color: color("journal-color", "base");
     font-size: 2rem;
     font-weight: bold;
 
@@ -38,7 +38,7 @@
     padding: 0;
 
     &-title {
-      color: var(--primary);
+      color: color("journal-color", "base");
       font-size: 1.5rem;
     }
 
@@ -80,7 +80,7 @@
     h2,
     h3,
     h4 {
-      color: var(--primary);
+      color: color("journal-color", "base");
       font-size: 1.5rem;
     }
 
@@ -95,7 +95,7 @@
 
   &-sidebar {
     &-title {
-      color: var(--primary-light);
+      color:color("journal-color", "lighten-1");
       font-size: 1.5rem;
     }
 

@@ -27,7 +27,7 @@
         <link rel="icon" href="{{ request.repository.favicon.url }}" type="image/vnd.microsoft.icon"/>
     {% endif %}
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="{% static "JCOM-theme/css/jcom.css" %}">
+    <link rel="stylesheet" href="{% static "JCOM-theme/css/" %}{{ journal.code|lower }}.css">
 
     <link href="{% static "common/css/common.css" %}" rel="stylesheet">
     {% block css %}{% endblock %}

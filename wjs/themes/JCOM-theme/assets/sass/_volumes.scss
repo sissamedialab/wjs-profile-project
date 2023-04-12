@@ -4,7 +4,7 @@
   gap: 20px;
 
   &__title {
-    color: var(--primary);
+    color: color("journal-color", "base");
     font-weight: bold;
   }
 }
@@ -14,7 +14,7 @@
   padding: 20px;
 
   &__title {
-    color: var(--primary-light);
+    color: color("journal-color", "lighten-1");
   }
 }
 
@@ -27,7 +27,7 @@
 .issue-archive {
   &-volume {
     align-items: center;
-    background-color: var(--primary-light);
+    background-color: color("journal-color", "lighten-1");
     color: white;
     flex-direction: row;
     justify-content: space-between;
@@ -52,5 +52,4 @@
   &-volume-list {
     padding: 0;
   }
-  
 }

@@ -15,48 +15,39 @@ from django.conf import settings
 from django.core.management import call_command
 
 BASE_THEME_DIR = os.path.join(settings.BASE_DIR, "static", "JCOM-theme")
-THEME_CSS_FILE = os.path.join(BASE_THEME_DIR, "css", "jcom.css")
-NEWSLETTER_CSS_FILE = os.path.join(BASE_THEME_DIR, "css", "newsletter.css")
+THEME_CSS_FILES = [
+    os.path.join(BASE_THEME_DIR, "css", "jcom.css"), os.path.join(BASE_THEME_DIR, "css", "jcomal.css"),
+    os.path.join(BASE_THEME_DIR, "css", "newsletter_jcom.css"), os.path.join(BASE_THEME_DIR, "css", "newsletter_jcomal.css")
+]
+
 
 
 def process_scss():
     """Compiles SCSS into CSS in the Static Assets folder."""
-    app_scss_file = os.path.join(
-        os.path.dirname(__file__),
-        "assets",
-        "sass",
-        "jcom.scss",
-    )
-    newsletter_scss_file = os.path.join(
-        os.path.dirname(__file__),
-        "assets",
-        "sass",
-        "newsletter.scss",
-    )
     include_path_materialize = os.path.join(
         os.path.dirname(__file__),
         "assets",
         "materialize-src",
         "sass",
     )
-    include_path_jcom = os.path.dirname(app_scss_file)
-    compiled_css_from_file = sass.compile(
-        filename=app_scss_file,
-        include_paths=[include_path_jcom, include_path_materialize],
-    )
 
-    # Open the CSS file and write into it
-    with open(THEME_CSS_FILE, "w", encoding="utf-8") as write_file:
-        write_file.write(compiled_css_from_file)
+    for css_file in THEME_CSS_FILES:
+        app_scss_file = os.path.join(
+            os.path.dirname(__file__),
+            "assets",
+            "sass",
+            f"{os.path.splitext(os.path.basename(css_file))[0]}.scss"
+        )
 
-    compiled_newsletter_css_from_file = sass.compile(
-        filename=newsletter_scss_file,
-        include_paths=[include_path_jcom, include_path_materialize],
-    )
+        include_path_theme = os.path.dirname(app_scss_file)
+        compiled_css_from_file = sass.compile(
+            filename=app_scss_file,
+            include_paths=[include_path_theme, include_path_materialize],
+        )
 
-    # Open the CSS file and write into it
-    with open(NEWSLETTER_CSS_FILE, "w", encoding="utf-8") as write_file:
-        write_file.write(compiled_newsletter_css_from_file)
+        # Open the CSS file and write into it
+        with open(css_file, "w", encoding="utf-8") as write_file:
+            write_file.write(compiled_css_from_file)
 
 
 def create_paths():
