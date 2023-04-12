@@ -2,7 +2,7 @@
 {% load foundation %}
 {% load i18n %}
 {% block title-section %}
-    {% trans "Insert Users" %} — {% trans "Step 2/3" %}
+    {% trans "Insert Users" context "SUBMISSION FLOW" %} — {% trans "Step 2/3" context "SUBMISSION FLOW" %}
 {% endblock title-section %}
 {% block css %}
     <style>
@@ -47,12 +47,12 @@ table tbody tr.suggestion {
                         <table>
                             <thead>
                                 <th>&nbsp</th>
-                                <th>{% trans "first" %}</th>
-                                <th>{% trans "middle" %}</th>
-                                <th>{% trans "last" %}</th>
-                                <th>{% trans "email" %}</th>
-                                <th>{% trans "institution" %}</th>
-                                <th>{% trans "title" %}</th>
+                                <th>{% trans "first" context "SUBMISSION FLOW" %}</th>
+                                <th>{% trans "middle" context "SUBMISSION FLOW" %}</th>
+                                <th>{% trans "last" context "SUBMISSION FLOW" %}</th>
+                                <th>{% trans "email" context "SUBMISSION FLOW" %}</th>
+                                <th>{% trans "institution" context "SUBMISSION FLOW" %}</th>
+                                <th>{% trans "title" context "SUBMISSION FLOW" %}</th>
                                 <th>&nbsp</th>
                             </thead>
                             <tbody>
@@ -105,9 +105,9 @@ table tbody tr.suggestion {
                                                        {% if not line.suggestions %}checked="checked"{% endif %}
                                                        required=""
                                                        {% if line.disable_new %}disabled="disabled"{% endif %}/>
-                                                {% trans "new" %}
+                                                {% trans "new" context "SUBMISSION FLOW" %}
                                                 <input type="radio" name="action-{{ line.index }}" value="skip" required="" />
-                                                {% trans "skip" %}
+                                                {% trans "skip" context "SUBMISSION FLOW" %}
                                             </td>
                                         </tr>
                                         {% for suggestion in line.suggestions %}
@@ -152,7 +152,7 @@ table tbody tr.suggestion {
                 </div>
                 <div class="row">
                     <div class="large-12 columns">
-                        <input type="submit" value="Import..." />
+                        <input type="submit" value="{% trans "Import..." context "SUBMISSION FLOW" %}" />
                     </div>
                 </div>
             </form>
@@ -161,9 +161,9 @@ table tbody tr.suggestion {
             <div class="row">
                 <div class="large-12 columns">
                     <h2>
-                        {% trans "Legend" %}
+                        {% trans "Legend" context "SUBMISSION FLOW" %}
                     </h2>
-                    {% blocktrans %}
+                    {% blocktrans context "SUBMISSION FLOW" %}
                     For each row in the uploaded spreadsheet, please mind the following meanings
                     <dl>
                         <dt>

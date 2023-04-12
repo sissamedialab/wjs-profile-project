@@ -2,7 +2,7 @@
 {% load foundation %}
 {% load i18n %}
 {% block title-section %}
-    {% trans "Insert Users" %} — {% trans "Step 1/3" %}
+    {% trans "Insert Users" context "SUBMISSION FLOW" %} — {% trans "Step 1/3" context "SUBMISSION FLOW" %}
 {% endblock title-section %}
 {% block body %}
     {{ form.media }}
@@ -10,7 +10,7 @@
         <div class="card-section">
             <div class="row">
                 <div class="large-12 columns">
-                    <h2>{% trans "Intro" %}</h2>
+                    <h2>{% trans "Intro" context "SUBMISSION FLOW" %}</h2>
                     <p>You can limit submission to this collection to invited users only. The process has are 3 steps:</p>
                     <ol>
                         <li>upload the data file with the list of invitees</li>
@@ -28,7 +28,7 @@
                 {% csrf_token %}
                 <div class="row">
                     <div class="large-12 columns">
-                        {% blocktrans %}
+                        {% blocktrans context "SUBMISSION FLOW" %}
                         <p>
                             The data file must be an <b>OASIS <a href="https://en.wikipedia.org/wiki/OpenDocument">OpenDocument</a> Spreadsheet</b>
                             (that means "an OpenOffice 2 version of excel file") with data on the
@@ -39,7 +39,7 @@
                             <table>
                                 <tbody>
                                     <tr>
-                                        <td>{% trans "session (optional)" %}</td>
+                                        <td>{% trans "session (optional)" context "SUBMISSION FLOW" %}</td>
                                         <td></td>
                                         <td></td>
                                         <td></td>
@@ -47,12 +47,12 @@
                                         <td></td>
                                     </tr>
                                     <tr>
-                                        <td>{% trans "first name" %}</td>
-                                        <td>{% trans "middle name" %}</td>
-                                        <td>{% trans "last name" %}</td>
-                                        <td>{% trans "e-mail" %}</td>
-                                        <td>{% trans "institution / affiliation" %}</td>
-                                        <td>{% trans "contribution title" %}</td>
+                                        <td>{% trans "first name" context "SUBMISSION FLOW" %}</td>
+                                        <td>{% trans "middle name" context "SUBMISSION FLOW" %}</td>
+                                        <td>{% trans "last name" context "SUBMISSION FLOW" %}</td>
+                                        <td>{% trans "e-mail" context "SUBMISSION FLOW" %}</td>
+                                        <td>{% trans "institution / affiliation" context "SUBMISSION FLOW" %}</td>
+                                        <td>{% trans "contribution title" context "SUBMISSION FLOW" %}</td>
                                     </tr>
                                     <tr>
                                         <td>...</td>
@@ -65,7 +65,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        {% blocktrans %}
+                        {% blocktrans context "SUBMISSION FLOW" %}
                         <p>
                             Warning: if you check "create articles on import" the title is mandatory.
                             <br/>

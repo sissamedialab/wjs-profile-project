@@ -3,7 +3,7 @@
 {% load i18n %}
 {% load wjs_tags %}
 {% block title-section %}
-    {% trans "Insert Users" %} — {% trans "Step 3/3" %}
+    {% trans "Insert Users" context "SUBMISSION FLOW" %} — {% trans "Step 3/3" context "SUBMISSION FLOW" %}
 {% endblock title-section %}
 {% block css %}
     <style>
@@ -72,9 +72,9 @@
                 <div class="row">
                     <div class="large-12 columns">
                         {% if formset|length > 0 %}
-                            <input type="submit" value='{% trans "Update selected users" %}' />
+                            <input type="submit" value='{% trans "Update selected users" context "SUBMISSION FLOW" %}' />
                         {% else %}
-                            <input type="submit" value='{% trans "Continue" %}' />
+                            <input type="submit" value='{% trans "Continue" context "SUBMISSION FLOW" %}' />
                         {% endif %}
                     </div>
                 </div>

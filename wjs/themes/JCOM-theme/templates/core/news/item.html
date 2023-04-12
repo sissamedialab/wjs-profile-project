@@ -16,7 +16,7 @@
             <div class="card-action">
                 <a href="{% url 'core_news_list' %}">
                     <i class="fa fa-caret-left"></i>
-                    {% trans "Browse" %} {{ journal_settings.news.news_title }}
+                    {% trans "Browse" context "USER FACING" %} {{ journal_settings.news.news_title }}
                 </a>
             </div>
 
@@ -27,7 +27,7 @@
                             alt="{{ news_item.title }}"/>
                     </div>
                     {% endif %}
-                
+
                 <div class="card-content col s12 {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %} m8{% else %} m12{% endif%}">
                 <span class="date">
                     <i class="fa fa-calendar"></i>
@@ -45,7 +45,7 @@
                     <div class="news-body">{{ news_item|news_part:'body'|safe }}</div>
                     {% if news_item.tags.all %}
                         <br />
-                        <h7>{% trans "Tags" %} <i class="fa fa-tags">&nbsp;</i></h7>
+                        <h7>{% trans "Tags" context "USER FACING" %} <i class="fa fa-tags">&nbsp;</i></h7>
                         <p>{% for tag in news_item.tags.all %}
                             <a href="{% url 'core_news_list_tag' tag.text %}"
                                class="button success tiny">{{ tag.text }}</a>

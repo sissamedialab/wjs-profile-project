@@ -8,7 +8,7 @@
       {% for author in article.frozen_authors.all %}
           {% if forloop.last %}
               {% if article.frozen_authors.all|length > 1 %}
-                  {% trans "and" %}
+                  {% trans "and" context "USER FACING" %}
               {% endif %}
           {% endif %}
           {{ author.full_name }}
