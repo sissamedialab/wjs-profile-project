@@ -3,12 +3,13 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
+#: jcom_profile/forms.py:363
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-03-31 11:26+0200\n"
+"POT-Creation-Date: 2023-04-12 15:44+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -26,11 +27,10 @@ msgid "Repeat Password"
 msgstr ""
 
 #: jcom_profile/forms.py:175
-#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:32
 msgid "Keywords"
 msgstr ""
 
-#: jcom_profile/forms.py:226 themes/JCOM-theme/templates/journal/search.html:15
+#: jcom_profile/forms.py:226
 msgid "Keyword"
 msgstr ""
 
@@ -60,10 +60,6 @@ msgstr ""
 
 #: jcom_profile/forms.py:308
 msgid "Apply changes to this user account"
-msgstr ""
-
-#: jcom_profile/forms.py:363
-msgid "Topics"
 msgstr ""
 
 #: jcom_profile/forms.py:368
@@ -130,6 +126,14 @@ msgstr ""
 msgid "Analytics tracking code"
 msgstr ""
 
+#: jcom_profile/management/commands/add_submission_figures_data_title.py:20
+msgid "Files Submission - Title of Figures and Data Files Field"
+msgstr ""
+
+#: jcom_profile/management/commands/add_submission_figures_data_title.py:21
+msgid "Displayed on the Files Submission page."
+msgstr ""
+
 #: jcom_profile/management/commands/add_user_as_main_author_setting.py:16
 msgid "User automatically as main author"
 msgstr ""
@@ -138,14 +142,6 @@ msgstr ""
 msgid ""
 "If true, the submitting user is set as main author. To work, the setting "
 "'user_automatically_author' must be on."
-msgstr ""
-
-#: jcom_profile/migrations/0005_auto_20221005_1620.py:20
-msgid "Files Submission - Title of Figures and Data Files Field"
-msgstr ""
-
-#: jcom_profile/migrations/0005_auto_20221005_1620.py:21
-msgid "Displayed on the Files Submission page."
 msgstr ""
 
 #: jcom_profile/models.py:49
@@ -202,29 +198,27 @@ msgstr ""
 msgid "Last time newsletter emails have been sent to users"
 msgstr ""
 
-#: jcom_profile/views.py:1238
-#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:18
+#: jcom_profile/views.py:1233
 msgid "Filter by section"
 msgstr ""
 
-#: jcom_profile/views.py:1239
+#: jcom_profile/views.py:1234
 msgid "Publications included in this section."
 msgstr ""
 
-#: jcom_profile/views.py:1243
-#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:37
+#: jcom_profile/views.py:1238
 msgid "Filter by keyword"
 msgstr ""
 
-#: jcom_profile/views.py:1244
+#: jcom_profile/views.py:1239
 msgid "Publications including this keyword are listed below."
 msgstr ""
 
-#: jcom_profile/views.py:1248
+#: jcom_profile/views.py:1243
 msgid "Filter by author"
 msgstr ""
 
-#: jcom_profile/views.py:1249
+#: jcom_profile/views.py:1244
 msgid "All author's publications are listed below."
 msgstr ""
 
@@ -248,23 +242,26 @@ msgid "Your email"
 msgstr ""
 
 #: plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:15
-#: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:14
 msgid "Subscribe"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:7
+msgctxt "USER FACING"
 msgid "The account does not exist."
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:9
+msgctxt "USER FACING"
 msgid "Hello"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:14
+msgctxt "USER FACING"
 msgid "Accept GDPR"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:16
+msgctxt "USER FACING"
 msgid "Accept invitation"
 msgstr ""
 
@@ -295,50 +292,67 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:5
 #: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:6
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:5
+msgctxt "SUBMISSION FLOW"
 msgid "Insert Users"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:5
+msgctxt "SUBMISSION FLOW"
 msgid "Step 2/3"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:50
+msgctxt "SUBMISSION FLOW"
 msgid "first"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:51
+msgctxt "SUBMISSION FLOW"
 msgid "middle"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:52
+msgctxt "SUBMISSION FLOW"
 msgid "last"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:53
+msgctxt "SUBMISSION FLOW"
 msgid "email"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:54
+msgctxt "SUBMISSION FLOW"
 msgid "institution"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:55
+msgctxt "SUBMISSION FLOW"
 msgid "title"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:108
+msgctxt "SUBMISSION FLOW"
 msgid "new"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:110
+msgctxt "SUBMISSION FLOW"
 msgid "skip"
 msgstr ""
 
+#: themes/JCOM-theme/templates/admin/core/si_imu_check.html:155
+msgctxt "SUBMISSION FLOW"
+msgid "Import..."
+msgstr ""
+
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:164
+msgctxt "SUBMISSION FLOW"
 msgid "Legend"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_check.html:166
+msgctxt "SUBMISSION FLOW"
 msgid ""
 "\n"
 "                    For each row in the uploaded spreadsheet, please mind "
@@ -381,26 +395,32 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:6
+msgctxt "SUBMISSION FLOW"
 msgid "Step 3/3"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:75
+msgctxt "SUBMISSION FLOW"
 msgid "Update selected users"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_imported.html:77
+msgctxt "SUBMISSION FLOW"
 msgid "Continue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:5
+msgctxt "SUBMISSION FLOW"
 msgid "Step 1/3"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:13
+msgctxt "SUBMISSION FLOW"
 msgid "Intro"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:31
+msgctxt "SUBMISSION FLOW"
 msgid ""
 "\n"
 "                        <p>\n"
@@ -415,34 +435,42 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:42
+msgctxt "SUBMISSION FLOW"
 msgid "session (optional)"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:50
+msgctxt "SUBMISSION FLOW"
 msgid "first name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:51
+msgctxt "SUBMISSION FLOW"
 msgid "middle name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:52
+msgctxt "SUBMISSION FLOW"
 msgid "last name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:53
+msgctxt "SUBMISSION FLOW"
 msgid "e-mail"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:54
+msgctxt "SUBMISSION FLOW"
 msgid "institution / affiliation"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:55
+msgctxt "SUBMISSION FLOW"
 msgid "contribution title"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_imu_upload.html:68
+msgctxt "SUBMISSION FLOW"
 msgid ""
 "\n"
 "                        <p>\n"
@@ -458,116 +486,133 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_new.html:6
+msgctxt "SUBMISSION FLOW"
 msgid "Create a new Special Issue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:10
+msgctxt "SUBMISSION FLOW"
 msgid "Edit Special Issue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:10
+msgctxt "SUBMISSION FLOW"
 msgid "view"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:46
+msgctxt "SUBMISSION FLOW"
 msgid "ID"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:47
-#: themes/JCOM-theme/templates/admin/submission/submit_files.html:41
-#: themes/JCOM-theme/templates/admin/submission/submit_files.html:81
-#: themes/JCOM-theme/templates/admin/submission/submit_review.html:145
+msgctxt "SUBMISSION FLOW"
 msgid "Label"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:48
+msgctxt "SUBMISSION FLOW"
 msgid "Uploaded"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:49
+msgctxt "SUBMISSION FLOW"
 msgid "Modified"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:50
+msgctxt "SUBMISSION FLOW"
 msgid "Filename"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:51
-#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
-#: themes/JCOM-theme/templates/journal/components/article_downloads.html:4
-#: themes/JCOM-theme/templates/journal/components/article_downloads.html:9
+msgctxt "SUBMISSION FLOW"
 msgid "Download"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:52
+msgctxt "SUBMISSION FLOW"
 msgid "History"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:53
+msgctxt "SUBMISSION FLOW"
 msgid "Replace"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:54
+msgctxt "SUBMISSION FLOW"
 msgid "Delete"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:55
-#: themes/JCOM-theme/templates/elements/journal_footer.html:43
-#: themes/JCOM-theme/templates/elements/journal_footer.html:49
+msgctxt "SUBMISSION FLOW"
 msgid "Privacy"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:56
-#: themes/JCOM-theme/templates/core/nav.html:197
-#: themes/JCOM-theme/templates/core/nav.html:232
+msgctxt "SUBMISSION FLOW"
 msgid "Admin"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:123
-#: themes/JCOM-theme/templates/core/nav.html:69
-#: themes/JCOM-theme/templates/core/nav.html:118
-#: themes/JCOM-theme/templates/journal/articles.html:7
-#: themes/JCOM-theme/templates/journal/articles.html:9
+msgctxt "SUBMISSION FLOW"
 msgid "Articles"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:128
+msgctxt "SUBMISSION FLOW"
 msgid "Bulk-insert users"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:128
+msgctxt "SUBMISSION FLOW"
 msgid " (create multiple authors/article by uploading a spreadsheed)."
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:139
+msgctxt "SUBMISSION FLOW"
 msgid "by"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:149
+msgctxt "SUBMISSION FLOW"
 msgid "Invitees"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:5
+msgctxt "SUBMISSION FACING"
 msgid "Upload files"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:34
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:75
+msgctxt "SUBMISSION FACING"
 msgid "Upload"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:41
+#: themes/JCOM-theme/templates/admin/submission/submit_files.html:81
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:145
+msgctxt "SUBMISSION FACING"
+msgid "Label"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:42
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:82
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:146
+msgctxt "SUBMISSION FACING"
 msgid "File Name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:60
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:98
+msgctxt "SUBMISSION FACING"
 msgid "No files uploaded"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_files.html:111
+msgctxt "SUBMISSION FACING"
 msgid "Save and Continue"
 msgstr ""
 
@@ -576,10 +621,12 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:60
 #: themes/JCOM-theme/templates/submission/timeline.html:59
 #: themes/JCOM-theme/templates/submission/timeline.html:60
+msgctxt "SUBMISSION FACING"
 msgid "Review"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:25
+msgctxt "SUBMISSION FLOW"
 msgid ""
 "Please review your submission use the details below. If you need to make "
 "changes\n"
@@ -591,103 +638,128 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:32
+msgctxt "SUBMISSION FACING"
 msgid "Agreements"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:36
+msgctxt "SUBMISSION FACING"
 msgid "Agreed to Publication Fees statement."
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:40
+msgctxt "SUBMISSION FACING"
 msgid "Agreed to Submission Checklist."
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:44
+msgctxt "SUBMISSION FACING"
 msgid "Agreed to Copyright statement."
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:51
+msgctxt "SUBMISSION FACING"
 msgid "Comments to Editor"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:56
+msgctxt "SUBMISSION FACING"
 msgid "Article Info"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:59
+msgctxt "SUBMISSION FACING"
 msgid "Title"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:61
+msgctxt "SUBMISSION FACING"
 msgid "Subtitle"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:71
+msgctxt "SUBMISSION FACING"
 msgid "Issue Type"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:80
+msgctxt "SUBMISSION FACING"
 msgid "Abstract"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:89
+msgctxt "SUBMISSION FACING"
 msgid "Language"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:91
+msgctxt "SUBMISSION FACING"
 msgid "Section"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:93
-#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:111
+msgctxt "SUBMISSION FACING"
 msgid "Licence"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:115
+msgctxt "SUBMISSION FACING"
 msgid "Author Info"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:120
+msgctxt "SUBMISSION FACING"
 msgid "First Name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:121
+msgctxt "SUBMISSION FACING"
 msgid "Middle Name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:122
+msgctxt "SUBMISSION FACING"
 msgid "Last Name"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:123
+msgctxt "SUBMISSION FACING"
 msgid "Email Address"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:124
+msgctxt "SUBMISSION FACING"
 msgid "ORCID"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:125
+msgctxt "SUBMISSION FACING"
 msgid "Affiliation"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:126
+msgctxt "SUBMISSION FACING"
 msgid "Country"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:127
+msgctxt "SUBMISSION FACING"
 msgid "Biography"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:142
-#: themes/JCOM-theme/templates/admin/submission/timeline.html:43
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:44
-#: themes/JCOM-theme/templates/submission/timeline.html:43
 #: themes/JCOM-theme/templates/submission/timeline.html:44
 msgid "Article Files"
 msgstr ""
 
+#: themes/JCOM-theme/templates/admin/submission/submit_review.html:153
+msgctxt "SUBMISSION FACING"
+msgid "Manuscript"
+msgstr ""
+
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:161
+msgctxt "SUBMISSION FACING"
 msgid "Figure/Data"
 msgstr ""
 
@@ -696,37 +768,42 @@ msgid "Complete"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:171
-#: themes/JCOM-theme/templates/core/nav.html:78
-#: themes/JCOM-theme/templates/core/nav.html:127
 msgid "Submission"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:6
+msgctxt "SUBMISSION FACING"
 msgid "Submission Destination"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:16
+msgctxt "SUBMISSION FACING"
 msgid "This article is a preprint"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:22
+msgctxt "SUBMISSION FACING"
 msgid "Proceed with Normal Issue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:26
+msgctxt "SUBMISSION FACING"
 msgid "Choose Special Issue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:37
+msgctxt "SUBMISSION FACING"
 msgid "Clear selection"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/submit_si_chooser.html:40
+msgctxt "SUBMISSION FACING"
 msgid "Proceed with Special Issue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:7
 #: themes/JCOM-theme/templates/submission/timeline.html:7
+msgctxt "SUBMISSION FACING"
 msgid "Submission Started"
 msgstr ""
 
@@ -736,6 +813,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/submission/timeline.html:15
 #: themes/JCOM-theme/templates/submission/timeline.html:17
 #: themes/JCOM-theme/templates/submission/timeline.html:18
+msgctxt "SUBMISSION FACING"
 msgid "Choose Submission Destination"
 msgstr ""
 
@@ -743,6 +821,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:28
 #: themes/JCOM-theme/templates/submission/timeline.html:26
 #: themes/JCOM-theme/templates/submission/timeline.html:28
+msgctxt "SUBMISSION FACING"
 msgid "Article Information"
 msgstr ""
 
@@ -750,187 +829,232 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:36
 #: themes/JCOM-theme/templates/submission/timeline.html:35
 #: themes/JCOM-theme/templates/submission/timeline.html:36
+msgctxt "SUBMISSION FACING"
 msgid "Author Information"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:36
+#: themes/JCOM-theme/templates/submission/timeline.html:36
+msgid "Author Information"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:43
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:44
+#: themes/JCOM-theme/templates/submission/timeline.html:43
+#: themes/JCOM-theme/templates/submission/timeline.html:44
+msgctxt "SUBMISSION FACING"
+msgid "Article Files"
 msgstr ""
 
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:51
 #: themes/JCOM-theme/templates/admin/submission/timeline.html:52
-#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:69
 #: themes/JCOM-theme/templates/submission/timeline.html:51
+#: themes/JCOM-theme/templates/submission/timeline.html:52
+msgctxt "SUBMISSION FACING"
+msgid "Funding"
+msgstr ""
+
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:52
 #: themes/JCOM-theme/templates/submission/timeline.html:52
 msgid "Funding"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:46
-#: themes/JCOM-theme/templates/core/nav.html:144
+#: themes/JCOM-theme/templates/admin/submission/timeline.html:60
+#: themes/JCOM-theme/templates/submission/timeline.html:60
+msgid "Review"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:64
+#: themes/JCOM-theme/templates/core/nav.html:163
+msgctxt "USER FACING"
 msgid "Account"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:54
+#: themes/JCOM-theme/templates/core/nav.html:73
+msgctxt "USER FACING"
 msgid "menu"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:63
-#: themes/JCOM-theme/templates/core/nav.html:112
+#: themes/JCOM-theme/templates/core/nav.html:82
+#: themes/JCOM-theme/templates/core/nav.html:131
+msgctxt "USER FACING"
 msgid "Home"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:72
-#: themes/JCOM-theme/templates/core/nav.html:121
+#: themes/JCOM-theme/templates/core/nav.html:88
+#: themes/JCOM-theme/templates/core/nav.html:137
+#: themes/JCOM-theme/templates/journal/articles.html:7
+#: themes/JCOM-theme/templates/journal/articles.html:9
+msgctxt "USER FACING"
+msgid "Articles"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:91
+#: themes/JCOM-theme/templates/core/nav.html:140
+msgctxt "USER FACING"
 msgid "Issues"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:75
-#: themes/JCOM-theme/templates/core/nav.html:124
+#: themes/JCOM-theme/templates/core/nav.html:94
+#: themes/JCOM-theme/templates/core/nav.html:143
+msgctxt "USER FACING"
 msgid "Editorial Team"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:81
-#: themes/JCOM-theme/templates/core/nav.html:130
+#: themes/JCOM-theme/templates/core/nav.html:97
+#: themes/JCOM-theme/templates/core/nav.html:146
+msgctxt "USER FACING"
+msgid "Submission"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:100
+#: themes/JCOM-theme/templates/core/nav.html:149
 #: themes/JCOM-theme/templates/elements/journal_footer.html:54
+msgctxt "USER FACING"
 msgid "Contact"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:95
+#: themes/JCOM-theme/templates/core/nav.html:114
+msgctxt "USER FACING"
 msgid "Become a Reviewer"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:115
+#: themes/JCOM-theme/templates/core/nav.html:134
 #: themes/JCOM-theme/templates/newsletters/newsletter_issue.html:21
+msgctxt "USER FACING"
 msgid "News"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:183
-#: themes/JCOM-theme/templates/core/nav.html:204
+#: themes/JCOM-theme/templates/core/nav.html:219
+#: themes/JCOM-theme/templates/core/nav.html:240
+msgctxt "USER FACING"
 msgid "Dashboard"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:185
-#: themes/JCOM-theme/templates/core/nav.html:207
+#: themes/JCOM-theme/templates/core/nav.html:221
+#: themes/JCOM-theme/templates/core/nav.html:243
+msgctxt "USER FACING"
 msgid "Submit"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:187
-#: themes/JCOM-theme/templates/core/nav.html:205
+#: themes/JCOM-theme/templates/core/nav.html:223
+#: themes/JCOM-theme/templates/core/nav.html:241
+msgctxt "USER FACING"
 msgid "Kanban"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:188
-#: themes/JCOM-theme/templates/core/nav.html:210
+#: themes/JCOM-theme/templates/core/nav.html:224
+#: themes/JCOM-theme/templates/core/nav.html:246
+msgctxt "USER FACING"
 msgid "Manager"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:190
-#: themes/JCOM-theme/templates/core/nav.html:222
+#: themes/JCOM-theme/templates/core/nav.html:226
+#: themes/JCOM-theme/templates/core/nav.html:258
+msgctxt "USER FACING"
 msgid "Edit Article"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:193
-#: themes/JCOM-theme/templates/core/nav.html:225
+#: themes/JCOM-theme/templates/core/nav.html:229
+#: themes/JCOM-theme/templates/core/nav.html:261
+msgctxt "USER FACING"
 msgid "Edit Issue"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:199
-#: themes/JCOM-theme/templates/core/nav.html:234
+#: themes/JCOM-theme/templates/core/nav.html:233
+#: themes/JCOM-theme/templates/core/nav.html:268
+msgctxt "USER FACING"
+msgid "Admin"
+msgstr ""
+
+#: themes/JCOM-theme/templates/core/nav.html:235
+#: themes/JCOM-theme/templates/core/nav.html:270
+msgctxt "USER FACING"
 msgid "Profile"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:200
-#: themes/JCOM-theme/templates/core/nav.html:235
+#: themes/JCOM-theme/templates/core/nav.html:236
+#: themes/JCOM-theme/templates/core/nav.html:271
+msgctxt "USER FACING"
 msgid "Logout"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:212
+#: themes/JCOM-theme/templates/core/nav.html:248
+msgctxt "USER FACING"
 msgid "Edit Submissions Page"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:213
+#: themes/JCOM-theme/templates/core/nav.html:249
+msgctxt "USER FACING"
 msgid "Edit Journal Info"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:216
+#: themes/JCOM-theme/templates/core/nav.html:252
+msgctxt "USER FACING"
 msgid "Edit Page"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:219
+#: themes/JCOM-theme/templates/core/nav.html:255
+msgctxt "USER FACING"
 msgid "Manage Editorial Team"
 msgstr ""
 
-#: themes/JCOM-theme/templates/core/nav.html:228
+#: themes/JCOM-theme/templates/core/nav.html:264
+msgctxt "USER FACING"
 msgid "Edit News Item"
 msgstr ""
 
 #: themes/JCOM-theme/templates/core/news/index.html:12
+msgctxt "USER FACING"
 msgid "Filtering tag"
 msgstr ""
 
 #: themes/JCOM-theme/templates/core/news/index.html:34
+msgctxt "USER FACING"
 msgid "This journal currently has no items to display."
 msgstr ""
 
 #: themes/JCOM-theme/templates/core/news/item.html:19
+msgctxt "USER FACING"
 msgid "Browse"
 msgstr ""
 
 #: themes/JCOM-theme/templates/core/news/item.html:48
+msgctxt "USER FACING"
 msgid "Tags"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:8
-#, python-format
-msgid "Your subscription to %(journal_code)s publication alert"
-msgstr ""
-
-#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:12
-#, python-format
-msgid ""
-"\n"
-"                            Hello,\n"
-"                            <p>We have received a request to subscribe your "
-"email address to %(journal_code)s publication alert.</p>\n"
-"                            <p>Please note that you are already subscribed. "
-"If you wish to change your topics of interest use the link below:</p>\n"
-"                            <p><a href=\"%(url_link)s\">Change topics of "
-"interest</a></p>\n"
-"                            <p>Kind regards,</p>\n"
-"                            <p>%(journal_code)s - %(journal_name)s</p>\n"
-"                        "
-msgstr ""
-
-#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:23
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:6
+msgctxt "USER FACING"
 msgid "Subscription to be confirmed"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:27
-#, python-format
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:9
+msgctxt "USER FACING"
 msgid ""
 "\n"
-"                                An email with a confirmation link has been "
-"sent to your email address %(email)s.\n"
-"                                <br/>\n"
-"                                Please open the link to activate your "
-"publication alert.\n"
-"                            "
-msgstr ""
-
-#: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:33
-msgid ""
-"\n"
-"                                An email with a confirmation link has been "
-"sent to your email address.\n"
-"                                <br/>\n"
-"                                Please open the link to activate your "
-"publication alert.\n"
-"                            "
+"                        An email with a confirmation link has been sent to "
+"your email address.\n"
+"                        <br>\n"
+"                        Please open the link to activate your publication "
+"alert.\n"
+"                        "
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:9
 #: themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:8
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:8
+msgctxt "USER FACING"
 msgid "Publication alert"
 msgstr ""
 
+#: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:14
+msgctxt "USER FACING"
+msgid "Subscribe"
+msgstr ""
+
 #: themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:11
+msgctxt "USER FACING"
 msgid ""
 "\n"
 "              Thank you for unsubscribing from JCOM publication alert.<br>\n"
@@ -940,37 +1064,40 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:11
+msgctxt "USER FACING"
 msgid "Thank you for setting your preferences"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:16
-msgid "Your subscription to JCOM publication alert is active."
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:15
+msgctxt "USER FACING"
+msgid ""
+"Your subscription is active. Please use the checkboxes if you wish to change "
+"your topics of interest and limit incoming alerts to new publications "
+"matching those topics only."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:19
-msgid ""
-"Click the box to select your topics of interest and activate your "
-"subscription to be notified about newly published manuscripts that match "
-"your selection."
-msgstr ""
-
-#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:25
+msgctxt "USER FACING"
 msgid "Save preferences"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:27
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:21
+msgctxt "USER FACING"
 msgid "Unsubscribe"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:31
+#: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:25
+msgctxt "USER FACING"
 msgid "Activate"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:9
+msgctxt "USER FACING"
 msgid "Change Your Email Address"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:10
+msgctxt "USER FACING"
 msgid ""
 "If you want to change your email address you may do so below, however, you "
 "will be logged out and your account will be marked as inactive until you "
@@ -978,128 +1105,164 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:11
+msgctxt "USER FACING"
 msgid "Note:"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:12
+msgctxt "USER FACING"
 msgid ""
 "Changing your email address will also change your username as these are one "
 "and the same."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:16
+msgctxt "USER FACING"
 msgid "Current Email Address"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:20
+msgctxt "USER FACING"
 msgid "New Email Address"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:23
+msgctxt "USER FACING"
 msgid "Update Email Address"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:32
+msgctxt "USER FACING"
 msgid "Register for Article Notifications"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:35
+msgctxt "USER FACING"
 msgid ""
 "Use the button below to register to receive notifications of new articles\n"
 "                                published in this journal "
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:42
+msgctxt "USER FACING"
 msgid "Unsubscribe from Article Notifications"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:46
+msgctxt "USER FACING"
 msgid "Subscribe to Article Notifications"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:53
+msgctxt "USER FACING"
 msgid "Data Export"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:54
+msgctxt "USER FACING"
 msgid "You may export your data into a JSON file for reuse."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:57
+msgctxt "USER FACING"
 msgid "Export"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:68
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:88
+msgctxt "USER FACING"
 msgid "Update Password"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:69
+msgctxt "USER FACING"
 msgid ""
 "You can update your password by entering your existing password plus your "
 "new password."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:75
+msgctxt "USER FACING"
 msgid "Current Password"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:79
+msgctxt "USER FACING"
 msgid "New Password"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:83
+msgctxt "USER FACING"
 msgid "Enter Password Again"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:106
+msgctxt "USER FACING"
 msgid "Update"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:6
+msgctxt "USER FACING"
 msgid "Publication alert subscription"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:9
+msgctxt "USER FACING"
 msgid ""
 "Please confirm that you do not wish to receive any JCOM publication alert"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:13
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:15
+msgctxt "USER FACING"
 msgid "Yes"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:19
+msgctxt "USER FACING"
 msgid "No"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/article_listing.html:29
 #: themes/JCOM-theme/templates/newsletters/newsletter_article.html:11
+msgctxt "USER FACING"
 msgid "and"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/article_listing.html:63
+msgctxt "USER FACING"
 msgid "Also a part of:"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:6
+msgctxt "USER FACING"
 msgid "Downloads"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
+#: themes/JCOM-theme/templates/journal/components/article_downloads.html:4
+#: themes/JCOM-theme/templates/journal/components/article_downloads.html:9
+msgctxt "USER FACING"
+msgid "Download"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
+msgctxt "USER FACING"
 msgid "Issue"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
+msgctxt "USER FACING"
 msgid "Collection"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:15
+msgctxt "USER FACING"
 msgid "Archive"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:7
+msgctxt "USER FACING"
 msgid ""
 "\n"
 "                        Except where otherwise noted, content on this site "
@@ -1108,192 +1271,273 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:18
+msgctxt "USER FACING"
 msgid "Print ISSN:"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:23
+msgctxt "USER FACING"
 msgid "Published by"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:35
+msgctxt "USER FACING"
 msgid "VAT number: IT01097780322"
 msgstr ""
 
+#: themes/JCOM-theme/templates/elements/journal_footer.html:43
+#: themes/JCOM-theme/templates/elements/journal_footer.html:49
+msgctxt "USER FACING"
+msgid "Privacy"
+msgstr ""
+
 #: themes/JCOM-theme/templates/elements/journal_footer.html:53
+msgctxt "USER FACING"
 msgid "Cookie Policy"
 msgstr ""
 
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:6
-#: themes/JCOM-theme/templates/experimental/journal/issues.html:21
+#: themes/JCOM-theme/templates/experimental/journal/issues.html:20
 #: themes/JCOM-theme/templates/journal/issues.html:6
 #: themes/JCOM-theme/templates/journal/issues.html:11
+msgctxt "USER FACING"
 msgid "Volumes and Issues"
 msgstr ""
 
 #: themes/JCOM-theme/templates/field.html:8
+msgctxt "USER FACING"
 msgid "By registering an account you agree to our"
 msgstr ""
 
 #: themes/JCOM-theme/templates/field.html:10
 #: themes/JCOM-theme/templates/field.html:12
+msgctxt "USER FACING"
 msgid "Privacy Policy"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/article.html:9
+msgctxt "USER FACING"
 msgid "Preprint"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/article.html:11
+msgctxt "USER FACING"
 msgid "Article"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/article_issue_list.html:9
+msgctxt "USER FACING"
 msgid "Primary: "
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/article_issue_list.html:20
+msgctxt "USER FACING"
 msgid "This article is not a part of any issues"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/articles.html:14
 #: themes/JCOM-theme/templates/journal/search.html:20
+msgctxt "USER FACING"
 msgid "Publications"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/collections.html:38
+msgctxt "USER FACING"
 msgid "There are no collections to display"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_documents.html:9
+msgctxt "USER FACING"
 msgid "Invited commentaries"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_downloads.html:14
+msgctxt "USER FACING"
 msgid "View"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_header.html:13
+msgctxt "USER FACING"
 msgid "part of"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:9
+msgctxt "USER FACING"
 msgid "Share"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:25
+msgctxt "USER FACING"
 msgid "How to Cite"
 msgstr ""
 
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:32
+msgctxt "USER FACING"
+msgid "Keywords"
+msgstr ""
+
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:51
+msgctxt "USER FACING"
 msgid "Rights"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:58
+msgctxt "USER FACING"
 msgid "Publisher Notes"
 msgstr ""
 
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:69
+msgctxt "USER FACING"
+msgid "Funding"
+msgstr ""
+
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:90
+msgctxt "USER FACING"
 msgid "Non Specialist Summary"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:92
+msgctxt "USER FACING"
 msgid "View Summary"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:100
+msgctxt "USER FACING"
 msgid "Publication date"
 msgstr ""
 
+#: themes/JCOM-theme/templates/journal/components/article_sidebar.html:111
+msgctxt "USER FACING"
+msgid "Licence"
+msgstr ""
+
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:125
+msgctxt "USER FACING"
 msgid "Competing Interests"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:138
+msgctxt "USER FACING"
 msgid "Identifiers"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:153
+msgctxt "USER FACING"
 msgid "Peer Review"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:157
+msgctxt "USER FACING"
 msgid "This article has been peer reviewed."
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:196
 #: themes/JCOM-theme/templates/journal/submissions.html:73
+msgctxt "USER FACING"
 msgid "Table of Contents"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:4
+msgctxt "USER FACING"
 msgid "Search titles, keywords, and authors"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:11
+msgctxt "USER FACING"
 msgid "You are currently browsing by keyword"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:12
+msgctxt "USER FACING"
 msgid "Search for an article"
 msgstr ""
 
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:18
+msgctxt "USER FACING"
+msgid "Filter by section"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/components/search_sidebar.html:37
+msgctxt "USER FACING"
+msgid "Filter by keyword"
+msgstr ""
+
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:54
+msgctxt "USER FACING"
 msgid "Sort articles by"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:67
+msgctxt "USER FACING"
 msgid "Show"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:70
 #: themes/JCOM-theme/templates/journal/search.html:8
 #: themes/JCOM-theme/templates/journal/search.html:30
+msgctxt "USER FACING"
 msgid "Search"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/filtered_articles.html:12
+msgctxt "USER FACING"
 msgid "Browse all Publications"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/issues.html:21
+msgctxt "USER FACING"
 msgid "items"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/search.html:13
+msgctxt "USER FACING"
 msgid "Searching for"
 msgstr ""
 
+#: themes/JCOM-theme/templates/journal/search.html:15
+msgctxt "USER FACING"
+msgid "Keyword"
+msgstr ""
+
 #: themes/JCOM-theme/templates/journal/search.html:24
+msgctxt "USER FACING"
 msgid "No articles to display."
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/submissions.html:6
 #: themes/JCOM-theme/templates/journal/submissions.html:23
+msgctxt "USER FACING"
 msgid "Submissions"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/submissions.html:35
+msgctxt "USER FACING"
 msgid "Register"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/submissions.html:36
+msgctxt "USER FACING"
 msgid "Login"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/submissions.html:37
+msgctxt "USER FACING"
 msgid "Start Submission"
 msgstr ""
 
 #: themes/JCOM-theme/templates/journal/submissions.html:47
+msgctxt "USER FACING"
 msgid "allows the following licences for submission"
 msgstr ""
 
 #: themes/JCOM-theme/templates/newsletters/newsletter_issue.html:10
+msgctxt "USER FACING"
 msgid "New publications"
 msgstr ""
 
 #: themes/JCOM-theme/templates/newsletters/newsletter_template.html:29
 #, python-format
+msgctxt "USER FACING"
 msgid ""
 "\n"
 "                You have received this email because you have subscribed to "
@@ -1312,5 +1556,6 @@ msgid ""
 msgstr ""
 
 #: themes/JCOM-theme/templates/si_details.html:8
+msgctxt "SUBMISSION FLOW"
 msgid "Special Issues"
 msgstr ""
