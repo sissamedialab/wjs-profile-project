@@ -1,21 +1,21 @@
 {% load i18n %}
 <form method="GET" action="{% url 'search' %}">
     {% if not keyword %}
-        <label for="{{ form.article_search.id_for_label }}">{% trans "Search titles, keywords, and authors" %}</label>
+        <label for="{{ form.article_search.id_for_label }}">{% trans "Search titles, keywords, and authors" context "USER FACING" %}</label>
     {% endif %}
     <div class="input-field">
         {% if not keyword %}
             {{ form.article_search.errors }}
             {{ form.article_search }}
         {% else %}
-            {% trans "You are currently browsing by keyword" %}.
-            <p><a href="{% url 'search' %}">{% trans "Search for an article" %}.</a></p>
+            {% trans "You are currently browsing by keyword" context "USER FACING" %}.
+            <p><a href="{% url 'search' %}">{% trans "Search for an article" context "USER FACING" %}.</a></p>
         {% endif %}
     </div>
     <ul class="form-group collapsible collapsible-search">
         <li>
             <div class="collapsible-header">
-                {% trans "Filter by section" %}
+                {% trans "Filter by section" context "USER FACING" %}
                 <span class="caret">&#9660;</span>
             </div>
             <div class="collapsible-body">
@@ -34,7 +34,7 @@
     <ul class="form-group collapsible collapsible-search">
         <li>
             <div class="collapsible-header">
-                {% trans "Filter by keyword" %}
+                {% trans "Filter by keyword" context "USER FACING" %}
                 <span class="caret">&#9660;</span>
             </div>
             <div class="collapsible-body">
@@ -51,7 +51,7 @@
         </div>
         </li>
     </ul>
-    <label for="{{ form.sort.id_for_label }}">{% trans "Sort articles by" %}</label>
+    <label for="{{ form.sort.id_for_label }}">{% trans "Sort articles by" context "USER FACING" %}</label>
     <div class="input-field">
         {{ form.sort.errors }}
         {{ form.sort }}
@@ -64,9 +64,9 @@
             <option value="50"{% if show == 50 %} selected="selected"{% endif %}>50</option>
             <option value="100"{% if show == 100 %} selected="selected"{% endif %}>100</option>
         </select>
-        <label>{% trans "Show" %}</label>
+        <label>{% trans "Show" context "USER FACING" %}</label>
     </div>
 
-    <button type="submit" class="btn btn-primary">{% trans "Search" %}</button>
+    <button type="submit" class="btn btn-primary">{% trans "Search" context "USER FACING" %}</button>
 
     </form>

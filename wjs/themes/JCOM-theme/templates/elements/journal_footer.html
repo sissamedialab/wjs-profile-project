@@ -4,7 +4,7 @@
         <div class="text-left">
             <ul class="list-inline">
                 <li class="list-inline-item">
-                    {% blocktrans %}
+                    {% blocktrans context "USER FACING" %}
                         Except where otherwise noted, content on this site is licensed under a Creative Commons 4.0 license
                     {% endblocktrans %}
                 </li>
@@ -15,12 +15,12 @@
             {% endif %}
             {% if request.journal.print_issn %}
                 <li class="list-inline-item">
-                    {% trans "Print ISSN:" %} {{ request.journal.print_issn }}
+                    {% trans "Print ISSN:" context "USER FACING" %} {{ request.journal.print_issn }}
                 </li>
             {% endif %}
             {% if journal_settings.general.publisher_name %}
                 <li class="list-inline-item">
-                    {% trans "Published by" %}
+                    {% trans "Published by" context "USER FACING" %}
                     {% if journal_settings.general.publisher_url %}
                         <a href="{{ journal_settings.general.publisher_url }}">
                     {% endif %}
@@ -32,7 +32,7 @@
             {% endif %}
             </ul>
 
-            <p>{% trans "VAT number: IT01097780322" %}</p>
+            <p>{% trans "VAT number: IT01097780322" context "USER FACING" %}</p>
         </div>
     </div>
     <div class="col m2 text-right">
@@ -40,18 +40,18 @@
                 {% if journal_settings.general.privacy_policy_url %}
                     <li class="list-inline-item">
                         <a href="{{ journal_settings.general.privacy_policy_url }}">
-                            {% trans "Privacy" %}
+                            {% trans "Privacy" context "USER FACING" %}
                         </a>
                     </li>
                 {% else %}
                     <li class="list-inline-item">
                         <a href="{% url 'cms_page' 'privacy' %}">
-                            {% trans "Privacy" %}
+                            {% trans "Privacy" context "USER FACING" %}
                         </a>
                     </li>
                 {% endif %}
-                <li class="list-inline-item"><a href="/site/cookie_policy/">{% trans "Cookie Policy" %}</a></li>
-                <li class="list-inline-item"><a href="/site/contact">{% trans "Contact" %}</a></li>
+                <li class="list-inline-item"><a href="/site/cookie_policy/">{% trans "Cookie Policy" context "USER FACING" %}</a></li>
+                <li class="list-inline-item"><a href="/site/contact">{% trans "Contact" context "USER FACING" %}</a></li>
             </ul>
     </div>
 </div>

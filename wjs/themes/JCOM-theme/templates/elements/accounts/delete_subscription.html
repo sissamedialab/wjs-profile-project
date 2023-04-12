@@ -5,10 +5,10 @@
 {% block body %}
     <div class="row">
         <div class="col s12">
-            <h2 class="main-title">{% trans "Publication alert" %}</h2>
+            <h2 class="main-title">{% trans "Publication alert" context "USER FACING" %}</h2>
             <div class="card-panel">
                 <p>
-                    {% blocktrans %}
+                    {% blocktrans context "USER FACING" %}
               Thank you for unsubscribing from JCOM publication alert.<br>
               You can subscribe again at any time form the <a href="/">JCOM home page</a>.
               {% endblocktrans %}

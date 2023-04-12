@@ -2,7 +2,7 @@
 {% load static from staticfiles %}
 {% load i18n %}
 
-{% block title-section %}{% trans "Upload files" %}{% endblock title-section %}
+{% block title-section %}{% trans "Upload files" context "SUBMISSION FACING" %}{% endblock title-section %}
 {% block css %}
     <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet"/>
 {% endblock css %}
@@ -31,15 +31,15 @@
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
                             <a href="#" data-open="manuscript" class="button success" name="data">
-                                <i class="fa fa-upload">&nbsp;</i>{% trans "Upload" %}
+                                <i class="fa fa-upload">&nbsp;</i>{% trans "Upload" context "SUBMISSION FACING" %}
                             </a>
                         </form>
                     </div>
                     <div class="large-9 columns col-md-offset-1">
                         <table class="scroll small">
                             <tr>
-                                <th>{% trans "Label" %}</th>
-                                <th>{% trans "File Name" %}</th>
+                                <th>{% trans "Label" context "SUBMISSION FACING" %}</th>
+                                <th>{% trans "File Name" context "SUBMISSION FACING" %}</th>
                                 <th></th>
                             </tr>
                             <form method="post">
@@ -57,7 +57,7 @@
                                     </tr>
                                     {% empty %}
                                     <tr>
-                                        <td colspan="3">{% trans "No files uploaded" %}</td>
+                                        <td colspan="3">{% trans "No files uploaded" context "SUBMISSION FACING" %}</td>
                                     </tr>
                                 {% endfor %}
                             </form>
@@ -72,14 +72,14 @@
                     <div class="row expanded">
                         <div class="large-3 columns">
                             <a href="#" data-open="data" class="button success" name="data"><i class="fa fa-upload">
-                                &nbsp;</i>{% trans "Upload" %}
+                                &nbsp;</i>{% trans "Upload" context "SUBMISSION FACING" %}
                             </a>
                         </div>
                         <div class="large-9 columns col-md-offset-1">
                             <table class="scroll small">
                                 <tr>
-                                    <th>{% trans "Label" %}</th>
-                                    <th>{% trans "File Name" %}</th>
+                                    <th>{% trans "Label" context "SUBMISSION FACING" %}</th>
+                                    <th>{% trans "File Name" context "SUBMISSION FACING" %}</th>
                                     <th></th>
                                 </tr>
                                 <form method="post">
@@ -95,7 +95,7 @@
                                         </tr>
                                         {% empty %}
                                         <tr>
-                                            <td colspan="3">{% trans "No files uploaded" %}</td>
+                                            <td colspan="3">{% trans "No files uploaded" context "SUBMISSION FACING" %}</td>
                                         </tr>
                                     {% endfor %}
                                 </form>
@@ -108,7 +108,7 @@
                 <form method="post">
                     {% csrf_token %}
                     <button class="button success pull-right" type="submit" name="next_step"><i class="fa fa-check">
-                        &nbsp;</i>{% trans "Save and Continue" %}
+                        &nbsp;</i>{% trans "Save and Continue" context "SUBMISSION FACING" %}
                     </button>
                 </form>
             </div>

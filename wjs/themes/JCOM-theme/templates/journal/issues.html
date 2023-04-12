@@ -3,12 +3,12 @@
 {% load i18n %}
 {% load roles %}
 {% block title %}
-    {% trans "Volumes and Issues" %}
+    {% trans "Volumes and Issues" context "USER FACING" %}
 {% endblock title %}
 {% block body %}
     {% regroup issues by volume as volumes %}
     <div class="volumes-container">
-    <h1 class="volumes-container__title">{% trans "Volumes and Issues" %}</h1>
+    <h1 class="volumes-container__title">{% trans "Volumes and Issues" context "USER FACING" %}</h1>
         {% for volume in volumes %}
             <div class="volume">
                 {% with volume_meta=volume.list|first %}
@@ -18,7 +18,7 @@
                     {% for issue in volume.list %}
                         <li>
                             <a href="{% url 'journal_issue' issue.id %}">{{ issue.display_title }}</a>
-                            <span class="count">({{ issue.get_sorted_articles.count }} {% trans "items" %})</span>
+                            <span class="count">({{ issue.get_sorted_articles.count }} {% trans "items" context "USER FACING" %})</span>
                         </li>
                     {% endfor %}
                 </ul>

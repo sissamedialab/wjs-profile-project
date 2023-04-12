@@ -6,7 +6,7 @@
     {% if article.primary_issue %}
         <li>
             <a href="{% url 'journal_issue' article.primary_issue.pk %}">
-                {% if article.issues_list.count > 1 %}{% trans 'Primary: ' %}{% endif %}{{ article.primary_issue.display_title }}
+                {% if article.issues_list.count > 1 %}{% trans 'Primary: ' context "USER FACING" %}{% endif %}{{ article.primary_issue.display_title }}
             </a>
             {% if journal_settings.article.display_guest_editors %}
                 <br/>
@@ -17,6 +17,6 @@
     {% for issue in article.issues_list %}
             {% if not issue == article.primary_issue %}<li><a href="{% url 'journal_issue' issue.pk %}">{{ issue.issue_type.pretty_name }}: {{ issue.display_title }}</a></li>{% endif %}
         {% empty %}
-        <li>{% trans "This article is not a part of any issues" %}.</li>
+        <li>{% trans "This article is not a part of any issues" context "USER FACING" %}.</li>
     {% endfor %}
 </ul>
