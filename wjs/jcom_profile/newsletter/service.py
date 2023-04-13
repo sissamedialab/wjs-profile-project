@@ -20,6 +20,7 @@ from premailer import transform
 from submission.models import Article
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
+from wjs.jcom_profile.context_processors import date_format
 
 from wjs.jcom_profile.models import Newsletter, Recipient
 
@@ -158,7 +159,7 @@ class NewsletterMailerService:
                 if not hasattr(article, "rendered"):
                     article.rendered = render_to_string(
                         "newsletters/newsletter_article.html",
-                        {"article": article, "request": request},
+                        {"article": article, "request": request, **date_format(request)},
                     )
                 rendered_articles.append(article.rendered)
         return rendered_articles
@@ -177,7 +178,7 @@ class NewsletterMailerService:
                 if not hasattr(news, "rendered"):
                     news.rendered = render_to_string(
                         "newsletters/newsletter_news.html",
-                        {"news": news, "request": request},
+                        {"news": news, "request": request, **date_format(request)},
                     )
                 rendered_news.append(news.rendered)
         return rendered_news

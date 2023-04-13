@@ -8,7 +8,7 @@
         <div class="article-listing-card-header">
             <span class="date">
                 <i class="fa fa-calendar"></i>
-                {{ article.date_published|date:"M d, Y" }}
+                {{ article.date_published|date:DATE_FORMAT }}
             </span>
 
             <a href="{{ by_url }}">

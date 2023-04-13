@@ -193,6 +193,7 @@ TEMPLATES = [
                 "core.context_processors.navigation",
                 "django_settings_export.settings_export",
                 "django.template.context_processors.i18n",
+                "wjs.jcom_profile.context_processors.date_format",
             ],
             "loaders": [
                 "django.template.loaders.app_directories.Loader",
@@ -216,7 +217,19 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
 
 TIME_ZONE = "Europe/Rome"
 
-# NB: cannot override Janeway languages here because they are referred
-# to in some migrations. See tests.conftest.sync_translation_fields
+# Fall-backs if there is no date format specified for the active language
+DATE_FORMAT = "M d, Y"
+DATETIME_FORMAT = "M d, Y H:i:s"
+
+DATE_FORMATS = {
+    "en": "M d, Y",
+    "es": "d b Y",
+    "pt": "d b Y",
+}
+DATETIME_FORMATS = {
+    "en": "M d, Y H:i:s",
+    "es": "d b Y H:i:s",
+    "pt": "d b Y H:i:s",
+}
 
 print("🍠")
