@@ -20,7 +20,6 @@ INSTALLED_APPS.extend(
 # MIDDLEWARE_CLASSES is a tuple, not a list
 MIDDLEWARE_CLASSES = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE
 
-
 def ugettext(s):
     """Let Django (statically) translate the verbose names of the languages using the standard i18n solution."""
     return s

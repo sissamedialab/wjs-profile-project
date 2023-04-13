@@ -5,6 +5,6 @@
 <h3 class="title"><a href="{% url 'core_news_item' news.pk %}">{{ news.title }}</a></h3>
 <p>{{ news|news_part:'abstract'|safe }}</p>
 
-<h5 class="date">{{ news.date_published|date:"M d, Y" }}</h5>
+<h5 class="date">{{ news.date_published|date:DATE_FORMAT }}</h5>
 
 <hr class="divider">
