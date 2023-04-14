@@ -17,6 +17,7 @@ class Command(BaseCommand):
         pretty_name: str,
         default_value: str,
         field_type: str = "text",
+        is_translatable: bool = False,
     ):
         setting_obj, setting_created = Setting.objects.get_or_create(
             name=setting_name,
@@ -24,7 +25,7 @@ class Command(BaseCommand):
             types=field_type,
             pretty_name=pretty_name,
             description=setting_description,
-            is_translatable=False,
+            is_translatable=is_translatable,
         )
         try:
             SettingValue.objects.get(journal=None, setting=setting_obj)
@@ -45,28 +46,20 @@ class Command(BaseCommand):
         general_settings_group = self._get_group("email")
 
         if general_settings_group:
-            try:
-                # Temporary instruction to migrate existing installations. It can be removed after go live
-                Setting.objects.get(
-                    types="text",
-                    group=general_settings_group,
-                    name="publication_alert_subscription_email_body",
-                ).delete()
-            except Setting.DoesNotExist:
-                pass
             self._create_setting(
                 group=general_settings_group,
                 setting_name="publication_alert_subscription_email_body",
                 setting_description="Email body",
                 pretty_name="Body of the email sent when an anonymous user subscribes to publication alert.",
+                is_translatable=True,
                 field_type="rich-text",
                 default_value="""
 Hello,
 <p>
-We have received a request to subscribe the email address {email} to JCOM publication alert.
+We have received a request to subscribe your email address to JCOM publication alert.
 </p>
 <p>
-To confirm your email address, activate your subscription and select your topics of interest click <a href="{acceptance_url}">on this link</a>.
+To confirm your email address, activate your subscription and select your topics of interest click on <a href="{acceptance_url}" target="_blank">this link</a>
 </p>
 <p>
 By clicking the above link you are agreeing to our <a href="https://medialab.sissa.it/en/privacy">privacy policy</a>.<br>
@@ -89,13 +82,15 @@ JCOM - Journal of Science Communication
                 setting_name="publication_alert_subscription_email_subject",
                 setting_description="Email subject",
                 pretty_name="Subject of the email sent when an anonymous user subscribes to publication alert.",
-                default_value="JCOM alert confirmation",
+                is_translatable=True,
+                default_value="Publication alert subscription",
             )
             self._create_setting(
                 group=general_settings_group,
                 setting_name="publication_alert_reminder_email_body",
                 setting_description="Email body",
                 pretty_name="Body of the email sent when an anon user subscribes to an alert that is already subscribed to",  # noqa: E501
+                is_translatable=True,
                 field_type="rich-text",
                 default_value="""
 Hello,
@@ -121,6 +116,7 @@ JCOM - Journal of Science Communication
                 setting_name="publication_alert_reminder_email_subject",
                 setting_description="Email subject",
                 pretty_name="Subject of the email sent when an anon user subscribes to an alert that is already subscribed to",  # noqa: E501
+                is_translatable=True,
                 default_value="Your subscription to JCOM publication alert",
             )
             self._create_setting(
@@ -128,6 +124,7 @@ JCOM - Journal of Science Communication
                 setting_name="publication_alert_email_intro_message",
                 setting_description="Email introduction message",
                 pretty_name="Introduction to the publication alert body.",
+                is_translatable=True,
                 default_value="See current news",
             )
             self._create_setting(
@@ -135,7 +132,8 @@ JCOM - Journal of Science Communication
                 setting_name="publication_alert_email_subject",
                 setting_description="Email subject",
                 pretty_name="Subject of the publication alert email.",
-                default_value="{journal} - Publication alert subscription - {date}",
+                is_translatable=True,
+                default_value="Publication alert subscription",
             )
         else:
             self.stdout.write(self.style.ERROR("Check out your groups (general) settings before."))
