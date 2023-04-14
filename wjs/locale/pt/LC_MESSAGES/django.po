@@ -3,21 +3,21 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#: jcom_profile/forms.py:363
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-04-12 15:44+0200\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2023-04-14 12:38+0200\n"
+"PO-Revision-Date: 2023-04-14 11:03+0050\n"
+"Last-Translator: b'Maria Teresa Leo <leo@medialab.sissa.it>'\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Translated-Using: django-rosetta 0.9.4\n"
 
 #: jcom_profile/forms.py:69
 msgid "Password"
@@ -29,11 +29,11 @@ msgstr ""
 
 #: jcom_profile/forms.py:175
 msgid "Keywords"
-msgstr ""
+msgstr "palavras-chave"
 
 #: jcom_profile/forms.py:226
 msgid "Keyword"
-msgstr ""
+msgstr "palavra-chave"
 
 #: jcom_profile/forms.py:263
 msgid ""
@@ -65,7 +65,7 @@ msgstr ""
 
 #: jcom_profile/forms.py:368
 msgid "I want to receive alerts about news published in JCOM."
-msgstr ""
+msgstr "Quero receber alertas sobre as últimas notícias publicadas no JCOMAL"
 
 #: jcom_profile/hooks.py:25
 msgid "Edit assignment parameters"
@@ -240,7 +240,7 @@ msgstr ""
 
 #: plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:12
 msgid "Your email"
-msgstr ""
+msgstr "O seu e-mail"
 
 #: plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:15
 msgid "Subscribe"
