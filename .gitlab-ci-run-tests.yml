@@ -9,8 +9,8 @@
     POSTGRES_PASSWORD: janeway
     POSTGRES_DB: janeway
     # used by `pytest ...`:
-    DJANGO_SETTINGS_MODULE: core.cicd_merged_settings
-    # used by `python ./manage.py ...`:
+    DJANGO_SETTINGS_MODULE: core.cicd_test_settings
+    # used by `manage.py ...`:
     JANEWAY_SETTINGS_MODULE: core.cicd_settings
     # Use the following after force-pushes:
     GIT_STRATEGY: clone
@@ -23,7 +23,7 @@
       alias: db
 
   script:
-    - cp cicd_settings.py cicd_merged_settings.py /janeway/src/core
+    - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
     - pip install --index-url=$PIP_INDEX_URL ./[test]
     - cd /janeway/src
     - JANEWAY_SETTINGS_MODULE=${JANEWAY_SETTINGS_MODULE} python3 ./manage.py install_themes
