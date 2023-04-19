@@ -1152,7 +1152,7 @@ def translate_kwds(journal):
         ("Scholarly communication", "Comunicação acadêmica", "Comunicación académica"),
         ("Science and media", "Ciência e mídia", "Ciencia y medios"),
         ("Science and policy-making", "Ciência e formulação de políticas", "Ciencia y formulación de políticas"),
-        ("Science and Society", "Ciência e Sociedade ", "Ciencia y Sociedad"),
+        ("Science and society", "Ciência e sociedade ", "Ciencia y sociedad"),
         (
             "Science and technology, art and literature",
             "Ciência e tecnologia, arte e literatura",
