@@ -129,6 +129,9 @@ SELECT2_USE_BUNDLED_JQUERY = False
 
 TIME_ZONE = "Europe/Rome"
 
+# SETTINGS_MODULE is used by rosetta to find the po files
+SETTINGS_MODULE = "core.settings"
+
 # Fall-backs if there is no date format specified for the active language
 DATE_FORMAT = "M d, Y"
 DATETIME_FORMAT = "M d, Y H:i:s"
