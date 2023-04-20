@@ -5,9 +5,10 @@
   # Need to find defined the server (and ssh user) to deploy to.
   # E.g.: SERVER_IP: "127.0.0.1"
   #       SERVER_USER: "wjs"
+  #       DEPLOY_CMD: "deploy"
 
   # The key on the server is configured with a single ForceCommand
   script:
     - echo "Deploying to $SERVER_IP"
     - chmod og= $ID_RSA
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "deploy"
+    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP $DEPLOY_CMD
