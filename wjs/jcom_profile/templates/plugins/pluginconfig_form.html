@@ -15,6 +15,7 @@
 {% block body %}
     <div class="large-12 columns">
         <div class="box">
+            {% include "admin/elements/translations/form_tabs.html" with object=request.journal %}
             <form method="POST">
                 {% csrf_token %}
                 {{ form.as_p }}
