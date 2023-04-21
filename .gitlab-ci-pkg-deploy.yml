@@ -11,4 +11,4 @@
   script:
     - echo "Deploying to $SERVER_IP"
     - chmod og= $ID_RSA
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP $DEPLOY_CMD
+    - CI_JOB_TOKEN="$CI_JOB_TOKEN" ssh -o SendEnv=CI_JOB_TOKEN -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP $DEPLOY_CMD
