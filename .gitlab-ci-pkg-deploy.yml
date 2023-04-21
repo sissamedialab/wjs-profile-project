@@ -2,12 +2,16 @@
   image: python:3.9
   stage: deploy
 
-  # Need to find defined the server (and ssh user) to deploy to.
+  # Need to find defined the server (and ssh user) to deploy to and the deploy command.
   # E.g.: SERVER_IP: "127.0.0.1"
   #       SERVER_USER: "wjs"
   #       DEPLOY_CMD: "deploy"
 
-  # The key on the server is configured with a single ForceCommand
+  # Please note:
+  # - the deploy public key on the server (ID_RSA below) is configured
+  #   with a ForceCommand that points to a script (see setup-confi/deploy.sh)
+  # - the sshd_config on the server must `AcceptEnv ... CI_JOB_TOKEN`
+
   script:
     - echo "Deploying to $SERVER_IP"
     - chmod og= $ID_RSA
