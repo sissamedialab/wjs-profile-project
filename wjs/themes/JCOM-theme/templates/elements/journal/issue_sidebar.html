@@ -13,7 +13,7 @@
 
     <h3 class="secondary-title">
         {% if issue.issue_type.code == 'issue' %}{% trans "Archive" context "USER FACING" %}
-        {% else %} {% trans issue.issue_type.plural_name %}
+        {% else %} {% trans issue.issue_type.plural_name context "USER FACING" %}
         {% endif %}
     </h3>
     <ul class="collapsible">
