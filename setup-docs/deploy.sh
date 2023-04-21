@@ -28,6 +28,10 @@ VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
 # The uwsgi vassal file to "touch" in order to reload the application server
 UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
 
+# The user and password of the deploy token
+DEPLOY_TOKEN_USER=***
+DEPLOY_TOKEN_PASSWORD=***
+
 # -- CONFIGURATION END --
 
 PIP="${VENV_BIN}/pip"
@@ -37,15 +41,16 @@ MANAGE_DIR="${JANEWAY_ROOT}/src"
 case "$SSH_ORIGINAL_COMMAND" in
     "deploy-janeway")
         cd "$JANEWAY_ROOT"
-        git pull --ff-only https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.sissamedialab.it/wjs/janeway.git jcom
+        git pull --ff-only https://"${DEPLOY_TOKEN_USER}":"${DEPLOY_TOKEN_PASSWORD}"@gitlab.sissamedialab.it/wjs/janeway.git jcom
         cd "$MANAGE_DIR"
         "$PYTHON" manage.py migrate
         "$PYTHON" manage.py collectstatic --noinput
+        "$PYTHON" manage.py compilemessages --settings core.settings
         ;;
 
     *)
-        $PIP install --index-url="$PIP_INDEX_URL" -U "wjs.jcom-profile"
-        $PIP install --index-url="$PIP_INDEX_URL" -U "jcomassistant"
+        "$PIP" install -U "wjs.jcom-profile"
+        "$PIP" install -U "jcomassistant"
 
         cd "$MANAGE_DIR"
 
