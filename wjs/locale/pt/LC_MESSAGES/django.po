@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-04-14 12:38+0200\n"
-"PO-Revision-Date: 2023-04-14 11:03+0050\n"
+"POT-Creation-Date: 2023-04-21 14:08+0200\n"
+"PO-Revision-Date: 2023-04-15 16:36+0050\n"
 "Last-Translator: b'Maria Teresa Leo <leo@medialab.sissa.it>'\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
@@ -18,6 +18,34 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Translated-Using: django-rosetta 0.9.4\n"
+
+#: defaults/settings.py:53
+msgid "English"
+msgstr ""
+
+#: defaults/settings.py:54
+msgid "French"
+msgstr ""
+
+#: defaults/settings.py:55
+msgid "German"
+msgstr ""
+
+#: defaults/settings.py:56
+msgid "Dutch"
+msgstr ""
+
+#: defaults/settings.py:57
+msgid "Welsh"
+msgstr ""
+
+#: defaults/settings.py:58
+msgid "Spanish"
+msgstr ""
+
+#: defaults/settings.py:59
+msgid "Portughese"
+msgstr ""
 
 #: jcom_profile/forms.py:69
 msgid "Password"
@@ -249,22 +277,22 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:7
 msgctxt "USER FACING"
 msgid "The account does not exist."
-msgstr ""
+msgstr "A conta não existe"
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:9
 msgctxt "USER FACING"
 msgid "Hello"
-msgstr ""
+msgstr "Olá"
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:14
 msgctxt "USER FACING"
 msgid "Accept GDPR"
-msgstr ""
+msgstr "Aceitar o GDPR"
 
 #: themes/JCOM-theme/templates/admin/core/account/gdpr_acceptance.html:16
 msgctxt "USER FACING"
 msgid "Accept invitation"
-msgstr ""
+msgstr "Aceitar convite"
 
 #: themes/JCOM-theme/templates/admin/core/account/invite.html:7
 msgid "Invite"
@@ -869,18 +897,18 @@ msgstr ""
 #: themes/JCOM-theme/templates/core/nav.html:163
 msgctxt "USER FACING"
 msgid "Account"
-msgstr ""
+msgstr "Cuenta"
 
 #: themes/JCOM-theme/templates/core/nav.html:73
 msgctxt "USER FACING"
 msgid "menu"
-msgstr ""
+msgstr "menu"
 
 #: themes/JCOM-theme/templates/core/nav.html:82
 #: themes/JCOM-theme/templates/core/nav.html:131
 msgctxt "USER FACING"
 msgid "Home"
-msgstr ""
+msgstr "Início"
 
 #: themes/JCOM-theme/templates/core/nav.html:88
 #: themes/JCOM-theme/templates/core/nav.html:137
@@ -888,32 +916,32 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/articles.html:9
 msgctxt "USER FACING"
 msgid "Articles"
-msgstr ""
+msgstr "Artigos"
 
 #: themes/JCOM-theme/templates/core/nav.html:91
 #: themes/JCOM-theme/templates/core/nav.html:140
 msgctxt "USER FACING"
 msgid "Issues"
-msgstr ""
+msgstr "Edição"
 
 #: themes/JCOM-theme/templates/core/nav.html:94
 #: themes/JCOM-theme/templates/core/nav.html:143
 msgctxt "USER FACING"
 msgid "Editorial Team"
-msgstr ""
+msgstr "Corpo editorial"
 
 #: themes/JCOM-theme/templates/core/nav.html:97
 #: themes/JCOM-theme/templates/core/nav.html:146
 msgctxt "USER FACING"
 msgid "Submission"
-msgstr ""
+msgstr "Enviar"
 
 #: themes/JCOM-theme/templates/core/nav.html:100
 #: themes/JCOM-theme/templates/core/nav.html:149
 #: themes/JCOM-theme/templates/elements/journal_footer.html:54
 msgctxt "USER FACING"
 msgid "Contact"
-msgstr ""
+msgstr "Contactos"
 
 #: themes/JCOM-theme/templates/core/nav.html:114
 msgctxt "USER FACING"
@@ -924,61 +952,61 @@ msgstr ""
 #: themes/JCOM-theme/templates/newsletters/newsletter_issue.html:21
 msgctxt "USER FACING"
 msgid "News"
-msgstr ""
+msgstr "Notícias"
 
 #: themes/JCOM-theme/templates/core/nav.html:219
 #: themes/JCOM-theme/templates/core/nav.html:240
 msgctxt "USER FACING"
 msgid "Dashboard"
-msgstr ""
+msgstr "Painel de controlo"
 
 #: themes/JCOM-theme/templates/core/nav.html:221
 #: themes/JCOM-theme/templates/core/nav.html:243
 msgctxt "USER FACING"
 msgid "Submit"
-msgstr ""
+msgstr "Enviar"
 
 #: themes/JCOM-theme/templates/core/nav.html:223
 #: themes/JCOM-theme/templates/core/nav.html:241
 msgctxt "USER FACING"
 msgid "Kanban"
-msgstr ""
+msgstr "Kanban"
 
 #: themes/JCOM-theme/templates/core/nav.html:224
 #: themes/JCOM-theme/templates/core/nav.html:246
 msgctxt "USER FACING"
 msgid "Manager"
-msgstr ""
+msgstr "Gerente"
 
 #: themes/JCOM-theme/templates/core/nav.html:226
 #: themes/JCOM-theme/templates/core/nav.html:258
 msgctxt "USER FACING"
 msgid "Edit Article"
-msgstr ""
+msgstr "Editar Artigo"
 
 #: themes/JCOM-theme/templates/core/nav.html:229
 #: themes/JCOM-theme/templates/core/nav.html:261
 msgctxt "USER FACING"
 msgid "Edit Issue"
-msgstr ""
+msgstr "Editar edição"
 
 #: themes/JCOM-theme/templates/core/nav.html:233
 #: themes/JCOM-theme/templates/core/nav.html:268
 msgctxt "USER FACING"
 msgid "Admin"
-msgstr ""
+msgstr "Adimin"
 
 #: themes/JCOM-theme/templates/core/nav.html:235
 #: themes/JCOM-theme/templates/core/nav.html:270
 msgctxt "USER FACING"
 msgid "Profile"
-msgstr ""
+msgstr "Perfil"
 
 #: themes/JCOM-theme/templates/core/nav.html:236
 #: themes/JCOM-theme/templates/core/nav.html:271
 msgctxt "USER FACING"
 msgid "Logout"
-msgstr ""
+msgstr "Terminar a sessão"
 
 #: themes/JCOM-theme/templates/core/nav.html:248
 msgctxt "USER FACING"
@@ -1013,22 +1041,22 @@ msgstr ""
 #: themes/JCOM-theme/templates/core/news/index.html:34
 msgctxt "USER FACING"
 msgid "This journal currently has no items to display."
-msgstr ""
+msgstr "Esta revista não tem actualmente publicaçãos para mostrar"
 
 #: themes/JCOM-theme/templates/core/news/item.html:19
 msgctxt "USER FACING"
 msgid "Browse"
-msgstr ""
+msgstr "Arquivo"
 
 #: themes/JCOM-theme/templates/core/news/item.html:48
 msgctxt "USER FACING"
 msgid "Tags"
-msgstr ""
+msgstr "Etiquetas"
 
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:6
 msgctxt "USER FACING"
 msgid "Subscription to be confirmed"
-msgstr ""
+msgstr "Subscrição a confirmar"
 
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:9
 msgctxt "USER FACING"
@@ -1041,18 +1069,22 @@ msgid ""
 "alert.\n"
 "                        "
 msgstr ""
+"\n"
+"Foi enviado um e-mail com um link de confirmação para o seu endereço de e-"
+"mail.\n"
+"Por favor, abra a ligação para activar o seu alerta de publicação."
 
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:9
 #: themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:8
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:8
 msgctxt "USER FACING"
 msgid "Publication alert"
-msgstr ""
+msgstr "Alerta de publicação"
 
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:14
 msgctxt "USER FACING"
 msgid "Subscribe"
-msgstr ""
+msgstr "Subscrever"
 
 #: themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:11
 msgctxt "USER FACING"
@@ -1063,11 +1095,15 @@ msgid ""
 "\">JCOM home page</a>.\n"
 "              "
 msgstr ""
+"\n"
+"Obrigado por anular a subscrição do alerta de publicação de JCOMAL.<br>\n"
+"Pode subscrever novamente em qualquer altura a partir da <a href=\"/"
+"\">página inicial da JCOMAL</a>."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:11
 msgctxt "USER FACING"
 msgid "Thank you for setting your preferences"
-msgstr ""
+msgstr "Obrigado por definir as suas preferências"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:15
 msgctxt "USER FACING"
@@ -1076,26 +1112,29 @@ msgid ""
 "your topics of interest and limit incoming alerts to new publications "
 "matching those topics only."
 msgstr ""
+"A sua subscrição está activa. Utilize as caixas de verificação se desejar "
+"alterar os seus tópicos de interesse e limitar os alertas recebidos a novas "
+"publicações que correspondam apenas a esses tópicos."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:19
 msgctxt "USER FACING"
 msgid "Save preferences"
-msgstr ""
+msgstr "Salvar preferências"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:21
 msgctxt "USER FACING"
 msgid "Unsubscribe"
-msgstr ""
+msgstr "Anular a subscrição"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:25
 msgctxt "USER FACING"
 msgid "Activate"
-msgstr ""
+msgstr "Activar"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:9
 msgctxt "USER FACING"
 msgid "Change Your Email Address"
-msgstr ""
+msgstr "Alterar o seu endereço de e-mail"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:10
 msgctxt "USER FACING"
@@ -1104,11 +1143,14 @@ msgid ""
 "will be logged out and your account will be marked as inactive until you "
 "follow the instructions in the verification email."
 msgstr ""
+"Se desejar alterar o seu endereço de correio electrónico pode fazê-lo "
+"abaixo, no entanto, será desconectado e a sua conta será marcada como "
+"inactiva até que siga as instruções no e-mail de verificação."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:11
 msgctxt "USER FACING"
 msgid "Note:"
-msgstr ""
+msgstr "Nota:"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:12
 msgctxt "USER FACING"
@@ -1116,21 +1158,23 @@ msgid ""
 "Changing your email address will also change your username as these are one "
 "and the same."
 msgstr ""
+"Alterar o seu endereço de correio electrónico também mudará o seu nome de "
+"utilizador, uma vez que estes são os mesmos."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:16
 msgctxt "USER FACING"
 msgid "Current Email Address"
-msgstr ""
+msgstr "Endereço de correio electrónico actual"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:20
 msgctxt "USER FACING"
 msgid "New Email Address"
-msgstr ""
+msgstr "Novo endereço de correio electrónico"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:23
 msgctxt "USER FACING"
 msgid "Update Email Address"
-msgstr ""
+msgstr "Actualizar endereço de e-mail"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:32
 msgctxt "USER FACING"
@@ -1205,62 +1249,64 @@ msgstr ""
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:6
 msgctxt "USER FACING"
 msgid "Publication alert subscription"
-msgstr ""
+msgstr "Subscrição de alerta de publicação"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:9
 msgctxt "USER FACING"
 msgid ""
 "Please confirm that you do not wish to receive any JCOM publication alert"
 msgstr ""
+"Por favor, confirme que não deseja receber qualquer alerta de publicação de "
+"JCOMAL"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:13
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:15
 msgctxt "USER FACING"
 msgid "Yes"
-msgstr ""
+msgstr "Sim"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:19
 msgctxt "USER FACING"
 msgid "No"
-msgstr ""
+msgstr "Não"
 
 #: themes/JCOM-theme/templates/elements/article_listing.html:29
 #: themes/JCOM-theme/templates/newsletters/newsletter_article.html:11
 msgctxt "USER FACING"
 msgid "and"
-msgstr ""
+msgstr "i"
 
 #: themes/JCOM-theme/templates/elements/article_listing.html:63
 msgctxt "USER FACING"
 msgid "Also a part of:"
-msgstr ""
+msgstr "Também parte de:"
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:6
 msgctxt "USER FACING"
 msgid "Downloads"
-msgstr ""
+msgstr "Descargas"
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
 #: themes/JCOM-theme/templates/journal/components/article_downloads.html:4
 #: themes/JCOM-theme/templates/journal/components/article_downloads.html:9
 msgctxt "USER FACING"
 msgid "Download"
-msgstr ""
+msgstr "Descarregar"
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
 msgctxt "USER FACING"
 msgid "Issue"
-msgstr ""
+msgstr "Edição"
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
 msgctxt "USER FACING"
 msgid "Collection"
-msgstr ""
+msgstr "Colecção"
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:15
 msgctxt "USER FACING"
 msgid "Archive"
-msgstr ""
+msgstr "Arquivo"
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:7
 msgctxt "USER FACING"
@@ -1270,6 +1316,9 @@ msgid ""
 "is licensed under a Creative Commons 4.0 license\n"
 "                    "
 msgstr ""
+"\n"
+"Salvo disposição em contrário, o conteúdo deste site está licenciado sob uma "
+"licença Creative Commons 4.0"
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:18
 msgctxt "USER FACING"
@@ -1279,23 +1328,23 @@ msgstr ""
 #: themes/JCOM-theme/templates/elements/journal_footer.html:23
 msgctxt "USER FACING"
 msgid "Published by"
-msgstr ""
+msgstr "Publicado por"
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:35
 msgctxt "USER FACING"
 msgid "VAT number: IT01097780322"
-msgstr ""
+msgstr "Partita IVA: IT 01097780322"
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:43
 #: themes/JCOM-theme/templates/elements/journal_footer.html:49
 msgctxt "USER FACING"
 msgid "Privacy"
-msgstr ""
+msgstr "Privacidade"
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:53
 msgctxt "USER FACING"
 msgid "Cookie Policy"
-msgstr ""
+msgstr "Política de Cookies"
 
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:6
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:20
@@ -1303,7 +1352,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/issues.html:11
 msgctxt "USER FACING"
 msgid "Volumes and Issues"
-msgstr ""
+msgstr "Volumes e edições"
 
 #: themes/JCOM-theme/templates/field.html:8
 msgctxt "USER FACING"
@@ -1314,7 +1363,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/field.html:12
 msgctxt "USER FACING"
 msgid "Privacy Policy"
-msgstr ""
+msgstr "Política de Privacidade"
 
 #: themes/JCOM-theme/templates/journal/article.html:9
 msgctxt "USER FACING"
@@ -1324,7 +1373,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/article.html:11
 msgctxt "USER FACING"
 msgid "Article"
-msgstr ""
+msgstr "Artigo"
 
 #: themes/JCOM-theme/templates/journal/article_issue_list.html:9
 msgctxt "USER FACING"
@@ -1334,13 +1383,13 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/article_issue_list.html:20
 msgctxt "USER FACING"
 msgid "This article is not a part of any issues"
-msgstr ""
+msgstr "Este artigo não faz parte de nenhuma edição"
 
 #: themes/JCOM-theme/templates/journal/articles.html:14
 #: themes/JCOM-theme/templates/journal/search.html:20
 msgctxt "USER FACING"
 msgid "Publications"
-msgstr ""
+msgstr "Publicações"
 
 #: themes/JCOM-theme/templates/journal/collections.html:38
 msgctxt "USER FACING"
@@ -1350,32 +1399,32 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/components/article_documents.html:9
 msgctxt "USER FACING"
 msgid "Invited commentaries"
-msgstr ""
+msgstr "Comentários convidados"
 
 #: themes/JCOM-theme/templates/journal/components/article_downloads.html:14
 msgctxt "USER FACING"
 msgid "View"
-msgstr ""
+msgstr "Visualizar"
 
 #: themes/JCOM-theme/templates/journal/components/article_header.html:13
 msgctxt "USER FACING"
 msgid "part of"
-msgstr ""
+msgstr "parte de"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:9
 msgctxt "USER FACING"
 msgid "Share"
-msgstr ""
+msgstr "Partilhe"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:25
 msgctxt "USER FACING"
 msgid "How to Cite"
-msgstr ""
+msgstr "Como citar"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:32
 msgctxt "USER FACING"
 msgid "Keywords"
-msgstr ""
+msgstr "Palavras-chave"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:51
 msgctxt "USER FACING"
@@ -1405,12 +1454,12 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:100
 msgctxt "USER FACING"
 msgid "Publication date"
-msgstr ""
+msgstr "Data da publicação"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:111
 msgctxt "USER FACING"
 msgid "Licence"
-msgstr ""
+msgstr "Licença"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:125
 msgctxt "USER FACING"
@@ -1420,7 +1469,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:138
 msgctxt "USER FACING"
 msgid "Identifiers"
-msgstr ""
+msgstr "Identificadores"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:153
 msgctxt "USER FACING"
@@ -1430,7 +1479,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:157
 msgctxt "USER FACING"
 msgid "This article has been peer reviewed."
-msgstr ""
+msgstr "Esta publicação foi revista por pares"
 
 #: themes/JCOM-theme/templates/journal/components/article_sidebar.html:196
 #: themes/JCOM-theme/templates/journal/submissions.html:73
@@ -1441,12 +1490,12 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:4
 msgctxt "USER FACING"
 msgid "Search titles, keywords, and authors"
-msgstr ""
+msgstr "Pesquisar títulos, palavras-chave e autores"
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:11
 msgctxt "USER FACING"
 msgid "You are currently browsing by keyword"
-msgstr ""
+msgstr "Está actualmente a navegar por palavra-chave"
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:12
 msgctxt "USER FACING"
@@ -1456,39 +1505,39 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:18
 msgctxt "USER FACING"
 msgid "Filter by section"
-msgstr ""
+msgstr "Filtrar por secção"
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:37
 msgctxt "USER FACING"
 msgid "Filter by keyword"
-msgstr ""
+msgstr "Filtrar por palavra-chave"
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:54
 msgctxt "USER FACING"
 msgid "Sort articles by"
-msgstr ""
+msgstr "Ordenar os artigos por"
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:67
 msgctxt "USER FACING"
 msgid "Show"
-msgstr ""
+msgstr "Mostrar"
 
 #: themes/JCOM-theme/templates/journal/components/search_sidebar.html:70
 #: themes/JCOM-theme/templates/journal/search.html:8
 #: themes/JCOM-theme/templates/journal/search.html:30
 msgctxt "USER FACING"
 msgid "Search"
-msgstr ""
+msgstr "Buscar"
 
 #: themes/JCOM-theme/templates/journal/filtered_articles.html:12
 msgctxt "USER FACING"
 msgid "Browse all Publications"
-msgstr ""
+msgstr "Procurar todas as publicações"
 
 #: themes/JCOM-theme/templates/journal/issues.html:21
 msgctxt "USER FACING"
 msgid "items"
-msgstr ""
+msgstr "itens"
 
 #: themes/JCOM-theme/templates/journal/search.html:13
 msgctxt "USER FACING"
@@ -1498,28 +1547,28 @@ msgstr ""
 #: themes/JCOM-theme/templates/journal/search.html:15
 msgctxt "USER FACING"
 msgid "Keyword"
-msgstr ""
+msgstr "Palavra-chave"
 
 #: themes/JCOM-theme/templates/journal/search.html:24
 msgctxt "USER FACING"
 msgid "No articles to display."
-msgstr ""
+msgstr "Sem publicações para mostrar"
 
 #: themes/JCOM-theme/templates/journal/submissions.html:6
 #: themes/JCOM-theme/templates/journal/submissions.html:23
 msgctxt "USER FACING"
 msgid "Submissions"
-msgstr ""
+msgstr "Submissões"
 
 #: themes/JCOM-theme/templates/journal/submissions.html:35
 msgctxt "USER FACING"
 msgid "Register"
-msgstr ""
+msgstr "Cadastro "
 
 #: themes/JCOM-theme/templates/journal/submissions.html:36
 msgctxt "USER FACING"
 msgid "Login"
-msgstr ""
+msgstr "Acesso "
 
 #: themes/JCOM-theme/templates/journal/submissions.html:37
 msgctxt "USER FACING"
@@ -1534,7 +1583,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/newsletters/newsletter_issue.html:10
 msgctxt "USER FACING"
 msgid "New publications"
-msgstr ""
+msgstr "Novas publicações"
 
 #: themes/JCOM-theme/templates/newsletters/newsletter_template.html:29
 #, python-format
@@ -1555,6 +1604,16 @@ msgid ""
 "information\n"
 "                "
 msgstr ""
+"\n"
+"Recebeu este e-mail porque subscreveu o alerta de publicação JCOMAL<br>\n"
+"<span><a href=\"%(unsubscribe_url)s\">Clique aqui para modificar os seus "
+"tópicos de interesse</a></span>\n"
+"<span>|</span>\n"
+"<span><a href=\"%(unsubscribe_url)s\">Clique aqui para cancelar a sua "
+"inscrição</a></span><br>\n"
+"Consulte a nossa <a href=\"%(privacy_url)s\">política de privacidade</a> "
+"para informações sobre como utilizamos os seus dados pessoais ou contacte-"
+"nos para informações gerais"
 
 #: themes/JCOM-theme/templates/si_details.html:8
 msgctxt "SUBMISSION FLOW"
