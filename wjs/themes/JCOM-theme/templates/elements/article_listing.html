@@ -21,7 +21,7 @@
         </a>
 
         <p class="article-listing-card-header-authors">
-            by
+            {% trans "by" context "USER FACING" %}
             {% for author in article.frozen_authors.all %}
                 {% url 'articles_by_author' author.author.pk as by_author %}
                 {% if forloop.last %}
