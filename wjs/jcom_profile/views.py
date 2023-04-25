@@ -1418,7 +1418,11 @@ def search(request):
     if redir:
         return redir
 
-    articles = submission_models.Article.objects.all()
+    articles = submission_models.Article.objects.filter(
+        journal=request.journal,
+        stage=submission_models.STAGE_PUBLISHED,
+        date_published__lte=timezone.now(),
+    )
     if search_term:
         escaped = re.escape(search_term)
         # checks titles, keywords and subtitles first,
@@ -1434,30 +1438,21 @@ def search(request):
                     | Q(subtitle__icontains=search_term)
                 )
                 | (Q(frozenauthor__first_name__iregex=search_regex) | Q(frozenauthor__last_name__iregex=search_regex)),
-                journal=request.journal,
-                stage=submission_models.STAGE_PUBLISHED,
-                date_published__lte=timezone.now(),
             )
             .distinct()
-            .order_by(sort)
         )
 
     if keywords:
         articles = articles.filter(
             keywords__word__in=keywords,
-            journal=request.journal,
-            stage=submission_models.STAGE_PUBLISHED,
-            date_published__lte=timezone.now(),
-        ).order_by(sort)
+        )
 
     if sections:
         articles = articles.filter(
             section__id__in=sections,
-            journal=request.journal,
-            stage=submission_models.STAGE_PUBLISHED,
-            date_published__lte=timezone.now(),
-        ).order_by(sort)
+        )
 
+    articles = articles.distinct().order_by(sort)
     keyword_limit = 20
     popular_keywords = (
         submission_models.Keyword.objects.filter(
