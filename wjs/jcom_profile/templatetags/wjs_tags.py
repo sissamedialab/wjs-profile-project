@@ -10,6 +10,7 @@ from submission.models import STAGE_PUBLISHED, Article, Keyword, Section
 
 from wjs.jcom_profile.models import SpecialIssue
 from wjs.jcom_profile.utils import citation_name
+import pycountry
 
 register = template.Library()
 
@@ -139,6 +140,20 @@ def search_form(context):
 
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
     return {"form": form, "all_keywords": popular_keywords}
+
+
+@register.filter
+def language_alpha2(alpha_3):
+    """Transform alpha3 language codes to alpha2 language codes."""
+    lang_obj = pycountry.languages.get(alpha_3=alpha_3.upper())
+    return lang_obj.alpha_2
+
+
+@register.filter
+def language_alpha3(alpha_2):
+    """Transform alpha2 language codes to alpha3 language codes."""
+    lang_obj = pycountry.languages.get(alpha_2=alpha_2.upper())
+    return lang_obj.alpha_3
 
 
 @register.filter

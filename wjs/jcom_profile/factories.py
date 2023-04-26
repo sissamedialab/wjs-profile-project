@@ -81,6 +81,7 @@ class ArticleFactory(factory.django.DjangoModelFactory):
 
     title = factory.Faker("sentence", nb_words=7)
     abstract = factory.Faker("paragraph", nb_sentences=5)
+    language = "eng"
     # Link this article to a journal
     # Problems:
     # + these give error when used by pytest (not marked for db access):
