@@ -197,7 +197,7 @@ def director(jcom_user, roles, journal, director_role):
 
 
 @pytest.fixture()
-def invited_user():
+def invited_user(journal):
     """Create an user invited by staff, with minimal data."""
     email = "invited_user@mail.it"
     return JCOMProfile.objects.create(
@@ -208,7 +208,7 @@ def invited_user():
         institution="1",
         is_active=False,
         gdpr_checkbox=False,
-        invitation_token=generate_token(email),
+        invitation_token=generate_token(email, journal.code),
     )
 
 
@@ -234,6 +234,17 @@ def set_jcom_theme(journal):
 
 def set_jcom_settings(journal):
     setting_handler.save_setting("general", "from_address", journal, "jcom-eo@jcom.sissa.it")
+    # Languages must be enabled per journal because it's required by journal.middleware.LanguageMiddleware
+    setting_handler.save_setting("general", "journal_languages", journal, ' ["en","es", "pt"]')
+    for lang in ["en", "es", "pt"]:
+        with translation.override(lang):
+            for kind in ["email", "subscription_email", "reminder_email"]:
+                setting_handler.save_setting(
+                    "email",
+                    f"publication_alert_{kind}_subject",
+                    journal,
+                    f"{lang} publication alert {kind.replace('_', ' ')} subject",
+                )
 
 
 def set_general_settings():

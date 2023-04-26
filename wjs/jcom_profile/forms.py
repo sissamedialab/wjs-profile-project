@@ -1,16 +1,20 @@
 """Forms for the additional fields in this profile extension."""
 
+import json
 import uuid
 
 from core import models as core_models
 from core.forms import EditAccountForm
 from django import forms
+from django.conf import settings
 from django.forms import ModelForm, inlineformset_factory
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from easy_select2.widgets import Select2Multiple
 from submission.models import Keyword, Section
+from utils import logic as utils_logic
 from utils.forms import CaptchaForm
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import (
     ArticleWrapper,
@@ -365,18 +369,49 @@ class NewsletterTopicForm(forms.ModelForm):
         widget=forms.CheckboxSelectMultiple,
         required=False,
     )
-    news = forms.BooleanField(required=False, label=_("I want to receive alerts about news published in JCOM."))
+    news = forms.BooleanField(required=False, label=_("I want to receive alerts about news published in the journal."))
+    language = forms.ChoiceField(
+        required=True,
+        label=_("Preferred language for alerts"),
+        choices=settings.LANGUAGES,
+        widget=forms.Select(attrs={"class": "browser-default language-select"}),
+    )
 
     class Meta:
         model = Recipient
         fields = (
             "topics",
             "news",
+            "language",
         )
 
     def __init__(self, *args, **kwargs):
         """Prepare the queryset for topics."""
         self.base_fields["topics"].queryset = kwargs.get("instance").journal.keywords.all().order_by("word")
+        self.base_fields["language"].widget = forms.Select(attrs={"class": "browser-default language-select"})
+
+        # Manage the language field's choices
+        request = utils_logic.get_current_request()
+        if request and request.journal:
+            journal_languages_processed_value = get_setting(
+                "general",
+                "journal_languages",
+                request.journal,
+                create=False,
+                default=True,
+            ).processed_value
+            if journal_languages_processed_value:
+                if isinstance(journal_languages_processed_value, str):
+                    journal_languages_list = json.loads(journal_languages_processed_value)
+                else:
+                    journal_languages_list = journal_languages_processed_value
+                self.base_fields["language"].choices = [
+                    lang for lang in settings.LANGUAGES if lang[0] in journal_languages_list
+                ]
+                # Let's hide the language select if there is only one choice
+                if len(self.base_fields["language"].choices) < 2:
+                    self.base_fields["language"].widget.attrs["class"] = "hide browser-default language-select"
+
         super().__init__(*args, **kwargs)
 
 

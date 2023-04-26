@@ -190,4 +190,5 @@ class NewsletterFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Newsletter
 
+    journal = factory.LazyAttribute(lambda x: Journal.objects.first())
     last_sent = factory.LazyFunction(yesterday)

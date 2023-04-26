@@ -97,7 +97,7 @@ def test_invite_function_creates_inactive_user(admin, journal):
 
     invited_user = JCOMProfile.objects.get(email=data["email"])
     request = RequestFactory().get(url)
-    invitation_token = generate_token(data["email"])
+    invitation_token = generate_token(data["email"], journal.code)
     gdpr_acceptance_url = request.build_absolute_uri(reverse("accept_gdpr", kwargs={"token": invitation_token}))
 
     assert invited_user
@@ -146,7 +146,7 @@ def test_invite_existing_email_user(admin, user, journal):
 @pytest.mark.django_db
 def test_gdpr_acceptance(admin, invited_user, journal):
     client = Client()
-    token = generate_token(invited_user.email)
+    token = generate_token(invited_user.email, journal.code)
     url = reverse("accept_gdpr", kwargs={"token": token})
 
     request = RequestFactory().get(url)
@@ -179,7 +179,7 @@ def test_gdpr_acceptance(admin, invited_user, journal):
 def test_gdpr_acceptance_for_non_existing_user(admin, journal):
     client = Client()
     non_existing_email = "doesnotexist@email.it"
-    token = generate_token(non_existing_email)
+    token = generate_token(non_existing_email, journal.code)
     url = reverse("accept_gdpr", kwargs={"token": token})
 
     response = client.get(url)
