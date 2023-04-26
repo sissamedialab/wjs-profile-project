@@ -22,7 +22,7 @@
         {% for volume in by_volume %}
         <li>
             <div class="collapsible-header issue-archive-volume {% if issue.volume == volume.grouper %}active{% endif %}">
-                <h5>Volume {{ volume.grouper }}</h5>
+                <h5>{% trans "Volume" %} {{ volume.grouper }}</h5>
                 <i class="fa fa-caret-down"></i>
             </div>
             <div class="collapsible-body issue-archive-volume-list">
@@ -30,10 +30,10 @@
                     {% for list_issue in volume.list %}
                         {% if list_issue.issue_type.code == 'issue' %}
                             <a class="collection-item {% if list_issue == issue %}active{% endif %}"
-                            href="{% url 'journal_issue' list_issue.id %}">{{ list_issue.display_title }}</a>
+                            href="{% url 'journal_issue' list_issue.id %}">{{ list_issue|display_title }}</a>
                         {% else %}
                             <a class="collection-item {% if list_issue == issue %}active{% endif %}"
-                            href="{% url 'journal_collection' list_issue.id %}">{{ list_issue.display_title }} </a>
+                            href="{% url 'journal_collection' list_issue.id %}">{{ list_issue|display_title }} </a>
                         {% endif %}
                     {% endfor %}
                 </ul>

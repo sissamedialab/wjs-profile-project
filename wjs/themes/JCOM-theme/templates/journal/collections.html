@@ -2,6 +2,7 @@
 {% load static from staticfiles %}
 {% load hooks %}
 {% load i18n %}
+{% load wjs_tags %}
 
 {% block page_title %}{% trans issue_type.plural_name  %}{% endblock %}
 {% block title %}{% trans issue_type.plural_name  %}{% endblock %}
@@ -16,7 +17,7 @@
                         <img
                             class="issue_image img-fluid"
                             src="{{ collection.hero_image_url }}"
-                            alt="{{ collection.display_title }}"
+                            alt="{{ collection|display_title }}"
                             onerror="if (this.src !='{% static 'common/img/sample/article-small.jpg' %}') this.src='{% static 'common/img/sample/article-small.jpg' %}'"
                         >
                             </div>
@@ -24,7 +25,7 @@
                           <span class="date"><i class="fa fa-calendar"></i> {{ collection.date|date:DATE_FORMAT }}</span>
 
                             <h5 class="article-title">
-                              <a href="{% url 'journal_collection' collection.id %}">{{ collection.display_title }}</a>
+                              <a href="{% url 'journal_collection' collection.id %}">{{ collection|display_title }}</a>
                             </h5>
 
                             {% if collection.short_description %}
