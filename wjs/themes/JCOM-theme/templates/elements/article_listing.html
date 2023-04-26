@@ -9,6 +9,7 @@
             <span class="date">
                 <i class="fa fa-calendar"></i>
                 {{ article.date_published|date:DATE_FORMAT }}
+                {% if not  request.available_languages|length_is:"1" %}<span class="badge language">{{ article.language|language_alpha2 }}</span>{% endif %}
             </span>
 
             <a href="{{ by_url }}">
