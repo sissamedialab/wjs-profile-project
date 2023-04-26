@@ -65,40 +65,46 @@ class UserAdmin(AccountAdmin):
             if form.is_valid():
                 email = form.data["email"]
                 if not JCOMProfile.objects.filter(email=email):
-                    # generate token from email (which is unique)
-                    token = generate_token(email)
-                    # create inactive account with minimal data
-                    models.JCOMProfile.objects.create(
-                        email=email,
-                        first_name=form.data["first_name"],
-                        last_name=form.data["last_name"],
-                        department=form.data["department"],
-                        institution=form.data["institution"],
-                        invitation_token=token,
-                        is_active=False,
-                    )
-                    # Send email to user allowing him/her to accept
-                    # GDPR policy explicitly
-                    #
-                    # FIXME: Email setting should be handled using the
-                    # janeway settings framework.  See
-                    # https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/4
-                    acceptance_url = request.build_absolute_uri(reverse("accept_gdpr", kwargs={"token": token}))
-                    send_mail(
-                        settings.JOIN_JOURNAL_SUBJECT,
-                        settings.JOIN_JOURNAL_BODY.format(
-                            form.data["first_name"],
-                            form.data["last_name"],
-                            form.data["message"],
-                            acceptance_url,
-                        ),
-                        settings.DEFAULT_FROM_EMAIL,
-                        [email],
-                    )
-                    messages.success(
-                        request=request,
-                        message="Account created",
-                    )
+                    if request.journal:
+                        # generate token from email (which is unique)
+                        token = generate_token(email, request.journal.code)
+                        # create inactive account with minimal data
+                        models.JCOMProfile.objects.create(
+                            email=email,
+                            first_name=form.data["first_name"],
+                            last_name=form.data["last_name"],
+                            department=form.data["department"],
+                            institution=form.data["institution"],
+                            invitation_token=token,
+                            is_active=False,
+                        )
+                        # Send email to user allowing him/her to accept
+                        # GDPR policy explicitly
+                        #
+                        # FIXME: Email setting should be handled using the
+                        # janeway settings framework.  See
+                        # https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/4
+                        acceptance_url = request.build_absolute_uri(reverse("accept_gdpr", kwargs={"token": token}))
+                        send_mail(
+                            settings.JOIN_JOURNAL_SUBJECT,
+                            settings.JOIN_JOURNAL_BODY.format(
+                                form.data["first_name"],
+                                form.data["last_name"],
+                                form.data["message"],
+                                acceptance_url,
+                            ),
+                            settings.DEFAULT_FROM_EMAIL,
+                            [email],
+                        )
+                        messages.success(
+                            request=request,
+                            message="Account created",
+                        )
+                    else:
+                        messages.warning(
+                            request=request,
+                            message="Journal not set.",
+                        )
                 else:
                     messages.warning(
                         request=request,

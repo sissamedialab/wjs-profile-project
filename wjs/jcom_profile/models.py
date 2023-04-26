@@ -1,5 +1,6 @@
 """The model for a field "profession" for JCOM authors."""
 from core.models import Account, AccountManager
+from django.conf import settings
 from django.contrib.postgres.fields import JSONField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
@@ -11,6 +12,7 @@ from journal.models import Journal
 from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article, Section
 from utils import logic as utils_logic
+from utils.setting_handler import get_setting
 
 # TODO: use settings.AUTH_USER_MODEL
 
@@ -227,23 +229,38 @@ class EditorKeyword(models.Model):
         return f"{self.editor_parameters.editor} - Editor keyword: {self.keyword}"
 
 
+# Add settings.LANGUAGES choices, but add also the empty value to avoid the need to specify a language as default
+# (as it is not sure that, for example, english will be always available in settings.LANGUAGES)
+def _get_language_choices():
+    return tuple([("", "")] + list(settings.LANGUAGES))
+
+
 class Recipient(models.Model):
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         Account,
         verbose_name=_("Newsletter topics user"),
         on_delete=models.CASCADE,
         blank=True,
         null=True,
     )
+    # Here we can't have the default journal's languages,
+    # so the choices' enforcing must be done at the form/template level
+    language = models.CharField(
+        max_length=10, verbose_name=_("Preferred newsletter's language"), blank=True, choices=_get_language_choices()
+    )
     journal = models.ForeignKey(Journal, verbose_name=_("Newsletter topics' journal"), on_delete=models.CASCADE)
     topics = models.ManyToManyField("submission.Keyword", verbose_name=_("Newsletters topics"), blank=True)
     news = models.BooleanField(verbose_name=_("Generic news topic"), default=False)
     newsletter_token = models.CharField(_("newsletter token for anonymous users"), max_length=500, blank=True)
-    email = models.EmailField(_("Anonymous user email"), blank=True, null=True, unique=True)
+    email = models.EmailField(_("Anonymous user email"), blank=True, null=True)
 
     class Meta:
         verbose_name = _("recipient")
         verbose_name_plural = _("recipients")
+        unique_together = (
+            ("user", "journal"),
+            ("email", "journal"),
+        )
 
     def __str__(self):
         return _(f"Recipient user: {self.user if self.user else self.email} - journal: {self.journal} ")
@@ -284,9 +301,16 @@ class Newsletter(models.Model):
         verbose_name=_("Last time newsletter emails have been sent to users"),
         auto_now=True,
     )
+    journal = models.OneToOneField(
+        Journal,
+        verbose_name=_("Journal"),
+        on_delete=models.CASCADE,
+        related_name="newsletter",
+    )
 
 
 from journal.models import Issue
+
 
 def update_display_title(self, save=False):
     if save:
@@ -295,5 +319,6 @@ def update_display_title(self, save=False):
     title = self.cached_display_title = self.pretty_issue_identifier
 
     return title
+
 
 Issue.update_display_title = update_display_title

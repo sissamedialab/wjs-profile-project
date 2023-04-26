@@ -15,6 +15,7 @@ from django.http import HttpRequest
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.timezone import now
+from django.utils.translation import override
 from journal.models import Journal
 from premailer import transform
 from submission.models import Article
@@ -112,8 +113,8 @@ class NewsletterMailerService:
 
         return self.process_content(content, subscriber.journal)
 
-    def _get_newsletter(self, force: bool = False) -> Tuple[Newsletter, datetime.datetime]:
-        newsletter, created = Newsletter.objects.get_or_create()
+    def _get_newsletter(self, journal: Journal, force: bool = False) -> Tuple[Newsletter, datetime.datetime]:
+        newsletter, created = Newsletter.objects.get_or_create(journal=journal)
         last_sent = newsletter.last_sent
         if force:
             last_sent = self.send_always_timestamp
@@ -145,7 +146,9 @@ class NewsletterMailerService:
             content_type=content_type,
             object_id=journal.pk,
         )
-        filtered_subscribers = Recipient.objects.filter(
+        # Explicitly filter Recipient objects by Journal
+        journal_subscribers = Recipient.objects.filter(journal=journal)
+        filtered_subscribers = journal_subscribers.filter(
             Q(topics__in=filtered_articles.values_list("keywords")) | Q(news=True),
         ).distinct()
         return filtered_subscribers, filtered_articles, filtered_news
@@ -191,39 +194,43 @@ class NewsletterMailerService:
         filtered_subscribers, filtered_articles, filtered_news = self._get_objects(journal, last_sent)
 
         for subscriber in filtered_subscribers:
-            rendered_articles = self._render_articles(subscriber, filtered_articles, request)
-            rendered_news = self._render_news(subscriber, filtered_news, request)
+            # https://docs.djangoproject.com/en/1.11/ref/utils/#django.utils.translation.override
+            with override(subscriber.language):
+                rendered_articles = self._render_articles(subscriber, filtered_articles, request)
+                rendered_news = self._render_news(subscriber, filtered_news, request)
 
-            if rendered_news or rendered_articles:
-                yield NewsletterItem(
-                    subscriber=subscriber,
-                    content=self._render_newsletter_message(journal, subscriber, rendered_articles, rendered_news),
-                )
+                if rendered_news or rendered_articles:
+                    yield NewsletterItem(
+                        subscriber=subscriber,
+                        content=self._render_newsletter_message(journal, subscriber, rendered_articles, rendered_news),
+                    )
 
     def _send_newsletter(self, subscriber: Recipient, newsletter_content: str) -> bool:
-        subject = get_setting(
-            "email",
-            "publication_alert_email_subject",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
-        from_email = get_setting(
-            "general",
-            "from_address",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
+        # https://docs.djangoproject.com/en/1.11/ref/utils/#django.utils.translation.override
+        with override(subscriber.language):
+            subject = get_setting(
+                "email",
+                "publication_alert_email_subject",
+                subscriber.journal,
+                create=False,
+                default=True,
+            )
+            from_email = get_setting(
+                "general",
+                "from_address",
+                subscriber.journal,
+                create=False,
+                default=True,
+            )
 
-        return send_mail(
-            subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
-            newsletter_content,
-            from_email.value,
-            [subscriber.newsletter_destination_email],
-            fail_silently=False,
-            html_message=newsletter_content,
-        )
+            return send_mail(
+                subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
+                newsletter_content,
+                from_email.value,
+                [subscriber.newsletter_destination_email],
+                fail_silently=False,
+                html_message=newsletter_content,
+            )
 
     def render_sample_newsletter(self, journal_code: str) -> str:
         """Render a sample message for one the existing subscribers for debugging."""
@@ -239,7 +246,8 @@ class NewsletterMailerService:
         """
         messages = []
 
-        newsletter, last_sent = self._get_newsletter(force)
+        journal = Journal.objects.get(code=journal_code)
+        newsletter, last_sent = self._get_newsletter(journal=journal, force=force)
         for rendered in self._render_newsletters_batch(journal_code, last_sent):
             try:
                 self._send_newsletter(rendered["subscriber"], rendered["content"])
@@ -265,50 +273,52 @@ class NewsletterMailerService:
         - publication_alert_subscription - for email to "first time" recipients
         - publication_alert_reminder - for "reminder" emails to existing recipients
         """
-        subject = get_setting(
-            "email",
-            f"{prefix}_email_subject",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
-        email_body = get_setting(
-            "email",
-            f"{prefix}_email_body",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
-        from_email = get_setting(
-            "general",
-            "from_address",
-            subscriber.journal,
-            create=False,
-            default=True,
-        )
+        # https://docs.djangoproject.com/en/1.11/ref/utils/#django.utils.translation.override
+        with override(subscriber.language):
+            subject = get_setting(
+                "email",
+                f"{prefix}_email_subject",
+                subscriber.journal,
+                create=False,
+                default=True,
+            )
+            email_body = get_setting(
+                "email",
+                f"{prefix}_email_body",
+                subscriber.journal,
+                create=False,
+                default=True,
+            )
+            from_email = get_setting(
+                "general",
+                "from_address",
+                subscriber.journal,
+                create=False,
+                default=True,
+            )
 
-        acceptance_url = f"{reverse('edit_newsletters')}?{urlencode({'token': subscriber.newsletter_token})}"
-        full_acceptance_url = f"{self.site_url(subscriber.journal).strip('/')}{acceptance_url}"
+            acceptance_url = f"{reverse('edit_newsletters')}?{urlencode({'token': subscriber.newsletter_token})}"
+            full_acceptance_url = f"{self.site_url(subscriber.journal).strip('/')}{acceptance_url}"
 
-        content = render_to_string(
-            "newsletters/newsletter_template.html",
-            {
-                "content": email_body.value.format(
-                    journal=subscriber.journal,
-                    email=subscriber.newsletter_destination_email,
-                    acceptance_url=full_acceptance_url,
-                ),
-                **self.get_context_data(subscriber),
-            },
-        )
+            content = render_to_string(
+                "newsletters/newsletter_template.html",
+                {
+                    "content": email_body.value.format(
+                        journal=subscriber.journal,
+                        email=subscriber.newsletter_destination_email,
+                        acceptance_url=full_acceptance_url,
+                    ),
+                    **self.get_context_data(subscriber),
+                },
+            )
 
-        newsletter_content = self.process_content(content, subscriber.journal)
+            newsletter_content = self.process_content(content, subscriber.journal)
 
-        send_mail(
-            subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
-            newsletter_content,
-            from_email.value,
-            [subscriber.newsletter_destination_email],
-            fail_silently=False,
-            html_message=newsletter_content,
-        )
+            send_mail(
+                subject.value.format(journal=subscriber.journal, date=datetime.date.today()),
+                newsletter_content,
+                from_email.value,
+                [subscriber.newsletter_destination_email],
+                fail_silently=False,
+                html_message=newsletter_content,
+            )

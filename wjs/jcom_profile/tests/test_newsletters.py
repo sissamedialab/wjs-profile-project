@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from comms.models import NewsItem
+from conftest import set_jcom_settings, set_jcom_theme
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail, management
 from django.db.models import Q
@@ -14,6 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 from submission.models import Article, Keyword
 from utils import setting_handler
+from utils.install import update_issue_types
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import Recipient
@@ -28,6 +30,14 @@ def select_random_keywords(keywords):
     :return: A sampled list of Keyword
     """
     return random.sample(list(keywords), random.randint(1, len(keywords)))
+
+
+def check_email_regarding_language(outbox, language, kind):
+    """
+    Check that the email is rendered in the expected language
+    """
+    for email in outbox:
+        assert email.subject == f"{language} publication alert {kind.replace('_', ' ')} subject"
 
 
 def check_email_body(outbox, journal):
@@ -149,6 +159,7 @@ def test_newsletters_with_news_items_only_must_be_sent(
     check_email_body(mail.outbox, journal)
 
 
+@pytest.mark.parametrize("language", ("en", "es", "pt"))
 @pytest.mark.django_db
 def test_newsletters_with_articles_only_must_be_sent(
     account_factory,
@@ -160,6 +171,7 @@ def test_newsletters_with_articles_only_must_be_sent(
     custom_newsletter_setting,
     journal,
     mock_premailer_load_url,
+    language,
 ):
     newsletter = newsletter_factory()
     correspondence_author = account_factory()
@@ -190,11 +202,12 @@ def test_newsletters_with_articles_only_must_be_sent(
     newsletter_article_recipient = recipient_factory(
         user=newsletter_article_user,
         news=True,
+        language=language,
     )
     newsletter_article_recipient.topics.add(newsletter_user_keyword)
     newsletter_article_recipient.save()
 
-    recipient_factory(user=no_newsletter_article_user, news=False)
+    recipient_factory(user=no_newsletter_article_user, news=False, language=language)
 
     management.call_command("send_newsletter_notifications", journal.code)
 
@@ -203,6 +216,7 @@ def test_newsletters_with_articles_only_must_be_sent(
     assert mail.outbox[0].to == [newsletter_article_recipient.newsletter_destination_email]
 
     check_email_body(mail.outbox, journal)
+    check_email_regarding_language(mail.outbox, language=language, kind="email")
 
 
 @pytest.mark.django_db
@@ -502,12 +516,15 @@ def test_registration_as_non_logged_user_when_there_is_already_a_recipient(
     assert "Please note that you are already subscribed" in mail_message.body
 
 
+@pytest.mark.parametrize("language", ("en", "es", "pt"))
 @pytest.mark.django_db
 def test_registration_as_logged_user_via_post_in_homepage_plugin(
     jcom_user,
     client,
     journal,
     keyword_factory,
+    language,
+    settings,
 ):
     # Set an email for the user
     jcom_user.email = "jcom_user@email.com"
@@ -518,8 +535,8 @@ def test_registration_as_logged_user_via_post_in_homepage_plugin(
     keywords = [keyword_factory() for _ in range(kwd_count)]
     journal.keywords.set(keywords)
     assert Keyword.objects.count() == kwd_count
-
-    # Login and make the POST call
+    # Force language in Django test client https://docs.djangoproject.com/en/4.1/topics/testing/tools/#setting-the-language   # noqa: E501
+    client.cookies.load({settings.LANGUAGE_COOKIE_NAME: language})
     client.force_login(jcom_user)
     url = f"/{journal.code}/register/newsletters/"
     response = client.post(
@@ -541,6 +558,7 @@ def test_registration_as_logged_user_via_post_in_homepage_plugin(
     #  all active at first
     assert new_recipient.news is True
     assert new_recipient.topics.count() == new_recipient.journal.keywords.count()
+    assert new_recipient.language == language
 
     # Check the redirect
     last_url, status_code = response.redirect_chain[-1]
@@ -597,7 +615,8 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
     client = Client()
     client.force_login(jcom_user)
     url = f"/{journal.code}/update/newsletters/"
-    data = {"topics": [k[0] for k in keywords], "news": is_news}
+    # Pass a language in the POST data
+    data = {"topics": [k[0] for k in keywords], "news": is_news, "language": "en"}
     response = client.post(url, data, follow=True)
     assert response.status_code == 200
 
@@ -625,12 +644,21 @@ def test_registered_user_newsletter_unsubscription(jcom_user, journal):
         user_recipient.refresh_from_db()
 
 
+@pytest.mark.parametrize("language", ("en", "es", "pt"))
 @pytest.mark.django_db
-def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_setting, mock_premailer_load_url):
+def test_register_to_newsletter_as_anonymous_user(
+    journal,
+    custom_newsletter_setting,
+    mock_premailer_load_url,
+    language,
+    settings,
+):
     client = Client()
+    # Force language in Django test client https://docs.djangoproject.com/en/4.1/topics/testing/tools/#setting-the-language   # noqa: E501
+    client.cookies.load({settings.LANGUAGE_COOKIE_NAME: language})
     url = f"/{journal.code}/register/newsletters/"
     anonymous_email = "anonymous@email.com"
-    newsletter_token = generate_token(anonymous_email)
+    newsletter_token = generate_token(anonymous_email, journal.code)
 
     response_get = client.get(url)
     request = RequestFactory().get(url)
@@ -657,6 +685,7 @@ def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_set
     ).processed_value.format(journal, acceptance_url)
     assert anonymous_recipient.newsletter_token in newsletter_email.body
     assert anonymous_recipient.newsletter_token == newsletter_token
+    assert anonymous_recipient.language == language
 
     from_email = get_setting(
         "general",
@@ -666,6 +695,7 @@ def test_register_to_newsletter_as_anonymous_user(journal, custom_newsletter_set
         default=True,
     )
     assert newsletter_email.from_email == from_email.value
+    check_email_regarding_language(mail.outbox, language=language, kind="subscription_email")
 
 
 @pytest.mark.django_db
@@ -680,7 +710,7 @@ def test_anonymous_user_newsletter_edit_without_token_raises_error(journal):
 def test_anonymous_user_newsletter_edit_with_nonexistent_token_raises_error(journal):
     client = Client()
     anonymous_email = "anonymous@email.com"
-    nonexistent_newsletter_token = generate_token(anonymous_email)
+    nonexistent_newsletter_token = generate_token(anonymous_email, journal.code)
     url = f"/{journal.code}/update/newsletters/?{urlencode({'token': nonexistent_newsletter_token})}"
     response = client.get(url)
     assert response.status_code == 403
@@ -690,7 +720,7 @@ def test_anonymous_user_newsletter_edit_with_nonexistent_token_raises_error(jour
 def test_anonymous_user_newsletter_unsubscription(journal):
     client = Client()
     anonymous_email = "anonymous@email.com"
-    newsletter_token = generate_token(anonymous_email)
+    newsletter_token = generate_token(anonymous_email, journal.code)
     anonymous_recipient = Recipient.objects.create(
         email=anonymous_email,
         newsletter_token=newsletter_token,
@@ -704,3 +734,78 @@ def test_anonymous_user_newsletter_unsubscription(journal):
     assert status_code == 302
     assert redirect_url == reverse("unsubscribe_newsletter_confirm")
     assert not Recipient.objects.filter(pk=anonymous_recipient.pk)
+
+
+@pytest.mark.django_db
+def test_anonymous_user_recipient_registers_for_second_journal(journal):
+    """Test that an anonymous user can subscribe to multiple journals.
+
+    An "anonymous user" is basically just an email.
+    It should be possible for the same email (recipient) to receive
+    notifications from multiple journals.
+    """
+    # Let's create a recipient for an anonymous user on the first journal
+    anonymous_email = "anonymous@email.com"
+    Recipient.objects.create(journal=journal, email=anonymous_email, language="en", news=True)
+
+    # Let's create a second journal and try to register the same anonymous user for this journal
+    # TODO: make as a fixture? / factory? / use a factory for the current "journal" fixture?
+    from journal import models as journal_models
+
+    journal_due = journal_models.Journal.objects.create(code="JOURNALDUE", domain="testserver2.org")
+    journal_due.title = "Test Journal DUE: A journal of tests DUE"
+    journal_due.save()
+    # TODO: ignoring  update_issue_types / set_jcom_theme / set_jcom_settings /
+
+    # I choose to ignore the language, forms, etc. because here I want to concentrate on the models.
+
+    # Let's create a recipient for the same anonymous user on a different journal (now this fails)
+    Recipient.objects.create(journal=journal_due, email=anonymous_email, language="en", news=True)
+    #                                ^^^^^^^^^^^
+
+    assert True
+
+
+@pytest.mark.django_db
+def test_anonymous_user_recipient_confirms_registration_to_second_journal(journal, client, settings):
+    """Test that an anonymous user can subscribe to multiple journals.
+
+    Here we test that the recipient can visit the page where he sets
+    his newslettere parameters (topics, language,...).
+
+    The access token might depend only on the email, so it will be the
+    same for the "same" recipient on multiple journals.
+    """
+
+    # The anonymous user registers on the first journal
+    settings.NEWSLETTER_URL = "https://jcom.sissa.it"
+    url = f"/{journal.code}/register/newsletters/"
+    anonymous_email = "anonymous@email.com"
+    data = {"email": anonymous_email}
+    client.post(url, data)
+
+    # Let's create a second journal and register the same anonymous user for this journal
+    # (see notes on test_anonymous_user_recipient_registers_for_second_journal)
+    from journal import models as journal_models
+
+    journal_due = journal_models.Journal.objects.create(code="JOURNALDUE", domain="testserver2.org")
+    journal_due.title = "Test Journal DUE: A journal of tests DUE"
+    journal_due.save()
+    update_issue_types(journal_due)
+    set_jcom_theme(journal_due)
+    set_jcom_settings(journal_due)
+
+    # The anonymous user registers on the second journal
+    # (here only the `url` changes)
+    url = f"/{journal_due.code}/register/newsletters/"
+    client.post(url, data)
+
+    recipients = Recipient.objects.filter(email=anonymous_email)
+    assert recipients.count() == 2
+
+    # The anonimous user follows one of the received links
+    newsletter_token = generate_token(anonymous_email, journal.code)
+    acceptance_url = reverse("edit_newsletters") + f"?{urlencode({'token': newsletter_token})}"
+    client.get(acceptance_url)
+
+    assert True

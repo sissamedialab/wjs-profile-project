@@ -25,6 +25,7 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone, translation
+from django.utils.translation import get_language
 from django.utils.translation import ugettext as _
 from django.views import View
 from django.views.generic import (
@@ -1122,6 +1123,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
         else:
             recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
             if created:
+                recipient.language = get_language()
                 recipient.topics.set(recipient.journal.keywords.all())
                 recipient.news = True
                 recipient.save()
@@ -1147,15 +1149,15 @@ class AnonymousUserNewsletterRegistration(FormView):
         form = context.get("form")
         email = form.data["email"]
         journal = self.request.journal
-        token = generate_token(email)
+        token = generate_token(email, journal.code)
         if not user.is_anonymous():
             # User is logged in, get or create the Recipient based on user and journal
             recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
+            recipient.language = get_language()
             if created:
                 recipient.topics.set(recipient.journal.keywords.all())
                 recipient.news = True
-                recipient.save()
-
+            recipient.save()
         else:
             # User is anonymous
             recipient, created = Recipient.objects.get_or_create(
@@ -1165,6 +1167,8 @@ class AnonymousUserNewsletterRegistration(FormView):
                     "newsletter_token": token,
                 },
             )
+            recipient.language = get_language()
+            recipient.save()
             if created:
                 prefix = "publication_alert_subscription"
             else:

@@ -146,3 +146,4 @@ DATETIME_FORMATS = {
     "es": "d b Y H:i:s",
     "pt": "d b Y H:i:s",
 }
+WJS_NEWSLETTER_TOKEN_SALT = "CHANGEME"
