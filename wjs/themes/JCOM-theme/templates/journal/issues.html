@@ -2,6 +2,7 @@
 {% load staticfiles %}
 {% load i18n %}
 {% load roles %}
+{% load wjs_tags %}
 {% block title %}
     {% trans "Volumes and Issues" context "USER FACING" %}
 {% endblock title %}
@@ -12,12 +13,12 @@
         {% for volume in volumes %}
             <div class="volume">
                 {% with volume_meta=volume.list|first %}
-                    <h3 class="volume__title">Volume {{ volume_meta.volume }}, {{ volume_meta.date.year }}</h3>
+                    <h3 class="volume__title">{% trans "Volume" context "USER FACING" %} {{ volume_meta.volume }}, {{ volume_meta.date.year }}</h3>
                 {% endwith %}
                 <ul class="volumes-list">
                     {% for issue in volume.list %}
                         <li>
-                            <a href="{% url 'journal_issue' issue.id %}">{{ issue.display_title }}</a>
+                            <a href="{% url 'journal_issue' issue.id %}">{{ issue|display_title }}</a>
                             <span class="count">({{ issue.get_sorted_articles.count }} {% trans "items" context "USER FACING" %})</span>
                         </li>
                     {% endfor %}

@@ -3,10 +3,10 @@ from django import template
 from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import strip_tags
-
+from django.utils.safestring import mark_safe
 from journal import logic as journal_logic
 from journal.models import Issue
-from submission.models import Article, Section, Keyword, STAGE_PUBLISHED
+from submission.models import STAGE_PUBLISHED, Article, Keyword, Section
 
 from wjs.jcom_profile.models import SpecialIssue
 from wjs.jcom_profile.utils import citation_name
@@ -139,3 +139,9 @@ def search_form(context):
 
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
     return {"form": form, "all_keywords": popular_keywords}
+
+
+@register.filter
+def display_title(issue):
+    """Return a translatable display_title for issues."""
+    return mark_safe(issue.update_display_title(save=False))
