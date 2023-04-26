@@ -72,13 +72,14 @@ $('.scrollspy').scrollSpy();
 });
 $(document).scroll(function () {
 var infobar_y = document.querySelector('nav').offsetHeight
-+ document.querySelector('.card-image').offsetHeight
-+ document.querySelector('.m4').offsetHeight
++ document.querySelector('.card-content').offsetHeight
++ document.querySelector('.article-sidebar').offsetHeight
 var y = $(this).scrollTop();
 if (y > infobar_y) {
-$('#toc-card').fadeIn();
+    $('#toc-card').css({"width": document.querySelector('.article-sidebar').offsetWidth})
+    $('#toc-card').fadeIn();
 } else {
-$('#toc-card').fadeOut();
+    $('#toc-card').fadeOut();
 }
 
 });
