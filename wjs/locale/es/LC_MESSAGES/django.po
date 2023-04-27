@@ -9,8 +9,8 @@ msgstr ""
 "Project-Id-Version: WJS 0.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2023-04-27 09:54+0200\n"
-"PO-Revision-Date: 2023-04-27 11:14+0200\n"
-"Last-Translator: b'Matteo Gamboz <gamboz@medialab.sissa.it>'\n"
+"PO-Revision-Date: 2023-04-27 14:57+0050\n"
+"Last-Translator: b'Maria Teresa Leo <leo@medialab.sissa.it>'\n"
 "Language-Team: Spanish <wjs-support@medialab.sissa.it>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
@@ -21,7 +21,7 @@ msgstr ""
 
 #: defaults/settings.py:53
 msgid "English"
-msgstr "inglés"
+msgstr "Inglés"
 
 #: defaults/settings.py:54
 msgid "French"
@@ -41,11 +41,11 @@ msgstr ""
 
 #: defaults/settings.py:58
 msgid "Spanish"
-msgstr ""
+msgstr "Español"
 
 #: defaults/settings.py:59
 msgid "Portughese"
-msgstr ""
+msgstr "Portugués"
 
 #: jcom_profile/forms.py:73
 msgid "Password"
@@ -64,11 +64,15 @@ msgid "Keyword"
 msgstr "palabra clave"
 
 #: jcom_profile/forms.py:267
-msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."
+msgid ""
+"Upload odt file with first, middle, last name, email, affiliation, paper "
+"title; one per row."
 msgstr ""
 
 #: jcom_profile/forms.py:272
-msgid "If set to false, articles are not created. The authors must start a submission themselves."
+msgid ""
+"If set to false, articles are not created. The authors must start a "
+"submission themselves."
 msgstr ""
 
 #: jcom_profile/forms.py:282
@@ -89,11 +93,12 @@ msgstr ""
 
 #: jcom_profile/forms.py:372
 msgid "I want to receive alerts about news published in the journal."
-msgstr "Deseo recibir alertas sobre las últimas noticias publicadas en la revista."
+msgstr ""
+"Deseo recibir alertas sobre las últimas noticias publicadas en la revista."
 
 #: jcom_profile/forms.py:375
 msgid "Preferred language for alerts"
-msgstr ""
+msgstr "Lengua preferida para las alertas"
 
 #: jcom_profile/hooks.py:25
 msgid "Edit assignment parameters"
@@ -140,11 +145,15 @@ msgid "Submission Subject Coauthors Acknowledgement"
 msgstr ""
 
 #: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:44
-msgid "Subject for Email sent to coauthors when they have submitted an article."
+msgid ""
+"Subject for Email sent to coauthors when they have submitted an article."
 msgstr ""
 
 #: jcom_profile/management/commands/add_generic_analytics_code_setting.py:51
-msgid "Code added to every page of the journal in order to track visits and analytics. E.g. Google Analitics or Matomo complete tracking code. Not just the site code 🙂"
+msgid ""
+"Code added to every page of the journal in order to track visits and "
+"analytics. E.g. Google Analitics or Matomo complete tracking code. Not just "
+"the site code 🙂"
 msgstr ""
 
 #: jcom_profile/management/commands/add_generic_analytics_code_setting.py:55
@@ -164,7 +173,9 @@ msgid "User automatically as main author"
 msgstr ""
 
 #: jcom_profile/management/commands/add_user_as_main_author_setting.py:18
-msgid "If true, the submitting user is set as main author. To work, the setting 'user_automatically_author' must be on."
+msgid ""
+"If true, the submitting user is set as main author. To work, the setting "
+"'user_automatically_author' must be on."
 msgstr ""
 
 #: jcom_profile/models.py:51
@@ -212,7 +223,9 @@ msgid "recipients"
 msgstr ""
 
 #: jcom_profile/models.py:266
-msgid "Recipient user: {self.user if self.user else self.email} - journal: {self.journal} "
+msgid ""
+"Recipient user: {self.user if self.user else self.email} - journal: "
+"{self.journal} "
 msgstr ""
 
 #: jcom_profile/models.py:286
@@ -905,7 +918,7 @@ msgstr "Artículos"
 #: themes/JCOM-theme/templates/core/nav.html:140
 msgctxt "USER FACING"
 msgid "Issues"
-msgstr "Edición"
+msgstr "Ediciones"
 
 #: themes/JCOM-theme/templates/core/nav.html:94
 #: themes/JCOM-theme/templates/core/nav.html:143
@@ -1039,7 +1052,7 @@ msgstr "Etiquetas"
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:6
 msgctxt "USER FACING"
 msgid "Subscription to be confirmed"
-msgstr "Suscripción por confirmar"
+msgstr "Confirmar suscripción"
 
 #: themes/JCOM-theme/templates/elements/accounts/anonymous_subscription_email_sent.html:9
 msgctxt "USER FACING"
@@ -1085,8 +1098,14 @@ msgstr "Gracias por configurar sus preferencias"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:15
 msgctxt "USER FACING"
-msgid "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only."
-msgstr "Su suscripción está activa. Utilice las casillas de verificación si desea cambiar sus temas de interés y limitar las alertas entrantes únicamente a las nuevas publicaciones que coincidan con esos temas."
+msgid ""
+"Your subscription is active. Please use the checkboxes if you wish to change"
+" your topics of interest and limit incoming alerts to new publications "
+"matching those topics only."
+msgstr ""
+"Su suscripción está activa. Utilice las casillas de verificación si desea "
+"cambiar sus temas de interés y limitar las alertas entrantes únicamente a "
+"las nuevas publicaciones que coincidan con esos temas."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:19
 msgctxt "USER FACING"
@@ -1110,8 +1129,15 @@ msgstr "Cambiar su dirección de correo electrónico"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:10
 msgctxt "USER FACING"
-msgid "If you want to change your email address you may do so below, however, you will be logged out and your account will be marked as inactive until you follow the instructions in the verification email."
-msgstr "Si desea cambiar su dirección de correo electrónico, puede hacerlo a continuación; sin embargo, se cerrará su sesión y su cuenta se marcará como inactiva hasta que siga las instrucciones del correo electrónico de verificación."
+msgid ""
+"If you want to change your email address you may do so below, however, you "
+"will be logged out and your account will be marked as inactive until you "
+"follow the instructions in the verification email."
+msgstr ""
+"Si desea cambiar su dirección de correo electrónico, puede hacerlo a "
+"continuación; sin embargo, se cerrará su sesión y su cuenta se marcará como "
+"inactiva hasta que siga las instrucciones del correo electrónico de "
+"verificación."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:11
 msgctxt "USER FACING"
@@ -1120,8 +1146,12 @@ msgstr "Nota:"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:12
 msgctxt "USER FACING"
-msgid "Changing your email address will also change your username as these are one and the same."
-msgstr "Si cambia su dirección de correo electrónico, también cambiará su nombre de usuario, ya que son la misma cosa."
+msgid ""
+"Changing your email address will also change your username as these are one "
+"and the same."
+msgstr ""
+"Si cambia su dirección de correo electrónico, también cambiará su nombre de "
+"usuario, ya que son la misma cosa."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:16
 msgctxt "USER FACING"
@@ -1183,7 +1213,9 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:69
 msgctxt "USER FACING"
-msgid "You can update your password by entering your existing password plus your new password."
+msgid ""
+"You can update your password by entering your existing password plus your "
+"new password."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:75
@@ -1213,7 +1245,8 @@ msgstr "Suscripción a la alerta de publicación"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:9
 msgctxt "USER FACING"
-msgid "Please confirm that you do not wish to receive any JCOM publication alert"
+msgid ""
+"Please confirm that you do not wish to receive any JCOM publication alert"
 msgstr "Confirme que no desea recibir ninguna alerta de publicación de JCOMAL"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:13
