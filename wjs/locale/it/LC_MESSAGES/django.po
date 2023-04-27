@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-04-21 14:08+0200\n"
+"POT-Creation-Date: 2023-04-27 09:54+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -46,52 +46,52 @@ msgstr ""
 msgid "Portughese"
 msgstr ""
 
-#: jcom_profile/forms.py:69
+#: jcom_profile/forms.py:73
 msgid "Password"
 msgstr ""
 
-#: jcom_profile/forms.py:70
+#: jcom_profile/forms.py:74
 msgid "Repeat Password"
 msgstr ""
 
-#: jcom_profile/forms.py:175
+#: jcom_profile/forms.py:179
 msgid "Keywords"
 msgstr ""
 
-#: jcom_profile/forms.py:226
+#: jcom_profile/forms.py:230
 msgid "Keyword"
 msgstr ""
 
-#: jcom_profile/forms.py:263
-msgid ""
-"Upload odt file with first, middle, last name, email, affiliation, paper "
-"title; one per row."
+#: jcom_profile/forms.py:267
+msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."
 msgstr ""
 
-#: jcom_profile/forms.py:268
-msgid ""
-"If set to false, articles are not created. The authors must start a "
-"submission themselves."
+#: jcom_profile/forms.py:272
+msgid "If set to false, articles are not created. The authors must start a submission themselves."
 msgstr ""
 
-#: jcom_profile/forms.py:278
+#: jcom_profile/forms.py:282
 msgid "Match euristics - NOT IMPLEMENTED"
 msgstr ""
 
-#: jcom_profile/forms.py:279
+#: jcom_profile/forms.py:283
 msgid "Being optimistic ... TODO WRITE ME!"
 msgstr ""
 
-#: jcom_profile/forms.py:284
+#: jcom_profile/forms.py:288
 msgid "All new contributions will have the choosen section (article type)."
 msgstr ""
 
-#: jcom_profile/forms.py:308
+#: jcom_profile/forms.py:312
 msgid "Apply changes to this user account"
 msgstr ""
 
-#: jcom_profile/forms.py:368
-msgid "I want to receive alerts about news published in JCOM."
+#: jcom_profile/forms.py:372
+msgid "I want to receive alerts about news published in the journal."
+msgstr ""
+
+#: jcom_profile/forms.py:375
+msgid "Preferred language for alerts"
 msgstr ""
 
 #: jcom_profile/hooks.py:25
@@ -139,15 +139,11 @@ msgid "Submission Subject Coauthors Acknowledgement"
 msgstr ""
 
 #: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:44
-msgid ""
-"Subject for Email sent to coauthors when they have submitted an article."
+msgid "Subject for Email sent to coauthors when they have submitted an article."
 msgstr ""
 
 #: jcom_profile/management/commands/add_generic_analytics_code_setting.py:51
-msgid ""
-"Code added to every page of the journal in order to track visits and "
-"analytics. E.g. Google Analitics or Matomo complete tracking code. Not just "
-"the site code 🙂"
+msgid "Code added to every page of the journal in order to track visits and analytics. E.g. Google Analitics or Matomo complete tracking code. Not just the site code 🙂"
 msgstr ""
 
 #: jcom_profile/management/commands/add_generic_analytics_code_setting.py:55
@@ -167,86 +163,90 @@ msgid "User automatically as main author"
 msgstr ""
 
 #: jcom_profile/management/commands/add_user_as_main_author_setting.py:18
-msgid ""
-"If true, the submitting user is set as main author. To work, the setting "
-"'user_automatically_author' must be on."
+msgid "If true, the submitting user is set as main author. To work, the setting 'user_automatically_author' must be on."
 msgstr ""
 
-#: jcom_profile/models.py:49
+#: jcom_profile/models.py:51
 msgid "GDPR acceptance checkbox"
 msgstr ""
 
-#: jcom_profile/models.py:50
+#: jcom_profile/models.py:52
 msgid "Invitation token"
 msgstr ""
 
-#: jcom_profile/models.py:233
+#: jcom_profile/models.py:241
 msgid "Newsletter topics user"
 msgstr ""
 
-#: jcom_profile/models.py:238
+#: jcom_profile/models.py:249
+msgid "Preferred newsletter's language"
+msgstr ""
+
+#: jcom_profile/models.py:251
 msgid "Newsletter topics' journal"
 msgstr ""
 
-#: jcom_profile/models.py:239
+#: jcom_profile/models.py:252
 msgid "Newsletters topics"
 msgstr ""
 
-#: jcom_profile/models.py:240
+#: jcom_profile/models.py:253
 msgid "Generic news topic"
 msgstr ""
 
-#: jcom_profile/models.py:241
+#: jcom_profile/models.py:254
 msgid "newsletter token for anonymous users"
 msgstr ""
 
-#: jcom_profile/models.py:242
+#: jcom_profile/models.py:255
 msgid "Anonymous user email"
 msgstr ""
 
-#: jcom_profile/models.py:245
+#: jcom_profile/models.py:258
 msgid "recipient"
 msgstr ""
 
-#: jcom_profile/models.py:246
+#: jcom_profile/models.py:259
 msgid "recipients"
 msgstr ""
 
-#: jcom_profile/models.py:249
-msgid ""
-"Recipient user: {self.user if self.user else self.email} - journal: {self."
-"journal} "
+#: jcom_profile/models.py:266
+msgid "Recipient user: {self.user if self.user else self.email} - journal: {self.journal} "
 msgstr ""
 
-#: jcom_profile/models.py:269
+#: jcom_profile/models.py:286
 msgid "Introduction"
 msgstr ""
 
-#: jcom_profile/models.py:284
+#: jcom_profile/models.py:301
 msgid "Last time newsletter emails have been sent to users"
 msgstr ""
 
-#: jcom_profile/views.py:1233
+#: jcom_profile/models.py:306
+msgid "Journal"
+msgstr ""
+
+#: jcom_profile/views.py:1237
 msgid "Filter by section"
 msgstr ""
 
-#: jcom_profile/views.py:1234
+#: jcom_profile/views.py:1238
 msgid "Publications included in this section."
 msgstr ""
 
-#: jcom_profile/views.py:1238
+#: jcom_profile/views.py:1242
 msgid "Filter by keyword"
 msgstr ""
 
-#: jcom_profile/views.py:1239
+#: jcom_profile/views.py:1243
 msgid "Publications including this keyword are listed below."
 msgstr ""
 
-#: jcom_profile/views.py:1243
+#: jcom_profile/views.py:1247
 msgid "Filter by author"
 msgstr ""
 
-#: jcom_profile/views.py:1244
+#: jcom_profile/views.py:1248
 msgid "All author's publications are listed below."
 msgstr ""
 
@@ -383,40 +383,31 @@ msgstr ""
 msgctxt "SUBMISSION FLOW"
 msgid ""
 "\n"
-"                    For each row in the uploaded spreadsheet, please mind "
-"the following meanings\n"
+"                    For each row in the uploaded spreadsheet, please mind the following meanings\n"
 "                    <dl>\n"
 "                        <dt>\n"
 "                            new\n"
 "                        </dt>\n"
 "                        <dd>\n"
-"                            create a new account in the DB. Naturally this "
-"is not possible if the email is the same as that of an already existing "
-"account.\n"
+"                            create a new account in the DB. Naturally this is not possible if the email is the same as that of an already existing account.\n"
 "                        </dd>\n"
 "                        <dt>\n"
 "                            skip\n"
 "                        </dt>\n"
 "                        <dd>\n"
-"                            just ignore this line and do nothing, as if it "
-"was not present in the uploaded spreadsheed.\n"
+"                            just ignore this line and do nothing, as if it was not present in the uploaded spreadsheed.\n"
 "                        </dd>\n"
 "                        <dt>\n"
 "                            DB\n"
 "                        </dt>\n"
 "                        <dd>\n"
-"                            use this existing account without any "
-"modification. If articles should be created, this account will be the owner "
-"and main author of the new article with the given title.\n"
+"                            use this existing account without any modification. If articles should be created, this account will be the owner and main author of the new article with the given title.\n"
 "                        </dd>\n"
 "                        <dt>\n"
 "                            edit...\n"
 "                        </dt>\n"
 "                        <dd>\n"
-"                            use this existing account, but let me change "
-"something. In the next step, a form will be available where you will be able "
-"to edit the account. You will be presented with the current data present in "
-"the DB and with the \"new\" ones uploaded with the spreasheet.\n"
+"                            use this existing account, but let me change something. In the next step, a form will be available where you will be able to edit the account. You will be presented with the current data present in the DB and with the \"new\" ones uploaded with the spreasheet.\n"
 "                        </dd>\n"
 "                    </dl>\n"
 "                    "
@@ -452,11 +443,8 @@ msgctxt "SUBMISSION FLOW"
 msgid ""
 "\n"
 "                        <p>\n"
-"                            The data file must be an <b>OASIS <a "
-"href=\"https://en.wikipedia.org/wiki/OpenDocument\">OpenDocument</a> "
-"Spreadsheet</b>\n"
-"                            (that means \"an OpenOffice 2 version of excel "
-"file\") with data on the\n"
+"                            The data file must be an <b>OASIS <a href=\"https://en.wikipedia.org/wiki/OpenDocument\">OpenDocument</a> Spreadsheet</b>\n"
+"                            (that means \"an OpenOffice 2 version of excel file\") with data on the\n"
 "                            first sheet and with the following structure:\n"
 "                        </p>\n"
 "                        "
@@ -502,11 +490,9 @@ msgctxt "SUBMISSION FLOW"
 msgid ""
 "\n"
 "                        <p>\n"
-"                            Warning: if you check \"create articles on "
-"import\" the title is mandatory.\n"
+"                            Warning: if you check \"create articles on import\" the title is mandatory.\n"
 "                            <br/>\n"
-"                            Warning: only middle name and affiliation are "
-"optional. All other fields are mandatory (for the title, see above).\n"
+"                            Warning: only middle name and affiliation are optional. All other fields are mandatory (for the title, see above).\n"
 "                            <br/>\n"
 "                            Warning: order is important.\n"
 "                        </p>\n"
@@ -656,12 +642,9 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/submission/submit_review.html:25
 msgctxt "SUBMISSION FLOW"
 msgid ""
-"Please review your submission use the details below. If you need to make "
-"changes\n"
-"                        use the links above to move back along the "
-"submission steps. You must click the Complete\n"
-"                        Submission button at the foot of this page to "
-"complete the submission process, you will then\n"
+"Please review your submission use the details below. If you need to make changes\n"
+"                        use the links above to move back along the submission steps. You must click the Complete\n"
+"                        Submission button at the foot of this page to complete the submission process, you will then\n"
 "                        receive a receipt email. "
 msgstr ""
 
@@ -1061,11 +1044,9 @@ msgstr ""
 msgctxt "USER FACING"
 msgid ""
 "\n"
-"                        An email with a confirmation link has been sent to "
-"your email address.\n"
+"                        An email with a confirmation link has been sent to your email address.\n"
 "                        <br>\n"
-"                        Please open the link to activate your publication "
-"alert.\n"
+"                        Please open the link to activate your publication alert.\n"
 "                        "
 msgstr ""
 
@@ -1086,8 +1067,7 @@ msgctxt "USER FACING"
 msgid ""
 "\n"
 "              Thank you for unsubscribing from JCOM publication alert.<br>\n"
-"              You can subscribe again at any time form the <a href=\"/"
-"\">JCOM home page</a>.\n"
+"              You can subscribe again at any time form the <a href=\"/\">JCOM home page</a>.\n"
 "              "
 msgstr ""
 
@@ -1098,10 +1078,7 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:15
 msgctxt "USER FACING"
-msgid ""
-"Your subscription is active. Please use the checkboxes if you wish to change "
-"your topics of interest and limit incoming alerts to new publications "
-"matching those topics only."
+msgid "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:19
@@ -1126,10 +1103,7 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:10
 msgctxt "USER FACING"
-msgid ""
-"If you want to change your email address you may do so below, however, you "
-"will be logged out and your account will be marked as inactive until you "
-"follow the instructions in the verification email."
+msgid "If you want to change your email address you may do so below, however, you will be logged out and your account will be marked as inactive until you follow the instructions in the verification email."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:11
@@ -1139,9 +1113,7 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:12
 msgctxt "USER FACING"
-msgid ""
-"Changing your email address will also change your username as these are one "
-"and the same."
+msgid "Changing your email address will also change your username as these are one and the same."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:16
@@ -1204,9 +1176,7 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:69
 msgctxt "USER FACING"
-msgid ""
-"You can update your password by entering your existing password plus your "
-"new password."
+msgid "You can update your password by entering your existing password plus your new password."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:75
@@ -1236,8 +1206,7 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:9
 msgctxt "USER FACING"
-msgid ""
-"Please confirm that you do not wish to receive any JCOM publication alert"
+msgid "Please confirm that you do not wish to receive any JCOM publication alert"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:13
@@ -1251,13 +1220,18 @@ msgctxt "USER FACING"
 msgid "No"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/article_listing.html:29
+#: themes/JCOM-theme/templates/elements/article_listing.html:25
+msgctxt "USER FACING"
+msgid "by"
+msgstr ""
+
+#: themes/JCOM-theme/templates/elements/article_listing.html:30
 #: themes/JCOM-theme/templates/newsletters/newsletter_article.html:11
 msgctxt "USER FACING"
 msgid "and"
 msgstr ""
 
-#: themes/JCOM-theme/templates/elements/article_listing.html:63
+#: themes/JCOM-theme/templates/elements/article_listing.html:64
 msgctxt "USER FACING"
 msgid "Also a part of:"
 msgstr ""
@@ -1275,7 +1249,6 @@ msgid "Download"
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
-msgctxt "USER FACING"
 msgid "Issue"
 msgstr ""
 
@@ -1289,12 +1262,15 @@ msgctxt "USER FACING"
 msgid "Archive"
 msgstr ""
 
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:25
+msgid "Volume"
+msgstr ""
+
 #: themes/JCOM-theme/templates/elements/journal_footer.html:7
 msgctxt "USER FACING"
 msgid ""
 "\n"
-"                        Except where otherwise noted, content on this site "
-"is licensed under a Creative Commons 4.0 license\n"
+"                        Except where otherwise noted, content on this site is licensed under a Creative Commons 4.0 license\n"
 "                    "
 msgstr ""
 
@@ -1326,8 +1302,8 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:6
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:20
-#: themes/JCOM-theme/templates/journal/issues.html:6
-#: themes/JCOM-theme/templates/journal/issues.html:11
+#: themes/JCOM-theme/templates/journal/issues.html:7
+#: themes/JCOM-theme/templates/journal/issues.html:12
 msgctxt "USER FACING"
 msgid "Volumes and Issues"
 msgstr ""
@@ -1353,12 +1329,12 @@ msgctxt "USER FACING"
 msgid "Article"
 msgstr ""
 
-#: themes/JCOM-theme/templates/journal/article_issue_list.html:9
+#: themes/JCOM-theme/templates/journal/article_issue_list.html:10
 msgctxt "USER FACING"
 msgid "Primary: "
 msgstr ""
 
-#: themes/JCOM-theme/templates/journal/article_issue_list.html:20
+#: themes/JCOM-theme/templates/journal/article_issue_list.html:21
 msgctxt "USER FACING"
 msgid "This article is not a part of any issues"
 msgstr ""
@@ -1369,7 +1345,7 @@ msgctxt "USER FACING"
 msgid "Publications"
 msgstr ""
 
-#: themes/JCOM-theme/templates/journal/collections.html:38
+#: themes/JCOM-theme/templates/journal/collections.html:39
 msgctxt "USER FACING"
 msgid "There are no collections to display"
 msgstr ""
@@ -1512,7 +1488,12 @@ msgctxt "USER FACING"
 msgid "Browse all Publications"
 msgstr ""
 
-#: themes/JCOM-theme/templates/journal/issues.html:21
+#: themes/JCOM-theme/templates/journal/issues.html:16
+msgctxt "USER FACING"
+msgid "Volume"
+msgstr ""
+
+#: themes/JCOM-theme/templates/journal/issues.html:22
 msgctxt "USER FACING"
 msgid "items"
 msgstr ""
@@ -1568,18 +1549,13 @@ msgstr ""
 msgctxt "USER FACING"
 msgid ""
 "\n"
-"                You have received this email because you have subscribed to "
-"JCOM\n"
+"                You have received this email because you have subscribed to JCOM\n"
 "                publication alert<br>\n"
-"                <span><a href=\"%(unsubscribe_url)s\">Click here to modify "
-"your topics of interest</a></span>\n"
+"                <span><a href=\"%(unsubscribe_url)s\">Click here to modify your topics of interest</a></span>\n"
 "                <span>|</span>\n"
-"                <span><a href=\"%(unsubscribe_url)s\">Click here to "
-"unsubscribe</a></span><br>\n"
-"                See our <a href=\"%(privacy_url)s\">privacy policy</a> for "
-"information on\n"
-"                how we use your personal data or contact us for general "
-"information\n"
+"                <span><a href=\"%(unsubscribe_url)s\">Click here to unsubscribe</a></span><br>\n"
+"                See our <a href=\"%(privacy_url)s\">privacy policy</a> for information on\n"
+"                how we use your personal data or contact us for general information\n"
 "                "
 msgstr ""
 
