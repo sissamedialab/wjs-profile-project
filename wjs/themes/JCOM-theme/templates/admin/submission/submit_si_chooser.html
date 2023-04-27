@@ -2,24 +2,28 @@
 {% load static from staticfiles %}
 {% load foundation %}
 {% load i18n %}
-
-{% block title-section %}{% trans "Submission Destination" context "SUBMISSION FACING" %}{% endblock title-section %}
+{% block title-section %}
+    {% trans "Submission Destination" context "SUBMISSION FACING" %}
+{% endblock title-section %}
 {% block css %}
-    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet"/>
+    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet" />
 {% endblock css %}
-
 {% block body %}
     <article>
         <div class="box">
-            <form method="post"{% if journal_settings.general.abstract_required %} novalidate{% endif %}>
+            <form method="post"
+                  {% if journal_settings.general.abstract_required %}novalidate{% endif %}>
                 {% csrf_token %}
-                {% if article.is_preprint %}{% trans "This article is a preprint" context "SUBMISSION FACING" %}{% endif %}
+                {% if article.is_preprint %}
+                    {% trans "This article is a preprint" context "SUBMISSION FACING" %}
+                {% endif %}
                 <div class="row expanded">
                     {% include "submission/timeline.html" with data=article %}
-                    <p>If your submission is not related to any special issue, click here to continue </p>
+                    <p>If your submission is not related to any special issue, click here to continue</p>
                     <div class="large-12 columns">
-                        <button class="btn btn-primary button success pull-right" id="proceed-normal-issue-btn"><i
-                                class="fa fa-check" type="submit">&nbsp;</i>{% trans "Proceed with Normal Issue" context "SUBMISSION FACING" %}
+                        <button class="btn btn-primary button success pull-right"
+                                id="proceed-normal-issue-btn">
+                            <i class="fa fa-check" type="submit">&nbsp;</i>{% trans "Proceed with Normal Issue" context "SUBMISSION FACING" %}
                         </button>
                     </div>
                     <div class="title-area">
@@ -30,14 +34,13 @@
                         {% for choice in form.special_issue %}
                             <div class="{% if forloop.counter0 == 0 %}hide{% endif %} radio">{{ choice }}</div>
                         {% endfor %}
-
                     </div>
-
                     <div class="large-12 columns text-right">
-                        <button class="button warning " name="clear_radio" type="reset">{% trans "Clear selection" context "SUBMISSION FACING" %}
+                        <button class="button warning " name="clear_radio" type="reset">
+                            {% trans "Clear selection" context "SUBMISSION FACING" %}
                         </button>
-                        <button class="success button" type="submit" name="start_submission"><i
-                                class="fa fa-check">&nbsp;</i>{% trans "Proceed with Special Issue" context "SUBMISSION FACING" %}
+                        <button class="success button" type="submit" name="start_submission">
+                            <i class="fa fa-check">&nbsp;</i>{% trans "Proceed with Special Issue" context "SUBMISSION FACING" %}
                         </button>
                     </div>
                 </div>
@@ -45,7 +48,6 @@
         </div>
     </article>
 {% endblock body %}
-
 {% block js %}
     <script>
         $(document).ready(function () {

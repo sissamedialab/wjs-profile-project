@@ -3,11 +3,12 @@
 {% load i18n %}
 {% load pages %}
 {% load wjs_tags %}
-
-{% block page_title %}{% trans "Articles" context "USER FACING" %}{% endblock %}
-
-{% block title %}{% trans "Articles" context "USER FACING" %}{% endblock %}
-
+{% block page_title %}
+    {% trans "Articles" context "USER FACING" %}
+{% endblock page_title %}
+{% block title %}
+    {% trans "Articles" context "USER FACING" %}
+{% endblock title %}
 {% block body %}
     <div class="row">
         <div class="col m12">
@@ -19,28 +20,25 @@
                     {% include "elements/article_listing.html" with article=article %}
                 {% endfor %}
             {% endif %}
-
             {% for article in articles %}
                 {% include "elements/article_listing.html" with article=article %}
-                {% empty %}
+            {% empty %}
                 <p>No articles to display.</p>
             {% endfor %}
             {% include "elements/pagination.html" with page=articles %}
         </div>
         <div class="col s12 l4">
             <div class="card-panel">
-
                 {% search_form as search_params %}
                 {% include "journal/components/search_sidebar.html" with form=search_params.form all_keywords=search_params.all_keywords %}
             </div>
         </div>
     </div>
-{% endblock %}
-
+{% endblock body %}
 {% block js %}
     <script>
         $(document).ready(function () {
             $('select').material_select();
         });
     </script>
-{% endblock %}
+{% endblock js %}

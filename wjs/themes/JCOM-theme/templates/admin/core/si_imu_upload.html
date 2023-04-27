@@ -23,7 +23,7 @@
     </div>
     <div class="card">
         <div class="card-section">
-          {% include "elements/forms/errors.html" with form=form %}
+            {% include "elements/forms/errors.html" with form=form %}
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="row">
@@ -68,9 +68,9 @@
                         {% blocktrans context "SUBMISSION FLOW" %}
                         <p>
                             Warning: if you check "create articles on import" the title is mandatory.
-                            <br/>
+                            <br />
                             Warning: only middle name and affiliation are optional. All other fields are mandatory (for the title, see above).
-                            <br/>
+                            <br />
                             Warning: order is important.
                         </p>
                         {% endblocktrans %}
@@ -79,14 +79,10 @@
                 </div>
                 <div class="row">
                     <div class="large-6 columns">{{ form.create_articles_on_import|foundation }}</div>
-                    <div class="large-6 columns">
-                        {{ form.match_euristic|foundation }}
-                    </div>
+                    <div class="large-6 columns">{{ form.match_euristic|foundation }}</div>
                 </div>
                 <div class="row">
-                    <div class="large-6 columns">
-                        {{ form.type_of_new_articles|foundation }}
-                    </div>
+                    <div class="large-6 columns">{{ form.type_of_new_articles|foundation }}</div>
                 </div>
                 <div class="row">
                     <div class="large-6 columns">

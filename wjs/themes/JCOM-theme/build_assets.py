@@ -8,23 +8,24 @@ https://janeway.readthedocs.io/en/latest/configuration.html#theming
 """
 
 import os
+import shutil
 
 import sass
-import shutil
 from django.conf import settings
 from django.core.management import call_command
 
 BASE_THEME_DIR = os.path.join(settings.BASE_DIR, "static", "JCOM-theme")
 THEME_CSS_FILES = [
-    os.path.join(BASE_THEME_DIR, "css", "jcom.css"), os.path.join(BASE_THEME_DIR, "css", "jcomal.css"),
-    os.path.join(BASE_THEME_DIR, "css", "newsletter_jcom.css"), os.path.join(BASE_THEME_DIR, "css", "newsletter_jcomal.css")
+    os.path.join(BASE_THEME_DIR, "css", "jcom.css"),
+    os.path.join(BASE_THEME_DIR, "css", "jcomal.css"),
+    os.path.join(BASE_THEME_DIR, "css", "newsletter_jcom.css"),
+    os.path.join(BASE_THEME_DIR, "css", "newsletter_jcomal.css"),
 ]
-
 
 
 def process_scss():
     """Compiles SCSS into CSS in the Static Assets folder."""
-    print("PATH",  os.path.dirname(__file__), __file__)
+    print("PATH", os.path.dirname(__file__), __file__)
     include_path_materialize = os.path.join(
         os.path.dirname(__file__),
         "assets",
@@ -37,7 +38,7 @@ def process_scss():
             os.path.dirname(__file__),
             "assets",
             "sass",
-            f"{os.path.splitext(os.path.basename(css_file))[0]}.scss"
+            f"{os.path.splitext(os.path.basename(css_file))[0]}.scss",
         )
 
         include_path_jcom = os.path.dirname(app_scss_file)
@@ -71,10 +72,14 @@ def build():
     print("JCOM PATHS DONE")
     process_scss()
     print("JCOM SCSS DONE")
-    copy_file('themes/JCOM-theme/assets/materialize-src/fonts', 'static/JCOM-theme/fonts', False)
-    copy_file('themes/JCOM-theme/assets/materialize-src/js/bin/materialize.min.js', 'static/JCOM-theme/js/materialize.min.js')
+    copy_file("themes/JCOM-theme/assets/materialize-src/fonts", "static/JCOM-theme/fonts", False)
+    copy_file(
+        "themes/JCOM-theme/assets/materialize-src/js/bin/materialize.min.js",
+        "static/JCOM-theme/js/materialize.min.js",
+    )
     call_command("collectstatic", "--noinput")
     print("JCOM collectstatic DONE")
+
 
 def copy_file(source, destination, is_file=True):
     """
@@ -85,12 +90,13 @@ def copy_file(source, destination, is_file=True):
 
     destination_folder = os.path.join(settings.BASE_DIR, os.path.dirname(destination))
 
-
     if is_file:
         if not os.path.exists(destination_folder):
             os.makedirs(destination_folder, exist_ok=True)
-        shutil.copy(os.path.join(settings.BASE_DIR, source),
-                    os.path.join(settings.BASE_DIR, destination))
+        shutil.copy(os.path.join(settings.BASE_DIR, source), os.path.join(settings.BASE_DIR, destination))
     else:
-        shutil.copytree(os.path.join(settings.BASE_DIR, source),
-                    os.path.join(settings.BASE_DIR, destination), dirs_exist_ok=True)
+        shutil.copytree(
+            os.path.join(settings.BASE_DIR, source),
+            os.path.join(settings.BASE_DIR, destination),
+            dirs_exist_ok=True,
+        )

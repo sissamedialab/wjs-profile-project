@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("jcom_profile", "0009_specialissue_allowed_sections"),
     ]

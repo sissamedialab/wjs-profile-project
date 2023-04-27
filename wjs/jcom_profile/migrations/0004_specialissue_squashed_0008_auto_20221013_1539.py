@@ -7,7 +7,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ("jcom_profile", "0004_specialissue"),
         ("jcom_profile", "0005_articlewrapper"),

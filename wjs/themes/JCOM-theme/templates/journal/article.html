@@ -45,9 +45,7 @@
         <div class="col s12">{% include "journal/components/article_header.html" %}</div>
         <div class="col s12  hide-on-large-only">
             <aside class="card">
-                <div class="card-content">
-                    {% include "journal/components/article_downloads.html" with article=article %}
-                </div>
+                <div class="card-content">{% include "journal/components/article_downloads.html" with article=article %}</div>
             </aside>
         </div>
         {% if article_content or article|article_has_children %}
@@ -56,7 +54,9 @@
                 {% include "journal/components/article_content.html" %}
             </div>
         {% endif %}
-        <div class="col s12{% if article_content or article|article_has_children %} l4{% else%} l12{% endif %}">{% include "journal/components/article_sidebar.html" %}</div>
+        <div class="col s12{% if article_content or article|article_has_children %} l4{% else %} l12{% endif %}">
+            {% include "journal/components/article_sidebar.html" %}
+        </div>
     </article>
     {% include "elements/summary_modal.html" %}
     {% include "elements/public_reviews.html" %}

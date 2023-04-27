@@ -1,22 +1,25 @@
 {% extends "admin/core/base.html" %}
 {% load foundation %}
 {% load static from staticfiles %}
-
-{% block title %}{{ PLUGIN_NAME }}{% endblock title %}
-{% block admin-header %}{{ PLUGIN_NAME }}{% endblock %}
-
+{% block title %}
+    {{ PLUGIN_NAME }}
+{% endblock title %}
+{% block admin-header %}{{ PLUGIN_NAME }}{% endblock admin-header %}
 {% block breadcrumbs %}
     {{ block.super }}
-    <li><a href="{% url 'core_manager_index' %}">Manager</a></li>
-    <li><a href="{% url 'home_settings_index' %}">Journal Home Settings</a></li>
+    <li>
+        <a href="{% url 'core_manager_index' %}">Manager</a>
+    </li>
+    <li>
+        <a href="{% url 'home_settings_index' %}">Journal Home Settings</a>
+    </li>
     <li>{{ PLUGIN_NAME }}</li>
-{% endblock %}
-
+{% endblock breadcrumbs %}
 {% block body %}
     <div class="large-12 columns">
         <div class="box">
             {% include "admin/elements/translations/form_tabs.html" with object=request.journal %}
-            <form method="POST">
+            <form method="post">
                 {% csrf_token %}
                 {{ form.as_p }}
                 <button type="submit" class="success button">Save</button>

@@ -37,13 +37,13 @@ table tbody tr.suggestion {
                 {% csrf_token %}
                 <div class="row">
                     <div class="large-12 columns">
-                        <input type="hidden" name="tot_lines" value="{{ lines|length }}"/>
+                        <input type="hidden" name="tot_lines" value="{{ lines|length }}" />
                         <input type="hidden"
                                name="create_articles_on_import"
-                               value="{{ create_articles_on_import }}"/>
+                               value="{{ create_articles_on_import }}" />
                         <input type="hidden"
                                name="type_of_new_articles"
-                               value="{{ type_of_new_articles }}"/>
+                               value="{{ type_of_new_articles }}" />
                         <table>
                             <thead>
                                 <th>&nbsp</th>
@@ -63,7 +63,7 @@ table tbody tr.suggestion {
                                         </tr>
                                         <input type="hidden"
                                                name="just_the_name_{{ line.index }}"
-                                               value="{{ line.name }}"/>
+                                               value="{{ line.name }}" />
                                     {% elif line.error %}
                                         <tr class="error">
                                             <td>{{ line.index }}</td>
@@ -78,18 +78,18 @@ table tbody tr.suggestion {
                                     {% else %}
                                         <input type="hidden"
                                                name="first_name_{{ line.index }}"
-                                               value="{{ line.first_name }}"/>
+                                               value="{{ line.first_name }}" />
                                         <input type="hidden"
                                                name="middle_name_{{ line.index }}"
-                                               value="{{ line.middle_name|default_if_none:"" }}"/>
+                                               value="{{ line.middle_name|default_if_none:"" }}" />
                                         <input type="hidden"
                                                name="last_name_{{ line.index }}"
-                                               value="{{ line.last_name }}"/>
-                                        <input type="hidden" name="email_{{ line.index }}" value="{{ line.email }}"/>
+                                               value="{{ line.last_name }}" />
+                                        <input type="hidden" name="email_{{ line.index }}" value="{{ line.email }}" />
                                         <input type="hidden"
                                                name="institution_{{ line.index }}"
-                                               value="{{ line.institution|default_if_none:"" }}"/>
-                                        <input type="hidden" name="title_{{ line.index }}" value="{{ line.title }}"/>
+                                               value="{{ line.institution|default_if_none:"" }}" />
+                                        <input type="hidden" name="title_{{ line.index }}" value="{{ line.title }}" />
                                         <tr>
                                             <td>{{ line.index }}</td>
                                             <td>{{ line.first_name }}</td>
@@ -104,7 +104,7 @@ table tbody tr.suggestion {
                                                        value="new"
                                                        {% if not line.suggestions %}checked="checked"{% endif %}
                                                        required=""
-                                                       {% if line.disable_new %}disabled="disabled"{% endif %}/>
+                                                       {% if line.disable_new %}disabled="disabled"{% endif %} />
                                                 {% trans "new" context "SUBMISSION FLOW" %}
                                                 <input type="radio" name="action-{{ line.index }}" value="skip" required="" />
                                                 {% trans "skip" context "SUBMISSION FLOW" %}
@@ -114,32 +114,22 @@ table tbody tr.suggestion {
                                             <tr class="suggestion">
                                                 <td>&nbsp;</td>
                                                 <td>{{ suggestion.first_name }}</td>
-                                                <td>
-                                                    {{ suggestion.middle_name }}
-                                                </td>
-                                                <td>
-                                                    {{ suggestion.last_name }}
-                                                </td>
-                                                <td>
-                                                    {{ suggestion.email }}
-                                                </td>
-                                                <td>
-                                                    {{ suggestion.institution }}
-                                                </td>
-                                                <td>
-                                                    {{ suggestion.pk }}
-                                                </td>
+                                                <td>{{ suggestion.middle_name }}</td>
+                                                <td>{{ suggestion.last_name }}</td>
+                                                <td>{{ suggestion.email }}</td>
+                                                <td>{{ suggestion.institution }}</td>
+                                                <td>{{ suggestion.pk }}</td>
                                                 <td>
                                                     <input type="radio"
                                                            name="action-{{ line.index }}"
                                                            value="DB_{{ suggestion.pk }}"
-                                                           required=""/>
+                                                           required="" />
                                                     DB
                                                     <input type="radio"
                                                            name="action-{{ line.index }}"
                                                            value="edit_{{ suggestion.pk }}"
                                                            {% if suggestion.is_best_suggestion %}checked="checked"{% endif %}
-                                                           required=""/>
+                                                           required="" />
                                                     edit...
                                                 </td>
                                             </tr>
@@ -152,7 +142,8 @@ table tbody tr.suggestion {
                 </div>
                 <div class="row">
                     <div class="large-12 columns">
-                        <input type="submit" value="{% trans "Import..." context "SUBMISSION FLOW" %}" />
+                        <input type="submit"
+                               value="{% trans "Import..." context "SUBMISSION FLOW" %}" />
                     </div>
                 </div>
             </form>
@@ -160,33 +151,23 @@ table tbody tr.suggestion {
         <div class="card-section">
             <div class="row">
                 <div class="large-12 columns">
-                    <h2>
-                        {% trans "Legend" context "SUBMISSION FLOW" %}
-                    </h2>
+                    <h2>{% trans "Legend" context "SUBMISSION FLOW" %}</h2>
                     {% blocktrans context "SUBMISSION FLOW" %}
                     For each row in the uploaded spreadsheet, please mind the following meanings
                     <dl>
-                        <dt>
-                            new
-                        </dt>
+                        <dt>new</dt>
                         <dd>
                             create a new account in the DB. Naturally this is not possible if the email is the same as that of an already existing account.
                         </dd>
-                        <dt>
-                            skip
-                        </dt>
+                        <dt>skip</dt>
                         <dd>
                             just ignore this line and do nothing, as if it was not present in the uploaded spreadsheed.
                         </dd>
-                        <dt>
-                            DB
-                        </dt>
+                        <dt>DB</dt>
                         <dd>
                             use this existing account without any modification. If articles should be created, this account will be the owner and main author of the new article with the given title.
                         </dd>
-                        <dt>
-                            edit...
-                        </dt>
+                        <dt>edit...</dt>
                         <dd>
                             use this existing account, but let me change something. In the next step, a form will be available where you will be able to edit the account. You will be presented with the current data present in the DB and with the "new" ones uploaded with the spreasheet.
                         </dd>

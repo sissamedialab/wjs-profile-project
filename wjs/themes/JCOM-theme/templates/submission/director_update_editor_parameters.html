@@ -1,6 +1,5 @@
 {% extends "core/base.html" %}
 {% load static %}
-
 {% block body %}
     <div class="row">
         <form method="post" class="col s4">
@@ -9,22 +8,22 @@
             {{ formset.as_p }}
             <div class="input-field col s12">
                 {{ form.workload }}
-                <label for={{ form.workload.id }}>Workload</label>
+                <label for={{ form.workload.id }}>Workload
+                </label>
             </div>
             <div class="input-field col s12">
                 {{ form.brake_on }}
-                <label for={{ form.brake_on.id }}>Brake On</label>
+                <label for={{ form.brake_on.id }}>Brake On
+                </label>
             </div>
             <div class="input-field col s12">
-                <input type="submit" class="btn"/>
+                <input type="submit" class="btn" />
             </div>
         </form>
     </div>
 {% endblock body %}
-
 {% block footer %}
-    <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
-
+    <script type="text/javascript"
+            src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
     {{ form.media }}
-
 {% endblock footer %}

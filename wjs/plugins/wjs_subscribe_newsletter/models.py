@@ -7,7 +7,11 @@ from .plugin_settings import MANAGER_URL
 
 
 class PluginConfig(models.Model):
-    journal = models.ForeignKey(Journal, on_delete=models.CASCADE, related_name="wjs_subscribe_newsletter_plugin_config")
+    journal = models.ForeignKey(
+        Journal,
+        on_delete=models.CASCADE,
+        related_name="wjs_subscribe_newsletter_plugin_config",
+    )
     title = models.CharField(max_length=500, help_text=_("Section title"))
     intro = models.CharField(max_length=500, help_text=_("Introduction text"))
 

@@ -20,7 +20,6 @@ def fill_newsletter_journal_field_with_first_journal(apps, schema_editor):
 # This data migration gets the first Journal in the database (at this stage there will be at least one) and
 # saves it as Newsletter.journal.
 class Migration(migrations.Migration):
-
     dependencies = [
         ("jcom_profile", "0019_recipient_language"),
     ]

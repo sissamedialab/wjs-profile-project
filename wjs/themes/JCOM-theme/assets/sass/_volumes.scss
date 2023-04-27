@@ -32,19 +32,19 @@
     flex-direction: row;
     justify-content: space-between;
 
-    h5{
+    h5 {
       font-size: 1rem;
       font-weight: bold;
     }
 
     i {
-      transition: linear .3s;
+      transition: linear 0.3s;
     }
 
     &.active {
       i {
         transform: rotate(-180deg);
-        transition: linear .3s;
+        transition: linear 0.3s;
       }
     }
   }

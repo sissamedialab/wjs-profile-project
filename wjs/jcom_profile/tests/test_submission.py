@@ -14,6 +14,9 @@ from utils import setting_handler
 from wjs.jcom_profile import views
 from wjs.jcom_profile.models import SpecialIssue
 
+# generic lxml regexp namespace used in tests
+regexpNS = "http://exslt.org/regular-expressions"  # noqa: N816
+
 
 class TestFilesStage:
     """Tests related to the file-submission stage."""
@@ -135,12 +138,12 @@ class TestSIStage:
 
         assert response.status_code == 200
         targets = (
-            "<h1>Submission Destination",
-            "Choose Submission Destination",
+            ".//h1[re:test(text(), '.*Submission Destination.*', 'i')]",
+            "//*[re:test(text(), '.*Choose Submission Destination.*', 'i')]",
         )
-        content = response.content.decode()
+        html = lxml.html.fromstring(response.content.decode())
         for target in targets:
-            assert target in content
+            assert html.xpath(target, namespaces={"re": regexpNS})
 
     @pytest.mark.django_db
     def test_choose_si_shown_when_si_open_and_not_yet_closed(self, admin, article):
@@ -158,12 +161,12 @@ class TestSIStage:
 
         assert response.status_code == 200
         targets = (
-            "<h1>Submission Destination",
-            "Choose Submission Destination",
+            ".//h1[re:test(text(), '.*Submission Destination.*', 'i')]",
+            "//*[re:test(text(), '.*Choose Submission Destination.*', 'i')]",
         )
-        content = response.content.decode()
+        html = lxml.html.fromstring(response.content.decode())
         for target in targets:
-            assert target in content
+            assert html.xpath(target, namespaces={"re": regexpNS})
 
 
 @pytest.fixture
@@ -432,7 +435,7 @@ def test_normal_issue_article_show_normal_issue_type_in_article_info(admin, arti
     html = lxml.html.fromstring(response.content.decode())
     article_info_table = html.get_element_by_id(id="article-info-table")
     assert "Normal Issue" in [
-        td.text for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
+        td.text.strip() for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
     ]
 
 
@@ -450,5 +453,5 @@ def test_special_issue_article_show_issue_name_in_article_info(admin, article, c
     html = lxml.html.fromstring(response.content.decode())
     article_info_table = html.get_element_by_id(id="article-info-table")
     assert special_issue.name in [
-        td.text for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
+        td.text.strip() for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
     ]

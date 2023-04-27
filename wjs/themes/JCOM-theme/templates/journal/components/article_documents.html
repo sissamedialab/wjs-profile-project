@@ -27,7 +27,7 @@
                                         <a href="{% url 'articles_by_author' au.pk %}">{{ au.full_name }}</a>{# djlint:off #}{% if forloop.revcounter0 >= 2 %},{% endif %}{% if forloop.revcounter0 == 1 %} and{% endif %}{# djlint:on #}
                                     {% endfor %}
                                 </div>
-                                <div style="margin-bottom:1em;">{{ kid.abstract|safe|truncatewords_html:23 }}</div>
+                                <div class="article-documents-list-item-abstract">{{ kid.abstract|safe|truncatewords_html:23 }}</div>
                             </div>
                         {% endfor %}
                     </div>

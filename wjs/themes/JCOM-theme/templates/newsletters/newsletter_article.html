@@ -1,25 +1,23 @@
 {% load i18n %}
 {% load wjs_tags %}
-
-
-  <h4 class="section-name">{{ article.section.name }}</h4>
-  <h3 class="title"><a href="{% if article.is_remote %}{{ article.remote_url }}{% else %}{{ article.url }}{% endif %}">{{ article.title }}</a></h3>
-  <p class="author">by
-      {% for author in article.frozen_authors.all %}
-          {% if forloop.last %}
-              {% if article.frozen_authors.all|length > 1 %}
-                  {% trans "and" context "USER FACING" %}
-              {% endif %}
-          {% endif %}
-          {{ author.full_name }}
-          {# djlint:off #}
+<h4 class="section-name">{{ article.section.name }}</h4>
+<h3 class="title">
+    <a href="{% if article.is_remote %}{{ article.remote_url }}{% else %}{{ article.url }}{% endif %}">{{ article.title }}</a>
+</h3>
+<p class="author">
+    {% trans "by" %}
+    {% for author in article.frozen_authors.all %}
+        {% if forloop.last %}
+            {% if article.frozen_authors.all|length > 1 %}
+                {% trans "and" context "USER FACING" %}
+            {% endif %}
+        {% endif %}
+        {{ author.full_name }}
+        {# djlint:off #}
           {% if not forloop.last %}{% if not forloop.counter == article.frozen_authors.all|length|add:-1 %}, {% endif %}{% endif %}
-          {# djlint:on #}
-      {% endfor %}
-  </p>
-  <p>
-    {{ article.abstract|safe }}
-  </p>
-
-  <h5 class="date">{{ article.date_published|date:DATE_FORMAT }}</h5>
-  <hr class="divider">
+        {# djlint:on #}
+    {% endfor %}
+</p>
+<p>{{ article.abstract|safe }}</p>
+<h5 class="date">{{ article.date_published|date:DATE_FORMAT }}</h5>
+<hr class="divider">

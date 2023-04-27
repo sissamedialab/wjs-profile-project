@@ -1,9 +1,11 @@
-from django.core.management.base import BaseCommand
-from ...newsletter.service import NewsletterMailerService
-
 import logging
 
+from django.core.management.base import BaseCommand
+
+from ...newsletter.service import NewsletterMailerService
+
 logger = logging.getLogger("wjs.newsletter")
+
 
 class Command(BaseCommand):
     help = "Send newsletter to enrolled users. This command is intended to be used via a cron task."  # noqa

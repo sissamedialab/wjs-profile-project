@@ -1,18 +1,22 @@
 {% load pages %}
-
 {% if page.paginator.num_pages > 1 %}
-<ul class="pagination">
-    {% if page.has_previous %}
-        <li class="waves-effect"><a href="?page={{ page.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo;</a></li>
-        &nbsp;{% endif %}
-    {{ page.page.page_range }}
-    {% for current in page|slice_pages:6 %}
-        <li class="waves-effect {% if page.number == current.number %}active{% endif %}"><a href="?page={{ current.number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ current.number }}</a>&nbsp;
-        </li>
-    {% endfor %}
-    {% if page.has_next %}
-        <li class="waves-effect"><a href="?page={{ page.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&raquo;</a>
-        </li>
-    {% endif %}
-</ul>
+    <ul class="pagination">
+        {% if page.has_previous %}
+            <li class="waves-effect">
+                <a href="?page={{ page.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">«</a>
+            </li>
+            &nbsp;
+        {% endif %}
+        {{ page.page.page_range }}
+        {% for current in page|slice_pages:6 %}
+            <li class="waves-effect {% if page.number == current.number %}active{% endif %}">
+                <a href="?page={{ current.number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ current.number }}</a>&nbsp;
+            </li>
+        {% endfor %}
+        {% if page.has_next %}
+            <li class="waves-effect">
+                <a href="?page={{ page.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">»</a>
+            </li>
+        {% endif %}
+    </ul>
 {% endif %}

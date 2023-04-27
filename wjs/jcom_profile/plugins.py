@@ -2,7 +2,6 @@ from django import forms
 from django.core.exceptions import FieldDoesNotExist
 from django.http import Http404
 from django.views.generic import UpdateView
-from modeltranslation.forms import TranslationModelForm
 
 
 class BaseConfigUpdateView(UpdateView):
@@ -36,6 +35,7 @@ class BaseConfigUpdateView(UpdateView):
             class Meta:
                 model = self.model
                 fields = list(translated_fields) + list(untranslated_fields)
+
         return PluginFormClass
 
     def get_object(self, queryset=None):

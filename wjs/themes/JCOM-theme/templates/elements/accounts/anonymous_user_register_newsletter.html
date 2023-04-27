@@ -1,21 +1,20 @@
 {% extends "core/base.html" %}
 {% load materialize %}
-
 {% block body %}
-<div class="row">
-    <div class="col s12">
-        <div class="card">
-            <div class="card-panel">
-                <h2 class="main-title">{% trans "Publication alert" context "USER FACING" %}</h2>
-                <form method="post" action="{% url "register_newsletters" %}">
-                    {% csrf_token %}
-                    {% materialize_form form %}
-                    <div class="input-field">
-                        <button name="submit" class="btn">{% trans "Subscribe" context "USER FACING" %}</button>
-                    </div>
-                </form>
+    <div class="row">
+        <div class="col s12">
+            <div class="card">
+                <div class="card-panel">
+                    <h2 class="main-title">{% trans "Publication alert" context "USER FACING" %}</h2>
+                    <form method="post" action="{% url "register_newsletters" %}">
+                        {% csrf_token %}
+                        {% materialize_form form %}
+                        <div class="input-field">
+                            <button name="submit" class="btn">{% trans "Subscribe" context "USER FACING" %}</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 {% endblock body %}

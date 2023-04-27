@@ -26,6 +26,9 @@ include:
   - project: 'wjs/wjs-profile-project'
     ref: ${CI_COMMIT_REF_NAME}
     file: '.gitlab-ci-run-tests.yml'
+  - project: 'wjs/wjs-profile-project'
+    ref: ${CI_COMMIT_REF_NAME}
+    file: '.gitlab-ci-pre-commit.yml'
 
 
 run-tests:
@@ -36,6 +39,15 @@ run-tests:
 
   extends:
     - .run-tests
+
+
+pre-commit:
+  # Always run linting, except for tags
+  except:
+    - tags
+
+  extends:
+    - .run-pre-commit
 
 
 upload-package:

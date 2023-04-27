@@ -2,25 +2,23 @@
 .homepage-grid {
   @media screen and (max-width: 1023px) {
     grid-template-areas:
-    'main'
-    'sidebar-element-2'
-    'sidebar-element-3'
-    'sidebar-element-4'
-    'sidebar-element-5'
-    'sidebar-element-6'
-    'sidebar-element-7'
-    ;
+      "main"
+      "sidebar-element-2"
+      "sidebar-element-3"
+      "sidebar-element-4"
+      "sidebar-element-5"
+      "sidebar-element-6"
+      "sidebar-element-7";
   }
 
   display: grid;
   grid-template-areas:
-  'main main sidebar-element-2'
-  'main main sidebar-element-3'
-  'main main sidebar-element-4'
-  'main main sidebar-element-5'
-  'main main sidebar-element-6'
-  'main main sidebar-element-7'
-  ;
+    "main main sidebar-element-2"
+    "main main sidebar-element-3"
+    "main main sidebar-element-4"
+    "main main sidebar-element-5"
+    "main main sidebar-element-6"
+    "main main sidebar-element-7";
   column-gap: 2rem;
 }
 

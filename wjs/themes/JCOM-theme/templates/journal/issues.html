@@ -9,11 +9,13 @@
 {% block body %}
     {% regroup issues by volume as volumes %}
     <div class="volumes-container">
-    <h1 class="volumes-container__title">{% trans "Volumes and Issues" context "USER FACING" %}</h1>
+        <h1 class="volumes-container__title">{% trans "Volumes and Issues" context "USER FACING" %}</h1>
         {% for volume in volumes %}
             <div class="volume">
                 {% with volume_meta=volume.list|first %}
-                    <h3 class="volume__title">{% trans "Volume" context "USER FACING" %} {{ volume_meta.volume }}, {{ volume_meta.date.year }}</h3>
+                    <h3 class="volume__title">
+                        {% trans "Volume" context "USER FACING" %} {{ volume_meta.volume }}, {{ volume_meta.date.year }}
+                    </h3>
                 {% endwith %}
                 <ul class="volumes-list">
                     {% for issue in volume.list %}

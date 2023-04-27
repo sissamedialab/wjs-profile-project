@@ -1,0 +1,16 @@
+.run-pre-commit:
+  stage: test
+
+  variables:
+    # Use the following after force-pushes:
+    GIT_STRATEGY: clone
+    PRE_COMMIT_HOME: .pre-commit
+
+  script:
+    - pip install --user pre-commit
+    - python -m pre_commit run -a  # python module invocation is required because pre-commit script is not included in default path
+
+  cache:
+    - key: "pre-commit"
+      paths:
+        - .pre-commit
