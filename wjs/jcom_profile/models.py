@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext as _
-from journal.models import Journal
+from journal.models import Issue, Journal
 from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article, Section
 from utils import logic as utils_logic
@@ -79,6 +79,10 @@ class Correspondence(models.Model):
         """Model's Meta."""
 
         unique_together = ("account", "user_cod", "source")
+
+    def __str__(self):
+        """Show representation (used in admin UI)."""
+        return f"{self.account} <{self.account.email}> @ {self.source}"
 
 
 class SIQuerySet(models.QuerySet):
@@ -313,6 +317,7 @@ from journal.models import Issue
 
 
 def update_display_title(self, save=False):
+    """Override for Issue.update_display_title."""
     if save:
         self.save()
         return self.cached_display_title

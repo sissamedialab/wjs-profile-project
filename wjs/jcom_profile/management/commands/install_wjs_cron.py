@@ -39,6 +39,12 @@ class Command(BaseCommand):
                 "task": "send_newsletter_notifications",
                 "type": "daily",
             },
+            {
+                "name": f"{cwd}_check_wjapp_new_registrations",
+                "time": 9,
+                "task": "check_wjapp_new_registrations",
+                "type": "daily",
+            },
         ]
 
         for job in jobs:
