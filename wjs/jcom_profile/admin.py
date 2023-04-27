@@ -16,6 +16,7 @@ from submission.models import Keyword
 
 from wjs.jcom_profile import forms, models
 from wjs.jcom_profile.models import (
+    Correspondence,
     EditorAssignmentParameters,
     EditorKeyword,
     JCOMProfile,
@@ -121,6 +122,13 @@ class UserAdmin(AccountAdmin):
 
 admin.site.unregister(Account)
 admin.site.register(Account, UserAdmin)
+
+
+@admin.register(Correspondence)
+class CorrespondenceAdmin(admin.ModelAdmin):
+    """Helper class to "admin" correspondence."""
+
+    list_filter = ("source",)
 
 
 @admin.register(SpecialIssue)
