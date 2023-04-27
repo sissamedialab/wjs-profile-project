@@ -1,18 +1,18 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# WJS Portughese translations.
+# Copyright (C) 2023 Sissa Medialab
+# This file is distributed under the same license as the WJS package.
+# Maria Teresa Leo <leo@medialab.sissa.it>, 2023.
 #
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
+"Project-Id-Version: WJS 0.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-04-21 14:08+0200\n"
-"PO-Revision-Date: 2023-04-24 16:54+0050\n"
-"Last-Translator: b'Maria Teresa Leo <leo@medialab.sissa.it>'\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"POT-Creation-Date: 2023-04-27 09:54+0200\n"
+"PO-Revision-Date: 2023-04-27 11:16+0200\n"
+"Last-Translator: b'Matteo Gamboz <gamboz@medialab.sissa.it>'\n"
+"Language-Team: Portughese <wjs-support@medialab.sissa.it>\n"
+"Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -47,53 +47,55 @@ msgstr ""
 msgid "Portughese"
 msgstr ""
 
-#: jcom_profile/forms.py:69
+#: jcom_profile/forms.py:73
 msgid "Password"
 msgstr ""
 
-#: jcom_profile/forms.py:70
+#: jcom_profile/forms.py:74
 msgid "Repeat Password"
 msgstr ""
 
-#: jcom_profile/forms.py:175
+#: jcom_profile/forms.py:179
 msgid "Keywords"
 msgstr "palavras-chave"
 
-#: jcom_profile/forms.py:226
+#: jcom_profile/forms.py:230
 msgid "Keyword"
 msgstr "palavra-chave"
 
-#: jcom_profile/forms.py:263
-msgid ""
-"Upload odt file with first, middle, last name, email, affiliation, paper "
-"title; one per row."
+#: jcom_profile/forms.py:267
+msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."
 msgstr ""
 
-#: jcom_profile/forms.py:268
-msgid ""
-"If set to false, articles are not created. The authors must start a "
-"submission themselves."
+#: jcom_profile/forms.py:272
+msgid "If set to false, articles are not created. The authors must start a submission themselves."
 msgstr ""
 
-#: jcom_profile/forms.py:278
+#: jcom_profile/forms.py:282
 msgid "Match euristics - NOT IMPLEMENTED"
 msgstr ""
 
-#: jcom_profile/forms.py:279
+#: jcom_profile/forms.py:283
 msgid "Being optimistic ... TODO WRITE ME!"
 msgstr ""
 
-#: jcom_profile/forms.py:284
+#: jcom_profile/forms.py:288
 msgid "All new contributions will have the choosen section (article type)."
 msgstr ""
 
-#: jcom_profile/forms.py:308
+#: jcom_profile/forms.py:312
 msgid "Apply changes to this user account"
 msgstr ""
 
-#: jcom_profile/forms.py:368
-msgid "I want to receive alerts about news published in JCOM."
+#: jcom_profile/forms.py:372
+#, fuzzy
+#| msgid "I want to receive alerts about news published in JCOM."
+msgid "I want to receive alerts about news published in the journal."
 msgstr "Quero receber alertas sobre as últimas notícias publicadas no JCOMAL"
+
+#: jcom_profile/forms.py:375
+msgid "Preferred language for alerts"
+msgstr ""
 
 #: jcom_profile/hooks.py:25
 msgid "Edit assignment parameters"
@@ -140,15 +142,11 @@ msgid "Submission Subject Coauthors Acknowledgement"
 msgstr ""
 
 #: jcom_profile/management/commands/add_coauthors_submission_email_settings.py:44
-msgid ""
-"Subject for Email sent to coauthors when they have submitted an article."
+msgid "Subject for Email sent to coauthors when they have submitted an article."
 msgstr ""
 
 #: jcom_profile/management/commands/add_generic_analytics_code_setting.py:51
-msgid ""
-"Code added to every page of the journal in order to track visits and "
-"analytics. E.g. Google Analitics or Matomo complete tracking code. Not just "
-"the site code 🙂"
+msgid "Code added to every page of the journal in order to track visits and analytics. E.g. Google Analitics or Matomo complete tracking code. Not just the site code 🙂"
 msgstr ""
 
 #: jcom_profile/management/commands/add_generic_analytics_code_setting.py:55
@@ -168,86 +166,90 @@ msgid "User automatically as main author"
 msgstr ""
 
 #: jcom_profile/management/commands/add_user_as_main_author_setting.py:18
-msgid ""
-"If true, the submitting user is set as main author. To work, the setting "
-"'user_automatically_author' must be on."
+msgid "If true, the submitting user is set as main author. To work, the setting 'user_automatically_author' must be on."
 msgstr ""
 
-#: jcom_profile/models.py:49
+#: jcom_profile/models.py:51
 msgid "GDPR acceptance checkbox"
 msgstr ""
 
-#: jcom_profile/models.py:50
+#: jcom_profile/models.py:52
 msgid "Invitation token"
 msgstr ""
 
-#: jcom_profile/models.py:233
+#: jcom_profile/models.py:241
 msgid "Newsletter topics user"
 msgstr ""
 
-#: jcom_profile/models.py:238
+#: jcom_profile/models.py:249
+msgid "Preferred newsletter's language"
+msgstr ""
+
+#: jcom_profile/models.py:251
 msgid "Newsletter topics' journal"
 msgstr ""
 
-#: jcom_profile/models.py:239
+#: jcom_profile/models.py:252
 msgid "Newsletters topics"
 msgstr ""
 
-#: jcom_profile/models.py:240
+#: jcom_profile/models.py:253
 msgid "Generic news topic"
 msgstr ""
 
-#: jcom_profile/models.py:241
+#: jcom_profile/models.py:254
 msgid "newsletter token for anonymous users"
 msgstr ""
 
-#: jcom_profile/models.py:242
+#: jcom_profile/models.py:255
 msgid "Anonymous user email"
 msgstr ""
 
-#: jcom_profile/models.py:245
+#: jcom_profile/models.py:258
 msgid "recipient"
 msgstr ""
 
-#: jcom_profile/models.py:246
+#: jcom_profile/models.py:259
 msgid "recipients"
 msgstr ""
 
-#: jcom_profile/models.py:249
-msgid ""
-"Recipient user: {self.user if self.user else self.email} - journal: "
-"{self.journal} "
+#: jcom_profile/models.py:266
+msgid "Recipient user: {self.user if self.user else self.email} - journal: {self.journal} "
 msgstr ""
 
-#: jcom_profile/models.py:269
+#: jcom_profile/models.py:286
 msgid "Introduction"
 msgstr ""
 
-#: jcom_profile/models.py:284
+#: jcom_profile/models.py:301
 msgid "Last time newsletter emails have been sent to users"
 msgstr ""
 
-#: jcom_profile/views.py:1233
+#: jcom_profile/models.py:306
+msgid "Journal"
+msgstr ""
+
+#: jcom_profile/views.py:1237
 msgid "Filter by section"
 msgstr "Filtrar por secção"
 
-#: jcom_profile/views.py:1234
+#: jcom_profile/views.py:1238
 msgid "Publications included in this section."
 msgstr "Publicações incluídas nesta secção"
 
-#: jcom_profile/views.py:1238
+#: jcom_profile/views.py:1242
 msgid "Filter by keyword"
 msgstr "Filtrar por palavra-chave"
 
-#: jcom_profile/views.py:1239
+#: jcom_profile/views.py:1243
 msgid "Publications including this keyword are listed below."
 msgstr ""
 
-#: jcom_profile/views.py:1243
+#: jcom_profile/views.py:1247
 msgid "Filter by author"
 msgstr "Filtrar por autor"
 
-#: jcom_profile/views.py:1244
+#: jcom_profile/views.py:1248
 msgid "All author's publications are listed below."
 msgstr "Publicações deste autor"
 
@@ -588,7 +590,7 @@ msgstr ""
 #: themes/JCOM-theme/templates/admin/core/si_update.html:139
 msgctxt "SUBMISSION FLOW"
 msgid "by"
-msgstr ""
+msgstr "por"
 
 #: themes/JCOM-theme/templates/admin/core/si_update.html:149
 msgctxt "SUBMISSION FLOW"
@@ -1085,14 +1087,8 @@ msgstr "Obrigado por definir as suas preferências"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:15
 msgctxt "USER FACING"
-msgid ""
-"Your subscription is active. Please use the checkboxes if you wish to change"
-" your topics of interest and limit incoming alerts to new publications "
-"matching those topics only."
-msgstr ""
-"A sua subscrição está activa. Utilize as caixas de verificação se desejar "
-"alterar os seus tópicos de interesse e limitar os alertas recebidos a novas "
-"publicações que correspondam apenas a esses tópicos."
+msgid "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only."
+msgstr "A sua subscrição está activa. Utilize as caixas de verificação se desejar alterar os seus tópicos de interesse e limitar os alertas recebidos a novas publicações que correspondam apenas a esses tópicos."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:19
 msgctxt "USER FACING"
@@ -1116,14 +1112,8 @@ msgstr "Alterar o seu endereço de e-mail"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:10
 msgctxt "USER FACING"
-msgid ""
-"If you want to change your email address you may do so below, however, you "
-"will be logged out and your account will be marked as inactive until you "
-"follow the instructions in the verification email."
-msgstr ""
-"Se desejar alterar o seu endereço de correio electrónico pode fazê-lo "
-"abaixo, no entanto, será desconectado e a sua conta será marcada como "
-"inactiva até que siga as instruções no e-mail de verificação."
+msgid "If you want to change your email address you may do so below, however, you will be logged out and your account will be marked as inactive until you follow the instructions in the verification email."
+msgstr "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo abaixo, no entanto, será desconectado e a sua conta será marcada como inactiva até que siga as instruções no e-mail de verificação."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:11
 msgctxt "USER FACING"
@@ -1132,12 +1122,8 @@ msgstr "Nota:"
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:12
 msgctxt "USER FACING"
-msgid ""
-"Changing your email address will also change your username as these are one "
-"and the same."
-msgstr ""
-"Alterar o seu endereço de correio electrónico também mudará o seu nome de "
-"utilizador, uma vez que estes são os mesmos."
+msgid "Changing your email address will also change your username as these are one and the same."
+msgstr "Alterar o seu endereço de correio electrónico também mudará o seu nome de utilizador, uma vez que estes são os mesmos."
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:16
 msgctxt "USER FACING"
@@ -1199,9 +1185,7 @@ msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:69
 msgctxt "USER FACING"
-msgid ""
-"You can update your password by entering your existing password plus your "
-"new password."
+msgid "You can update your password by entering your existing password plus your new password."
 msgstr ""
 
 #: themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:75
@@ -1231,11 +1215,8 @@ msgstr "Subscrição de alerta de publicação"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:9
 msgctxt "USER FACING"
-msgid ""
-"Please confirm that you do not wish to receive any JCOM publication alert"
-msgstr ""
-"Por favor, confirme que não deseja receber qualquer alerta de publicação de "
-"JCOMAL"
+msgid "Please confirm that you do not wish to receive any JCOM publication alert"
+msgstr "Por favor, confirme que não deseja receber qualquer alerta de publicação de JCOMAL"
 
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:13
 #: themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:15
@@ -1248,13 +1229,18 @@ msgctxt "USER FACING"
 msgid "No"
 msgstr "Não"
 
-#: themes/JCOM-theme/templates/elements/article_listing.html:29
+#: themes/JCOM-theme/templates/elements/article_listing.html:25
+msgctxt "USER FACING"
+msgid "by"
+msgstr "por"
+
+#: themes/JCOM-theme/templates/elements/article_listing.html:30
 #: themes/JCOM-theme/templates/newsletters/newsletter_article.html:11
 msgctxt "USER FACING"
 msgid "and"
 msgstr "i"
 
-#: themes/JCOM-theme/templates/elements/article_listing.html:63
+#: themes/JCOM-theme/templates/elements/article_listing.html:64
 msgctxt "USER FACING"
 msgid "Also a part of:"
 msgstr "Também parte de:"
@@ -1272,7 +1258,6 @@ msgid "Download"
 msgstr "Descarregar"
 
 #: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:9
-msgctxt "USER FACING"
 msgid "Issue"
 msgstr "Edição"
 
@@ -1285,6 +1270,10 @@ msgstr "Colecção"
 msgctxt "USER FACING"
 msgid "Archive"
 msgstr "Arquivo"
+
+#: themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:25
+msgid "Volume"
+msgstr "Volume"
 
 #: themes/JCOM-theme/templates/elements/journal_footer.html:7
 msgctxt "USER FACING"
@@ -1324,8 +1313,8 @@ msgstr "Política de Cookies"
 
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:6
 #: themes/JCOM-theme/templates/experimental/journal/issues.html:20
-#: themes/JCOM-theme/templates/journal/issues.html:6
-#: themes/JCOM-theme/templates/journal/issues.html:11
+#: themes/JCOM-theme/templates/journal/issues.html:7
+#: themes/JCOM-theme/templates/journal/issues.html:12
 msgctxt "USER FACING"
 msgid "Volumes and Issues"
 msgstr "Volumes e edições"
@@ -1351,12 +1340,12 @@ msgctxt "USER FACING"
 msgid "Article"
 msgstr "Artigo"
 
-#: themes/JCOM-theme/templates/journal/article_issue_list.html:9
+#: themes/JCOM-theme/templates/journal/article_issue_list.html:10
 msgctxt "USER FACING"
 msgid "Primary: "
 msgstr ""
 
-#: themes/JCOM-theme/templates/journal/article_issue_list.html:20
+#: themes/JCOM-theme/templates/journal/article_issue_list.html:21
 msgctxt "USER FACING"
 msgid "This article is not a part of any issues"
 msgstr "Este artigo não faz parte de nenhuma edição"
@@ -1367,7 +1356,7 @@ msgctxt "USER FACING"
 msgid "Publications"
 msgstr "Publicações"
 
-#: themes/JCOM-theme/templates/journal/collections.html:38
+#: themes/JCOM-theme/templates/journal/collections.html:39
 msgctxt "USER FACING"
 msgid "There are no collections to display"
 msgstr ""
@@ -1510,7 +1499,12 @@ msgctxt "USER FACING"
 msgid "Browse all Publications"
 msgstr "Todas as publicações"
 
-#: themes/JCOM-theme/templates/journal/issues.html:21
+#: themes/JCOM-theme/templates/journal/issues.html:16
+msgctxt "USER FACING"
+msgid "Volume"
+msgstr "Volume"
+
+#: themes/JCOM-theme/templates/journal/issues.html:22
 msgctxt "USER FACING"
 msgid "items"
 msgstr "itens"

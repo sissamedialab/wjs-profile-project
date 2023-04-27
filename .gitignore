@@ -9,9 +9,6 @@ v
 __pycache__
 *egg-info
 
-# django dummy project
-scaffold
-
 # build dirs
 build
 dist
@@ -25,3 +22,5 @@ dist
 fixtures
 
 .python-version
+
+.coverage
