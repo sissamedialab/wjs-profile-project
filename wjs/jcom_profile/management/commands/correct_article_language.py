@@ -26,7 +26,6 @@ class Command(BaseCommand):
     def process_journal(self, check=True):
         """Check (and correct) all articles of a journal."""
         for article in Article.objects.filter(journal=self.journal):
-
             if article.language in self.languages_by_name:
                 lang_code = self.languages_by_name[article.language]
                 if check:

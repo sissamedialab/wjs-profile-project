@@ -1,3 +1,4 @@
+"""CI/CD settings to run management commands in CI/CD."""
 from wjs.defaults.settings import *  # noqa
 
 DATABASES = {

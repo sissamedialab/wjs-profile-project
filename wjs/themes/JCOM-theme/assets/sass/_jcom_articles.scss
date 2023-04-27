@@ -43,13 +43,13 @@
     }
 
     i {
-      transition: linear .3s;
+      transition: linear 0.3s;
     }
 
     &.active {
       i {
         transform: rotate(-180deg);
-        transition: linear .3s;
+        transition: linear 0.3s;
       }
     }
 
@@ -73,6 +73,10 @@
         flex-direction: row;
         justify-content: space-between;
       }
+
+      &-item-abstract {
+        margin-bottom: 1em;
+      }
     }
   }
 
@@ -95,7 +99,7 @@
 
   &-sidebar {
     &-title {
-      color:color("journal-color", "lighten-1");
+      color: color("journal-color", "lighten-1");
       font-size: 1.5rem;
     }
 
@@ -111,12 +115,12 @@
 
     &-download {
       &:before {
-        font-family: 'Flaticon';
+        font-family: "Flaticon";
         font-size: 1.6em;
         font-style: normal;
         margin-left: 0 !important;
         margin-right: 0.4em;
-        content:"";
+        content: "";
         text-decoration: none;
         display: inline-block;
       }
@@ -142,7 +146,6 @@
   }
 }
 
-
 .article-listing-card {
   display: flex;
   flex-direction: column;
@@ -153,7 +156,7 @@
     .fa {
       margin-right: 5px;
     }
-    
+
     align-items: center;
     display: inline-flex;
   }

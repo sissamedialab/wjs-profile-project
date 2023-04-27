@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("jcom_profile", "0003_jcomprofile_invitation_token"),
     ]

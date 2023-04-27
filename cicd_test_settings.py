@@ -1,3 +1,4 @@
+"""CI/CD settings to run tests in CI/CD."""
 from wjs.defaults.tests import *  # noqa
 
 DATABASES = {
@@ -11,6 +12,6 @@ DATABASES = {
     },
 }
 
-INSTALLED_APPS.extend(
+INSTALLED_APPS.extend(  # noqa
     ["wjs.plugins.wjs_subscribe_newsletter", "wjs.plugins.wjs_latest_news", "wjs.plugins.wjs_latest_articles"],
 )

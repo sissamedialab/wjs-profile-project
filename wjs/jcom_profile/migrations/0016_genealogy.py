@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("submission", "0069_delete_blank_keywords"),
         ("jcom_profile", "0015_auto_20230103_1357"),

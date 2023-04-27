@@ -1,12 +1,14 @@
 body {
-    background-color: color("grey", "lighten-4");
+  background-color: color("grey", "lighten-4");
 }
 
-.btn, .btn-large {
-	background-color: color("journal-color", "base");
+.btn,
+.btn-large {
+  background-color: color("journal-color", "base");
 }
-.btn:hover, .btn-large:hover {
-	background-color: color("journal-color", "lighten-1");
+.btn:hover,
+.btn-large:hover {
+  background-color: color("journal-color", "lighten-1");
 }
 
 /* Used in article_listing.html to show publication date and article type (section) in article listings */
@@ -15,22 +17,23 @@ div.left-right {
   justify-content: space-between;
 }
 
-
 /* submission form */
 .button.success {
-	background-color: color("journal-color", "base");
-	color: color("shades", "white");
+  background-color: color("journal-color", "base");
+  color: color("shades", "white");
 }
 
-.button.success:hover, .button.success:focus {
-	background-color: color("journal-color", "lighten-1");
-	color: color("shades", "white");
+.button.success:hover,
+.button.success:focus {
+  background-color: color("journal-color", "lighten-1");
+  color: color("shades", "white");
 }
 
 .pagination {
-
   li {
-    &.active { background-color: $primary-base; };
+    &.active {
+      background-color: $primary-base;
+    }
   }
 }
 

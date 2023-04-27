@@ -1,21 +1,28 @@
 {% load truncate %}
 {% load wjs_tags %}
 {% load fqdn %}
-
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="{{ article.title }}">
 <meta name="twitter:description" content="{{ article|description }}">
-{% if article.large_image_file.id %}<meta name="twitter:image" content="{% journal_url 'article_file_download' 'id' article.id article.large_image_file.id %}">{% endif %}
-
+{% if article.large_image_file.id %}
+    <meta name="twitter:image"
+          content="{% journal_url 'article_file_download' 'id' article.id article.large_image_file.id %}">
+{% endif %}
 <meta property="og:title" content="{{ article.title }}" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="{{ article.url }}" />
-
-<meta property="og:description" content="{{ article|description }}"/>
+<meta property="og:description" content="{{ article|description }}" />
 {# https://prefix.zazuko.com/og:determiner #}
 {# https://ogp.me/#optional #}
 <meta property="og:determiner" content="" />
-{% if article.last_modified %}<meta property="og:updated_time" content="{{ article.last_modified|date:"c" }}" />{% endif %}
-{% if article.large_image_file.id %}<meta property="og:image" content="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}" />{% endif %}
+{% if article.last_modified %}
+    <meta property="og:updated_time"
+          content="{{ article.last_modified|date:"c" }}" />
+{% endif %}
+{% if article.large_image_file.id %}
+    <meta property="og:image"
+          content="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}" />
+{% endif %}
 {# TODO: Maybe fix the value in Journal.description to reflect what we want here? #}
-<meta property="og:site_name" content="{{ article.journal.code }} - {{ article.journal.name }}" />
+<meta property="og:site_name"
+      content="{{ article.journal.code }} - {{ article.journal.name }}" />

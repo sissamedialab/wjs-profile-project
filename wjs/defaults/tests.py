@@ -1,22 +1,27 @@
-"""Merge janeway_global_settings and custom settings for pytest."""
-from core.janeway_global_settings import *
-from .settings import *
+"""
+Merge janeway_global_settings and custom settings for pytest.
 
-from core.janeway_global_settings import INSTALLED_APPS
-from core.janeway_global_settings import MIDDLEWARE_CLASSES as default_middleware
-from .settings import INSTALLED_APPS as custom_apps
-from .settings import MIDDLEWARE_CLASSES as custom_middleware
-from collections.abc import Mapping
+isort:skip_file
+"""
+from collections.abc import Mapping  # noqa
 
-wjs_middleware = (
-    "wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",
-)
+from core.janeway_global_settings import *  # noqa
+from .settings import *  # noqa
 
-INSTALLED_APPS.extend(custom_apps)
+from core.janeway_global_settings import INSTALLED_APPS  # noqa
+from core.janeway_global_settings import MIDDLEWARE_CLASSES as DEFAULT_MIDDLEWARE
+
+from .settings import INSTALLED_APPS as CUSTOM_APPS
+from .settings import MIDDLEWARE_CLASSES as CUSTOM_MIDDLEWARE
+
+
+WJS_MIDDLEWARE = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
+
+INSTALLED_APPS.extend(CUSTOM_APPS)
 # MIDDLEWARE_CLASSES is a tuple, not a list
-MIDDLEWARE_CLASSES = default_middleware + custom_middleware + wjs_middleware
+MIDDLEWARE_CLASSES = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE + WJS_MIDDLEWARE  # noqa
 
-# NEWSLETTER_URL = "http://testserver.com"
+# NEWSLETTER_URL = "http://testserver.com"  # noqa
 
 # Ported class from janeway to skip migrations.
 # Data created by migrations must be recreated by fixtures in conftest

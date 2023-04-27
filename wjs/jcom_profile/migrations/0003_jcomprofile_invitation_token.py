@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("jcom_profile", "0002_jcomprofile_gdpr_checkbox"),
     ]

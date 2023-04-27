@@ -102,7 +102,6 @@ def edit_profile(request):
             new_pass_two = request.POST.get("new_password_two")
 
             if old_password and request.user.check_password(old_password):
-
                 if new_pass_one == new_pass_two:
                     problems = request.user.password_policy_check(request, new_pass_one)
                     if not problems:
@@ -1434,17 +1433,14 @@ def search(request):
         split_term = [re.escape(word) for word in search_term.split(" ")]
         split_term.append(escaped)
         search_regex = "^({})$".format("|".join(set(split_term)))
-        articles = (
-            articles.filter(
-                (
-                    Q(title__icontains=search_term)
-                    | Q(keywords__word__iregex=search_regex)
-                    | Q(subtitle__icontains=search_term)
-                )
-                | (Q(frozenauthor__first_name__iregex=search_regex) | Q(frozenauthor__last_name__iregex=search_regex)),
+        articles = articles.filter(
+            (
+                Q(title__icontains=search_term)
+                | Q(keywords__word__iregex=search_regex)
+                | Q(subtitle__icontains=search_term)
             )
-            .distinct()
-        )
+            | (Q(frozenauthor__first_name__iregex=search_regex) | Q(frozenauthor__last_name__iregex=search_regex)),
+        ).distinct()
 
     if keywords:
         articles = articles.filter(

@@ -4,202 +4,168 @@
     <div class="card-content">
         {% include "common/elements/altmetric_badges.html" with article=article %}
         {% include "journal/components/article_downloads.html" with article=article show_spacer=True %}
-
-
-                <h4 class="article-sidebar-title">{% trans "Share" context "USER FACING" %}</h4>
-                {% with article.get_doi_url as doi_url %}
-                    <a class="waves-effect waves-light btn btn-small facebook-bg"
-                       href="https://www.facebook.com/share.php?p[url]= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
-                       target="_blank"><i class="fa fa-facebook"></i></a>
-                    <a class="waves-effect waves-light btn btn-small twitter-bg"
-                       href="https://twitter.com/intent/tweet?text={{ article.title }} {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
-                       target="_blank"><i class="fa fa-twitter"></i></a>
-                    <a class="waves-effect waves-light btn btn-small linkedin-bg"
-                       href="https://www.linkedin.com/sharing/share-offsite?url= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
-                       target="_blank"><i class="fa fa-linkedin"></i></a>
-                {% endwith %}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-                {% if article.is_published and not journal_settings.article.suppress_how_to_cite %}
-                <h2 class="article-sidebar-title">{% trans "How to Cite" context "USER FACING" %}</h2>
-                {{ article|how_to_cite|safe }}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-            {% endif %}
+        <h4 class="article-sidebar-title">{% trans "Share" context "USER FACING" %}</h4>
+        {% with article.get_doi_url as doi_url %}
+            <a class="waves-effect waves-light btn btn-small facebook-bg"
+               href="https://www.facebook.com/share.php?p[url]= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
+               target="_blank"><i class="fa fa-facebook"></i></a>
+            <a class="waves-effect waves-light btn btn-small twitter-bg"
+               href="https://twitter.com/intent/tweet?text={{ article.title }} {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
+               target="_blank"><i class="fa fa-twitter"></i></a>
+            <a class="waves-effect waves-light btn btn-small linkedin-bg"
+               href="https://www.linkedin.com/sharing/share-offsite?url= {% if doi_url %}{{ doi_url }}{% else %}{{ article.url }}{% endif %}"
+               target="_blank"><i class="fa fa-linkedin"></i></a>
+        {% endwith %}
+        <div class="spacer">
+            <div class="divider"></div>
+        </div>
+        {% if article.is_published and not journal_settings.article.suppress_how_to_cite %}
+            <h2 class="article-sidebar-title">{% trans "How to Cite" context "USER FACING" %}</h2>
+            {{ article|how_to_cite|safe }}
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+        {% endif %}
         {% if article.keywords.count > 0 %}
             <h2 class="article-sidebar-title">{% trans "Keywords" context "USER FACING" %}</h2>
             <ul class="article-sidebar-keywords-list">
                 {% for keyword in article.keywords.all %}
                     <li>
                         {% if journal_settings.general.keyword_list_page %}
-                        <a href="{% url 'articles_by_keyword' keyword.pk %}">
-                        {% endif %}
-                        {{ keyword.word }}
-                        {% if journal_settings.general.keyword_list_page %}</a>
-                        {% endif %}
+                            <a href="{% url 'articles_by_keyword' keyword.pk %}">
+                            {% endif %}
+                            {{ keyword.word }}
+                            {% if journal_settings.general.keyword_list_page %}</a>{% endif %}
                     {% endfor %}
                 </li>
             </ul>
             <div class="spacer">
                 <div class="divider"></div>
             </div>
-            {% endif %}
-
-            {% if article.rights %}
-                <h2 class="article-sidebar-title">{% trans "Rights" context "USER FACING" %}</h2>
-                {{ article.rights | safe }}
-                <div class="spacer">
-                    <div class="divider"></div>
-                </div>
-            {% endif %}
-            {% if article.publisher_notes.all %}
-                <h2 class="article-sidebar-title">{% trans "Publisher Notes" context "USER FACING" %}</h2>
+        {% endif %}
+        {% if article.rights %}
+            <h2 class="article-sidebar-title">{% trans "Rights" context "USER FACING" %}</h2>
+            {{ article.rights | safe }}
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+        {% endif %}
+        {% if article.publisher_notes.all %}
+            <h2 class="article-sidebar-title">{% trans "Publisher Notes" context "USER FACING" %}</h2>
+            <ul>
+                {% for note in article.publisher_notes.all %}<li>{{ note.text|safe }}</li>{% endfor %}
+            </ul>
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+        {% endif %}
+        {% if article.funders.all %}
+            <div class="callout primary">
+                <h2 class="article-sidebar-title">{% trans "Funding" context "USER FACING" %}</h2>
                 <ul>
-                    {% for note in article.publisher_notes.all %}<li>{{ note.text|safe }}</li>{% endfor %}
+                    {% for funder in article.funders.all %}
+                        <li>
+                            {% if funder.fundref_id %}
+                                <a href="{% url "funder_articles" funder.fundref_id %}">
+                                {% endif %}
+                                {{ funder.name }}
+                                {% if funder.fundref_id %}</a>{% endif %}
+                            {% if funder.funding_id %}(grant {{ funder.funding_id }}){% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        {% include "journal/article_issue_list.html" %}
+        <div class="spacer">
+            <div class="divider"></div>
+        </div>
+        {% if journal_settings.general.submission_summary %}
+            <h4 class="article-sidebar-title">{% trans "Non Specialist Summary" context "USER FACING" %}</h4>
+            <a href="#summarymodal" class="modal-trigger">{% trans "View Summary" context "USER FACING" %}</a>
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+        {% endif %}
+        {% if article.date_accepted or article.date_published %}
+            <h4 class="article-sidebar-title">{% trans "Publication date" context "USER FACING" %}</h4>
+            {{ article.date_published|date:DATE_FORMAT }}
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+        {% endif %}
+        <h4 class="article-sidebar-title">{% trans "Licence" context "USER FACING" %}</h4>
+        <p>
+            {{ article.license.name }}
+            {% if article.license.url %}
+                <a rel="license" href="{{ article.license.url }}"><i class="fa fa-external-link"></i></a>
+            {% endif %}
+        </p>
+        {% if article.competing_interests %}
+            <div class="spacer">
+                <div class="divider"></div>
+            </div>
+            <h4 class="article-sidebar-title">{% trans "Competing Interests" context "USER FACING" %}</h4>
+            <p>{{ article.competing_interests|safe }}</p>
+        {% endif %}
+        <div class="spacer">
+            <div class="divider"></div>
+        </div>
+        {% with article.get_doi_url as doi_url %}
+            {% if doi_url %}
+                <h4 class="article-sidebar-title">{% trans "Identifiers" context "USER FACING" %}</h4>
+                <ul>
+                    <li>
+                        DOI: <a href="{{ doi_url }}">{{ doi_url }}</a>
+                    </li>
                 </ul>
                 <div class="spacer">
                     <div class="divider"></div>
                 </div>
             {% endif %}
-
-            {% if article.funders.all %}
-                <div class="callout primary">
-                    <h2 class="article-sidebar-title">{% trans "Funding" context "USER FACING" %}</h2>
-                    <ul>
-                        {% for funder in article.funders.all %}
-                            <li>
-                                {% if funder.fundref_id %}
-                                    <a href="{% url "funder_articles" funder.fundref_id %}">
-                                    {% endif %}
-                                    {{ funder.name }}
-                                    {% if funder.fundref_id %}</a>{% endif %}
-                                    {% if funder.funding_id %}(grant {{ funder.funding_id }}){% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
+        {% endwith %}
+        {% if article.peer_reviewed %}
+            <h4 class="article-sidebar-title">{% trans "Peer Review" context "USER FACING" %}</h4>
+            <p>
+                <i class="fa fa-check-circle-o" id="color-green"></i>
+                {% trans "This article has been peer reviewed." context "USER FACING" %}
+            </p>
+            {% if journal_settings.general.open_peer_review %}
+                {% if article.public_reviews.count > 0 %}
+                    <p>
+                        {% for review in article.public_reviews %}
+                            <button data-target="reviewmodal-{{ review.pk }}" class="btn modal-trigger">
+                                Review by {{ review.reviewer.full_name }}
+                            </button>
+                        {% endfor %}
+                        <br />
+                    </p>
                 {% endif %}
-                {% include "journal/article_issue_list.html" %}
+            {% endif %}
+        {% endif %}
+        {% if article.custom_fields %}
+            {% for field in article.custom_fields %}
                 <div class="spacer">
                     <div class="divider"></div>
                 </div>
-                {% if journal_settings.general.submission_summary %}
-                    <h4 class="article-sidebar-title">
-                        {% trans "Non Specialist Summary" context "USER FACING" %}
-                    </h4>
-                    <a href="#summarymodal" class="modal-trigger">{% trans "View Summary" context "USER FACING" %}</a>
-                    <div class="spacer">
-                        <div class="divider">
-                        </div>
-                    </div>
-                {% endif %}
-                {% if article.date_accepted or article.date_published %}
-                    <h4 class="article-sidebar-title">
-                        {% trans "Publication date" context "USER FACING" %}
-                    </h4>
-
-                    {{ article.date_published|date:DATE_FORMAT }}
-
-                    <div class="spacer">
-                        <div class="divider">
-                        </div>
-                    </div>
-                {% endif %}
-                <h4 class="article-sidebar-title">
-                    {% trans "Licence" context "USER FACING" %}
-                </h4>
-                <p>
-                    {{ article.license.name }}
-                    {% if article.license.url %}
-                        <a rel="license" href="{{ article.license.url }}"><i class="fa fa-external-link"></i></a>
-                    {% endif %}
-                </p>
-                {% if article.competing_interests %}
-                    <div class="spacer">
-                        <div class="divider">
-                        </div>
-                    </div>
-                    <h4 class="article-sidebar-title">
-                        {% trans "Competing Interests" context "USER FACING" %}
-                    </h4>
-                    <p>
-                        {{ article.competing_interests|safe }}
-                    </p>
-                {% endif %}
-                <div class="spacer">
-                    <div class="divider">
-                    </div>
-                </div>
-                {% with article.get_doi_url as doi_url %}
-                    {% if doi_url %}
-                        <h4 class="article-sidebar-title">
-                            {% trans "Identifiers" context "USER FACING" %}
-                        </h4>
-                        <ul>
-                            <li>
-                                DOI: <a href="{{ doi_url }}">{{ doi_url }}</a>
-                            </li>
-                        </ul>
-                        <div class="spacer">
-                            <div class="divider">
-                            </div>
-                        </div>
-                    {% endif %}
-                {% endwith %}
-                {% if article.peer_reviewed %}
-                    <h4 class="article-sidebar-title">
-                        {% trans "Peer Review" context "USER FACING" %}
-                    </h4>
-                    <p>
-                        <i class="fa fa-check-circle-o" id="color-green"></i>
-                        {% trans "This article has been peer reviewed." context "USER FACING" %}
-                    </p>
-                    {% if journal_settings.general.open_peer_review %}
-                        {% if article.public_reviews.count > 0 %}
-                            <p>
-                                {% for review in article.public_reviews %}
-                                    <button data-target="reviewmodal-{{ review.pk }}" class="btn modal-trigger">
-                                        Review by {{ review.reviewer.full_name }}
-                                    </button>
-                                {% endfor %}
-                                <br/>
-                            </p>
-                        {% endif %}
-                    {% endif %}
-                {% endif %}
-                {% if article.custom_fields %}
-                    {% for field in article.custom_fields %}
-                        <div class="spacer">
-                            <div class="divider">
-                            </div>
-                        </div>
-                        <h4 class="article-sidebar-title">
-                            {% trans field.field.name %}
-                        </h4>
-                        <p>
-                            {{ field.answer|safe }}
-                        </p>
-                    {% endfor %}
-                    <div class="spacer">
-                        <div class="divider">
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
-        </aside>
-        {% if article_content %}
-            <div class="card toc-card hide-on-small-only" id="toc-card">
-                <div class="card-content">
-                    <h4 class="article-sidebar-title">
-                        {% trans "Table of Contents" context "USER FACING" %}
-                    </h4>
-                    <ul id="toc" class="section table-of-contents">
-                    </ul>
-                </div>
+                <h4 class="article-sidebar-title">{% trans field.field.name %}</h4>
+                <p>{{ field.answer|safe }}</p>
+            {% endfor %}
+            <div class="spacer">
+                <div class="divider"></div>
             </div>
         {% endif %}
-        <div class=" right-aligned right-align hide-on-large-only">
-            <a class="btn-floating waves-effect waves-light" href="#article-top"><i class="tiny material-icons">arrow_drop_up</i></a>
+    </div>
+</aside>
+{% if article_content %}
+    <div class="card toc-card hide-on-small-only" id="toc-card">
+        <div class="card-content">
+            <h4 class="article-sidebar-title">{% trans "Table of Contents" context "USER FACING" %}</h4>
+            <ul id="toc" class="section table-of-contents">
+            </ul>
         </div>
+    </div>
+{% endif %}
+<div class=" right-aligned right-align hide-on-large-only">
+    <a class="btn-floating waves-effect waves-light" href="#article-top"><i class="tiny material-icons">arrow_drop_up</i></a>
+</div>

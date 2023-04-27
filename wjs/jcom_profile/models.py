@@ -12,7 +12,6 @@ from journal.models import Issue, Journal
 from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article, Section
 from utils import logic as utils_logic
-from utils.setting_handler import get_setting
 
 # TODO: use settings.AUTH_USER_MODEL
 
@@ -250,7 +249,10 @@ class Recipient(models.Model):
     # Here we can't have the default journal's languages,
     # so the choices' enforcing must be done at the form/template level
     language = models.CharField(
-        max_length=10, verbose_name=_("Preferred newsletter's language"), blank=True, choices=_get_language_choices()
+        max_length=10,
+        verbose_name=_("Preferred newsletter's language"),
+        blank=True,
+        choices=_get_language_choices(),
     )
     journal = models.ForeignKey(Journal, verbose_name=_("Newsletter topics' journal"), on_delete=models.CASCADE)
     topics = models.ManyToManyField("submission.Keyword", verbose_name=_("Newsletters topics"), blank=True)
@@ -311,9 +313,6 @@ class Newsletter(models.Model):
         on_delete=models.CASCADE,
         related_name="newsletter",
     )
-
-
-from journal.models import Issue
 
 
 def update_display_title(self, save=False):

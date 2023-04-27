@@ -8,12 +8,12 @@
                 <a class="article-sidebar-download article-sidebar-download-{% if galley.file.mime_type == 'application/pdf' %}pdf{% elif galley.file.mime_type == 'application/epub+zip' %}epub{% endif %}"
                    href="{% url 'article_download_galley' article.id galley.id %}">{% trans "Download" context "USER FACING" %} {{ galley.label }}</a>
                 {% if galley.file.mime_type == 'application/pdf' and journal.view_pdf_button %}
-                    </li>
-                    <li>
+                </li>
+                <li>
                     <a target="_blank"
                        href="{% url 'article_view_galley' article.id galley.id %}">{% trans "View" context "USER FACING" %} {{ galley.label }}</a>
                 {% endif %}
-                </li>
+            </li>
         {% endfor %}
     </ul>
     {% if article.supplementary_files.all %}

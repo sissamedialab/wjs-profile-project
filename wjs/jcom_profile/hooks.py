@@ -44,5 +44,3 @@ def extra_edit_subscription_hook(request_context):
         },
     )
     return rendered
-
-

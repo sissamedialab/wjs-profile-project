@@ -4,60 +4,102 @@
     <ul class="timeline" id="timeline">
         <li class="li complete">
             <div class="status">
-                <h4> {% trans "Submission Started" context "SUBMISSION FACING" %} </h4>
+                <h4>{% trans "Submission Started" context "SUBMISSION FACING" %}</h4>
             </div>
         </li>
         {% journal_has_open_si article.journal as has_open_si %}
         {% if has_open_si %}
             <li class="li {% if article.current_step >= 1 %}complete{% endif %}">
                 <div class="status">
-                    <h4>{% if article %}{% if article.current_step >= 1 or article.stage != "Unsubmitted" %}
-                        <a href="{% url 'submit_info' article.id %}">{% trans "Choose Submission Destination" context "SUBMISSION FACING" %}</a>
-                    {% else %}
-                        {% trans "Choose Submission Destination" context "SUBMISSION FACING" %}{% endif %}{% else %}
-                        {% trans "Choose Submission Destination" context "SUBMISSION FACING" %}{% endif %}
+                    <h4>
+                        {% if article %}
+                            {% if article.current_step >= 1 or article.stage != "Unsubmitted" %}
+                                <a href="{% url 'submit_info' article.id %}">{% trans "Choose Submission Destination" context "SUBMISSION FACING" %}</a>
+                            {% else %}
+                                {% trans "Choose Submission Destination" context "SUBMISSION FACING" %}
+                            {% endif %}
+                        {% else %}
+                            {% trans "Choose Submission Destination" context "SUBMISSION FACING" %}
+                        {% endif %}
                     </h4>
                 </div>
             </li>
         {% endif %}
         <li class="li {% if article.current_step >= 1 %}complete{% endif %}">
             <div class="status">
-                <h4>{% if article %}{% if article.current_step >= 1 %}
-                    <a href="{% url 'submit_info_original' article.id %}">{% trans "Article Information" context "SUBMISSION FACING" %}</a>
-                {% else %}
-                    {% trans "Article Information" context "SUBMISSION FACING" %}{% endif %}{% else %}{% trans "Article Information" context "SUBMISSION FACING" %}{% endif %}
+                <h4>
+                    {% if article %}
+                        {% if article.current_step >= 1 %}
+                            <a href="{% url 'submit_info_original' article.id %}">{% trans "Article Information" context "SUBMISSION FACING" %}</a>
+                        {% else %}
+                            {% trans "Article Information" context "SUBMISSION FACING" %}
+                        {% endif %}
+                    {% else %}
+                        {% trans "Article Information" context "SUBMISSION FACING" %}
+                    {% endif %}
                 </h4>
             </div>
         </li>
         <li class="li {% if article.current_step >= 2 %}complete{% endif %}">
             <div class="status">
-                <h4>{% if article %}{% if article.current_step >= 2 %}
-                    <a href="{% url 'submit_authors' article.id %}">{% trans "Author Information" context "SUBMISSION FACING" %}</a>{% else %}
-                    {% trans "Author Information" %}{% endif %}{% else %}{% trans "Author Information" context "SUBMISSION FACING" %}{% endif %}
+                <h4>
+                    {% if article %}
+                        {% if article.current_step >= 2 %}
+                            <a href="{% url 'submit_authors' article.id %}">{% trans "Author Information" context "SUBMISSION FACING" %}</a>
+                        {% else %}
+                            {% trans "Author Information" %}
+                        {% endif %}
+                    {% else %}
+                        {% trans "Author Information" context "SUBMISSION FACING" %}
+                    {% endif %}
                 </h4>
             </div>
         </li>
         <li class="li {% if article.current_step >= 3 %}complete{% endif %}">
             <div class="status">
-                <h4>{% if article %}{% if article.current_step >= 3 %}
-                    <a href="{% url 'submit_files' article.id %}">{% trans "Article Files" context "SUBMISSION FACING" %}</a>{% else %}
-                    {% trans "Article Files" %}{% endif %}{% else %}{% trans "Article Files" context "SUBMISSION FACING" %}{% endif %} </h4>
+                <h4>
+                    {% if article %}
+                        {% if article.current_step >= 3 %}
+                            <a href="{% url 'submit_files' article.id %}">{% trans "Article Files" context "SUBMISSION FACING" %}</a>
+                        {% else %}
+                            {% trans "Article Files" %}
+                        {% endif %}
+                    {% else %}
+                        {% trans "Article Files" context "SUBMISSION FACING" %}
+                    {% endif %}
+                </h4>
             </div>
         </li>
         {% if request.journal.submissionconfiguration.funding %}
             <li class="li {% if article.current_step >= 4 %}complete{% endif %}">
                 <div class="status">
-                    <h4>{% if article %}{% if article.current_step >= 4 %}
-                        <a href="{% url 'submit_funding' article.id %}">{% trans "Funding" context "SUBMISSION FACING" %}</a>{% else %}
-                        {% trans "Funding" %}{% endif %}{% else %}{% trans "Funding" context "SUBMISSION FACING" %}{% endif %} </h4>
+                    <h4>
+                        {% if article %}
+                            {% if article.current_step >= 4 %}
+                                <a href="{% url 'submit_funding' article.id %}">{% trans "Funding" context "SUBMISSION FACING" %}</a>
+                            {% else %}
+                                {% trans "Funding" %}
+                            {% endif %}
+                        {% else %}
+                            {% trans "Funding" context "SUBMISSION FACING" %}
+                        {% endif %}
+                    </h4>
                 </div>
             </li>
         {% endif %}
         <li class="li {% if article.current_step >= 4 %}complete{% endif %}">
             <div class="status">
-                <h4>{% if article %}{% if article.current_step >= 4 %}
-                    <a href="{% url 'submit_review' article.id %}">{% trans "Review" context "SUBMISSION FACING" %}</a>{% else %}
-                    {% trans "Review" %}{% endif %}{% else %}{% trans "Review" context "SUBMISSION FACING" %}{% endif %} </h4>
+                <h4>
+                    {% if article %}
+                        {% if article.current_step >= 4 %}
+                            <a href="{% url 'submit_review' article.id %}">{% trans "Review" context "SUBMISSION FACING" %}</a>
+                        {% else %}
+                            {% trans "Review" %}
+                        {% endif %}
+                    {% else %}
+                        {% trans "Review" context "SUBMISSION FACING" %}
+                    {% endif %}
+                </h4>
             </div>
         </li>
     </ul>

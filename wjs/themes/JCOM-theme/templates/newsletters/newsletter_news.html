@@ -1,10 +1,9 @@
 {% load i18n %}
 {% load wjs_tags %}
 {% load truncate %}
-
-<h3 class="title"><a href="{% url 'core_news_item' news.pk %}">{{ news.title }}</a></h3>
+<h3 class="title">
+    <a href="{% url 'core_news_item' news.pk %}">{{ news.title }}</a>
+</h3>
 <p>{{ news|news_part:'abstract'|safe }}</p>
-
 <h5 class="date">{{ news.date_published|date:DATE_FORMAT }}</h5>
-
 <hr class="divider">

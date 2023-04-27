@@ -12,6 +12,6 @@ def date_format(request):
     """
     language = translation.get_language()
     return {
-        'DATE_FORMAT': settings.DATE_FORMATS.get(language, settings.DATE_FORMAT),
-        'DATETIME_FORMAT': settings.DATETIME_FORMATS.get(language, settings.DATETIME_FORMAT)
+        "DATE_FORMAT": settings.DATE_FORMATS.get(language, settings.DATE_FORMAT),
+        "DATETIME_FORMAT": settings.DATETIME_FORMATS.get(language, settings.DATETIME_FORMAT),
     }

@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("core", "0077_merge_20221004_1031"),
         ("journal", "0055_issue_isbn"),

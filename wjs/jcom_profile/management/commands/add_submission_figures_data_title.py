@@ -6,7 +6,7 @@ from django.utils.translation import ugettext_lazy as _
 
 
 class Command(BaseCommand):
-    help = "Create subject and template of the email to be sent to coauthors article submission."
+    help = "Create subject and template of the email to be sent to coauthors article submission."  # noqa
 
     def handle(self, *args, **options):
         """Command entry point."""

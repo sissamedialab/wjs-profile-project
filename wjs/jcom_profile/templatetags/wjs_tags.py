@@ -1,4 +1,5 @@
 """WJS tags."""
+import pycountry
 from django import template
 from django.db.models import Count
 from django.utils import timezone
@@ -10,7 +11,6 @@ from submission.models import STAGE_PUBLISHED, Article, Keyword, Section
 
 from wjs.jcom_profile.models import SpecialIssue
 from wjs.jcom_profile.utils import citation_name
-import pycountry
 
 register = template.Library()
 
@@ -82,13 +82,13 @@ def how_to_cite(article):
 @register.filter
 def news_part(news_item, part):
     """Return the requested part of the new item body by splitting on the first <hr> occurence"""
-    parts = news_item.body.partition('<hr>')
+    parts = news_item.body.partition("<hr>")
 
-    if part == 'abstract':
+    if part == "abstract":
         if parts[1]:
             return parts[0]
         else:
-            return ''
+            return ""
     else:
         if parts[1]:
             return parts[2]
@@ -132,11 +132,15 @@ def search_form(context):
     request = context["request"]
 
     keyword_limit = 20
-    popular_keywords = Keyword.objects.filter(
-        article__journal=request.journal,
-        article__stage=STAGE_PUBLISHED,
-        article__date_published__lte=timezone.now(),
-    ).annotate(articles_count=Count('article')).order_by("-articles_count")[:keyword_limit]
+    popular_keywords = (
+        Keyword.objects.filter(
+            article__journal=request.journal,
+            article__stage=STAGE_PUBLISHED,
+            article__date_published__lte=timezone.now(),
+        )
+        .annotate(articles_count=Count("article"))
+        .order_by("-articles_count")[:keyword_limit]
+    )
 
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
     return {"form": form, "all_keywords": popular_keywords}

@@ -48,7 +48,6 @@ $success-color: color("green", "base");
 $error-color: color("red", "base");
 $link-color: color("journal-color", "darken-1");
 
-
 // 14. Navigation Bar
 // ==========================================================================
 
@@ -58,10 +57,8 @@ $navbar-height-mobile: 56px;
 $navbar-line-height-mobile: $navbar-height-mobile;
 $navbar-font-size: 1rem;
 $navbar-font-color: color("blue-grey", "darken-4");
-$navbar-bg-color:  color("blue-grey", "lighten-5");
+$navbar-bg-color: color("blue-grey", "lighten-5");
 $navbar-brand-font-size: 2.1rem;
-
-
 
 // 22. Footer
 // ==========================================================================
@@ -69,7 +66,7 @@ $navbar-brand-font-size: 2.1rem;
 $footer-font-color: color("grey", "darken-2");
 $footer-bg-color: color("grey", "lighten-5");
 $footer-copyright-font-color: color("blue-grey", "darken-2");
-$footer-copyright-bg-color: rgba(51,51,51,.08);
+$footer-copyright-bg-color: rgba(51, 51, 51, 0.08);
 
 // 21. Typography
 // ==========================================================================
@@ -78,7 +75,7 @@ $off-black: rgba(0, 0, 0, 0.87);
 // Header Styles
 $h1-fontsize: 2.5rem;
 $h2-fontsize: 2.2rem;
-$h3-fontsize: 2.0rem;
+$h3-fontsize: 2rem;
 $h4-fontsize: 1.8rem;
 $h5-fontsize: 1.6rem;
 $h6-fontsize: 1rem;

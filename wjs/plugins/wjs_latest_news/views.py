@@ -1,10 +1,9 @@
-from django.http import Http404
 from django.utils.decorators import method_decorator
-from django.views.generic import UpdateView
-
 from security.decorators import editor_user_required
 from utils.decorators import GET_language_override
+
 from wjs.jcom_profile.plugins import BaseConfigUpdateView
+
 from .models import PluginConfig
 from .plugin_settings import PLUGIN_NAME
 

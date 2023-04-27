@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("jcom_profile", "0010_articlewrapper_nid"),
         ("jcom_profile", "0012_auto_20221216_2208"),

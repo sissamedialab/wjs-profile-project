@@ -1,5 +1,4 @@
 {% load static from staticfiles %}
-
 <div id="modal1" class="modal">
     <div class="card">
         <div class="card-divider">
@@ -10,15 +9,17 @@
             <form method="post">
                 {% csrf_token %}
                 {% if object.newsletter_token %}
-                    <a type="submit" href="{% url "unsubscribe_newsletter" object.newsletter_token %}" class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" context "USER FACING" %}
-                {% else %}
-                    <a type="submit" href="{% url "unsubscribe_newsletter" object.pk %}" class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" context "USER FACING" %}
-                {% endif %}
-                </a>
-                <a class="btn modal-close red" name="unsubscription-confirmation"><i
-                        class="fa fa-times">&nbsp;</i>{% trans "No" context "USER FACING" %}
-                </a>
-            </form>
+                    <a type="submit"
+                       href="{% url "unsubscribe_newsletter" object.newsletter_token %}"
+                       class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" context "USER FACING" %}</a>
+                    {% else %}
+                        <a type="submit"
+                           href="{% url "unsubscribe_newsletter" object.pk %}"
+                           class="btn"><i class="fa fa-check">&nbsp;</i>{% trans "Yes" context "USER FACING" %}</a>
+                        {% endif %}
+                    <a class="btn modal-close red" name="unsubscription-confirmation"><i class="fa fa-times">&nbsp;</i>{% trans "No" context "USER FACING" %}
+                    </a>
+                </form>
+            </div>
         </div>
     </div>
-</div>

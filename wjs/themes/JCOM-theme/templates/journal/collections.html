@@ -3,43 +3,38 @@
 {% load hooks %}
 {% load i18n %}
 {% load wjs_tags %}
-
-{% block page_title %}{% trans issue_type.plural_name  %}{% endblock %}
-{% block title %}{% trans issue_type.plural_name  %}{% endblock %}
-
+{% block page_title %}
+    {% trans issue_type.plural_name %}
+{% endblock page_title %}
+{% block title %}
+    {% trans issue_type.plural_name %}
+{% endblock title %}
 {% block body %}
-
     <div class="row">
         <div class="col s12">
-        {% for collection in collections %}
+            {% for collection in collections %}
                 <div class="card full-width-card">
                     <div class="card-image full-width-card-image">
-                        <img
-                            class="issue_image img-fluid"
-                            src="{{ collection.hero_image_url }}"
-                            alt="{{ collection|display_title }}"
-                            onerror="if (this.src !='{% static 'common/img/sample/article-small.jpg' %}') this.src='{% static 'common/img/sample/article-small.jpg' %}'"
-                        >
-                            </div>
-                        <div class="card-content">
-                          <span class="date"><i class="fa fa-calendar"></i> {{ collection.date|date:DATE_FORMAT }}</span>
-
-                            <h5 class="article-title">
-                              <a href="{% url 'journal_collection' collection.id %}">{{ collection|display_title }}</a>
-                            </h5>
-
-                            {% if collection.short_description %}
+                        <img class="issue_image img-fluid"
+                             src="{{ collection.hero_image_url }}"
+                             alt="{{ collection|display_title }}"
+                             onerror="if (this.src !='{% static 'common/img/sample/article-small.jpg' %}') this.src='{% static 'common/img/sample/article-small.jpg' %}'">
+                    </div>
+                    <div class="card-content">
+                        <span class="date"><i class="fa fa-calendar"></i> {{ collection.date|date:DATE_FORMAT }}</span>
+                        <h5 class="article-title">
+                            <a href="{% url 'journal_collection' collection.id %}">{{ collection|display_title }}</a>
+                        </h5>
+                        {% if collection.short_description %}
                             <p>{{ collection.short_description|safe }}</p>
-                            {% else %}
+                        {% else %}
                             <p>{{ collection.issue_description|safe }}</p>
-                            {% endif %}
-                        </div>
-              </div>
-        {% empty %}
-            <h4>{% trans "There are no collections to display" context "USER FACING" %}</h4>
-        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <h4>{% trans "There are no collections to display" context "USER FACING" %}</h4>
+            {% endfor %}
+        </div>
     </div>
-    </div>
-
-
-{% endblock %}
+{% endblock body %}

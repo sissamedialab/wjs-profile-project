@@ -12,7 +12,9 @@
                 {% endif %}
                 <form method="post" class="newsletter-form">
                     {% csrf_token %}
-                    <p>{% trans "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only." context "USER FACING" %}</p>
+                    <p>
+                        {% trans "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only." context "USER FACING" %}
+                    </p>
                     {% materialize_form form %}
                     {% if active %}
                         <button class="btn" type="submit">

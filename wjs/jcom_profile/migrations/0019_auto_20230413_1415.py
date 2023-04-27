@@ -14,7 +14,6 @@ def make_publication_alert_settings_translatable(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("jcom_profile", "0018_add_blank_true_to_recipient_user"),
     ]
