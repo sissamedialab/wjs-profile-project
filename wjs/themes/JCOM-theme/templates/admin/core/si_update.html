@@ -7,7 +7,7 @@
 {% load securitytags %}
 {% load wjs_tags %}
 {% block title-section %}
-    {% trans "Edit Special Issue" context "SUBMISSION FLOW" %} {{ object.name }} — <a href="{% url 'si-details' object.pk %}">{% trans "view" context "SUBMISSION FLOW" %}</a>
+    {% trans "Edit Special Issue" %} {{ object.name }} — <a href="{% url 'si-details' object.pk %}">{% trans "view" %}</a>
 {% endblock title-section %}
 {% block body %}
     {{ form.media }}
@@ -43,18 +43,18 @@
                     <table id="files" class="small files">
                         <thead>
                             <tr>
-                                <th>{% trans "ID" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Label" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Uploaded" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Modified" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Filename" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Download" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "History" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Replace" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Delete" context "SUBMISSION FLOW" %}</th>
-                                <th>{% trans "Privacy" context "SUBMISSION FLOW" %}</th>
+                                <th>{% trans "ID" %}</th>
+                                <th>{% trans "Label" %}</th>
+                                <th>{% trans "Uploaded" %}</th>
+                                <th>{% trans "Modified" %}</th>
+                                <th>{% trans "Filename" %}</th>
+                                <th>{% trans "Download" %}</th>
+                                <th>{% trans "History" %}</th>
+                                <th>{% trans "Replace" %}</th>
+                                <th>{% trans "Delete" %}</th>
+                                <th>{% trans "Privacy" %}</th>
                                 {% if request.user.is_admin %}
-                                    <th>{% trans "Admin" context "SUBMISSION FLOW" %}</th>
+                                    <th>{% trans "Admin" %}</th>
                                 {% endif %}
                             </tr>
                         </thead>
@@ -122,12 +122,12 @@
             </div>
         </div>
     </div>
-    <h2>{% trans "Articles" context "SUBMISSION FLOW" %}</h2>
+    <h2>{% trans "Articles" %}</h2>
     <div class="card">
         <div class="card-section">
             <div class="row">
                 <div class="large-12 columns">
-                    <a href="{% url 'si-imu-1' pk=object.pk %}">{% trans "Bulk-insert users" context "SUBMISSION FLOW" %}</a>{% trans " (create multiple authors/article by uploading a spreadsheed)." context "SUBMISSION FLOW" %}
+                    <a href="{% url 'si-imu-1' pk=object.pk %}">{% trans "Bulk-insert users" %}</a>{% trans " (create multiple authors/article by uploading a spreadsheed)." %}
                 </div>
             </div>
         </div>
@@ -138,7 +138,7 @@
                         {% for wrapper in object.articles.all %}
                             {% with article=wrapper|article %}
                                 <li>
-                                    [{{ article.section.name }}] — {{ article.title }} <i>{% trans "by" context "SUBMISSION FLOW" %}</i> {{ article.author_list }}
+                                    [{{ article.section.name }}] — {{ article.title }} <i>{% trans "by" %}</i> {{ article.author_list }}
                                 </li>
                             {% endwith %}
                         {% endfor %}
@@ -147,7 +147,7 @@
             </div>
         </div>
     </div>
-    <h2>{% trans "Invitees" context "SUBMISSION FLOW" %}</h2>
+    <h2>{% trans "Invitees" %}</h2>
     <div class="card">
         <div class="card-section">
             <div class="row">

@@ -2,10 +2,10 @@
 {% load wjs_tags %}
 <div class="col s12 l3 offset-l1">
     {% if issue.galley %}
-        <h3>{% trans "Downloads" context "USER FACING" %}</h3>
+        <h3>{% trans "Downloads" %}</h3>
         <ul>
             <li>
-                <a href="{% url 'journal_issue_download_galley' issue.pk issue.galley.pk %}"><i class="fa fa-download">&nbsp</i> {% trans "Download" context "USER FACING" %}
+                <a href="{% url 'journal_issue_download_galley' issue.pk issue.galley.pk %}"><i class="fa fa-download">&nbsp</i> {% trans "Download" %}
                     {% if not collection %}
                         {% trans "Issue" %}
                     {% else %}
@@ -17,7 +17,7 @@
                                     {% if col %}
                                         {{ col }}
                                     {% else %}
-                                        {% trans "Collection" context "USER FACING" %}
+                                        {% trans "Collection" %}
                                     {% endif %}
                                 {% endwith %}
                             {% endif %}
@@ -29,9 +29,9 @@
     {% endif %}
     <h3 class="secondary-title">
         {% if issue.issue_type.code == 'issue' %}
-            {% trans "Archive" context "USER FACING" %}
+            {% trans "Archive" %}
         {% else %}
-            {% trans issue.issue_type.plural_name context "USER FACING" %}
+            {% trans issue.issue_type.plural_name %}
         {% endif %}
     </h3>
     <ul class="collapsible">

@@ -20,12 +20,12 @@
             <h5 class="article-title">{{ article.title|safe }}</h5>
         </a>
         <p class="article-listing-card-header-authors">
-            {% trans "by" context "USER FACING" %}
+            {% trans "by" %}
             {% for author in article.frozen_authors.all %}
                 {% url 'articles_by_author' author.author.pk as by_author %}
                 {% if forloop.last %}
                     {% if article.frozen_authors.all|length > 1 %}
-                        {% trans "and" context "USER FACING" %}
+                        {% trans "and" %}
                     {% endif %}
                 {% endif %}
                 <a href="{{ by_author }}">{{ author.full_name }}</a>{# djlint:off #}{% if not forloop.last %}{% if not forloop.counter == article.frozen_authors.all|length|add:-1 %}, {% endif %}{% endif %}{# djlint:on #}
@@ -58,13 +58,13 @@
             {% endif %}
             {% if article.issues.count > 1 %}
                 <p>
-                    <strong><i class="fa fa-info-circle"></i> {% trans "Also a part of:" context "USER FACING" %}</strong>
+                    <strong><i class="fa fa-info-circle"></i> {% trans "Also a part of:" %}</strong>
                 </p>
                 {% for other in article.issues.all %}
                     {% if other != article.issue %}
                         <p>
                             <i class="fa fa-book"></i>
-                            <a class="issue-link" href="{{ other.url }}">{% trans other.issue_type.pretty_name context "USER FACING" %}: {{ other|display_title }}</a>
+                            <a class="issue-link" href="{{ other.url }}">{% trans other.issue_type.pretty_name %}: {{ other|display_title }}</a>
                         </p>
                     {% endif %}
                 {% endfor %}

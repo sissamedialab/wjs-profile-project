@@ -3,7 +3,7 @@
 {% load i18n %}
 {% load roles %}
 {% block title %}
-    {% trans "Volumes and Issues" context "USER FACING" %}
+    {% trans "Volumes and Issues" %}
 {% endblock title %}
 {% block css %}
     <style>
@@ -17,7 +17,7 @@
     {% endif %}
     <div class="row">
         <div class="col m12">
-            <h1>{% trans "Volumes and Issues" context "USER FACING" %}</h1>
+            <h1>{% trans "Volumes and Issues" %}</h1>
         </div>
         {% regroup issues by volume as volumes %}
         <div class="row">

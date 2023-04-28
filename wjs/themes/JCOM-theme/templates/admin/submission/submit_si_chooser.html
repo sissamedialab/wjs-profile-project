@@ -3,7 +3,7 @@
 {% load foundation %}
 {% load i18n %}
 {% block title-section %}
-    {% trans "Submission Destination" context "SUBMISSION FACING" %}
+    {% trans "Submission Destination" %}
 {% endblock title-section %}
 {% block css %}
     <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet" />
@@ -15,7 +15,7 @@
                   {% if journal_settings.general.abstract_required %}novalidate{% endif %}>
                 {% csrf_token %}
                 {% if article.is_preprint %}
-                    {% trans "This article is a preprint" context "SUBMISSION FACING" %}
+                    {% trans "This article is a preprint" %}
                 {% endif %}
                 <div class="row expanded">
                     {% include "submission/timeline.html" with data=article %}
@@ -23,11 +23,11 @@
                     <div class="large-12 columns">
                         <button class="btn btn-primary button success pull-right"
                                 id="proceed-normal-issue-btn">
-                            <i class="fa fa-check" type="submit">&nbsp;</i>{% trans "Proceed with Normal Issue" context "SUBMISSION FACING" %}
+                            <i class="fa fa-check" type="submit">&nbsp;</i>{% trans "Proceed with Normal Issue" %}
                         </button>
                     </div>
                     <div class="title-area">
-                        <h2>{% trans "Choose Special Issue" context "SUBMISSION FACING" %}</h2>
+                        <h2>{% trans "Choose Special Issue" %}</h2>
                     </div>
                     <div class="content">
                         {% include "elements/forms/errors.html" with form=form %}
@@ -37,10 +37,10 @@
                     </div>
                     <div class="large-12 columns text-right">
                         <button class="button warning " name="clear_radio" type="reset">
-                            {% trans "Clear selection" context "SUBMISSION FACING" %}
+                            {% trans "Clear selection" %}
                         </button>
                         <button class="success button" type="submit" name="start_submission">
-                            <i class="fa fa-check">&nbsp;</i>{% trans "Proceed with Special Issue" context "SUBMISSION FACING" %}
+                            <i class="fa fa-check">&nbsp;</i>{% trans "Proceed with Special Issue" %}
                         </button>
                     </div>
                 </div>

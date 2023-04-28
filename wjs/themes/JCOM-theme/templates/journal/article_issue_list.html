@@ -3,9 +3,9 @@
 {% with issue_length=article.issues_list|length %}
     <h4 class="article-sidebar-title">
         {% if issue_length > 1 %}
-            {% trans article.primary_issue.issue_type.plural_name context "USER FACING" %}
+            {% trans article.primary_issue.issue_type.plural_name %}
         {% else %}
-            {% trans article.primary_issue.issue_type.pretty_name context "USER FACING" %}
+            {% trans article.primary_issue.issue_type.pretty_name %}
         {% endif %}
     </h4>
 {% endwith %}
@@ -14,7 +14,7 @@
         <li>
             <a href="{% url 'journal_issue' article.primary_issue.pk %}">
                 {% if article.issues_list.count > 1 %}
-                    {% trans "Primary: " context "USER FACING" %}
+                    {% trans "Primary: " %}
                 {% endif %}
                 {{ article.primary_issue|display_title }}
             </a>
@@ -27,10 +27,10 @@
     {% for issue in article.issues_list %}
         {% if not issue == article.primary_issue %}
             <li>
-                <a href="{% url 'journal_issue' issue.pk %}">{% trans issue.issue_type.pretty_name context "USER FACING" %}: {{ issue|display_title }}</a>
+                <a href="{% url 'journal_issue' issue.pk %}">{% trans issue.issue_type.pretty_name %}: {{ issue|display_title }}</a>
             </li>
         {% endif %}
     {% empty %}
-        <li>{% trans "This article is not a part of any issues" context "USER FACING" %}.</li>
+        <li>{% trans "This article is not a part of any issues" %}.</li>
     {% endfor %}
 </ul>
