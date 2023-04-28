@@ -2,16 +2,16 @@
 {% block body %}
     <div class="row">
         {% if error %}
-            <p>{% trans "The account does not exist." context "USER FACING" %}</p>
+            <p>{% trans "The account does not exist." %}</p>
         {% else %}
-            <h1 class="acceptation-title">{% trans "Hello" context "USER FACING" %} {{ first_name }} {{ last_name }}!</h1>
+            <h1 class="acceptation-title">{% trans "Hello" %} {{ first_name }} {{ last_name }}!</h1>
             <form class="acceptation-form col s4" action="" method="post">
                 {% csrf_token %}
                 {{ form.gdpr_checkbox }}
                 <label for="{{ form.gdpr_checkbox.id_for_label }}" class="form-group-label">
-                    {% trans "Accept GDPR" context "USER FACING" %}
+                    {% trans "Accept GDPR" %}
                 </label>
-                <button type="submit" class="btn">{% trans "Accept invitation" context "USER FACING" %}</button>
+                <button type="submit" class="btn">{% trans "Accept invitation" %}</button>
             </form>
         {% endif %}
     </div>

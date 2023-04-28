@@ -4,31 +4,31 @@
 {% load wjs_tags %}
 {% hook 'filter_search' %}
 {% block title %}
-    {% trans "Search" context "USER FACING" %}
+    {% trans "Search" %}
 {% endblock title %}
 {% block body %}
     {% sections as sections %}
     {% if search_term %}
         <h1>
-            {% trans "Searching for" context "USER FACING" %}: <i>{{ search_term }}</i>
+            {% trans "Searching for" %}: <i>{{ search_term }}</i>
         </h1>
     {% elif keyword %}
         <h1>
-            {% trans "Keyword" context "USER FACING" %}: <i>{{ keyword }}</i>
+            {% trans "Keyword" %}: <i>{{ keyword }}</i>
         </h1>
     {% endif %}
     <div class="row">
         <div class="col s12 l8">
-            <h2 class="main-title">{% trans "Publications" context "USER FACING" %}</h2>
+            <h2 class="main-title">{% trans "Publications" %}</h2>
             {% for article in articles %}
                 {% include "elements/article_listing.html" with article=article %}
             {% empty %}
-                <p>{% trans "No articles to display." context "USER FACING" %}</p>
+                <p>{% trans "No articles to display." %}</p>
             {% endfor %}
             {% include "elements/pagination.html" with page=articles %}
         </div>
         <div class="col s12 l4">
-            <h2 class="main-title">{% trans "Search" context "USER FACING" %}</h2>
+            <h2 class="main-title">{% trans "Search" %}</h2>
             <div class="card-panel">{% include "journal/components/search_sidebar.html" %}</div>
         </div>
     </div>

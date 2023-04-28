@@ -4,42 +4,42 @@
         <div class="text-left">
             <ul class="list-inline">
                 <li class="list-inline-item">
-                    {% blocktrans context "USER FACING" %}
+                    {% blocktrans %}
                         Except where otherwise noted, content on this site is licensed under a Creative Commons 4.0 license
                     {% endblocktrans %}
                 </li>
                 {% if request.journal.issn %}<li class="list-inline-item">ISSN: {{ request.journal.issn }}</li>{% endif %}
                 {% if request.journal.print_issn %}
-                    <li class="list-inline-item">{% trans "Print ISSN:" context "USER FACING" %} {{ request.journal.print_issn }}</li>
+                    <li class="list-inline-item">{% trans "Print ISSN:" %} {{ request.journal.print_issn }}</li>
                 {% endif %}
                 {% if journal_settings.general.publisher_name %}
                     <li class="list-inline-item">
-                        {% trans "Published by" context "USER FACING" %}
+                        {% trans "Published by" %}
                         {% if journal_settings.general.publisher_url %}<a href="{{ journal_settings.general.publisher_url }}">{% endif %}
                             {{ journal_settings.general.publisher_name }}
                             {% if journal_settings.general.publisher_url %}</a>{% endif %}
                     </li>
                 {% endif %}
             </ul>
-            <p>{% trans "VAT number: IT01097780322" context "USER FACING" %}</p>
+            <p>{% trans "VAT number: IT01097780322" %}</p>
         </div>
     </div>
     <div class="col m2 text-right">
         <ul class="list-inline">
             {% if journal_settings.general.privacy_policy_url %}
                 <li class="list-inline-item">
-                    <a href="{{ journal_settings.general.privacy_policy_url }}">{% trans "Privacy" context "USER FACING" %}</a>
+                    <a href="{{ journal_settings.general.privacy_policy_url }}">{% trans "Privacy" %}</a>
                 </li>
             {% else %}
                 <li class="list-inline-item">
-                    <a href="{% url 'cms_page' 'privacy' %}">{% trans "Privacy" context "USER FACING" %}</a>
+                    <a href="{% url 'cms_page' 'privacy' %}">{% trans "Privacy" %}</a>
                 </li>
             {% endif %}
             <li class="list-inline-item">
-                <a href="{% url 'cms_page' 'cookie_policy' %}">{% trans "Cookie Policy" context "USER FACING" %}</a>
+                <a href="{% url 'cms_page' 'cookie_policy' %}">{% trans "Cookie Policy" %}</a>
             </li>
             <li class="list-inline-item">
-                <a href="{% url 'cms_page' 'contact' %}">{% trans "Contact" context "USER FACING" %}</a>
+                <a href="{% url 'cms_page' 'contact' %}">{% trans "Contact" %}</a>
             </li>
         </ul>
     </div>

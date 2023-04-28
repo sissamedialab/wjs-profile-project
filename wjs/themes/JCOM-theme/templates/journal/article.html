@@ -6,9 +6,9 @@
 {% load wjs_tags %}
 {% block page_title %}
     {% if article.preprint %}
-        {% trans "Preprint" context "USER FACING" %}
+        {% trans "Preprint" %}
     {% endif %}
-    {% trans "Article" context "USER FACING" %}
+    {% trans "Article" %}
 {% endblock page_title %}
 {% block title %}
     {{ article.frozen_authors.0.last_name | striptags }} | {{ article.title | striptags }} |

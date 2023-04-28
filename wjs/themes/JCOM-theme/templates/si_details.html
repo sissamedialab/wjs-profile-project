@@ -5,7 +5,7 @@
 {% load files %}
 {% load securitytags %}
 {% block page_title %}
-    {% trans "Special Issues" context "SUBMISSION FLOW" %} {{ object.name }}
+    {% trans "Special Issues" %} {{ object.name }}
 {% endblock page_title %}
 {% block body %}
     {% if request.user %}

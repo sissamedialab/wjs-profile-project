@@ -132,6 +132,11 @@ TIME_ZONE = "Europe/Rome"
 # SETTINGS_MODULE is used by rosetta to find the po files
 SETTINGS_MODULE = "core.settings"
 
+# Line-length of the edited PO file.
+# Set this to 0 to mimic makemessage’s --no-wrap option.
+# https://django-rosetta.readthedocs.io/settings.html
+ROSETTA_POFILE_WRAP_WIDTH = 0
+
 # Fall-backs if there is no date format specified for the active language
 DATE_FORMAT = "M d, Y"
 DATETIME_FORMAT = "M d, Y H:i:s"

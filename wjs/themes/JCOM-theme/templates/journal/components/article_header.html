@@ -9,7 +9,7 @@
         {% if article|has_attr:"ancestors" and article.ancestors.exists %}
             {% with parent=article.ancestors.first.parent %}
                 <p>
-                    <span>{% trans "part of" context "USER FACING" %}</span>
+                    <span>{% trans "part of" %}</span>
                     <a href="{{ parent.url }}">{{ parent.title }}</a>
                 </p>
             {% endwith %}

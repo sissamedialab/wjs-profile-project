@@ -4,15 +4,15 @@
 {% load pages %}
 {% load wjs_tags %}
 {% block page_title %}
-    {% trans "Articles" context "USER FACING" %}
+    {% trans "Articles" %}
 {% endblock page_title %}
 {% block title %}
-    {% trans "Articles" context "USER FACING" %}
+    {% trans "Articles" %}
 {% endblock title %}
 {% block body %}
     <div class="row">
         <div class="col m12">
-            <h1 class="main-title">{% trans "Publications" context "USER FACING" %}</h1>
+            <h1 class="main-title">{% trans "Publications" %}</h1>
         </div>
         <div class="col s12 l8">
             {% if pinned_articles and articles.number == 1 and not active_filters %}

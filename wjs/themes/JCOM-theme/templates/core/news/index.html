@@ -10,7 +10,7 @@
         <div class="col m12">
             <h3>{{ journal_settings.news.news_title }}</h3>
             {% if tag %}
-                <h3>{% trans "Filtering tag" context "USER FACING" %}: {{ tag }}</h3>
+                <h3>{% trans "Filtering tag" %}: {{ tag }}</h3>
             {% endif %}
         </div>
         {% for item in news_items %}
@@ -33,7 +33,7 @@
                 </div>
             </div>
         {% empty %}
-            <h4>{% trans "This journal currently has no items to display." context "USER FACING" %}</h4>
+            <h4>{% trans "This journal currently has no items to display." %}</h4>
         {% endfor %}
     </div>
     {% include "elements/pagination.html" with page=news_items %}
