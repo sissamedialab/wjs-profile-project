@@ -9,8 +9,8 @@ msgstr ""
 "Project-Id-Version: WJS 0.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2023-04-28 15:00+0200\n"
-"PO-Revision-Date: 2023-04-28 15:53+0200\n"
-"Last-Translator: b'Matteo Gamboz <gamboz@medialab.sissa.it>'\n"
+"PO-Revision-Date: 2023-05-02 09:21+0050\n"
+"Last-Translator: b'Maria Teresa Leo <leo@medialab.sissa.it>'\n"
 "Language-Team: Spanish <wjs-support@medialab.sissa.it>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
@@ -995,7 +995,7 @@ msgstr "Archivo"
 
 #: wjs/themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:43 wjs/themes/JCOM-theme/templates/journal/issues.html:17
 msgid "Volume"
-msgstr "Volúmen"
+msgstr "Volumen"
 
 #: wjs/themes/JCOM-theme/templates/elements/journal_footer.html:7
 msgid ""
