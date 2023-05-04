@@ -56,16 +56,16 @@ yesterday = timezone.now() - timezone.timedelta(1)
 
 EXTRAFIELDS_FRAGMENTS = [
     # Profession - a <select>
-    '<select name="profession" class="form-control" title="" required id="id_profession">',
-    '<label class="form-control-label" for="id_profession">Profession</label>',
+    '<select name="profession" class="validate" required id="id_profession">',
+    '<label class="input-field-label" for="id_profession" data-error="" data-success="" id="label_profession">',
     # GDPR - a checkbox
     # NB: this <input> has slightly different layouts in the profile form and in the
     # registration form:
     # - <input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />
     # - <input type="checkbox" name="gdpr_checkbox" id="id_gdpr_checkbox" checked />
     # TODO: be a man and use selenium!
-    '<input type="checkbox" name="gdpr_checkbox"',
-    'id="id_gdpr_checkbox"',
+    '<input type="checkbox" id="id_gdpr_checkbox" name="gdpr_checkbox"',
+    '<label class="input-field-label" for="id_gdpr_checkbox">',
 ]
 
 INVITE_BUTTON = f"""<li>

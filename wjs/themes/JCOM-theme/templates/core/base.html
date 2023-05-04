@@ -107,7 +107,14 @@
         {% include "common/elements/analytics.html" %}
         {% block js %}{% endblock js %}
         {# Initialize mobile sidebar navigation #}
-        <script>$(".button-collapse").sideNav();</script>
+        <script>
+            $(document).ready(function() {
+                {# Initialize mobile sidebar navigation #}
+                $(".button-collapse").sideNav();
+                {# Initialize selects #}
+                $('select').material_select();
+            });
+        </script>
         {% if request.repository and request.repository.custom_js_code %}
             <script>{{ request.repository.custom_js_code|safe }}</script>
         {% endif %}

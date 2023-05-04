@@ -374,7 +374,6 @@ class NewsletterTopicForm(forms.ModelForm):
         required=True,
         label=_("Preferred language for alerts"),
         choices=settings.LANGUAGES,
-        widget=forms.Select(attrs={"class": "browser-default language-select"}),
     )
 
     class Meta:
@@ -388,7 +387,6 @@ class NewsletterTopicForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         """Prepare the queryset for topics."""
         self.base_fields["topics"].queryset = kwargs.get("instance").journal.keywords.all().order_by("word")
-        self.base_fields["language"].widget = forms.Select(attrs={"class": "browser-default language-select"})
 
         # Manage the language field's choices
         request = utils_logic.get_current_request()
@@ -405,12 +403,13 @@ class NewsletterTopicForm(forms.ModelForm):
                     journal_languages_list = json.loads(journal_languages_processed_value)
                 else:
                     journal_languages_list = journal_languages_processed_value
-                self.base_fields["language"].choices = [
-                    lang for lang in settings.LANGUAGES if lang[0] in journal_languages_list
-                ]
-                # Let's hide the language select if there is only one choice
-                if len(self.base_fields["language"].choices) < 2:
-                    self.base_fields["language"].widget.attrs["class"] = "hide browser-default language-select"
+                if len(journal_languages_list) > 2:
+                    self.base_fields["language"].choices = [
+                        lang for lang in settings.LANGUAGES if lang[0] in journal_languages_list
+                    ]
+                else:
+                    # Let's hide the language select if there is only one choice
+                    del self.base_fields["language"]
 
         super().__init__(*args, **kwargs)
 

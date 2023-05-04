@@ -22,7 +22,7 @@ class JCOMProfileConfig(AppConfig):
     def register_hooks(self):
         """Register my functions to Janeway's hooks."""
         hooks = [
-            {"extra_corefields": {"module": "wjs.jcom_profile.hooks", "function": "prova_hook"}},
+            {"extra_corefields": {"module": "wjs.jcom_profile.hooks", "function": "extra_core_fields_hook"}},
             {
                 "extra_edit_profile_parameters": {
                     "module": "wjs.jcom_profile.hooks",
