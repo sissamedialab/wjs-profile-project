@@ -121,13 +121,15 @@ urlpatterns = [
     url(r"^articles/section/(?P<section>[\w.-]+)/$", views.filter_articles, name="articles_by_section"),
     url(r"^articles/author/(?P<author>[\w.-]+)/$", views.filter_articles, name="articles_by_author"),
     # Redirects - start
+    # JCOM issues were /archive/01/02/
+    # JCOMAL issues were /es/01/02/ (or /pt-br/01/02/)
     url(
-        r"archive/(?P<volume>\d{2})/(?P<issue>[\d-]{2,3})/?$",
+        r"^(?P<root>archive|es|pt-br)/(?P<volume>\d{2})/(?P<issue>[\d-]{2,3})/?$",
         views.JcomIssueRedirect.as_view(),
         name="jcom_redirect_issue",
     ),
     # Drupal-style supplementary file url
-    #    RewriteRule "^/archive/.*/(JCOM[^/]+_ATTACH_[^/]+)$"
+    #    RewriteRule ".../(JCOM[^/]+_ATTACH_[^/]+)$"
     url(
         r"sites/default/files/documents/supplementary_material/(?P<pubid>[\w.()-]+?)(?P<attachment>_ATTACH_[^/]+)$",
         views.JcomFileRedirect.as_view(),
@@ -138,7 +140,7 @@ urlpatterns = [
     # and old form of citation_pdf_url
     #     RewriteRule "^/archive/.*/(JCOM[^/]+\.pdf)"
     url(
-        r"(?P<root>archive/.*/|sites/default/files/documents/)"
+        r"(?P<root>archive/.*/|sites/default/files/documents/|(?P<site_language>(pt-br|es))/.*/)"
         r"(?P<pubid>[\w.()-]+?)(?:_(?P<language>[a-z]{2}))?(?P<error>_\d)?\.(?P<extension>pdf|epub)$",
         views.JcomFileRedirect.as_view(),
         name="jcom_redirect_file",

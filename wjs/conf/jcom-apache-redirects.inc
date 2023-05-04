@@ -1,10 +1,17 @@
 # JCOM redirects
 RewriteEngine On
 
-# Obsolete as of 2023-03-20
-# RewriteRule "^/rss.xml" "/feed/articles/" [R=301,L]
-# RewriteRule "^/.*/RSS$" "/feed/articles/" [R=301,L]
-# RewriteRule "^/call-abstracts-special-issue-connecting-science-communication-research-and-practice-challenges-and" "/news/1/" [R=301,L]
+# RSS
+# We had:
+# - /all-editorials/RSS
+# - /all-focus/RSS
+# - /all-letters/RSS
+# - /all-articles/RSS
+# - /all/RSS
+# - /rss.xml
+RewriteRule "^/rss.xml" "/feed/articles/" [R=301,L]
+RewriteRule "^/.*/RSS$" "/feed/articles/" [R=301,L]
+
 
 # .abstract to landing page (#331)
 RewriteCond %{REQUEST_URI} "\.abstract/?$"
@@ -105,11 +112,8 @@ RewriteCond %{REQUEST_URI} ".*epub$"
 RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(Jcom[A-Z0-9()]{13})/(Jcom[A-Z0-9()]{13})(?<rest>.*)$" "/sites/default/files/documents/$4$5" [PT,L]
 
 
-# RSS
-# /rss.xml (no change)
-
-# Archive and volumes --> /articles
-RewriteRule "^/archive/?(\d{2}/?)?$" "/articles/" [R=301,L]
+# Archive and volumes --> /issues
+RewriteRule "^/archive/?(\d{2}/?)?$" "/issues/" [R=301,L]
 
 # Authors - NOT IMPLEMENTED!
 # Drupal was: /author/pietro-greco
