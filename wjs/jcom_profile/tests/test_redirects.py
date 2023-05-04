@@ -7,10 +7,15 @@ from django.test import Client
 from django.urls import reverse
 
 
+@pytest.mark.parametrize("root", ("archive", "es", "pt-br"))
 @pytest.mark.django_db
-def test_redirect_issues_from_jcom_to_janeway_url(issue):
+def test_redirect_issues_from_jcom_to_janeway_url(issue, root):
     client = Client()
-    url = reverse("jcom_redirect_issue", kwargs={"volume": "01", "issue": f"{issue.issue:>02}"})
+
+    # Set the script_prefix so that the `journal` is added to the request
+    client.get(f"/{issue.journal.code}/")
+
+    url = reverse("jcom_redirect_issue", kwargs={"volume": "01", "issue": f"{issue.issue:>02}", "root": root})
     expected_redirect_url = reverse(
         "journal_issue",
         kwargs={
@@ -145,10 +150,10 @@ class TestRedirectCitationPdfUrl:
         # So I will not `response = client.get(url)`
         # nor `assert response.status_code == 200`
 
+    @pytest.mark.parametrize("root", ("archive/01/02/", "es/01/02/", "pt-br/01/02/"))
     @pytest.mark.django_db
-    def test_with_pubid_and_extension(self, journal, client, published_article_with_standard_galleys):
+    def test_with_pubid_and_extension(self, root, journal, client, published_article_with_standard_galleys):
         """Test old format: article/01/01/PUBID.PDF."""
-        root = "archive/01/02/"
         article = published_article_with_standard_galleys
         pubid = article.get_identifier(identifier_type="pubid")
         galley = article.galley_set.get(label="PDF")
@@ -175,7 +180,7 @@ class TestRedirectCitationPdfUrl:
 
     @pytest.mark.django_db
     def test_with_pubid_and_attachment(self, journal, client, published_article_with_standard_galleys):
-        """Test old format for supplementary fiels: article/01/01/PUBID_ATTACH_N.PDF."""
+        """Test old format for supplementary fiels."""
         article = published_article_with_standard_galleys
         pubid = article.get_identifier(identifier_type="pubid")
         # Cheating: I just know that this article has only one supplementary file :)
