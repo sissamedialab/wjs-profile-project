@@ -3,10 +3,9 @@ from django.template.loader import render_to_string
 from django.utils.translation import ugettext as _
 
 
-def prova_hook(request_context):
-    """Test hooks."""
-    # TODO: drop me and use django blocks
-    template_name = "field.html"
+def extra_core_fields_hook(request_context):
+    """Add hook to render extra profile fields."""
+    template_name = "elements/accounts/extra_core_fields.html"
     context = {"form": request_context.get("form"), "journal_settings": request_context.get("journal_settings")}
     rendered = render_to_string(template_name, context)
     return rendered

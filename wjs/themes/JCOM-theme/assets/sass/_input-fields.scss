@@ -1,5 +1,19 @@
 .input-field {
-  margin-top: 0;
+  label.input-field-label {
+    padding-left: 2rem;
+    pointer-events: all;
+  }
+
+  .jqte {
+    position: relative;
+    top: 34px;
+    margin-top: 0;
+    margin-bottom: 60px;
+
+    & + label.input-field-label {
+      position: absolute;
+    }
+  }
 }
 
 .newsletter-form {

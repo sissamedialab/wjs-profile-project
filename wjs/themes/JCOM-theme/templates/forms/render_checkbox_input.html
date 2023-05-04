@@ -1,0 +1,4 @@
+<p>
+    <input type="checkbox" id="id_{{ field.name }}" name="{{ field.name }}"{% if checked %} checked=""{% endif %}/>
+    <label class="input-field-label" for="id_{{ field.name }}">{{ field.field.widget.choice_label }}</label>
+</p>
