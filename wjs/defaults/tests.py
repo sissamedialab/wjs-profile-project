@@ -8,6 +8,13 @@ from collections.abc import Mapping  # noqa
 from core.janeway_global_settings import *  # noqa
 from .settings import *  # noqa
 
+try:
+    from core.settings import *  # noqa
+except ImportError:
+    # Non committed local settings may non exists (eg: in the CI)
+    pass
+
+
 from core.janeway_global_settings import INSTALLED_APPS  # noqa
 from core.janeway_global_settings import MIDDLEWARE_CLASSES as DEFAULT_MIDDLEWARE
 
