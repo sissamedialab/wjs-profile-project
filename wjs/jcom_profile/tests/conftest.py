@@ -235,7 +235,8 @@ def set_jcom_theme(journal):
 def set_jcom_settings(journal):
     setting_handler.save_setting("general", "from_address", journal, "jcom-eo@jcom.sissa.it")
     # Languages must be enabled per journal because it's required by journal.middleware.LanguageMiddleware
-    setting_handler.save_setting("general", "journal_languages", journal, ' ["en","es", "pt"]')
+    setting_handler.save_setting("general", "journal_languages", journal, '["en","es", "pt"]')
+    setting_handler.save_setting("general", "privacy_policy_url", journal, "/page-privacy")
     for lang in ["en", "es", "pt"]:
         with translation.override(lang):
             for kind in ["email", "subscription_email", "reminder_email"]:

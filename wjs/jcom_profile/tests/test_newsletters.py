@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import lxml.html
 import pytest
+from cms.models import Page
 from comms.models import NewsItem
 from conftest import set_jcom_settings, set_jcom_theme
 from django.contrib.contenttypes.models import ContentType
@@ -73,6 +74,7 @@ def check_email_body(outbox, journal):
         else:
             for item in news_items:
                 assert reverse("core_news_item", args=(item.pk,)) not in email.body
+        assert "http://testserver.org/page-privacy" in email.body
 
 
 @pytest.mark.django_db
@@ -487,6 +489,8 @@ def test_registration_as_non_logged_user_when_there_is_already_a_recipient(
     # as a "new registration" - see
     # views.AnonymousUserNewsletterRegistration:1173)
     r1 = recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    content_type = ContentType.objects.get_for_model(journal)
+    Page.objects.create(content_type=content_type, object_id=journal.pk, name="privacy")
 
     before_recipients = [x.pk for x in Recipient.objects.all()]
 
@@ -515,6 +519,7 @@ def test_registration_as_non_logged_user_when_there_is_already_a_recipient(
     assert mail_message.from_email == from_email.value
     assert mail_message.to == [r1.email]
     assert "Please note that you are already subscribed" in mail_message.body
+    assert "http://testserver.org/JCOM/site/privacy/" in mail_message.body
 
 
 @pytest.mark.parametrize("language", ("en", "es", "pt"))
