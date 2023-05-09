@@ -9,6 +9,7 @@ from comms.models import NewsItem
 from core.middleware import GlobalRequestMiddleware
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.db.models import Q
 from django.http import HttpRequest
@@ -76,7 +77,19 @@ class NewsletterMailerService:
             page = Page.objects.filter(content_type=content_type, object_id=journal.pk, name="privacy").get()
             return reverse("cms_page", args=(page.name,))
         except Page.DoesNotExist:
-            return ""
+            try:
+                privacy_policy_url = get_setting(
+                    "general",
+                    "privacy_policy_url",
+                    journal,
+                    create=False,
+                    default=True,
+                )
+                if privacy_policy_url.processed_value:
+                    return privacy_policy_url.processed_value
+            except ObjectDoesNotExist:
+                pass
+        return ""
 
     def _render_newsletter_message(
         self,
