@@ -14,7 +14,6 @@ from easy_select2.widgets import Select2Multiple
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
 from utils.forms import CaptchaForm
-from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import (
     ArticleWrapper,
@@ -391,27 +390,22 @@ class NewsletterTopicForm(forms.ModelForm):
         # Manage the language field's choices
         request = utils_logic.get_current_request()
         if request and request.journal:
-            journal_languages_processed_value = get_setting(
-                "general",
-                "journal_languages",
-                request.journal,
-                create=False,
-                default=True,
-            ).processed_value
-            if journal_languages_processed_value:
-                if isinstance(journal_languages_processed_value, str):
-                    journal_languages_list = json.loads(journal_languages_processed_value)
-                else:
-                    journal_languages_list = journal_languages_processed_value
-                if len(journal_languages_list) > 2:
-                    self.base_fields["language"].choices = [
-                        lang for lang in settings.LANGUAGES if lang[0] in journal_languages_list
-                    ]
-                else:
-                    # Let's hide the language select if there is only one choice
-                    del self.base_fields["language"]
+            journal_languages_processed_value = request.journal.get_setting("general", "journal_languages")
 
         super().__init__(*args, **kwargs)
+
+        if journal_languages_processed_value:
+            if isinstance(journal_languages_processed_value, str):
+                journal_languages_list = json.loads(journal_languages_processed_value)
+            else:
+                journal_languages_list = journal_languages_processed_value
+            if len(journal_languages_list) > 1:
+                self.fields["language"].choices = [
+                    lang for lang in settings.LANGUAGES if lang[0] in journal_languages_list
+                ]
+            else:
+                # Let's hide the language select if there is only one choice
+                del self.fields["language"]
 
 
 class RegisterUserNewsletterForm(forms.Form):

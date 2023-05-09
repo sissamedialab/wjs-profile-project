@@ -257,17 +257,33 @@ def set_general_settings():
     management.call_command("add_submission_figures_data_title")
 
 
-@pytest.fixture
-def journal(press):
-    """Prepare a journal."""
+def _journal_factory(code, press, domain=None):
+    """Create a journal initializing its settings."""
+    domain = domain or f"{code}.testserver.org"
     set_general_settings()
-    journal = journal_models.Journal.objects.create(code=JOURNAL_CODE, domain="testserver.org")
-    journal.title = "Test Journal: A journal of tests"
+    journal = journal_models.Journal.objects.create(code=code, domain=domain)
+    journal.title = f"Journal {code}: A journal of tests"
     journal.save()
     update_issue_types(journal)
     set_jcom_theme(journal)
     set_jcom_settings(journal)
     return journal
+
+
+@pytest.fixture
+def journal(press):
+    """Prepare a journal."""
+    return _journal_factory(JOURNAL_CODE, press, domain="testserver.org")
+
+
+@pytest.fixture
+def journal_factory(press):
+    """Provide a factory to create a journal."""
+
+    def create_journal(code):
+        return _journal_factory(code, press)
+
+    return create_journal
 
 
 @pytest.fixture
