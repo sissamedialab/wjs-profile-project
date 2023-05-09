@@ -18,3 +18,5 @@ class Command(BaseCommand):
         management.call_command("create_role", "Director")
         management.call_command("add_publication_alert_settings")
         management.call_command("add_generic_analytics_code_setting")
+        # refs specs#640
+        management.call_command("add_general_facebook_handle_setting")
