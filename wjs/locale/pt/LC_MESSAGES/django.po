@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: WJS 0.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2023-04-28 15:00+0200\n"
-"PO-Revision-Date: 2023-04-28 15:44+0200\n"
+"PO-Revision-Date: 2023-05-09 17:28+0050\n"
 "Last-Translator: b'Matteo Gamboz <gamboz@medialab.sissa.it>'\n"
 "Language-Team: Portughese <wjs-support@medialab.sissa.it>\n"
 "Language: pt_BR\n"
@@ -745,7 +745,7 @@ msgstr "Corpo editorial"
 
 #: wjs/themes/JCOM-theme/templates/core/nav.html:114 wjs/themes/JCOM-theme/templates/core/nav.html:181 wjs/themes/JCOM-theme/templates/elements/journal_footer.html:42
 msgid "Contact"
-msgstr "Contactos"
+msgstr "Contatos"
 
 #: wjs/themes/JCOM-theme/templates/core/nav.html:132
 msgid "Become a Reviewer"
