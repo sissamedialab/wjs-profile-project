@@ -3,6 +3,7 @@ import random
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
+import lxml.html
 import pytest
 from comms.models import NewsItem
 from conftest import set_jcom_settings, set_jcom_theme
@@ -606,9 +607,102 @@ def test_registration_as_logged_user_via_link_in_profile_page(
     assert len(mail.outbox) == 0
 
 
+@pytest.mark.django_db
+def test_update_newsletter_subscription_get_single_language(jcom_user, keywords, journal_factory):
+    """
+    Language field is hidden if only one language is configured in the journal.
+    """
+    journal = journal_factory("due")
+    # language not available in LANGUAGES is ignored
+    setting_handler.save_setting("general", "journal_languages", journal, ["es"])
+    journal.keywords.set(keywords)
+
+    client = Client()
+    client.force_login(jcom_user)
+    url = f"/{journal.code}/update/newsletters/"
+    response = client.get(url, follow=True)
+    assert response.status_code == 200
+    html = lxml.html.fromstring(response.content.decode())
+    for keyword in keywords:
+        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+    assert len(html.findall(".//option")) == 0
+
+
+@pytest.mark.django_db
+def test_update_newsletter_subscription_show_language_select(jcom_user, keywords, journal_factory):
+    """
+    Language and keyword fields are filled with journal current data.
+
+    Language field is shown because multiple languages are configured in the journal, default language is selected.
+
+    This is similar to test_update_newsletter_subscription_show_dynamic_language_select, except that the languages
+    settings does not change.
+    """
+    journal = journal_factory("due")
+    # language not available in LANGUAGES is ignored
+    setting_handler.save_setting("general", "journal_languages", journal, ["en", "es", "it"])
+    journal.keywords.set(keywords)
+
+    client = Client()
+    client.force_login(jcom_user)
+    url = f"/{journal.code}/update/newsletters/"
+    response = client.get(url, follow=True)
+    assert response.status_code == 200
+    html = lxml.html.fromstring(response.content.decode())
+    for keyword in keywords:
+        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+    assert len(html.findall(".//option")) == 2
+    assert html.findall(".//option[@value='es']")
+    assert html.findall(".//option[@value='en'][@selected]")
+
+
+@pytest.mark.django_db
+def test_update_newsletter_subscription_show_dynamic_language_select(jcom_user, keywords, journal_factory):
+    """
+    Language and keyword fields are filled with journal current data.
+
+    Test that fields provided by the form are updated if the journal languages changes between invocations.
+
+    This is a regression test for wjs-profile-project#23.
+    """
+    journal = journal_factory("due")
+    # language not available in LANGUAGES is ignored
+    setting_handler.save_setting("general", "journal_languages", journal, ["es"])
+    journal.keywords.set(keywords)
+
+    # First run with only one language configured -> no language field is shown
+    client = Client()
+    client.force_login(jcom_user)
+    url = f"/{journal.code}/update/newsletters/"
+    response = client.get(url, follow=True)
+    assert response.status_code == 200
+    html = lxml.html.fromstring(response.content.decode())
+    for keyword in keywords:
+        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+    assert len(html.findall(".//option")) == 0
+
+    # Second run with two languages configured ("it" is not in LANGUAGES, and it is ignored) -> language field is shown
+    setting_handler.save_setting("general", "journal_languages", journal, ["en", "es", "it"])
+    client.force_login(jcom_user)
+    url = f"/{journal.code}/update/newsletters/"
+    response = client.get(url, follow=True)
+    assert response.status_code == 200
+    html = lxml.html.fromstring(response.content.decode())
+    for keyword in keywords:
+        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+    assert len(html.findall(".//option")) == 2
+    assert html.findall(".//option[@value='es']")
+    assert html.findall(".//option[@value='en'][@selected]")
+
+
 @pytest.mark.parametrize("is_news", (True, False))
 @pytest.mark.django_db
-def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
+def test_update_newsletter_subscription(jcom_user, keywords, journal_factory, is_news):
+    """
+    Recipient is created storing the provided configuration using NewsletterParametersUpdate view.
+    """
+    journal = journal_factory("due")
+    setting_handler.save_setting("general", "journal_languages", journal, ["en", "es"])
     journal.keywords.set(keywords)
     keywords = random.choices(journal.keywords.values_list("id", "word"), k=5)
 
@@ -616,11 +710,12 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal, is_news):
     client.force_login(jcom_user)
     url = f"/{journal.code}/update/newsletters/"
     # Pass a language in the POST data
-    data = {"topics": [k[0] for k in keywords], "news": is_news, "language": "en"}
+    data = {"topics": [k[0] for k in keywords], "news": is_news, "language": "es"}
     response = client.post(url, data, follow=True)
     assert response.status_code == 200
 
     user_recipient = Recipient.objects.get(user=jcom_user, journal=journal)
+    assert user_recipient.language == "es"
     topics = user_recipient.topics.all()
     for topic in topics:
         assert topic.word in [k[1] for k in keywords]
