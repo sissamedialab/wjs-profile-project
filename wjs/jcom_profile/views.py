@@ -19,7 +19,7 @@ from django.core.mail import send_mail
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.core.validators import validate_email
 from django.db import IntegrityError
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.forms import modelformset_factory
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -1294,14 +1294,17 @@ def search(request):
     get_dict["sort"] = request.GET.get("sort", "-date_published")
     request.GET = get_dict
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
-    sections = request.GET.get("sections", "")
-    keywords = request.GET.get("keywords", "")
+    selected_sections = request.GET.getlist("sections", "")
+    selected_keywords = request.GET.getlist("keywords", "")
     show = int(request.GET.get("show", 10))
     page = int(request.GET.get("page", 1))
-    if sections.strip():
-        sections = sections.strip().split(",")
-    if keywords.strip():
-        keywords = keywords.strip().split(",")
+    try:
+        year = int(request.GET.get("year", None))
+    except (TypeError, ValueError):
+        year = None
+    # we must cast to int the resulting values because we are going to check
+    # if the section id is in the list in the template, and thus the type must match
+    selected_sections = list(map(int, selected_sections))
 
     if redir:
         return redir
@@ -1317,37 +1320,46 @@ def search(request):
         # then matches author based on below regex split search term.
         split_term = [re.escape(word) for word in search_term.split(" ")]
         split_term.append(escaped)
-        search_regex = "^({})$".format("|".join(set(split_term)))
-        articles = articles.filter(
-            (
-                Q(title__icontains=search_term)
-                | Q(keywords__word__iregex=search_regex)
-                | Q(subtitle__icontains=search_term)
-            )
-            | (Q(frozenauthor__first_name__iregex=search_regex) | Q(frozenauthor__last_name__iregex=search_regex)),
-        ).distinct()
 
-    if keywords:
+        form.is_valid()
+        articles = submission_models.Article.objects.search(
+            search_term,
+            form.get_search_filters(),
+            sort=form.cleaned_data.get("sort"),
+            site=request.site_object,
+        )
+        articles = submission_models.Article.objects.filter(pk__in=[x.pk for x in articles])
+
+    if selected_keywords:
         articles = articles.filter(
-            keywords__word__in=keywords,
+            keywords__word__in=selected_keywords,
         )
 
-    if sections:
+    if selected_sections:
         articles = articles.filter(
-            section__id__in=sections,
+            section__id__in=selected_sections,
+        )
+
+    if year:
+        articles = articles.filter(
+            date_published__year=year,
         )
 
     articles = articles.distinct().order_by(sort)
-    keyword_limit = 20
-    popular_keywords = (
+    keywords = (
         submission_models.Keyword.objects.filter(
             article__journal=request.journal,
             article__stage=submission_models.STAGE_PUBLISHED,
             article__date_published__lte=timezone.now(),
         )
         .annotate(articles_count=Count("article"))
-        .order_by("-articles_count")[:keyword_limit]
+        .order_by("word")
     )
+
+    sections = submission_models.Section.objects.filter(
+        journal=request.journal,
+        is_filterable=True,
+    ).order_by("sequence", "name")
 
     paginator = Paginator(articles, per_page=show)
     try:
@@ -1361,12 +1373,14 @@ def search(request):
     context = {
         "articles": page_obj,
         "article_search": search_term,
-        "keywords": keywords,
-        "sections": sections,
+        "selected_keywords": selected_keywords,
+        "selected_sections": selected_sections,
+        "year": year,
         "form": form,
         "sort": sort,
         "show": show,
-        "all_keywords": popular_keywords,
+        "keywords": keywords,
+        "sections": sections,
     }
 
     return render(request, template, context)
