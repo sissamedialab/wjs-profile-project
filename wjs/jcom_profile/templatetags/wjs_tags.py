@@ -7,7 +7,7 @@ from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from journal import logic as journal_logic
 from journal.models import Issue
-from submission.models import STAGE_PUBLISHED, Article, Keyword, Section
+from submission.models import STAGE_PUBLISHED, Article, Keyword
 
 from wjs.jcom_profile.models import SpecialIssue
 from wjs.jcom_profile.utils import citation_name
@@ -119,12 +119,6 @@ def description(article):
     # To avoid truncated words at the end of the string, drop the characters after the last space
     # This splits shorter_abstract on spaces into words, takes all but the last word, and rejoins them with spaces.
     return " ".join(shorter_abstract.split(" ")[:-1])
-
-
-@register.simple_tag(takes_context=True)
-def sections(context):
-    request = context["request"]
-    return Section.objects.filter(journal=request.journal, is_filterable=True)
 
 
 @register.simple_tag(takes_context=True)

@@ -28,7 +28,7 @@
                            value="{{ section.id }}"
                            type="checkbox"
                            name="sections"
-                           {% if section.id in sections %}checked="checked"{% endif %}>
+                           {% if section.id in selected_sections %}checked="checked"{% endif %}>
                     <label for="section-{{ section.id }}">{{ section.name }}</label>
                     <br />
                 {% endfor %}
@@ -42,16 +42,26 @@
                 <span class="caret">▼</span>
             </div>
             <div class="collapsible-body">
-                {% for keyword in all_keywords %}
+                {% for keyword in keywords %}
                     <div class="keyword">
                         <input id="{{ keyword }}"
                                value="{{ keyword }}"
                                type="checkbox"
                                name="keywords"
-                               {% if keyword.word in keywords %}checked="checked"{% endif %}>
+                               {% if keyword.word in selected_keywords %}checked="checked"{% endif %}>
                         <label for="{{ keyword }}">{{ keyword.word }}</label>
                     </div>
                 {% endfor %}
+            </div>
+        </li>
+    </ul>
+    <ul class="form-group">
+        <li>
+            <label for="year">
+                {% trans "Filter by year" %}
+            </label>
+            <div class="input-field">
+                <input id="year" type="number" name="year" value="{{ year }}">
             </div>
         </li>
     </ul>

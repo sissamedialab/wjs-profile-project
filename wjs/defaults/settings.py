@@ -151,4 +151,10 @@ DATETIME_FORMATS = {
     "es": "d b Y H:i:s",
     "pt": "d b Y H:i:s",
 }
+
+
 WJS_NEWSLETTER_TOKEN_SALT = "CHANGEME"
+
+
+ENABLE_FULL_TEXT_SEARCH = True
+CORE_FILETEXT_MODEL = "core.PGFileText"
