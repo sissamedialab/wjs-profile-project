@@ -45,18 +45,20 @@
                 {% endif %}
                 <div class="actions-items">
                     <ul class="social-media-links platforms inline horizontal">
+                        {% if journal_settings.general.facebook_handle %}
                         <li class="facebook">
-                            <a href="https://www.facebook.com/jcom.sissa.it"
-                               target="_blank"
-                               title="Facebook">
+                            <a href="{{ journal_settings.general.facebook_handle }}" target="_blank" title="Facebook">
                                 <i class="fa fa-facebook"></i>
                             </a>
                         </li>
+                        {% endif %}
+                        {% if journal_settings.general.twitter_handle %}
                         <li class="twitter">
-                            <a href="https://www.twitter.com/JsciCOM" target="_blank" title="Twitter">
+                            <a href="{{ journal_settings.general.twitter_handle }}" target="_blank" title="Twitter">
                                 <i class="fa fa-twitter"></i>
                             </a>
                         </li>
+                        {% endif %}
                         <li class="rss">
                             <a href="{% journal_url 'rss_articles' %}" target="_blank" title="RSS">
                                 <i class="fa fa-rss"></i>
