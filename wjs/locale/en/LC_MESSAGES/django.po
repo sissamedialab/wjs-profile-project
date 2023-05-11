@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-04-28 15:00+0200\n"
+"POT-Creation-Date: 2023-05-11 09:59+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -45,85 +45,85 @@ msgstr ""
 msgid "Portughese"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:73
+#: wjs/jcom_profile/forms.py:72
 msgid "Password"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:74
+#: wjs/jcom_profile/forms.py:73
 msgid "Repeat Password"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:179
+#: wjs/jcom_profile/forms.py:178
 #: wjs/themes/JCOM-theme/templates/journal/components/article_sidebar.html:30
 msgid "Keywords"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:230
-#: wjs/themes/JCOM-theme/templates/journal/search.html:17
+#: wjs/jcom_profile/forms.py:229
+#: wjs/themes/JCOM-theme/templates/journal/search.html:16
 msgid "Keyword"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:267
+#: wjs/jcom_profile/forms.py:266
 msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:272
+#: wjs/jcom_profile/forms.py:271
 msgid "If set to false, articles are not created. The authors must start a submission themselves."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:282
+#: wjs/jcom_profile/forms.py:281
 msgid "Match euristics - NOT IMPLEMENTED"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:283
+#: wjs/jcom_profile/forms.py:282
 msgid "Being optimistic ... TODO WRITE ME!"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:288
+#: wjs/jcom_profile/forms.py:287
 msgid "All new contributions will have the choosen section (article type)."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:312
+#: wjs/jcom_profile/forms.py:311
 msgid "Apply changes to this user account"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:372
+#: wjs/jcom_profile/forms.py:371
 msgid "I want to receive alerts about news published in the journal."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:375
+#: wjs/jcom_profile/forms.py:374
 msgid "Preferred language for alerts"
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:25
+#: wjs/jcom_profile/hooks.py:24
 msgid "Edit assignment parameters"
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:26
+#: wjs/jcom_profile/hooks.py:25
 msgid "Go to your your assignment parameters by clicking the button below."
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:27
+#: wjs/jcom_profile/hooks.py:26
 msgid "assignment_parameters"
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:28
+#: wjs/jcom_profile/hooks.py:27
 msgid "Assignment parameters"
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:40
+#: wjs/jcom_profile/hooks.py:39
 msgid "Newsletters"
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:41
+#: wjs/jcom_profile/hooks.py:40
 msgid "Edit your subscription settings by clicking the button below."
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:42
+#: wjs/jcom_profile/hooks.py:41
 msgid "edit_newsletters"
 msgstr ""
 
-#: wjs/jcom_profile/hooks.py:43
+#: wjs/jcom_profile/hooks.py:42
 msgid "Edit my subscription"
 msgstr ""
 
@@ -525,14 +525,14 @@ msgid "Privacy"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/admin/core/si_update.html:57
-#: wjs/themes/JCOM-theme/templates/core/nav.html:286
-#: wjs/themes/JCOM-theme/templates/core/nav.html:351
+#: wjs/themes/JCOM-theme/templates/core/nav.html:288
+#: wjs/themes/JCOM-theme/templates/core/nav.html:353
 msgid "Admin"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/admin/core/si_update.html:125
-#: wjs/themes/JCOM-theme/templates/core/nav.html:94
-#: wjs/themes/JCOM-theme/templates/core/nav.html:161
+#: wjs/themes/JCOM-theme/templates/core/nav.html:96
+#: wjs/themes/JCOM-theme/templates/core/nav.html:163
 #: wjs/themes/JCOM-theme/templates/journal/articles.html:7
 #: wjs/themes/JCOM-theme/templates/journal/articles.html:10
 msgid "Articles"
@@ -710,8 +710,8 @@ msgid "Complete"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:174
-#: wjs/themes/JCOM-theme/templates/core/nav.html:109
-#: wjs/themes/JCOM-theme/templates/core/nav.html:176
+#: wjs/themes/JCOM-theme/templates/core/nav.html:111
+#: wjs/themes/JCOM-theme/templates/core/nav.html:178
 msgid "Submission"
 msgstr ""
 
@@ -785,102 +785,102 @@ msgstr ""
 msgid "Logo Janeway"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:69
-#: wjs/themes/JCOM-theme/templates/core/nav.html:199
+#: wjs/themes/JCOM-theme/templates/core/nav.html:71
+#: wjs/themes/JCOM-theme/templates/core/nav.html:201
 msgid "Account"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:76
+#: wjs/themes/JCOM-theme/templates/core/nav.html:78
 msgid "menu"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:84
-#: wjs/themes/JCOM-theme/templates/core/nav.html:151
+#: wjs/themes/JCOM-theme/templates/core/nav.html:86
+#: wjs/themes/JCOM-theme/templates/core/nav.html:153
 msgid "Home"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:99
-#: wjs/themes/JCOM-theme/templates/core/nav.html:166
+#: wjs/themes/JCOM-theme/templates/core/nav.html:101
+#: wjs/themes/JCOM-theme/templates/core/nav.html:168
 msgid "Issues"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:104
-#: wjs/themes/JCOM-theme/templates/core/nav.html:171
+#: wjs/themes/JCOM-theme/templates/core/nav.html:106
+#: wjs/themes/JCOM-theme/templates/core/nav.html:173
 msgid "Editorial Team"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:114
-#: wjs/themes/JCOM-theme/templates/core/nav.html:181
+#: wjs/themes/JCOM-theme/templates/core/nav.html:116
+#: wjs/themes/JCOM-theme/templates/core/nav.html:183
 #: wjs/themes/JCOM-theme/templates/elements/journal_footer.html:42
 msgid "Contact"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:132
+#: wjs/themes/JCOM-theme/templates/core/nav.html:134
 msgid "Become a Reviewer"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:156
+#: wjs/themes/JCOM-theme/templates/core/nav.html:158
 #: wjs/themes/JCOM-theme/templates/newsletters/newsletter_issue.html:20
 msgid "News"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:258
-#: wjs/themes/JCOM-theme/templates/core/nav.html:298
+#: wjs/themes/JCOM-theme/templates/core/nav.html:260
+#: wjs/themes/JCOM-theme/templates/core/nav.html:300
 msgid "Dashboard"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:262
-#: wjs/themes/JCOM-theme/templates/core/nav.html:305
+#: wjs/themes/JCOM-theme/templates/core/nav.html:264
+#: wjs/themes/JCOM-theme/templates/core/nav.html:307
 msgid "Submit"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:267
-#: wjs/themes/JCOM-theme/templates/core/nav.html:301
+#: wjs/themes/JCOM-theme/templates/core/nav.html:269
+#: wjs/themes/JCOM-theme/templates/core/nav.html:303
 msgid "Kanban"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:270
-#: wjs/themes/JCOM-theme/templates/core/nav.html:311
+#: wjs/themes/JCOM-theme/templates/core/nav.html:272
+#: wjs/themes/JCOM-theme/templates/core/nav.html:313
 msgid "Manager"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:275
-#: wjs/themes/JCOM-theme/templates/core/nav.html:334
+#: wjs/themes/JCOM-theme/templates/core/nav.html:277
+#: wjs/themes/JCOM-theme/templates/core/nav.html:336
 msgid "Edit Article"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:280
-#: wjs/themes/JCOM-theme/templates/core/nav.html:339
+#: wjs/themes/JCOM-theme/templates/core/nav.html:282
+#: wjs/themes/JCOM-theme/templates/core/nav.html:341
 msgid "Edit Issue"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:290
-#: wjs/themes/JCOM-theme/templates/core/nav.html:355
+#: wjs/themes/JCOM-theme/templates/core/nav.html:292
+#: wjs/themes/JCOM-theme/templates/core/nav.html:357
 msgid "Profile"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:293
-#: wjs/themes/JCOM-theme/templates/core/nav.html:358
+#: wjs/themes/JCOM-theme/templates/core/nav.html:295
+#: wjs/themes/JCOM-theme/templates/core/nav.html:360
 msgid "Logout"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:315
+#: wjs/themes/JCOM-theme/templates/core/nav.html:317
 msgid "Edit Submissions Page"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:318
+#: wjs/themes/JCOM-theme/templates/core/nav.html:320
 msgid "Edit Journal Info"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:323
+#: wjs/themes/JCOM-theme/templates/core/nav.html:325
 msgid "Edit Page"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:328
+#: wjs/themes/JCOM-theme/templates/core/nav.html:330
 msgid "Manage Editorial Team"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:345
+#: wjs/themes/JCOM-theme/templates/core/nav.html:347
 msgid "Edit News Item"
 msgstr ""
 
@@ -1030,6 +1030,15 @@ msgstr ""
 msgid "Update"
 msgstr ""
 
+#: wjs/themes/JCOM-theme/templates/elements/accounts/extra_core_fields.html:9
+msgid "By registering an account you agree to our"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/extra_core_fields.html:11
+#: wjs/themes/JCOM-theme/templates/elements/accounts/extra_core_fields.html:13
+msgid "Privacy Policy"
+msgstr ""
+
 #: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:5
 msgid "Publication alert subscription"
 msgstr ""
@@ -1045,6 +1054,39 @@ msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:20
 msgid "No"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:6
+msgid "Core Data"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:40
+msgid "Social Media and Accounts"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:64
+msgid "Biography and Signature"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:73
+msgid "Review Interests"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:74
+msgid "Hit Enter to add a new interest"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:78
+msgid "Profile Image"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:82
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:84
+msgid "Profile image"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/user_form.html:92
+msgid "Options"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/elements/article_listing.html:28
@@ -1107,15 +1149,6 @@ msgstr ""
 msgid "Volumes and Issues"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/field.html:6
-msgid "By registering an account you agree to our"
-msgstr ""
-
-#: wjs/themes/JCOM-theme/templates/field.html:8
-#: wjs/themes/JCOM-theme/templates/field.html:10
-msgid "Privacy Policy"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/journal/article.html:9
 msgid "Preprint"
 msgstr ""
@@ -1133,7 +1166,7 @@ msgid "This article is not a part of any issues"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/journal/articles.html:15
-#: wjs/themes/JCOM-theme/templates/journal/search.html:22
+#: wjs/themes/JCOM-theme/templates/journal/search.html:21
 msgid "Publications"
 msgstr ""
 
@@ -1214,17 +1247,21 @@ msgstr ""
 msgid "Search for an article"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:58
+#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:61
+msgid "Filter by year"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:68
 msgid "Sort articles by"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:70
+#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:80
 msgid "Show"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:72
+#: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:82
 #: wjs/themes/JCOM-theme/templates/journal/search.html:7
-#: wjs/themes/JCOM-theme/templates/journal/search.html:31
+#: wjs/themes/JCOM-theme/templates/journal/search.html:39
 msgid "Search"
 msgstr ""
 
@@ -1236,11 +1273,24 @@ msgstr ""
 msgid "items"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/journal/search.html:13
+#: wjs/themes/JCOM-theme/templates/journal/search.html:12
 msgid "Searching for"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/journal/search.html:26
+#: wjs/themes/JCOM-theme/templates/journal/search.html:24
+#, python-format
+msgid ""
+"\n"
+"                        %(counter)s publication found\n"
+"                    "
+msgid_plural ""
+"\n"
+"                        %(counter)s publications found\n"
+"                    "
+msgstr[0] ""
+msgstr[1] ""
+
+#: wjs/themes/JCOM-theme/templates/journal/search.html:30
 msgid "No articles to display."
 msgstr ""
 
@@ -1285,4 +1335,8 @@ msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/si_details.html:8
 msgid "Special Issues"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/submission/update_editor_parameters.html:7
+msgid "Paper assignements parameters"
 msgstr ""

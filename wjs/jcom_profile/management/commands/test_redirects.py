@@ -75,13 +75,18 @@ TESTS = {
         # - /pt-br/archive/05 - volume
         # - /pt-br/05/02 - issue (NB: "archive" disappears from here onward!)
         # - /pt-br/05/02/JCOMAL_0502_2022_A01 - landing page of paper
+        # - /05/02/JCOMAL_0502_2022_A01 - landing page of paper, but coming from the DOI
         #
         # .abstract to landing page
         ("/pt-br/05/02/JCOMAL_0502_2022_A01.abstract", 301, "/article/pubid/JCOMAL_0502_2022_A01/"),
         ("/es/05/02/JCOMAL_0502_2022_A01.abstract/", 301, "/article/pubid/JCOMAL_0502_2022_A01/"),
         ("/article/pubid/JCOMAL_0502_2022_A01.abstract", 301, "/article/pubid/JCOMAL_0502_2022_A01/"),
         ("/article/pubid/JCOMAL_0502_2022_A01.abstract/", 301, "/article/pubid/JCOMAL_0502_2022_A01/"),
-        # Landing page
+        # Landing page - DOI
+        ("/05/02/JCOMAL_0502_2022_N01", 301, "/article/pubid/JCOMAL_0502_2022_N01/"),
+        ("/05/02/JCOMAL_0502_2022_N01/", 301, "/article/pubid/JCOMAL_0502_2022_N01/"),
+        ("/05/02/JCOMAL_0502_2022_N01/ciao", 301, "/article/pubid/JCOMAL_0502_2022_N01/ciao"),
+        # Landing page - Navigation
         ("/es/05/02/JCOMAL_0502_2022_N01", 301, "/article/pubid/JCOMAL_0502_2022_N01/"),
         ("/pt-br/05/02/JCOMAL_0502_2022_N01/", 301, "/article/pubid/JCOMAL_0502_2022_N01/"),
         ("/es/05/02/JCOMAL_0502_2022_N01/ciao", 301, "/article/pubid/JCOMAL_0502_2022_N01/ciao"),

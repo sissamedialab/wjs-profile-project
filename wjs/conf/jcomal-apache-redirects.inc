@@ -25,6 +25,25 @@ RewriteRule "^/article/pubid/([^/]+).abstract/?$" "/article/pubid/$1/" [R=301,L]
 
 
 # Important! Papers' landing page
+#
+# NB: DOIs point to pages slightly different than those one gets to
+# when just navigating the site: the language (es/pt-br) part is
+# absent in the firsts and present in the seconds...
+#
+# DOI-related
+# From: //jcomal.sissa.it/05/02/JCOMAL_0502_2022_A01
+# To:   //jcomal.sissa.it/article/pubid/JCOMAL_0502_2022_A01
+#
+# Normal documents - with something at the end
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[^/]+)/(?<rest>.*)$" "/article/pubid/$3/$4" [R=301,L]
+# Normal documents - without "/" at the end
+RewriteCond %{REQUEST_URI} "!.*pdf$"
+RewriteCond %{REQUEST_URI} "!.*epub$"
+RewriteRule "^/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[^/]+)$" "/article/pubid/$3/" [R=301,L]
+#
+# Old navigation
 # From: //jcomal.sissa.it/es/05/02/JCOMAL_0502_2022_A01
 # To:   //jcomal.sissa.it/article/pubid/JCOMAL_0502_2022_A01
 #
@@ -36,7 +55,6 @@ RewriteRule "^/(?<language>pt-br|es)/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[
 RewriteCond %{REQUEST_URI} "!.*pdf$"
 RewriteCond %{REQUEST_URI} "!.*epub$"
 RewriteRule "^/(?<language>pt-br|es)/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[^/]+)$" "/article/pubid/$4/" [R=301,L]
-#
 # No Sub-documents / children in JCOMAL
 
 # Issues - managed by Janeway
