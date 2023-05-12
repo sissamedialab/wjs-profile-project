@@ -1,0 +1,67 @@
+# Run as (e.g.):
+# docker-compose -f docker-compose-test-env-nobuild.yml run janeway /bin/bash
+#
+# * How to work in ci/cd-similar env
+# ** setup docker environment
+#
+# docker-compose -f docker-compose-test-env-nobuild.yml run janeway /bin/bash
+# # The above command line brings up a db service (reachable from the
+# # hosting machine to port 2345) and gives you a shell into
+# # janeway'image
+#
+# ** setup db
+# see also [[https://gitlab.sissamedialab.it/wjs/specs/-/wikis/Import-Database][Import Database]]
+#
+# dropdb -h localhost -p2345 -U janeway janeway
+# createdb -h localhost -p2345 -U janeway janeway
+# pg_restore --no-privileges --no-owner --exit-on-error --single-transaction  -U janeway -h localhost -p 2345 --dbname=janeway  /tmp/j_production.sql
+#
+# ** setup janeway
+#
+# mkdir -p /builds/wjs
+# cd /builds/wjs/
+# git clone https://gitlab.sissamedialab.it/wjs/wjs-profile-project.git
+# cd wjs-profile-project/
+# git checkout a9735e08
+# cp cicd_settings.py cicd_test_settings.py /janeway/src/core/
+# pip install --index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple ./[test]
+#
+# cd /janeway/src
+# JANEWAY_SETTINGS_MODULE=core.cicd_settings python3 ./manage.py install_themes
+# export DJANGO_SETTINGS_MODULE=core.cicd_test_settings
+# pytest -c /builds/wjs/wjs-profile-project/pytest.ini /builds/wjs/wjs-profile-project/ -x -v -k registration_as
+#
+services:
+  db:
+    image: postgres:13.8
+    restart: always
+    # Must match with test_settings.DATABASES
+    environment:
+      - POSTGRES_USER=janeway
+      - POSTGRES_PASSWORD=janeway
+      - POSTGRES_DB=janeway
+    # NB: db runs on 5432 (postgres's default) and service "janeway" sees it there
+    #     the port 2345 is exposed to the HOST, not to other services!
+    ports:
+      - '2345:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
+
+    # Must set user (-U) or get `FATAL: role "postgres" does not
+    # exist` (or role "root")
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U janeway"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+
+  janeway:
+    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:latest
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+volumes:
+  db:
+    driver: local
