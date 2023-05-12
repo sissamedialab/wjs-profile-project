@@ -5,7 +5,14 @@
         <div class="col s12">
             <div class="card">
                 <div class="card-panel">
-                    <h2 class="main-title">{% trans "Publication alert" %}</h2>
+                    <h2 class="main-title">
+                        {% if wjs_subscribe_newsletter.title %}
+                            {{ wjs_subscribe_newsletter.title }}
+                        {% else %}
+                            {% trans "Publication alert" %}
+                        {% endif %}
+                    </h2>
+                    {% if wjs_subscribe_newsletter.intro %}<p>{{ wjs_subscribe_newsletter.intro }}</p>{% endif %}
                     <form method="post" action="{% url "register_newsletters" %}">
                         {% csrf_token %}
                         {% materialize_form form %}

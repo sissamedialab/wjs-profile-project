@@ -17,15 +17,15 @@ class Command(BaseCommand):
         themes_folder = os.path.realpath(os.path.join(me.__file__, "../..", "themes"))
         for theme in os.listdir(themes_folder):
             destination = os.path.join(destination_folder, theme)
-            self.stdout.write(self.style.NOTICE(f"Linking {theme} to {destination}..."))
+            self.stdout.write(self.style.SUCCESS(f"Linking {theme} to {destination}..."))
             theme_folder = os.path.join(themes_folder, theme)
             try:
                 os.symlink(theme_folder, destination)
             except FileExistsError:
                 if os.readlink(destination) == theme_folder:
-                    self.stdout.write(self.style.NOTICE("...link to theme already there, nothing to do."))
+                    self.stdout.write(self.style.SUCCESS("...link to theme already there, nothing to do."))
                 else:
                     self.stderr.write(self.style.ERROR("...different file exists! Please check."))
                     self.stderr.write(self.style.ERROR(f"{theme_folder} VS {os.readlink(destination)}"))
             else:
-                self.stdout.write(self.style.NOTICE("...done."))
+                self.stdout.write(self.style.SUCCESS("...done."))

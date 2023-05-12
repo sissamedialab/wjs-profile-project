@@ -10,11 +10,12 @@ from core import files as core_files
 from core import logic
 from core import models as core_models
 from core.models import Account
+from django.apps import apps
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import PermissionRequiredMixin, UserPassesTestMixin
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.mail import send_mail
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.core.validators import validate_email
@@ -1195,6 +1196,21 @@ class AnonymousUserNewsletterRegistration(FormView):
             return reverse("edit_newsletters")
         else:
             return reverse("register_newsletters_email_sent")
+
+    def get_context_data(self, **kwargs):
+        """Add to context the title and description as configured in the wjs_subscribe_newsletter plugin."""
+        context = super().get_context_data(**kwargs)
+        try:
+            model = apps.get_model("wjs_subscribe_newsletter.PluginConfig")
+            plugin_config = model.objects.get(journal=self.request.journal)
+        except LookupError:
+            logger.info("wjs_subscribe_newsletter plugin not installed. Please consider installing.")
+        except ObjectDoesNotExist:
+            logger.info("wjs_subscribe_newsletter plugin not configured. Please complete configuration.")
+        else:
+            context["wjs_subscribe_newsletter"] = plugin_config
+
+        return context
 
 
 class AnonymousUserNewsletterConfirmationEmailSent(TemplateView):

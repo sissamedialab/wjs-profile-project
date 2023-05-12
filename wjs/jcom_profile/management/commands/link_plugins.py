@@ -20,15 +20,15 @@ class Command(BaseCommand):
         for plugin in plugins_folder.iterdir():
             if not plugin.name.startswith("__"):
                 destination = destination_folder / plugin.name
-                self.stdout.write(self.style.NOTICE(f"Linking {plugin.name} to {destination}..."))
+                self.stdout.write(self.style.SUCCESS(f"Linking {plugin.name} to {destination}..."))
                 try:
                     os.symlink(plugin.absolute(), destination)
                     call_command("install_plugins", plugin.name)
                 except FileExistsError:
                     if destination.readlink() == plugin:
-                        self.stdout.write(self.style.NOTICE("...link to plugin already there, nothing to do."))
+                        self.stdout.write(self.style.SUCCESS("...link to plugin already there, nothing to do."))
                     else:
                         self.stderr.write(self.style.ERROR("...different file exists! Please check."))
                         self.stderr.write(self.style.ERROR(f"{plugin.name} VS {destination.readlink()}"))
                 else:
-                    self.stdout.write(self.style.NOTICE("...done."))
+                    self.stdout.write(self.style.SUCCESS("...done."))
