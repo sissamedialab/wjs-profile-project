@@ -62,7 +62,12 @@ from wjs.jcom_profile.models import (
 )
 
 from . import forms
-from .drupal_redirect_views import JcomFileRedirect, JcomIssueRedirect  # noqa F401
+from .drupal_redirect_views import (  # noqa F401
+    DrupalAuthorsRedirect,
+    DrupalKeywordsRedirect,
+    JcomFileRedirect,
+    JcomIssueRedirect,
+)
 from .newsletter.service import NewsletterMailerService
 from .utils import PATH_PARTS, generate_token, save_file_to_special_issue
 
