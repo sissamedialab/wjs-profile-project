@@ -152,6 +152,16 @@ urlpatterns = [
         journal_views.serve_article_pdf,
         name="serve_article_pdf",
     ),
+    url(
+        "^keywords/(?P<kwd_slug>[a-z-]+)$",
+        views.DrupalKeywordsRedirect.as_view(),
+        name="drupal_keywords_redirect",
+    ),
+    url(
+        "^(?P<jcomal_lang>pt-br/|es/)?author/(?P<author_slug>[a-zA-Z-]+)$",
+        views.DrupalAuthorsRedirect.as_view(),
+        name="drupal_author_redirect",
+    ),
     # Redirects - end
 ]
 

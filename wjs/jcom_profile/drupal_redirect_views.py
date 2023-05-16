@@ -1,8 +1,9 @@
 """Views that manage redirect from Drupal-style URLs to Janeway."""
-from core.models import Galley, SupplementaryFile
+from core.models import Account, Galley, SupplementaryFile
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
+from django.utils.text import slugify
 from django.views.generic import RedirectView
 from journal.models import Issue
 from submission.models import Article
@@ -125,3 +126,91 @@ class JcomFileRedirect(RedirectView):
             )
 
         return redirect
+
+
+class DrupalKeywordsRedirect(RedirectView):
+    permanent = True
+
+    def get_redirect_url(self, *args, **kwargs):
+        """Find the kwd using the old slug and redirect to the kwd's new URL."""
+        old_slug = kwargs["kwd_slug"]
+        journal_keywords = self.request.journal.keywords.all().values("id", "word")
+        for kwd in journal_keywords:
+            if slugify(kwd["word"]) == old_slug:
+                return f"/articles/keyword/{kwd['id']}/"
+        raise Http404()
+
+
+class DrupalAuthorsRedirect(RedirectView):
+    permanent = True
+
+    def get_redirect_url(self, *args, **kwargs):
+        """Find the author using the old slug and redirect to the author's new URL."""
+        old_slug = kwargs["author_slug"]
+        if kwargs["jcomal_lang"] is not None:
+            accents_to_ascii = True
+        else:
+            # JCOM used "-"
+            accents_to_ascii = False
+        pieces = old_slug.split("-")
+
+        # Watch out for  O'hara --> ohara (use only initials)
+        if len(pieces) == 2:
+            # let's cover first the most common case (which should yield smaller results)
+            first_initial = pieces[0][0]
+            last_initial = pieces[-1]
+            authors = Account.objects.filter(
+                first_name__istartswith=first_initial,
+                last_name__istartswith=last_initial,
+            ).values("id", "first_name", "last_name")
+            for author in authors:
+                if (
+                    drupal_style_slugify(
+                        [author["first_name"], author["last_name"]],
+                        accents_to_ascii=accents_to_ascii,
+                    )
+                    == old_slug
+                ):
+                    return f"/articles/author/{author['id']}/"
+            raise Http404()
+
+        else:
+            # here I'm not sure where the middle/last name starts...
+            first_initial = pieces[0][0]
+            authors = Account.objects.filter(
+                first_name__istartswith=first_initial,
+            ).values("id", "first_name", "middle_name", "last_name")
+
+            for author in authors:
+                # Mario M. Rossi --> mario-m-rossi
+                # Maria Antonia Fiorenza della Valle Bruna
+                if (
+                    drupal_style_slugify(
+                        [
+                            author["first_name"],
+                            author["middle_name"],
+                            author["last_name"],
+                        ],
+                        accents_to_ascii=accents_to_ascii,
+                    )
+                    == old_slug
+                ):
+                    return f"/articles/author/{author['id']}/"
+            raise Http404()
+
+
+def drupal_style_slugify(elements, accents_to_ascii=True):
+    """Slugify ala Drupal.
+
+    - JCOM style: "-" in place of accented chars
+    - JCOMAL style: same as django's slugify
+    """
+    full_name = " ".join([name for name in elements if name])
+
+    if accents_to_ascii:
+        django_slug = slugify(full_name, allow_unicode=False)
+    else:
+        django_slug = slugify(full_name, allow_unicode=True)
+        django_slug = "".join([c if ord(c) <= 127 else "-" for c in django_slug])
+
+    return django_slug

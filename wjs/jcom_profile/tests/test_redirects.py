@@ -5,6 +5,7 @@ import pytest
 from core.models import Galley
 from django.test import Client
 from django.urls import reverse
+from submission.models import Keyword
 
 
 @pytest.mark.parametrize("root", ("archive", "es", "pt-br"))
@@ -128,7 +129,7 @@ class TestRedirectCitationPdfUrl:
         article.galley_set.get(label="PDF")  # TODO: do I need this?
         # TODO: reverse() uses the `script_prefix` which is set onto
         # the process's thread by (?) Janeway's middleware to keep
-        # track of the journal (if using a path as opposet to a
+        # track of the journal (if using a path as opposed to a
         # domain) (?). The prefix is set by any call to the
         # journal. But if reverse() is called before the prefix is
         # set, it will create a URL without the journal code.
@@ -207,3 +208,82 @@ class TestRedirectCitationPdfUrl:
             },
         )
         assert expected_redirect_url == actual_redirect_url
+
+
+class TestRedirectKeywordsAuthors:
+    """Test that drupal-style keyword and authors urls are redirected to Janeway's ones."""
+
+    @pytest.mark.parametrize(
+        "drupal_url, word",
+        (
+            (
+                "/keywords/citizen-science",
+                "Citizen science",
+            ),
+            (
+                "/keywords/history-of-public-communication-of-science",
+                "History of public communication of science",
+            ),
+            (
+                "/keywords/participation-and-science-governance",
+                "Participation and science governance",
+            ),
+            (
+                "/keywords/policy-making-communication-and-governance-of-science",
+                "Policy-making, communication and governance of science",
+            ),
+            (
+                "/keywords/professionalism-professional-development-and-training-in-science-communication",
+                "Professionalism, professional development and training in science communication",
+            ),
+            (
+                "/keywords/science-communication-theory-and-models",
+                "Science communication: theory and models",
+            ),
+        ),
+    )
+    @pytest.mark.django_db
+    def test_known_kwds(self, client, journal, drupal_url, word):
+        """Test that the system redirect using a kwd's slugified word."""
+
+        kwd = Keyword.objects.create(word=word)
+        journal.keywords.add(kwd)
+
+        response = client.get(f"/{journal.code}{drupal_url}", follow=False)
+        assert response.status_code == 301
+        assert response.url == f"/articles/keyword/{kwd.id}/"
+
+    @pytest.mark.parametrize(
+        "drupal_url, expected_status_code, first, middle, last",
+        (
+            ("/author/vicki-macknight", 301, "Vicki", "", "Macknight"),
+            ("/author/w-gudrun-reijnierse", 301, "W. Gudrun", "", "Reijnierse"),
+            ("/author/xavier-venn-asuncion", 301, "Xavier Venn", "", "Asuncion"),
+            ("/author/xinchang-+Sun", 404, "Xinchang", "", "Sun"),  # --> 404 on Drupal also
+            ("/author/zahaira-fabiola-gonz-lez-romo", 301, "Zahaira Fabiola", "", "González Romo"),
+            # NB: Drupal for JCOMAL slugified differently from Drupal of JCOM!!!
+            ("/pt-br/author/igor-barahona", 301, "Igor", "", "Barahona"),
+            ("/es/author/patricia-aguilera-jimenez", 301, "Patricia", "", "Aguilera-Jiménez"),
+        ),
+    )
+    @pytest.mark.django_db
+    def test_known_authors(
+        self,
+        client,
+        journal,
+        account_factory,
+        drupal_url,
+        expected_status_code,
+        first,
+        middle,
+        last,
+    ):
+        """Test that the system redirect using a user's slugified name."""
+
+        account = account_factory(first_name=first, middle_name=middle, last_name=last)
+
+        # NB: do not follow the rediret: we are inerested in it!
+        response = client.get(f"/{journal.code}{drupal_url}", follow=False)
+        assert expected_status_code == response.status_code
+        if response.status_code == 301:
+            assert response.url == f"/articles/author/{account.id}/"
