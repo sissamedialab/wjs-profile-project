@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: WJS 0.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2023-05-11 09:59+0200\n"
-"PO-Revision-Date: 2023-05-11 10:09+0050\n"
+"PO-Revision-Date: 2023-05-16 17:41+0050\n"
 "Last-Translator: b'Matteo Gamboz <gamboz@medialab.sissa.it>'\n"
 "Language-Team: Spanish <wjs-support@medialab.sissa.it>\n"
 "Language: es\n"
@@ -57,11 +57,11 @@ msgstr ""
 
 #: wjs/jcom_profile/forms.py:178 wjs/themes/JCOM-theme/templates/journal/components/article_sidebar.html:30
 msgid "Keywords"
-msgstr "palabras clave"
+msgstr "Palabras clave"
 
 #: wjs/jcom_profile/forms.py:229 wjs/themes/JCOM-theme/templates/journal/search.html:16
 msgid "Keyword"
-msgstr "palabra clave"
+msgstr "Palabra clave"
 
 #: wjs/jcom_profile/forms.py:266
 msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."

@@ -2,12 +2,14 @@
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect, reverse
+from django.utils.deprecation import MiddlewareMixin
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class PrivacyAcknowledgedMiddleware:
+# TODO: We might want to rewrite as function based middleware
+class PrivacyAcknowledgedMiddleware(MiddlewareMixin):
     """Ensure that the logged-in user has acknowledged the privacy policy."""
 
     @staticmethod

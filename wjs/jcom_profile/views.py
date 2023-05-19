@@ -27,7 +27,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone, translation
 from django.utils.translation import get_language
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 from django.views import View
 from django.views.generic import (
     CreateView,
@@ -1108,7 +1108,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
         then a Forbidden error is raised.
         If the user is not anonymous, the test passes.
         """
-        if self.request.user.is_anonymous():
+        if self.request.user.is_anonymous:
             token = self.request.GET.get("token")
             try:
                 Recipient.objects.get(newsletter_token=token)
@@ -1119,7 +1119,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
 
     def get_object(self, queryset=None):  # noqa
         user, journal = self.request.user, self.request.journal
-        if user.is_anonymous():
+        if user.is_anonymous:
             recipient = Recipient.objects.get(newsletter_token=self.request.GET.get("token"))
             if (not recipient.topics.exists()) and (recipient.news is False):
                 recipient.topics.set(recipient.journal.keywords.all())
@@ -1139,7 +1139,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
         user = self.request.user
         url = reverse("edit_newsletters")
         url = f"{url}?update=1"
-        if user.is_anonymous():
+        if user.is_anonymous:
             url = f"{url}&{urlencode({'token': self.object.newsletter_token})}"
         return url
 
@@ -1155,7 +1155,7 @@ class AnonymousUserNewsletterRegistration(FormView):
         email = form.data["email"]
         journal = self.request.journal
         token = generate_token(email, journal.code)
-        if not user.is_anonymous():
+        if not user.is_anonymous:
             # User is logged in, get or create the Recipient based on user and journal
             recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
             recipient.language = get_language()
@@ -1234,7 +1234,7 @@ def unsubscribe_newsletter(request, token):
     """
     user = request.user
     try:
-        if user.is_anonymous():
+        if user.is_anonymous:
             recipient = Recipient.objects.get(newsletter_token=token)
         else:
             recipient = Recipient.objects.get(user=request.user, journal=request.journal)
@@ -1343,13 +1343,13 @@ def search(request):
         split_term.append(escaped)
 
         form.is_valid()
-        articles = submission_models.Article.objects.search(
+        articles_pk = submission_models.Article.objects.search(
             search_term,
             form.get_search_filters(),
             sort=form.cleaned_data.get("sort"),
             site=request.site_object,
-        )
-        articles = submission_models.Article.objects.filter(pk__in=[x.pk for x in articles])
+        ).values_list("pk", flat=True)
+        articles = submission_models.Article.objects.filter(pk__in=articles_pk)
 
     if selected_keywords:
         articles = articles.filter(

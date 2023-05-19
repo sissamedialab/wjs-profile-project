@@ -9,7 +9,7 @@ from django import forms
 from django.conf import settings
 from django.forms import ModelForm, inlineformset_factory
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from easy_select2.widgets import Select2Multiple
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
@@ -135,6 +135,7 @@ class SIForm(forms.ModelForm):
     special_issue = forms.ModelChoiceField(
         queryset=None,
         required=False,
+        blank=True,
         empty_label="Normal Issue",
         widget=forms.RadioSelect(),
     )

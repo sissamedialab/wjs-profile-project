@@ -367,6 +367,15 @@ def remove_images_dimensions(html: HtmlElement):
             del img.attrib["height"]
 
 
+def standalone_html_to_fragment(html_element: HtmlElement):
+    """Replace tag <html> with a <div> and drop tag <body>."""
+    if html_element.tag != "html":
+        logger.debug("No <html> tag found as root element. Nothing to do.")
+        return
+    html_element.tag = "div"
+    html_element.find(".//body").drop_tag()
+
+
 def process_body(body: str, style=None, lang="eng") -> bytes:
     """Rewrite and adapt body / full-text HTML to match Janeway's expectations.
 
@@ -377,6 +386,7 @@ def process_body(body: str, style=None, lang="eng") -> bytes:
     Images included in body are done elsewhere since they require an existing galley.
     """
     html = lxml.html.fromstring(body)
+    standalone_html_to_fragment(html)
 
     # src/themes/material/assets/toc.js expects
     # - the root element of the article must have id="main_article"

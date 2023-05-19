@@ -100,7 +100,7 @@ CORE_FILETEXT_MODEL = "core.FileText"  # Use "core.PGFileText" for Postgres
 
 DEBUG = True
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = (
     # "wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",
 )
 CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [

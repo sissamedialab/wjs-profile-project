@@ -1,6 +1,6 @@
 """Hooks."""
 from django.template.loader import render_to_string
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 
 
 def extra_core_fields_hook(request_context):

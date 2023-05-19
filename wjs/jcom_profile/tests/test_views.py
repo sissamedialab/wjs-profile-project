@@ -236,9 +236,9 @@ def test_submitting_user_is_main_author_when_setting_is_on(
         "publication_fees": "on",
         "submission_requirements": "on",
         "copyright_notice": "on",
-        "competing_interests": None,
-        "comments_editor": None,
-        "start_submission": None,
+        "competing_interests": "",
+        "comments_editor": "",
+        "start_submission": "",
     }
     url = reverse("submission_start")
     response = client.post(url, data=data)

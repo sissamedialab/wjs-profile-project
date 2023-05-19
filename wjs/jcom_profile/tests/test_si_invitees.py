@@ -124,6 +124,7 @@ class TestSIInvitees:
         self,
         admin,
         article,
+        journal,
         existing_user,
     ):
         """Test that the SI-choosing page is showing as expected.
@@ -135,17 +136,18 @@ class TestSIInvitees:
         """
         client = Client()
         client.force_login(admin)
+        client.get(f"/{journal.code}/")
 
         yesterday = timezone.now() - timezone.timedelta(1)
-        si_no_invitees = SpecialIssueFactory(open_date=yesterday)
+        si_no_invitees = SpecialIssueFactory(open_date=yesterday, journal=journal)
         si_no_invitees.invitees.clear()
 
         # Korpiklaani
-        si_vodka = SpecialIssueFactory(open_date=yesterday)
+        si_vodka = SpecialIssueFactory(open_date=yesterday, journal=journal)
         si_vodka.invitees.set([admin])
 
         # Elio e le storie tese
-        si_lafestadellemedie = SpecialIssueFactory(open_date=yesterday)
+        si_lafestadellemedie = SpecialIssueFactory(open_date=yesterday, journal=journal)
         si_lafestadellemedie.invitees.set([existing_user])
 
         assert admin.janeway_account in si_vodka.invitees.all()
@@ -153,6 +155,7 @@ class TestSIInvitees:
 
         # visit the correct page
         url = reverse("submit_info", args=(article.pk,))
+        client.force_login(admin)
         response = client.get(url)
         assert response.status_code == 200
 
@@ -163,4 +166,5 @@ class TestSIInvitees:
         # I can see the expected SIs
         assert html.find(f".//input[@value='{si_no_invitees.id}']") is not None
         assert html.find(f".//input[@value='{si_vodka.id}']") is not None
+        assert html.find(f".//input[@value='{si_lafestadellemedie.id}']") is None
         assert len(html.findall(".//input[@name='special_issue']")) == 3  # 2 SIs + normal submission
