@@ -1,7 +1,7 @@
 .run-tests:
   stage: test
 
-  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
 
   # TODO: Must match with test_settings.DATABASES
   variables:

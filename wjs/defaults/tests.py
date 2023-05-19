@@ -15,18 +15,15 @@ except ImportError:
     pass
 
 
-from core.janeway_global_settings import INSTALLED_APPS  # noqa
-from core.janeway_global_settings import MIDDLEWARE_CLASSES as DEFAULT_MIDDLEWARE
+from core.janeway_global_settings import INSTALLED_APPS, MIDDLEWARE as DEFAULT_MIDDLEWARE  # noqa
 
-from .settings import INSTALLED_APPS as CUSTOM_APPS
-from .settings import MIDDLEWARE_CLASSES as CUSTOM_MIDDLEWARE
+from .settings import INSTALLED_APPS as CUSTOM_APPS, MIDDLEWARE as CUSTOM_MIDDLEWARE
 
 
 WJS_MIDDLEWARE = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
 
 INSTALLED_APPS.extend(CUSTOM_APPS)
-# MIDDLEWARE_CLASSES is a tuple, not a list
-MIDDLEWARE_CLASSES = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE + WJS_MIDDLEWARE  # noqa
+MIDDLEWARE = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE + WJS_MIDDLEWARE  # noqa
 
 # NEWSLETTER_URL = "http://testserver.com"  # noqa
 

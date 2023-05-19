@@ -121,7 +121,7 @@ def user():
     Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
     """
     # Delete the test user (just in case...).
-    user = Account(username=USERNAME, first_name="User", last_name="Ics")
+    user = Account(username=USERNAME, first_name="User", last_name="Ics", institution="Sissa", department="Media")
     user.save()
     yield user
 
@@ -334,6 +334,7 @@ def published_articles(admin, editor, journal, sections, keywords):
             date_published=timezone.now(),
             section=random.choice(sections),
             stage="Published",
+            language="eng",
         )
         article.keywords.add(random.choice(keywords))
         Identifier.objects.create(id_type="pubid", article=article, identifier=f"JCOM_0101_2022_R0{article.pk}")

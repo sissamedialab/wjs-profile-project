@@ -109,7 +109,7 @@ class JcomFileRedirect(RedirectView):
         else:
             # For old Drupal files
             galley_label = kwargs["extension"].upper()
-            if language := kwargs["language"]:
+            if language := kwargs.get("language", None):
                 galley_label = f"{galley_label} ({language})"
             galley = get_object_or_404(
                 Galley,
@@ -147,7 +147,7 @@ class DrupalAuthorsRedirect(RedirectView):
     def get_redirect_url(self, *args, **kwargs):
         """Find the author using the old slug and redirect to the author's new URL."""
         old_slug = kwargs["author_slug"]
-        if kwargs["jcomal_lang"] is not None:
+        if kwargs.get("jcomal_lang", None) is not None:
             accents_to_ascii = True
         else:
             # JCOM used "-"

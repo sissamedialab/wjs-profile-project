@@ -434,7 +434,7 @@ def test_si_imu_new_author_and_contribution(
         "create_articles_on_import": "on",
         "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
         "first_name_0": "Novicius",
-        "middle_name_0": None,
+        "middle_name_0": "",
         "last_name_0": "Fabulator",
         "email_0": "nfabulator@domain.net",
         "institution_0": "Affilia",
