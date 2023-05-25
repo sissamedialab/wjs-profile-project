@@ -15,7 +15,13 @@ from django.core.management.base import BaseCommand
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
 from jcomassistant import make_epub, make_xhtml
-from jcomassistant.utils import preprocess_xmlfile, read_tex
+from jcomassistant.utils import (
+    correct_translation,
+    find_and_rename_main_galley,
+    preprocess_xmlfile,
+    read_tex,
+    rebuild_translation_galley,
+)
 from journal import models as journal_models
 from lxml.html import HtmlElement
 from production.logic import save_galley, save_galley_image, save_supp_file
@@ -26,6 +32,7 @@ from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
     decide_galley_label,
     drop_existing_galleys,
+    evince_language_from_filename_and_article,
     fake_request,
     process_body,
     publish_article,
@@ -96,7 +103,7 @@ class Command(BaseCommand):
             logger.critical(f"No such directory {self.options['watch_dir']}")
             raise FileNotFoundError(f"No such directory {self.options['watch_dir']}")
         watch_dir = Path(self.options["watch_dir"])
-        files = watch_dir.glob("*.zip")
+        files = sorted(watch_dir.glob("*.zip"))
         for zip_file in files:
             self.process(watch_dir / zip_file)
 
@@ -128,7 +135,7 @@ class Command(BaseCommand):
             logger.critical(f"No XML file found in {zip_file}. Quitting and leaving a mess...")
             raise FileNotFoundError(f"No XML file found in {zip_file}")
         if len(xml_files) > 1:
-            logger.warning("Found {len(xml_file)} XML files in {zip_file}. Using the first one {xml_files[0]}")
+            logger.warning(f"Found {len(xml_files)} XML files in {zip_file}. Using the first one {xml_files[0]}")
         xml_file = xml_files[0]
 
         # Need to read the TeX source in order to correct the XML
@@ -136,9 +143,18 @@ class Command(BaseCommand):
         src_folder = workdir / "src"
         if not os.path.exists(src_folder):
             raise FileNotFoundError(f"Missing src folder {src_folder}")
-        tex_filenames = list(src_folder.glob("JCOM_*.tex"))
+        tex_filenames = list(src_folder.glob("JCOM*.tex"))
+        multilingual = False
         if len(tex_filenames) > 1:
+            # Assuming multilingual paper.
+            multilingual = True
+
+            # Find the tex source with the shortest name, because
+            # usually we have the English version named <pubid>.tex
+            # and the "translations" as <pubid>_<lang>.tex
+            tex_filenames.sort()
             logger.warning(f"Found {len(tex_filenames)} tex files. Using {tex_filenames[0]}")
+
         tex_filename = tex_filenames[0]
         tex_data = read_tex(tex_filename)
 
@@ -164,6 +180,23 @@ class Command(BaseCommand):
         except Exception as exception:
             logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
 
+        if multilingual:
+            try:
+                for translation_tex_filename in tex_filenames[1:]:
+                    correct_translation(translation_tex_filename, tex_filename)
+
+                    translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
+                    # TODO: verify if Janeway can manage tranlastions of HTML galley
+
+                    translation_tex_data = read_tex(translation_tex_filename)
+                    translation_epub_galley_filename = make_epub.make(
+                        translation_html_galley_filename,
+                        tex_data=translation_tex_data,
+                    )
+                    self.set_epub_galley(article, translation_epub_galley_filename, pubid)
+
+            except Exception as exception:
+                logger.error(f"Generation of HTML and EPUB galley failed for {translation_tex_filename}: {exception}")
         self.set_doi(article)
         publish_article(article)
         # Cleanup
@@ -172,7 +205,8 @@ class Command(BaseCommand):
     def set_html_galley(self, article, html_galley_filename):
         """Set the give file as HTML galley."""
         html_galley_text = open(html_galley_filename).read()
-        processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp")
+        galley_language = evince_language_from_filename_and_article(html_galley_filename, article)
+        processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
         name = "body.html"
         html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)
         label = "HTML"
@@ -221,12 +255,16 @@ class Command(BaseCommand):
 
     def set_authors(self, article, xml_obj):
         """Find and set the article's authors, creating them if necessary."""
+        wjapp = query_wjapp_by_pubid(
+            article.get_identifier("pubid"),
+            url=self.journal_data["wjapp_url"],
+            api_key=self.journal_data["wjapp_api_key"],
+        )
         # The "source" of this author's info, used for future reference
-        wjapp = query_wjapp_by_pubid(article.get_identifier("pubid"))
-        source = "jcom"
+        source = self.journal_data["correspondence_source"]
         pubid = article.get_identifier("pubid")
         # The first set of <author> elements (the one outside
-        # <document>) is guarantee to have the names and the order
+        # <document>) is guaranteed to have the names and the order
         # correct. Ignore the rest (beware "//author" != "/author")
         for order, author_obj in enumerate(xml_obj.findall("/author")):
             # Don't confuse user_cod (camelcased originally) that is
@@ -238,25 +276,45 @@ class Command(BaseCommand):
                 logger.error(f"No email for author {user_cod} on {pubid}. Using {email}")
             # just in case:
             email = email.strip()
-            author, created = Account.objects.get_or_create(
-                usercods__source=source,
-                usercods__user_cod=user_cod,
+
+            # We use the email as discriminant because it must be
+            # unique. This is opposed to using the wjapp usercod,
+            # because different usercod-source can have the same email
+            # (same person on multiple journals)
+            author, account_created = Account.objects.get_or_create(
+                email=email,
                 defaults={
-                    "email": email,
-                    "first_name": author_obj.get("firstname"),  # NB: this contains first+middle
+                    "first_name": author_obj.get("firstname"),
                     "last_name": author_obj.get("lastname"),
                 },
             )
-            if created:
-                # Store info about where this author came from, so we
-                # can match him in the future.
-                mapping, _ = wjs_models.Correspondence.objects.get_or_create(
-                    account=author,
-                    user_cod=user_cod,
-                    source=source,
-                )
-                # `used` indicates that this usercod from this source
-                # has been used to create the core.Account record
+            # Sanity check: it is possible that data from Janeway and from wjapp differ.
+            # See also https://gitlab.sissamedialab.it/wjs/specs/-/issues/380
+            if not account_created:
+                if author.first_name != author_obj.get("firstname"):
+                    logger.error(
+                        f"Different first name for {author.email}."
+                        f' Janeway {author.first_name} vs. wjapp {author_obj.get("firstname")}',
+                    )
+                if author.last_name != author_obj.get("lastname"):
+                    logger.error(
+                        f"Different last name for {author.email}."
+                        f' Janeway {author.last_name} vs. wjapp {author_obj.get("lastname")}',
+                    )
+
+            # Store away wjapp's userCod
+            source = self.journal_data["correspondence_source"]
+            mapping, _ = wjs_models.Correspondence.objects.get_or_create(
+                account=author,
+                user_cod=user_cod,
+                source=source,
+                defaults={
+                    "email": email,
+                },
+            )
+            # `used` indicates that this usercod from this source
+            # has been used to create the core.Account record
+            if account_created:
                 mapping.used = True
                 mapping.save()
 
@@ -287,9 +345,13 @@ class Command(BaseCommand):
         for order, kwd_obj in enumerate(xml_obj.findall("//document/keyword")):
             # Janeway's keywords are a simple model with a "word" field for the kwd text
             kwd_word = kwd_obj.text.strip()
+            # in wjapp-JCOMAL, the keyword string contains all three
+            # languages separated by ";". The first is English.
+            if self.options["journal-code"] == "JCOMAL":
+                kwd_word = kwd_word.split(";")[0].strip()
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
             if created:
-                logger.warning('Created keyword "{kwd_word}" for {pubid}. Kwds are not often created. Please check!')
+                logger.warning(f'Created keyword "{kwd_word}" for {pubid}. Kwds are not often created. Please check!')
             submission_models.KeywordArticle.objects.get_or_create(
                 article=article,
                 keyword=keyword,
@@ -326,8 +388,10 @@ class Command(BaseCommand):
         # More sanity check: the volume's title always has the form
         # "Volume 01, 2002"
         volume_title = vol_obj_a.text
-        year = 2001 + volume
-        if volume_title != f"Volume {volume:02}, {year}":
+        inception_year = self.journal_data["inception_year"]
+        year = inception_year + volume
+        expected_title = f"Volume {volume:02}, {year}"
+        if volume_title != expected_title:
             logger.error(f'Unexpected volume title "{volume_title}"')
 
         # If the issue's text has a form different from
@@ -423,8 +487,6 @@ class Command(BaseCommand):
         if len(pdf_files) == 0:
             logger.critical(f"No PDF file found in {workdir}. Quitting and leaving a mess...")
             raise FileNotFoundError(f"No PDF file found in {workdir}.")
-        if len(pdf_files) > 2:
-            logger.warning(f"Found {len(pdf_files)} PDF files for {pubid}. Please check.")
 
         drop_existing_galleys(article)
 
@@ -436,41 +498,73 @@ class Command(BaseCommand):
         # (even if there are two PDF files). But see #194.
         article.language = "eng"
 
-        for pdf_file in pdf_files:
-            file_name = os.path.basename(pdf_file)
-            file_mimetype = "application/pdf"  # I just know it! (sry :)
-            uploaded_file = File(open(pdf_file, "rb"), file_name)
-            label, language = decide_galley_label(pubid, file_name=file_name, file_mimetype=file_mimetype)
-            if language and language != "en":
-                if article.language != "eng":
-                    # We can have 2 non-English galleys (PDF and EPUB),
-                    # they are supposed to be of the same language. Not checking.
-                    #
-                    # If the article language is different from
-                    # english, this means that a non-English gally has
-                    # already been processed and there is no need to
-                    # set the language again.
-                    pass
-                else:
-                    set_language(article, language)
-            save_galley(
-                article,
-                request=fake_request,
-                uploaded_file=uploaded_file,
-                is_galley=True,
-                label=label,
-                save_to_disk=True,
-                public=True,
+        if len(pdf_files) > 1:
+            if article.journal.code == "JCOM":
+                # I really don't know what to do here untill I see an example...
+                logger.error(f"{len(pdf_files)} PDF galleys in JCOM (expecting 1). Ignoring PDF galleys.")
+                return
+
+            # Here we are importing multiple PDF galleys in JCOMAL
+            logger.debug(f"Found {len(pdf_files)} PDF galleys.")
+
+            # I'm working under these assumptions:
+            #
+            # - the file whose name ends in _en.pdf is probably correct
+            #   (i.e. it includes DOI, publication date etc.), but the
+            #   language is undecided (probably really English if it comes
+            #   from JCOM, but something else if it comes from JCOMAL)
+            #
+            # - the file whose name ends in _xx.pdf (not _en.pdf) is
+            #   probably in the language suggested by the name, but the
+            #   content is wrong (missing DOI, etc.). This file should be
+            #   dropped and re-created from the corresponding tex source
+            #   found, but only _after_ the tex source has been corrected
+            #   to include the missing content.
+
+            main_pdf_filename, translation_pdf_filename = find_and_rename_main_galley(pdf_files)
+            translation_pdf_file, translation_label, translation_language = rebuild_translation_galley(
+                translation_pdf_filename,
+                main_pdf_filename,
             )
-            logger.debug(f"PDF galley {label} set onto {pubid}")
+            set_translation_galley(translation_pdf_file, translation_label, article)
+
+        else:
+            main_pdf_filename = pdf_files[0]
+
+        file_name = os.path.basename(main_pdf_filename)
+        file_mimetype = "application/pdf"  # I just know it! (sry :)
+        uploaded_file = File(open(main_pdf_filename, "rb"), file_name)
+        label, language = decide_galley_label(pubid, file_name=file_name, file_mimetype=file_mimetype)
+        if language and language != "en":
+            if article.language != "eng":
+                # We can have 2 non-English galleys (PDF and EPUB),
+                # they are supposed to be of the same language. Not checking.
+                #
+                # If the article language is different from
+                # english, this means that a non-English gally has
+                # already been processed and there is no need to
+                # set the language again.
+                pass
+            else:
+                set_language(article, language)
+        save_galley(
+            article,
+            request=fake_request,
+            uploaded_file=uploaded_file,
+            is_galley=True,
+            label=label,
+            save_to_disk=True,
+            public=True,
+        )
+        logger.debug(f"PDF galley {label} set onto {pubid}")
 
     def create_article(self, xml_obj):
         """Create the article."""
         pubid = xml_obj.find("//document/articleid").text
-        jcom = journal_models.Journal.objects.get(code="JCOM")
+        journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
         logger.debug(f"Creating {pubid}")
         article = submission_models.Article.get_article(
-            journal=jcom,
+            journal=journal,
             identifier_type="pubid",
             identifier=pubid,
         )
@@ -481,7 +575,7 @@ class Command(BaseCommand):
             logger.warning(f"Re-importing existing article {pubid} at {article.id}")
         else:
             article = submission_models.Article.objects.create(
-                journal=jcom,
+                journal=journal,
             )
         article.title = xml_obj.find("//document/title").text
         article.abstract = xml_obj.find("//document/abstract").text
@@ -599,3 +693,19 @@ def mangle_images(article):
 
     with open(galley_file.self_article_path(), "wb") as out_file:
         out_file.write(lxml.html.tostring(html, pretty_print=False))
+
+
+def set_translation_galley(pdf_file, label, article):
+    """Set the given file as galley for the given article, using the given language and label."""
+    file_name = os.path.basename(pdf_file)
+    uploaded_file = File(open(pdf_file, "rb"), file_name)
+    save_galley(
+        article,
+        request=fake_request,
+        uploaded_file=uploaded_file,
+        is_galley=True,
+        label=label,
+        save_to_disk=True,
+        public=True,
+    )
+    logger.debug(f"PDF galley {label} set onto {article}")
