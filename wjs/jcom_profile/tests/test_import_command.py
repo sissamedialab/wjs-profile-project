@@ -79,3 +79,120 @@ class TestImport:
             expected_body = expected_result_file.read()
 
         assert processed_body == expected_body
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize(
+        "lang, header",
+        (
+            ("eng", "How to cite"),
+            ("spa", "Cómo citar"),
+            ("por", "Como citar"),
+        ),
+    )
+    def test_drop_how_to_cite(self, lang, header):
+        """Test that the how-to-cite part is removed from the HTML galley."""
+        from wjs.jcom_profile.import_utils import drop_how_to_cite
+
+        html = lxml.html.fromstring(
+            f"""<root>
+        <h2>keepme 1</h2>
+        <p>keepme 1 par</p>
+        <h2>{header}</h2>
+        <p>Ciao</p>
+        <h2>keepme 2</h2>
+        <p>keepme 2</p>
+        </root>""",
+        )
+
+        drop_how_to_cite(html=html, lang=lang)
+
+        h2_elements = html.findall(".//h2")
+        assert len(h2_elements) == 2
+        for h2 in h2_elements:
+            assert "keepme" in h2.text
+
+        p_elements = html.findall(".//p")
+        assert len(p_elements) == 2
+        for p in p_elements:
+            assert "keepme" in p.text
+
+    @pytest.mark.django_db
+    def test_drop_how_to_cite_jcomal_0601_2023_a03(self):
+        """Test that the how-to-cite part is removed from this galley fragment."""
+        from wjs.jcom_profile.import_utils import drop_how_to_cite
+
+        html = lxml.html.fromstring(
+            f"""<root>
+ <p class="noindent">
+  Nat&#225;lia Martins Flores. Jornalista, gerente de conte&#250;do da Ag&#234;ncia Bori, doutora
+em Comunica&#231;&#227;o pela Universidade Federal de Pernambuco (UFPE), tem
+p&#243;s-doutorado na &#225;rea de Comunica&#231;&#227;o, nas linhas de pesquisa de Estrat&#233;gias
+Comunicacionais (UFSM) e Comunica&#231;&#227;o de ci&#234;ncia e divulga&#231;&#227;o cient&#237;fica
+(Unicamp). Tem experi&#234;ncia com an&#225;lise de discurso e de linguagem, tendo realizado
+est&#225;gio doutoral na Universit&#233; Sorbonne IV, em Paris. Ela colabora com o grupo de
+pesquisa  TemCi&#234;ncianoBR: produ&#231;&#227;o cient&#237;fica brasileira e sua dissemina&#231;&#227;o
+(Labjor/Unicamp).
+  <br class="newline">
+  E-mail:
+  <a href="mailto:nataliflores@gmail.com">
+   nataliflores@gmail.com
+  </a>
+ </p>
+ <h2 class="likesectionHead">
+  <a id="x1-13000">
+  </a>
+  Como citar
+  <a id="Q1-1-25">
+  </a>
+ </h2>
+ <p class="indent">
+  Hafiz, M., Righetti, S., Gamba, E., Quaglio de Andrade, F. e Martins Flores, N., Quaglio de
+Andrade, F. e (2023). &#8216;Ci&#234;ncia na m&#237;dia: uma proposta de classifica&#231;&#227;o de
+informa&#231;&#227;o a partir de estudo de caso sobre a "Folha" e o "NYT" no primeiro ano da
+pandemia&#8217;. JCOM &#8211;
+  <i>
+   Am&#233;rica Latina
+  </i>
+  06 (01), A03.
+  <a href="https://doi.org/10.22323/3.06010203">
+   https://doi.org/10.22323/3.06010203
+  </a>
+  .
+ </p>
+ <p class="indent">
+ </p>
+ <h2 class="likesectionHead">
+  <a id="x1-14000">
+  </a>
+  Notas
+  <a id="Q1-1-27">
+  </a>
+ </h2>
+ <div class="footnotes">
+  <a id="x1-4009x1">
+  </a>
+  <p class="noindent">
+   <span class="footnote-mark">
+    <a href="#fn1x0-bk" id="fn1x0">
+     <sup class="textsuperscript">
+      1
+     </sup>
+    </a>
+   </span>
+   Um caso simb&#243;lico se deu na afirma&#231;&#227;o, do presidente Bolsonaro, de que caso fosse contaminado
+pelo v&#237;rus "nada sentiria ou seria acometido, quando muito, de uma gripezinha ou resfriadinho"j&#225; que
+teria "hist&#243;rico de atleta". A declara&#231;&#227;o foi feita em rede nacional em 24 de mar&#231;o de 2020
+e foi amplamente rebatida pela imprensa a partir de evid&#234;ncias cient&#237;ficas dispon&#237;veis na
+&#233;poca.
+  </p>
+        </root>""",  # noqa
+        )
+
+        h2_elements = html.findall(".//h2")
+        assert len(h2_elements) == 2
+
+        drop_how_to_cite(html=html, lang="por")
+
+        h2_elements = html.findall(".//h2")
+        assert len(h2_elements) == 1
+        assert "Notas" in h2_elements[0].text_content()
