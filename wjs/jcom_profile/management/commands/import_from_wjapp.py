@@ -52,7 +52,7 @@ SECTIONS_MAPPING = {
     "editorial": "Editorial",
     "article": "Article",
     "review article": "Review Article",
-    "practice insight": "Practice insight",
+    "practice insight": "Practice Insight",
     "essay": "Essay",
     "focus": "Focus",
     "commentary": "Commentary",
@@ -450,7 +450,7 @@ class Command(BaseCommand):
         )
         if created:
             logger.warning(
-                'Created section "{section_name}" for {pubid}. Sections are not ofter created. Please check!',
+                f'Created section "{section_name}" for {pubid}. Sections are not ofter created. Please check!',
             )
 
         article.section = section
