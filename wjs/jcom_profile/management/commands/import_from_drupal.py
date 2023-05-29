@@ -76,7 +76,7 @@ JOURNALS_DATA = {
             "Editorial": (1, "Editorials"),
             "Article": (2, "Articles"),
             "Review Article": (3, "Review Articles"),
-            "Practice insight": (4, "Practice insights"),
+            "Practice Insight": (4, "Practice Insights"),
             "Essay": (5, "Essays"),
             "Focus": (6, "Focus"),
             "Commentary": (7, "Commentaries"),
