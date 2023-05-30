@@ -156,6 +156,9 @@ class RecipientAdmin(admin.ModelAdmin):
 class KeywordTranslationAdmin(KeywordAdmin, TranslationAdmin):
     """Keyword translations."""
 
+    list_filter = ["journal"]
+    list_display = ["word", "id"]
+
 
 admin.site.unregister(Keyword)
 admin.site.register(Keyword, KeywordTranslationAdmin)
