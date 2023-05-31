@@ -43,7 +43,10 @@ $primary-color-light: lighten($primary-color, 15%);
 $primary-color-dark: darken($primary-color, 15%);
 $primary-base: color("journal-color", "base");
 
-$secondary-color: color("teal", "lighten-1");
+$secondary-color: color("journal-color", "darken-4");
+$button-floating-background: color("journal-color", "darken-4");
+$button-floating-background-hover: color("journal-color", "lighten-1");
+$button-raised-background: color("journal-color", "darken-4");
 $success-color: color("green", "base");
 $error-color: color("red", "base");
 $link-color: color("journal-color", "darken-1");
