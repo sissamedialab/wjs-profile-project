@@ -7,8 +7,7 @@
     <meta name="viewport" content="width=device-width" />
     <meta http-equiv="Content-type" content="text/html" charset="UTF-8" />
     <title>Publication Alert - {{ journal.name }}</title>
-    <link rel="stylesheet"
-          href="{{ site_url }}{% static 'JCOM-theme/css/newsletter.css' %}" />
+    <link rel="stylesheet" href="{% static "JCOM-theme/css/newsletter_" %}{{ journal.code|lower }}.css">
 </head>
 <body>
     <table width="100%">
