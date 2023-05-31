@@ -21,6 +21,7 @@ from core.janeway_global_settings import MIDDLEWARE_CLASSES as DEFAULT_MIDDLEWAR
 from .settings import INSTALLED_APPS as CUSTOM_APPS
 from .settings import MIDDLEWARE_CLASSES as CUSTOM_MIDDLEWARE
 
+NEWSLETTER_URL = "https://jcom.sissa.it"
 
 WJS_MIDDLEWARE = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
 
