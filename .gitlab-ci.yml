@@ -1,21 +1,15 @@
 default:
   image: python:3.9
-  # Default runner tag
+  # Runner must be inside Inasset's farm
   tags:
     - inasset
 
-variables:
-  PACKAGE_NAME: 'wjs.jcom_profile'
-
-# Not running any tests (at the moment), because they require a
-# working installation of Janeway, with this django app installed.
 stages:
   - test
   - build
   - deploy
 
 
-# TODO: restore ref of deploy to "master"
 include:
   - project: 'wjs/wjs-profile-project'
     ref: master
@@ -58,7 +52,7 @@ upload-package:
     - .upload-package
 
 
-deploy-to-test:
+deploy-to-dev:
   only:
     - tags
   extends:
@@ -73,7 +67,7 @@ deploy-to-test:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy"
+    DEPLOY_CMD: "deploy-dev-wjs"
 
 deploy-to-production:
   extends:
@@ -83,4 +77,17 @@ deploy-to-production:
   variables:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
-    DEPLOY_CMD: "deploy"
+    DEPLOY_CMD: "deploy-prod-wjs"
+
+deploy-to-pre-production:
+  extends:
+    - .deploy
+  when: manual
+  environment: pre-production
+  variables:
+    # There is a Janeway pre-production instance on the same
+    # user@server as the test instance. The deploy script will do the
+    # deploy based on the DEPLOY_CMD
+    SERVER_IP: "TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+    DEPLOY_CMD: "deploy-pp-wjs"
