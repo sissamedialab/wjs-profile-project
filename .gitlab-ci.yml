@@ -25,14 +25,29 @@ include:
     file: '.gitlab-ci-pre-commit.yml'
 
 
-run-tests:
+run-dev-tests:
   # Always run tests, except for tags, which have tests already run on
   # them when the commit is made.
   except:
     - tags
-
   extends:
     - .run-tests
+  variables:
+    IMAGE_TAG: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+  rules:
+    - if: $CI_COMMIT_BRANCH != "wjs-production" && $CI_COMMIT_BRANCH != "master"
+
+
+run-prod-tests:
+  except:
+    - tags
+  extends:
+    - .run-tests
+  variables:
+    IMAGE_TAG: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:production
+  rules:
+    - if: $CI_COMMIT_BRANCH == "wjs-production" || $CI_COMMIT_BRANCH == "master"
+
 
 
 pre-commit:
