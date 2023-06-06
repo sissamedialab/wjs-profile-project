@@ -66,7 +66,10 @@ function deploy_janeway() {
 function deploy_wjs() {
     set_derivable_variables
 
-    "$PIP" install -U "wjs.jcom-profile"
+    # Install from a pkg registry by default, but use the first
+    # argument givent to this function if defined (see deploy-dev-wjs)
+    WJS_APP=${$1:-"wjs.jcom-profile"}
+    "$PIP" install -U
     "$PIP" install -U "jcomassistant"
 
     cd "$MANAGE_DIR"
@@ -109,6 +112,7 @@ function set_dev_variables() {
     WJS_BRANCH=wjs-develop
 }
 
+shopt -s extglob
 case "$SSH_ORIGINAL_COMMAND" in
     # Production
     "deploy-prod-janeway")
@@ -133,19 +137,24 @@ case "$SSH_ORIGINAL_COMMAND" in
         set_dev_variables
         deploy_janeway
         ;;
-    "deploy-dev-wjs")
+    # Don't be too generous with the pattern here: watch out for sh injections!
+    # Remember Bobby Tables https://xkcd.com/327/
+    "deploy-dev-wjs:[:word:]")
         set_dev_variables
-        deploy_wjs
+        # We don't install the packaged app into the dev instance, but
+        # rather we install a tag.
+        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs://')
+        deploy_wjs "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-jcom-profile@$TAGNAME"
         ;;
     # Test (?)
     "deploy-test-janeway")
         echo "Not implemented!"
         exit 1
-    ;;
+        ;;
     "deploy-test-wjs")
         echo "Not implemented!"
         exit 1
-    ;;
+        ;;
     *)
         echo "Unknown command $SSH_ORIGINAL_COMMAND"
         exit 1

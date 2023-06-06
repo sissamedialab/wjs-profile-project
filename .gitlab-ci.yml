@@ -25,8 +25,13 @@ include:
     file: '.gitlab-ci-pre-commit.yml'
 
 
-# Run tests on the development (Janeway 1.5) branch
+# Run tests on the development "track" (Janeway 1.5 and its relative wjs)
+# Prepare environment where to run the tests by:
+# - use janeway:develop image
+# - checkout wjs-develop branch (for wjs)
+# - merge the new changes into wjs-develop
 run-dev-tests:
+  stage: test
   allow_failure: true
   # I would need some variable like CI_BRANCH_ANCESTOR != "master"
   only:
@@ -34,11 +39,36 @@ run-dev-tests:
     - ($CI_COMMIT_BRANCH != "wjs-production") && ($CI_COMMIT_BRANCH != "master")
   except:
     - tags
-  extends:
-    - .run-tests
-  # The Janeway image to use for the tests is the only thing that changes...
+  # NB: the Janeway image used for the tests changes:
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+  #                                                                             ^^^^^^^
+
   variables:
-    IMAGE_TAG: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+    POSTGRES_USER: janeway
+    POSTGRES_PASSWORD: janeway
+    POSTGRES_DB: janeway
+    # used by `pytest ...`:
+    DJANGO_SETTINGS_MODULE: core.cicd_test_settings
+    # used by `manage.py ...`:
+    JANEWAY_SETTINGS_MODULE: core.cicd_settings
+    # Use the following after force-pushes:
+    GIT_STRATEGY: clone
+    # see e.g.:
+    # - https://docs.gitlab.com/ee/ci/runners/configure_runners.html#git-strategy
+    # - https://stackoverflow.com/a/66519431/1581629
+
+  services:
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
+      alias: db
+
+  script:
+    - git checkout wjs-develop
+    - git merge --ff-only $CI_COMMIT_BRANCH
+    - pip install --index-url=$PIP_INDEX_URL ./[test]
+    - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
+    - cd /janeway/src
+    - JANEWAY_SETTINGS_MODULE=${JANEWAY_SETTINGS_MODULE} python3 ./manage.py install_themes
+    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -x
 
 
 run-prod-tests:
@@ -76,21 +106,6 @@ upload-package:
     - .upload-package
 
 
-# prepare-dev:
-#   add a temporary job to
-#   - tag wjs-develop
-#   - when master is tagged
-#   this job can be droppend when master is abandoned
-
-#   add a temporary job to
-#   - if merge on master
-#   - merge --into wjs-develop master
-
-#   deploy su develop
-#   - only on tag su wjs-develop
-#   - pip install -U https://gitlab.../wjs...@$TAGNAME
-
-
 deploy-to-dev:
   only:
     - tags
@@ -106,7 +121,10 @@ deploy-to-dev:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-dev-wjs"
+    # The deploy script will consider what's after the ":" as the tag name
+    # but for security reasons only :word: chars are considered.
+    # So beware when you create the tags.
+    DEPLOY_CMD: "deploy-dev-wjs:$CI_COMMIT_TAG"
 
 deploy-to-production:
   extends:
