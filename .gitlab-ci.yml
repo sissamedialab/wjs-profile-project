@@ -25,7 +25,29 @@ include:
     file: '.gitlab-ci-pre-commit.yml'
 
 
+# Run tests on the development (Janeway 1.5) branch
 run-dev-tests:
+  allow_failure: true
+  # I would need some variable like CI_BRANCH_ANCESTOR != "master"
+  only:
+    variables:
+    - ($CI_COMMIT_BRANCH != "wjs-production") && ($CI_COMMIT_BRANCH != "master")
+  except:
+    - tags
+  extends:
+    - .run-tests
+  # The Janeway image to use for the tests is the only thing that changes...
+  variables:
+    IMAGE_TAG: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+
+
+run-prod-tests:
+  # Do not set the following: it would run important tests only for some branches!
+  # I would need some variable like CI_BRANCH_ANCESTOR == "master"
+  # only:
+  #   variables:
+  #   - ($CI_COMMIT_BRANCH == "wjs-production") || ($CI_COMMIT_BRANCH == "master")
+
   # Always run tests, except for tags, which have tests already run on
   # them when the commit is made.
   except:
@@ -33,20 +55,7 @@ run-dev-tests:
   extends:
     - .run-tests
   variables:
-    IMAGE_TAG: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
-  rules:
-    - if: $CI_COMMIT_BRANCH != "wjs-production" && $CI_COMMIT_BRANCH != "master"
-
-
-run-prod-tests:
-  except:
-    - tags
-  extends:
-    - .run-tests
-  variables:
     IMAGE_TAG: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:production
-  rules:
-    - if: $CI_COMMIT_BRANCH == "wjs-production" || $CI_COMMIT_BRANCH == "master"
 
 
 
@@ -65,6 +74,21 @@ upload-package:
 
   extends:
     - .upload-package
+
+
+# prepare-dev:
+#   add a temporary job to
+#   - tag wjs-develop
+#   - when master is tagged
+#   this job can be droppend when master is abandoned
+
+#   add a temporary job to
+#   - if merge on master
+#   - merge --into wjs-develop master
+
+#   deploy su develop
+#   - only on tag su wjs-develop
+#   - pip install -U https://gitlab.../wjs...@$TAGNAME
 
 
 deploy-to-dev:
