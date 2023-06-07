@@ -67,6 +67,8 @@ run-dev-tests:
       alias: db
 
   script:
+    - git remote set-branches origin '*'
+    - git fetch --depth=1
     - git branch -a|grep wjs- || true
     - git checkout wjs-develop
     - git merge --ff-only $CI_COMMIT_BRANCH
