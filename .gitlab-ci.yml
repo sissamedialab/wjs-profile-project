@@ -69,9 +69,11 @@ run-dev-tests:
   script:
     - git remote set-branches origin '*'
     - git fetch --depth=1
-    - git branch -a|grep wjs- || true
+    - git branch -a
     - git checkout wjs-develop
-    - git merge --ff-only $CI_COMMIT_BRANCH
+    - git branch
+    - git merge --ff-only $CI_COMMIT_BRANCH || true
+    - git merge --ff-only origin/$CI_COMMIT_BRANCH
     - pip install --cache .cache --index-url=$PIP_INDEX_URL ./[test]
     - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
     - cd /janeway/src
