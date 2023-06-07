@@ -49,6 +49,11 @@ run-dev-tests:
       - .cache
 
   variables:
+    # DROP v !!!!!!!!!! Risky!!!!!
+    CI_DEBUG_TRACE: "true"
+    # DROP ^ !!!!!!!!!!
+    # and then re-set settings -> ci/cd -> Public pipelines to true
+
     POSTGRES_USER: janeway
     POSTGRES_PASSWORD: janeway
     POSTGRES_DB: janeway
@@ -61,19 +66,22 @@ run-dev-tests:
     # see e.g.:
     # - https://docs.gitlab.com/ee/ci/runners/configure_runners.html#git-strategy
     # - https://stackoverflow.com/a/66519431/1581629
+    #
+    # Not setting `GIT_FETCH_EXTRA_FLAGS: --no-single-branch` because
+    # of GIT_STRATEGY is set to `clone` (so I suppose that these flags
+    # don't take effect)
 
   services:
     - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
       alias: db
 
   script:
-    - git remote set-branches origin '*'
-    - git fetch --depth=1
-    - git branch -a
-    - git checkout wjs-develop
+    - git status
     - git branch
-    - git merge --ff-only $CI_COMMIT_BRANCH || true
-    - git merge --ff-only origin/$CI_COMMIT_BRANCH
+    - git branch -a
+    - git fetch --unshallow
+    - git checkout wjs-develop
+    - git merge --ff-only $CI_COMMIT_BRANCH
     - pip install --cache .cache --index-url=$PIP_INDEX_URL ./[test]
     - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
     - cd /janeway/src
