@@ -43,6 +43,11 @@ run-dev-tests:
   image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
   #                                                                             ^^^^^^^
 
+  cache:
+    key: cache-default
+    paths:
+      - .cache
+
   variables:
     POSTGRES_USER: janeway
     POSTGRES_PASSWORD: janeway
@@ -62,9 +67,10 @@ run-dev-tests:
       alias: db
 
   script:
+    - git branch -a|grep wjs- || true
     - git checkout wjs-develop
     - git merge --ff-only $CI_COMMIT_BRANCH
-    - pip install --index-url=$PIP_INDEX_URL ./[test]
+    - pip install --cache .cache --index-url=$PIP_INDEX_URL ./[test]
     - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
     - cd /janeway/src
     - JANEWAY_SETTINGS_MODULE=${JANEWAY_SETTINGS_MODULE} python3 ./manage.py install_themes
