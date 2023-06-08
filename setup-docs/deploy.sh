@@ -67,7 +67,7 @@ function deploy_wjs() {
     set_derivable_variables
 
     # Install from a pkg registry by default, but use the first
-    # argument givent to this function if defined (see deploy-dev-wjs)
+    # argument givent to this function if defined
     WJS_APP=${$1:-"wjs.jcom-profile"}
     "$PIP" install -U
     "$PIP" install -U "jcomassistant"
@@ -141,10 +141,7 @@ case "$SSH_ORIGINAL_COMMAND" in
     # Remember Bobby Tables https://xkcd.com/327/
     "deploy-dev-wjs:[:word:]")
         set_dev_variables
-        # We don't install the packaged app into the dev instance, but
-        # rather we install a tag.
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs://')
-        deploy_wjs "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-jcom-profile@$TAGNAME"
+        deploy_wjs
         ;;
     # Test (?)
     "deploy-test-janeway")
@@ -154,6 +151,9 @@ case "$SSH_ORIGINAL_COMMAND" in
     "deploy-test-wjs")
         echo "Not implemented!"
         exit 1
+        # Example on how to install a given tag:
+        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs://')
+        deploy_wjs "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-jcom-profile@$TAGNAME"
         ;;
     *)
         echo "Unknown command $SSH_ORIGINAL_COMMAND"
