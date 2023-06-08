@@ -195,7 +195,8 @@ def special_issue_with_all_sections(journal_with_three_sections):
         short_name="SIONE",
         open_date=yesterday,
     )
-    special_issue.allowed_sections = sections
+    special_issue.allowed_sections.set(sections)
+    special_issue.save()
     return special_issue
 
 
@@ -216,7 +217,7 @@ def special_issue_with_two_sections(journal_with_three_sections):
         short_name="SITWO",
         open_date=yesterday,
     )
-    special_issue.allowed_sections = sections
+    special_issue.allowed_sections.set(sections)
     special_issue.save()
     return special_issue
 

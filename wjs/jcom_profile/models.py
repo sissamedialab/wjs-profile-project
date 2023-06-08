@@ -1,13 +1,12 @@
 """The model for a field "profession" for JCOM authors."""
 from core.models import Account, AccountManager
 from django.conf import settings
-from django.contrib.postgres.fields import JSONField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.db.models import Q
+from django.db.models import JSONField, Q
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 from journal.models import Issue, Journal
 from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article, Section
@@ -38,11 +37,7 @@ class JCOMProfile(Account):
     # named account_id_ptr.
     # But then I'm not sure how I should link the two:
     # see signals.py
-    janeway_account = models.OneToOneField(
-        Account,
-        on_delete=models.CASCADE,
-        primary_key=True,
-    )
+    janeway_account = models.OneToOneField(Account, on_delete=models.CASCADE, primary_key=True, parent_link=True)
     # Even if EO wants "profession" to be mandatory, we cannot set it
     # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
     # have this data for most of our existing users.
@@ -214,8 +209,8 @@ class ArticleWrapper(models.Model):
 class EditorAssignmentParameters(models.Model):
     # FIXME: Change keywords field when Keyword will be linked to a specific Journal
     keywords = models.ManyToManyField("submission.Keyword", through="EditorKeyword", blank=True)
-    editor = models.ForeignKey("core.Account")
-    journal = models.ForeignKey("journal.Journal")
+    editor = models.ForeignKey("core.Account", on_delete=models.CASCADE)
+    journal = models.ForeignKey("journal.Journal", on_delete=models.CASCADE)
     workload = models.PositiveSmallIntegerField(default=0)
     brake_on = models.PositiveSmallIntegerField(default=0)
 
@@ -224,8 +219,8 @@ class EditorAssignmentParameters(models.Model):
 
 
 class EditorKeyword(models.Model):
-    editor_parameters = models.ForeignKey(EditorAssignmentParameters)
-    keyword = models.ForeignKey("submission.Keyword")
+    editor_parameters = models.ForeignKey(EditorAssignmentParameters, on_delete=models.CASCADE)
+    keyword = models.ForeignKey("submission.Keyword", on_delete=models.CASCADE)
     weight = models.PositiveIntegerField(default=0)
 
     def __str__(self):  # NOQA: D105

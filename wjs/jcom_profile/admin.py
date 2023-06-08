@@ -2,12 +2,11 @@
 from core.admin import AccountAdmin
 from core.models import Account
 from django.conf import settings
-from django.conf.urls import url
 from django.contrib import admin, messages
 from django.core.mail import send_mail
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
-from django.urls import reverse
+from django.urls import re_path, reverse
 from journal.admin import IssueAdmin
 from journal.models import Issue
 from modeltranslation.admin import TranslationAdmin
@@ -44,7 +43,7 @@ class UserAdmin(AccountAdmin):
         """Get admin urls."""
         urls = super().get_urls()
         import_users_url = [
-            url(
+            re_path(
                 "invite/",
                 self.admin_site.admin_view(self.invite),
                 name="invite",
