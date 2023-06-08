@@ -49,11 +49,6 @@ run-dev-tests:
       - .cache
 
   variables:
-    # DROP v !!!!!!!!!! Risky!!!!!
-    CI_DEBUG_TRACE: "true"
-    # DROP ^ !!!!!!!!!!
-    # and then re-set settings -> ci/cd -> Public pipelines to true
-
     POSTGRES_USER: janeway
     POSTGRES_PASSWORD: janeway
     POSTGRES_DB: janeway
@@ -76,12 +71,9 @@ run-dev-tests:
       alias: db
 
   script:
-    - git status
-    - git branch
-    - git branch -a
     - git fetch --unshallow
     - git checkout wjs-develop
-    - git merge --ff-only $CI_COMMIT_BRANCH
+    - git merge --ff-only remotes/origin/$CI_COMMIT_BRANCH
     - pip install --cache .cache --index-url=$PIP_INDEX_URL ./[test]
     - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
     - cd /janeway/src
