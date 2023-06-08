@@ -43,6 +43,8 @@ JANEWAY_BRANCH=jcom
 DEPLOY_TOKEN_USER=***
 DEPLOY_TOKEN_PASSWORD=***
 
+# Set the following to "--pre" if you want pip to install pre-release versions
+PIP_PRE=""
 # -- CONFIGURATION DEFAULTS END --
 
 function set_derivable_variables() {
@@ -69,7 +71,7 @@ function deploy_wjs() {
     # Install from a pkg registry by default, but use the first
     # argument givent to this function if defined
     WJS_APP=${$1:-"wjs.jcom-profile"}
-    "$PIP" install -U
+    "$PIP" "$PIP_PRE" install -U "$WJS_APP"
     "$PIP" install -U "jcomassistant"
 
     cd "$MANAGE_DIR"
@@ -101,7 +103,7 @@ function set_pp_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-pp
     VENV_BIN=/home/wjs/.virtualenvs/janeway-pp/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-pp.ini
-    JANEWAY_BRANCH=jcom
+    JANEWAY_BRANCH=wjs-production
 }
 
 function set_dev_variables() {
@@ -109,7 +111,7 @@ function set_dev_variables() {
     VENV_BIN=/home/wjs/.virtualenvs/janeway-dev/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-dev.ini
     JANEWAY_BRANCH=wjs-develop
-    WJS_BRANCH=wjs-develop
+    PIP_PRE="--pre "
 }
 
 shopt -s extglob
@@ -137,9 +139,7 @@ case "$SSH_ORIGINAL_COMMAND" in
         set_dev_variables
         deploy_janeway
         ;;
-    # Don't be too generous with the pattern here: watch out for sh injections!
-    # Remember Bobby Tables https://xkcd.com/327/
-    "deploy-dev-wjs:[:word:]")
+    "deploy-dev-wjs")
         set_dev_variables
         deploy_wjs
         ;;
@@ -148,11 +148,13 @@ case "$SSH_ORIGINAL_COMMAND" in
         echo "Not implemented!"
         exit 1
         ;;
-    "deploy-test-wjs")
+    # Don't be too generous with the pattern here: watch out for sh injections!
+    # Remember Bobby Tables https://xkcd.com/327/
+    "deploy-test-wjs:[:word:]")
         echo "Not implemented!"
         exit 1
         # Example on how to install a given tag:
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs://')
+        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs://')
         deploy_wjs "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-jcom-profile@$TAGNAME"
         ;;
     *)
