@@ -1,7 +1,6 @@
 .run-tests:
   stage: test
-
-  image: $IMAGE_TAG
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
 
   cache:
     key: cache-default
