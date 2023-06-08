@@ -183,13 +183,16 @@ def citation_name(author, sep=" "):
 
 def generate_doi(article: Article) -> Optional[str]:
     """Generate the DOI for the given article following journal-specific rules."""
-    if article.journal.code != "JCOM":
+    if article.journal.code not in ("JCOM", "JCOMAL"):
         logger.error(f"Please implement the DOI-generation rule for {article.journal.code}")
         return
 
     # See specs#208 for specs on JCOM DOI
     prefix = "10.22323"
-    system_number = "2"
+    system_number = {
+        "JCOM": "2",
+        "JCOMAL": "3",
+    }[article.journal.code]
     volume = f"{article.issue.volume:02d}"
     issue = f"{int(article.issue.issue):02d}"
     eid = article.page_numbers

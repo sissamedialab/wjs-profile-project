@@ -111,7 +111,7 @@ def decide_galley_label(pubid, file_name: str, file_mimetype: str):
     """Decide the galley's label."""
     # Remember that we can have ( PDF + EPUB galley ) x languages (usually two),
     # so a label of just "PDF" might not be sufficient.
-    lang_match = re.search(r"_([a-z]{2,3})\.", file_name)
+    lang_match = re.search(r"_([a-z]{2,3})(?:-pulito)?\.", file_name)
     mime_to_extension = {
         "application/pdf": "PDF",
         "application/epub+zip": "EPUB",
@@ -251,13 +251,15 @@ def drop_how_to_cite(html: HtmlElement, lang="eng"):
         "spa": "Cómo citar",
         "por": "Como citar",
     }
-    htc_h2 = html.xpath(f".//h2[text()='{how_to_cite[lang]}']")
+    # It is possible that the <h2> contains <a>s, so a xpath query
+    # such as .//h2[text()='How to cite'] might not be sufficient.
+    htc_h2 = [element for element in html.findall(".//h2") if how_to_cite[lang] in element.text_content()]
     if len(htc_h2) == 0:
-        logger.warning("No How-to-cite in WRITEME!!!")
+        logger.warning("No How-to-cite in HTML.")
         return
 
     if len(htc_h2) > 1:
-        logger.error("Multiple How-to-cites in WRITEME!!!")
+        logger.error("Multiple How-to-cites in HTML.")
 
     htc_h2 = htc_h2[0]
     max_expected = 3
@@ -268,7 +270,7 @@ def drop_how_to_cite(html: HtmlElement, lang="eng"):
         p = htc_h2.getnext()
         count += 1
         if count > max_expected:
-            logger.warning("Too many elements after How-to-cite's H2 in WRITEME!!!")
+            logger.warning("Too many elements after How-to-cite's H2 in HTML.")
             break
         if p is None:
             break
@@ -399,3 +401,18 @@ def process_body(body: str, style=None, lang="eng") -> bytes:
         drop_frontmatter(html)
         remove_images_dimensions(html)
     return lxml.html.tostring(html)
+
+
+def evince_language_from_filename_and_article(filename, article):
+    """Evince the galley's language from its filename.
+
+    NB: in JCOMAL, the main galley (which is never English) does not
+    have the lang. indication in the filename. We hope that the
+    article's language has been set correctly...
+
+    """
+    if "_es" in filename:
+        return "spa"
+    if "_pt" in filename:
+        return "por"
+    return article.language

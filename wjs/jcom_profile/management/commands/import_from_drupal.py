@@ -13,6 +13,7 @@ from core.logic import (
     handle_article_thumb_image_file,
     resize_and_crop,
 )
+from django.conf import settings
 from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -67,7 +68,7 @@ JOURNALS_DATA = {
     "JCOM": {
         "inception_year": 2001,
         "correspondence_source": "jcom",
-        "wjapp_url": "https://jcom.sissa.it/jcom/services/jsonpublished",
+        "wjapp_url": getattr(settings, "WJAPP_JCOM_URL", "https://jcom.sissa.it/jcom/services/jsonpublished"),
         "wjapp_api_key": "WJAPP_JCOM_APIKEY",
         # Default order of sections in any issue.
         # It is not possible to mix different types (e.g. A1 E1 A2...)
@@ -75,7 +76,7 @@ JOURNALS_DATA = {
             "Editorial": (1, "Editorials"),
             "Article": (2, "Articles"),
             "Review Article": (3, "Review Articles"),
-            "Practice insight": (4, "Practice insights"),
+            "Practice Insight": (4, "Practice Insights"),
             "Essay": (5, "Essays"),
             "Focus": (6, "Focus"),
             "Commentary": (7, "Commentaries"),
@@ -88,7 +89,7 @@ JOURNALS_DATA = {
     "JCOMAL": {
         "inception_year": 2017,
         "correspondence_source": "jcomal",
-        "wjapp_url": "https://jcomal.sissa.it/jcomal/services/jsonpublished",
+        "wjapp_url": getattr(settings, "WJAPP_JCOMAL_URL", "https://jcomal.sissa.it/jcomal/services/jsonpublished"),
         "wjapp_api_key": "WJAPP_JCOMAL_APIKEY",
         "section_order": {
             "Editorial": (1, "Editorials"),

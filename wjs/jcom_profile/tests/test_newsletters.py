@@ -8,6 +8,7 @@ import pytest
 from cms.models import Page
 from comms.models import NewsItem
 from conftest import set_jcom_settings, set_jcom_theme
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail, management
 from django.db.models import Q
@@ -74,7 +75,10 @@ def check_email_body(outbox, journal):
         else:
             for item in news_items:
                 assert reverse("core_news_item", args=(item.pk,)) not in email.body
-        assert "http://testserver.org/page-privacy" in email.body
+        if getattr(settings, "NEWSLETTER_URL", ""):
+            assert f"{settings.NEWSLETTER_URL}/page-privacy" in email.body
+        else:
+            assert "http://testserver.org/page-privacy" in email.body
 
 
 @pytest.mark.django_db
@@ -519,7 +523,10 @@ def test_registration_as_non_logged_user_when_there_is_already_a_recipient(
     assert mail_message.from_email == from_email.value
     assert mail_message.to == [r1.email]
     assert "Please note that you are already subscribed" in mail_message.body
-    assert "http://testserver.org/JCOM/site/privacy/" in mail_message.body
+    if getattr(settings, "NEWSLETTER_URL", ""):
+        assert f"{settings.NEWSLETTER_URL}/JCOM/site/privacy" in mail_message.body
+    else:
+        assert "http://testserver.org/JCOM/site/privacy" in mail_message.body
 
 
 @pytest.mark.parametrize("language", ("en", "es", "pt"))
@@ -878,7 +885,6 @@ def test_anonymous_user_recipient_confirms_registration_to_second_journal(journa
     """
 
     # The anonymous user registers on the first journal
-    settings.NEWSLETTER_URL = "https://jcom.sissa.it"
     url = f"/{journal.code}/register/newsletters/"
     anonymous_email = "anonymous@email.com"
     data = {"email": anonymous_email}
@@ -888,7 +894,7 @@ def test_anonymous_user_recipient_confirms_registration_to_second_journal(journa
     # (see notes on test_anonymous_user_recipient_registers_for_second_journal)
     from journal import models as journal_models
 
-    journal_due = journal_models.Journal.objects.create(code="JOURNALDUE", domain="testserver2.org")
+    journal_due = journal_models.Journal.objects.create(code="JCOMAL", domain="testserver2.org")
     journal_due.title = "Test Journal DUE: A journal of tests DUE"
     journal_due.save()
     update_issue_types(journal_due)
