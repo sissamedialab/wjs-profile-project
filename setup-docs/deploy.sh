@@ -70,8 +70,8 @@ function deploy_wjs() {
 
     # Install from a pkg registry by default, but use the first
     # argument givent to this function if defined
-    WJS_APP=${$1:-"wjs.jcom-profile"}
-    "$PIP" "$PIP_PRE" install -U "$WJS_APP"
+    WJS_APP=${1:-"wjs.jcom-profile"}
+    "$PIP" install "$PIP_PRE" -U "$WJS_APP"
     "$PIP" install -U "jcomassistant"
 
     cd "$MANAGE_DIR"
@@ -111,7 +111,8 @@ function set_dev_variables() {
     VENV_BIN=/home/wjs/.virtualenvs/janeway-dev/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-dev.ini
     JANEWAY_BRANCH=wjs-develop
-    PIP_PRE="--pre "
+    # Don't add spaces here, or the parameter will contain them and it won't be recognized
+    PIP_PRE="--pre"
 }
 
 shopt -s extglob
