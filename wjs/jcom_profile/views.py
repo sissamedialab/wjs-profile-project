@@ -38,6 +38,7 @@ from django.views.generic import (
 )
 from journal import decorators as journal_decorators
 from journal import logic as journal_logic
+from journal.forms import SEARCH_SORT_OPTIONS
 from journal.models import Issue
 from repository import models as preprint_models
 from security.decorators import (
@@ -1315,10 +1316,19 @@ def search(request):
     get_dict["sort"] = request.GET.get("sort", "-date_published")
     request.GET = get_dict
     search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
+    sort_options = {t[0] for t in SEARCH_SORT_OPTIONS}
+    if sort not in sort_options:
+        sort = "-date_published"
     selected_sections = request.GET.getlist("sections", "")
     selected_keywords = request.GET.getlist("keywords", "")
-    show = int(request.GET.get("show", 10))
-    page = int(request.GET.get("page", 1))
+    try:
+        show = int(request.GET.get("show", 10))
+    except ValueError:
+        show = 10
+    try:
+        page = int(request.GET.get("page", 1))
+    except ValueError:
+        page = 1
     try:
         year = int(request.GET.get("year", None))
     except (TypeError, ValueError):
