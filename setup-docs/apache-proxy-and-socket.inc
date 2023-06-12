@@ -1,4 +1,10 @@
+# Proxy mailcatcher
+# =================
+ProxyPass        /mailcatcher  http://127.0.0.1:1080/mailcatcher
+
+
 # Proxy to uwsgi
+# ==============
 
 # The ProxyReceiveBufferSize directive specifies an explicit
 # (TCP/IP) network buffer size for proxied HTTP and FTP
