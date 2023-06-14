@@ -16,7 +16,7 @@ from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
-from submission.models import Article, Keyword
+from submission.models import Article, ArticleAuthorOrder, Keyword
 from utils import setting_handler
 from utils.install import update_issue_types
 from utils.setting_handler import get_setting
@@ -194,6 +194,8 @@ def test_newsletters_with_articles_only_must_be_sent(
         section=section_factory(),
     )
     newsletter_article.keywords.add(newsletter_user_keyword)
+    newsletter_article.authors.add(correspondence_author)
+    newsletter_article.snapshot_authors()
     newsletter_article.save()
 
     no_newsletter_article = article_factory(
@@ -204,6 +206,8 @@ def test_newsletters_with_articles_only_must_be_sent(
         section=section_factory(),
     )
     no_newsletter_article.keywords.add(keyword_factory())
+    no_newsletter_article.authors.add(correspondence_author)
+    no_newsletter_article.snapshot_authors()
     no_newsletter_article.save()
 
     newsletter_article_recipient = recipient_factory(
@@ -266,6 +270,8 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
             correspondence_author=correspondence_author,
             section=section_factory(),
         )
+        article.authors.add(correspondence_author)
+        article.snapshot_authors()
         article_keywords = select_random_keywords(keywords)
         for keyword in article_keywords:
             article.keywords.add(keyword)
@@ -352,8 +358,13 @@ def test_two_recipients_one_article(
     # One published article, with a known kwd
     kwd1 = keyword_factory()
     tomorrow = timezone.now() + datetime.timedelta(days=1)
+    correspondence_author = account_factory()
+    correspondence_author.save()
     a1 = article_factory(journal=journal, date_published=tomorrow)
     a1.keywords.add(kwd1)
+    a1.authors.add(correspondence_author)
+    a1.snapshot_authors()
+    a1.save
 
     # Two newsletter recipients with the same topic (kwd)
     nr1 = recipient_factory(user=account_factory(), news=False)
@@ -370,6 +381,7 @@ def test_two_recipients_one_article(
 
 @pytest.mark.django_db
 def test_one_recipient_one_article_two_topics(
+    account_factory,
     recipient_factory,
     newsletter_factory,
     article_factory,
@@ -388,9 +400,14 @@ def test_one_recipient_one_article_two_topics(
     kwd1 = keyword_factory()
     kwd2 = keyword_factory()
     tomorrow = timezone.now() + datetime.timedelta(days=1)
-    a1 = article_factory(journal=journal, date_published=tomorrow)
+    correspondence_author = account_factory()
+    correspondence_author.save()
+    a1 = article_factory(journal=journal, date_published=tomorrow, correspondence_author=correspondence_author)
     a1.keywords.add(kwd1)
     a1.keywords.add(kwd2)
+    a1.authors.add(correspondence_author)
+    a1.snapshot_authors()
+    a1.save()
 
     # Two newsletter recipients with the same topic (kwd)
     nr1 = recipient_factory(journal=journal, news=False, email="nr1@email.com")
@@ -915,3 +932,76 @@ def test_anonymous_user_recipient_confirms_registration_to_second_journal(journa
     client.get(acceptance_url)
 
     assert True
+
+
+@pytest.mark.django_db
+def test_check_authors_list_in_publication_alert(
+    account_factory,
+    article_factory,
+    recipient_factory,
+    newsletter_factory,
+    keyword_factory,
+    custom_newsletter_setting,
+    journal,
+    mock_premailer_load_url,
+    section_factory,
+):
+    """Test format authors list format in publication alert:
+    first_name1 last_name1, first_name2 last_name2 and first_name3 last_name3
+    """
+
+    newsletter = newsletter_factory()
+    correspondence_author = account_factory()
+    correspondence_author.save()
+    article = article_factory(
+        title="Test author list",
+        abstract="Abstract test author list",
+        journal=journal,
+        date_published=timezone.now() + datetime.timedelta(days=1),
+        stage="Published",
+        correspondence_author=correspondence_author,
+        section=section_factory(),
+    )
+    kwd1 = keyword_factory()
+    article.keywords.add(kwd1)
+
+    coauthor1 = account_factory()
+    coauthor2 = account_factory()
+
+    article.authors.add(correspondence_author)
+    ArticleAuthorOrder.objects.create(
+        article=article,
+        author=correspondence_author,
+        order=0,
+    )
+    article.authors.add(coauthor1)
+    ArticleAuthorOrder.objects.create(
+        article=article,
+        author=coauthor1,
+        order=1,
+    )
+    article.authors.add(coauthor2)
+    ArticleAuthorOrder.objects.create(
+        article=article,
+        author=coauthor2,
+        order=2,
+    )
+    article.snapshot_authors()
+    article.save()
+
+    recipient = recipient_factory(user=account_factory(), news=False)
+    recipient.topics.add(kwd1)
+
+    management.call_command("send_newsletter_notifications", journal.code)
+
+    assert newsletter.last_sent.date() == timezone.now().date()
+    assert len(mail.outbox) == 1
+
+    expected_authors_list = (
+        f"by {correspondence_author.first_name} {correspondence_author.last_name},"
+        f" {coauthor1.first_name} {coauthor1.last_name}"
+        f" and {coauthor2.first_name} {coauthor2.last_name}"
+    )
+    html = lxml.html.fromstring(mail.outbox[0].body)
+    p = html.find(".//p[@class='author']")
+    assert expected_authors_list in p.text
