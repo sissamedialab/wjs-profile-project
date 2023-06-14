@@ -58,9 +58,11 @@ upload-package:
     - .upload-package
 
 
-deploy-to-test:
-  only:
-    - tags
+deploy-to-pre-production:
+  # We don't want to risk resetting some on-going translation:
+  when: manual
+  # only:
+  #   - tags
   extends:
     - .deploy
 
@@ -73,7 +75,7 @@ deploy-to-test:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy"
+    DEPLOY_CMD: "deploy-pp-wjs"
 
 deploy-to-production:
   extends:
@@ -83,4 +85,4 @@ deploy-to-production:
   variables:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
-    DEPLOY_CMD: "deploy"
+    DEPLOY_CMD: "deploy-prod-wjs"
