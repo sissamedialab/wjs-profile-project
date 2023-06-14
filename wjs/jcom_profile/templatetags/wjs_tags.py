@@ -5,6 +5,7 @@ from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
+from django.utils.translation import ugettext_lazy as _
 from journal import logic as journal_logic
 from journal.models import Issue
 from submission.models import STAGE_PUBLISHED, Article, Keyword
@@ -77,6 +78,32 @@ def how_to_cite(article):
         f" https://doi.org/{article.get_doi()}"
     )
     return htc
+
+
+@register.filter
+def authors_fullname_comma_and(article):
+    """Return authors fullname separated by comma and and.
+
+    E.g.:
+    - case empty sting (incomplete article data)
+    - by Mario Rossi
+    - by Mario Rossi and Maria Rosa
+    - by Mario Rossi, Maria Rosa and Paolo Verdi
+    """
+    tr_begin = _("by")
+    author_str = f"{tr_begin} "
+    author_names = [fz.full_name() for fz in article.frozen_authors().order_by("order")]
+    tr_sep = _("and")
+    if not author_names:
+        return ""
+    if len(author_names) == 1:
+        author_str += author_names[0]
+    elif len(author_names) == 2:
+        author_str += f" {tr_sep} ".join(author_names)
+    else:
+        author_str += ", ".join(author_names[:-1])
+        author_str += f" {tr_sep} {author_names[-1]}"
+    return author_str
 
 
 @register.filter
