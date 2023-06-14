@@ -66,10 +66,11 @@ deploy-to-pre-production:
   extends:
     - .deploy
 
-  # Deploy basically means `pip install`, so the package must already
-  # be in the package registry.
-  needs:
-    - upload-package
+  # This is sort of implicit, because the deployment process is basically `pip install -U wjs`
+  # needs:
+  #   - upload-package
+  # Also, if `only: - tags` is omitted, gitlab complains that
+  # 'deploy-to-pre-production' job needs 'upload-package' job, but 'upload-package' is not in any previous stage
 
   variables:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
