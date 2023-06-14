@@ -48,9 +48,11 @@ upload-package:
     - .upload-package
 
 
-deploy-to-dev:
-  only:
-    - tags
+deploy-to-pre-production:
+  # We don't want to risk resetting some on-going translation:
+  when: manual
+  # only:
+  #   - tags
   extends:
     - .deploy
 
@@ -63,8 +65,7 @@ deploy-to-dev:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-dev-wjs"
-
+    DEPLOY_CMD: "deploy-pp-wjs"
 
 deploy-to-production:
   extends:
@@ -75,17 +76,3 @@ deploy-to-production:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
     DEPLOY_CMD: "deploy-prod-wjs"
-
-
-deploy-to-pre-production:
-  extends:
-    - .deploy
-  when: manual
-  environment: pre-production
-  variables:
-    # There is a Janeway pre-production instance on the same
-    # user@server as the test instance. The deploy script will do the
-    # deploy based on the DEPLOY_CMD
-    SERVER_IP: "TEST_SERVER_IP"
-    SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-pp-wjs"
