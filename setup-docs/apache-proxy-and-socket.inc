@@ -1,3 +1,10 @@
+# Intercept naive penetration attempts
+# ====================================
+# See specs#385
+ProxyPassMatch    ".*\.php$" !
+RedirectMatch 403 ".*\.php$"
+
+
 # Proxy mailcatcher
 # =================
 ProxyPass        /mailcatcher  http://127.0.0.1:1080/mailcatcher
