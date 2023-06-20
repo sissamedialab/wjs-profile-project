@@ -21,6 +21,7 @@ from jcomassistant.utils import (
     preprocess_xmlfile,
     read_tex,
     rebuild_translation_galley,
+    tex_filename_from_wjs_ini,
 )
 from journal import models as journal_models
 from lxml.html import HtmlElement
@@ -156,6 +157,17 @@ class Command(BaseCommand):
             logger.warning(f"Found {len(tex_filenames)} tex files. Using {tex_filenames[0]}")
 
         tex_filename = tex_filenames[0]
+
+        alternative_tex_filename = None
+        wjs_ini = src_folder / "wjs.ini"
+        if wjs_ini.exists():
+            alternative_tex_filename = tex_filename_from_wjs_ini(wjs_ini)
+            alternative_tex_filename = os.path.join(src_folder, alternative_tex_filename)
+            if alternative_tex_filename != "":
+                logger.warning(f"Found wjs.ini. Using {alternative_tex_filename}. Untested with multilingual papers.")
+            else:
+                alternative_tex_filename = None
+
         tex_data = read_tex(tex_filename)
 
         xml_obj = preprocess_xmlfile(xml_file, tex_data)
@@ -171,7 +183,7 @@ class Command(BaseCommand):
 
         try:
             # Generate the full-text html from the TeX sources
-            html_galley_filename = make_xhtml.make(tex_filename)
+            html_galley_filename = make_xhtml.make(tex_filename, alternative_tex_filename=alternative_tex_filename)
             self.set_html_galley(article, html_galley_filename)
 
             # Generate the EPUB from the TeX sources
