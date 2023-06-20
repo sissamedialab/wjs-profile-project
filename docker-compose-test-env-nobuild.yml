@@ -20,11 +20,19 @@
 #
 # mkdir -p /builds/wjs
 # cd /builds/wjs/
-# git clone https://gitlab.sissamedialab.it/wjs/wjs-profile-project.git
+# git clone https://gitlab.sissamedialab.it/wjs/wjs-profile-project.git [*]
 # cd wjs-profile-project/
 # git checkout a9735e08
 # cp cicd_settings.py cicd_test_settings.py /janeway/src/core/
 # pip install --index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple ./[test]
+#
+# [*] NB: this is not technically correct: the gitlab runner preps the repo differently
+# It more something in the form:
+# - mkdir <folder>
+# - git init
+# - git remote add origin https://gitlab...
+# - git fetch --depth=20 <commit hash>
+# See also https://docs.gitlab.com/ee/ci/runners/configure_runners.html#git-strategy
 #
 # cd /janeway/src
 # JANEWAY_SETTINGS_MODULE=core.cicd_settings python3 ./manage.py install_themes
@@ -56,7 +64,9 @@ services:
       retries: 5
 
   janeway:
-    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:latest
+    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+    volumes:
+      - /tmp:/host-tmp
     depends_on:
       db:
         condition: service_healthy
