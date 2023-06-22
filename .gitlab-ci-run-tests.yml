@@ -1,9 +1,13 @@
 .run-tests:
   stage: test
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:production
 
-  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway
+  cache:
+    key: cache-default
+    paths:
+      - .cache
 
-  # TODO: Must match with test_settings.DATABASES
+  # NB: Must match with test_settings.DATABASES
   variables:
     POSTGRES_USER: janeway
     POSTGRES_PASSWORD: janeway
@@ -24,7 +28,7 @@
 
   script:
     - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
-    - pip install --index-url=$PIP_INDEX_URL ./[test]
+    - pip install --cache .cache --index-url=$PIP_INDEX_URL ./[test]
     - cd /janeway/src
     - JANEWAY_SETTINGS_MODULE=${JANEWAY_SETTINGS_MODULE} python3 ./manage.py install_themes
     - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -x

@@ -1,21 +1,14 @@
 default:
   image: python:3.9
-  # Default runner tag
+  # Runner must be inside Inasset's farm
   tags:
     - inasset
 
-variables:
-  PACKAGE_NAME: 'wjs.jcom_profile'
-
-# Not running any tests (at the moment), because they require a
-# working installation of Janeway, with this django app installed.
 stages:
   - test
   - build
   - deploy
 
-
-# TODO: restore ref of deploy to "master"
 include:
   - project: 'wjs/wjs-profile-project'
     ref: master
@@ -36,7 +29,6 @@ run-tests:
   # them when the commit is made.
   except:
     - tags
-
   extends:
     - .run-tests
 
@@ -45,7 +37,6 @@ pre-commit:
   # Always run linting, except for tags
   except:
     - tags
-
   extends:
     - .run-pre-commit
 
@@ -53,16 +44,14 @@ pre-commit:
 upload-package:
   only:
     - tags
-
   extends:
     - .upload-package
 
 
 deploy-to-pre-production:
   # We don't want to risk resetting some on-going translation:
+  environment: pre-production
   when: manual
-  # only:
-  #   - tags
   extends:
     - .deploy
 
@@ -71,12 +60,15 @@ deploy-to-pre-production:
   #   - upload-package
   # Also, if `only: - tags` is omitted, gitlab complains that
   # 'deploy-to-pre-production' job needs 'upload-package' job, but 'upload-package' is not in any previous stage
+  # only:
+  #   - tags
 
   variables:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
     DEPLOY_CMD: "deploy-pp-wjs"
+
 
 deploy-to-production:
   extends:
