@@ -50,9 +50,8 @@ upload-package:
 
 deploy-to-pre-production:
   # We don't want to risk resetting some on-going translation:
+  environment: pre-production
   when: manual
-  # only:
-  #   - tags
   extends:
     - .deploy
 
@@ -61,12 +60,15 @@ deploy-to-pre-production:
   #   - upload-package
   # Also, if `only: - tags` is omitted, gitlab complains that
   # 'deploy-to-pre-production' job needs 'upload-package' job, but 'upload-package' is not in any previous stage
+  # only:
+  #   - tags
 
   variables:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
     DEPLOY_CMD: "deploy-pp-wjs"
+
 
 deploy-to-production:
   extends:
