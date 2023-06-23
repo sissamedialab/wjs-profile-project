@@ -230,6 +230,7 @@ class Command(BaseCommand):
             label=label,
             save_to_disk=True,
             public=True,
+            html_prettify=False,
         )
         expected_mimetype = "text/html"
         acceptable_mimetypes = [
