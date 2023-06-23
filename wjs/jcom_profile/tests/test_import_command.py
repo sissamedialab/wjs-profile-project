@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import lxml
+import lxml.html
 import pytest
 
 from wjs.jcom_profile.utils import from_pubid_to_eid
@@ -196,3 +197,72 @@ e foi amplamente rebatida pela imprensa a partir de evid&#234;ncias cient&#237;f
         h2_elements = html.findall(".//h2")
         assert len(h2_elements) == 1
         assert "Notas" in h2_elements[0].text_content()
+
+    @pytest.mark.skip(reason="Una-tantum test. Not related to the application.")
+    def test_lxml_from_to_string(self):
+        """Verify that lxml tostring method doesn't messes with the spaces."""
+        input_str = """<root><p>ciao [<a href="#">Name, 2000</a>] bel</p></root>"""
+        html = lxml.html.fromstring(input_str)
+        output_str = lxml.html.tostring(html)
+        assert input_str == output_str.decode("utf-8")
+
+    @pytest.mark.django_db
+    def test_process_body_does_not_add_spaces(self):
+        """Test that process_body does introduction spurious spaces."""
+        body = """<html id="main_article" lang="en" xml:lang="en"><body><p class="noindent">ciao [<a href="#">Name, 2000</a>] bel</p></body></html>"""  # noqa E501
+        style = "wjapp"  # important!
+        lang = "eng"
+        from wjs.jcom_profile.import_utils import process_body
+
+        processed_body: bytes = process_body(body=body, style=style, lang=lang)
+        processed_body_element = lxml.html.fromstring(processed_body)
+        assert processed_body_element.find(".//p").text_content() == "ciao [Name, 2000] bel"
+
+    @pytest.mark.django_db
+    def test_process_body_does_not_add_spaces_sanity_check(self):
+        """Test that process_body does introduction spurious spaces, but they are maintained."""
+        body = """<html id="main_article" lang="en" xml:lang="en"><body><p class="noindent">ciao [ <a href="#">Name, 2000</a>
+        ] bel</p></body></html>"""  # noqa E501
+        style = "wjapp"  # important!
+        lang = "eng"
+        from wjs.jcom_profile.import_utils import process_body
+
+        processed_body: bytes = process_body(body=body, style=style, lang=lang)
+        processed_body_element = lxml.html.fromstring(processed_body)
+        assert processed_body_element.find(".//p").text_content() == "ciao [ Name, 2000\n        ] bel"
+
+
+class TestCommandMethods:
+    """Let's test if this is possible."""
+
+    @pytest.mark.skip(reason="A proof of concept that I don't really need.")
+    @pytest.mark.django_db
+    def test_import_from_wjapp__set_html_galley(self, article, tmp_path):
+        """Create a cmd obj and call a method."""
+        # Import here or trigger the issue with missing django_db fixture
+        from wjs.jcom_profile.management.commands.import_from_wjapp import Command
+
+        # Setup html files (TODO: might be better as a fixture)
+        galley_str = """<p class="noindent">  Although the genetic technologies in
+  <i>Orphan Black</i>
+  are imaginary, this AAAA--BBBB study
+focuses on connections between CCCC-ff-DDDD attention to science fiction and perceptions of
+the real technology of human genome editing (HGE). We are concerned with
+science fiction because it directly addresses the social aspects of science, such as
+power and
+politics [<a id="x1-3001"></a>Maynard, <a href="#X0-Maynard2018">2018</a>], and
+frequently offers vivid pictures of science
+and of scientists. Further, science fiction also offers nonexperts with a way to
+think about genetics and science more broadly: evidence shows that nonexperts
+use science fiction metaphors and narratives as a means to express their beliefs
+about genetics and to make sense of the
+technology [<a id="x1-3002"></a>Roberts, Archer, DeWitt &amp; Middleton,  <a href="#X0-Robertsetal2019">2019</a>],
+meaning science fiction could be useful for engagement purposes.
+ </p>
+"""  # noqa W921
+        html_galley_filename = str(tmp_path / "galley.html")
+        with open(html_galley_filename, "w") as of:
+            of.write(html_galley_filename)
+
+        c = Command()
+        assert c.set_html_galley(self, article, html_galley_filename=html_galley_filename)
