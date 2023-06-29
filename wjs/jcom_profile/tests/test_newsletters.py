@@ -21,7 +21,8 @@ from utils import setting_handler
 from utils.install import update_issue_types
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import Recipient
+from wjs.jcom_profile.factories import yesterday
+from wjs.jcom_profile.models import Newsletter, Recipient
 from wjs.jcom_profile.newsletter.service import NewsletterMailerService
 from wjs.jcom_profile.utils import generate_token
 
@@ -146,6 +147,11 @@ def test_newsletters_with_news_items_only_must_be_sent(
     mock_premailer_load_url,
 ):
     newsletter = newsletter_factory()
+    # Override auto_now
+    # https://stackoverflow.com/a/11316645/1581629
+    Newsletter.objects.filter(pk=newsletter.pk).update(last_sent=yesterday())
+
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(hours=1)
 
     news_user = account_factory(email="news@news.it")
     news_recipient = recipient_factory(user=news_user, news=True)
@@ -155,8 +161,8 @@ def test_newsletters_with_news_items_only_must_be_sent(
 
     content_type = ContentType.objects.get_for_model(journal)
     news_item_factory(
-        posted=timezone.now() + datetime.timedelta(days=1),
-        start_display=timezone.now() + datetime.timedelta(days=1),
+        posted=a_date_between_last_sent_and_now,
+        start_display=a_date_between_last_sent_and_now,
         content_type=content_type,
         object_id=journal.pk,
     )
@@ -249,12 +255,15 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     mock_premailer_load_url,
 ):
     newsletter = newsletter_factory()
+    Newsletter.objects.filter(pk=newsletter.pk).update(last_sent=yesterday())
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(hours=1)
+
     content_type = ContentType.objects.get_for_model(journal)
     correspondence_author = account_factory()
     for _ in range(10):
         news_item_factory(
-            posted=timezone.now() + datetime.timedelta(days=1),
-            start_display=timezone.now() + datetime.timedelta(days=1),
+            posted=a_date_between_last_sent_and_now,
+            start_display=a_date_between_last_sent_and_now,
             content_type=content_type,
             object_id=journal.pk,
         )
@@ -316,13 +325,16 @@ def test_two_recipients_one_news(
     """
 
     newsletter = newsletter_factory()
+    Newsletter.objects.filter(pk=newsletter.pk).update(last_sent=yesterday())
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(hours=1)
+
     content_type = ContentType.objects.get_for_model(journal)
     # Two news recipients
     nr1 = recipient_factory(user=account_factory(), news=True)
     nr2 = recipient_factory(user=account_factory(), news=True)
     news_item_factory(
-        posted=timezone.now() + datetime.timedelta(days=1),
-        start_display=timezone.now() + datetime.timedelta(days=1),
+        posted=a_date_between_last_sent_and_now,
+        start_display=a_date_between_last_sent_and_now,
         content_type=content_type,
         object_id=journal.pk,
     )
