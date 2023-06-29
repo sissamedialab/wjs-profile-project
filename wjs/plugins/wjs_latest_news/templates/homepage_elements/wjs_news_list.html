@@ -1,8 +1,8 @@
 {% load wjs_tags %}
 {% if wjs_latest_news_list %}
-    <h2>{{ wjs_latest_news_title }}</h2>
     <div class="card">
         <div class="card-panel">
+            <h2>{{ wjs_latest_news_title }}</h2>
             {% for item in wjs_latest_news_list %}
                 <div class="news-item">
                     <h5 class="article-title article-title--small">
