@@ -20,11 +20,14 @@ from django.utils.translation import override
 from journal.models import Journal
 from premailer import transform
 from submission.models import Article
+from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.context_processors import date_format
 from wjs.jcom_profile.models import Newsletter, Recipient
+
+logger = get_logger(__name__)
 
 
 class NewsletterItem(TypedDict):
@@ -157,15 +160,23 @@ class NewsletterMailerService:
 
         filtered_articles = Article.objects.filter(date_published__date__gt=last_sent, journal=journal)
         filtered_news = NewsItem.objects.filter(
-            posted__date__gt=last_sent,
+            start_display__gt=last_sent,
             content_type=content_type,
             object_id=journal.pk,
         )
         # Explicitly filter Recipient objects by Journal
         journal_subscribers = Recipient.objects.filter(journal=journal)
-        filtered_subscribers = journal_subscribers.filter(
-            Q(topics__in=filtered_articles.values_list("keywords")) | Q(news=True),
-        ).distinct()
+        subscribers_filter = Q(topics__in=filtered_articles.values_list("keywords"))
+        if filtered_news.exists():
+            subscribers_filter |= Q(news=True)
+        filtered_subscribers = journal_subscribers.filter(subscribers_filter).distinct()
+
+        logger.debug(
+            f"Newsletter: last sent: {last_sent} (now is {now()});"
+            f" found (filtered) {filtered_subscribers.count()} subscribers,"
+            f" {filtered_articles.count()} articles,"
+            f" {filtered_news.count()} news.",
+        )
         return filtered_subscribers, filtered_articles, filtered_news
 
     def _render_articles(self, subscriber: Recipient, articles: Iterable[Article], request: HttpRequest) -> List[str]:
