@@ -161,6 +161,7 @@ class NewsletterMailerService:
         filtered_articles = Article.objects.filter(date_published__date__gt=last_sent, journal=journal)
         filtered_news = NewsItem.objects.filter(
             start_display__gt=last_sent,
+            start_display__lte=now(),
             content_type=content_type,
             object_id=journal.pk,
         )

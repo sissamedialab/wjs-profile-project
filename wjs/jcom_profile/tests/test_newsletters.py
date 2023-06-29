@@ -21,7 +21,8 @@ from utils import setting_handler
 from utils.install import update_issue_types
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import Recipient
+from wjs.jcom_profile.factories import yesterday
+from wjs.jcom_profile.models import Newsletter, Recipient
 from wjs.jcom_profile.newsletter.service import NewsletterMailerService
 from wjs.jcom_profile.utils import generate_token
 
@@ -146,6 +147,11 @@ def test_newsletters_with_news_items_only_must_be_sent(
     mock_premailer_load_url,
 ):
     newsletter = newsletter_factory()
+    # Override auto_now
+    # https://stackoverflow.com/a/11316645/1581629
+    Newsletter.objects.filter(pk=newsletter.pk).update(last_sent=yesterday())
+
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(hours=1)
 
     news_user = account_factory(email="news@news.it")
     news_recipient = recipient_factory(user=news_user, news=True)
@@ -155,8 +161,8 @@ def test_newsletters_with_news_items_only_must_be_sent(
 
     content_type = ContentType.objects.get_for_model(journal)
     news_item_factory(
-        posted=timezone.now() + datetime.timedelta(days=1),
-        start_display=timezone.now() + datetime.timedelta(days=1),
+        posted=a_date_between_last_sent_and_now,
+        start_display=a_date_between_last_sent_and_now,
         content_type=content_type,
         object_id=journal.pk,
     )
@@ -249,12 +255,15 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     mock_premailer_load_url,
 ):
     newsletter = newsletter_factory()
+    Newsletter.objects.filter(pk=newsletter.pk).update(last_sent=yesterday())
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(hours=1)
+
     content_type = ContentType.objects.get_for_model(journal)
     correspondence_author = account_factory()
     for _ in range(10):
         news_item_factory(
-            posted=timezone.now() + datetime.timedelta(days=1),
-            start_display=timezone.now() + datetime.timedelta(days=1),
+            posted=a_date_between_last_sent_and_now,
+            start_display=a_date_between_last_sent_and_now,
             content_type=content_type,
             object_id=journal.pk,
         )
@@ -316,13 +325,16 @@ def test_two_recipients_one_news(
     """
 
     newsletter = newsletter_factory()
+    Newsletter.objects.filter(pk=newsletter.pk).update(last_sent=yesterday())
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(hours=1)
+
     content_type = ContentType.objects.get_for_model(journal)
     # Two news recipients
     nr1 = recipient_factory(user=account_factory(), news=True)
     nr2 = recipient_factory(user=account_factory(), news=True)
     news_item_factory(
-        posted=timezone.now() + datetime.timedelta(days=1),
-        start_display=timezone.now() + datetime.timedelta(days=1),
+        posted=a_date_between_last_sent_and_now,
+        start_display=a_date_between_last_sent_and_now,
         content_type=content_type,
         object_id=journal.pk,
     )
@@ -1097,3 +1109,60 @@ def test_check_authors_list_in_publication_alert(
     html = lxml.html.fromstring(mail.outbox[0].body)
     p = html.find(".//p[@class='author']")
     assert expected_authors_list in p.text
+
+
+@pytest.mark.django_db
+def test_news_collection_wrt_last_sent_and_now(
+    recipient_factory,
+    newsletter_factory,
+    custom_newsletter_setting,
+    news_item_factory,
+    journal,
+):
+    """Test that news are correcly collected.
+
+    News should be sent when:
+    - start_display > last_sent (don't send news already sent)
+    - start_display < now (don't sent news that will be visible only in the future)
+    """
+
+    newsletter = newsletter_factory()
+    # NB: force a value into last_sent because the model field has
+    # auto_now=True, which "overrides" the factory's "yesterday" value.
+    # But do _not_ save (or else you'll get last_sent==now())
+    newsletter.last_sent = timezone.now() + datetime.timedelta(days=-1)
+
+    before_last_sent = newsletter.last_sent + datetime.timedelta(days=-2)
+    before_now_and_after_last_sent = newsletter.last_sent + datetime.timedelta(hours=12)
+    after_now = timezone.now() + datetime.timedelta(days=1)
+
+    # A newsletter recipient, with no topic (indifferent here), but with news set to True
+    recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    content_type = ContentType.objects.get_for_model(journal)
+
+    news_already_sent = news_item_factory(
+        start_display=before_last_sent,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+    news_to_be_sent = news_item_factory(
+        start_display=before_now_and_after_last_sent,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+    news_to_be_sent_in_the_future = news_item_factory(
+        start_display=after_now,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    assert len(articles) == 0
+    assert len(news) == 1
+    assert len(recipients) == 1
+
+    assert news_already_sent not in news
+    assert news_to_be_sent_in_the_future not in news
+
+    assert news_to_be_sent in news
