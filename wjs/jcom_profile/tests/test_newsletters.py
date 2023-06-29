@@ -1115,8 +1115,13 @@ def test_news_collection_wrt_last_sent_and_now(
     """
 
     newsletter = newsletter_factory()
-    before_last_sent = newsletter.last_sent + datetime.timedelta(days=-1)
-    before_now_and_after_last_sent = before_last_sent + datetime.timedelta(hours=12)
+    # NB: force a value into last_sent because the model field has
+    # auto_now=True, which "overrides" the factory's "yesterday" value.
+    # But do _not_ save (or else you'll get last_sent==now())
+    newsletter.last_sent = timezone.now() + datetime.timedelta(days=-1)
+
+    before_last_sent = newsletter.last_sent + datetime.timedelta(days=-2)
+    before_now_and_after_last_sent = newsletter.last_sent + datetime.timedelta(hours=12)
     after_now = timezone.now() + datetime.timedelta(days=1)
 
     # A newsletter recipient, with no topic (indifferent here), but with news set to True
