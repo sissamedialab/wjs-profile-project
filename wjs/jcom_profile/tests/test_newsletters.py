@@ -146,20 +146,25 @@ def test_newsletters_with_news_items_only_must_be_sent(
     mock_premailer_load_url,
 ):
     newsletter = newsletter_factory()
-    news_user, no_news_user = account_factory(email="news@news.it"), account_factory(email="nonews@nonews.it")
-    content_type = ContentType.objects.get_for_model(journal)
 
+    news_user = account_factory(email="news@news.it")
     news_recipient = recipient_factory(user=news_user, news=True)
+
+    no_news_user = account_factory(email="nonews@nonews.it")
+    recipient_factory(user=no_news_user, news=False)
+
+    content_type = ContentType.objects.get_for_model(journal)
     news_item_factory(
         posted=timezone.now() + datetime.timedelta(days=1),
+        start_display=timezone.now() + datetime.timedelta(days=1),
         content_type=content_type,
         object_id=journal.pk,
     )
-    recipient_factory(user=no_news_user, news=False)
 
     management.call_command("send_newsletter_notifications", journal.code)
 
     assert newsletter.last_sent.date() == timezone.now().date()
+
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [news_recipient.newsletter_destination_email]
 
@@ -249,6 +254,7 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     for _ in range(10):
         news_item_factory(
             posted=timezone.now() + datetime.timedelta(days=1),
+            start_display=timezone.now() + datetime.timedelta(days=1),
             content_type=content_type,
             object_id=journal.pk,
         )
@@ -316,6 +322,7 @@ def test_two_recipients_one_news(
     nr2 = recipient_factory(user=account_factory(), news=True)
     news_item_factory(
         posted=timezone.now() + datetime.timedelta(days=1),
+        start_display=timezone.now() + datetime.timedelta(days=1),
         content_type=content_type,
         object_id=journal.pk,
     )
@@ -422,6 +429,91 @@ def test_one_recipient_one_article_two_topics(
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
     check_email_body(mail.outbox, journal)
+
+
+@pytest.mark.django_db
+def test_one_recipient_with_news_true_and_no_articles_and_no_newsitems(
+    account_factory,
+    recipient_factory,
+    newsletter_factory,
+    custom_newsletter_setting,
+    journal,
+):
+    """Test that the recipient list is empty when it should be.
+
+    When
+    - there are no newsitem to send
+    - and there are no articles,
+    the recipient lists should be empty.
+    """
+
+    newsletter = newsletter_factory()
+
+    # No articles!
+    assert not Article.objects.exists()  # ⇦ Interesting part
+
+    # No news!
+    assert not NewsItem.objects.exists()  # ⇦ Interesting part
+
+    # A newsletter recipient, with no topic (indifferent here), but with news set to True
+    nr1 = recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    assert not nr1.topics.exists()
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    assert len(articles) == 0
+    assert len(news) == 0
+    assert len(recipients) == 0  # ⇦ Interesting part
+
+
+@pytest.mark.django_db
+def test_one_recipient_with_wrong_topic_but_with_news_true_and_no_newsitems(
+    account_factory,
+    recipient_factory,
+    newsletter_factory,
+    news_item_factory,
+    article_factory,
+    keyword_factory,
+    custom_newsletter_setting,
+    journal,
+):
+    """Test that the recipient list is empty when it should be.
+
+    When
+    - there are no newsitem to send
+    - and there are no "interesting" articles,
+    the recipient lists should be empty.
+    """
+
+    newsletter = newsletter_factory()
+
+    # One published article, with a known kwd
+    kwd = keyword_factory()
+    correspondence_author = account_factory()
+    correspondence_author.save()
+    a1 = article_factory(
+        journal=journal,
+        date_published=timezone.now(),
+        correspondence_author=correspondence_author,
+    )
+    a1.keywords.add(kwd)
+    a1.authors.add(correspondence_author)
+    a1.snapshot_authors()
+    a1.save()
+
+    # No news!
+    assert not NewsItem.objects.exists()  # ⇦ Interesting part
+
+    # A newsletter recipient, with the wrong kwd/topic, but with news set to True
+    wrong_kwd = keyword_factory()
+    nr1 = recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    nr1.topics.add(wrong_kwd)
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    assert len(articles) == 0
+    assert len(news) == 0
+    assert len(recipients) == 0  # ⇦ Interesting part
 
 
 rome_tz = ZoneInfo("Europe/Rome")
