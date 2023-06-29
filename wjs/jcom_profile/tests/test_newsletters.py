@@ -1097,3 +1097,55 @@ def test_check_authors_list_in_publication_alert(
     html = lxml.html.fromstring(mail.outbox[0].body)
     p = html.find(".//p[@class='author']")
     assert expected_authors_list in p.text
+
+
+@pytest.mark.django_db
+def test_news_collection_wrt_last_sent_and_now(
+    recipient_factory,
+    newsletter_factory,
+    custom_newsletter_setting,
+    news_item_factory,
+    journal,
+):
+    """Test that news are correcly collected.
+
+    News should be sent when:
+    - start_display > last_sent (don't send news already sent)
+    - start_display < now (don't sent news that will be visible only in the future)
+    """
+
+    newsletter = newsletter_factory()
+    before_last_sent = newsletter.last_sent + datetime.timedelta(days=-1)
+    before_now_and_after_last_sent = before_last_sent + datetime.timedelta(hours=12)
+    after_now = timezone.now() + datetime.timedelta(days=1)
+
+    # A newsletter recipient, with no topic (indifferent here), but with news set to True
+    recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    content_type = ContentType.objects.get_for_model(journal)
+
+    news_already_sent = news_item_factory(
+        start_display=before_last_sent,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+    news_to_be_sent = news_item_factory(
+        start_display=before_now_and_after_last_sent,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+    news_to_be_sent_in_the_future = news_item_factory(
+        start_display=after_now,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    assert len(articles) == 0
+    assert len(news) == 1
+    assert len(recipients) == 1
+
+    assert news_already_sent not in news
+    assert news_to_be_sent_in_the_future not in news
+
+    assert news_to_be_sent in news
