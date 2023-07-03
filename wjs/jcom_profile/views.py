@@ -21,6 +21,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.core.validators import validate_email
 from django.db import IntegrityError
 from django.db.models import Count
+from django.db.models.query import RawQuerySet
 from django.forms import modelformset_factory
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -1357,12 +1358,21 @@ def search(request):
         split_term.append(escaped)
 
         form.is_valid()
-        articles_pk = submission_models.Article.objects.search(
+        articles_qs = submission_models.Article.objects.search(
             search_term,
             form.get_search_filters(),
             sort=form.cleaned_data.get("sort"),
             site=request.site_object,
-        ).values_list("pk", flat=True)
+        )
+        if isinstance(articles_qs, RawQuerySet):
+            # 😢
+            articles_pk = [article.id for article in articles_qs]
+        else:
+            # TODO: ask Iacopo
+            # I already stumbled here: why/when is this useful?
+            # - if I can do `.values_list` it means that I have a QuerySet (not "RaW")
+            # - so, if I have a QuerySet I can do `filter`
+            articles_pk = articles_qs.values_list("pk", flat=True)
         articles = submission_models.Article.objects.filter(pk__in=articles_pk)
 
     if selected_keywords:
