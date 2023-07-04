@@ -1,5 +1,6 @@
 .input-field {
   label.input-field-label {
+    cursor: pointer;
     padding-left: 2rem;
     pointer-events: all;
   }
@@ -20,5 +21,20 @@
   [type="checkbox"] + label {
     height: 1rem;
     padding-left: 25px;
+  }
+}
+
+[type="checkbox"] {
+  &:not(:checked),
+  &:checked {
+    cursor: pointer;
+    height: 30px;
+    pointer-events: all;
+    width: 30px;
+    z-index: 1;
+  }
+
+  &:checked + label::before {
+    pointer-events: all;
   }
 }
