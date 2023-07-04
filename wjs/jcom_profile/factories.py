@@ -112,6 +112,20 @@ def yesterday():
     return yesterday
 
 
+def ototoi():
+    """Return a datetime obj representing the day before yesterday.
+
+    This is useful when testing Newsletter wrt to last_sent, as it
+    allows for easy creation of a date between the newsletter's
+    last_sent and now() (i.e. newsletter.last_sent +
+    timedelta(days=1)).
+
+    """
+    # 一昨日 (ototoi or issakujitsu) means the day before yesterday in Japanese
+    ototoi = timezone.now() - timezone.timedelta(2)
+    return ototoi
+
+
 class SpecialIssueFactory(factory.django.DjangoModelFactory):
     """Special issues."""
 
@@ -191,4 +205,4 @@ class NewsletterFactory(factory.django.DjangoModelFactory):
         model = Newsletter
 
     journal = factory.LazyAttribute(lambda x: Journal.objects.first())
-    last_sent = factory.LazyFunction(yesterday)
+    last_sent = factory.LazyFunction(ototoi)
