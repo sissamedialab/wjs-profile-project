@@ -1358,22 +1358,15 @@ def search(request):
         split_term.append(escaped)
 
         form.is_valid()
-        articles_qs = submission_models.Article.objects.search(
+        articles = submission_models.Article.objects.search(
             search_term,
             form.get_search_filters(),
             sort=form.cleaned_data.get("sort"),
             site=request.site_object,
         )
-        if isinstance(articles_qs, RawQuerySet):
-            # 😢
-            articles_pk = [article.id for article in articles_qs]
-        else:
-            # TODO: ask Iacopo
-            # I already stumbled here: why/when is this useful?
-            # - if I can do `.values_list` it means that I have a QuerySet (not "RaW")
-            # - so, if I have a QuerySet I can do `filter`
-            articles_pk = articles_qs.values_list("pk", flat=True)
-        articles = submission_models.Article.objects.filter(pk__in=articles_pk)
+        if isinstance(articles, RawQuerySet):
+            articles_pk = [article.id for article in articles]
+            articles = submission_models.Article.objects.filter(pk__in=articles_pk)
 
     if selected_keywords:
         articles = articles.filter(
