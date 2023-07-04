@@ -133,6 +133,9 @@ class NewsletterMailerService:
 
     def _get_newsletter(self, journal: Journal, force: bool = False) -> Tuple[Newsletter, datetime.datetime]:
         newsletter, created = Newsletter.objects.get_or_create(journal=journal)
+        if created:
+            newsletter.last_sent = now()
+            newsletter.save()
         last_sent = newsletter.last_sent
         if force:
             last_sent = self.send_always_timestamp
@@ -281,6 +284,7 @@ class NewsletterMailerService:
             except Exception as e:
                 messages.append(str(e))
 
+        newsletter.last_sent = now()
         newsletter.save()
         return messages
 
