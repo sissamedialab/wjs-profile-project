@@ -250,12 +250,14 @@ def set_jcom_settings(journal):
 
 def set_general_settings():
     """Define default settings to replace data defined in datamigration."""
-    update_xsl_files()
-    update_settings()
-    update_emails()
-    management.call_command("add_publication_alert_settings")
-    management.call_command("add_user_as_main_author_setting")
-    management.call_command("add_submission_figures_data_title")
+    # general settings must be defined before journal creation
+    if not journal_models.Journal.objects.all().exists():
+        update_xsl_files()
+        update_settings()
+        update_emails()
+        management.call_command("add_publication_alert_settings")
+        management.call_command("add_user_as_main_author_setting")
+        management.call_command("add_submission_figures_data_title")
 
 
 def _journal_factory(code, press, domain=None):
@@ -315,12 +317,11 @@ def article(admin, coauthor, journal, sections):
     return article
 
 
-@pytest.fixture
-def published_articles(admin, editor, journal, sections, keywords):
-    """Create articles in published stage.
+def _create_published_articles(admin, editor, journal, sections, keywords, items=10):
+    """Create articles in published stage - Function version.
 
     Correspondence author (owner), keywords and section are random"""
-    for i in range(10):
+    for i in range(items):
         owner = random.choice([admin, editor])
         article = submission_models.Article.objects.create(
             abstract=f"Abstract{i}",
@@ -336,7 +337,9 @@ def published_articles(admin, editor, journal, sections, keywords):
             stage="Published",
             language="eng",
         )
+        article.authors.add(owner)
         article.keywords.add(random.choice(keywords))
+        article.snapshot_authors()
         Identifier.objects.create(id_type="pubid", article=article, identifier=f"JCOM_0101_2022_R0{article.pk}")
         for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:
             file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
@@ -345,6 +348,14 @@ def published_articles(admin, editor, journal, sections, keywords):
             galley.last_modified = timezone.now()
             galley.save()
     return submission_models.Article.objects.all()
+
+
+@pytest.fixture
+def published_articles(admin, editor, journal, sections, keywords):
+    """Create articles in published stage - Fixture version.
+
+    Correspondence author (owner), keywords and section are random"""
+    return _create_published_articles(admin, editor, journal, sections, keywords)
 
 
 @pytest.fixture
@@ -419,11 +430,29 @@ def install_jcom_theme():
     management.call_command("install_themes")
 
 
+# FIXME: We should mark this as autouse and fix the tests relying on the dirty script prefix
+# We (unconsciously) rely on this in a few tests, and we should not do this anymore.
 @pytest.fixture
 def clear_script_prefix_fix():
     """Clear django's script prefix at the end of the test.
 
-    Otherwise `reverse()` might produce unexpected results.
+    Many tests rely on implicit journal prefix injection done by `core.middleware.SiteSettingsMiddleware`
+    which is currently propagated to any test
+
+    ```python
+    Set the script prefix if the site is in path mode
+    if site_path:
+        prefix = "/" + site_path
+        logger.debug("Setting script prefix to %s" % prefix)
+        set_script_prefix(prefix)
+        request.path_info = request.path_info[len(prefix):]
+    ```
+    This code use django `set_script_prefix` to automatically set the journal code as prefix for all the URLs in the
+    current thread. At runtime this is not a problem because the middleware is run on every request and the prefix is
+    then set on every run for the current journal.
+
+    As the tests are run by "reusing" the threads (either a single thread when not in parallel mode or a limited set of
+    threads in parallel mode) the prefix leaks from one test to another.
 
     This fixture clears the script prefix before and after the test.
     """

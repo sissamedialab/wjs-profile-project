@@ -1252,6 +1252,10 @@ def filter_articles(request, section=None, keyword=None, author=None):
     """
     filters = {"stage": submission_models.STAGE_PUBLISHED}
     title, paragraph, filtered_object = "", "", None
+    # Ref: https://gitlab.sissamedialab.it/wjs/specs/-/issues/381
+    # Check allows the view to skip filtering by journal when request is from the press domain
+    if request.journal:
+        filters["journal"] = request.journal
     if section:
         filters["section"] = section
         title = _("Filter by section")

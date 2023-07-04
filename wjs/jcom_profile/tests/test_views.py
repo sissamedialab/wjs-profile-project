@@ -16,31 +16,52 @@ from wjs.jcom_profile.models import (
     EditorKeyword,
     JCOMProfile,
 )
-from wjs.jcom_profile.tests.conftest import ASSIGNMENT_PARAMETERS_SPAN, INVITE_BUTTON
+from wjs.jcom_profile.tests.conftest import (
+    ASSIGNMENT_PARAMETERS_SPAN,
+    INVITE_BUTTON,
+    _create_published_articles,
+    _journal_factory,
+)
 from wjs.jcom_profile.utils import generate_token
 
 
 @pytest.mark.django_db
-def test_filter_articles_by_author(editor, published_articles):
+def test_filter_articles_by_author(editor, published_articles, press, admin, sections, keywords, journal):
+    journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
+
     client = Client()
     author = editor.pk
     url = reverse("articles_by_author", kwargs={"author": author})
+    # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
+    if not url.startswith(f"/{journal.code}"):
+        url = f"/{journal.code}{url}"
     response = client.get(url)
+
+    articles_per_author = published_articles.filter(frozenauthor__author__in=[editor], journal=journal)
 
     assert response.status_code == 200
     assert response.context["title"] == "Filter by author"
     assert response.context["paragraph"] == "All author's publications are listed below."
     assert response.context["filtered_object"] == editor.full_name()
 
+    assert set(response.context["articles"].object_list) == set(articles_per_author)
     for article in response.context["articles"]:
-        assert author in list(article.frozenauthor_set.values_list("pk"))
+        assert author in list(article.frozenauthor_set.values_list("author_id", flat=True))
+        assert article.journal == journal
 
 
 @pytest.mark.django_db
-def test_filter_articles_by_section(editor, published_articles, sections):
+def test_filter_articles_by_section(editor, published_articles, press, admin, sections, keywords, journal):
+    journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
+
     client = Client()
     section = random.choice(sections)
     url = reverse("articles_by_section", kwargs={"section": section.pk})
+    # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
+    if not url.startswith(f"/{journal.code}"):
+        url = f"/{journal.code}{url}"
     response = client.get(url)
 
     assert response.status_code == 200
@@ -48,15 +69,24 @@ def test_filter_articles_by_section(editor, published_articles, sections):
     assert response.context["paragraph"] == "Publications included in this section."
     assert response.context["filtered_object"] == section.name
 
+    assert response.context["articles"].object_list
     for article in response.context["articles"]:
         assert article.section.pk == section.pk
+        assert article.journal == journal
 
 
 @pytest.mark.django_db
-def test_filter_articles_by_keyword(editor, published_articles, keywords):
+def test_filter_articles_by_keyword(editor, published_articles, press, admin, sections, keywords, journal):
+    journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
+
     client = Client()
+    keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
     keyword = random.choice(keywords)
     url = reverse("articles_by_keyword", kwargs={"keyword": keyword.pk})
+    # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
+    if not url.startswith(f"/{journal.code}"):
+        url = f"/{journal.code}{url}"
     response = client.get(url)
 
     assert response.status_code == 200
@@ -64,8 +94,10 @@ def test_filter_articles_by_keyword(editor, published_articles, keywords):
     assert response.context["paragraph"] == "Publications including this keyword are listed below."
     assert response.context["filtered_object"] == keyword.word
 
+    assert response.context["articles"].object_list
     for article in response.context["articles"]:
         assert keyword.pk in article.keywords.values_list("pk", flat=True)
+        assert article.journal == journal
 
 
 @pytest.mark.django_db
