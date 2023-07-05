@@ -1,0 +1,6 @@
+{% if issue.large_image %}
+    <meta name="twitter:image"
+          content="{{ issue.hero_image_url }}" />
+    <meta property="og:image"
+          content="{{ issue.hero_image_url }}" />
+{% endif %}

@@ -16,7 +16,7 @@ from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
-from submission.models import Article, Keyword
+from submission.models import Article, ArticleAuthorOrder, Keyword
 from utils import setting_handler
 from utils.install import update_issue_types
 from utils.setting_handler import get_setting
@@ -96,6 +96,7 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
     mock_premailer_load_url,
 ):
     newsletter = newsletter_factory()
+    a_date_before_last_sent = newsletter.last_sent - datetime.timedelta(days=1)
     content_type = ContentType.objects.get_for_model(journal)
     users = []
     correspondence_author = account_factory()
@@ -103,7 +104,8 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
         users.append(account_factory())
     for _ in range(10):
         news_item_factory(
-            posted=timezone.now() + datetime.timedelta(days=-2),
+            posted=a_date_before_last_sent,  # not really important
+            start_display=a_date_before_last_sent,
             content_type=content_type,
             object_id=journal.pk,
         )
@@ -145,21 +147,28 @@ def test_newsletters_with_news_items_only_must_be_sent(
     journal,
     mock_premailer_load_url,
 ):
-    newsletter = newsletter_factory()
-    news_user, no_news_user = account_factory(email="news@news.it"), account_factory(email="nonews@nonews.it")
-    content_type = ContentType.objects.get_for_model(journal)
+    newsletter = newsletter_factory(journal=journal)
+    # We need a full-day increase, since "start_display" is a date, not a datetime
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(days=1)
 
+    news_user = account_factory(email="news@news.it")
     news_recipient = recipient_factory(user=news_user, news=True)
+
+    no_news_user = account_factory(email="nonews@nonews.it")
+    recipient_factory(user=no_news_user, news=False)
+
+    content_type = ContentType.objects.get_for_model(journal)
     news_item_factory(
-        posted=timezone.now() + datetime.timedelta(days=1),
+        posted=a_date_between_last_sent_and_now,
+        start_display=a_date_between_last_sent_and_now,
         content_type=content_type,
         object_id=journal.pk,
     )
-    recipient_factory(user=no_news_user, news=False)
 
     management.call_command("send_newsletter_notifications", journal.code)
-
+    newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
+
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [news_recipient.newsletter_destination_email]
 
@@ -194,6 +203,8 @@ def test_newsletters_with_articles_only_must_be_sent(
         section=section_factory(),
     )
     newsletter_article.keywords.add(newsletter_user_keyword)
+    newsletter_article.authors.add(correspondence_author)
+    newsletter_article.snapshot_authors()
     newsletter_article.save()
 
     no_newsletter_article = article_factory(
@@ -204,6 +215,8 @@ def test_newsletters_with_articles_only_must_be_sent(
         section=section_factory(),
     )
     no_newsletter_article.keywords.add(keyword_factory())
+    no_newsletter_article.authors.add(correspondence_author)
+    no_newsletter_article.snapshot_authors()
     no_newsletter_article.save()
 
     newsletter_article_recipient = recipient_factory(
@@ -217,7 +230,7 @@ def test_newsletters_with_articles_only_must_be_sent(
     recipient_factory(user=no_newsletter_article_user, news=False, language=language)
 
     management.call_command("send_newsletter_notifications", journal.code)
-
+    newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [newsletter_article_recipient.newsletter_destination_email]
@@ -239,12 +252,15 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     journal,
     mock_premailer_load_url,
 ):
-    newsletter = newsletter_factory()
+    newsletter = newsletter_factory(journal=journal)
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(days=1)
+
     content_type = ContentType.objects.get_for_model(journal)
     correspondence_author = account_factory()
     for _ in range(10):
         news_item_factory(
-            posted=timezone.now() + datetime.timedelta(days=1),
+            posted=a_date_between_last_sent_and_now,
+            start_display=a_date_between_last_sent_and_now,
             content_type=content_type,
             object_id=journal.pk,
         )
@@ -266,6 +282,8 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
             correspondence_author=correspondence_author,
             section=section_factory(),
         )
+        article.authors.add(correspondence_author)
+        article.snapshot_authors()
         article_keywords = select_random_keywords(keywords)
         for keyword in article_keywords:
             article.keywords.add(keyword)
@@ -304,18 +322,21 @@ def test_two_recipients_one_news(
     """
 
     newsletter = newsletter_factory()
+    a_date_between_last_sent_and_now = newsletter.last_sent + datetime.timedelta(days=1)
+
     content_type = ContentType.objects.get_for_model(journal)
     # Two news recipients
     nr1 = recipient_factory(user=account_factory(), news=True)
     nr2 = recipient_factory(user=account_factory(), news=True)
     news_item_factory(
-        posted=timezone.now() + datetime.timedelta(days=1),
+        posted=a_date_between_last_sent_and_now,
+        start_display=a_date_between_last_sent_and_now,
         content_type=content_type,
         object_id=journal.pk,
     )
 
     management.call_command("send_newsletter_notifications", journal.code)
-
+    newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
     # msg.to is a list (i.e. a message can have multiple "To:")
@@ -352,8 +373,13 @@ def test_two_recipients_one_article(
     # One published article, with a known kwd
     kwd1 = keyword_factory()
     tomorrow = timezone.now() + datetime.timedelta(days=1)
+    correspondence_author = account_factory()
+    correspondence_author.save()
     a1 = article_factory(journal=journal, date_published=tomorrow)
     a1.keywords.add(kwd1)
+    a1.authors.add(correspondence_author)
+    a1.snapshot_authors()
+    a1.save
 
     # Two newsletter recipients with the same topic (kwd)
     nr1 = recipient_factory(user=account_factory(), news=False)
@@ -362,7 +388,7 @@ def test_two_recipients_one_article(
     nr2.topics.add(kwd1)
 
     management.call_command("send_newsletter_notifications", journal.code)
-
+    newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
     check_email_body(mail.outbox, journal)
@@ -370,6 +396,7 @@ def test_two_recipients_one_article(
 
 @pytest.mark.django_db
 def test_one_recipient_one_article_two_topics(
+    account_factory,
     recipient_factory,
     newsletter_factory,
     article_factory,
@@ -388,9 +415,14 @@ def test_one_recipient_one_article_two_topics(
     kwd1 = keyword_factory()
     kwd2 = keyword_factory()
     tomorrow = timezone.now() + datetime.timedelta(days=1)
-    a1 = article_factory(journal=journal, date_published=tomorrow)
+    correspondence_author = account_factory()
+    correspondence_author.save()
+    a1 = article_factory(journal=journal, date_published=tomorrow, correspondence_author=correspondence_author)
     a1.keywords.add(kwd1)
     a1.keywords.add(kwd2)
+    a1.authors.add(correspondence_author)
+    a1.snapshot_authors()
+    a1.save()
 
     # Two newsletter recipients with the same topic (kwd)
     nr1 = recipient_factory(journal=journal, news=False, email="nr1@email.com")
@@ -401,10 +433,98 @@ def test_one_recipient_one_article_two_topics(
     nr2.topics.add(kwd2)
 
     management.call_command("send_newsletter_notifications", journal.code)
-
+    newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
     assert len(mail.outbox) == 2
     check_email_body(mail.outbox, journal)
+
+
+@pytest.mark.django_db
+def test_one_recipient_with_news_true_and_no_articles_and_no_newsitems(
+    account_factory,
+    recipient_factory,
+    newsletter_factory,
+    custom_newsletter_setting,
+    journal,
+):
+    """Test that the recipient list is empty when it should be.
+
+    When
+    - there are no newsitem to send
+    - and there are no articles,
+    the recipient lists should be empty.
+    """
+
+    newsletter = newsletter_factory()
+
+    # No articles!
+    assert not Article.objects.exists()  # ⇦ Interesting part
+
+    # No news!
+    assert not NewsItem.objects.exists()  # ⇦ Interesting part
+
+    # A newsletter recipient, with no topic (indifferent here), but with news set to True
+    nr1 = recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    assert not nr1.topics.exists()
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    assert len(articles) == 0
+    assert len(news) == 0
+    assert len(recipients) == 0  # ⇦ Interesting part
+
+
+@pytest.mark.django_db
+def test_one_recipient_with_wrong_topic_but_with_news_true_and_no_newsitems(
+    account_factory,
+    recipient_factory,
+    newsletter_factory,
+    news_item_factory,
+    article_factory,
+    keyword_factory,
+    custom_newsletter_setting,
+    journal,
+):
+    """Test that the recipient list is empty when it should be.
+
+    When
+    - there are no newsitem to send
+    - and there are no "interesting" articles,
+    the recipient lists should be empty.
+    """
+
+    newsletter = newsletter_factory()
+
+    # One published article, with a known kwd
+    kwd = keyword_factory()
+    correspondence_author = account_factory()
+    correspondence_author.save()
+    a1 = article_factory(
+        journal=journal,
+        date_published=timezone.now(),
+        correspondence_author=correspondence_author,
+    )
+    a1.keywords.add(kwd)
+    a1.authors.add(correspondence_author)
+    a1.snapshot_authors()
+    a1.save()
+
+    # No news!
+    assert not NewsItem.objects.exists()  # ⇦ Interesting part
+
+    # A newsletter recipient, with the wrong kwd/topic, but with news set to True
+    wrong_kwd = keyword_factory()
+    assert wrong_kwd.word != kwd.word
+    nr1 = recipient_factory(journal=journal, news=True, email="nr1@email.com")
+    nr1.topics.add(wrong_kwd)
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    # Articles are collected when date_published > newsletter.last_sent,
+    # so here it is correct to expect that our article is collected.
+    assert len(articles) == 1
+    assert len(news) == 0
+    assert len(recipients) == 0  # ⇦ Interesting part
 
 
 rome_tz = ZoneInfo("Europe/Rome")
@@ -915,3 +1035,132 @@ def test_anonymous_user_recipient_confirms_registration_to_second_journal(journa
     client.get(acceptance_url)
 
     assert True
+
+
+@pytest.mark.django_db
+def test_check_authors_list_in_publication_alert(
+    account_factory,
+    article_factory,
+    recipient_factory,
+    newsletter_factory,
+    keyword_factory,
+    custom_newsletter_setting,
+    journal,
+    mock_premailer_load_url,
+    section_factory,
+):
+    """Test format authors list format in publication alert:
+    first_name1 last_name1, first_name2 last_name2 and first_name3 last_name3
+    """
+
+    newsletter = newsletter_factory()
+    correspondence_author = account_factory()
+    correspondence_author.save()
+    article = article_factory(
+        title="Test author list",
+        abstract="Abstract test author list",
+        journal=journal,
+        date_published=timezone.now() + datetime.timedelta(days=1),
+        stage="Published",
+        correspondence_author=correspondence_author,
+        section=section_factory(),
+    )
+    kwd1 = keyword_factory()
+    article.keywords.add(kwd1)
+
+    coauthor1 = account_factory()
+    coauthor2 = account_factory()
+
+    article.authors.add(correspondence_author)
+    ArticleAuthorOrder.objects.create(
+        article=article,
+        author=correspondence_author,
+        order=0,
+    )
+    article.authors.add(coauthor1)
+    ArticleAuthorOrder.objects.create(
+        article=article,
+        author=coauthor1,
+        order=1,
+    )
+    article.authors.add(coauthor2)
+    ArticleAuthorOrder.objects.create(
+        article=article,
+        author=coauthor2,
+        order=2,
+    )
+    article.snapshot_authors()
+    article.save()
+
+    recipient = recipient_factory(user=account_factory(), news=False)
+    recipient.topics.add(kwd1)
+
+    management.call_command("send_newsletter_notifications", journal.code)
+    newsletter.refresh_from_db()
+    assert newsletter.last_sent.date() == timezone.now().date()
+    assert len(mail.outbox) == 1
+
+    expected_authors_list = (
+        f"by {correspondence_author.first_name} {correspondence_author.last_name},"
+        f" {coauthor1.first_name} {coauthor1.last_name}"
+        f" and {coauthor2.first_name} {coauthor2.last_name}"
+    )
+    html = lxml.html.fromstring(mail.outbox[0].body)
+    p = html.find(".//p[@class='author']")
+    assert expected_authors_list in p.text
+
+
+@pytest.mark.freeze_time
+@pytest.mark.parametrize(
+    "last_sent,now,start_display,expected",
+    (
+        # Common case: last sent yesterday, start_display the same day of the new sending
+        ("2023-06-29 21:00:01+02:00", "2023-06-30 21:00:01+02:00", "2023-06-30", True),
+        # Another common case: news already sent
+        ("2023-06-29 21:00:01+02:00", "2023-06-30 21:00:01+02:00", "2023-06-29", False),
+        # News not yet sent, but start_display in the future
+        ("2023-06-29 21:00:01+02:00", "2023-06-30 21:00:01+02:00", "2023-07-01", False),
+        # Variations, with `now` the same day of `last_sent`
+        # Impossible: now before last_sent
+        ("2023-06-29 11:00:01+02:00", "2023-06-29 08:00:01+02:00", "2023-06-29", False),
+        # Send twice in the same day: the news for that day are sent the first time
+        ("2023-06-29 08:00:01+02:00", "2023-06-29 11:00:01+02:00", "2023-06-29", False),
+    ),
+)
+@pytest.mark.django_db
+def test_news_collection_wrt_last_sent_and_now(
+    recipient_factory,
+    newsletter_factory,
+    custom_newsletter_setting,
+    news_item_factory,
+    journal,
+    freezer,
+    last_sent,
+    now,
+    start_display,
+    expected,
+):
+    """Test that news are correcly collected.
+
+    News should be sent when:
+    - start_display > last_sent (don't send news already sent)
+    - start_display <= now (don't sent news that will be visible only in the future)
+    """
+
+    newsletter = newsletter_factory(last_sent=datetime.datetime.fromisoformat(last_sent), journal=journal)
+    freezer.move_to(now)
+
+    content_type = ContentType.objects.get_for_model(journal)
+    news_item = news_item_factory(
+        start_display=start_display,
+        content_type=content_type,
+        object_id=journal.pk,
+    )
+
+    nms = NewsletterMailerService()
+    recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
+    assert len(articles) == 0  # I don't really care
+    assert len(recipients) == 0  # I don't really care
+    assert len(news) == (1 if expected else 0)
+
+    assert (news_item in news) is expected

@@ -300,7 +300,6 @@ class Genealogy(models.Model):
 class Newsletter(models.Model):
     last_sent = models.DateTimeField(
         verbose_name=_("Last time newsletter emails have been sent to users"),
-        auto_now=True,
     )
     journal = models.OneToOneField(
         Journal,

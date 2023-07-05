@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% load i18n %}
+{% block title %}
+    {{ block.super }} |
+    {% if issue.issue_type.code == 'collection' %}
+    {% trans "Collection" %}: {{ issue.title }}
+    {% else %}
+    {% trans "Issue" %}: {{ issue }}
+    {% endif %}
+{% endblock title %}
+{% block head %}
+    {% include "elements/issue_social_meta.html" %}
+{% endblock head %}
+{% block body %}
+{% include "journal/issue_display.html" %}
+{% endblock body %}

@@ -48,22 +48,26 @@ upload-package:
     - .upload-package
 
 
-deploy-to-dev:
-  only:
-    - tags
+deploy-to-pre-production:
+  # We don't want to risk resetting some on-going translation:
+  environment: pre-production
+  when: manual
   extends:
     - .deploy
 
-  # Deploy basically means `pip install`, so the package must already
-  # be in the package registry.
-  needs:
-    - upload-package
+  # This is sort of implicit, because the deployment process is basically `pip install -U wjs`
+  # needs:
+  #   - upload-package
+  # Also, if `only: - tags` is omitted, gitlab complains that
+  # 'deploy-to-pre-production' job needs 'upload-package' job, but 'upload-package' is not in any previous stage
+  # only:
+  #   - tags
 
   variables:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-dev-wjs"
+    DEPLOY_CMD: "deploy-pp-wjs"
 
 
 deploy-to-production:
@@ -75,17 +79,3 @@ deploy-to-production:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
     DEPLOY_CMD: "deploy-prod-wjs"
-
-
-deploy-to-pre-production:
-  extends:
-    - .deploy
-  when: manual
-  environment: pre-production
-  variables:
-    # There is a Janeway pre-production instance on the same
-    # user@server as the test instance. The deploy script will do the
-    # deploy based on the DEPLOY_CMD
-    SERVER_IP: "TEST_SERVER_IP"
-    SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-pp-wjs"
