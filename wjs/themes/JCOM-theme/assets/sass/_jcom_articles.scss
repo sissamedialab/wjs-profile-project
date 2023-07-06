@@ -212,3 +212,14 @@
   position: fixed !important;
   top: 40px;
 }
+
+/* Header-like parts, deriving from LaTeX's \paragraph{...} */
+span.paragraphHead {
+  font-weight: bold;
+}
+
+/* Lists deriving from LaTeX's itemize environment */
+ul.itemize1 > li {
+  list-style-type: circle;
+  margin-left: 2rem;
+}
