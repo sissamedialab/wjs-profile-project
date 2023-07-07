@@ -62,9 +62,21 @@ pg_dump -U $j_pp_db_user -h $j_pp_db_host $j_pp_db_name --no-password --format=c
 pg_restore --exit-on-error --single-transaction -U $j_test_db_user -h $j_test_db_host --no-password --dbname $j_test_db_name $j_pp_dump
 
 # Fix press and journal domain (or get infinite redirects)
+# and set all journals to use crossref's test instance (prevent accidental registration of DOIs)
 psql --quiet -U $j_test_db_user -h $j_test_db_host --no-password --dbname $j_test_db_name <<EOF
-update press_press set domain='janeway-test.sissamedialab.it';
-update journal_journal set domain='jcom-test.sissamedialab.it';
+update press_press set domain='serra-pp-journals.wjapp.it';
+update journal_journal set domain='serra-pp-jcom.wjapp.it' where code='JCOM';
+update journal_journal set domain='serra-pp-jcomal.wjapp.it' where code='JCOMAL';
+UPDATE core_settingvalue
+SET
+  value = 'on',
+  value_en = 'on'
+FROM core_setting s
+WHERE
+  s.name = 'crossref_test'
+  AND core_settingvalue.setting_id = s.id
+  AND core_settingvalue.journal_id IS NOT NULL
+;
 EOF
 
 
