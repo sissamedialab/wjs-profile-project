@@ -93,6 +93,20 @@ def set_author_country(author: Account, json_data):
         author.save()
 
 
+def drop_render_galley(article):
+    """Clean up only render galley of an article."""
+    # TODO: check if render_galley is removed also from article.galley_set
+    if article.render_galley:
+        for file_obj in article.render_galley.images.all():
+            file_obj.delete()
+        article.render_galley.images.clear()
+        article.render_galley.file.delete()
+        article.render_galley.file = None
+        article.render_galley.delete()
+        article.render_galley = None
+        article.save()
+
+
 def drop_existing_galleys(article):
     """Clean up all existing galleys of an article."""
     for galley in article.galley_set.all():
