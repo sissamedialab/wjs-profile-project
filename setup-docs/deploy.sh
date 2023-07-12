@@ -82,18 +82,16 @@ function deploy_wjs() {
 
     cd "$MANAGE_DIR"
 
+    "$PYTHON" manage.py create_custom_settings
+
     "$PYTHON" manage.py link_plugins
     "$PYTHON" manage.py install_themes
+    "$PYTHON" manage.py create_role Director
 
     "$PYTHON" manage.py migrate jcom_profile
 
     "$PYTHON" manage.py build_assets
     "$PYTHON" manage.py collectstatic --noinput
-
-    "$PYTHON" manage.py add_coauthors_submission_email_settings
-    "$PYTHON" manage.py add_generic_analytics_code_setting
-    "$PYTHON" manage.py add_publication_alert_settings
-    "$PYTHON" manage.py add_user_as_main_author_setting
 
     touch --no-dereference "$UWSGI_VASSAL"
 }
@@ -102,12 +100,12 @@ function set_prod_variables() {
     JANEWAY_ROOT=/home/wjs/janeway
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
-    JANEWAY_BRANCH=jcom
+    JANEWAY_BRANCH=wjs-production
 }
 
 function set_pp_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-pp
-    VENV_BIN=/home/wjs/.virtualenvs/janeway-pp/bin
+    VENV_BIN=/home/wjs/.virtualenvs/janeway-pp-1.5/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-pp.ini
     JANEWAY_BRANCH=wjs-production
 }
