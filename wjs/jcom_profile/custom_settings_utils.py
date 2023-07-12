@@ -93,7 +93,7 @@ def add_coauthors_submission_email_settings():
             "name": "submission_coauthors_acknowledgment",
             "group": email_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Submission Coauthors Acknowledgment"),
+            "pretty_name": _("Submission Coauthors Acknowledgement"),
             "description": _("Email sent to coauthors when they have submitted an article."),
             "is_translatable": True,
         }
@@ -276,7 +276,7 @@ JCOM - Journal of Science Communication
         setting_params: SettingParams = {
             "name": "publication_alert_email_intro_message",
             "group": email_settings_group,
-            "types": "rich-text",
+            "types": "text",
             "pretty_name": "Introduction to the publication alert body.",
             "description": "Email introduction message",
             "is_translatable": True,
@@ -350,7 +350,7 @@ def add_general_facebook_handle_setting():
             "group": general_settings_group,
             "types": "text",
             "pretty_name": "Facebook Handle",
-            "description": "Journal's facebook handle",
+            "description": "Journal's facebook handle.",
             "is_translatable": False,
         }
         settingvalue_params: SettingValueParams = {
