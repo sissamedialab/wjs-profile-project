@@ -33,6 +33,7 @@ from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
     decide_galley_label,
     drop_existing_galleys,
+    drop_render_galley,
     evince_language_from_filename_and_article,
     fake_request,
     process_body,
@@ -96,6 +97,11 @@ class Command(BaseCommand):
             "journal-code",
             choices=["JCOM", "JCOMAL"],
             help="Toward which journal to import.",
+        )
+        parser.add_argument(
+            "--only_regenerate_html_galley",
+            action="store_true",
+            help="Only regenerate HTML galleys without re-creating the article",
         )
 
     def read_from_watched_dir(self):
@@ -172,6 +178,13 @@ class Command(BaseCommand):
 
         xml_obj = preprocess_xmlfile(xml_file, tex_data)
 
+        if self.options["only_regenerate_html_galley"]:
+            self.regen_html_galley(xml_obj, tex_filename, alternative_tex_filename)
+            # Cleanup
+            shutil.rmtree(tmpdir)
+            return
+
+        # extract pubid, create article
         article, pubid = self.create_article(xml_obj)
         self.set_keywords(article, xml_obj, pubid)
         issue = self.set_issue(article, xml_obj, pubid)
@@ -189,6 +202,7 @@ class Command(BaseCommand):
             # Generate the EPUB from the TeX sources
             epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
             self.set_epub_galley(article, epub_galley_filename, pubid)
+
         except Exception as exception:
             logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
 
@@ -209,10 +223,27 @@ class Command(BaseCommand):
 
             except Exception as exception:
                 logger.error(f"Generation of HTML and EPUB galley failed for {translation_tex_filename}: {exception}")
+
         self.set_doi(article)
         publish_article(article)
         # Cleanup
         shutil.rmtree(tmpdir)
+
+    def regen_html_galley(self, xml_obj, tex_filename, alternative_tex_filename):
+        """Regen only render galley"""
+        # extract pubid, get article
+        pubid = xml_obj.find("//document/articleid").text
+        journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
+        logger.debug(f"getting {pubid}")
+        article = submission_models.Article.get_article(
+            journal=journal,
+            identifier_type="pubid",
+            identifier=pubid,
+        )
+        drop_render_galley(article)
+        # Generate the full-text html from the TeX sources
+        html_galley_filename = make_xhtml.make(tex_filename, alternative_tex_filename=alternative_tex_filename)
+        self.set_html_galley(article, html_galley_filename)
 
     def set_html_galley(self, article, html_galley_filename):
         """Set the give file as HTML galley."""
