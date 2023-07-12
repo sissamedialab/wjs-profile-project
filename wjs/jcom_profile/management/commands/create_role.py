@@ -25,5 +25,5 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f"{role_name} role created successfully."))
             except Exception as e:
                 self.stdout.write(
-                    self.style.ERROR(f"An error occured trying to create a new role named {role_name}: {e}"),
+                    self.style.ERROR(f"An error occurred trying to create a new role named {role_name}: {e}"),
                 )
