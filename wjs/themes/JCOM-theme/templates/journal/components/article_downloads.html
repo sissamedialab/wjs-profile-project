@@ -5,7 +5,7 @@
     <ul>
         {% for galley in galleys %}
             <li>
-                <a class="article-sidebar-download article-sidebar-download-{% if galley.file.mime_type == 'application/pdf' %}pdf{% elif galley.file.mime_type == 'application/epub+zip' %}epub{% endif %}"
+                <a class="matomo_download article-sidebar-download article-sidebar-download-{% if galley.file.mime_type == 'application/pdf' %}pdf{% elif galley.file.mime_type == 'application/epub+zip' %}epub{% endif %}"
                    href="{% url 'article_download_galley' article.id galley.id %}">{% trans "Download" %} {{ galley.label }}</a>
                 {% if galley.file.mime_type == 'application/pdf' and journal.view_pdf_button %}
                 </li>
