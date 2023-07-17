@@ -1,0 +1,55 @@
+{% load wjs_review %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <meta name="description" content="dashboard">
+    <meta name="keywords" content="dashboard">
+</head>
+<body>
+<table>
+    <tr>
+        <th>workflow</th>
+        <th>Reviewers</th>
+        <th>State</th>
+        <th>Transitions</th>
+        <th>Actions</th>
+    </tr>
+    {% for workflow in workflows %}
+        {% get_available_transitions workflow as transitions %}
+        <tr>
+            <td>
+                {{ workflow.article }}
+            </td>
+            <td>
+                {% for assignment in workflow.article.reviewassignment_set.all %}
+                    {{ assignment.reviewer }},
+                {% endfor %}
+            </td>
+            <td>
+                {{ workflow.get_state_display }}
+            </td>
+            <td>
+                <form method="post" action="{% url "update_state" workflow.pk %}">
+                    <input type="hidden" name="state" value="{{ workflow.state }}">
+                    {% csrf_token %}
+                    {% for transition in transitions %}
+                        {% if transition.name != "assign_referee" %}
+                            <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
+                        {% endif %}
+                    {% endfor %}
+                </form>
+            </td>
+            <td>
+                {% for transition in transitions %}
+                    {% if transition.name == "assign_referee" %}
+                        <a href="{% url 'wjs_select_reviewer' workflow.pk %}">Assegna a reviewer</a>
+                    {% endif %}
+                {% endfor %}
+            </td>
+        </tr>
+    {% endfor %}
+</table>
+</body>
+</html>
