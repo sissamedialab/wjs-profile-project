@@ -11,6 +11,8 @@ INSTALLED_APPS = [
     "wjs.jcom_profile",
     "easy_select2",
     "rosetta",
+    "django_fsm",
+    "model_utils",
 ]
 
 # This is the default redirect if no other sites are found.

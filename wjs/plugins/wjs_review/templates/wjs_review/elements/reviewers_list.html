@@ -1,0 +1,7 @@
+{% for user in users %}
+<tr>
+    <td>{{ user.get_full_name }}</td>
+    <td>{{ user.email }}</td>
+    <td><button onclick="selectReviewer({{ user.pk }}); return false;">Select</button></td>
+</tr>
+{% endfor %}
