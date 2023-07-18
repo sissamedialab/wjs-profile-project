@@ -13,6 +13,7 @@ INSTALLED_APPS = [
     "rosetta",
     "django_fsm",
     "model_utils",
+    "django_bootstrap5",
 ]
 
 # This is the default redirect if no other sites are found.
