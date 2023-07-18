@@ -1,0 +1,81 @@
+{% load wjs_review %}
+<div class="card border border-2">
+    <div class="card-body">
+        {% with article=workflow.article %}
+            <div>
+                <!-- article id, type, title -->
+                <p>
+                    {{ article.section.name }} — {{ article.id }} <span class="bg-primary text-white fw-bold">{{ article.title|truncatewords:5 }}</span>
+                </p>
+                <p>
+                    by
+                    {% for author in article.authors.all %}
+                        {% if author == article.correspondence_author %}
+                            <span class="fst-italic" title="Corresponding / correspondence author">{{ author }},</span>
+                        {% else %}
+                            <span>{{ author }},</span>
+                        {% endif %}
+                    {% endfor %}
+                </p>
+                <p>
+                    In special Issue TODO: merge Janeway collections and WJS special-issues <a href="https://github.com/BirkbeckCTP/janeway/issues/785">janeway#785</a> —
+                    {{ article.primary_issue }}
+                </p>
+                <p>
+                    last action + related info TODO: maybe from <a href="https://github.com/BirkbeckCTP/janeway/blob/2fb70af7d19516df3136cafeb0f99516a566cb8b/src/utils/models.py#L47">utils.models.LogEntry</a>
+                    {{ article|get_article_log_entries }}
+                </p>
+                <p>Last modified {{ workflow.modified }}; now "{{ workflow.get_state_display }}"</p>
+                <p>
+                    State-dependent info <strong>and</strong> To-do flag TODO:
+                    collect this knowledge into <code>wjs_review.logic</code> (one class per state ✕ viewing role) and
+                    highlight (💡) the entry if the editor is expected to act. Examples:
+                </p>
+                <ol>
+                    <li>assigned to reviewer x + deadline for rev's action</li>
+                    <li>assigned to reviewer y + status [report sent];</li>
+                    <li>major/minor revision requested+ deadline; active_revision_requests: {{ article.active_revision_requests }}</li>
+                    <li>
+                        final decision + date <strong>Warning:</strong> a final decision should move the paper away from this list
+                    </li>
+                    <li>
+                        💡 message by EO: se l'EO segnala un certo paper all'editor per qualche motivo particolare (<em>see below</em>)
+                    </li>
+                    <li>
+                        💡 new message to read - messages must have a "<code>read</code>" flag (☡ UX mess?). TODO: details for comunications in <a href="https://gitlab.sissamedialab.it/wjs/specs/-/issues/429">specs#429</a>; will probably create a new model based on <a href="https://github.com/BirkbeckCTP/janeway/blob/2fb70af7d19516df3136cafeb0f99516a566cb8b/src/utils/models.py#L47">LogEntry</a>
+                    </li>
+                    <li>💡 to be assigned to reviewer + deadline</li>
+                    <li>💡 to be reviewed + deadline</li>
+                    <li>💡 Report(s) received + date of last report</li>
+                    <li>💡 major/minor revision to handle + deadline</li>
+                    <li>💡 appeal to be handled + deadline</li>
+                </ol>
+                <p>
+                    Reviewers (overlaps with the above) ({{ workflow.article.reviewassignment_set.count }}):
+                    {% for assignment in workflow.article.reviewassignment_set.all %}{{ assignment.reviewer }},{% endfor %}
+                </p>
+                <p>
+                    Last editor's note TODO: add a model similar to <a href="https://github.com/BirkbeckCTP/janeway/blob/2fb70af7d19516df3136cafeb0f99516a566cb8b/src/submission/models.py#L2112"><strong>submission.Note</strong></a>
+                </p>
+                <div class="card border border-1">
+                    <div class="card-head">Actions</div>
+                    <div class="card-body">
+                        {% get_available_transitions workflow as transitions %}
+                        <form method="post" action="{% url "update_state" workflow.pk %}">
+                            <input type="hidden" name="state" value="{{ workflow.state }}">
+                            {% csrf_token %}
+                            {% for transition in transitions %}
+                                {% if transition.name != "assign_referee" %}
+                                    <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
+                                {% endif %}
+                                {% if transition.name == "assign_referee" %}
+                                    <a href="{% url 'wjs_select_reviewer' workflow.pk %}">{{ transition.name }}</a>
+                                {% endif %}
+                            {% endfor %}
+                        </form>
+                    </div>
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,55 +1,54 @@
+{% extends "wjs_review/base.html" %}
+{% block title %}
+    Dashboard
+{% endblock title %}
 {% load wjs_review %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-    <meta name="description" content="dashboard">
-    <meta name="keywords" content="dashboard">
-</head>
-<body>
-<table>
-    <tr>
-        <th>workflow</th>
-        <th>Reviewers</th>
-        <th>State</th>
-        <th>Transitions</th>
-        <th>Actions</th>
-    </tr>
-    {% for workflow in workflows %}
-        {% get_available_transitions workflow as transitions %}
-        <tr>
-            <td>
-                {{ workflow.article }}
-            </td>
-            <td>
-                {% for assignment in workflow.article.reviewassignment_set.all %}
-                    {{ assignment.reviewer }},
+{% block content_wrapper %}
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-12">
+                <h2>
+                    From specs#419 - Pending/<span class="text-decoration-line-through">past</span> papers:
+                </h2>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-12 border border-1">
+                <div>
+                    <strong>Filters</strong> (click or type to filter paper)
+                    Title, reviewer or author:
+                    <input type="text" />
+                    ;
+                    <button type="button" class="btn btn-secondary">only requiring attention</button>
+                    ;
+                    <span class="dropdown">
+                        <button class="btn btn-secondary dropdown-toggle"
+                                type="button"
+                                id="dropdownMenuButton1"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">Special issue</button>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                            <li>
+                                <a class="dropdown-item" href="#">SI-1</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#">...</a>
+                            </li>
+                        </ul>
+                    </span>; ...
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="column sm-12">
+                {% for workflow in workflows %}
+                    {% include "wjs_review/elements/article_listing_for_editor.html" %}
                 {% endfor %}
-            </td>
-            <td>
-                {{ workflow.get_state_display }}
-            </td>
-            <td>
-                <form method="post" action="{% url "update_state" workflow.pk %}">
-                    <input type="hidden" name="state" value="{{ workflow.state }}">
-                    {% csrf_token %}
-                    {% for transition in transitions %}
-                        {% if transition.name != "assign_referee" %}
-                            <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
-                        {% endif %}
-                    {% endfor %}
-                </form>
-            </td>
-            <td>
-                {% for transition in transitions %}
-                    {% if transition.name == "assign_referee" %}
-                        <a href="{% url 'wjs_select_reviewer' workflow.pk %}">Assegna a reviewer</a>
-                    {% endif %}
-                {% endfor %}
-            </td>
-        </tr>
-    {% endfor %}
-</table>
-</body>
-</html>
+            </div>
+        </div>
+    </div>
+{% endblock content_wrapper %}

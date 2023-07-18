@@ -14,6 +14,7 @@ from .users import get_available_users_by_role
 
 class ListArticles(LoginRequiredMixin, ListView):
     model = ArticleWorkflow
+    ordering = "id"
     template_name = "wjs_review/reviews.html"
     context_object_name = "workflows"
 
