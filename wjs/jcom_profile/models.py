@@ -72,7 +72,7 @@ class Correspondence(models.Model):
     class Meta:
         """Model's Meta."""
 
-        unique_together = ("account", "user_cod", "source")
+        unique_together = ("account", "user_cod", "source", "email")
 
     def __str__(self):
         """Show representation (used in admin UI)."""

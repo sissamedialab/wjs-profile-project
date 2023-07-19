@@ -5,7 +5,9 @@ from pathlib import Path
 import lxml
 import lxml.html
 import pytest
+from core.models import Account
 
+from wjs.jcom_profile.models import Correspondence
 from wjs.jcom_profile.utils import from_pubid_to_eid
 
 
@@ -266,3 +268,331 @@ meaning science fiction could be useful for engagement purposes.
 
         c = Command()
         assert c.set_html_galley(self, article, html_galley_filename=html_galley_filename)
+
+
+def mock_query_wjapp_by_pubid(*args, **kwargs):
+    return {
+        "userCod": "12301",
+        "correspondence_source": "jcom",
+    }
+
+
+def mock_set_author_country(*args, **kwargs):
+    pass
+
+
+@pytest.fixture
+def set_authors_common_setup(roles, article, monkeypatch):
+    """Setup xml_obj and patch what's necessary.
+
+    Also remove authors from article, so that known ones can be added.
+    """
+
+    xml_str_template = """<root>
+        <volume volumeid="22">Volume 22, 2023</volume>
+        <issue volumeid="22" issueid="2202">Issue 02, 2023</issue>
+        {authors_ext}
+        <document documentid="18274">
+            <volume volumeid="22"/>
+            <issue issueid="2202"/>
+            <articleid>JCOM_2202_2023_A07</articleid>
+            {authors_int}
+            <year>2023</year>
+            <date_submitted>2022-10-17</date_submitted>
+            <date_accepted>2023-04-02</date_accepted>
+            <date_published>2023-05-15</date_published>
+            <doi>10.22323/2.22020207</doi>
+            <type>article</type>
+            <title>Diversifying citizen science</title>
+            <abstract>The study presents findings.</abstract>
+            <keyword>Citizen science</keyword>
+            <contribution url="private://wjapp/JCOM_2202_2023_A07.pdf">JCOM_2202_2023_A07.pdf</contribution>
+        </document>
+    </root>
+    """  # noqa W921
+
+    xml_str = xml_str_template.format(
+        authors_ext="""<author
+        authorid="12301"
+        email="natasha.constant@rspb.org.uk"
+        firstname="Natasha"
+        lastname="Constant">Natasha Constant</author>""",
+        authors_int="""<author authorid="12301"/>""",
+    )
+    # Be sure to call getroottree(), because fromstring() returns an Element, not an ElementTree
+    xml_obj = lxml.etree.fromstring(xml_str).getroottree()
+
+    from wjs.jcom_profile.management.commands import import_from_wjapp
+
+    monkeypatch.setattr(import_from_wjapp, "query_wjapp_by_pubid", mock_query_wjapp_by_pubid)
+    monkeypatch.setattr(import_from_wjapp, "set_author_country", mock_set_author_country)
+
+    article.authors.clear()
+
+    from wjs.jcom_profile.management.commands.import_from_wjapp import Command
+
+    command = Command()
+    command.journal_data = import_from_wjapp.JOURNALS_DATA["JCOM"]
+
+    return (article, command, xml_obj)
+
+
+class TestImportFromWjappSetAuthors:
+    """Test set_authors in import_from_wjapp.
+
+    Given a certain email in the XML (imported_email), we test what
+    the function does wrt possibly existing Account and
+    Correspondences.
+
+    We should have the folloing cases:
+    - [a0] no Account
+    - [a1] Account w/ same email as imported_email
+    - [ax] Account w/ different email
+    ✕
+    - [c0] no Correspondence
+    - [c1] Correspondence w/ same email as imported_email
+    - [cx] Correspondence w/ different email
+    that gives us the 9 cases below.
+
+    However
+    a0-c1 and a0-cx are impossible because a Correspondence always has an Account
+
+    Also, we should check the behaviour when then are multiple Accounts/Correspondences
+    TODO: WRITEME
+    """
+
+    @pytest.mark.django_db
+    def test_a0_c0(self, set_authors_common_setup):
+        """Test with no existing Accounts nor Correspondences."""
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.exists() is False
+
+        command.set_authors(article, xml_obj)
+
+        # A new Account should have been created for the new author:
+        assert Account.objects.count() == existing_accounts_count + 1
+        # and a Correspondence object also:
+        assert Correspondence.objects.count() == 1
+
+        assert article.authors.count() == 1
+        assert article.authors.first().first_name == "Natasha"
+
+    @pytest.mark.django_db
+    def test_a1_c0(self, set_authors_common_setup):
+        """Test with matching Account but without any Correspondence."""
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_account = Account.objects.create(
+            email="natasha.constant@rspb.org.uk",
+            first_name="Natasha",
+            last_name="Constant",
+        )
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.count() == 0
+
+        command.set_authors(article, xml_obj)
+
+        # No new Account should have been created for the new author:
+        assert Account.objects.count() == existing_accounts_count
+        # and no new Correspondence object:
+        assert Correspondence.objects.count() == 1
+        assert Correspondence.objects.first().email == "natasha.constant@rspb.org.uk"
+
+        assert article.authors.count() == 1
+        assert article.authors.first() == existing_account
+
+    @pytest.mark.django_db
+    def test_a1_c1(self, set_authors_common_setup):
+        """Test with matching Account and Correspondence."""
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_account = Account.objects.create(
+            email="natasha.constant@rspb.org.uk",
+            first_name="Natasha",
+            last_name="Constant",
+        )
+
+        existing_correspondence = Correspondence.objects.create(
+            account=existing_account,
+            email=existing_account.email,
+            source="jcom",
+            user_cod=12301,
+        )
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.count() == 1
+
+        command.set_authors(article, xml_obj)
+
+        # No new Account should have been created for the new author:
+        assert Account.objects.count() == existing_accounts_count
+        # and no new Correspondence object:
+        assert Correspondence.objects.count() == 1
+        assert Correspondence.objects.first() == existing_correspondence
+
+        assert article.authors.count() == 1
+        assert article.authors.first() == existing_account
+
+    @pytest.mark.django_db
+    def test_a1_cx(self, set_authors_common_setup, capsys, caplog):
+        """Call set_authors with matching Account, but the Correspondence has a different email.
+
+        We don't want to loose an email, so here I'm expecting a new
+        Correspondence to be created.
+        """
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_account = Account.objects.create(
+            email="natasha.constant@rspb.org.uk",
+            first_name="Natasha",
+            last_name="Constant",
+        )
+
+        existing_correspondence = Correspondence.objects.create(
+            account=existing_account,
+            email="different@email.it",
+            source="jcom",
+            user_cod=12301,
+        )
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.count() == 1
+
+        command.set_authors(article, xml_obj)
+
+        # No new Account should have been created for the new author:
+        assert Account.objects.count() == existing_accounts_count
+        # but a new Correspondence object should:
+        assert Correspondence.objects.count() == 2
+        mappings = Correspondence.objects.all().order_by("id")
+        assert existing_correspondence == mappings.first()
+        assert existing_correspondence.email == "different@email.it"
+        new_correspondence = mappings.last()
+        assert new_correspondence.email == "natasha.constant@rspb.org.uk"
+
+        assert article.authors.count() == 1
+        assert article.authors.first() == existing_account
+        assert existing_account.email == "natasha.constant@rspb.org.uk"
+
+        # I'm not sure why, but the log messages from the command sometimes end
+        # up in pytest's capsys, some other times in caplog.
+        expected_log_text = f"Created new mapping {new_correspondence.source}/{new_correspondence.user_cod}/{new_correspondence.email} for account {new_correspondence.account}"  # noqa E501
+        if caplog.text == "":
+            captured = capsys.readouterr()
+            assert expected_log_text in captured
+        else:
+            assert expected_log_text in caplog.text
+
+    @pytest.mark.django_db
+    def test_ax_c0(self, set_authors_common_setup):
+        """Test with Account with different email and no Correspondence."""
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_account = Account.objects.create(
+            email="different@email.it",
+            first_name="Natasha",
+            last_name="Constant",
+        )
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.count() == 0
+
+        command.set_authors(article, xml_obj)
+
+        # Since there is no correspondence and the Account email is
+        # different, a new Account should have been created:
+        assert Account.objects.count() == existing_accounts_count + 1
+        # and a new Correspondence object:
+        assert Correspondence.objects.count() == 1
+        # and the email set to the imported_email
+        new_correspondence = Correspondence.objects.get()
+        assert new_correspondence.email == "natasha.constant@rspb.org.uk"
+
+        assert article.authors.count() == 1
+        author = article.authors.first()
+        assert author != existing_account
+        assert author.email == new_correspondence.email
+        assert existing_account.email == "different@email.it"
+
+    @pytest.mark.django_db
+    def test_ax_c1(self, set_authors_common_setup):
+        """Test with Account with different email but with matching Correspondence."""
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_account = Account.objects.create(
+            email="different@email.it",
+            first_name="Natasha",
+            last_name="Constant",
+        )
+
+        existing_correspondence = Correspondence.objects.create(
+            account=existing_account,
+            email="natasha.constant@rspb.org.uk",
+            source="jcom",
+            user_cod=12301,
+        )
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.count() == 1
+
+        command.set_authors(article, xml_obj)
+
+        # No new Account should have been created for the new author:
+        assert Account.objects.count() == existing_accounts_count
+        # and no new Correspondence object:
+        assert Correspondence.objects.count() == 1
+        # and the email did not change
+        assert existing_correspondence.email == "natasha.constant@rspb.org.uk"
+
+        assert article.authors.count() == 1
+        assert article.authors.first() == existing_account
+        assert existing_account.email == "different@email.it"
+
+    @pytest.mark.django_db
+    def test_ax_cx(self, set_authors_common_setup, caplog):
+        """Test with Account with different email and a Correspondence with different email."""
+        (article, command, xml_obj) = set_authors_common_setup
+
+        existing_account = Account.objects.create(
+            email="different@email.it",
+            first_name="Natasha",
+            last_name="Constant",
+        )
+
+        existing_correspondence = Correspondence.objects.create(
+            account=existing_account,
+            email="another_different@email.it",
+            source="jcom",
+            user_cod=12301,
+        )
+
+        existing_accounts_count = Account.objects.count()
+        assert Correspondence.objects.count() == 1
+
+        command.set_authors(article, xml_obj)
+
+        # Since a Correspondence exists no new Account should have been created:
+        assert Account.objects.count() == existing_accounts_count
+        # but a new Correspondence object:
+        assert Correspondence.objects.count() == 2
+        # and the email set to the imported_email
+        new_correspondence = Correspondence.objects.all().order_by("id").last()
+        assert new_correspondence.email == "natasha.constant@rspb.org.uk"
+        # The old correspondence is still there, and both point to the same account
+        assert existing_correspondence.account == new_correspondence.account
+        assert existing_correspondence.source == new_correspondence.source
+        assert existing_correspondence.user_cod == new_correspondence.user_cod
+        assert existing_correspondence.email != new_correspondence.email
+
+        assert article.authors.count() == 1
+        assert article.authors.first() == existing_account
+        assert existing_account.email == "different@email.it"
+
+        assert (
+            f"Created new mapping {new_correspondence.source}/{new_correspondence.user_cod}/{new_correspondence.email} for account {new_correspondence.account}"  # noqa E501
+            in caplog.text
+        )
+        assert "Janeway different@email.it vs. new natasha.constant@rspb.org.uk" in caplog.text
