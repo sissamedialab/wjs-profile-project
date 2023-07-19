@@ -12,6 +12,7 @@ from core.models import Account
 from core.models import File as JanewayFile
 from django.core.files import File
 from django.core.management.base import BaseCommand
+from django.db.models import Q, QuerySet
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
 from jcomassistant import make_epub, make_xhtml
@@ -102,6 +103,11 @@ class Command(BaseCommand):
             "--only_regenerate_html_galley",
             action="store_true",
             help="Only regenerate HTML galleys without re-creating the article",
+        )
+        parser.add_argument(
+            "--skip-galley-generation",
+            action="store_true",
+            help="Do not generate HTML and EPUB galleys (useful only in debug)",
         )
 
     def read_from_watched_dir(self):
@@ -194,35 +200,38 @@ class Command(BaseCommand):
         self.set_pdf_galleys(article, xml_obj, pubid, workdir)
         self.set_supplementary_material(article, pubid, workdir)
 
-        try:
-            # Generate the full-text html from the TeX sources
-            html_galley_filename = make_xhtml.make(tex_filename, alternative_tex_filename=alternative_tex_filename)
-            self.set_html_galley(article, html_galley_filename)
-
-            # Generate the EPUB from the TeX sources
-            epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
-            self.set_epub_galley(article, epub_galley_filename, pubid)
-
-        except Exception as exception:
-            logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
-
-        if multilingual:
+        if not self.options["skip_galley_generation"]:
             try:
-                for translation_tex_filename in tex_filenames[1:]:
-                    correct_translation(translation_tex_filename, tex_filename)
+                # Generate the full-text html from the TeX sources
+                html_galley_filename = make_xhtml.make(tex_filename, alternative_tex_filename=alternative_tex_filename)
+                self.set_html_galley(article, html_galley_filename)
 
-                    translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
-                    # TODO: verify if Janeway can manage tranlastions of HTML galley
-
-                    translation_tex_data = read_tex(translation_tex_filename)
-                    translation_epub_galley_filename = make_epub.make(
-                        translation_html_galley_filename,
-                        tex_data=translation_tex_data,
-                    )
-                    self.set_epub_galley(article, translation_epub_galley_filename, pubid)
+                # Generate the EPUB from the TeX sources
+                epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
+                self.set_epub_galley(article, epub_galley_filename, pubid)
 
             except Exception as exception:
-                logger.error(f"Generation of HTML and EPUB galley failed for {translation_tex_filename}: {exception}")
+                logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
+
+            if multilingual:
+                try:
+                    for translation_tex_filename in tex_filenames[1:]:
+                        correct_translation(translation_tex_filename, tex_filename)
+
+                        translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
+                        # TODO: verify if Janeway can manage tranlastions of HTML galley
+
+                        translation_tex_data = read_tex(translation_tex_filename)
+                        translation_epub_galley_filename = make_epub.make(
+                            translation_html_galley_filename,
+                            tex_data=translation_tex_data,
+                        )
+                        self.set_epub_galley(article, translation_epub_galley_filename, pubid)
+
+                except Exception as exception:
+                    logger.error(
+                        f"Generation of HTML and EPUB galley failed for {translation_tex_filename}: {exception}",
+                    )
 
         self.set_doi(article)
         publish_article(article)
@@ -230,7 +239,7 @@ class Command(BaseCommand):
         shutil.rmtree(tmpdir)
 
     def regen_html_galley(self, xml_obj, tex_filename, alternative_tex_filename):
-        """Regen only render galley"""
+        """Regenerate only the render-galley."""
         # extract pubid, get article
         pubid = xml_obj.find("//document/articleid").text
         journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
@@ -314,67 +323,100 @@ class Command(BaseCommand):
             # Don't confuse user_cod (camelcased originally) that is
             # the pk of the user in wjapp with Account.id in Janeway.
             user_cod = author_obj.get("authorid")
-            email = author_obj.get("email")
-            if not email:
-                email = f"{user_cod}@invalid.com"
-                logger.error(f"No email for author {user_cod} on {pubid}. Using {email}")
+            imported_email = author_obj.get("email")
+            if not imported_email:
+                imported_email = f"{user_cod}@invalid.com"
+                logger.error(f"No email for author {user_cod} on {pubid}. Using {imported_email}")
             # just in case:
-            email = email.strip()
+            imported_email = imported_email.strip()
 
-            # We use the email as discriminant because it must be
-            # unique. This is opposed to using the wjapp usercod,
-            # because different usercod-source can have the same email
-            # (same person on multiple journals)
-            author, account_created = Account.objects.get_or_create(
-                email=email,
-                defaults={
-                    "first_name": author_obj.get("firstname"),
-                    "last_name": author_obj.get("lastname"),
-                },
+            # Check if we know this person form some other journal or by email
+            account_created = False
+            mappings = wjs_models.Correspondence.objects.filter(
+                Q(user_cod=user_cod, source=source) | Q(email=imported_email),
             )
-            # Sanity check: it is possible that data from Janeway and from wjapp differ.
-            # See also https://gitlab.sissamedialab.it/wjs/specs/-/issues/380
-            if not account_created:
-                if author.first_name != author_obj.get("firstname"):
-                    logger.error(
-                        f"Different first name for {author.email}."
-                        f' Janeway {author.first_name} vs. wjapp {author_obj.get("firstname")}',
-                    )
-                if author.last_name != author_obj.get("lastname"):
-                    logger.error(
-                        f"Different last name for {author.email}."
-                        f' Janeway {author.last_name} vs. wjapp {author_obj.get("lastname")}',
-                    )
+            if mappings.count() == 0:
+                # We never saw this person in other journals.
+                author, account_created = Account.objects.get_or_create(
+                    email=imported_email,
+                    defaults={
+                        "first_name": author_obj.get("firstname"),
+                        "last_name": author_obj.get("lastname"),
+                    },
+                )
+                mapping = wjs_models.Correspondence.objects.create(
+                    user_cod=user_cod,
+                    source=source,
+                    email=imported_email,
+                    account=author,
+                )
+            elif mappings.count() >= 1:
+                # We know this person from another journal
+                mapping = check_mappings(mappings, imported_email, user_cod, source)
 
-            # Store away wjapp's userCod
-            source = self.journal_data["correspondence_source"]
-            mapping, _ = wjs_models.Correspondence.objects.get_or_create(
-                account=author,
-                user_cod=user_cod,
-                source=source,
-                defaults={
-                    "email": email,
-                },
-            )
+            author = mapping.account
+
             # `used` indicates that this usercod from this source
             # has been used to create the core.Account record
             if account_created:
                 mapping.used = True
                 mapping.save()
 
+            # Sanity check: it is possible that data from Janeway and from wjapp differ.
+            # See also https://gitlab.sissamedialab.it/wjs/specs/-/issues/380
+            imported_first_name = author_obj.get("firstname")
+            if author.first_name != imported_first_name:
+                logger.warning(
+                    f"Different first name for {author.id}."
+                    f" Janeway {author.first_name} vs. new {imported_first_name}",
+                )
+                author.first_name = imported_first_name
+                author.save()
+
+            imported_last_name = author_obj.get("lastname")
+            if author.last_name != imported_last_name:
+                logger.warning(
+                    f"Different last name for {author.id}."
+                    f" Janeway {author.last_name} vs. new {imported_last_name}",
+                )
+                author.last_name = imported_last_name
+                author.save()
+
+            assert mapping.email == imported_email
+            if author.email != imported_email:
+                logger.warning(
+                    f"Different email for {author.id}. Janeway {author.email} vs. new {imported_email}",
+                )
+                author.email = imported_email
+                author.save()
+
             author.add_account_role("author", article.journal)
 
             # Add authors to m2m and create an order record
             article.authors.add(author)
-            order, _ = submission_models.ArticleAuthorOrder.objects.get_or_create(
+            # Warning: take care of the case when an article has been
+            # imported, then the order of the authors changed and the
+            # article is being re-imported: get_or_create the order
+            # object with "defaults" and force the order if necessary
+            # (i.e., do not use "order" to filter the
+            # ArticleAuthorOrder table).
+            order_obj, order_obj_created = submission_models.ArticleAuthorOrder.objects.get_or_create(
                 article=article,
                 author=author,
-                order=order,
+                defaults={
+                    "order": order,
+                },
             )
+            if not order_obj_created:
+                order_obj.order = order
+                order_obj.save()
 
         # Set the primary author
         corresponding_author_usercod = wjapp.get("userCod")  # Expect to alway find something!
-        mapping = wjs_models.Correspondence.objects.get(user_cod=corresponding_author_usercod, source=source)
+        mapping = wjs_models.Correspondence.objects.filter(
+            user_cod=corresponding_author_usercod,
+            source=source,
+        ).first()
         main_author = mapping.account
         set_author_country(main_author, wjapp)
         article.owner = main_author
@@ -753,3 +795,73 @@ def set_translation_galley(pdf_file, label, article):
         public=True,
     )
     logger.debug(f"PDF galley {label} set onto {article}")
+
+
+def check_mappings(
+    mappings: QuerySet[wjs_models.Correspondence],
+    imported_email: str,
+    imported_usercod: str,
+    imported_source: str,
+) -> wjs_models.Correspondence:
+    """Run throught the given mappings comparing them to info from the XML.
+
+    If necessary update one mapping or add a new one.
+    """
+    # Sanity check: all mapping with the same source/usercod or email
+    # should point to the same account.
+    accounts = [mapping.account for mapping in mappings]
+    if len(set(accounts)) != 1:
+        logger.critical(
+            f"More than 1 mapping from {imported_source}/{imported_usercod}, but they point to different accounts!"
+            " You should quit and check your DB!",
+        )
+        return mappings.first()
+
+    try:
+        full_match = mappings.get(
+            user_cod=imported_usercod,
+            source=imported_source,
+            email=imported_email,
+        )
+    except wjs_models.Correspondence.DoesNotExist:
+        pass
+    else:
+        return full_match
+
+    # If we get here, we are sure that there is no full-match (same
+    # source/usercod/email wrt XML) in the Correspondence table.
+
+    # Let's see if we have an "incomplete" match (i.e. same
+    # source/usercod, but missing email)
+    try:
+        match = mappings.get(
+            user_cod=imported_usercod,
+            source=imported_source,
+            email__isnull=True,
+        )
+    except wjs_models.Correspondence.DoesNotExist:
+        pass
+    else:
+        logger.warning(f"Setting {imported_email} onto previously empty mapping {match.id}")
+        match.email = imported_email
+        match.save()
+        return match
+
+    # If we get here, then there is not mapping with the
+    # source/usercod/email under consideration, so we should add one
+    #
+    # NB: we don't check if the imported_email is the same as the
+    # account.email. The new mapping is not however redundand, since
+    # it is a proof that the imported_email also exists/existed in the
+    # source.
+    account = mappings.first().account
+    new_mapping = wjs_models.Correspondence.objects.create(
+        user_cod=imported_usercod,
+        source=imported_source,
+        email=imported_email,
+        account=account,
+    )
+    logger.warning(
+        f"Created new mapping {imported_source}/{imported_usercod}/{imported_email} for account {account}.",
+    )
+    return new_mapping
