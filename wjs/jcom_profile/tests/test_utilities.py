@@ -4,6 +4,7 @@ from collections import namedtuple
 from unittest.mock import MagicMock
 
 import pytest
+from submission.models import FrozenAuthor
 
 from wjs.jcom_profile.templatetags.wjs_tags import how_to_cite
 from wjs.jcom_profile.utils import (
@@ -143,3 +144,7 @@ class TestHTC:
         assert how_to_cite(mockarticle) == f"Alfanda, H. M. {simple_piece}"
         mockarticle.frozenauthor_set.all.return_value = [au1, au2, au3]
         assert how_to_cite(mockarticle) == f"Alfanda, H. M., Peresadko, N. and Sari, R. {simple_piece}"
+        mockarticle.frozenauthor_set.exists.return_value = False
+        assert how_to_cite(mockarticle) == ""
+        mockarticle.frozenauthor_set = FrozenAuthor.objects.none()
+        assert how_to_cite(mockarticle) == ""
