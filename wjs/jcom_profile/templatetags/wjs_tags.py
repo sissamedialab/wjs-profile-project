@@ -62,6 +62,8 @@ def has_attr(obj, attr):
 def how_to_cite(article):
     """Return APA-style how-to-cite for JCOM."""
     # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
+    if not article.frozenauthor_set.exists():
+        return ""
     author_names = [citation_name(a) for a in article.frozenauthor_set.all()]
     # inelegant...
     if len(author_names) == 1:
