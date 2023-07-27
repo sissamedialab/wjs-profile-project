@@ -1,7 +1,13 @@
+{% load django_bootstrap5 wjs_review %}
+{% url "wjs_select_reviewer" workflow.pk as wjs_select_reviewer %}
+
 {% for user in users %}
-<tr>
-    <td>{{ user.get_full_name }}</td>
-    <td>{{ user.email }}</td>
-    <td><button onclick="selectReviewer({{ user.pk }}); return false;">Select</button></td>
-</tr>
+    {% reviewer_btn_props user selected as btn %}
+    <tr>
+        <td>{{ user.full_name }}</td>
+        <td>{{ user.email }}</td>
+        <td>
+            {% bootstrap_button disabled=btn.disabled button_class=btn.css_class hx_vals=btn.value button_type="button" hx_trigger="click" hx_post=wjs_select_reviewer content="Select" %}
+        </td>
+    </tr>
 {% endfor %}

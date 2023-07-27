@@ -1,43 +1,66 @@
 {% extends "wjs_review/bootstrap.html" %}
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 static %}
+
+{% block bootstrap5_extra_head %}
+    <script src="{% static '/js/htmx.min.js' %}"></script>
+{% endblock bootstrap5_extra_head %}
+
 {% block bootstrap5_content %}
-{% block header %}
-<div class="container-fluid bg-primary text-white text-center">
-  <h1>{% block title %}(no title){% endblock title %}</h1>
-  <p>Header...🎩</p>
+<div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    {% block header %}
+        <div class="container-fluid bg-primary text-white text-center">
+            <h1>{% block title %}(no title){% endblock title %}</h1>
+            <p>Header...🎩</p>
+        </div>
+    {% endblock header %}
+
+    {% autoescape off %}
+    {% bootstrap_messages %}
+    {% endautoescape %}
+
+    {% block content_wrapper %}
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-12 border-bottom border-2">
+                    <h2>{% block content_title %}CONTENT TITLE{% endblock content_title %}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                {# use for content which needs a custom content above the two sections layout below #}
+                {% block content_header %}{% endblock content_header %}
+            </div>
+        </div>
+
+        {% block content %}
+            <div class="container">
+                <div class="row">
+                    <div class="col-sm-8">
+                        {% block left_column %}MAIN CONTENT{% endblock left_column %}
+                    </div>
+
+                    <div class="col-sm-4 border-start border-2">
+                        {% block right_column %}<p>GLOBAL ACTIONS? CAT PICTURES?</p>{% endblock right_column %}
+                    </div>
+                </div>
+            </div>
+        {% endblock content %}
+
+        <div class="container">
+            <div class="row">
+                {# use for content which needs a custom content below the two sections layout above #}
+                {% block content_footer %}{% endblock content_footer %}
+            </div>
+        </div>
+
+    {% endblock content_wrapper %}
+
+    {% block footer %}
+        <div class="container-fluid bg-primary text-white text-center">
+            <p>Footer...👣</p>
+        </div>
+    {% endblock footer %}
 </div>
-{% endblock header %}
-
-{% autoescape off %}
-{% bootstrap_messages %}
-{% endautoescape %}
-
-{% block content_wrapper %}
-<div class="container">
-  <div class="row">
-    <div class="col-sm-12 border-bottom border-2">
-      <h2>{% block content_title %}CONTENT TITLE{% endblock content_title %}</h2>
-    </div>
-  </div>
-</div>
-
-<div class="container">
-  <div class="row">
-    <div class="col-sm-8">
-      {% block content %}MAIN CONTENT{% endblock content %}
-    </div>
-
-    <div class="col-sm-4 border-start border-2">
-      {% block right_column %}<p>GLOBAL ACTIONS? CAT PICTURES?</p>{% endblock right_column %}
-    </div>
-  </div>
-</div>
-{% endblock content_wrapper %}
-
-{% block footer %}
-<div class="container-fluid bg-primary text-white text-center">
-  <p>Footer...👣</p>
-</div>
-{% endblock footer %}
-
 {% endblock bootstrap5_content %}

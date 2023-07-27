@@ -1,15 +1,20 @@
 from typing import Any, Dict
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.core.paginator import Page, Paginator
+from django.db.models import QuerySet
+from django.template import Context
 from django.urls import reverse_lazy
 from django.views.generic import ListView, UpdateView
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.mixins import HtmxMixin
 
 from .forms import ArticleReviewStateForm, ReviewerSearchForm, SelectReviewerForm
 from .models import ArticleWorkflow
-from .users import get_available_users_by_role
+
+Account = get_user_model()
 
 
 class ListArticles(LoginRequiredMixin, ListView):
@@ -38,41 +43,72 @@ class SelectReviewer(HtmxMixin, LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy("wjs_review_list")
     context_object_name = "workflow"
 
-    def get_template_names(self):
+    def post(self, request, *args, **kwargs):
+        """
+        Handle POST requests: instantiate a form instance with the passed POST variables and then check if it's valid.
+        """
+        self.object = self.get_object()
         if self.htmx:
-            return ["wjs_review/elements/reviewers_list.html"]
+            return self.get(request, *args, **kwargs)
+        form = self.get_form()
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
+    @property
+    def search_data(self):
+        """
+        Return the search data from the request.
+
+        As the view can be called by either a GET or a POST request, we need to check both.
+        """
+        return self.request.GET or self.request.POST
+
+    def get_template_names(self):
+        """Select the template based on the request type."""
+        if self.htmx:
+            return ["wjs_review/elements/select_reviewer.html"]
         else:
             return ["wjs_review/select_reviewer.html"]
 
-    def get_reviewers(self):
-        q_filters = Q(pk__gt=0)  # Always true condition to and filters in the following loop
-        for key, value in self.request.GET.items():
-            if value:
-                q_filters &= Q(**{key: value})
-        return get_available_users_by_role(
-            self.object.article.journal,
-            "reviewer",
-            exclude=self.object.article_authors.values_list("pk", flat=True),
-            filters=q_filters,
-        )
+    def paginate(self, queryset: QuerySet) -> Page:
+        """
+        Paginate the reviewers queryset.
 
-    def get_search_form(self):
-        return ReviewerSearchForm(self.request.GET)
+        It's managed explicitly as the view is an UpdateView not a ListView.
+        """
+        try:
+            page_number = int(self.request.GET.get("page", default=1))
+        except ValueError:
+            page_number = 1
+        review_lists_page_size = get_setting("wjs_review", "review_lists_page_size", self.object.article.journal)
+        paginator = Paginator(queryset, review_lists_page_size.process_value())
+        return paginator.get_page(page_number)
 
-    def get_context_data(self, **kwargs):
+    def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
         context["htmx"] = self.htmx
         context["search_form"] = self.get_search_form()
-        context["reviewers"] = self.get_reviewers()
+        context["reviewers"] = self.paginate(Account.objects.filter_reviewers(self.object, self.search_data))
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
+        kwargs["htmx"] = self.htmx
         return kwargs
 
-    def form_valid(self, form):
+    def get_search_form(self) -> ReviewerSearchForm:
+        return ReviewerSearchForm(self.search_data if self.search_data else None)
+
+    def form_valid(self, form: SelectReviewerForm):
+        """
+        Executed when SelectReviewerForm is valid
+
+        Even if the form is valid, checks in logic.AssignToReviewer -called in form save- may fail as well.
+        ."""
         try:
             return super().form_valid(form)
         except Exception:

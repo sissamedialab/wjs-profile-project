@@ -1,40 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-    <meta name="description" content="dashboard">
-    <meta name="keywords" content="dashboard">
-</head>
-<body>
-<p>{{ workflow.article }}</p>
-<form method="post" action="{% url "wjs_select_reviewer" workflow.pk %}">
-    {% csrf_token %}
-    {{ form }}
-    <button type="submit">Button</button>
-</form>
-<form name="search" method="get" action="{% url "wjs_select_reviewer" workflow.pk %}">
-    {{ search_form }}
-    <button type="submit">Button</button>
-    <button type="reset" onclick="resetForm()">Reset</button>
-    <table>
-        <tr><th>Name</th><th>Email</th><th>Action</th></tr>
-    {% include "wjs_review/elements/reviewers_list.html" with users=reviewers %}
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
 
-    </table>
-</form>
-<script>
-    const selectReviewer = (selected_reviewer) => {
-        const id_reviewer = document.getElementById("id_reviewer");
-        id_reviewer.value = selected_reviewer;
-    };
+{% block title %}
+    {% translate "Select reviewer" %}
+{% endblock title %}
 
-    const resetForm = () => {
-        Array.from(document.forms["search"].elements).filter((field) => (field.tagName === "INPUT")).forEach((field) => {
-            document.forms["search"][field.name].setAttribute("value", "");
-        });
-    };
-</script>
-<a href="{% url 'wjs_review_list' %}">Back</a>
-</body>
-</html>
+{% block content %}
+    {% include "wjs_review/elements/select_reviewer.html" %}
+{% endblock content %}
+
+{% block content_header %}
+    <div class="col-sm-12">
+        <p>{{ workflow.article }}</p>
+    </div>
+{% endblock content_header %}
+
+{% block content_footer %}
+    <div class="col"><a class="btn btn-outline-secondary" href="{% url 'wjs_review_list' %}">Back</a></div>
+{% endblock content_footer %}

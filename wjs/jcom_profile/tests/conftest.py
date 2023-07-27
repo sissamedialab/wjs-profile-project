@@ -152,12 +152,22 @@ def roles():
 
 
 @pytest.fixture
-def custom_newsletter_setting():
+def custom_newsletter_setting(journal):
+    """
+    Load custom newsletter settings.
+
+    Depends on journal fixture to ensure settings are loaded.
+    """
     add_publication_alert_settings()
 
 
 @pytest.fixture
-def generic_analytics_code_setting():
+def generic_analytics_code_setting(journal):
+    """
+    Load analytics settings.
+
+    Depends on journal fixture to ensure settings are loaded.
+    """
     add_generic_analytics_code_setting()
 
 
@@ -421,13 +431,21 @@ def director_role(roles):
 
 
 @pytest.fixture
-def coauthors_setting():
-    """Run add_coauthors_submission_email_settings command to install custom settings for coauthors email."""
+def coauthors_setting(journal):
+    """
+    Install custom settings for coauthors email to send email to coauthors on submission.
+
+    Depends on journal fixture to ensure settings are loaded.
+    """
     add_coauthors_submission_email_settings()
 
 
 @pytest.fixture
-def user_as_main_author_setting():
+def user_as_main_author_setting(journal):
+    """Add setting to set current user as main author.
+
+    Depends on journal fixture to ensure settings are loaded.
+    """
     add_user_as_main_author_setting()
 
 

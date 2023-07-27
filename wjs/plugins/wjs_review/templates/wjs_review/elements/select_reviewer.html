@@ -1,0 +1,47 @@
+{% load django_bootstrap5 i18n %}
+{% url "wjs_select_reviewer" workflow.pk as search_reviewer %}
+
+<div class="container" id="select-reviewer">
+    <div class="row">
+        <div class="col-sm-8">
+            <form hx-get="{{ search_reviewer }}" hx-trigger="submit" hx-target="#select-reviewer">
+                <div class="container">
+                    <div class="row">
+                        <div class="col">{% bootstrap_field search_form.search show_label=False %}</div>
+                        <div class="col">{% bootstrap_field search_form.user_type show_label=False %}</div>
+                        <div class="col">{% bootstrap_button button_type="reset" button_class="btn-outline-secondary" content="Reset" %}</div>
+                        <div class="col">
+                            {% bootstrap_button button_type="submit" content="Search" %}
+                        </div>
+                    </div>
+                </div>
+                <table class="table">
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                    {% include "wjs_review/elements/reviewers_list.html" with users=reviewers selected=form.data.reviewer %}
+                </table>
+            </form>
+        </div>
+        <div class="col-sm-4 border-start border-2">
+            <form method="post" action="{% url "wjs_select_reviewer" workflow.pk %}">
+                {% csrf_token %}
+                <div class="container">
+                    <div class="row">
+                        <div content="col">
+                            {% bootstrap_form_errors form layout='inline' %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">{% bootstrap_form form %}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col">{% bootstrap_button button_type="submit" content="Assign" %}</div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
