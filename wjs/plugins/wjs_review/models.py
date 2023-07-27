@@ -1,4 +1,4 @@
-from core.models import Account
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
@@ -6,6 +6,8 @@ from django_fsm import FSMField, transition
 from model_utils.models import TimeStampedModel
 
 from . import permissions
+
+Account = get_user_model()
 
 
 class ArticleWorkflow(TimeStampedModel):
@@ -76,7 +78,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.ASSIGNED,
         target=ReviewStates.BEING_REFEREED,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
     )
     def assign_referee(self):
         pass
