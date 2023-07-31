@@ -64,11 +64,10 @@ def hook_registry() -> Dict[str, Any]:
 
 def set_default_plugin_settings():
     """Create default settings for the plugin."""
-    group_name = "wjs_review"
     try:
-        wjs_review_settings_group = get_group(group_name)
+        wjs_review_settings_group = get_group("wjs_review")
     except SettingGroup.DoesNotExist:
-        wjs_review_settings_group = SettingGroup.objects.create(name=group_name)
+        wjs_review_settings_group = SettingGroup.objects.create(name="wjs_review", enabled=True)
 
     def acceptance_due_date():
         acceptance_days_setting: SettingParams = {
@@ -137,6 +136,54 @@ def set_default_plugin_settings():
             review_invitation_message_setting["name"],
         )
 
+    def declined_review_message():
+        declined_review_message_setting: SettingParams = {
+            "name": "declined_review_message",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Message shown when reviewer declines the review"),
+            "description": _(
+                "Provide a thank you message when reviewer declines the review.",
+            ),
+            "is_translatable": False,
+        }
+        declined_review_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Thanks for the time to evalutate the review."),
+            "translations": {},
+        }
+        create_customization_setting(
+            declined_review_message_setting,
+            declined_review_message_setting_value,
+            declined_review_message_setting["name"],
+        )
+
+    def do_review_message():
+        do_review_message_setting: SettingParams = {
+            "name": "do_review_message",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Message shown on review submit page"),
+            "description": _(
+                "Provide instructions to handle reviews.",
+            ),
+            "is_translatable": False,
+        }
+        do_review_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("To submit the review do this and this."),
+            "translations": {},
+        }
+        create_customization_setting(
+            do_review_message_setting,
+            do_review_message_setting_value,
+            do_review_message_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
+    declined_review_message()
+    do_review_message()

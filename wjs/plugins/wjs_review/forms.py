@@ -7,9 +7,10 @@ from django.contrib.auth import get_user_model
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
-from plugins.wjs_review.logic import AssignToReviewer
+from review.models import ReviewAssignment
 from utils.setting_handler import get_setting
 
+from .logic import AssignToReviewer, EvaluateReview
 from .models import ArticleWorkflow
 
 Account = get_user_model()
@@ -150,3 +151,52 @@ class ReviewerSearchForm(forms.Form):
             ("editor", "Editor"),
         ],
     )
+
+
+class EvaluateReviewForm(forms.ModelForm):
+    reviewer_decision = forms.ChoiceField(choices=(("1", _("Accept")), ("0", _("Reject"))), required=True)
+    comments_for_editor = forms.CharField(
+        label=_("Please provide a reason for declining"),
+        widget=SummernoteWidget(),
+        required=False,
+    )
+
+    class Meta:
+        model = ReviewAssignment
+        fields = ["reviewer_decision", "comments_for_editor"]
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data["reviewer_decision"] == "0" and not cleaned_data["comments_for_editor"]:
+            self.add_error("comments_for_editor", _("Please provide a reason for declining"))
+        return cleaned_data
+
+    def get_logic_instance(self) -> EvaluateReview:
+        """Instantiate :py:class:`EvaluateReview` class."""
+        service = EvaluateReview(
+            assignment=self.instance,
+            reviewer=self.instance.reviewer,
+            editor=self.instance.editor,
+            form_data=self.cleaned_data,
+            request=self.request,
+        )
+        return service
+
+    def save(self, commit: bool = True) -> ReviewAssignment:
+        """
+        Change the state of the review using :py:class:`EvaluateReview`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValueError as e:
+            self.add_error(None, e)
+            raise forms.ValidationError(e)
+        self.instance.refresh_from_db()
+        return self.instance

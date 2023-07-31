@@ -6,11 +6,11 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django_fsm import Transition
-from plugins.wjs_review.models import ArticleWorkflow
 from submission.models import Article
 from utils import models as janeway_utils_models
 from utils.models import LogEntry
 
+from ..models import ArticleWorkflow
 from ..types import BootstrapButtonProps
 
 register = template.Library()

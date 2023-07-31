@@ -52,7 +52,15 @@
                 </ol>
                 <p>
                     Reviewers (overlaps with the above) ({{ workflow.article.reviewassignment_set.count }}):
-                    {% for assignment in workflow.article.reviewassignment_set.all %}{{ assignment.reviewer }},{% endfor %}
+                    {% for assignment in workflow.article.reviewassignment_set.all %}
+                        {% if assignment.date_accepted %}
+                            <a href="{% url "wjs_review_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}" >{{ assignment.reviewer }}</a>
+                        {% elif assignment.date_declined %}
+                            <a href="{% url "wjs_declined_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}" >{{ assignment.reviewer }}</a>
+                        {% else %}
+                            <a href="{% url "wjs_evaluate_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}" >{{ assignment.reviewer }}</a>
+                        {% endif %}
+                    {% endfor %}
                 </p>
                 <p>
                     Last editor's note TODO: add a model similar to <a href="https://github.com/BirkbeckCTP/janeway/blob/2fb70af7d19516df3136cafeb0f99516a566cb8b/src/submission/models.py#L2112"><strong>submission.Note</strong></a>

@@ -50,6 +50,14 @@ In order for this to work you have to install `sudo apt install inotify-tools`.
 
 Installin plugins is handled by `link_plugins` management command which links plugins in janeway directory (if not present already) and run the plugin installation process if not linked yet.
 
+### Running CI-CD like setup
+
+To run CI-CD like setup, you can use the enclosed `docker-compose-test-local.yml` docker-compose file which mount
+wjs-profile-project directory as a volume in janeway container to allow to modify the code and run tests without leaving
+the docker environment.
+
+See documentation in `docker-compose-test-local.yml` for more details.
+
 ### Available customization commands
 
 | command                                          | arguments | description                                                      |

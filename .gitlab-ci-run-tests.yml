@@ -21,17 +21,17 @@
     # see e.g.:
     # - https://docs.gitlab.com/ee/ci/runners/configure_runners.html#git-strategy
     # - https://stackoverflow.com/a/66519431/1581629
+    PYTHONPATH: ${CI_PROJECT_DIR}
 
   services:
     - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
       alias: db
 
   script:
-    - cp cicd_settings.py cicd_test_settings.py /janeway/src/core
-    - pip install --cache .cache --index-url=$PIP_INDEX_URL ./[test]
+    - cp setup_environment /usr/local/bin/
+    - setup_environment
     - cd /janeway/src
-    - JANEWAY_SETTINGS_MODULE=${JANEWAY_SETTINGS_MODULE} python3 ./manage.py install_themes
-    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -x
+    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v --sw
 
 
 # lintme:

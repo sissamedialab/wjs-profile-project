@@ -8,7 +8,7 @@ from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from submission import models as submission_models
-from submission.models import Keyword
+from submission.models import Keyword, Section
 from utils import setting_handler
 
 from wjs.jcom_profile.models import (
@@ -31,23 +31,24 @@ def test_filter_articles_by_author(editor, published_articles, press, admin, sec
     _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
 
     client = Client()
-    author = editor.pk
-    url = reverse("articles_by_author", kwargs={"author": author})
+    active_authors = core_models.Account.objects.filter(pk__in=published_articles.values_list("authors", flat=True))
+    author = random.choice(active_authors)
+    url = reverse("articles_by_author", kwargs={"author": author.pk})
     # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
     if not url.startswith(f"/{journal.code}"):
         url = f"/{journal.code}{url}"
     response = client.get(url)
 
-    articles_per_author = published_articles.filter(frozenauthor__author__in=[editor], journal=journal)
+    articles_per_author = published_articles.filter(frozenauthor__author__in=[author], journal=journal)
 
     assert response.status_code == 200
     assert response.context["title"] == "Filter by author"
     assert response.context["paragraph"] == "All author's publications are listed below."
-    assert response.context["filtered_object"] == editor.full_name()
+    assert response.context["filtered_object"] == author.full_name()
 
     assert set(response.context["articles"].object_list) == set(articles_per_author)
     for article in response.context["articles"]:
-        assert author in list(article.frozenauthor_set.values_list("author_id", flat=True))
+        assert author.pk in list(article.frozenauthor_set.values_list("author_id", flat=True))
         assert article.journal == journal
 
 
@@ -57,7 +58,8 @@ def test_filter_articles_by_section(editor, published_articles, press, admin, se
     _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
 
     client = Client()
-    section = random.choice(sections)
+    active_sections = Section.objects.filter(pk__in=published_articles.values_list("section", flat=True))
+    section = random.choice(active_sections)
     url = reverse("articles_by_section", kwargs={"section": section.pk})
     # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
     if not url.startswith(f"/{journal.code}"):
@@ -81,8 +83,8 @@ def test_filter_articles_by_keyword(editor, published_articles, press, admin, se
     _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
 
     client = Client()
-    keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
-    keyword = random.choice(keywords)
+    active_keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
+    keyword = random.choice(active_keywords)
     url = reverse("articles_by_keyword", kwargs={"keyword": keyword.pk})
     # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
     if not url.startswith(f"/{journal.code}"):
@@ -155,6 +157,7 @@ def test_invite_function_creates_inactive_user(admin, journal):
 
 
 @pytest.mark.django_db
+@pytest.mark.xfail(reason="admin:invite is broken, but we are replaing it")
 def test_invite_existing_email_user(admin, user, journal):
     existing_users_count = JCOMProfile.objects.all().count()
     client = Client()

@@ -25,13 +25,15 @@ class Command(BaseCommand):
 
             if plugin.name == "wjs_review":
                 # This plugin is not yet ready for production, but
-                # it's "innocuous" so here we just don't install it if
-                # the DEBUG setting is False, in order not to load
+                # it's "harmless" as long as we don't activate it, so here we just don't install it if
+                # the DEBUG setting is False and we are in the test environment, in order not to load
                 # useless code.
                 #
                 # Warning: this introduces a difference between the
                 # production and pre-production instances!
-                if getattr(settings, "DEBUG", False) is False:
+                is_production = getattr(settings, "DEBUG", False) is False
+                is_test = os.environ.get("PYTEST_CURRENT_TEST", "")
+                if is_production and not is_test:
                     self.stderr.write(self.style.NOTICE(f"Refusing to install {plugin.name} when DEBUG=False."))
                     if destination.exists():
                         self.stderr.write(
@@ -45,7 +47,10 @@ class Command(BaseCommand):
                 call_command("install_plugins", plugin.name)
             except FileExistsError:
                 if destination.readlink() == plugin:
-                    self.stdout.write(self.style.SUCCESS("...link to plugin already there, nothing to do."))
+                    self.stdout.write(self.style.SUCCESS("...link to plugin already there, skipping link."))
+                    self.stdout.write(self.style.SUCCESS("...running install plugins anyway."))
+                    # even if the link is already there, we install the plugin anyway
+                    call_command("install_plugins", plugin.name)
                 else:
                     self.stderr.write(self.style.ERROR("...different file exists! Please check."))
                     self.stderr.write(self.style.ERROR(f"{plugin.name} VS {destination.readlink()}"))

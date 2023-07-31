@@ -6,11 +6,7 @@ from django.test import Client
 
 from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.tests.conftest import (
-    EXTRAFIELDS_FRAGMENTS,
-    JOURNAL_CODE,
-    USERNAME,
-)
+from wjs.jcom_profile.tests.conftest import EXTRAFIELDS_FRAGMENTS, JOURNAL_CODE
 
 
 class TestJCOMProfileProfessionModelTests:
@@ -20,8 +16,7 @@ class TestJCOMProfileProfessionModelTests:
 
         However, the profession is not set by default.
         """
-        again = Account.objects.get(username=USERNAME)
-        assert again.username == USERNAME
+        again = Account.objects.get(username=user.username)
         assert again.jcomprofile.profession is None
 
     @pytest.mark.django_db
@@ -35,8 +30,7 @@ class TestJCOMProfileProfessionModelTests:
         user.accountprofession = jcom_profile
         user.save()
 
-        again = Account.objects.get(username=USERNAME)
-        assert again.username == USERNAME
+        again = Account.objects.get(username=user.username)
         assert again.jcomprofile.profession == profession_id
 
 

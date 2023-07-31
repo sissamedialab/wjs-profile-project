@@ -16,7 +16,3 @@ DATABASES = {
         "PORT": "5432",
     },
 }
-
-INSTALLED_APPS.extend(  # noqa
-    ["wjs.plugins.wjs_subscribe_newsletter", "wjs.plugins.wjs_latest_news", "wjs.plugins.wjs_latest_articles"],
-)
