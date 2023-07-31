@@ -58,6 +58,9 @@ class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
     context_object_name = "workflow"
 
     def get_queryset(self) -> QuerySet[ArticleWorkflow]:
+        # TODO: We must check this once we have decided the flow for multiple review rounds
+        #       it should work because if an editor is deassigned from one round to another we delete the assignment
+        #       and this relation will cease to exist
         return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
