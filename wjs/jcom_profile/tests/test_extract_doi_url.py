@@ -5,6 +5,7 @@ import pytest
 from django.core import management
 from django.utils import timezone
 from identifiers.models import Identifier
+from submission import models as submission_models
 from utils.setting_handler import save_setting
 
 
@@ -31,7 +32,7 @@ def test_extract_doi_url(
     article = article_factory(
         journal=jcom,
         date_published=timezone.now(),
-        stage="Published",
+        stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=correspondence_author,
     )
     article.authors.add(correspondence_author)
@@ -56,7 +57,7 @@ def test_extract_doi_url(
     article_two = article_factory(
         journal=jcomal,
         date_published=timezone.now(),
-        stage="Published",
+        stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=correspondence_author,
     )
     article_two.authors.add(correspondence_author)

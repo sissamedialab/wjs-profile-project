@@ -1,0 +1,86 @@
+# Run as (e.g.):
+# docker-compose -f docker-compose-test-local.yml run janeway /bin/bash
+#
+# * How to work in ci/cd-similar env
+# ** setup docker environment
+#
+# Run::
+#     docker-compose -f docker-compose-test-local.yml run janeway /bin/bash
+#
+# # The above command line brings up a db service (reachable from the
+# # hosting machine to port 2345) and gives you a shell into
+# # janeway image
+#
+# ** setup env
+#
+# Run::
+#     setup_environment
+#
+# # The above command run some initialization commands:
+# # - install wjs-profile-project
+# # - link plugins
+# # - copy cicd settings
+# # - create extra migrations (to sync languages)
+# # - run migrations
+# # - install janeway with full defaults
+#
+#
+# You **must not** commit generated migrations: they are spurious migrations valid only in the docker test environment.
+#
+# ** run tests
+#
+# Run::
+#     pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -x
+#
+# ** reset database
+#
+# If you need to reset then dockerized database, run::
+# Run::
+#     docker-compose -f docker-compose-test-local.yml up -d db
+#     docker-compose -f docker-compose-test-local.yml exec -T db dropdb --if-exists -U janeway janeway
+#     docker-compose -f docker-compose-test-local.yml exec -T db createdb -U janeway janeway
+
+services:
+  db:
+    image: postgres:13.8
+    restart: always
+    # Must match with test_settings.DATABASES
+    environment:
+      - POSTGRES_USER=janeway
+      - POSTGRES_PASSWORD=janeway
+      - POSTGRES_DB=janeway
+    # NB: db runs on 5432 (postgres's default) and service "janeway" sees it there
+    #     the port 2345 is exposed to the HOST, not to other services!
+    ports:
+      - '2345:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
+
+    # Must set user (-U) or get `FATAL: role "postgres" does not
+    # exist` (or role "root")
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U janeway"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+
+  janeway:
+    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+    volumes:
+      - /tmp:/host-tmp
+      - .:/build/wjs/wjs-profile-project
+      - ./setup_environment:/usr/local/bin/setup_environment
+    environment:
+      - JANEWAY_SETTINGS_MODULE=core.cicd_settings
+      - DJANGO_SETTINGS_MODULE=core.cicd_test_settings
+      - CI_PROJECT_DIR=/build/wjs/wjs-profile-project
+      - PYTHONPATH=/build/wjs/wjs-profile-project
+    working_dir: /janeway/src
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+volumes:
+  db:
+    driver: local

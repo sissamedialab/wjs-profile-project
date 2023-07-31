@@ -1,0 +1,23 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+
+{% block title %}
+    {% translate "Evaluate review request" %}
+{% endblock title %}
+
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                {{ assignment }}
+                {% include "wjs_review/elements/review_evaluate_form.html" %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+
+{% block content_header %}
+    <div class="col-sm-12">
+        <p>{{ assignment.article }}</p>
+    </div>
+{% endblock content_header %}

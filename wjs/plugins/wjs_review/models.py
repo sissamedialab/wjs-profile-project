@@ -31,6 +31,10 @@ class ArticleWorkflow(TimeStampedModel):
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     state = FSMField(default=ReviewStates.TO_BE_ASSIGNED, choices=ReviewStates.choices, verbose_name=_("State"))
 
+    class Meta:
+        verbose_name = _("Article workflow")
+        verbose_name_plural = _("Article workflows")
+
     @property
     def article_authors(self) -> QuerySet[Account]:
         authors = self.article.authors.all()
@@ -46,7 +50,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.TO_BE_ASSIGNED,
         target=ReviewStates.ASSIGNED,
-        permission=permissions.is_editor,
+        permission=permissions.is_section_editor,
     )
     def assign(self):
         pass
@@ -67,7 +71,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.ASSIGNED,
         target=ReviewStates.TO_BE_ASSIGNED,
-        permission=permissions.is_section_editor_or_editor,
+        permission=permissions.is_section_editor,
     )
     def deassign(self):
         pass
@@ -179,7 +183,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.WAIT_DECISION,
         target=ReviewStates.NOT_SUIT,
-        permission=permissions.is_section_editor_or_editor,
+        permission=permissions.is_section_editor,
     )
     def not_suitable(self):
         pass

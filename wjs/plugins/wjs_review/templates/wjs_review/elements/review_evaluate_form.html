@@ -1,0 +1,15 @@
+{% load django_bootstrap5 i18n %}
+
+<form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
+    {% csrf_token %}
+    {% bootstrap_form_errors form layout='inline' %}
+    date_accepted = {{ assignment.date_accepted }}<br>
+    date_declined = {{ assignment.date_declined }}<br>
+    {% if not assignment.date_accepted %}
+        {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Accept" %}
+    {% endif %}
+    {% if not assignment.date_declined %}
+        {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
+        {% bootstrap_field form.comments_for_editor %}
+    {% endif %}
+</form>

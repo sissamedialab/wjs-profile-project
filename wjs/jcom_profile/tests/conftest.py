@@ -1,23 +1,27 @@
 """pytest common stuff and fixtures."""
 import os
 import random
+from datetime import timedelta
+from typing import Callable, List, Optional
 from unittest.mock import Mock
 
+import factory
 import pytest
 import pytest_factoryboy
 from core.middleware import GlobalRequestMiddleware
-from core.models import Account, File, Role, Setting, SupplementaryFile
+from core.models import File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
+from django.contrib.messages.storage import default_storage
 from django.core import management
 from django.core.cache import cache
-from django.urls.base import clear_script_prefix
+from django.urls.base import clear_script_prefix, clear_url_caches
 from django.utils import timezone, translation
+from django.utils.timezone import now
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Keyword
 from utils import setting_handler
 from utils.install import (
     update_emails,
@@ -110,7 +114,7 @@ def mock_premailer_load_url(mocker):
 
 
 @pytest.fixture
-def fake_request(journal):
+def fake_request(journal, settings):
     """Create a fake request suitable for rendering templates."""
     # - cron/management/commands/send_publication_notifications.py
     fake_request = create_fake_request(user=None, journal=journal)
@@ -118,31 +122,50 @@ def fake_request(journal):
     # (please read utils.template_override_middleware:60)
     fake_request.GET.get = Mock(return_value=False)
     GlobalRequestMiddleware.process_request(fake_request)
+    # messages are required by review functions
+    settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
+    fake_request._messages = default_storage(fake_request)
     return fake_request
 
 
-@pytest.fixture
-def user():
-    """Create / reset a user in the DB.
-
-    Create both core.models.Account and wjs.jcom_profile.models.JCOMProfile.
-    """
-    # Delete the test user (just in case...).
-    user = Account(username=USERNAME, first_name="User", last_name="Ics", institution="Sissa", department="Media")
-    user.save()
-    yield user
+@pytest.fixture()
+def user(create_jcom_user, roles, journal, keywords):
+    return create_jcom_user("user").janeway_account
 
 
 @pytest.fixture
-def jcom_user(user):
+def create_jcom_user() -> Callable[[Optional[str]], JCOMProfile]:
     """
-    Create standard jcom user
+    Return a function that creates a jcom user with the given username.
+
+    You can use it as a fixture in your tests, e.g.:
+        def my_test(create_jcom_user):
+        user = create_jcom_user("myuser")
+        ...
     """
-    jcom_user = JCOMProfile.objects.get(janeway_account=user)
-    jcom_user.gdpr_checkbox = True
-    jcom_user.is_active = True
-    jcom_user.save()
-    return jcom_user
+
+    def inner(username: str = USERNAME) -> JCOMProfile:
+        user = JCOMProfile.objects.create(
+            username=username,
+            first_name="User",
+            last_name=username,
+            institution="Sissa",
+            department="Media",
+            email=f"{username}@sissa.it",
+            gdpr_checkbox=True,
+            is_active=True,
+        )
+        return user
+
+    return inner
+
+
+@pytest.fixture
+def jcom_user(create_jcom_user: Callable[[Optional[str]], JCOMProfile]) -> JCOMProfile:
+    """
+    Create standard jcom user.
+    """
+    return create_jcom_user()
 
 
 @pytest.fixture
@@ -201,14 +224,36 @@ def coauthor():
 
 
 @pytest.fixture()
-def editor(jcom_user, roles, journal, keywords):
+def editor(create_jcom_user, roles, journal, keywords):
+    jcom_user = create_jcom_user("editor")
     jcom_user.add_account_role("editor", journal)
     return jcom_user
 
 
 @pytest.fixture()
-def director(jcom_user, roles, journal, director_role):
+def section_editor(create_jcom_user, roles, journal, keywords):
+    jcom_user = create_jcom_user("section_editor")
+    jcom_user.add_account_role("section-editor", journal)
+    return jcom_user
+
+
+@pytest.fixture()
+def reviewer(create_jcom_user, roles, journal, keywords):
+    jcom_user = create_jcom_user("reviewer")
+    jcom_user.add_account_role("reviewer", journal)
+    return jcom_user
+
+
+@pytest.fixture()
+def normal_user(create_jcom_user, roles, journal, keywords):
+    return create_jcom_user("normal_user")
+
+
+@pytest.fixture()
+def director(create_jcom_user, roles, journal, director_role):
+    jcom_user = create_jcom_user("director")
     jcom_user.add_account_role("editor", journal)
+    jcom_user.add_account_role("section-editor", journal)
     jcom_user.add_account_role("director", journal)
     return jcom_user
 
@@ -334,24 +379,55 @@ def article(admin, coauthor, journal, sections):
     return article
 
 
+def _create_submitted_articles(journal: journal_models.Journal, count: int = 10) -> List[submission_models.Article]:
+    """Create articles in submitted stage - Function version."""
+    _now = now()
+    return ArticleFactory.create_batch(
+        count,
+        stage=submission_models.STAGE_UNASSIGNED,
+        journal=journal,
+        date_published=factory.Sequence(
+            lambda n: _now + timedelta(days=n) if n % 3 == 0 else _now - timedelta(days=n),
+        ),
+    )
+
+
+@pytest.fixture
+def submitted_articles(journal) -> List[submission_models.Article]:
+    """Create generic articles with random date_published."""
+
+    return _create_submitted_articles(journal)
+
+
+@pytest.fixture
+def create_submitted_articles() -> Callable[[journal_models.Journal, int], List[submission_models.Article]]:
+    """Yield a function to create generic articles with random date_published."""
+
+    return _create_submitted_articles
+
+
 def _create_published_articles(admin, editor, journal, sections, keywords, items=10):
     """Create articles in published stage - Function version.
 
-    Correspondence author (owner), keywords and section are random"""
+    Correspondence author (owner), keywords and section are random.
+
+    selected_keyword is the keyword that will be added to all articles.
+    """
+    published_date = now() - timedelta(days=1)
+
     for i in range(items):
         owner = random.choice([admin, editor])
         article = submission_models.Article.objects.create(
             abstract=f"Abstract{i}",
             journal=journal,
-            journal_id=journal.id,
             title=f"Title{i}",
             correspondence_author=owner,
             owner=owner,
-            date_submitted=timezone.now(),
-            date_accepted=timezone.now(),
-            date_published=timezone.now(),
+            date_submitted=published_date,
+            date_accepted=published_date,
+            date_published=published_date,
             section=random.choice(sections),
-            stage="Published",
+            stage=submission_models.STAGE_PUBLISHED,
             language="eng",
         )
         article.authors.add(owner)
@@ -381,7 +457,7 @@ def published_article_with_standard_galleys(journal, article_factory):
     article = article_factory(
         journal=journal,
         date_published=timezone.now(),
-        stage="Published",
+        stage=submission_models.STAGE_PUBLISHED,
     )
     pubid = "JCOM_0102_2023_A04"
     Identifier.objects.create(
@@ -481,23 +557,25 @@ def clear_script_prefix_fix():
 
     This fixture clears the script prefix before and after the test.
     """
+    clear_url_caches()
     clear_script_prefix()
     yield None
     clear_script_prefix()
+    clear_url_caches()
 
 
 @pytest.fixture
 def keywords():
     for i in range(10):
-        Keyword.objects.create(word=f"{i}-keyword")
-    return Keyword.objects.all()
+        submission_models.Keyword.objects.create(word=f"{i}-keyword")
+    return submission_models.Keyword.objects.all()
 
 
 @pytest.fixture
 def directors(director_role, journal):
     directors = []
     for i in range(3):
-        director = Account.objects.create(
+        director = JCOMProfile.objects.create(
             username=f"Director{i}",
             email=f"Director{i}@Director{i}.it",
             first_name=f"Director{i}",
@@ -505,12 +583,12 @@ def directors(director_role, journal):
             is_active=True,
         )
         EditorAssignmentParameters.objects.create(
-            editor=director,
+            editor=director.janeway_account,
             journal=journal,
             workload=random.randint(1, 10),
         )
-        director.add_account_role("director", journal)
-        directors.append(director)
+        director.janeway_account.add_account_role("director", journal)
+        directors.append(director.janeway_account)
     return directors
 
 
@@ -518,23 +596,22 @@ def directors(director_role, journal):
 def editors(roles, journal):
     editors = []
     for i in range(3):
-        editor = Account.objects.create(
+        editor = JCOMProfile.objects.create(
             username=f"Editor{i}",
             email=f"Editor{i}@Editor{i}.it",
             first_name=f"Editor{i}",
             last_name=f"Editor{i}",
             is_active=True,
         )
-        editor.add_account_role("editor", journal)
-        editor.save()
+        editor.janeway_account.add_account_role("editor", journal)
 
         EditorAssignmentParameters.objects.create(
-            editor=editor,
+            editor=editor.janeway_account,
             journal=journal,
             workload=random.randint(1, 10),
         )
 
-        editors.append(editor)
+        editors.append(editor.janeway_account)
     return editors
 
 

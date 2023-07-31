@@ -7,7 +7,6 @@ import lxml.html
 import pytest
 from cms.models import Page
 from comms.models import NewsItem
-from conftest import set_jcom_settings, set_jcom_theme
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail, management
@@ -16,21 +15,22 @@ from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
-from submission.models import Article, ArticleAuthorOrder, Keyword
+from submission import models as submission_models
 from utils import setting_handler
 from utils.install import update_issue_types
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import Recipient
 from wjs.jcom_profile.newsletter.service import NewsletterMailerService
+from wjs.jcom_profile.tests.conftest import set_jcom_settings, set_jcom_theme
 from wjs.jcom_profile.utils import generate_token
 
 
 def select_random_keywords(keywords):
     """
     Return a sampled set of keywords from the given ones.
-    :param keywords: Keyword list fixture
-    :return: A sampled list of Keyword
+    :param keywords: submission_models.Keyword list fixture
+    :return: A sampled list of submission_models.Keyword
     """
     return random.sample(list(keywords), random.randint(1, len(keywords)))
 
@@ -65,7 +65,10 @@ def check_email_body(outbox, journal):
             recipient = Recipient.objects.get(email=user_email)
         user_keywords = recipient.topics.all()
         for topic in user_keywords:
-            articles = Article.objects.filter(keywords__in=[topic], date_published__date__gt=timezone.now())
+            articles = submission_models.Article.objects.filter(
+                keywords__in=[topic],
+                date_published__date__gt=timezone.now(),
+            )
             for article in articles:
                 assert article.title in email.body
         news_items = NewsItem.objects.filter(posted__date__gt=timezone.now())
@@ -121,7 +124,7 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
         article = article_factory(
             journal=journal,
             date_published=timezone.now() + datetime.timedelta(days=1),
-            stage="Published",
+            stage=submission_models.STAGE_PUBLISHED,
             correspondence_author=correspondence_author,
             section=section_factory(),
         )
@@ -198,7 +201,7 @@ def test_newsletters_with_articles_only_must_be_sent(
     newsletter_article = article_factory(
         journal=journal,
         date_published=timezone.now() + datetime.timedelta(days=1),
-        stage="Published",
+        stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=correspondence_author,
         section=section_factory(),
     )
@@ -210,7 +213,7 @@ def test_newsletters_with_articles_only_must_be_sent(
     no_newsletter_article = article_factory(
         journal=journal,
         date_published=timezone.now() + datetime.timedelta(days=1),
-        stage="Published",
+        stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=correspondence_author,
         section=section_factory(),
     )
@@ -278,7 +281,7 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
         article = article_factory(
             journal=journal,
             date_published=timezone.now() + datetime.timedelta(days=1),
-            stage="Published",
+            stage=submission_models.STAGE_PUBLISHED,
             correspondence_author=correspondence_author,
             section=section_factory(),
         )
@@ -293,7 +296,7 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
 
     newsletter.refresh_from_db()
     assert newsletter.last_sent.date() == timezone.now().date()
-    filtered_articles = Article.objects.filter(date_published__date__gt=timezone.now())
+    filtered_articles = submission_models.Article.objects.filter(date_published__date__gt=timezone.now())
     emailed_subscribers = Recipient.objects.filter(
         Q(topics__in=filtered_articles.values_list("keywords")) | Q(news=True),
     ).distinct()
@@ -379,7 +382,7 @@ def test_two_recipients_one_article(
     a1.keywords.add(kwd1)
     a1.authors.add(correspondence_author)
     a1.snapshot_authors()
-    a1.save
+    a1.save()
 
     # Two newsletter recipients with the same topic (kwd)
     nr1 = recipient_factory(user=account_factory(), news=False)
@@ -458,7 +461,7 @@ def test_one_recipient_with_news_true_and_no_articles_and_no_newsitems(
     newsletter = newsletter_factory()
 
     # No articles!
-    assert not Article.objects.exists()  # ⇦ Interesting part
+    assert not submission_models.Article.objects.exists()  # ⇦ Interesting part
 
     # No news!
     assert not NewsItem.objects.exists()  # ⇦ Interesting part
@@ -520,7 +523,7 @@ def test_one_recipient_with_wrong_topic_but_with_news_true_and_no_newsitems(
 
     nms = NewsletterMailerService()
     recipients, articles, news = nms._get_objects(journal, newsletter.last_sent)
-    # Articles are collected when date_published > newsletter.last_sent,
+    # submission_models.Articles are collected when date_published > newsletter.last_sent,
     # so here it is correct to expect that our article is collected.
     assert len(articles) == 1
     assert len(news) == 0
@@ -667,7 +670,7 @@ def test_registration_as_logged_user_via_post_in_homepage_plugin(
     kwd_count = 3
     keywords = [keyword_factory() for _ in range(kwd_count)]
     journal.keywords.set(keywords)
-    assert Keyword.objects.count() == kwd_count
+    assert submission_models.Keyword.objects.count() == kwd_count
     # Force language in Django test client https://docs.djangoproject.com/en/4.1/topics/testing/tools/#setting-the-language   # noqa: E501
     client.cookies.load({settings.LANGUAGE_COOKIE_NAME: language})
     client.force_login(jcom_user)
@@ -715,7 +718,7 @@ def test_registration_as_logged_user_via_link_in_profile_page(
     kwd_count = 3
     keywords = [keyword_factory() for _ in range(kwd_count)]
     journal.keywords.set(keywords)
-    assert Keyword.objects.count() == kwd_count
+    assert submission_models.Keyword.objects.count() == kwd_count
 
     # Login and make visit the update-newsletter page (reachable from the profile page)
     client.force_login(jcom_user)
@@ -1061,7 +1064,7 @@ def test_check_authors_list_in_publication_alert(
         abstract="Abstract test author list",
         journal=journal,
         date_published=timezone.now() + datetime.timedelta(days=1),
-        stage="Published",
+        stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=correspondence_author,
         section=section_factory(),
     )
@@ -1072,19 +1075,19 @@ def test_check_authors_list_in_publication_alert(
     coauthor2 = account_factory()
 
     article.authors.add(correspondence_author)
-    ArticleAuthorOrder.objects.create(
+    submission_models.ArticleAuthorOrder.objects.create(
         article=article,
         author=correspondence_author,
         order=0,
     )
     article.authors.add(coauthor1)
-    ArticleAuthorOrder.objects.create(
+    submission_models.ArticleAuthorOrder.objects.create(
         article=article,
         author=coauthor1,
         order=1,
     )
     article.authors.add(coauthor2)
-    ArticleAuthorOrder.objects.create(
+    submission_models.ArticleAuthorOrder.objects.create(
         article=article,
         author=coauthor2,
         order=2,

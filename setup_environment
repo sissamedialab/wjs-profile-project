@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+pip install --extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple -e ${CI_PROJECT_DIR}/[test]
+cd /janeway/src/plugins && for p in `ls -1d ${CI_PROJECT_DIR}/wjs/plugins/wjs*`; do ln -s $p; done
+cd /janeway/src
+cp ${CI_PROJECT_DIR}/cicd_* core
+# This is needed to sync extra janeway fields registered as translatable in wjs
+python3 manage.py makemigrations --no-input
+python3 manage.py migrate --no-input --run-syncdb
+python3 manage.py install_janeway --use-defaults
+python3 manage.py install_themes

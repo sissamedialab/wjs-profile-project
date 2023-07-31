@@ -1,4 +1,3 @@
-"""Configure this application."""
 from django.apps import AppConfig
 
 
@@ -12,7 +11,7 @@ class WjsReviewConfig(AppConfig):
         """Monkeypatch AccountQuerySet / AccountManager."""
         from core.models import AccountManager, AccountQuerySet
 
-        from . import users
+        from . import signals, users  # noqa: F401
 
         # Monkeypatch AccountQuerySet / AccountManager to add custom method
         # We have to both classes because to be able to use the function both as Account.objects.filter_reviewers()

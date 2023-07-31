@@ -19,20 +19,11 @@ def create_profile_handler(sender, instance, created, **kwargs):
     if not created:
         return
 
-    JCOMProfile.objects.create(janeway_account=instance)
-
-    # If I don't `save()` the instance also, an empty record is
-    # created.
-    #
-    # I think this is because the post_save message is emitted by one
-    # of core.forms.RegistrationForm's ancestor (l.133) but with
-    # `commit=False`, so that the form's data is not yet in the DB.
-    instance.save()
-
-    # NB: instance.save_m2m() fails with
-    # AttributeError: 'Account' object has no attribute 'save_m2m'
-    # because this is not a many-to-many relation
-    # https://django.readthedocs.io/en/stable/topics/forms/modelforms.html?highlight=save_m2m#the-save-method
+    # Using save_base skips the save() method of the JCOMProfile model and correctly creates the instance of our
+    # subclass without resetting the user data.
+    # It ensures no django magic is applied because we are basically creating a duplicate of the original data.
+    # https://stackoverflow.com/questions/9821935/django-model-inheritance-create-a-subclass-using-existing-super-class
+    return JCOMProfile(janeway_account=instance).save_base(raw=True)
 
 
 @receiver(post_save, sender=Article)
