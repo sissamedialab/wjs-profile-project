@@ -27,10 +27,10 @@ class AssignToEditor:
     editor: Account
     article: Article
     request: HttpRequest
-    review: Optional[ArticleWorkflow] = None
+    workflow: Optional[ArticleWorkflow] = None
 
-    def _create_review(self):
-        self.review, __ = ArticleWorkflow.objects.get_or_create(
+    def _create_workflow(self):
+        self.workflow, __ = ArticleWorkflow.objects.get_or_create(
             article=self.article,
         )
 
@@ -46,22 +46,23 @@ class AssignToEditor:
         return review_round
 
     def _update_state(self):
-        self.review.assign()
-        self.review.save()
+        """Run FSM transition."""
+        self.workflow.assign()
+        self.workflow.save()
 
     def _check_conditions(self) -> bool:
         is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
-        state_conditions = can_proceed(self.review.assign)
+        state_conditions = can_proceed(self.workflow.assign)
         return is_section_editor and state_conditions
 
     def run(self) -> ArticleWorkflow:
         with transaction.atomic():
-            self._create_review()
+            self._create_workflow()
             if not self._check_conditions():
                 raise ValueError("Invalid state transition")
             self._assign_editor()
             self._update_state()
-        return self.review
+        return self.workflow
 
 
 @dataclasses.dataclass

@@ -1,0 +1,39 @@
+<div class="container">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           aria-current="page"
+                           title="My editor pages"
+                           href="{% url 'wjs_review_list' %}">Home</a>
+                    </li>
+                    <li class="nav-item"><!-- just a separator -->|</li>
+                    {% if workflow %}
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           aria-current="page"
+                           title="Paper's details"
+                           href="{% url 'wjs_article_details' workflow.id %}">Status</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           title="Paper's action history, communications and versions"
+                           href="#">History</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" title="Paper's communication: contact author, reviewer, etc." href="#">Communicate</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">...</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">TODO: make nav items page-dependent (breadcrumbs-like)</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+</div>

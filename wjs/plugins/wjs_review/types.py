@@ -8,3 +8,5 @@ class BootstrapButtonProps(TypedDict):
     "Button additional CSS class."
     disabled: bool
     "Button disabled state."
+    disabled_cause: str
+    "Button tooltip (disabled cause)."

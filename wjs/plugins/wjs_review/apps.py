@@ -19,6 +19,25 @@ class WjsReviewConfig(AppConfig):
         AccountManager.filter_reviewers = users.filter_reviewers
         AccountManager.get_reviewers_choices = users.get_reviewers_choices
         AccountManager.exclude_authors = users.exclude_authors
+        AccountManager.annotate_is_author = users.annotate_is_author
+        AccountManager.annotate_is_active_reviewer = users.annotate_is_active_reviewer
+        AccountManager.annotate_is_past_reviewer = users.annotate_is_past_reviewer
+
         AccountQuerySet.filter_reviewers = users.filter_reviewers
         AccountQuerySet.get_reviewers_choices = users.get_reviewers_choices
         AccountQuerySet.exclude_authors = users.exclude_authors
+        AccountQuerySet.annotate_is_author = users.annotate_is_author
+        AccountQuerySet.annotate_is_active_reviewer = users.annotate_is_active_reviewer
+        AccountQuerySet.annotate_is_past_reviewer = users.annotate_is_past_reviewer
+
+        AccountManager.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
+        AccountManager.annotate_has_previously_completed_review = users.annotate_has_previously_completed_review
+        AccountManager.annotate_declined_current_review_round = users.annotate_declined_current_review_round
+        AccountManager.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
+        AccountManager.annotate_worked_with_me = users.annotate_worked_with_me
+
+        AccountQuerySet.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
+        AccountQuerySet.annotate_has_previously_completed_review = users.annotate_has_previously_completed_review
+        AccountQuerySet.annotate_declined_current_review_round = users.annotate_declined_current_review_round
+        AccountQuerySet.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
+        AccountQuerySet.annotate_worked_with_me = users.annotate_worked_with_me

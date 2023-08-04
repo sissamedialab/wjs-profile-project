@@ -1,10 +1,11 @@
 {% load django_bootstrap5 i18n %}
 {% url "wjs_select_reviewer" workflow.pk as search_reviewer %}
-
 <div class="container" id="select-reviewer">
     <div class="row">
         <div class="col-sm-8">
-            <form hx-get="{{ search_reviewer }}" hx-trigger="submit" hx-target="#select-reviewer">
+            <form hx-get="{{ search_reviewer }}"
+                  hx-trigger="submit"
+                  hx-target="#select-reviewer">
                 <div class="container">
                     <div class="row">
                         <div class="col">{% bootstrap_field search_form.search show_label=False %}</div>
@@ -13,13 +14,22 @@
                         <div class="col">
                             {% bootstrap_button button_type="submit" content="Search" %}
                         </div>
+                        <div class="col">{% bootstrap_button button_type="submit" content="Invite new" %}</div>
                     </div>
                 </div>
                 <table class="table">
                     <tr>
-                        <th scope="col">Name</th>
+                        <th scope="col" title="Score">
+                            <a href="#" title="Help page on how we compute score">🎯</a>
+                        </th>
+                        <th scope="col"
+                            title="Click to go user's profile-as-revier with nome, orcid, affil, reviewer stats, workload-as-reviewer?, kwd-as-rev?, editor's personal notes on the rev.,...">
+                            Name
+                        </th>
                         <th scope="col">Email</th>
-                        <th scope="col">Action</th>
+                        <th scope="col" title="Past | prophy | notes | declined-or-removed |">Flags</th>
+                        <th scope="col"
+                            title="Gray out if already-assigned | author-of-paper | disabled">Action</th>
                     </tr>
                     {% include "wjs_review/elements/reviewers_list.html" with users=reviewers selected=form.data.reviewer %}
                 </table>
@@ -30,9 +40,7 @@
                 {% csrf_token %}
                 <div class="container">
                     <div class="row">
-                        <div content="col">
-                            {% bootstrap_form_errors form layout='inline' %}
-                        </div>
+                        <div content="col">{% bootstrap_form_errors form layout='inline' %}</div>
                     </div>
                     <div class="row">
                         <div class="col">{% bootstrap_form form %}</div>
