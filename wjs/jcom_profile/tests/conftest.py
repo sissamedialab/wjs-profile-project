@@ -61,6 +61,9 @@ from wjs.jcom_profile.models import (
 )
 from wjs.jcom_profile.utils import generate_token
 
+# Sorry, https://xkcd.com/221/, "the answer" is 42!
+random.seed(42)
+
 USERNAME = "user"
 JOURNAL_CODE = "JCOM"
 yesterday = timezone.now() - timezone.timedelta(1)
