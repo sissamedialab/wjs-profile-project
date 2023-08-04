@@ -37,13 +37,14 @@ def get_article_log_entries(article: Article) -> Optional[QuerySet[LogEntry]]:
 
 
 @register.simple_tag()
-def reviewer_btn_props(reviewer: Account, selected: str) -> BootstrapButtonProps:
+def reviewer_btn_props(reviewer: Account, selected: str, workflow: ArticleWorkflow) -> BootstrapButtonProps:
     """
     Return the properties for the select reviewer button.
 
     - value: the reviewer pk if no reviewer is selected or the reviewer is not the selected one
     - css_class: btn-success if the reviewer is the selected one, btn-primary otherwise
-    - disabled: True if the reviewer is not active or if another reviewer is selected
+    - disabled: True if the reviewer cannot be selecte for some reason
+    - disabled_cause: The reason why the button has been disabled
     """
     try:
         selected = int(selected)
@@ -52,9 +53,26 @@ def reviewer_btn_props(reviewer: Account, selected: str) -> BootstrapButtonProps
     current_reviewer = bool(selected and reviewer.pk == selected)
     other_reviewer = bool(selected and reviewer.pk != selected)
     no_reviewer_or_not_matching = not selected or reviewer.pk != selected
+
+    disabled = False
+    disabled_cause = ""
+    if other_reviewer:
+        disabled = True
+        disabled_cause = "Another reviewer is beeing selected"
+    elif not reviewer.is_active:
+        disabled = True
+        disabled_cause = "This person is not active in the system"
+    elif reviewer.wjs_is_author:
+        disabled = True
+        disabled_cause = "This person is one of the authors"
+    elif reviewer.wjs_is_active_reviewer:
+        disabled = True
+        disabled_cause = "This person is already a reviewer of this paper"
+
     data: BootstrapButtonProps = {
         "value": json.dumps({"reviewer": reviewer.pk}) if no_reviewer_or_not_matching else "",
         "css_class": "btn-success" if current_reviewer else "btn-primary",
-        "disabled": other_reviewer or not reviewer.is_active,
+        "disabled": disabled,
+        "disabled_cause": disabled_cause,
     }
     return data

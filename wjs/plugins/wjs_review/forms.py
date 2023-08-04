@@ -147,8 +147,9 @@ class ReviewerSearchForm(forms.Form):
         required=False,
         choices=[
             ("", "Tutti"),
-            ("reviewer", "Reviewer"),
-            ("editor", "Editor"),
+            ("past", "R. who have already worked on this paper"),
+            ("known", "R. w/ whom I've already worked"),
+            ("declined", "R. who declined previous assignments (for this paper)"),
         ],
     )
 

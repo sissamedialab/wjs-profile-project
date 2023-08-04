@@ -1,0 +1,87 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% load wjs_review %}
+{% block title %}
+    {{ workflow.article }}
+{% endblock title %}
+{% block content_title %}
+    <div class="col-sm-12">
+        <h2>
+            <i>{{ workflow.article }}</i>
+        </h2>
+        <p>
+            <span class="badge bg-secondary">{{ workflow.article.section.name }}</span> by {{ workflow.article.correspondence_author }}
+            {% if workflow.article.authors.count > 1 %}
+                <a class="text-secondary"
+                   data-bs-toggle="collapse"
+                   href="#otherAuthors"
+                   role="button"
+                   aria-expanded="false"
+                   aria-controls="collapseExample">et al.</a>
+                <span class="collapse" id="otherAuthors">
+                    {% for author in workflow.article.authors.all %}
+                        {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
+                        {% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                </span>
+            {% endif %}
+        </p>
+    </div>
+{% endblock content_title %}
+{% block content %}
+    <div class="container">
+        <!-- TODO: extract into "element/actions.html"  -->
+        <div class="row">
+            <div class="col-sm-12 border-bottom border-2">
+                <div class="card-head">Actions</div>
+                <div class="card-body">
+                    {% get_available_transitions workflow as transitions %}
+                    <form method="post" action="{% url "update_state" workflow.pk %}">
+                        <input type="hidden" name="state" value="{{ workflow.state }}">
+                        {% csrf_token %}
+                        {% for transition in transitions %}
+                            {% if transition.name != "assign_referee" %}
+                                <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
+                            {% endif %}
+                            {% if transition.name == "assign_referee" %}
+                                <a href="{% url 'wjs_select_reviewer' workflow.pk %}">{{ transition.name }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-sm-12 border-bottom border-2">
+                <strong>TODO:</strong>
+                <ol>
+                    <li>EO User in charge: cassano [Giulia Cassano] take in charge</li>
+                    <li>Author Biographies:  	pop-up</li>
+                    <li>Corresponding author Country:  	{{ workflow.article.correspondence_author.country }}</li>
+                    <li>Abstract:  	pop-up</li>
+                    <li>Key words:  	Scholarly communication [100]</li>
+                    <li>Science communication in the developing world [100]</li>
+                    <li>Science education [100]</li>
+                    <li>Available files:  	JCOM_001Y_0722.pdf (16 pages)</li>
+                    <li>JCOM_001Y_0722.tex</li>
+                    Submitted contribution: 	JCOM_001Y_0722.tar.gz
+                    JCOM_001Y_0722.tex
+                    <li>Attachments:  	no attachments</li>
+                    <li>Submitted on:  	04 July 2022 18:30</li>
+                    <li>Last version submitted on:  	18 July 2023 16:24</li>
+                    <li>Last revision submitted on:  	15 December 2022 20:15</li>
+                    <li>Current state:  	ready for publication</li>
+                    <li>Accepted on:  	22 June 2023 19:46</li>
+                    <li>Major revision requested on:  	10 August 2022 15:25</li>
+                    <li>Typesetter:  	Sara Bin</li>
+                    <li>Assigned on:  	06 July 2023 18:01</li>
+                    <li>
+                        Typesetter annotation Open /
+                        Submission date: 18 July 2023 16:24 /
+                        Sender: Sara Bin
+                    </li>
+                </ol>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

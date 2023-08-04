@@ -1,13 +1,45 @@
 {% load django_bootstrap5 wjs_review %}
 {% url "wjs_select_reviewer" workflow.pk as wjs_select_reviewer %}
-
 {% for user in users %}
-    {% reviewer_btn_props user selected as btn %}
+    {% reviewer_btn_props user selected workflow as btn %}
     <tr>
-        <td>{{ user.full_name }}</td>
+        <td>.9</td>
+        <td>
+            <a href="#" title="Reviewer's details (if available)">{{ user.id }}</a> {{ user.full_name }}
+        </td>
         <td>{{ user.email }}</td>
         <td>
-            {% bootstrap_button disabled=btn.disabled button_class=btn.css_class hx_vals=btn.value button_type="button" hx_trigger="click" hx_post=wjs_select_reviewer content="Select" %}
+            {% if user.wjs_is_author %}<span title="Author of the paper">🖆</span>{% endif %}
+            {# TODO: user.is_active to be replaced by user.does_not_want_to_review_anything #}
+            {% if not user.is_active %}<span title="Non-active user">💤</span>{% endif %}
+            {% if user.wjs_is_active_reviewer %}
+                {% if user.wjs_has_declined_current_review_round %}
+                    <span title="Declined this round">✗</span>
+                {% elif user.wjs_has_currently_completed_review %}
+                    <span title="Completed this round">✓</span>
+                {% else %}
+                    <span title="Active reviewer/already selected">⏵</span>
+                {% endif %}
+            {% else %}
+                {# Show flags for previous rounds only if there is nothing for the current one. #}
+                {% if user.wjs_is_past_reviewer %}
+                    {% if user.wjs_has_delined_previous_review_round %}
+                        <span title="Declined previous round">(✗)</span>
+                    {% elif user.wjs_has_previously_completed_review %}
+                        <span title="Completed previous round">(✓)</span>
+                    {% else %}
+                        <span title="Past reviewer (assignment not declined, but review never completed)">«</span>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+            {% if user == request.user %}<span title="Me">Me!</span>{% endif %}
+        </td>
+        <td>
+            {% comment %}Tooltips for .disabled or disabled elements must be triggered on a wrapper element.{% endcomment %}
+            <span class="d-inline-block"
+                  tabindex="0"
+                  data-toggle="tooltip"
+                  title="{{ btn.disabled_cause }}">{% bootstrap_button disabled=btn.disabled button_class=btn.css_class hx_vals=btn.value button_type="button" hx_trigger="click" hx_post=wjs_select_reviewer data_toggle=btn.disabled_cause content="Select" %}</span>
         </td>
     </tr>
 {% endfor %}

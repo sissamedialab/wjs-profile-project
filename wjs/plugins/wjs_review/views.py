@@ -54,8 +54,11 @@ class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
 
     model = ArticleWorkflow
     form_class = SelectReviewerForm
-    success_url = reverse_lazy("wjs_review_list")
     context_object_name = "workflow"
+
+    def get_success_url(self):
+        # TBV:  reverse("wjs_review_list")?  wjs_review_review?
+        return reverse("wjs_article_details", args=(self.object.id,))
 
     def get_queryset(self) -> QuerySet[ArticleWorkflow]:
         # TODO: We must check this once we have decided the flow for multiple review rounds
@@ -135,6 +138,12 @@ class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+
+
+class ArticleDetails(LoginRequiredMixin, DetailView):
+    model = ArticleWorkflow
+    template_name = "wjs_review/details.html"
+    context_object_name = "workflow"
 
 
 class OpenReviewMixin(DetailView):

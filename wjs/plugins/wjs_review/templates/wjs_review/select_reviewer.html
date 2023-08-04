@@ -8,13 +8,33 @@
 {% block content %}
     {% include "wjs_review/elements/select_reviewer.html" %}
 {% endblock content %}
-
-{% block content_header %}
+{% block content_title %}
     <div class="col-sm-12">
-        <p>{{ workflow.article }}</p>
+        <h2>
+            Select reviewer for <i>{{ workflow.article }}</i>
+        </h2>
+        <p>
+            <span class="badge bg-secondary">{{ workflow.article.section.name }}</span> by {{ workflow.article.correspondence_author }}
+            {% if workflow.article.authors.count > 1 %}
+                <a class="text-secondary"
+                   data-bs-toggle="collapse"
+                   href="#otherAuthors"
+                   role="button"
+                   aria-expanded="false"
+                   aria-controls="collapseExample">et al.</a>
+                <span class="collapse" id="otherAuthors">
+                    {% for author in workflow.article.authors.all %}
+                        {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
+                        {% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                </span>
+            {% endif %}
+        </p>
+        {# No info about existing assignments because it seems confusing! #}
     </div>
-{% endblock content_header %}
-
+{% endblock content_title %}
 {% block content_footer %}
-    <div class="col"><a class="btn btn-outline-secondary" href="{% url 'wjs_review_list' %}">Back</a></div>
+    <div class="col">
+        <a class="btn btn-outline-secondary" href="{% url 'wjs_review_list' %}">Back</a>
+    </div>
 {% endblock content_footer %}

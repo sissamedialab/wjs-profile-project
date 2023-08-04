@@ -11,6 +11,7 @@
         <div class="container-fluid bg-primary text-white text-center">
             <h1>{% block title %}(no title){% endblock title %}</h1>
             <p>Header...🎩</p>
+            {% include "wjs_review/elements/navbar.html" %}
         </div>
     {% endblock header %}
 
@@ -22,7 +23,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-sm-12 border-bottom border-2">
-                    <h2>{% block content_title %}CONTENT TITLE{% endblock content_title %}</h2>
+                    {% block content_title %}<h2>CONTENT TITLE</h2>{% endblock content_title %}
                 </div>
             </div>
         </div>
