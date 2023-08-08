@@ -357,13 +357,17 @@ def journal_factory(press):
 @pytest.fixture
 def sections(journal):
     with translation.override("en"):
+        # we must explicitly determine the created sections because sections might be created by other fixtures
+        # and returning a blanket "all" queryset would include sections created by those fixtures
+        sections_pk = []
         for i in range(3):
-            submission_models.Section.objects.create(
+            obj = submission_models.Section.objects.create(
                 journal=journal,
                 name=f"section{i}",
                 public_submissions=False,
             )
-    return submission_models.Section.objects.all()
+            sections_pk.append(obj.pk)
+    return submission_models.Section.objects.filter(pk__in=sections_pk)
 
 
 @pytest.fixture
@@ -418,6 +422,9 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
     """
     published_date = now() - timedelta(days=1)
 
+    # we must explicitly determine the created articles because articles might be created by other fixtures
+    # and returning a blanket "all" queryset would include sections articles by those fixtures
+    articles_pk = []
     for i in range(items):
         owner = random.choice([admin, editor])
         article = submission_models.Article.objects.create(
@@ -443,7 +450,8 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
             galley.article = article
             galley.last_modified = timezone.now()
             galley.save()
-    return submission_models.Article.objects.all()
+        articles_pk.append(article.pk)
+    return submission_models.Article.objects.filter(pk__in=articles_pk)
 
 
 @pytest.fixture
@@ -569,9 +577,13 @@ def clear_script_prefix_fix():
 
 @pytest.fixture
 def keywords():
+    # we must explicitly determine the created keywords because articles might be created by other fixtures
+    # and returning a blanket "all" queryset would include sections articles by those fixtures
+    keywords_pk = []
     for i in range(10):
-        submission_models.Keyword.objects.create(word=f"{i}-keyword")
-    return submission_models.Keyword.objects.all()
+        word = submission_models.Keyword.objects.create(word=f"{i}-keyword")
+        keywords_pk.append(word.pk)
+    return submission_models.Keyword.objects.filter(pk__in=keywords_pk)
 
 
 @pytest.fixture
