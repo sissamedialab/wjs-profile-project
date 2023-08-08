@@ -8,10 +8,14 @@
 {% block body %}
     <div class="row">
         <div class="col m12">
-            <h3>{{ journal_settings.news.news_title }}</h3>
-            {% if tag %}
-                <h3>{% trans "Filtering tag" %}: {{ tag }}</h3>
-            {% endif %}
+            <div class="cms-page card">
+                <div class="cms-page-content card-content">
+                    <h1 class="main-title">{{ journal_settings.news.news_title }}</h1>
+                    {% if tag %}
+                        <h3>{% trans "Filtering tag" %}: {{ tag }}</h3>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% for item in news_items %}
             <div class="col m12">
