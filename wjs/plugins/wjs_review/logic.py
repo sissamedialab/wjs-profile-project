@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
-from django_fsm import can_proceed, has_transition_perm
+from django_fsm import can_proceed
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from review.views import accept_review_request, decline_review_request
@@ -47,12 +47,12 @@ class AssignToEditor:
 
     def _update_state(self):
         """Run FSM transition."""
-        self.workflow.assign()
+        self.workflow.director_selects_editor()
         self.workflow.save()
 
     def _check_conditions(self) -> bool:
         is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
-        state_conditions = can_proceed(self.workflow.assign)
+        state_conditions = can_proceed(self.workflow.director_selects_editor)
         return is_section_editor and state_conditions
 
     def run(self) -> ArticleWorkflow:
@@ -69,6 +69,8 @@ class AssignToEditor:
 class AssignToReviewer:
     """
     Assigns a reviewer by using review.logic.quick_assign and checking conditions for the assignment.
+
+    Assigning a reviewer does not trigger a state transition.
     """
 
     workflow: ArticleWorkflow
@@ -91,8 +93,7 @@ class AssignToReviewer:
         """Check if the conditions for the assignment are met."""
         reviewer_conditions = self.check_reviewer_conditions(self.workflow, self.reviewer)
         editor_conditions = self.check_editor_conditions(self.workflow, self.editor)
-        editor_permissions = has_transition_perm(self.workflow.assign_referee, self.editor)
-        return reviewer_conditions and editor_permissions and editor_conditions
+        return reviewer_conditions and editor_conditions
 
     def _ensure_reviewer(self):
         """Ensure that the reviewer has the reviewer role, assigning it if necessary."""
@@ -120,21 +121,15 @@ class AssignToReviewer:
         # TODO: Send email notification
         print("SEND EMAIL")
 
-    def _update_state(self):
-        """Run FSM transition."""
-        self.workflow.assign_referee()
-        self.workflow.save()
-
     def run(self) -> ReviewAssignment:
         # TODO: verificare in futuro se controllare assegnazione multiupla allo stesso reviewer quando si saranno
         #       decisi i meccanismi digestione dei round e delle versioni
         # TODO: se il reviewer non ha il ruolo bisogna fare l'enrolment
         # - controllare che
         #   - il reviewer possa essere assegnato
-        #   - lo stato sia compatibile con assign_referee
+        #   - lo stato sia compatibile con "assign reviewer"
         # - assegna il reviewer
         # - invia la mail
-        # - aggiorna lo stato
         # - salva
         # - si emette un evento signal
         # - si ritorna l'oggetto
@@ -147,7 +142,6 @@ class AssignToReviewer:
             if not assignment:
                 raise ValueError(_("Cannot assign review"))
             self._notify_reviewer()
-            self._update_state()
         return assignment
 
 
@@ -232,3 +226,52 @@ class EvaluateReview:
                 return self._handle_accept()
             if self.form_data.get("reviewer_decision") == "0":
                 return self._handle_decline()
+
+
+# Some states with their actions
+# TBD: do we want to keep something of this sort here or in logic.py?
+class ED_TO_BE_SE:  # noqa N801 CapWords convention
+    actions = ("dir - selects editor",)
+
+
+class EDITO_SELEC:  # noqa N801 CapWords convention
+    actions = (
+        "ed - declines assignment",
+        "ed - assigns different editor",
+        "ed - accepts",
+        "ed - rejects",
+        "ed - deems not suitable",
+        "ed - request revision",
+        "ed - assigns self as reviewer",
+        "ed - assigns reviewer",
+        "ed - removes reviewer",
+        "ed - reminds reviewer assignment",
+        "ed - reminds reviewer report",
+        "ed - postpones rev.report deadline",
+        "ed - ask report revision",
+        "rev - accept",
+        "rev - decline",
+        "rev - write report",
+        "rev - postpones rev.report deadline",
+        "dir - reminds editor",
+    )
+
+
+class _TO_BE_REV_:  # noqa N801 CapWords convention
+    actions = (
+        "ed - reminds author",
+        "au - submits new version",
+        "au - confirms previous manuscript",
+    )
+
+
+class _REJECTED__:  # noqa N801 CapWords convention
+    actions = ("admin - opens appeal",)
+
+
+class PA_MI_HA_IS:  # noqa N801 CapWords convention
+    actions = (
+        "admin - requires resubmission",
+        "admin - deems not suitable",
+        "admin - deems issue unimportant",
+    )

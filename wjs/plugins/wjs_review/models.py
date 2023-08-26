@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
-from django_fsm import FSMField, transition
+from django_fsm import GET_STATE, FSMField, transition
 from model_utils.models import TimeStampedModel
 
 from . import permissions
@@ -10,26 +10,30 @@ from . import permissions
 Account = get_user_model()
 
 
+def process_submission(model):
+    """Verify and assign a submitted article to an editor."""
+    # TODO: add type hints models.ArticleWorkflow.ReviewState.???; check circular import
+    return model.ReviewStates.EDITOR_TO_BE_SELECTED
+
+
 class ArticleWorkflow(TimeStampedModel):
     class ReviewStates(models.TextChoices):
-        TO_BE_ASSIGNED = "TBA", _("To be assigned")
-        ASSIGNED = "ASS", _("Assigned")
-        BEING_REFEREED = "BREF", _("Being refereed")
-        WAIT_DECISION = "WAIT", _("Waiting for editors decision")
-        EDITOR_REF = "EDREF", _("Editor as referee")
-        TBR_MAJOR = "TBR_MAJOR", _("To be revised (major revision)")
-        TBR_MINOR = "TBR_MINOR", _("To be revised (minor revision)")
-        NOT_SUIT = "NOT_SUIT", _("Not suitable")
-        WITHDRAWN = "WITHDRAWN", _("Withdrawn")
-        REJECTED = "REJECTED", _("Rejected")
-        WAITAPP = "WAITAPP", _("Wait app")
-        WAITAPP_NEW = "WAITAPP_NEW", _("Wait app new ed app")
-        ACCEPTED = "ACCEPTED", _("Accepted")
-        COPY_WAIT = "COPY_WAIT", _("Waiting for copyright")
-        COPY_REFUSED = "COPY_REFUSED", _("Copyright refused")
+        EDITOR_TO_BE_SELECTED = "ED_TO_BE_SE", _("Editor to be selected")
+        EDITOR_SELECTED = "EDITO_SELEC", _("Editor selected")
+        SUBMITTED = "_SUBMITTED_", _("Submitted")
+        TO_BE_REVISED = "_TO_BE_REV_", _("To be revised")
+        WITHDRAWN = "_WITHDRAWN_", _("Withdrawn")
+        REJECTED = "_REJECTED__", _("Rejected")
+        INCOMPLETE_SUBMISSION = "INCOM_SUBMI", _("Incomplete submission")
+        NOT_SUITABLE = "_NOT_SUITA_", _("Not suitable")
+        PAPER_HAS_EDITOR_REPORT = "PA_HA_ED_RE", _("Paper has editor report")
+        ACCEPTED = "_ACCEPTED__", _("Accepted")
+        WRITEME_PRODUCTION = "WRITE_PRODU", _("Writeme production")
+        PAPER_MIGHT_HAVE_ISSUES = "PA_MI_HA_IS", _("Paper might have issues")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
-    state = FSMField(default=ReviewStates.TO_BE_ASSIGNED, choices=ReviewStates.choices, verbose_name=_("State"))
+    # author start submission of paper
+    state = FSMField(default=ReviewStates.INCOMPLETE_SUBMISSION, choices=ReviewStates.choices, verbose_name=_("State"))
 
     class Meta:
         verbose_name = _("Article workflow")
@@ -43,197 +47,181 @@ class ArticleWorkflow(TimeStampedModel):
         return authors
 
     def __str__(self):
-        return self.article.title
+        return f"{self.article.id}-{self.state}"
 
-    # 4. admin assigns new editor
+    # director selects editor
     @transition(
         field=state,
-        source=ReviewStates.TO_BE_ASSIGNED,
-        target=ReviewStates.ASSIGNED,
+        source=ReviewStates.EDITOR_TO_BE_SELECTED,
+        target=ReviewStates.EDITOR_SELECTED,
+        permission=permissions.is_editor,
+        # TODO: conditions=[],
+    )
+    def director_selects_editor(self):
+        pass
+
+    # ed declines assignment
+    @transition(
+        field=state,
+        source=ReviewStates.EDITOR_SELECTED,
+        target=ReviewStates.EDITOR_TO_BE_SELECTED,
         permission=permissions.is_section_editor,
+        # TODO: conditions=[],
     )
-    def assign(self):
+    def ed_declines_assignment(self):
         pass
 
-    # 11. ed selects new editor
+    # author submits paper
     @transition(
         field=state,
-        source=ReviewStates.ASSIGNED,
-        target=ReviewStates.ASSIGNED,
-        permission=permissions.is_section_editor,
+        source=ReviewStates.INCOMPLETE_SUBMISSION,
+        target=ReviewStates.SUBMITTED,
+        permission=permissions.is_author,
+        # TODO: conditions=[],
     )
-    def reassign(self):
+    def author_submits_paper(self):
         pass
 
-    # 3. ed declines assignment
-    # 34. admin changes editor
+    # system verifies forgery
+    # system detects issues in paper
+    # system selects editor - success
+    # system selects editor - fail
+    # and assigns editor
     @transition(
         field=state,
-        source=ReviewStates.ASSIGNED,
-        target=ReviewStates.TO_BE_ASSIGNED,
-        permission=permissions.is_section_editor,
+        source=ReviewStates.SUBMITTED,
+        target=GET_STATE(
+            process_submission,
+            states=[
+                ReviewStates.EDITOR_SELECTED,
+                ReviewStates.EDITOR_TO_BE_SELECTED,
+                ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ],
+        ),
+        permission=permissions.is_system,
+        # TODO: conditions=[],
     )
-    def deassign(self):
+    def system_process_submission(self):
         pass
 
-    # 1. ed assigns referee
-    # 54. ed confirms ref(s) of previous versions
+    # admin deems issues not important
+    # TODO: in the diagram, the automatic selection of the editor is triggered atuomatically
     @transition(
         field=state,
-        source=ReviewStates.ASSIGNED,
-        target=ReviewStates.BEING_REFEREED,
-        permission=permissions.is_article_editor,
+        source=ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+        target=ReviewStates.EDITOR_TO_BE_SELECTED,
+        permission=permissions.is_admin,
+        # TODO: conditions=[],
     )
-    def assign_referee(self):
+    def admin_deems_issues_not_important(self):
         pass
 
-    # 17. [#ref=1] ed removes ref
-    # 12. [#ref=1&ref_acc] ref refuses
+    # editor rejects paper
     @transition(
         field=state,
-        source=ReviewStates.BEING_REFEREED,
-        target=ReviewStates.ASSIGNED,
-        permission=permissions.is_section_editor_or_reviewer,
-    )
-    def deassign_referee(self):
-        pass
-
-    # 13. [#ref>1&ref_acc] ref refuses
-    # 14. [ref_acc] ref accepts
-    # 15. ed adds referee
-    # 18. [#ref>1] ed removes ref
-    # 54. ed confirms ref(s) of previous versions
-    @transition(
-        field=state,
-        source=ReviewStates.BEING_REFEREED,
-        target=ReviewStates.BEING_REFEREED,
-        permission=permissions.is_section_editor_or_reviewer,
-    )
-    def reassign_referee(self):
-        pass
-
-    # 2. ref sends report
-    @transition(
-        field=state,
-        source=ReviewStates.BEING_REFEREED,
-        target=ReviewStates.WAIT_DECISION,
-        permission=permissions.is_reviewer,
-    )
-    def referee_review(self):
-        pass
-
-    # 2. ref sends report
-    # 14. [ref_acc] ref accepts
-    # 15. ed adds referee
-    # 16. [ref_acc] ref refuses
-    # 19. ed removes referee
-    # 54. ed confirms ref(s) of previous versions
-    @transition(
-        field=state,
-        source=ReviewStates.WAIT_DECISION,
-        target=ReviewStates.WAIT_DECISION,
-        permission=permissions.is_section_editor_or_reviewer,
-    )
-    def wait_decision(self):
-        pass
-
-    # 21. ed acts as referee
-    @transition(
-        field=state,
-        source=ReviewStates.ASSIGNED,
-        target=ReviewStates.EDITOR_REF,
-        permission=permissions.is_section_editor,
-    )
-    def self_referee(self):
-        pass
-
-    # 22. ed needs referee
-    @transition(
-        field=state,
-        source=ReviewStates.EDITOR_REF,
-        target=ReviewStates.ASSIGNED,
-        permission=permissions.is_section_editor,
-    )
-    def unself_referee(self):
-        pass
-
-    # 5. ed requires revision
-    @transition(
-        field=state,
-        source=ReviewStates.WAIT_DECISION,
-        target=ReviewStates.TBR_MAJOR,
-        permission=permissions.is_section_editor,
-    )
-    def ask_major(self):
-        pass
-
-    # 8. eds requires minor revision
-    @transition(
-        field=state,
-        source=ReviewStates.WAIT_DECISION,
-        target=ReviewStates.TBR_MINOR,
-        permission=permissions.is_section_editor,
-    )
-    def ask_minor(self):
-        pass
-
-    # 24. ed considers not suitable
-    # 59. admin considers not suitable
-    @transition(
-        field=state,
-        source=ReviewStates.WAIT_DECISION,
-        target=ReviewStates.NOT_SUIT,
-        permission=permissions.is_section_editor,
-    )
-    def not_suitable(self):
-        pass
-
-    # 7. ed accepts document
-    @transition(
-        field=state,
-        source=ReviewStates.WAIT_DECISION,
-        target=ReviewStates.ACCEPTED,
-        permission=permissions.is_section_editor,
-    )
-    def accept(self):
-        pass
-
-    # 6. ed rejects document
-    @transition(
-        field=state,
-        source=ReviewStates.WAIT_DECISION,
+        source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
         target=ReviewStates.REJECTED,
         permission=permissions.is_section_editor,
+        # TODO: conditions=[],
     )
-    def reject(self):
+    def editor_rejects_paper(self):
         pass
 
-    # 34. admin changes editor
+    # editor deems paper not suitable
     @transition(
         field=state,
-        source=ReviewStates.WAIT_DECISION,
-        target=ReviewStates.TO_BE_ASSIGNED,
-        permission=permissions.is_editor,
+        source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
+        target=ReviewStates.NOT_SUITABLE,
+        permission=permissions.is_section_editor,
+        # TODO: conditions=[],
     )
-    def reassign_after_wait(self):
+    def editor_deems_paper_not_suitable(self):
         pass
 
-    # 9. aut submits revised version
+    # editor requires a revision
     @transition(
         field=state,
-        source=ReviewStates.TBR_MAJOR,
-        target=ReviewStates.ASSIGNED,
+        source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
+        target=ReviewStates.TO_BE_REVISED,
+        permission=permissions.is_section_editor,
+        # TODO: conditions=[],
+    )
+    def editor_requires_a_revision(self):
+        pass
+
+    # editor accepts paper
+    @transition(
+        field=state,
+        source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
+        target=ReviewStates.ACCEPTED,
+        permission=permissions.is_section_editor,
+        # TODO: conditions=[],
+    )
+    def editor_accepts_paper(self):
+        pass
+
+    # editor writes editor report
+    @transition(
+        field=state,
+        source=ReviewStates.EDITOR_SELECTED,
+        target=ReviewStates.PAPER_HAS_EDITOR_REPORT,
+        permission=permissions.is_section_editor,
+        # TODO: conditions=[],
+    )
+    def editor_writes_editor_report(self):
+        pass
+
+    # admin opens an appeal
+    @transition(
+        field=state,
+        source=ReviewStates.REJECTED,
+        target=ReviewStates.TO_BE_REVISED,
+        permission=permissions.is_admin,
+        # TODO: conditions=[],
+    )
+    def admin_opens_an_appeal(self):
+        pass
+
+    # author submits again
+    @transition(
+        field=state,
+        source=ReviewStates.TO_BE_REVISED,
+        target=ReviewStates.EDITOR_SELECTED,
         permission=permissions.is_author,
+        # TODO: conditions=[],
     )
-    def resubmit_major(self):
+    def author_submits_again(self):
         pass
 
-    # 9. aut submits revised version
+    # admin deems paper not suitable
     @transition(
         field=state,
-        source=ReviewStates.TBR_MINOR,
-        target=ReviewStates.ASSIGNED,
-        permission=permissions.is_author,
+        source=ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+        target=ReviewStates.NOT_SUITABLE,
+        permission=permissions.is_admin,
+        # TODO: conditions=[],
     )
-    def resubmit_minor(self):
+    def admin_deems_paper_not_suitable(self):
+        pass
+
+    # admin or system requires revision
+    @transition(
+        field=state,
+        source=ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+        target=ReviewStates.INCOMPLETE_SUBMISSION,
+        permission=permissions.is_admin,
+        # TODO: conditions=[],
+    )
+    def admin_or_system_requires_revision(self):
+        pass
+
+    # editor assign different editor
+    @transition(
+        field=state,
+        source=ReviewStates.EDITOR_SELECTED,
+        target=ReviewStates.EDITOR_SELECTED,
+        permission=permissions.is_section_editor,
+        # TODO: conditions=[],
+    )
+    def editor_assign_different_editor(self):
         pass

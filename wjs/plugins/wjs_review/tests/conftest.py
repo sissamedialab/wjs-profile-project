@@ -5,6 +5,7 @@ from utils import setting_handler  # noqa
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..logic import AssignToEditor
+from ..models import ArticleWorkflow
 from ..plugin_settings import set_default_plugin_settings
 
 
@@ -15,6 +16,8 @@ def review_settings():
 
 @pytest.fixture
 def assigned_article(fake_request, article, section_editor):
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    article.articleworkflow.save()
     workflow = AssignToEditor(
         article=article,
         editor=section_editor,
