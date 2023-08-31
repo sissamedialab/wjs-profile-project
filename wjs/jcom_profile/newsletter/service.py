@@ -142,7 +142,7 @@ class NewsletterMailerService:
         return newsletter, last_sent
 
     def _get_request(self, journal: Journal) -> HttpRequest:
-        """Create fake request.
+        """Create fake_factory request.
 
         Add the current journal to the request and populate the local thread to use utils.logic.get_current_request.
         """

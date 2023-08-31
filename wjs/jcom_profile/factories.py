@@ -15,9 +15,9 @@ from wjs.jcom_profile.models import JCOMProfile, Newsletter, Recipient, SpecialI
 factory.Faker.add_provider(lorem)
 
 
-# Not using model-baker because I could find a way to define a fake field
+# Not using model-baker because I could find a way to define a fake_factory field
 # that depend on another one (since in J. username == email). E.g.:
-# Recipe("core.Account", ...  email=fake.email(),  username=email, ⇒ ERROR!
+# Recipe("core.Account", ...  email=fake_factory.email(),  username=email, ⇒ ERROR!
 
 
 class UserFactory(factory.django.DjangoModelFactory):

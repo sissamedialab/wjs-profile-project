@@ -39,11 +39,22 @@ class SettingValueParams(TypedDict):
     translations: dict
 
 
+def patch_setting(setting_params: SettingParams, settingvalue_params: SettingValueParams):
+    setting = Setting.objects.get(group=setting_params["group"], name=setting_params["name"])
+    setting_value = SettingValue.objects.get(journal=None, setting=setting)
+    setting_value.journal = settingvalue_params["journal"]
+    setting_value.value = settingvalue_params["value"]
+    for field, value in settingvalue_params["translations"].items():
+        setattr(setting_value, field, value)
+    setting_value.save()
+
+
 # refs https://gitlab.sissamedialab.it/wjs/specs/-/issues/366
 def create_customization_setting(
     setting_params: SettingParams,
     settingvalue_params: SettingValueParams,
     name_for_messages: str,
+    update=False,
 ):
     """
     Command to create a Setting, with its SettingValue

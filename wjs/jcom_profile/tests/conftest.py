@@ -82,10 +82,6 @@ EXTRAFIELDS_FRAGMENTS = [
     '<label class="input-field-label" for="id_gdpr_checkbox">',
 ]
 
-INVITE_BUTTON = f"""<li>
-        <a href="/{JOURNAL_CODE}/admin/core/account/invite/" class="btn btn-high btn-success">Invite</a>
-    </li>"""
-
 ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
 
 ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span>"""
@@ -118,7 +114,7 @@ def mock_premailer_load_url(mocker):
 
 @pytest.fixture
 def fake_request(journal, settings):
-    """Create a fake request suitable for rendering templates."""
+    """Create a fake_factory request suitable for rendering templates."""
     # - cron/management/commands/send_publication_notifications.py
     fake_request = create_fake_request(user=None, journal=journal)
     # Workaround for possible override in DEBUG mode

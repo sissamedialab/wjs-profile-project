@@ -18,7 +18,6 @@ from wjs.jcom_profile.models import (
 )
 from wjs.jcom_profile.tests.conftest import (
     ASSIGNMENT_PARAMETERS_SPAN,
-    INVITE_BUTTON,
     _create_published_articles,
     _journal_factory,
 )
@@ -100,82 +99,6 @@ def test_filter_articles_by_keyword(editor, published_articles, press, admin, se
     for article in response.context["articles"]:
         assert keyword.pk in article.keywords.values_list("pk", flat=True)
         assert article.journal == journal
-
-
-@pytest.mark.django_db
-def test_invite_button_is_in_account_admin_interface(admin, journal):
-    client = Client()
-    client.force_login(admin)
-    url = reverse("admin:core_account_changelist")
-    response = client.get(url)
-    assert response.status_code == 200
-
-    assert INVITE_BUTTON in response.content.decode()
-
-
-@pytest.mark.django_db
-def test_invite_function_creates_inactive_user(admin, journal):
-    client = Client()
-    client.force_login(admin)
-    url = reverse("admin:invite")
-    data = {
-        "first_name": "Name",
-        "last_name": "Surname",
-        "email": "email@email.it",
-        "institution": "Institution",
-        "department": "Department",
-        "message": "Message",
-    }
-    response = client.post(url, data=data)
-    assert response.status_code == 302
-
-    invited_user = JCOMProfile.objects.get(email=data["email"])
-    request = RequestFactory().get(url)
-    invitation_token = generate_token(data["email"], journal.code)
-    gdpr_acceptance_url = request.build_absolute_uri(reverse("accept_gdpr", kwargs={"token": invitation_token}))
-
-    assert invited_user
-    assert not invited_user.is_active
-    assert not invited_user.gdpr_checkbox
-    for field, _ in data.items():
-        if field != "message":
-            assert getattr(invited_user, field) == data[field]
-    assert invited_user.invitation_token == invitation_token
-
-    assert len(mail.outbox) == 1
-    invitation_mail = mail.outbox[0]
-
-    assert invitation_mail.from_email == settings.DEFAULT_FROM_EMAIL
-    assert invitation_mail.to == [invited_user.email]
-    assert invitation_mail.subject == settings.JOIN_JOURNAL_SUBJECT
-    assert invitation_mail.body == settings.JOIN_JOURNAL_BODY.format(
-        invited_user.first_name,
-        invited_user.last_name,
-        data["message"],
-        gdpr_acceptance_url,
-    )
-
-
-@pytest.mark.django_db
-@pytest.mark.xfail(reason="admin:invite is broken, but we are replaing it")
-def test_invite_existing_email_user(admin, user, journal):
-    existing_users_count = JCOMProfile.objects.all().count()
-    client = Client()
-    client.force_login(admin)
-    url = reverse("admin:invite")
-    data = {
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "institution": user.institution,
-        "department": user.department,
-        "message": "Message",
-    }
-    response = client.post(url, data=data)
-    assert response.status_code == 200
-
-    assert existing_users_count == JCOMProfile.objects.all().count()
-    assert len(mail.outbox) == 0
 
 
 @pytest.mark.django_db
