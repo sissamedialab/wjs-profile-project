@@ -2,6 +2,7 @@ import dataclasses
 from typing import Any, Dict, Optional
 
 from core.models import AccountRole, Role
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -12,6 +13,9 @@ from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from review.views import accept_review_request, decline_review_request
 from submission.models import STAGE_ASSIGNED, Article
+
+from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.utils import generate_token
 
 from .models import ArticleWorkflow
 
@@ -156,6 +160,7 @@ class EvaluateReview:
     editor: Account
     form_data: Dict[str, Any]
     request: HttpRequest
+    token: str
 
     @staticmethod
     def check_reviewer_conditions(assignment: ReviewAssignment, reviewer: Account) -> bool:
@@ -217,11 +222,19 @@ class EvaluateReview:
                 self._revert_state()
             return False
 
+    def _activate_invitation(self, token: str):
+        user = JCOMProfile.objects.get(invitation_token=token)
+        user.is_active = True
+        user.gdpr_checkbox = True
+        user.save()
+
     def run(self) -> Optional[bool]:
         with transaction.atomic():
             conditions = self.check_conditions()
             if not conditions:
                 raise ValidationError(_("Transition conditions not met"))
+            if self.token:
+                self._activate_invitation(self.token)
             if self.form_data.get("reviewer_decision") == "1":
                 return self._handle_accept()
             if self.form_data.get("reviewer_decision") == "0":
@@ -275,3 +288,60 @@ class PA_MI_HA_IS:  # noqa N801 CapWords convention
         "admin - deems not suitable",
         "admin - deems issue unimportant",
     )
+
+
+@dataclasses.dataclass
+class InviteReviewer:
+    """
+    Handle the decision of the reviewer to accept / decline the review and checks the conditions for the transition.
+    """
+
+    workflow: ArticleWorkflow
+    editor: Account
+    form_data: Dict[str, Any]
+    request: HttpRequest
+
+    def _generate_token(self) -> str:
+        return generate_token(self.form_data["email"], self.request.journal.code)
+
+    def check_conditions(self) -> bool:
+        """Check if the conditions for the assignment are met."""
+        user_exists = JCOMProfile.objects.filter(email=self.form_data["email"]).exists()
+        has_journal = self.request.journal
+        return not user_exists and has_journal
+
+    def _create_user(self, token: str) -> JCOMProfile:
+        user = JCOMProfile.objects.create(
+            email=self.form_data["email"],
+            first_name=self.form_data["first_name"],
+            last_name=self.form_data["last_name"],
+            is_active=False,
+            invitation_token=token,
+        )
+        return user
+
+    def _notify_user(self):
+        """Notify current user that the invitation has been sent."""
+        messages.add_message(self.request, messages.INFO, _("Invitation sent to %s.") % self.form_data["last_name"])
+
+    def _assign_reviewer(self, user: JCOMProfile) -> ReviewAssignment:
+        """Create a review assignment for the invited user."""
+        assign_service = AssignToReviewer(
+            reviewer=user.janeway_account,
+            workflow=self.workflow,
+            editor=self.editor,
+            form_data={},
+            request=self.request,
+        )
+        return assign_service.run()
+
+    def run(self) -> JCOMProfile:
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValidationError(_("Invitation conditions not met"))
+            token = self._generate_token()
+            user = self._create_user(token)
+            self._assign_reviewer(user)
+            self._notify_user()
+            return user

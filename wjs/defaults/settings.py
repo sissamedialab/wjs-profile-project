@@ -111,10 +111,6 @@ CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
     "/logout/",
 ]
 
-# Email settings
-JOIN_JOURNAL_SUBJECT = "Join journal"
-JOIN_JOURNAL_BODY = "Dear {} {},\n{}; to continue click the following link:{}"
-
 RESET_PASSWORD_SUBJECT = "Reset password"
 RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}

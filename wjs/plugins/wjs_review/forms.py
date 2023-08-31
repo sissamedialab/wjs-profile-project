@@ -10,7 +10,9 @@ from django_summernote.widgets import SummernoteWidget
 from review.models import ReviewAssignment
 from utils.setting_handler import get_setting
 
-from .logic import AssignToReviewer, EvaluateReview
+from wjs.jcom_profile.models import JCOMProfile
+
+from .logic import AssignToReviewer, EvaluateReview, InviteReviewer
 from .models import ArticleWorkflow
 
 Account = get_user_model()
@@ -154,6 +156,52 @@ class ReviewerSearchForm(forms.Form):
     )
 
 
+class InviteUserForm(forms.Form):
+    """Used by staff to invite external users for review activities."""
+
+    first_name = forms.CharField()
+    last_name = forms.CharField()
+    email = forms.EmailField()
+    message = forms.CharField(widget=forms.Textarea)
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        self.instance = kwargs.pop("instance")
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        user_exists = JCOMProfile.objects.filter(email=cleaned_data["email"]).exists()
+        if user_exists:
+            self.add_error("email", _("User already exists"))
+        return cleaned_data
+
+    def get_logic_instance(self) -> InviteReviewer:
+        """Instantiate :py:class:`InviteReviewer` class."""
+        service = InviteReviewer(
+            workflow=self.instance,
+            editor=self.user,
+            form_data=self.cleaned_data,
+            request=self.request,
+        )
+        return service
+
+    def save(self):
+        """
+        Create user and send invitation.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValueError as e:
+            self.add_error(None, e)
+            raise forms.ValidationError(e)
+        return self.instance
+
+
 class EvaluateReviewForm(forms.ModelForm):
     reviewer_decision = forms.ChoiceField(choices=(("1", _("Accept")), ("0", _("Reject"))), required=True)
     comments_for_editor = forms.CharField(
@@ -161,6 +209,7 @@ class EvaluateReviewForm(forms.ModelForm):
         widget=SummernoteWidget(),
         required=False,
     )
+    accept_gdpr = forms.BooleanField(required=False, widget=forms.HiddenInput())
 
     class Meta:
         model = ReviewAssignment
@@ -168,12 +217,17 @@ class EvaluateReviewForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
+        self.token = kwargs.pop("token")
         super().__init__(*args, **kwargs)
+        if self.token and not self.instance.reviewer.jcomprofile.gdpr_checkbox:
+            self.fields["accept_gdpr"].widget = forms.CheckboxInput()
 
     def clean(self):
         cleaned_data = super().clean()
         if cleaned_data["reviewer_decision"] == "0" and not cleaned_data["comments_for_editor"]:
             self.add_error("comments_for_editor", _("Please provide a reason for declining"))
+        if cleaned_data["reviewer_decision"] == "1" and self.token and not cleaned_data["accept_gdpr"]:
+            self.add_error("accept_gdpr", _("You must accept GDPR to continue"))
         return cleaned_data
 
     def get_logic_instance(self) -> EvaluateReview:
@@ -184,6 +238,7 @@ class EvaluateReviewForm(forms.ModelForm):
             editor=self.instance.editor,
             form_data=self.cleaned_data,
             request=self.request,
+            token=self.token,
         )
         return service
 

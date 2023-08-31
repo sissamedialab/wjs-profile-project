@@ -114,17 +114,6 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         return user
 
 
-class InviteUserForm(forms.Form):
-    """Used by staff to invite external users for review activities."""
-
-    first_name = forms.CharField()
-    last_name = forms.CharField()
-    email = forms.EmailField()
-    institution = forms.CharField()
-    department = forms.CharField()
-    message = forms.CharField(widget=forms.Textarea)
-
-
 class SIForm(forms.ModelForm):
     """Used to choose the destination special issue during submission."""
 
@@ -225,7 +214,7 @@ class DirectorEditorAssignmentParametersForm(forms.ModelForm):
 
 
 class EditorKeywordForm(forms.ModelForm):
-    # this is a "fake" field added only to have a proper rendering of the keyword value, but without any link
+    # this is a "fake_factory" field added only to have a proper rendering of the keyword value, but without any link
     # to the model field
     keyword_str = forms.CharField(widget=forms.TextInput(attrs={"readonly": True}), label=_("Keyword"))
     field_order = ["keyword_str", "weight"]
@@ -237,8 +226,8 @@ class EditorKeywordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):  # noqa
         if "initial" not in kwargs:
             kwargs["initial"] = {}
-        # forcing the keyword content in the "fake" field allowed the field to be rendered, but it's disconnected
-        # from the model field and is ignored on save
+        # forcing the keyword content in the "fake_factory" field allowed the field to be rendered, but it's
+        # disconnected from the model field and is ignored on save
         kwargs["initial"]["keyword_str"] = kwargs["instance"].keyword.word
         super().__init__(*args, **kwargs)
 

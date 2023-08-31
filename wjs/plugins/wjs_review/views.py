@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.core.paginator import Page, Paginator
 from django.db.models import QuerySet
 from django.http import HttpResponse, QueryDict
@@ -17,6 +18,7 @@ from wjs.jcom_profile.mixins import HtmxMixin
 from .forms import (
     ArticleReviewStateForm,
     EvaluateReviewForm,
+    InviteUserForm,
     ReviewerSearchForm,
     SelectReviewerForm,
 )
@@ -134,7 +136,50 @@ class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
         """
         try:
             return super().form_valid(form)
-        except ValueError as e:
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            # required to handle exception raised in the form save method (coming for janeway business logic)
+            return super().form_invalid(form)
+
+
+class InviteReviewer(LoginRequiredMixin, UpdateView):
+    """Invite external users as reviewers.
+
+    The user is created as inactive and his/her account is marked
+    without GDPR explicitly accepted, Invited user base
+    information are encoded to generate a token to be appended to
+    the url for GDPR acceptance.
+    """
+
+    model = ArticleWorkflow
+    form_class = InviteUserForm
+    success_url = reverse_lazy("wjs_review_list")
+    template_name = "wjs_review/invite_external_reviewer.html"
+    context_object_name = "workflow"
+
+    def get_success_url(self):
+        # TBV:  reverse("wjs_review_list")?  wjs_review_review?
+        return reverse("wjs_article_details", args=(self.object.id,))
+
+    def get_queryset(self) -> QuerySet[ArticleWorkflow]:
+        return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        kwargs["instance"] = self.object
+        return kwargs
+
+    def form_valid(self, form):
+        """
+        Executed when InviteUserForm is valid
+
+        Even if the form is valid, checks in logic.AssignToReviewer -called by form.save- may fail as well.
+        """
+        try:
+            return super().form_valid(form)
+        except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
@@ -176,9 +221,12 @@ class OpenReviewMixin(DetailView):
             queryset = queryset.filter(access_code=self.access_code)
         elif self.request.user.is_staff:
             pass  # staff can see all reviews
-        elif self.request.user.check_role(self.request.journal, "section-editor"):
+        elif self.request.user.is_authenticated and self.request.user.check_role(
+            self.request.journal,
+            "section-editor",
+        ):
             queryset = queryset.filter(editor=self.request.user)
-        else:
+        elif self.request.user.is_authenticated:
             queryset = queryset.filter(reviewer=self.request.user)
         return queryset
 
@@ -195,15 +243,27 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
 
     def get_success_url(self) -> str:
         """Redirect to a different URL according to the decision."""
+        self.object.refresh_from_db()
+        url = str(self.success_url)
         if self.object.date_accepted:
-            return reverse("wjs_review_review", args=(self.object.pk,))
+            url = reverse("wjs_review_review", args=(self.object.pk,))
         elif self.object.date_declined:
-            return reverse("wjs_declined_review", args=(self.object.pk,))
-        return str(self.success_url)
+            url = reverse("wjs_declined_review", args=(self.object.pk,))
+        if self.access_code:
+            url = f"{url}?access_code={self.access_code}"
+        return url
+
+    def get_queryset(self) -> QuerySet[ReviewAssignment]:
+        queryset = super().get_queryset()
+        if self.kwargs.get("token", None):
+            return queryset.filter(reviewer__jcomprofile__invitation_token=self.kwargs.get("token", None))
+        else:
+            return queryset
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
         kwargs["request"] = self.request
+        kwargs["token"] = self.kwargs.get("token", None)
         return kwargs
 
     def form_valid(self, form: EvaluateReviewForm) -> HttpResponse:
@@ -214,7 +274,7 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
         """
         try:
             return super().form_valid(form)
-        except ValueError as e:
+        except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)

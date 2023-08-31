@@ -10,6 +10,7 @@ from wjs.jcom_profile.custom_settings_utils import (
     SettingValueParams,
     create_customization_setting,
     get_group,
+    patch_setting,
 )
 
 PLUGIN_NAME = "WJS Review articles"
@@ -23,7 +24,7 @@ MANAGER_URL = f"{SHORT_NAME}_manager"
 
 IS_WORKFLOW_PLUGIN = True
 JUMP_URL = f"{SHORT_NAME}_article"
-HANDSHAKE_URL = f"{SHORT_NAME}_articles"
+HANDSHAKE_URL = f"{SHORT_NAME}_list"
 ARTICLE_PK_IN_HANDSHAKE_URL = True
 STAGE = f"{SHORT_NAME}_plugin"
 KANBAN_CARD = "wjs_review/elements/card.html"
@@ -68,6 +69,7 @@ def set_default_plugin_settings():
         wjs_review_settings_group = get_group("wjs_review")
     except SettingGroup.DoesNotExist:
         wjs_review_settings_group = SettingGroup.objects.create(name="wjs_review", enabled=True)
+    email_settings_group = get_group("email")
 
     def acceptance_due_date():
         acceptance_days_setting: SettingParams = {
@@ -150,7 +152,7 @@ def set_default_plugin_settings():
         declined_review_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Thanks for the time to evalutate the review."),
+            "value": _("Thanks for the time to evaluate the review."),
             "translations": {},
         }
         create_customization_setting(
@@ -182,8 +184,48 @@ def set_default_plugin_settings():
             do_review_message_setting["name"],
         )
 
+    def patch_review_message():
+        review_message_email_setting: SettingParams = {
+            "name": "review_assignment",
+            "group": email_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Message shown on review submit page"),
+            "description": _(
+                "Provide instructions to handle reviews.",
+            ),
+            "is_translatable": False,
+        }
+        review_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            {%load fqdn %}
+            Dear {{ review_assignment.reviewer.full_name }},<br/><br/
+            {% if review_assignment.reviewer.jcomprofile.invitation_token %}
+            You have been invited to {{ article.journal.name }} in order to review "{{ article.title }}".
+            {% else %}
+            We are requesting that you undertake a review of "{{ article.title }}" in {{ article.journal.name }}.
+            {% endif %}
+            <br/><br/>
+            We would be most grateful for your time as the feedback from our reviewers is of the utmost importance
+            to our editorial decision-making processes.<br/><br/>You can let us know your decision or decline to
+            undertake the review:
+            {% if review_assignment.reviewer.jcomprofile.invitation_token %}
+                {% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=review_assignment.reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}
+            {% else %}
+                {% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id %}?access_code={{ review_assignment.access_code }}
+            {% endif %}
+            <br/><br/>
+            This review assignment is due on {{ review_assignment.date_due|date:"Y-m-d" }}.  <br/><br/>
+            {{ article_details }}<br/><br/>Regards,<br/>{{ request.user.signature|safe }}'
+            """,
+            "translations": {},
+        }
+        patch_setting(review_message_email_setting, review_message_setting_value)
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
     declined_review_message()
     do_review_message()
+    patch_review_message()

@@ -2,14 +2,21 @@ from datetime import timedelta
 
 import pytest
 from dateutil.utils import today
+from django.core import mail
 from django.http import HttpRequest
+from django.urls import reverse
+from faker import Faker
 from review import models as review_models
 from submission import models as submission_models
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.utils import generate_token
 
-from ..logic import AssignToEditor, AssignToReviewer
+from ..logic import AssignToEditor, AssignToReviewer, InviteReviewer
 from ..models import ArticleWorkflow
+
+fake_factory = Faker()
 
 
 @pytest.mark.django_db
@@ -227,3 +234,69 @@ def test_assign_to_reviewer_author(
     assert assigned_article.stage == "Assigned"
     assert assigned_article.reviewassignment_set.count() == 0
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+
+@pytest.mark.django_db
+def test_invite_reviewer(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    review_settings,
+):
+    """A user can be invited and a user a review assignment must be created."""
+    fake_request.user = section_editor.janeway_account
+
+    user_data = {
+        "first_name": fake_factory.first_name(),
+        "last_name": fake_factory.last_name(),
+        "email": fake_factory.email(),
+        "message": "random message",
+    }
+
+    service = InviteReviewer(
+        workflow=assigned_article.articleworkflow,
+        editor=section_editor.janeway_account,
+        form_data=user_data,
+        request=fake_request,
+    )
+    assert not JCOMProfile.objects.filter(email=user_data["email"]).exists()
+    assert assigned_article.reviewassignment_set.count() == 0
+
+    invited_user = service.run()
+    assigned_article.refresh_from_db()
+    invitation_token = generate_token(user_data["email"], assigned_article.journal.code)
+    gdpr_acceptance_url = assigned_article.journal.site_url(
+        reverse(
+            "wjs_evaluate_review",
+            kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
+        ),
+    )
+
+    assert invited_user.janeway_account in assigned_article.journal.users_with_role("reviewer")
+    assert not invited_user.is_active
+    assert assigned_article.stage == "Under Review"
+    assert assigned_article.reviewassignment_set.count() == 1
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assignment = assigned_article.reviewassignment_set.first()
+    assert assignment.reviewer == invited_user.janeway_account
+    assert assignment.editor == section_editor.janeway_account
+    assert len(mail.outbox) == 1
+
+    subject_review_assignment = get_setting(
+        "email_subject",
+        "subject_review_assignment",
+        assigned_article.journal,
+    ).processed_value
+    acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
+    assert len(mail.outbox) == 1
+    email = mail.outbox[0]
+    assert email.to == [invited_user.email]
+    assert email.subject == f"[{assigned_article.journal.code}] {subject_review_assignment}"
+    assert acceptance_url in email.body
+
+
+# TODO: test invite user fails if user already exists
+# TODO: test failure in AssignToReviewer are bubbled up

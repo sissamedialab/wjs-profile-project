@@ -1,0 +1,27 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+
+{% block title %}
+    {% trans "Invite external reviewer" %}
+{% endblock title %}
+
+{% load wjs_review %}
+
+{% block content_wrapper %}
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-12">
+                <h2>{% trans "Invite external reviewer" %}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <form method="post" action="{% url "wjs_review_invite" pk=workflow.pk %}">
+                {% csrf_token %}
+                <div class="col">{% bootstrap_form form %}</div>
+                {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Invite" %}
+            </form>
+        </div>
+    </div>
+{% endblock content_wrapper %}
