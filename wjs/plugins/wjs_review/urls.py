@@ -8,6 +8,7 @@ from .views import (
     InviteReviewer,
     ListArticles,
     ReviewDeclined,
+    ReviewEnd,
     ReviewSubmit,
     SelectReviewer,
     UpdateState,
@@ -21,6 +22,7 @@ urlpatterns = [
     path("invite_reviewer/<int:pk>/", InviteReviewer.as_view(), name="wjs_review_invite"),
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
     path("review/<int:assignment_id>/", ReviewSubmit.as_view(), name="wjs_review_review"),
+    path("review/<int:assignment_id>/end/", ReviewEnd.as_view(), name="wjs_review_end"),
     path("review/<int:assignment_id>/evaluate/", EvaluateReviewRequest.as_view(), name="wjs_evaluate_review"),
     path(
         "review/<int:assignment_id>/evaluate/<str:token>/",
