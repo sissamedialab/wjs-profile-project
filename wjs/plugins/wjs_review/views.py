@@ -18,6 +18,7 @@ from wjs.jcom_profile.mixins import HtmxMixin
 
 from .forms import (
     ArticleReviewStateForm,
+    DecisionForm,
     EvaluateReviewForm,
     InviteUserForm,
     ReportForm,
@@ -50,7 +51,15 @@ class UpdateState(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
-class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
+class ArticleAssignedEditorMixin:
+    def get_queryset(self) -> QuerySet[ArticleWorkflow]:
+        # TODO: We must check this once we have decided the flow for multiple review rounds
+        #       it should work because if an editor is deassigned from one round to another we delete the assignment
+        #       and this relation will cease to exist
+        return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
+
+
+class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """
     View only checks the login status at view level because the permissions are checked by the queryset by using
     :py:class:`EditorAssignment` relation with the current user.
@@ -63,12 +72,6 @@ class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
     def get_success_url(self):
         # TBV:  reverse("wjs_review_list")?  wjs_review_review?
         return reverse("wjs_article_details", args=(self.object.id,))
-
-    def get_queryset(self) -> QuerySet[ArticleWorkflow]:
-        # TODO: We must check this once we have decided the flow for multiple review rounds
-        #       it should work because if an editor is deassigned from one round to another we delete the assignment
-        #       and this relation will cease to exist
-        return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         """
@@ -144,7 +147,7 @@ class SelectReviewer(HtmxMixin, EditorRequiredMixin, UpdateView):
             return super().form_invalid(form)
 
 
-class InviteReviewer(LoginRequiredMixin, UpdateView):
+class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
     """Invite external users as reviewers.
 
     The user is created as inactive and his/her account is marked
@@ -162,9 +165,6 @@ class InviteReviewer(LoginRequiredMixin, UpdateView):
     def get_success_url(self):
         # TBV:  reverse("wjs_review_list")?  wjs_review_review?
         return reverse("wjs_article_details", args=(self.object.id,))
-
-    def get_queryset(self) -> QuerySet[ArticleWorkflow]:
-        return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -405,3 +405,81 @@ class ReviewSubmit(EvaluateReviewRequest):
             return self._process_report()
         else:
             return super().form_valid(form)
+
+
+class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
+    model = ArticleWorkflow
+    form_class = DecisionForm
+    template_name = "wjs_review/decision.html"
+    context_object_name = "workflow"
+
+    def get_queryset(self) -> QuerySet[ArticleWorkflow]:
+        """Filter queryset to ensure only :py:class:`ArticleWorkflow` in EDITOR_SELECTED state are filtered."""
+        return super().get_queryset().filter(state=ArticleWorkflow.ReviewStates.EDITOR_SELECTED)
+
+    def get_success_url(self):
+        """
+        Redirect after decision.
+
+        If the editor has not make a decision (state is still EDITOR_SELECTED), redirect to the Editor decision page,
+        otherwise redirect to the article details page.
+
+        ArticleWorkflow must be reloaded from the database to ensure the state is updated.
+        """
+        self.object.refresh_from_db()
+        if self.object.state == self.object.ReviewStates.EDITOR_SELECTED:
+            return reverse("wjs_article_decision", args=(self.object.id,))
+        else:
+            return reverse("wjs_article_details", args=(self.object.id,))
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        """
+        Executed when DecisionForm is valid
+
+        Even if the form is valid, checks in logic.HandleDecision -called by form.save- may fail as well.
+        """
+        try:
+            return super().form_valid(form)
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            # required to handle exception raised in the form save method (coming for janeway business logic)
+            return super().form_invalid(form)
+
+    @property
+    def current_reviews(self) -> QuerySet[ReviewAssignment]:
+        """Return the reviews for the current review round for the article."""
+        return self.object.article.reviewassignment_set.filter(
+            review_round=self.object.article.current_review_round_object(),
+        )
+
+    @property
+    def submitted_reviews(self) -> QuerySet[ReviewAssignment]:
+        """Return the submitted reviews for the current review round."""
+        return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False)
+
+    @property
+    def declined_reviews(self) -> QuerySet[ReviewAssignment]:
+        """Return the declined reviews for the current review round."""
+        return self.current_reviews.filter(date_declined__isnull=False)
+
+    @property
+    def open_reviews(self) -> QuerySet[ReviewAssignment]:
+        """Return not completed reviews for the current review round."""
+        return self.current_reviews.filter(
+            date_complete__isnull=True,
+            date_accepted__isnull=False,
+            date_declined__isnull=True,
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["declined_reviews"] = self.declined_reviews
+        context["submitted_reviews"] = self.submitted_reviews
+        context["open_reviews"] = self.open_reviews
+        return context
