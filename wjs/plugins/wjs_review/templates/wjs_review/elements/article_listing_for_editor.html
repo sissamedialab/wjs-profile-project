@@ -81,25 +81,8 @@
                 <p>
                     Last editor's note TODO: add a model similar to <a href="https://github.com/BirkbeckCTP/janeway/blob/2fb70af7d19516df3136cafeb0f99516a566cb8b/src/submission/models.py#L2112"><strong>submission.Note</strong></a>
                 </p>
-                <div class="card border border-1">
-                    <div class="card-head">Actions</div>
-                    <div class="card-body">
-                        {% get_available_transitions workflow as transitions %}
-                        <form method="post" action="{% url "update_state" workflow.pk %}">
-                            <input type="hidden" name="state" value="{{ workflow.state }}">
-                            {% csrf_token %}
-                            {% for transition in transitions %}
-                                {% if transition.name != "editor_writes_editor_report" %}
-                                    <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
-                                {% endif %}
-                                {% if transition.name == "editor_writes_editor_report" %}
-                                    <a href="{% url 'wjs_select_reviewer' workflow.pk %}">Select reviewer</a>
-                                {% endif %}
-                            {% endfor %}
-                        </form>
-                    </div>
+                {% include "wjs_review/elements/article_actions.html" %}
                 {% endwith %}
             </div>
         </div>
-    </div>
 </div>

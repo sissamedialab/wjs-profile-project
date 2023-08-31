@@ -30,25 +30,9 @@
 {% endblock content_title %}
 {% block content %}
     <div class="container">
-        <!-- TODO: extract into "element/actions.html"  -->
         <div class="row">
             <div class="col-sm-12 border-bottom border-2">
-                <div class="card-head">Actions</div>
-                <div class="card-body">
-                    {% get_available_transitions workflow as transitions %}
-                    <form method="post" action="{% url "update_state" workflow.pk %}">
-                        <input type="hidden" name="state" value="{{ workflow.state }}">
-                        {% csrf_token %}
-                        {% for transition in transitions %}
-                            {% if transition.name != "assign_referee" %}
-                                <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
-                            {% endif %}
-                            {% if transition.name == "assign_referee" %}
-                                <a href="{% url 'wjs_select_reviewer' workflow.pk %}">{{ transition.name }}</a>
-                            {% endif %}
-                        {% endfor %}
-                    </form>
-                </div>
+                {% include "wjs_review/elements/article_actions.html" %}
             </div>
         </div>
         <div class="row">

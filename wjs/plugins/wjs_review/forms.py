@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, Optional
 from dateutil.utils import today
 from django import forms
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
@@ -18,7 +19,13 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 
-from .logic import AssignToReviewer, EvaluateReview, InviteReviewer, SubmitReview
+from .logic import (
+    AssignToReviewer,
+    EvaluateReview,
+    HandleDecision,
+    InviteReviewer,
+    SubmitReview,
+)
 from .models import ArticleWorkflow
 
 Account = get_user_model()
@@ -142,9 +149,9 @@ class SelectReviewerForm(forms.ModelForm):
         try:
             service = self.get_logic_instance(self.cleaned_data)
             service.run()
-        except ValueError as e:
+        except ValidationError as e:
             self.add_error(None, e)
-            raise forms.ValidationError(e)
+            raise
         self.instance.refresh_from_db()
         return self.instance
 
@@ -202,9 +209,9 @@ class InviteUserForm(forms.Form):
         try:
             service = self.get_logic_instance()
             service.run()
-        except ValueError as e:
+        except ValidationError as e:
             self.add_error(None, e)
-            raise forms.ValidationError(e)
+            raise
         return self.instance
 
 
@@ -265,9 +272,9 @@ class EvaluateReviewForm(forms.ModelForm):
         try:
             service = self.get_logic_instance()
             service.run()
-        except ValueError as e:
+        except ValidationError as e:
             self.add_error(None, e)
-            raise forms.ValidationError(e)
+            raise
         self.instance.refresh_from_db()
         return self.instance
 
@@ -313,11 +320,63 @@ class ReportForm(RichTextGeneratedForm):
         super().__init__(*args, **kwargs)
 
     def get_logic_instance(self) -> SubmitReview:
-        """Instantiate :py:class:`EvaluateReview` class."""
+        """Instantiate :py:class:`SubmitReview` class."""
         service = SubmitReview(
             assignment=self.instance,
             form=self,
             submit_final=self.submit_final,
+            request=self.request,
+        )
+        return service
+
+    def save(self, commit: bool = True) -> ReviewAssignment:
+        """
+        Change the state of the review using :py:class:`SubmitReview`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class DecisionForm(forms.ModelForm):
+    decision = forms.ChoiceField(
+        choices=ArticleWorkflow.Decisions.choices,
+        required=True,
+    )
+    decision_editor_report = forms.CharField(
+        label=_("Editor Report"),
+        widget=SummernoteWidget(),
+        required=False,
+    )
+    decision_internal_note = forms.CharField(
+        label=_("Internal notes"),
+        widget=SummernoteWidget(),
+        required=False,
+    )
+    state = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = ["state"]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        self.request = kwargs.pop("request", None)
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> HandleDecision:
+        """Instantiate :py:class:`EvaluateReview` class."""
+        service = HandleDecision(
+            workflow=self.instance,
+            form_data=self.cleaned_data,
+            user=self.user,
             request=self.request,
         )
         return service
@@ -331,8 +390,8 @@ class ReportForm(RichTextGeneratedForm):
         try:
             service = self.get_logic_instance()
             service.run()
-        except ValueError as e:
+        except ValidationError as e:
             self.add_error(None, e)
-            raise forms.ValidationError(e)
+            raise
         self.instance.refresh_from_db()
         return self.instance

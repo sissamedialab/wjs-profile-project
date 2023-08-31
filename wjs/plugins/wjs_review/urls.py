@@ -3,6 +3,7 @@ from django.views.generic import TemplateView
 
 from .plugin_settings import MANAGER_URL
 from .views import (
+    ArticleDecision,
     ArticleDetails,
     EvaluateReviewRequest,
     InviteReviewer,
@@ -21,6 +22,7 @@ urlpatterns = [
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path("invite_reviewer/<int:pk>/", InviteReviewer.as_view(), name="wjs_review_invite"),
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
+    path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("review/<int:assignment_id>/", ReviewSubmit.as_view(), name="wjs_review_review"),
     path("review/<int:assignment_id>/end/", ReviewEnd.as_view(), name="wjs_review_end"),
     path("review/<int:assignment_id>/evaluate/", EvaluateReviewRequest.as_view(), name="wjs_evaluate_review"),

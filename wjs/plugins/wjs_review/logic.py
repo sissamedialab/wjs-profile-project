@@ -23,10 +23,12 @@ from submission.models import STAGE_ASSIGNED, Article
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
+from . import permissions
+
 if TYPE_CHECKING:
     from .forms import ReportForm
 
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, EditorDecision
 
 Account = get_user_model()
 
@@ -392,3 +394,139 @@ class SubmitReview:
             assignment = self._complete_review(assignment, self.submit_final)
             self._trigger_complete_event(assignment, self.request, self.submit_final)
             return assignment
+
+
+@dataclasses.dataclass
+class HandleDecision:
+    workflow: ArticleWorkflow
+    form_data: Dict[str, Any]
+    user: Account
+    request: HttpRequest
+
+    def check_conditions(self) -> bool:
+        """Check if the conditions for the decision are met."""
+        editor_selected = self.workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+        editor_has_permissions = permissions.is_article_editor(self.workflow, self.user)
+        return editor_selected and editor_has_permissions
+
+    def _trigger_article_event(self, event: str, context: Dict[str, Any]):
+        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
+
+        return event_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
+
+    def _trigger_workflow_event(self):
+        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
+        workflow_kwargs = {
+            "handshake_url": "wjs_review_list",
+            "request": self.request,
+            "article": self.workflow.article,
+            "switch_stage": True,
+        }
+        self._trigger_article_event(event_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
+
+    @staticmethod
+    def _get_email_context(article: Article, request: HttpRequest, form_data: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "article": article,
+            "request": request,
+            "decision": form_data["decision"],
+            "user_message_content": form_data["decision_editor_report"],
+            "skip": False,
+        }
+
+    def _accept_article(self) -> Article:
+        """
+        Accept article.
+
+        - Call janeway accept_article
+        - Advance workflow state
+        - Trigger ON_ARTICLE_ACCEPTED event
+        """
+        self.workflow.article.accept_article()
+        # FIXME: Remove after syncing with upstream to include commit fd0464d
+        self.workflow.article.snapshot_authors(self.workflow.article, force_update=False)
+
+        self.workflow.editor_writes_editor_report()
+        self.workflow.editor_accepts_paper()
+        self.workflow.save()
+
+        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
+        self._trigger_article_event(event_logic.Events.ON_ARTICLE_ACCEPTED, context)
+        return self.workflow.article
+
+    def _decline_article(self) -> Article:
+        """
+        Decline article.
+
+        - Call janeway decline_article
+        - Advance workflow state
+        - Trigger ON_ARTICLE_DECLINED event
+        """
+        self.workflow.article.decline_article()
+
+        self.workflow.editor_writes_editor_report()
+        self.workflow.editor_rejects_paper()
+        self.workflow.save()
+
+        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
+        self._trigger_article_event(event_logic.Events.ON_ARTICLE_DECLINED, context)
+        return self.workflow.article
+
+    def _not_suitable_article(self) -> Article:
+        """
+        Mark article as not suitable.
+
+        - Call janeway decline_article
+        - Advance workflow state
+        - Trigger ON_ARTICLE_DECLINED event
+        """
+        self.workflow.article.decline_article()
+
+        self.workflow.editor_writes_editor_report()
+        self.workflow.editor_deems_paper_not_suitable()
+        self.workflow.save()
+
+        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
+        self._trigger_article_event(event_logic.Events.ON_ARTICLE_DECLINED, context)
+        return self.workflow.article
+
+    def _close_unsubmitted_reviews(self):
+        """
+        Mark all non completed reviews are as declined and closed.
+        """
+        for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
+            # FIXME: Is this the righe state?
+            assignment.date_declined = timezone.now()
+            assignment.is_complete = True
+            assignment.save()
+            # TODO: Should we email reviewers to inform them that the review is closed?
+
+    def _store_decision(self) -> EditorDecision:
+        """Store decision information."""
+        decision, __ = EditorDecision.objects.get_or_create(
+            workflow=self.workflow,
+            review_round=self.workflow.article.current_review_round_object(),
+            defaults={
+                "decision": self.form_data["decision"],
+                "decision_editor_report": self.form_data["decision_editor_report"],
+                "decision_internal_note": self.form_data["decision_internal_note"],
+            },
+        )
+        return decision
+
+    def run(self) -> EditorDecision:
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValidationError(_("Decision conditions not met"))
+            decision = self._store_decision()
+            if self.form_data["decision"] == ArticleWorkflow.Decisions.ACCEPT:
+                self._accept_article()
+            elif self.form_data["decision"] == ArticleWorkflow.Decisions.REJECT:
+                self._decline_article()
+            elif self.form_data["decision"] == ArticleWorkflow.Decisions.NOT_SUITABLE:
+                self._not_suitable_article()
+            self._trigger_workflow_event()
+            if self.form_data["decision"]:
+                self._close_unsubmitted_reviews()
+            return decision

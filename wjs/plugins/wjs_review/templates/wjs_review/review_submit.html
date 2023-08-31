@@ -16,6 +16,14 @@
     <div class="container">
         <div class="row">
             <div class="col">
+                <h2>{% translate "Report" %}</h2>
+                {% include "wjs_review/elements/review_report_form.html" with form=report_form %}
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col">
                 {{ assignment }}
                 {% include "wjs_review/elements/review_evaluate_form.html" %}
             </div>

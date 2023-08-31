@@ -31,6 +31,13 @@ class ArticleWorkflow(TimeStampedModel):
         WRITEME_PRODUCTION = "WRITE_PRODU", _("Writeme production")
         PAPER_MIGHT_HAVE_ISSUES = "PA_MI_HA_IS", _("Paper might have issues")
 
+    class Decisions(models.TextChoices):
+        """Decisions that can be made by the editor."""
+
+        ACCEPT = "accept", _("Accept")
+        REJECT = "reject", _("Reject")
+        NOT_SUITABLE = "not_suitable", _("Not suitable")
+
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
     state = FSMField(default=ReviewStates.INCOMPLETE_SUBMISSION, choices=ReviewStates.choices, verbose_name=_("State"))
@@ -225,3 +232,24 @@ class ArticleWorkflow(TimeStampedModel):
     )
     def editor_assign_different_editor(self):
         pass
+
+
+class EditorDecision(TimeStampedModel):
+    workflow = models.ForeignKey(
+        ArticleWorkflow,
+        verbose_name=_("Article workflow"),
+        on_delete=models.PROTECT,
+        related_name="decisions",
+    )
+    review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
+    decision = models.CharField(max_length=255, choices=ArticleWorkflow.Decisions.choices)
+    decision_editor_report = models.TextField(blank=True, null=True)
+    decision_internal_note = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = _("Editor decision")
+        verbose_name_plural = _("Editor decisions")
+        unique_together = ("workflow", "review_round")
+
+    def __str__(self):
+        return f"{self.decision} (Article {self.workflow.article.id}-{self.review_round.round_number})"

@@ -1,0 +1,88 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% load wjs_review %}
+{% block title %}
+  {{ workflow.article }}
+{% endblock title %}
+{% block content_title %}
+  <div class="col-sm-12">
+    <h2>
+      <i>{{ workflow.article }}</i>
+    </h2>
+      <i>{{ workflow.state }}</i>
+    <p>
+      <span class="badge bg-secondary">{{ workflow.article.section.name }}</span>
+      by {{ workflow.article.correspondence_author }}
+      {% if workflow.article.authors.count > 1 %}
+        <a class="text-secondary"
+           data-bs-toggle="collapse"
+           href="#otherAuthors"
+           role="button"
+           aria-expanded="false"
+           aria-controls="collapseExample">et al.</a>
+        <span class="collapse" id="otherAuthors">
+                    {% for author in workflow.article.authors.all %}
+                      {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
+                      {% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                </span>
+      {% endif %}
+    </p>
+  </div>
+{% endblock content_title %}
+{% block content %}
+  <div class="container">
+    <form method="post" action="{% url "wjs_article_decision" workflow.pk %}">
+      <div class="row">
+        <div class="col-sm-12 border-bottom border-2">
+          <div class="card border border-1">
+            <div class="card-head"><h2>{% translate "Reviews" %}</h2></div>
+            <div class="card-body">
+              <ul>
+                <h3>{% translate "Declined" %}</h3>
+                {% for review in declined_reviews %}
+                  <li>{{ review }}</li>
+                {% endfor %}
+              </ul>
+              <ul>
+                <h3>{% translate "Submitted" %}</h3>
+                {% for review in submitted_reviews %}
+                  <li>
+                    {# TODO: Make fields editable and allow to select visible to author flag #}
+                    {{ review }}<br>
+                    {% for element in review.reviewassignmentanswer_set.all %}
+                      {{ element.original_element.name }}: {{ element.answer|safe }}
+                    {% endfor %}
+                  </li>
+                {% endfor %}
+              </ul>
+              <ul>
+                <h3>{% translate "Open" %}</h3>
+                {% for review in open_reviews %}
+                  <li>{{ review }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-sm-12 border-bottom border-2">
+          <div class="card border border-1">
+            <div class="card-head">{% translate "Decisions" %}</div>
+            <div class="card-body">
+              {% get_available_transitions workflow as transitions %}
+              {% csrf_token %}
+              {% bootstrap_form_errors form layout='inline' %}
+              {% bootstrap_field form.decision %}
+              {% bootstrap_field form.decision_editor_report %}
+              {% bootstrap_field form.decision_internal_note %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% bootstrap_button button_type="submit" name="submit" value=1 content="Confirm" %}
+
+    </form>
+  </div>
+{% endblock content %}
