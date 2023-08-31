@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, Optional
 
 from dateutil.utils import today
 from django import forms
@@ -7,12 +7,18 @@ from django.contrib.auth import get_user_model
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
-from review.models import ReviewAssignment
+from review.forms import GeneratedForm
+from review.models import (
+    ReviewAssignment,
+    ReviewAssignmentAnswer,
+    ReviewForm,
+    ReviewFormElement,
+)
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 
-from .logic import AssignToReviewer, EvaluateReview, InviteReviewer
+from .logic import AssignToReviewer, EvaluateReview, InviteReviewer, SubmitReview
 from .models import ArticleWorkflow
 
 Account = get_user_model()
@@ -204,7 +210,7 @@ class InviteUserForm(forms.Form):
 
 class EvaluateReviewForm(forms.ModelForm):
     reviewer_decision = forms.ChoiceField(choices=(("1", _("Accept")), ("0", _("Reject"))), required=True)
-    comments_for_editor = forms.CharField(
+    decline_reason = forms.CharField(
         label=_("Please provide a reason for declining"),
         widget=SummernoteWidget(),
         required=False,
@@ -221,13 +227,21 @@ class EvaluateReviewForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.token and not self.instance.reviewer.jcomprofile.gdpr_checkbox:
             self.fields["accept_gdpr"].widget = forms.CheckboxInput()
+        if self.instance.date_accepted:
+            self.fields["reviewer_decision"].required = False
 
     def clean(self):
         cleaned_data = super().clean()
-        if cleaned_data["reviewer_decision"] == "0" and not cleaned_data["comments_for_editor"]:
-            self.add_error("comments_for_editor", _("Please provide a reason for declining"))
-        if cleaned_data["reviewer_decision"] == "1" and self.token and not cleaned_data["accept_gdpr"]:
-            self.add_error("accept_gdpr", _("You must accept GDPR to continue"))
+        # Decision is optional if form is submitted when submitting a report
+        if cleaned_data.get("reviewer_decision", None):
+            if cleaned_data["reviewer_decision"] == "0" and not cleaned_data["decline_reason"]:
+                self.add_error("comments_for_editor", _("Please provide a reason for declining"))
+            elif cleaned_data["reviewer_decision"] == "0" and cleaned_data["decline_reason"]:
+                # we use comments_for_editor to store the decline_reason if the user has declined, or as cover letter
+                # if the user submits a report. As decline reason is less important we use an alias field
+                cleaned_data["comments_for_editor"] = cleaned_data["decline_reason"]
+            if cleaned_data["reviewer_decision"] == "1" and self.token and not cleaned_data["accept_gdpr"]:
+                self.add_error("accept_gdpr", _("You must accept GDPR to continue"))
         return cleaned_data
 
     def get_logic_instance(self) -> EvaluateReview:
@@ -239,6 +253,72 @@ class EvaluateReviewForm(forms.ModelForm):
             form_data=self.cleaned_data,
             request=self.request,
             token=self.token,
+        )
+        return service
+
+    def save(self, commit: bool = True) -> ReviewAssignment:
+        """
+        Change the state of the review using :py:class:`EvaluateReview`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValueError as e:
+            self.add_error(None, e)
+            raise forms.ValidationError(e)
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class RichTextGeneratedForm(GeneratedForm):
+    """Extends GeneratedForm to use SummernoteWidget for textarea fields."""
+
+    def __init__(self, *args, **kwargs):
+        answer = kwargs.get("answer", None)
+        preview = kwargs.get("preview", None)
+        self.request = kwargs.pop("request", None)
+        self.instance = kwargs.get("review_assignment", None)
+        super().__init__(*args, **kwargs)
+
+        elements = self.get_elements(answer=answer, preview=preview, review_assignment=self.instance)
+        for element in elements:
+            if element.kind == "textarea":
+                self.fields[str(element.pk)].widget = SummernoteWidget()
+
+    def get_elements(
+        self,
+        answer: Optional[ReviewAssignmentAnswer] = None,
+        preview: Optional[ReviewForm] = None,
+        review_assignment: Optional[ReviewAssignment] = None,
+    ) -> Iterable[ReviewFormElement]:
+        """
+        Return the elements to be used in the form.
+
+        This is a duplication of the same code used in original GeneratedForm, but we can't reuse upstream, and it's
+        more efficient than just retrieving the elements from the database again by looping on the form fields.
+        """
+        if answer:
+            return [answer.element]
+        elif preview:
+            return preview.elements.all()
+        else:
+            return review_assignment.form.elements.all()
+
+
+class ReportForm(RichTextGeneratedForm):
+    def __init__(self, *args, **kwargs):
+        self.submit_final = kwargs.pop("submit_final", None)
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> SubmitReview:
+        """Instantiate :py:class:`EvaluateReview` class."""
+        service = SubmitReview(
+            assignment=self.instance,
+            form=self,
+            submit_final=self.submit_final,
+            request=self.request,
         )
         return service
 

@@ -1,14 +1,15 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.core.paginator import Page, Paginator
 from django.db.models import QuerySet
-from django.http import HttpResponse, QueryDict
+from django.http import HttpResponse, HttpResponseRedirect, QueryDict
 from django.template import Context
 from django.urls import reverse, reverse_lazy
 from django.views.generic import DetailView, ListView, UpdateView
+from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission import models as submission_models
 from utils.setting_handler import get_setting
@@ -19,6 +20,7 @@ from .forms import (
     ArticleReviewStateForm,
     EvaluateReviewForm,
     InviteUserForm,
+    ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
 )
@@ -246,11 +248,17 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
         self.object.refresh_from_db()
         url = str(self.success_url)
         if self.object.date_accepted:
-            url = reverse("wjs_review_review", args=(self.object.pk,))
+            url = review_logic.generate_access_code_url(
+                "wjs_review_review",
+                self.object,
+                self.access_code,
+            )
         elif self.object.date_declined:
-            url = reverse("wjs_declined_review", args=(self.object.pk,))
-        if self.access_code:
-            url = f"{url}?access_code={self.access_code}"
+            url = review_logic.generate_access_code_url(
+                "wjs_declined_review",
+                self.object,
+                self.access_code,
+            )
         return url
 
     def get_queryset(self) -> QuerySet[ReviewAssignment]:
@@ -285,5 +293,115 @@ class ReviewDeclined(OpenReviewMixin):
     incomplete_review_only = False
 
 
+class ReviewEnd(OpenReviewMixin):
+    template_name = "wjs_review/review_end.html"
+    incomplete_review_only = False
+
+
 class ReviewSubmit(EvaluateReviewRequest):
     template_name = "wjs_review/review_submit.html"
+
+    @property
+    def allow_draft(self):
+        """
+        Check if the user is allowed to submit a draft report.
+
+        Used both in the template to hide the draft button and in the view to check the draft status.
+        """
+        return get_setting(
+            "general",
+            "enable_save_review_progress",
+            self.request.journal,
+        ).processed_value
+
+    @property
+    def _submitting_report_final(self) -> bool:
+        """Check if the user is submitting the final report."""
+        return self.request.POST.get("submit_report", None) == "1"
+
+    @property
+    def _submitting_report_draft(self) -> bool:
+        """Check if the user is submitting a final report."""
+        return self.request.POST.get("submit_report", None) == "0" and self.allow_draft
+
+    @property
+    def _submitting_report(self) -> bool:
+        """Check if the user is submitting a report vs. updating their acceptance status."""
+        return self._submitting_report_final or self._submitting_report_draft
+
+    def _get_report_data(self) -> Dict[str, Optional[Dict[str, Any]]]:
+        """
+        Return the data and files for the report form.
+
+        This contains actual data only if user is submitting a report, otherwise we won't pass any data because it will
+        trigger form invalid state because acceptance form data are not compatible with report form.
+        """
+        if self._submitting_report:
+            return {"data": self.request.POST or None, "files": self.request.FILES or None}
+        else:
+            return {"data": None, "files": None}
+
+    def _get_report_form(self) -> ReportForm:
+        """Instantiate ReportForm (instantiated from ReviewAssigment.form object)."""
+        form = ReportForm(
+            review_assignment=self.object,
+            fields_required=True,
+            submit_final=self._submitting_report_final,
+            request=self.request,
+            **self._get_report_data(),
+        )
+        return form
+
+    def get_context_data(self, **kwargs) -> Context:
+        """Add ReportForm to the context."""
+        context = super().get_context_data(**kwargs)
+        if "report_form" not in context:
+            context["report_form"] = self._get_report_form()
+        context["allow_draft"] = self.allow_draft
+        return context
+
+    def _process_report(self) -> Union[HttpResponseRedirect, HttpResponse]:
+        """
+        Process ReportForm and redirect to the appropriate page.
+
+        If form is not valid or exception is raised by the logic, the form is rendered again with the error.
+        """
+        report_form = self._get_report_form()
+        if report_form.is_valid():
+            try:
+                report_form.save()
+                return HttpResponseRedirect(self.get_success_url())
+            except (ValueError, ValidationError) as e:
+                report_form.add_error(None, e)
+        return self.render_to_response(self.get_context_data(report_form=report_form))
+
+    def get_success_url(self) -> str:
+        """
+        Redirect to a different URL according to the decision.
+
+        If the user is submitting the report, redirect to the end of the review process, otherwise redirect to the
+        same page for further updates.
+        """
+        if self._submitting_report_final:
+            return review_logic.generate_access_code_url(
+                "wjs_review_end",
+                self.object,
+                self.access_code,
+            )
+        else:
+            return super().get_success_url()
+
+    def form_valid(self, form: EvaluateReviewForm) -> HttpResponse:
+        """
+        Executed when :py:class:`EvaluateReviewForm` is valid.
+
+        Even if the form is valid, checks in :py:class:`logic.EvaluateReview` -called by form.save- may fail as well.
+
+        If the user is submitting the report, the ReportForm is processed, skipping
+        EvaluateReviewForm. EvaluateReviewForm must still be valid, but in can only be invalid if the user
+        declines and not provide a motivation, which excludes the case of submitting the report.
+        """
+        if self._submitting_report:
+            return self._process_report()
+        else:
+            return super().form_valid(form)

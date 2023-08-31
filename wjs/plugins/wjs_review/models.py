@@ -65,7 +65,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.EDITOR_SELECTED,
         target=ReviewStates.EDITOR_TO_BE_SELECTED,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def ed_declines_assignment(self):
@@ -121,7 +121,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
         target=ReviewStates.REJECTED,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def editor_rejects_paper(self):
@@ -132,7 +132,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
         target=ReviewStates.NOT_SUITABLE,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def editor_deems_paper_not_suitable(self):
@@ -143,7 +143,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
         target=ReviewStates.TO_BE_REVISED,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def editor_requires_a_revision(self):
@@ -154,7 +154,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_HAS_EDITOR_REPORT,
         target=ReviewStates.ACCEPTED,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def editor_accepts_paper(self):
@@ -165,7 +165,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.EDITOR_SELECTED,
         target=ReviewStates.PAPER_HAS_EDITOR_REPORT,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def editor_writes_editor_report(self):
@@ -220,7 +220,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.EDITOR_SELECTED,
         target=ReviewStates.EDITOR_SELECTED,
-        permission=permissions.is_section_editor,
+        permission=permissions.is_article_editor,
         # TODO: conditions=[],
     )
     def editor_assign_different_editor(self):

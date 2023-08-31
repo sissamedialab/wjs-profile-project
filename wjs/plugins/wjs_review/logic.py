@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from core.models import AccountRole, Role
 from django.contrib import messages
@@ -7,15 +7,24 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpRequest
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
+from events import logic as event_logic
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
-from review.views import accept_review_request, decline_review_request
+from review.views import (
+    accept_review_request,
+    decline_review_request,
+    upload_review_file,
+)
 from submission.models import STAGE_ASSIGNED, Article
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
+
+if TYPE_CHECKING:
+    from .forms import ReportForm
 
 from .models import ArticleWorkflow
 
@@ -191,22 +200,6 @@ class EvaluateReview:
         if self.assignment.date_accepted:
             return True
 
-    def _check_revert_state(self) -> bool:
-        """
-        Check if the state of the article needs to be reverted (eg: no more pending reviews exists).
-        """
-        return not self.assignment.article.reviewassignment_set.filter(
-            is_complete=False,
-            review_round=self.assignment.review_round,
-        ).exists()
-
-    def _revert_state(self):
-        """
-        Revert the state of the article to the previous state.
-        """
-        self.assignment.article.articleworkflow.deassign_referee()
-        self.assignment.article.articleworkflow.save()
-
     def _handle_decline(self) -> Optional[bool]:
         """
         Decline the review by calling janeway :py:func:`decline_review_request`.
@@ -218,8 +211,6 @@ class EvaluateReview:
         decline_review_request(request=self.request, assignment_id=self.assignment.pk)
         self.assignment.refresh_from_db()
         if self.assignment.date_declined:
-            if self._check_revert_state():
-                self._revert_state()
             return False
 
     def _activate_invitation(self, token: str):
@@ -345,3 +336,59 @@ class InviteReviewer:
             self._assign_reviewer(user)
             self._notify_user()
             return user
+
+
+@dataclasses.dataclass
+class SubmitReview:
+    assignment: ReviewAssignment
+    form: "ReportForm"
+    submit_final: bool
+    request: HttpRequest
+
+    @staticmethod
+    def _upload_files(assignment: ReviewAssignment, request: HttpRequest) -> ReviewAssignment:
+        """Upload the files for the review."""
+        if request.FILES:
+            assignment = upload_review_file(request, assignment_id=assignment.pk)
+        return assignment
+
+    @staticmethod
+    def _save_report_form(assignment: ReviewAssignment, form: "ReportForm") -> ReviewAssignment:
+        """
+        Save the report form.
+
+        Run for draft and final review.
+        """
+        assignment.save_review_form(form, assignment)
+        assignment.refresh_from_db()
+        return assignment
+
+    @staticmethod
+    def _complete_review(assignment: ReviewAssignment, submit_final: bool) -> ReviewAssignment:
+        """If the user has submitted a final review, mark the assignment as complete."""
+        if submit_final:
+            assignment.date_complete = timezone.now()
+            assignment.is_complete = True
+            if not assignment.date_accepted:
+                assignment.date_accepted = timezone.now()
+            assignment.save()
+        return assignment
+
+    @staticmethod
+    def _trigger_complete_event(assignment: ReviewAssignment, request: HttpRequest, submit_final: bool):
+        """Trigger the ON_REVIEW_COMPLETE event to comply with upstream review workflow."""
+        if submit_final:
+            kwargs = {"review_assignment": assignment, "request": request}
+            event_logic.Events.raise_event(
+                event_logic.Events.ON_REVIEW_COMPLETE,
+                task_object=assignment.article,
+                **kwargs,
+            )
+
+    def run(self):
+        with transaction.atomic():
+            assignment = self._upload_files(self.assignment, self.request)
+            assignment = self._save_report_form(assignment, self.form)
+            assignment = self._complete_review(assignment, self.submit_final)
+            self._trigger_complete_event(assignment, self.request, self.submit_final)
+            return assignment

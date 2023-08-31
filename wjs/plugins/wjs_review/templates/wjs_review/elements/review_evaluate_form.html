@@ -11,6 +11,6 @@
     {% bootstrap_field form.accept_gdpr %}
     {% if not assignment.date_declined %}
         {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
-        {% bootstrap_field form.comments_for_editor %}
+        {% bootstrap_field form.decline_reason %}
     {% endif %}
 </form>

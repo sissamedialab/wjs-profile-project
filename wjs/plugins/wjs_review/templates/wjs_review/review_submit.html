@@ -21,6 +21,14 @@
             </div>
         </div>
     </div>
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h2>{% translate "Report" %}</h2>
+                {% include "wjs_review/elements/review_report_form.html" with form=report_form %}
+            </div>
+        </div>
+    </div>
 {% endblock content %}
 
 {% block content_header %}
