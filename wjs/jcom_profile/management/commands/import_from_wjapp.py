@@ -1,6 +1,7 @@
 """Data migration POC."""
 import datetime
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -570,11 +571,7 @@ class Command(BaseCommand):
         # PDF galleys
         # Should find one file (common case) or two files (original language + english translation)
         pdf_files = list(workdir.glob("*.pdf"))
-        if len(pdf_files) == 0:
-            logger.critical(f"No PDF file found in {workdir}. Quitting and leaving a mess...")
-            raise FileNotFoundError(f"No PDF file found in {workdir}.")
-
-        drop_existing_galleys(article)
+        sanity_check_pdf_filenames(pdf_files)
 
         # Set default language to English. This will be overridden
         # later if we find a non-English galley.
@@ -583,15 +580,18 @@ class Command(BaseCommand):
         # from English when the doi points to English-only metadata
         # (even if there are two PDF files). But see #194.
         article.language = "eng"
+        article.save()
 
-        if len(pdf_files) > 1:
-            if article.journal.code == "JCOM":
-                # I really don't know what to do here untill I see an example...
-                logger.error(f"{len(pdf_files)} PDF galleys in JCOM (expecting 1). Ignoring PDF galleys.")
-                return
+        if len(pdf_files) == 0:
+            logger.critical(f"No PDF file found in {workdir}. Doing nothing.")
 
-            # Here we are importing multiple PDF galleys in JCOMAL
+        elif len(pdf_files) == 1:
+            drop_existing_galleys(article)
+            set_pdf_galley(article, pdf_files[0], pubid)
+
+        elif len(pdf_files) == 2:
             logger.debug(f"Found {len(pdf_files)} PDF galleys.")
+            drop_existing_galleys(article)
 
             # I'm working under these assumptions:
             #
@@ -608,41 +608,15 @@ class Command(BaseCommand):
             #   to include the missing content.
 
             main_pdf_filename, translation_pdf_filename = find_and_rename_main_galley(pdf_files)
+            set_pdf_galley(article, main_pdf_filename, pubid)
+
             translation_pdf_file, translation_label, translation_language = rebuild_translation_galley(
                 translation_pdf_filename,
                 main_pdf_filename,
             )
             set_translation_galley(translation_pdf_file, translation_label, article)
-
         else:
-            main_pdf_filename = pdf_files[0]
-
-        file_name = os.path.basename(main_pdf_filename)
-        file_mimetype = "application/pdf"  # I just know it! (sry :)
-        uploaded_file = File(open(main_pdf_filename, "rb"), file_name)
-        label, language = decide_galley_label(pubid, file_name=file_name, file_mimetype=file_mimetype)
-        if language and language != "en":
-            if article.language != "eng":
-                # We can have 2 non-English galleys (PDF and EPUB),
-                # they are supposed to be of the same language. Not checking.
-                #
-                # If the article language is different from
-                # english, this means that a non-English gally has
-                # already been processed and there is no need to
-                # set the language again.
-                pass
-            else:
-                set_language(article, language)
-        save_galley(
-            article,
-            request=fake_request,
-            uploaded_file=uploaded_file,
-            is_galley=True,
-            label=label,
-            save_to_disk=True,
-            public=True,
-        )
-        logger.debug(f"PDF galley {label} set onto {pubid}")
+            logger.critical(f"Found {len(pdf_files)} PDF galleys. Doing nothing.")
 
     def create_article(self, xml_obj):
         """Create the article."""
@@ -781,6 +755,40 @@ def mangle_images(article):
         out_file.write(lxml.html.tostring(html, pretty_print=False))
 
 
+def set_pdf_galley(article, file_path, pubid):
+    """Set a pdf galley onto the given article.
+
+    Infer and set the galley's label, including the language code.
+    Set the article's language.
+    """
+    file_name = os.path.basename(file_path)
+    file_mimetype = "application/pdf"  # I just know it! (sry :)
+    uploaded_file = File(open(file_path, "rb"), file_name)
+    label, language = decide_galley_label(pubid, file_name=file_name, file_mimetype=file_mimetype)
+    # We can have 2 non-English galleys (PDF and EPUB),
+    # they are supposed to be of the same language. Not checking.
+    #
+    # If the article language is different from
+    # english, this means that a non-English gally has
+    # already been processed and there is no need to
+    # set the language again.
+    if language and language != "en":
+        if article.language != "eng":
+            pass
+        else:
+            set_language(article, language)
+    save_galley(
+        article,
+        request=fake_request,
+        uploaded_file=uploaded_file,
+        is_galley=True,
+        label=label,
+        save_to_disk=True,
+        public=True,
+    )
+    logger.debug(f"PDF galley {label} set onto {pubid}")
+
+
 def set_translation_galley(pdf_file, label, article):
     """Set the given file as galley for the given article, using the given language and label."""
     file_name = os.path.basename(pdf_file)
@@ -865,3 +873,18 @@ def check_mappings(
         f"Created new mapping {imported_source}/{imported_usercod}/{imported_email} for account {account}.",
     )
     return new_mapping
+
+
+def sanity_check_pdf_filenames(pdf_files: list[str]) -> None:
+    """Ensure that all the files in the given list are proper PDF file names.
+
+    Just log errors if some item does not match.
+    """
+    # E.g. JCOM_2204_2023_A06_pt.pdf
+    #      JCOM_2204_2023_A06_en.pdf
+    #      JCOM_2204_2023_E.pdf
+
+    pubid_and_maybe_language_pattern = re.compile(r"JCOM(?:AL)?_\d{4}_\d{4}_[A-Z]{1,2}[0-9]{0,2}(?:_[a-z]{2})?\.pdf")
+    for pdf_file in pdf_files:
+        if not re.match(pubid_and_maybe_language_pattern, pdf_file.name):
+            logger.error(f'Unexpected filename "{pdf_file}". Please check.')
