@@ -1,16 +1,23 @@
 {% load django_bootstrap5 i18n %}
-
 <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
     {% csrf_token %}
-    {% bootstrap_form_errors form layout='inline' %}
-    A date_accepted = {{ assignment.date_accepted }}<br>
-    date_declined = {{ assignment.date_declined }}<br>
-    {% if not assignment.date_accepted %}
-        {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Accept" %}
-    {% endif %}
-    {% bootstrap_field form.accept_gdpr %}
-    {% if not assignment.date_declined %}
-        {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
-        {% bootstrap_field form.decline_reason %}
-    {% endif %}
+    <div class="row">
+        {% bootstrap_form_errors form layout='inline' %}
+        <div class="col">
+            {% bootstrap_field form.accept_gdpr %}
+        </div>
+    </div>
+    <div class="row">
+        {% if not assignment.date_accepted %}
+            <div class="col-6">
+                {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Accept" %}
+            </div>
+        {% endif %}
+        {% if not assignment.date_declined %}
+            <div class="col-6">
+                {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
+                {% bootstrap_field form.decline_reason %}
+            </div>
+        {% endif %}
+    </div>
 </form>
