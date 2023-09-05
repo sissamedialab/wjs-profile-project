@@ -1,22 +1,24 @@
 {% extends "wjs_review/base.html" %}
 {% load django_bootstrap5 i18n settings %}
-
 {% block title %}
     {% translate "Declined review request" %}
 {% endblock title %}
-
-{% block content %}
+{% block content_title %}
+    <h2>
+        {% translate "Declined review request" %} {% translate "for" %}
+        <span class="badge bg-secondary">{{ assignment.article.section.name }}</span>
+        <i>{{ assignment.article }}</i>
+    </h2>
+{% endblock content_title %}
+{% block right_column %}
+    {% with article=assignment.article %}
+        {% include "wjs_review/elements/article_details_for_reviewer.html" %}
+    {% endwith %}
+{% endblock right_column %}
+{% block left_column %}
     <div class="container">
         <div class="row">
-            <div class="col">
-                {{ request.journal|setting:"declined_review_message" }}
-            </div>
+            <div class="col">{{ request.journal|setting:"declined_review_message" }}</div>
         </div>
     </div>
-{% endblock content %}
-
-{% block content_header %}
-    <div class="col-sm-12">
-        <p>{{ assignment.article }}</p>
-    </div>
-{% endblock content_header %}
+{% endblock left_column %}

@@ -1,46 +1,28 @@
 {% extends "wjs_review/base.html" %}
 {% load django_bootstrap5 i18n settings %}
-
 {% block title %}
     {% translate "Submit review" %}
 {% endblock title %}
-
-{% block content %}
-    <div class="container">
-        <div class="row">
-            <div class="col">
-                {{ request.journal|setting:"do_review_message" }}
-            </div>
-        </div>
-    </div>
-    <div class="container">
-        <div class="row">
-            <div class="col">
-                <h2>{% translate "Report" %}</h2>
-                {% include "wjs_review/elements/review_report_form.html" with form=report_form %}
-            </div>
-        </div>
-    </div>
-    <div class="container">
-        <div class="row">
-            <div class="col">
-                {{ assignment }}
-                {% include "wjs_review/elements/review_evaluate_form.html" %}
-            </div>
-        </div>
-    </div>
-    <div class="container">
-        <div class="row">
-            <div class="col">
-                <h2>{% translate "Report" %}</h2>
-                {% include "wjs_review/elements/review_report_form.html" with form=report_form %}
-            </div>
-        </div>
-    </div>
-{% endblock content %}
-
-{% block content_header %}
+{% block content_title %}
     <div class="col-sm-12">
-        <p>{{ assignment.article }}</p>
+        <h2>
+            {% translate "Submit review" %} {% translate "for" %}
+            <span class="badge bg-secondary">{{ assignment.article.section.name }}</span>
+            <i>{{ assignment.article }}</i>
+        </h2>
     </div>
-{% endblock content_header %}
+{% endblock content_title %}
+{% block right_column %}
+    {% with article=assignment.article %}
+        {% include "wjs_review/elements/article_details_for_reviewer.html" %}
+    {% endwith %}
+{% endblock right_column %}
+{% block left_column %}
+    <div class="container">
+        <div class="row">
+            <div class="col">{{ request.journal|setting:"do_review_message" }}</div>
+        </div>
+        {% include "wjs_review/elements/review_report_form.html" with form=report_form %}
+        {% include "wjs_review/elements/review_evaluate_form.html" %}
+    </div>
+{% endblock left_column %}

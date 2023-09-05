@@ -1,105 +1,77 @@
 {% load django_bootstrap5 i18n %}
 
 <div class="row">
-  <div class="col">
-    <h2>General Review Guidelines</h2>
-  </div>
+    <div class="col">
+        <h2>{% translate "General Review Guidelines" %}</h2>
+    </div>
 </div>
 <div class="row">
-  <div class="col">
-    {{ journal_settings.general.reviewer_guidelines|safe }}
-  </div>
+    <div class="col">
+        {{ journal_settings.general.reviewer_guidelines|safe }}
+    </div>
 </div>
 <div class="row">
-  <div class="col">
-    <h2>Information for this Form</h2>
-  </div>
+    <div class="col">
+        <h2>{% translate "Information for this Form" %}</h2>
+    </div>
 </div>
 <div class="row">
-  <div class="col">
-    {{ assignment.form.intro|safe }}
-  </div>
+    <div class="col">
+        {{ assignment.form.intro|safe }}
+    </div>
 </div>
 {% if assignment.review_round.review_files.exists %}
-  <div class="row">
-    <div class="col">
-      <h2>Review Files</h2>
-      <div>
-        <a href="
-          {% url 'review_download_all_files' assignment.pk %}{% if access_code %}?access_code={{ access_code }}{% endif %}"
-           class="button"><i class="fa fa-download">&nbsp;</i>Download all as ZIP</a>
-      </div>
-      <div class="content">
-        <table class="scroll small">
-          <tr>
-            <th>Label</th>
-            <th>Download</th>
-          </tr>
-          {% for file in assignment.review_round.review_files.all %}
-            <tr>
-              <td>{{ file.label }}</td>
-              <td><a href="
-                {% url 'review_file_download' assignment.pk file.pk %}{% if access_code %}?access_code={{ access_code }}{% endif %}"><i
-                class="fa fa-download">&nbsp;</i></a></td>
-            </tr>
-            {% empty %}
-            <tr>
-              <td colspan="4">No files. You should add them before inviting reviewers.</td>
-            </tr>
-          {% endfor %}
-        </table>
-      </div>
+    <div class="row">
+        <div class="col">
+            <h2>{% translate "Review Files" %}</h2>
+            <div>
+                <a href="{% url 'review_download_all_files' assignment.pk %}{% if access_code %}?access_code={{ access_code }}{% endif %}"
+                   class="button"><i class="fa fa-download">&nbsp;</i>{% translate "Download all as ZIP" %}</a>
+            </div>
+            <div class="content">
+                <table class="scroll small">
+                    <tr>
+                        <th>Label</th>
+                        <th>Download</th>
+                    </tr>
+                    {% for file in assignment.review_round.review_files.all %}
+                        <tr>
+                            <td>{{ file.label }}</td>
+                            <td><a href="{% url 'review_file_download' assignment.pk file.pk %}{% if access_code %}?access_code={{ access_code }}{% endif %}"><i
+                                class="fa fa-download">&nbsp;</i></a></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4">No files. You should add them before inviting reviewers.</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
     </div>
-  </div>
-{% endif %}
-{% if assignment.visibility == 'open' or assignment.visibility == 'blind' %}
-  <div class="row">
-    <div class="col">
-      <h2>Author Information</h2>
-    </div>
-    <div class="col">
-      <table class="scroll small">
-        <tr>
-          <th>Name</th>
-          <th>Institution</th>
-          <th>Department</th>
-        </tr>
-        {% for author in assignment.article.authors.all %}
-          <tr>
-            <td>{{ author.full_name }}</td>
-            <td>{{ author.institution }}</td>
-            <td>{{ author.department }}</td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td colspan="4">No files. You should add them before inviting reviewers.</td>
-          </tr>
-        {% endfor %}
-      </table>
-    </div>
-  </div>
 {% endif %}
 <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
-  {% csrf_token %}
-  <div class="row">
-    <div class="col">
-      {% if form.errors %}
-        <div class="alert alert-info">
-          Please correct errors below. Note, you'll have to reselect any files you want
-          uploaded.
+    {% csrf_token %}
+    <div class="row">
+        <div class="col">
+            {% if form.errors %}
+                <div class="alert alert-info">
+                {% translate "Please correct errors below. Note, you'll have to reselect any files you want uploaded." %}
+                </div>
+            {% endif %}
+            {% bootstrap_form form %}
         </div>
-      {% endif %}
-      {% bootstrap_form form %}
     </div>
-  </div>
-  <div class="row">
-    {% if allow_draft %}
-    <div class="col">
-      {% bootstrap_button button_type="submit" name="submit_report" value=0 content="Save as draft" %}
+    <div class="row">
+        {% if allow_draft %}
+            <div class="col">
+                {% translate "Save as draft" as draft_label %}
+                {% bootstrap_button button_type="submit" name="submit_report" value=0 content="Save as draft" %}
+            </div>
+        {% endif %}
+        <div class="col">
+            {% translate "Submit" as submit_label %}
+            {% bootstrap_button button_type="submit" name="submit_report" value=1 content=submit_label %}
+        </div>
     </div>
-    {% endif %}
-    <div class="col">
-      {% bootstrap_button button_type="submit" name="submit_report" value=1 content="Submit" %}
-    </div>
-  </div>
 </form>

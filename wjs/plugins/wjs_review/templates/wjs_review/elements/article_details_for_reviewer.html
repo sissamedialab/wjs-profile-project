@@ -1,0 +1,47 @@
+{% load wjs_tags %}
+{# no need for title and section, since they are already shown #}
+<div class="row row-cols-1">
+    <div class="col">
+        <strong>{% translate "Abstract" %}</strong> {{ article.abstract }}
+    </div>
+    {# Special Issue #}{# TODO: review me, I'm brittle! #}
+    {% if article.primary_issue.issue_type.code == "collection" %}
+        <div class="col">
+            {% translate "To became part of <strong>special issue</strong>" %} "{{ article.primary_issue.issue_title }}"
+        </div>
+    {% endif %}
+    {# Commentario (aka "father") #}
+    {% if article|has_attr:"ancestors" and article.ancestors.exists %}
+        {% with parent=article.ancestors.first.parent %}
+            <div class="col">
+                <strong>{% translate "Part of" %}</strong> <i>{{ parent.title }}</i>
+            </div>
+        {% endwith %}
+    {% endif %}
+    {% include "wjs_review/elements/article_authors_for_reviewer.html" %}
+    <div class="col">
+        <strong>{% translate "Manuscript" %}</strong>
+        <ul>
+            {% for file in article.manuscript_files.all %}
+              <li><a target="_blank" href="{% url 'article_file_download' 'id' article.id file.id %}">{{ file }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="col">
+        <p>
+            {% blocktranslate with editor=assignment.editor.full_name date_requested=assignment.date_requested date_reminded=assignment.date_reminded %}
+                <strong>Review</strong> requested by
+                <a href="#" title="Click to contact / communicate">{{ editor }} 📧</a>
+                on {{ date_requested }}
+            {% endblocktranslate %}
+            {% if date_reminded %}({% translate "last reminder on" %} {{ date_reminded }}){% endif %}
+            .
+        </p>
+        {% if assignment.date_declined %}<p>{% translate "Review request declined on" %} {{ assignment.date_declined }}.</p>{% endif %}
+        {% if assignment.date_accepted %}<p>{% translate "Review request accepted on" %} {{ assignment.date_accepted }}.</p>{% endif %}
+        {% if assignment.is_complete %}<p>{% translate "Review completed on" %} {{ assignment.date_complete }}.</p>{% endif %}
+    </div>
+    <div class="col">
+        <a href="#">Generic info</a> TODO: link to help pages for reviewer
+    </div>
+</div>

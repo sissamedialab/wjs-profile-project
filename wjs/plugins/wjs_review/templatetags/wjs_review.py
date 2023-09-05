@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django_fsm import Transition
+from review.models import ReviewAssignment
 from submission.models import Article
 from utils import models as janeway_utils_models
 from utils.models import LogEntry
@@ -76,3 +77,20 @@ def reviewer_btn_props(reviewer: Account, selected: str, workflow: ArticleWorkfl
         "disabled_cause": disabled_cause,
     }
     return data
+
+
+@register.filter
+def review_assignment_request_message(assignment: ReviewAssignment):
+    """Return the "invitation" message sent by an editor to a reviewer to ask for a review."""
+    # These email messages are stored as LogEntries.
+    article = assignment.article
+    content_type = ContentType.objects.get_for_model(article)
+    log_entry = LogEntry.objects.filter(
+        content_type=content_type,
+        object_id=article.pk,
+        actor=assignment.editor,
+        types="Review Request",
+        is_email=True,
+        toaddress__email__in=(assignment.reviewer.email,),
+    ).order_by("date")
+    return [f"<div>{le} | {le.message_id} | {le.description}</div>" for le in log_entry]
