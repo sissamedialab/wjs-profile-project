@@ -9,6 +9,8 @@ import pytest
         "/search/?page=99%27",
         "/search/?sort=-date_published%27",
         "/search/?SearchableText=zivkovic%27&page=99%27&sort=-date_published%27",
+        "/search/?article_search=the&sections=hOq5Ey0K",
+        "/search/?article_search=the&&sections=1*1",
     ),
 )
 @pytest.mark.django_db
