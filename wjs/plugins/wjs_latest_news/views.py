@@ -12,5 +12,5 @@ from .plugin_settings import PLUGIN_NAME
 @method_decorator(editor_user_required, "dispatch")
 class ConfigUpdateView(BaseConfigUpdateView):
     model = PluginConfig
-    fields = ["title", "count"]
+    fields = ["title", "count", "secondbox_title", "secondbox_tag", "secondbox_count"]
     plugin_name = PLUGIN_NAME
