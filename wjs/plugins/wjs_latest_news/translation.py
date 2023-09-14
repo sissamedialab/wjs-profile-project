@@ -6,4 +6,4 @@ from .models import PluginConfig
 
 @register(PluginConfig)
 class PluginConfigOptions(TranslationOptions):
-    fields = ("title",)
+    fields = ("title", "secondbox_title")

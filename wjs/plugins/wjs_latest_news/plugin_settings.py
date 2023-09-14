@@ -90,15 +90,23 @@ def get_plugin_context(request, homepage_elements):
     # filter news by
     # - start display in the past
     # - no end display or end display in the future
-    news_filter = Q(Q(start_display__lte=now()) & (Q(end_display__gte=now()) | Q(end_display__isnull=True)))
+    base_filter = Q(Q(start_display__lte=now()) & (Q(end_display__gte=now()) | Q(end_display__isnull=True)))
 
     # - current journal if defined
     if content_type and journal.pk:
-        news_filter &= Q(content_type=content_type) & Q(object_id=journal.pk)
+        base_filter &= Q(content_type=content_type) & Q(object_id=journal.pk)
 
+    # filter by tag news/call specs#479
+    news_filter = base_filter & Q(tags__text="news")
     news = NewsItem.objects.filter(news_filter).order_by("sequence", "-start_display")
 
+    calls_filter = base_filter & Q(tags__text="call")
+    calls = NewsItem.objects.filter(calls_filter).order_by("sequence", "-start_display")
+
+    # values for second_title and second_box count to be added in configuration
     return {
         f"{SHORT_NAME}_list": news[: configuration.count if configuration else 10],
         f"{SHORT_NAME}_title": configuration.title if configuration else "News",
+        f"{SHORT_NAME}_second_box": calls[: configuration.secondbox_count if configuration else 10],
+        f"{SHORT_NAME}_second_title": configuration.secondbox_title if configuration else "Call for papers",
     }

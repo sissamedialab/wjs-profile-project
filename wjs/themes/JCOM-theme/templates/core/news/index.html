@@ -10,7 +10,11 @@
         <div class="col m12">
             <div class="cms-page card">
                 <div class="cms-page-content card-content">
-                    <h1 class="main-title">{{ journal_settings.news.news_title }}</h1>
+                    {% if tag == "call" %}
+                        <h1 class="main-title">{% trans "Call for papers" %}</h1>
+                    {% else %}
+                        <h1 class="main-title">{{ journal_settings.news.news_title }}</h1>
+                    {% endif %}
                     {% if tag %}
                         <h3>{% trans "Filtering tag" %}: {{ tag }}</h3>
                     {% endif %}

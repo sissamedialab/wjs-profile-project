@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import factory
 import pytest
+from comms.models import NewsItem, Tag
 from django.contrib.contenttypes.models import ContentType
 from django.utils.timezone import now
 
@@ -39,13 +40,24 @@ def test_news_context(fake_request, news_item_factory):
         start_display=factory.Sequence(lambda n: _now - timedelta(days=(news_count + n))),
         end_display=factory.Sequence(lambda n: _now - timedelta(days=n) if n % 3 == 0 else None),
     )
+    for news_item in NewsItem.objects.filter(content_type=content_type, object_id=journal.pk):
+        news_item.tags.set(
+            [
+                Tag.objects.get_or_create(text="news")[0].id
+                if news_item.sequence % 2 == 0
+                else Tag.objects.get_or_create(text="call")[0].id,
+            ],
+        )
+
     # non journal news, these should not appear in the set of results
     news_item_factory.create_batch(
         news_count,
     )
     context = get_news_plugin_context(fake_request, [home_page_element])
-    assert len(context["wjs_latest_news_list"]) == 7
-    assert [n.sequence for n in context["wjs_latest_news_list"]] == [2, 3, 5, 6, 8, 9, 10]
+    assert len(context["wjs_latest_news_list"]) == 4
+    assert len(context["wjs_latest_news_second_box"]) == 3
+    assert [n.sequence for n in context["wjs_latest_news_list"]] == [2, 6, 8, 10]
+    assert [n.sequence for n in context["wjs_latest_news_second_box"]] == [3, 5, 9]
 
 
 @pytest.mark.django_db
