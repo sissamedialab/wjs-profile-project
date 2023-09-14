@@ -1338,9 +1338,13 @@ def search(request):
         year = int(request.GET.get("year", None))
     except (TypeError, ValueError):
         year = None
-    # we must cast to int the resulting values because we are going to check
-    # if the section id is in the list in the template, and thus the type must match
-    selected_sections = list(map(int, selected_sections))
+
+    try:
+        # we must cast to int the resulting values because we are going to check
+        # if the section id is in the list in the template, and thus the type must match
+        selected_sections = list(map(int, selected_sections))
+    except ValueError:
+        selected_sections = [1]
 
     if redir:
         return redir
