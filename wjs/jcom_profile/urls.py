@@ -168,6 +168,17 @@ urlpatterns = [
 # Some experimental / Easter-egg URLs
 experimental_urls = [
     re_path("experimental/issues", experimental_views.IssuesForceGraph.as_view(), name="issues_forcegraph"),
+    re_path("experimental/authors_by_coa", experimental_views.AuthorsForceGraph.as_view(), name="authors_forcegraph"),
+    re_path(
+        "experimental/authors_by_kwd",
+        experimental_views.AuthorsKeywordsForceGraph.as_view(),
+        name="authors_forcegraph",
+    ),
+    re_path(
+        "experimental/articles_by_kwd",
+        experimental_views.ArticlesByKeywordForceGraph.as_view(),
+        name="articles_forcegraph",
+    ),
     re_path(r"newsletter/(?P<journal>[\w.()-]+)/", newsletter_views.newsletter, name="newsletter"),
 ]
 
