@@ -254,6 +254,11 @@ class Recipient(models.Model):
     news = models.BooleanField(verbose_name=_("Generic news topic"), default=False)
     newsletter_token = models.CharField(_("newsletter token for anonymous users"), max_length=500, blank=True)
     email = models.EmailField(_("Anonymous user email"), blank=True, null=True)
+    confirmation_email_last_sent = models.DateTimeField(
+        _("When the subscription/reminder confirmation email has been sent to an anonymous recipient"),
+        blank=True,
+        null=True,
+    )
 
     class Meta:
         verbose_name = _("recipient")

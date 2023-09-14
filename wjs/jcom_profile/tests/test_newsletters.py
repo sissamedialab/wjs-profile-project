@@ -1167,3 +1167,106 @@ def test_news_collection_wrt_last_sent_and_now(
     assert len(news) == (1 if expected else 0)
 
     assert (news_item in news) is expected
+
+
+@pytest.mark.django_db
+def test_multiple_registrations_to_newsletter_as_anonymous_user_without_grace(
+    journal,
+    custom_newsletter_setting,
+    mock_premailer_load_url,
+    caplog,
+):
+    """Test what happens if an anonymous user register twice in rapid succession.
+
+    See also specs#489.
+    """
+    client = Client()
+    url = f"/{journal.code}/register/newsletters/"
+    anonymous_email = "anonymous@email.com"
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # "Register" a first time
+    data = {"email": anonymous_email}
+    response = client.post(url, data, follow=True)
+    redirect_url, status_code = response.redirect_chain[-1]
+    assert status_code == 302
+    assert redirect_url == reverse("register_newsletters_email_sent")
+
+    assert len(mail.outbox) == 1
+
+    recipient = Recipient.objects.get(email=anonymous_email)
+    confirmation_email_last_sent = recipient.confirmation_email_last_sent
+    assert confirmation_email_last_sent is not None
+
+    # Now "register" a second time. We expect:
+    # - no change from the user perspective,
+    # - but the email will not be sent
+    # - and a warning will be logged.
+    response = client.post(url, data, follow=True)
+    redirect_url, status_code = response.redirect_chain[-1]
+    assert status_code == 302
+    assert redirect_url == reverse("register_newsletters_email_sent")
+
+    assert len(mail.outbox) == 1
+
+    # We don't expect the "last sent" to change (since we don't send a new email)
+    recipient.refresh_from_db()
+    assert recipient.confirmation_email_last_sent == confirmation_email_last_sent
+
+    assert "Refusing to send" in caplog.text
+    assert str(confirmation_email_last_sent) in caplog.text
+
+
+@pytest.mark.freeze_time
+@pytest.mark.django_db
+def test_multiple_registrations_to_newsletter_as_anonymous_user_with_grace(
+    journal,
+    custom_newsletter_setting,
+    mock_premailer_load_url,
+    caplog,
+    freezer,
+):
+    """Test what happens if an anonymous user register twice, but with some time in between registrations.
+
+    See also specs#489.
+    """
+    client = Client()
+    url = f"/{journal.code}/register/newsletters/"
+    anonymous_email = "anonymous@email.com"
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # "Register" a first time
+    data = {"email": anonymous_email}
+    response = client.post(url, data, follow=True)
+    redirect_url, status_code = response.redirect_chain[-1]
+    assert status_code == 302
+    assert redirect_url == reverse("register_newsletters_email_sent")
+
+    assert len(mail.outbox) == 1
+
+    recipient = Recipient.objects.get(email=anonymous_email)
+    confirmation_email_last_sent = recipient.confirmation_email_last_sent
+    assert confirmation_email_last_sent is not None
+
+    freezer.move_to(confirmation_email_last_sent + timezone.timedelta(minutes=6))
+
+    # Now "register" a second time. We expect:
+    # - no change from the user perspective,
+    # - a new the email has been sent
+    # - no warning has been logged
+    # - the confirmation_email_last_sent has been advanced
+    response = client.post(url, data, follow=True)
+    redirect_url, status_code = response.redirect_chain[-1]
+    assert status_code == 302
+    assert redirect_url == reverse("register_newsletters_email_sent")
+
+    assert len(mail.outbox) == 2
+
+    recipient.refresh_from_db()
+    assert recipient.confirmation_email_last_sent > confirmation_email_last_sent
+
+    assert "Refusing to send" not in caplog.text

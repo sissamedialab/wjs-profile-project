@@ -26,3 +26,5 @@ fixtures
 .coverage
 node_modules
 jcomassistant.log
+
+.dir-locals.el

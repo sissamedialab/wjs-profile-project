@@ -15,7 +15,7 @@ from django.db.models import Q
 from django.http import HttpRequest
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.utils.timezone import now
+from django.utils.timezone import now, timedelta
 from django.utils.translation import override
 from journal.models import Journal
 from premailer import transform
@@ -300,10 +300,23 @@ class NewsletterMailerService:
     def send_subscription_confirmation(self, subscriber: Recipient, prefix: str):
         """Send a confirmation email to anonymous users.
 
+        Confirmation emails are sent to the same recipient only if a certain delay has passed since the previous
+        one. This is to work-around script-kiddies doing rapid-fire subscriptions.
+
         :param prefix: could be
         - publication_alert_subscription - for email to "first time" recipients
         - publication_alert_reminder - for "reminder" emails to existing recipients
+
         """
+        if subscriber.confirmation_email_last_sent and now() - subscriber.confirmation_email_last_sent < timedelta(
+            minutes=5,
+        ):
+            logger.warning(
+                f"Refusing to send a {prefix} email to {subscriber}."
+                f" Last sent at {subscriber.confirmation_email_last_sent} (now: {now()}).",
+            )
+            return
+
         # https://docs.djangoproject.com/en/1.11/ref/utils/#django.utils.translation.override
         with override(subscriber.language):
             subject = get_setting(
@@ -353,3 +366,5 @@ class NewsletterMailerService:
                 fail_silently=False,
                 html_message=newsletter_content,
             )
+            subscriber.confirmation_email_last_sent = now()
+            subscriber.save()
