@@ -17,8 +17,6 @@ from review.models import (
 )
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import JCOMProfile
-
 from .logic import (
     AssignToReviewer,
     EvaluateReview,
@@ -182,13 +180,6 @@ class InviteUserForm(forms.Form):
         self.instance = kwargs.pop("instance")
         self.user = kwargs.pop("user")
         super().__init__(*args, **kwargs)
-
-    def clean(self):
-        cleaned_data = super().clean()
-        user_exists = JCOMProfile.objects.filter(email=cleaned_data["email"]).exists()
-        if user_exists:
-            self.add_error("email", _("User already exists"))
-        return cleaned_data
 
     def get_logic_instance(self) -> InviteReviewer:
         """Instantiate :py:class:`InviteReviewer` class."""
