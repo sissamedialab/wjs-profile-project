@@ -299,9 +299,8 @@ class InviteReviewer:
 
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
-        user_exists = JCOMProfile.objects.filter(email=self.form_data["email"]).exists()
         has_journal = self.request.journal
-        return not user_exists and has_journal
+        return has_journal
 
     def _create_user(self, token: str) -> JCOMProfile:
         user = JCOMProfile.objects.create(
@@ -313,9 +312,30 @@ class InviteReviewer:
         )
         return user
 
-    def _notify_user(self):
+    def _get_or_create_user(self, email: str) -> JCOMProfile:
+        """
+        The match is done via email address, and this method returns the user with the given email address,
+        being it already existing or freshly created.
+        The caller will be able to distinguish between "existing" or "created" user by checking invitation_token
+        in the returned JCOMProfile instance.
+        """
+        try:
+            # Try to get the user with the given email...
+            user = JCOMProfile.objects.get(email=email)
+        except JCOMProfile.DoesNotExist:
+            # If it does not exist, generate a token and a new user with the just created token
+            token = self._generate_token()
+            user = self._create_user(token)
+        return user
+
+    def _notify_user(self, user: JCOMProfile):
         """Notify current user that the invitation has been sent."""
-        messages.add_message(self.request, messages.INFO, _("Invitation sent to %s.") % self.form_data["last_name"])
+        if user.invitation_token:
+            # If there is a token, the user did not exist and it was invited
+            messages.add_message(self.request, messages.INFO, _("Invitation sent to %s.") % user.last_name)
+        else:
+            # If there is no token, the user was already existing and thus assigned to the review automatically
+            messages.add_message(self.request, messages.INFO, _("%s assigned to the article review.") % user.last_name)
 
     def _assign_reviewer(self, user: JCOMProfile) -> ReviewAssignment:
         """Create a review assignment for the invited user."""
@@ -333,10 +353,11 @@ class InviteReviewer:
             conditions = self.check_conditions()
             if not conditions:
                 raise ValidationError(_("Invitation conditions not met"))
-            token = self._generate_token()
-            user = self._create_user(token)
+            user = self._get_or_create_user(self.form_data["email"])
             self._assign_reviewer(user)
-            self._notify_user()
+            # The user (which is a JCOMProfile instance) is also used to check for the invitation token and to choose
+            # the right message for the notification.
+            self._notify_user(user=user)
             return user
 
 

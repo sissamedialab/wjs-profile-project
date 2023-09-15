@@ -298,5 +298,51 @@ def test_invite_reviewer(
     assert acceptance_url in email.body
 
 
-# TODO: test invite user fails if user already exists
+# TODO: Tailor the last part of the test, regarding notification and email
+@pytest.mark.django_db
+def test_invite_reviewer_but_user_already_exists(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    review_settings,
+):
+    """A user can be invited but if the email is of an existing user the assignment is automatically created."""
+    fake_request.user = section_editor.janeway_account
+
+    user_data = {
+        "first_name": normal_user.first_name,
+        "last_name": normal_user.last_name,
+        "email": normal_user.email,
+        "message": "random message",
+    }
+
+    service = InviteReviewer(
+        workflow=assigned_article.articleworkflow,
+        editor=section_editor.janeway_account,
+        form_data=user_data,
+        request=fake_request,
+    )
+    assert JCOMProfile.objects.filter(email=user_data["email"]).exists()
+    assert assigned_article.reviewassignment_set.count() == 0
+
+    invited_user = service.run()
+    assigned_article.refresh_from_db()
+
+    assert invited_user == normal_user
+    assert invited_user.janeway_account in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.stage == "Under Review"
+    assert assigned_article.reviewassignment_set.count() == 1
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assignment = assigned_article.reviewassignment_set.first()
+    assert assignment.reviewer == invited_user.janeway_account
+    assert assignment.editor == section_editor.janeway_account
+    assert len(mail.outbox) == 1
+    email = mail.outbox[0]
+    assert email.to == [invited_user.email]
+
+
 # TODO: test failure in AssignToReviewer are bubbled up
