@@ -65,3 +65,15 @@ h2 {
   font-size: 0.75rem;
   text-align: center;
 }
+
+.header {
+  &-cell {
+    &--right {
+      text-align: right;
+    }
+
+    &--left {
+      text-align: left;
+    }
+  }
+}
