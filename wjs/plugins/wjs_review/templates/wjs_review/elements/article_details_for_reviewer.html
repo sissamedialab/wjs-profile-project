@@ -39,6 +39,7 @@
         </p>
         {% if assignment.date_declined %}<p>{% translate "Review request declined on" %} {{ assignment.date_declined }}.</p>{% endif %}
         {% if assignment.date_accepted %}<p>{% translate "Review request accepted on" %} {{ assignment.date_accepted }}.</p>{% endif %}
+        {% if assignment.date_due %}<p>{% translate "Review due on" %} {{ assignment.date_due }}.</p>{% endif %}
         {% if assignment.is_complete %}<p>{% translate "Review completed on" %} {{ assignment.date_complete }}.</p>{% endif %}
     </div>
     <div class="col">
