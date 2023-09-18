@@ -64,3 +64,4 @@ class SkipMigrations(Mapping):
 
 
 MIGRATION_MODULES = SkipMigrations()
+HIJACK_USERS_ENABLED = True

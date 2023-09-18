@@ -124,6 +124,7 @@ def fake_request(journal, settings):
     # messages are required by review functions
     settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
     fake_request._messages = default_storage(fake_request)
+    fake_request.COOKIES = {}
     return fake_request
 
 
