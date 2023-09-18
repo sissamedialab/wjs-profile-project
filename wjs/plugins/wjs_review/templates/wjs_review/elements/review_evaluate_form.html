@@ -8,6 +8,18 @@
         </div>
     </div>
     <div class="row">
+        <div class="col">
+            {% bootstrap_field form.date_due %}
+        </div>
+    </div>
+    {% if assignment.date_accepted %}
+    <div class="row">
+        <div class="col-6">
+            {% bootstrap_button button_type="submit" name="reviewer_decision" value=2 content="Update due date" %}
+        </div>
+    </div>
+    {% endif %}
+    <div class="row">
         {% if not assignment.date_accepted %}
             <div class="col-6">
                 {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Accept" %}

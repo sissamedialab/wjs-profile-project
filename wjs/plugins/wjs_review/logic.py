@@ -221,6 +221,11 @@ class EvaluateReview:
         user.gdpr_checkbox = True
         user.save()
 
+    def _save_date_due(self):
+        date_due = self.form_data.get("date_due")
+        if date_due:
+            self.assignment.save()
+
     def run(self) -> Optional[bool]:
         with transaction.atomic():
             conditions = self.check_conditions()
@@ -228,6 +233,7 @@ class EvaluateReview:
                 raise ValidationError(_("Transition conditions not met"))
             if self.token:
                 self._activate_invitation(self.token)
+            self._save_date_due()
             if self.form_data.get("reviewer_decision") == "1":
                 return self._handle_accept()
             if self.form_data.get("reviewer_decision") == "0":

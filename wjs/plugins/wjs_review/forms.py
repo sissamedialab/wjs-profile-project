@@ -207,17 +207,23 @@ class InviteUserForm(forms.Form):
 
 
 class EvaluateReviewForm(forms.ModelForm):
-    reviewer_decision = forms.ChoiceField(choices=(("1", _("Accept")), ("0", _("Reject"))), required=True)
+    reviewer_decision = forms.ChoiceField(
+        choices=(("1", _("Accept")), ("0", _("Reject")), ("2", _("Update"))),
+        required=True,
+    )
     decline_reason = forms.CharField(
         label=_("Please provide a reason for declining"),
         widget=SummernoteWidget(),
         required=False,
     )
     accept_gdpr = forms.BooleanField(required=False, widget=forms.HiddenInput())
+    # https://docs.djangoproject.com/en/3.2/ref/forms/widgets/#dateinput
+    # By default DateInput is an <input type="text">
+    date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
 
     class Meta:
         model = ReviewAssignment
-        fields = ["reviewer_decision", "comments_for_editor"]
+        fields = ["reviewer_decision", "comments_for_editor", "date_due"]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
@@ -227,6 +233,14 @@ class EvaluateReviewForm(forms.ModelForm):
             self.fields["accept_gdpr"].widget = forms.CheckboxInput()
         if self.instance.date_accepted:
             self.fields["reviewer_decision"].required = False
+        if self.instance.date_due:
+            self.fields["date_due"].widget.attrs["min"] = self.instance.date_due
+
+    def clean_date_due(self):
+        date_due = self.cleaned_data.get("date_due", None)
+        if date_due and date_due < self.instance.date_due:
+            raise forms.ValidationError(_("Date must be in the future"))
+        return date_due
 
     def clean(self):
         cleaned_data = super().clean()
