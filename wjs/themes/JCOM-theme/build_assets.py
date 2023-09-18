@@ -20,6 +20,7 @@ THEME_CSS_FILES = [
     os.path.join(BASE_THEME_DIR, "css", "jcomal.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_jcom.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_jcomal.css"),
+    os.path.join(BASE_THEME_DIR, "css", "newsletter_mobile.css"),
 ]
 
 

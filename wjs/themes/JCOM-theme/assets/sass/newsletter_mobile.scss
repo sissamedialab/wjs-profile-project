@@ -1,0 +1,5 @@
+@charset "UTF-8";
+
+/* Mobile only stiles in a separate file because we must load it with data-premailer="ignore" tag */
+
+@import "newsletter_mquery";

@@ -8,12 +8,13 @@
     <meta http-equiv="Content-type" content="text/html" charset="UTF-8" />
     <title>Publication Alert - {{ journal.name }}</title>
     <link rel="stylesheet" href="{% static "JCOM-theme/css/newsletter_" %}{{ journal.code|lower }}.css">
+    <link rel="stylesheet" data-premailer="ignore" href="{% static "JCOM-theme/css/newsletter_mobile.css" %}">
 </head>
 <body>
     <table width="100%">
-        <tr>
-            <td align="left">{% svg_or_image journal.default_cover_image %}</td>
-            <td align="right">{% svg_or_image journal.press_image_override %}</td>
+        <tr class="header-row">
+            <th class="header-cell header-cell--left">{% svg_or_image journal.default_cover_image %}</th>
+            <th class="header-cell header-cell--right">{% svg_or_image journal.press_image_override %}</th>
         </tr>
     </table>
     <div class="container">
