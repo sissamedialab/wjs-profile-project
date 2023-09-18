@@ -1,10 +1,12 @@
 import pytest  # noqa
+from django.http import HttpRequest
 from review import models as review_models
+from review.models import ReviewAssignment
 from utils import setting_handler  # noqa
 
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
-from ..logic import AssignToEditor
+from ..logic import AssignToEditor, AssignToReviewer
 from ..models import ArticleWorkflow
 from ..plugin_settings import set_default_plugin_settings
 
@@ -47,3 +49,23 @@ def review_form(journal):
         journal,
         review_form_element.pk,
     )
+
+
+@pytest.fixture
+def review_assignment(
+    fake_request: HttpRequest,
+    invited_user: JCOMProfile,  # noqa: F405
+    assigned_article: submission_models.Article,  # noqa: F405
+    review_form: review_models.ReviewForm,
+    review_settings,
+) -> ReviewAssignment:
+    editor = assigned_article.editorassignment_set.first().editor
+    fake_request.user = editor
+    assign_service = AssignToReviewer(
+        reviewer=invited_user.janeway_account,
+        workflow=assigned_article.articleworkflow,
+        editor=editor,
+        form_data={},
+        request=fake_request,
+    )
+    return assign_service.run()

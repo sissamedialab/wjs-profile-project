@@ -3,17 +3,19 @@ from datetime import timedelta
 import pytest
 from dateutil.utils import today
 from django.core import mail
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 from django.urls import reverse
 from faker import Faker
 from review import models as review_models
+from review.models import ReviewAssignment
 from submission import models as submission_models
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
-from ..logic import AssignToEditor, AssignToReviewer, InviteReviewer
+from ..logic import AssignToEditor, AssignToReviewer, EvaluateReview, InviteReviewer
 from ..models import ArticleWorkflow
 
 fake_factory = Faker()
@@ -298,7 +300,102 @@ def test_invite_reviewer(
     assert acceptance_url in email.body
 
 
-# TODO: Tailor the last part of the test, regarding notification and email
+@pytest.mark.parametrize("accept_gdpr", (True, False))
+@pytest.mark.django_db
+def test_handle_accept_invite_reviewer(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    review_assignment: ReviewAssignment,
+    review_settings,
+    accept_gdpr: bool,
+):
+    """If the user accepts the invitation, assignment is accepted and user is confirmed if they accept GDPR."""
+
+    invited_user = review_assignment.reviewer
+    assignment = assigned_article.reviewassignment_set.first()
+
+    evaluate_data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr}
+
+    fake_request.user = invited_user
+    evaluate = EvaluateReview(
+        assignment=assignment,
+        reviewer=invited_user,
+        editor=section_editor.janeway_account,
+        form_data=evaluate_data,
+        request=fake_request,
+        token=invited_user.jcomprofile.invitation_token,
+    )
+    if accept_gdpr:
+        evaluate.run()
+    else:
+        with pytest.raises(ValidationError, match="Transition conditions not met"):
+            evaluate.run()
+    assignment.refresh_from_db()
+    invited_user.refresh_from_db()
+    invited_user.jcomprofile.refresh_from_db()
+
+    if accept_gdpr:
+        assert invited_user.is_active
+        assert invited_user.jcomprofile.gdpr_checkbox
+        assert not invited_user.jcomprofile.invitation_token
+        assert assignment.date_accepted
+        assert not assignment.date_declined
+        assert not assignment.is_complete
+    else:
+        assert not invited_user.is_active
+        assert not invited_user.jcomprofile.gdpr_checkbox
+        assert invited_user.jcomprofile.invitation_token
+        assert not assignment.date_accepted
+        assert not assignment.date_declined
+        assert not assignment.is_complete
+
+
+@pytest.mark.parametrize("accept_gdpr", (True, False))
+@pytest.mark.django_db
+def test_handle_decline_invite_reviewer(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    review_assignment: ReviewAssignment,
+    review_settings,
+    accept_gdpr: bool,
+):
+    """If the user declines the invitation, assignment is declined and user is confirmed if they accept GDPR."""
+
+    invited_user = review_assignment.reviewer
+    assignment = assigned_article.reviewassignment_set.first()
+    fake_request.GET = {"access_code": assignment.access_code}
+
+    evaluate_data = {"reviewer_decision": "0", "accept_gdpr": accept_gdpr}
+
+    fake_request.user = invited_user
+    evaluate = EvaluateReview(
+        assignment=assignment,
+        reviewer=invited_user,
+        editor=section_editor.janeway_account,
+        form_data=evaluate_data,
+        request=fake_request,
+        token=invited_user.jcomprofile.invitation_token,
+    )
+    evaluate.run()
+    assignment.refresh_from_db()
+    invited_user.refresh_from_db()
+
+    assert invited_user.is_active == accept_gdpr
+    assert invited_user.jcomprofile.gdpr_checkbox == accept_gdpr
+    assert bool(invited_user.jcomprofile.invitation_token) != accept_gdpr
+    assert not assignment.date_accepted
+    assert assignment.date_declined
+    assert assignment.is_complete
+
+
+# TODO: test invite user fails if user already exists
+# TODO: test failure in AssignToReviewer are bubbled up
+
+
 @pytest.mark.django_db
 def test_invite_reviewer_but_user_already_exists(
     fake_request: HttpRequest,
@@ -343,6 +440,3 @@ def test_invite_reviewer_but_user_already_exists(
     assert len(mail.outbox) == 1
     email = mail.outbox[0]
     assert email.to == [invited_user.email]
-
-
-# TODO: test failure in AssignToReviewer are bubbled up

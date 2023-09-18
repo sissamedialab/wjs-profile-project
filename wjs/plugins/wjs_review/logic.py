@@ -187,7 +187,9 @@ class EvaluateReview:
         """Check if the conditions for the assignment are met."""
         reviewer_conditions = self.check_reviewer_conditions(self.assignment, self.reviewer)
         editor_conditions = self.check_editor_conditions(self.assignment, self.editor)
-        return reviewer_conditions and editor_conditions
+        date_due_set = bool(self.assignment.date_due)
+        gdpr_compliant = self.form_data.get("accept_gdpr") or self.form_data.get("reviewer_decision") != "1"
+        return reviewer_conditions and editor_conditions and date_due_set and gdpr_compliant
 
     def _handle_accept(self) -> Optional[bool]:
         """
@@ -216,14 +218,28 @@ class EvaluateReview:
             return False
 
     def _activate_invitation(self, token: str):
-        user = JCOMProfile.objects.get(invitation_token=token)
-        user.is_active = True
-        user.gdpr_checkbox = True
-        user.save()
+        """
+        Activate user, only if accept_gdpr is set.
+        """
+        if self.form_data.get("accept_gdpr"):
+            user = JCOMProfile.objects.get(invitation_token=token)
+            user.is_active = True
+            user.gdpr_checkbox = True
+            user.invitation_token = ""
+            user.save()
+            if self.request.user == user.janeway_account:
+                # request user must be refreshed to ensure flags are loaded correctly
+                self.request.user.refresh_from_db()
 
     def _save_date_due(self):
+        """
+        Set and save date_due on assignment if present in form_data.
+        """
         date_due = self.form_data.get("date_due")
         if date_due:
+            # This can be a noop if EvaluateReview is called from EvaluateReviewForm because it's a model form
+            # which already set the attribute (but the object is not saved because form save method is overridden)
+            self.assignment.date_due = date_due
             self.assignment.save()
 
     def run(self) -> Optional[bool]:
