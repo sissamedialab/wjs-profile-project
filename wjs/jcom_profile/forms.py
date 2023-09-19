@@ -398,7 +398,7 @@ class NewsletterTopicForm(forms.ModelForm):
                 del self.fields["language"]
 
 
-class RegisterUserNewsletterForm(forms.Form):
+class RegisterUserNewsletterForm(CaptchaForm):
     """Register an Anonymous user to a newsletter."""
 
     email = forms.EmailField(required=True)
