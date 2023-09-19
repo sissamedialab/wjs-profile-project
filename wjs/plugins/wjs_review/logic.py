@@ -10,7 +10,7 @@ from django.http import HttpRequest
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
-from events import logic as event_logic
+from events import logic as events_logic
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from review.views import (
@@ -424,8 +424,8 @@ class SubmitReview:
         """Trigger the ON_REVIEW_COMPLETE event to comply with upstream review workflow."""
         if submit_final:
             kwargs = {"review_assignment": assignment, "request": request}
-            event_logic.Events.raise_event(
-                event_logic.Events.ON_REVIEW_COMPLETE,
+            events_logic.Events.raise_event(
+                events_logic.Events.ON_REVIEW_COMPLETE,
                 task_object=assignment.article,
                 **kwargs,
             )
@@ -455,7 +455,7 @@ class HandleDecision:
     def _trigger_article_event(self, event: str, context: Dict[str, Any]):
         """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
 
-        return event_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
+        return events_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
 
     def _trigger_workflow_event(self):
         """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
@@ -465,7 +465,7 @@ class HandleDecision:
             "article": self.workflow.article,
             "switch_stage": True,
         }
-        self._trigger_article_event(event_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
+        self._trigger_article_event(events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
 
     @staticmethod
     def _get_email_context(article: Article, request: HttpRequest, form_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -494,7 +494,7 @@ class HandleDecision:
         self.workflow.save()
 
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
-        self._trigger_article_event(event_logic.Events.ON_ARTICLE_ACCEPTED, context)
+        self._trigger_article_event(events_logic.Events.ON_ARTICLE_ACCEPTED, context)
         return self.workflow.article
 
     def _decline_article(self) -> Article:
@@ -512,7 +512,7 @@ class HandleDecision:
         self.workflow.save()
 
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
-        self._trigger_article_event(event_logic.Events.ON_ARTICLE_DECLINED, context)
+        self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         return self.workflow.article
 
     def _not_suitable_article(self) -> Article:
@@ -530,7 +530,7 @@ class HandleDecision:
         self.workflow.save()
 
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
-        self._trigger_article_event(event_logic.Events.ON_ARTICLE_DECLINED, context)
+        self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         return self.workflow.article
 
     def _close_unsubmitted_reviews(self):

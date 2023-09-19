@@ -2,8 +2,11 @@
 
 Journal level configuration is made using the 'WJS_ARTICLE_ASSIGNMENT_FUNCTIONS' setting
 """
+from typing import Optional
+
 from django.conf import settings
 from django.utils.module_loading import import_string
+from review import models as review_models
 
 
 def get_special_issue_parameters(article):
@@ -21,7 +24,7 @@ def get_special_issue_parameters(article):
     )
 
 
-def default_assign_editors_to_articles(**kwargs) -> None:
+def default_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign editors to article for review. Default algorithm."""
     from review.logic import assign_editor
     from utils.logic import get_current_request
@@ -37,10 +40,18 @@ def default_assign_editors_to_articles(**kwargs) -> None:
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal)
     if parameters:
         request = get_current_request()
-        assign_editor(article, parameters.order_by("workload").first().editor, "editor", request, False)
+        if parameters.order_by("workload").first():
+            assignment, created = assign_editor(
+                article,
+                parameters.order_by("workload").first().editor,
+                "editor",
+                request,
+                False,
+            )
+            return assignment
 
 
-def jcom_assign_editors_to_articles(**kwargs):
+def jcom_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign editors to article for review. JCOM algorithm."""
     from core.models import AccountRole, Role
     from review.logic import assign_editor
@@ -62,13 +73,21 @@ def jcom_assign_editors_to_articles(**kwargs):
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=directors)
     if parameters:
         request = get_current_request()
-        assign_editor(article, parameters.order_by("workload").first().editor, "editor", request, False)
+        if parameters.order_by("workload").first():
+            assignment, created = assign_editor(
+                article,
+                parameters.order_by("workload").first().editor,
+                "editor",
+                request,
+                False,
+            )
+            return assignment
 
 
-def dispatch_assignment(**kwargs) -> None:
+def dispatch_assignment(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Dispatch editors assignment on journal basis, selecting the requested assignment algorithm."""
     journal = kwargs["article"].journal.code
     if journal in settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS:
-        import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(journal))(**kwargs)
+        return import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(journal))(**kwargs)
     else:
-        import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None))(**kwargs)
+        return import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None))(**kwargs)

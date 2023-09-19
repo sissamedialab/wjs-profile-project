@@ -1,11 +1,13 @@
 import pytest  # noqa
 from django.http import HttpRequest
+from events import logic as events_logic
 from review import models as review_models
 from review.models import ReviewAssignment
 from utils import setting_handler  # noqa
 
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
+from ..events import ReviewEvent
 from ..logic import AssignToEditor, AssignToReviewer
 from ..models import ArticleWorkflow
 from ..plugin_settings import set_default_plugin_settings
@@ -25,9 +27,19 @@ def assigned_article(fake_request, article, section_editor):
         editor=section_editor,
         request=fake_request,
     ).run()
-    workflow.article.stage = "Assigned"
-    workflow.article.save()
+    assert workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     return workflow.article
+
+
+@pytest.fixture
+def submitted_workflow(
+    journal: journal_models.Journal,  # noqa
+    create_submitted_articles: Callable,  # noqa
+) -> ArticleWorkflow:
+    article = create_submitted_articles(journal, count=1)[0]
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.SUBMITTED
+    article.articleworkflow.save()
+    return article.articleworkflow
 
 
 @pytest.fixture
@@ -69,3 +81,12 @@ def review_assignment(
         request=fake_request,
     )
     return assign_service.run()
+
+
+@pytest.fixture
+def with_no_hooks_for_on_article_workflow_submitted():
+    """Disable ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED hook to skip chained events."""
+    old_setting = events_logic.Events._hooks[ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED]
+    events_logic.Events._hooks[ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED] = []
+    yield
+    events_logic.Events._hooks[ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED] = old_setting

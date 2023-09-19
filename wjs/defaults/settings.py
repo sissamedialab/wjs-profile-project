@@ -121,6 +121,11 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     "JCOM": "wjs.jcom_profile.events.assignment.jcom_assign_editors_to_articles",
 }
 
+WJS_REVIEW_CHECK_FUNCTIONS = {
+    None: ("wjs_review.events.checks.always_accept",),
+    "JCOM": ("wjs_review.events.checks.always_accept",),
+}
+
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")
 
 INSTALLATION_BASE_THEME = "material"

@@ -41,3 +41,22 @@ class WjsReviewConfig(AppConfig):
         AccountQuerySet.annotate_declined_current_review_round = users.annotate_declined_current_review_round
         AccountQuerySet.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
         AccountQuerySet.annotate_worked_with_me = users.annotate_worked_with_me
+
+        self.register_events()
+
+    def register_events(self):
+        """Register our function in Janeway's events logic."""
+        from events import logic as events_logic
+
+        from .events import ReviewEvent
+        from .events.handlers import on_article_submitted, on_workflow_submitted
+
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_SUBMITTED,
+            on_article_submitted,
+        )
+
+        events_logic.Events.register_for_event(
+            ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED,
+            on_workflow_submitted,
+        )
