@@ -13,6 +13,7 @@
                            name="email"
                            placeholder="{% trans "Your email" %}">
                 </div>
+                {% include "forms/field.html" with field=wjs_subscribe_newsletter_form.captcha hide_label=True %}
                 <div class="input-field">
                     <button name="submit" class="btn">{% trans "Subscribe" %}</button>
                 </div>

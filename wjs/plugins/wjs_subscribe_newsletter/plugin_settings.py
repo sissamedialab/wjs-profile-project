@@ -66,10 +66,15 @@ def hook_registry():
     }
 
 
+from wjs.jcom_profile.forms import RegisterUserNewsletterForm
+
+
 def get_plugin_context(request, homepage_elements):
     from .models import PluginConfig
 
     element = PluginConfig.objects.filter(journal=request.journal).first()
+    form = RegisterUserNewsletterForm()
     return {
         f"{SHORT_NAME}_element": element,
+        f"{SHORT_NAME}_form": form,
     }

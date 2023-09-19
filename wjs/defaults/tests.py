@@ -28,6 +28,8 @@ MIDDLEWARE = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE + WJS_MIDDLEWARE  # noqa
 
 # NEWSLETTER_URL = "http://testserver.com"  # noqa
 
+CAPTCHA_TYPE = "🐖"
+
 # Ported class from janeway to skip migrations.
 # Data created by migrations must be recreated by fixtures in conftest
 IN_TEST_RUNNER = True

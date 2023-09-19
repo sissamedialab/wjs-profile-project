@@ -53,3 +53,9 @@ div.left-right {
   font-size: 1.5rem;
   font-weight: bold;
 }
+
+/* Set this or the width of the captcha input will get to ~500px. */
+/* Reason unknown... */
+#id_captcha {
+  width: 0px;
+}
