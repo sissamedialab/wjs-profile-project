@@ -149,6 +149,7 @@ def test_assign_to_reviewer_fails_no_form(
         request=fake_request,
     )
     assert normal_user.janeway_account not in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.stage == "Assigned"
     assert assigned_article.reviewassignment_set.count() == 0
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
 

@@ -10,10 +10,20 @@ from . import permissions
 Account = get_user_model()
 
 
-def process_submission(model):
-    """Verify and assign a submitted article to an editor."""
-    # TODO: add type hints models.ArticleWorkflow.ReviewState.???; check circular import
-    return model.ReviewStates.EDITOR_TO_BE_SELECTED
+def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
+    """
+    Verify and assign a submitted article to an editor.
+    """
+    from .events.handlers import dispatch_checks
+
+    article = workflow.article
+    success = dispatch_checks(article)
+    if success is True:
+        return workflow.ReviewStates.EDITOR_SELECTED
+    elif success is False:
+        return workflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    else:
+        return workflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
 
 
 class ArticleWorkflow(TimeStampedModel):
