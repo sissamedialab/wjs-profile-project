@@ -256,55 +256,6 @@ class EvaluateReview:
                 return self._handle_decline()
 
 
-# Some states with their actions
-# TBD: do we want to keep something of this sort here or in logic.py?
-class ED_TO_BE_SE:  # noqa N801 CapWords convention
-    actions = ("dir - selects editor",)
-
-
-class EDITO_SELEC:  # noqa N801 CapWords convention
-    actions = (
-        "ed - declines assignment",
-        "ed - assigns different editor",
-        "ed - accepts",
-        "ed - rejects",
-        "ed - deems not suitable",
-        "ed - request revision",
-        "ed - assigns self as reviewer",
-        "ed - assigns reviewer",
-        "ed - removes reviewer",
-        "ed - reminds reviewer assignment",
-        "ed - reminds reviewer report",
-        "ed - postpones rev.report deadline",
-        "ed - ask report revision",
-        "rev - accept",
-        "rev - decline",
-        "rev - write report",
-        "rev - postpones rev.report deadline",
-        "dir - reminds editor",
-    )
-
-
-class _TO_BE_REV_:  # noqa N801 CapWords convention
-    actions = (
-        "ed - reminds author",
-        "au - submits new version",
-        "au - confirms previous manuscript",
-    )
-
-
-class _REJECTED__:  # noqa N801 CapWords convention
-    actions = ("admin - opens appeal",)
-
-
-class PA_MI_HA_IS:  # noqa N801 CapWords convention
-    actions = (
-        "admin - requires resubmission",
-        "admin - deems not suitable",
-        "admin - deems issue unimportant",
-    )
-
-
 @dataclasses.dataclass
 class InviteReviewer:
     """

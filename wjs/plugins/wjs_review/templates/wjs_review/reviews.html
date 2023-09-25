@@ -43,12 +43,8 @@
         </div>
     </div>
     <div class="container">
-        <div class="row">
-            <div class="column sm-12">
-                {% for workflow in workflows %}
-                    {% include "wjs_review/elements/article_listing_for_editor.html" %}
-                {% endfor %}
-            </div>
-        </div>
+        {% for workflow in workflows %}
+            {% include "wjs_review/elements/article_listing_for_editor.html" %}
+        {% endfor %}
     </div>
 {% endblock content_wrapper %}

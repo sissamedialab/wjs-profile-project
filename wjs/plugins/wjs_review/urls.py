@@ -20,7 +20,11 @@ urlpatterns = [
     path("review/", ListArticles.as_view(), name="wjs_review_list"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
-    path("invite_reviewer/<int:pk>/", InviteReviewer.as_view(), name="wjs_review_invite"),
+    path(
+        "invite_reviewer/<int:pk>/",
+        InviteReviewer.as_view(),
+        name="wjs_review_invite",
+    ),  # TODO: rename view name in the form predicate_object (e.g. wjs_invite_review) ?
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
     path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("review/<int:assignment_id>/", ReviewSubmit.as_view(), name="wjs_review_review"),

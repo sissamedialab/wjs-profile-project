@@ -1,21 +1,25 @@
 {% load i18n wjs_review %}
-
 <div class="card border border-1">
-    <div class="card-head">{% translate "Actions" %}</div>
+    <div class="card-head">Actions</div>
     <div class="card-body">
-        {% get_available_transitions workflow as transitions %}
+        {% get_article_actions workflow "" as actions %}
+        {% comment %}TODO: probably there is no need for a form. We might just transform these into a list of "<a>"s.{% endcomment %}
         <form method="post" action="{% url "update_state" workflow.pk %}">
             <input type="hidden" name="state" value="{{ workflow.state }}">
             {% csrf_token %}
-            {% for transition in transitions %}
-                {% if transition.name != "editor_writes_editor_report" %}
-                    <button type="submit" name="action" value="{{ transition.name }}">{{ transition.name }}</button>
-                {% endif %}
-                {% if transition.name == "editor_writes_editor_report" %}
-                    <a href="{% url 'wjs_select_reviewer' workflow.pk %}">{% translate "Select reviewer" %}</a>
-                    <a href="{% url 'wjs_article_decision' workflow.pk %}">{% translate "Make a decision" %}</a>
-                {% endif %}
-            {% endfor %}
+            <p>
+                {% for action in actions %}
+                    <a class="btn {% if action.url == '#' %}btn-secondary{% else %}btn-primary{% endif %}"
+                       href="{{ action.url }}"
+                       {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %}>
+                        {% if action.label %}
+                            {{ action.label }}
+                        {% else %}
+                            {{ action.name }}
+                        {% endif %}
+                    </a>
+                {% endfor %}
+            </p>
         </form>
     </div>
 </div>
