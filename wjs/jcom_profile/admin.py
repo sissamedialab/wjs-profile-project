@@ -42,6 +42,7 @@ class CorrespondenceAdmin(admin.ModelAdmin):
     """Helper class to "admin" correspondence."""
 
     list_filter = ("source",)
+    search_fields = ["account__last_name", "email", "account__email"]
 
 
 @admin.register(SpecialIssue)
