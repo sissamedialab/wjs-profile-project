@@ -1,0 +1,57 @@
+{% load i18n wjs_review %}
+<div class="card border border-1">
+    {% with assignment=assignment_and_actions.assignment %}
+        {% with attention_flag=assignment|assignment_requires_attention_tt %}
+            <div class="card-body">
+                {% if attention_flag %}<p class="text-warning">{{ attention_flag }}</p>{% endif %}
+                <p>
+                    Assignment {{ assignment.id }} to
+                    {% if assignment.date_accepted %}
+                        <a href="{% url "wjs_review_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% elif assignment.date_declined %}
+                        <a href="{% url "wjs_declined_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% else %}
+                        <a href="{% url "wjs_evaluate_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% endif %}
+                    (requested {{ assignment.date_requested }}) for review round {{ assignment.review_round.round_number }}.
+                </p>
+                <p>
+                    Due
+                    {{ assignment.date_due }} and
+                    {% if assignment.date_accepted %}
+                        accepted {{ assignment.date_accepted }}
+                    {% elif assignment.date_declined %}
+                        declined {{ assignment.date_declined }}
+                    {% else %}
+                        waiting for anwer.
+                    {% endif %}
+                </p>
+                {% if assignment.date_reminded %}
+                    <p>
+                        Last reminder sent on
+                        {{ assignment.date_reminded }}
+                    </p>
+                {% endif %}
+                {% if assignment.date_accepted and assignment.is_complete %}
+                    <p>
+                        Completed on
+                        {{ assignment.date_complete }}.
+                    </p>
+                {% endif %}
+            </div>
+        {% endwith %}
+    {% endwith %}
+    <div>
+        {% for action in assignment_and_actions.actions %}
+            <a class="btn {% if action.url == '#' %}btn-secondary{% else %}btn-primary{% endif %}"
+               href="{{ action.url }}"
+               {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %}>
+                {% if action.label %}
+                    {{ action.label }}
+                {% else %}
+                    {{ action.name }}
+                {% endif %}
+            </a>
+        {% endfor %}
+    </div>
+</div>

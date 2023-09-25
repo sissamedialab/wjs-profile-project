@@ -47,6 +47,10 @@ def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     ) and instance.article.editorassignment_set.filter(editor=user).exists()
 
 
+def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
+    return instance.article.correspondence_author == user
+
+
 def is_system(instance: "ArticleWorkflow", user: Account) -> bool:
     """Fake permission for system-managed transitions."""
     return user is None

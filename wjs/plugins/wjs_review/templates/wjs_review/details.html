@@ -32,9 +32,43 @@
     <div class="container">
         <div class="row">
             <div class="col-sm-12 border-bottom border-2">
-                {% include "wjs_review/elements/article_actions.html" %}
+                <div class="card-head">Details</div>
+                {% with article=workflow.article %}
+                    <div>
+                        <!-- article id, type, title -->
+                        <p>
+                            {{ article.section.name }} — {{ article.id }}
+                            <span class="btn btn-primary text-white fw-bold">{{ article.title|truncatewords:5 }}</span>
+                        </p>
+                        <p>
+                            by
+                            {% for author in article.authors.all %}
+                                {% if author == article.correspondence_author %}
+                                    <span class="fst-italic" title="Corresponding / correspondence author">{{ author }},</span>
+                                {% else %}
+                                    <span>{{ author }},</span>
+                                {% endif %}
+                            {% endfor %}
+                        </p>
+                        {% with attention_flag=workflow|article_requires_attention_tt %}
+                        <p class="{% if attention_flag %}text-warning{% else %}text-primary{% endif %}">
+                            {% if attention_flag %}{{ attention_flag }} - {% endif %}
+                                Current state: "{{ workflow.get_state_display }}" (last transition {{ workflow.modified }}) on review round (aka version) {{ workflow.article.current_review_round }}
+                            </p>
+
+                        {% endwith %}
+                    </div>
+                    {% include "wjs_review/elements/article_actions.html" %}
+                    {% get_review_assignments workflow "" as assignments_and_actions %}
+                    Review assignments ({{ assignments_and_actions|length }}):
+                    {% for assignment_and_actions in assignments_and_actions %}
+                        {% include "wjs_review/elements/review_assignment.html" with assignment_and_actions=assignment_and_actions %}
+                    {% endfor %}
+                {% endwith %}
             </div>
         </div>
+    </div>
+    <div class="container">
         <div class="row">
             <div class="col-sm-12 border-bottom border-2">
                 <strong>TODO:</strong>

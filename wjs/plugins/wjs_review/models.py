@@ -28,18 +28,18 @@ def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
 
 class ArticleWorkflow(TimeStampedModel):
     class ReviewStates(models.TextChoices):
-        EDITOR_TO_BE_SELECTED = "ED_TO_BE_SE", _("Editor to be selected")
-        EDITOR_SELECTED = "EDITO_SELEC", _("Editor selected")
-        SUBMITTED = "_SUBMITTED_", _("Submitted")
-        TO_BE_REVISED = "_TO_BE_REV_", _("To be revised")
-        WITHDRAWN = "_WITHDRAWN_", _("Withdrawn")
-        REJECTED = "_REJECTED__", _("Rejected")
-        INCOMPLETE_SUBMISSION = "INCOM_SUBMI", _("Incomplete submission")
-        NOT_SUITABLE = "_NOT_SUITA_", _("Not suitable")
-        PAPER_HAS_EDITOR_REPORT = "PA_HA_ED_RE", _("Paper has editor report")
-        ACCEPTED = "_ACCEPTED__", _("Accepted")
-        WRITEME_PRODUCTION = "WRITE_PRODU", _("Writeme production")
-        PAPER_MIGHT_HAVE_ISSUES = "PA_MI_HA_IS", _("Paper might have issues")
+        EDITOR_TO_BE_SELECTED = "EditorToBeSelected", _("Editor to be selected")
+        EDITOR_SELECTED = "EditorSelected", _("Editor selected")
+        SUBMITTED = "Submitted", _("Submitted")
+        TO_BE_REVISED = "ToBeRevised", _("To be revised")
+        WITHDRAWN = "Withdrawn", _("Withdrawn")
+        REJECTED = "Rejected", _("Rejected")
+        INCOMPLETE_SUBMISSION = "IncompleteSubmission", _("Incomplete submission")
+        NOT_SUITABLE = "NotSuitable", _("Not suitable")
+        PAPER_HAS_EDITOR_REPORT = "PaperHasEditorReport", _("Paper has editor report")
+        ACCEPTED = "Accepted", _("Accepted")
+        WRITEME_PRODUCTION = "WritemeProduction", _("Writeme production")
+        PAPER_MIGHT_HAVE_ISSUES = "PaperMightHaveIssues", _("Paper might have issues")
 
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
