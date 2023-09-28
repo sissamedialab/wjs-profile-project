@@ -1,3 +1,4 @@
+import datetime
 from typing import Iterable, List
 
 import pytest
@@ -206,6 +207,90 @@ def test_accept_invite(
         assert not review_assignment.date_accepted
         assert not review_assignment.date_declined
         assert not review_assignment.is_complete
+
+
+@pytest.mark.parametrize("accept_gdpr", (True, False))
+@pytest.mark.django_db
+def test_accept_invite_date_due_in_the_future(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_settings,
+    review_form: ReviewForm,
+    clear_script_prefix_fix,
+    accept_gdpr: bool,
+):
+    """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
+    invited_user = review_assignment.reviewer
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
+    url = f"/{review_assignment.article.journal.code}{url}?access_code={review_assignment.access_code}"
+    redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
+    redirect_url = (
+        f"/{review_assignment.article.journal.code}{redirect_url}?access_code={review_assignment.access_code}"
+    )
+    # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
+    date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
+    response = client.post(url, data=data)
+    review_assignment.refresh_from_db()
+    invited_user.refresh_from_db()
+
+    if accept_gdpr:
+        assert response.status_code == 302
+        assert response.headers["Location"] == redirect_url
+        assert invited_user.is_active
+        assert invited_user.jcomprofile.gdpr_checkbox
+        assert not invited_user.jcomprofile.invitation_token
+        assert review_assignment.date_accepted
+        assert not review_assignment.date_declined
+        assert not review_assignment.is_complete
+        # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date
+        assert review_assignment.date_due == date_due
+    else:
+        assert "You must accept GDPR to continue" in response.content.decode()
+        assert not invited_user.is_active
+        assert not invited_user.jcomprofile.gdpr_checkbox
+        assert invited_user.jcomprofile.invitation_token
+        assert not review_assignment.date_accepted
+        assert not review_assignment.date_declined
+        assert not review_assignment.is_complete
+        # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date
+        assert review_assignment.date_due != date_due
+
+
+@pytest.mark.parametrize("accept_gdpr", (True, False))
+@pytest.mark.django_db
+def test_accept_invite_but_date_due_in_the_past(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_settings,
+    review_form: ReviewForm,
+    clear_script_prefix_fix,
+    accept_gdpr: bool,
+):
+    """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
+    invited_user = review_assignment.reviewer
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
+    url = f"/{review_assignment.article.journal.code}{url}?access_code={review_assignment.access_code}"
+    # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
+    date_due = review_assignment.date_due.date() - datetime.timedelta(days=1)
+    data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
+    response = client.post(url, data=data)
+    review_assignment.refresh_from_db()
+    invited_user.refresh_from_db()
+
+    assert response.status_code == 200
+    assert not invited_user.is_active
+    assert not invited_user.jcomprofile.gdpr_checkbox
+    assert invited_user.jcomprofile.invitation_token
+    assert not review_assignment.date_accepted
+    assert not review_assignment.date_declined
+    assert not review_assignment.is_complete
+    assert response.context_data["form"].errors["date_due"] == ["Date must be in the future"]
+
+    if accept_gdpr:
+        assert "You must accept GDPR to continue" not in response.content.decode()
+    else:
+        assert "You must accept GDPR to continue" in response.content.decode()
 
 
 @pytest.mark.parametrize(

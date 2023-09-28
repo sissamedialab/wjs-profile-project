@@ -1,11 +1,11 @@
-from datetime import timedelta
+import datetime
 
 import pytest
-from dateutil.utils import today
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 from django.urls import reverse
+from django.utils.timezone import now
 from faker import Faker
 from review import models as review_models
 from review.models import ReviewAssignment
@@ -101,7 +101,7 @@ def test_assign_to_reviewer(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": today() + timedelta(days=7),
+            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -143,7 +143,7 @@ def test_assign_to_reviewer_fails_no_form(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": today() + timedelta(days=7),
+            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -178,7 +178,7 @@ def test_assign_to_reviewer_no_editor(
         reviewer=normal_user.janeway_account,
         editor=normal_user.janeway_account,
         form_data={
-            "acceptance_due_date": today() + timedelta(days=7),
+            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -217,7 +217,7 @@ def test_assign_to_reviewer_author(
         reviewer=author,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": today() + timedelta(days=7),
+            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -337,20 +337,22 @@ def test_handle_accept_invite_reviewer(
     invited_user.refresh_from_db()
     invited_user.jcomprofile.refresh_from_db()
 
+    default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
+
+    assert not assignment.date_declined
+    assert not assignment.is_complete
+    assert assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+
     if accept_gdpr:
         assert invited_user.is_active
         assert invited_user.jcomprofile.gdpr_checkbox
         assert not invited_user.jcomprofile.invitation_token
         assert assignment.date_accepted
-        assert not assignment.date_declined
-        assert not assignment.is_complete
     else:
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
         assert not assignment.date_accepted
-        assert not assignment.date_declined
-        assert not assignment.is_complete
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))
@@ -385,15 +387,89 @@ def test_handle_decline_invite_reviewer(
     assignment.refresh_from_db()
     invited_user.refresh_from_db()
 
+    default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
+
     assert invited_user.is_active == accept_gdpr
     assert invited_user.jcomprofile.gdpr_checkbox == accept_gdpr
     assert bool(invited_user.jcomprofile.invitation_token) != accept_gdpr
     assert not assignment.date_accepted
     assert assignment.date_declined
     assert assignment.is_complete
+    assert assignment.date_due == now().date() + datetime.timedelta(default_review_days)
 
 
-# TODO: test invite user fails if user already exists
+@pytest.mark.django_db
+def test_handle_update_due_date_in_evaluate_review_in_the_future(
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+    review_assignment: ReviewAssignment,
+    review_settings,
+):
+    """If the user decides to postpone the due date, and it's in the future with respect to the current due date."""
+
+    invited_user = review_assignment.reviewer
+    fake_request.GET = {"access_code": review_assignment.access_code}
+
+    default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
+    # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
+    assert review_assignment.date_due.date() == now().date() + datetime.timedelta(default_review_days)
+    new_date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+
+    evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
+
+    fake_request.user = invited_user
+    evaluate = EvaluateReview(
+        assignment=review_assignment,
+        reviewer=invited_user,
+        editor=review_assignment.editor,
+        form_data=evaluate_data,
+        request=fake_request,
+        token=invited_user.jcomprofile.invitation_token,
+    )
+    evaluate.run()
+    review_assignment.refresh_from_db()
+
+    # check that the due date is updated
+    # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object
+    assert review_assignment.date_due == new_date_due
+
+
+@pytest.mark.django_db
+def test_handle_update_due_date_in_evaluate_review_in_the_past(
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+    review_assignment: ReviewAssignment,
+    review_settings,
+):
+    """If the user decides to postpone the due date, and it's in the past with respect to the current due date."""
+
+    invited_user = review_assignment.reviewer
+    fake_request.GET = {"access_code": review_assignment.access_code}
+
+    default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
+    # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
+    assert review_assignment.date_due.date() == now().date() + datetime.timedelta(default_review_days)
+    new_date_due = review_assignment.date_due.date() - datetime.timedelta(days=1)
+
+    evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
+
+    fake_request.user = invited_user
+    evaluate = EvaluateReview(
+        assignment=review_assignment,
+        reviewer=invited_user,
+        editor=review_assignment.editor,
+        form_data=evaluate_data,
+        request=fake_request,
+        token=invited_user.jcomprofile.invitation_token,
+    )
+    evaluate.run()
+    review_assignment.refresh_from_db()
+
+    # Check that the low level logic class allows to update the due date even if it's in the past
+    # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object
+    assert review_assignment.date_due == new_date_due
+
+
 # TODO: test failure in AssignToReviewer are bubbled up
 
 
