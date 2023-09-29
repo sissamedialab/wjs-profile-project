@@ -4,11 +4,9 @@
 {% block title %}
     {{ workflow.article }}
 {% endblock title %}
-{% block content_title %}
+{% block content_header %}
     <div class="col-sm-12">
-        <h2>
-            <i>{{ workflow.article }}</i>
-        </h2>
+        <p class="h2">{{ workflow.article }}</p>
         <p>
             <span class="badge bg-secondary">{{ workflow.article.section.name }}</span> by {{ workflow.article.correspondence_author }}
             {% if workflow.article.authors.count > 1 %}
@@ -17,7 +15,7 @@
                    href="#otherAuthors"
                    role="button"
                    aria-expanded="false"
-                   aria-controls="collapseExample">et al.</a>
+                   aria-controls="otherAuthors">et al.</a>
                 <span class="collapse" id="otherAuthors">
                     {% for author in workflow.article.authors.all %}
                         {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
@@ -27,79 +25,113 @@
             {% endif %}
         </p>
     </div>
-{% endblock content_title %}
-{% block content %}
+{% endblock content_header %}
+{% block left_column %}
+    {% include "wjs_review/elements/article_actions.html" %}
+{% endblock left_column %}
+{% block center_column %}
     <div class="container">
-        <div class="row">
-            <div class="col-sm-12 border-bottom border-2">
-                <div class="card-head">Details</div>
-                {% with article=workflow.article %}
-                    <div>
-                        <!-- article id, type, title -->
-                        <p>
-                            {{ article.section.name }} — {{ article.id }}
-                            <span class="btn btn-primary text-white fw-bold">{{ article.title|truncatewords:5 }}</span>
-                        </p>
-                        <p>
-                            by
-                            {% for author in article.authors.all %}
-                                {% if author == article.correspondence_author %}
-                                    <span class="fst-italic" title="Corresponding / correspondence author">{{ author }},</span>
-                                {% else %}
-                                    <span>{{ author }},</span>
-                                {% endif %}
-                            {% endfor %}
-                        </p>
-                        {% with attention_flag=workflow|article_requires_attention_tt %}
-                        <p class="{% if attention_flag %}text-warning{% else %}text-primary{% endif %}">
-                            {% if attention_flag %}{{ attention_flag }} - {% endif %}
-                                Current state: "{{ workflow.get_state_display }}" (last transition {{ workflow.modified }}) on review round (aka version) {{ workflow.article.current_review_round }}
-                            </p>
-
-                        {% endwith %}
+        {% with article=workflow.article current_review_round=workflow.article.current_review_round %}
+            <div class="row">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-head">
+                            <button class="btn btn-primary"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#paperDetails"
+                                    aria-expanded="true"
+                                    aria-controls="paperDetails">Details</button>
+                        </div>
+                        <div class="collapse show card-body" id="paperDetails">
+                            <div>
+                                {# article id, type, title and authors are already in the content_header #}
+                                {% with attention_flag=workflow|article_requires_attention_tt %}
+                                    <p class="{% if attention_flag %}text-warning{% else %}text-primary{% endif %}">
+                                        {% if attention_flag %}{{ attention_flag }} -{% endif %}
+                                        Current state: "{{ workflow.get_state_display }}" (last transition {{ workflow.modified }}) on review round (aka version) {{ workflow.article.current_review_round }}
+                                    </p>
+                                {% endwith %}
+                                <div>
+                                    <button class="btn btn-primary"
+                                            type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#paperAbstract"
+                                            aria-expanded="false"
+                                            aria-controls="paperAbstract">Abstract</button>
+                                    <button class="btn btn-primary"
+                                            type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#paperAuthorsDetails"
+                                            aria-expanded="false"
+                                            aria-controls="paperAuthorsDetails">Authors details</button>
+                                    <button class="btn btn-primary"
+                                            type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#paperKeywords"
+                                            aria-expanded="false"
+                                            aria-controls="paperKeywords">Keywords</button>
+                                    <div class="collapse" id="paperAbstract">{{ article.abstract }}</div>
+                                    <div class="collapse" id="paperAuthorsDetails">
+                                        {% for author in article.authors.all %}
+                                            <div>
+                                                {{ author }} ({{ author.country }})
+                                                <p>{{ author.biography }}</p>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="collapse" id="paperKeywords">
+                                        <ul>
+                                            {% for keyword in article.keywords.all %}<li>{{ keyword.word }}</li>{% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div>
+                                    <strong>TODO:</strong>
+                                    <ol>
+                                        <li>EO User in charge: cassano [Giulia Cassano] take in charge</li>
+                                        <li>Typesetter:  	Sara Bin</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    {% include "wjs_review/elements/article_actions.html" %}
-                    {% get_review_assignments workflow "" as assignments_and_actions %}
-                    Review assignments ({{ assignments_and_actions|length }}):
+                </div>
+            </div>
+            {# Files #}
+            <div class="row">
+                <div class="col">TODO: writeme!</div>
+            </div>
+            {# Assignements for the current review-round / version #}
+            {% get_review_assignments workflow "" as assignments_and_actions %}
+            <div class="row">
+                <div class="col">Review assignments ({{ assignments_and_actions|length }}):</div>
+            </div>
+            {# Previous review-rounds / versions #}
+            <div class="row">
+                <div class="col">
+                    <p class="h3">Current round (round {{ current_review_round }})</p>
                     {% for assignment_and_actions in assignments_and_actions %}
-                        {% include "wjs_review/elements/review_assignment.html" with assignment_and_actions=assignment_and_actions %}
+                        {% if assignment_and_actions.assignment.review_round.round_number == current_review_round %}
+                            {% include "wjs_review/elements/review_assignment.html" with assignment_and_actions=assignment_and_actions %}
+                        {% endif %}
                     {% endfor %}
-                {% endwith %}
+                </div>
             </div>
-        </div>
-    </div>
-    <div class="container">
-        <div class="row">
-            <div class="col-sm-12 border-bottom border-2">
-                <strong>TODO:</strong>
-                <ol>
-                    <li>EO User in charge: cassano [Giulia Cassano] take in charge</li>
-                    <li>Author Biographies:  	pop-up</li>
-                    <li>Corresponding author Country:  	{{ workflow.article.correspondence_author.country }}</li>
-                    <li>Abstract:  	pop-up</li>
-                    <li>Key words:  	Scholarly communication [100]</li>
-                    <li>Science communication in the developing world [100]</li>
-                    <li>Science education [100]</li>
-                    <li>Available files:  	JCOM_001Y_0722.pdf (16 pages)</li>
-                    <li>JCOM_001Y_0722.tex</li>
-                    Submitted contribution: 	JCOM_001Y_0722.tar.gz
-                    JCOM_001Y_0722.tex
-                    <li>Attachments:  	no attachments</li>
-                    <li>Submitted on:  	04 July 2022 18:30</li>
-                    <li>Last version submitted on:  	18 July 2023 16:24</li>
-                    <li>Last revision submitted on:  	15 December 2022 20:15</li>
-                    <li>Current state:  	ready for publication</li>
-                    <li>Accepted on:  	22 June 2023 19:46</li>
-                    <li>Major revision requested on:  	10 August 2022 15:25</li>
-                    <li>Typesetter:  	Sara Bin</li>
-                    <li>Assigned on:  	06 July 2023 18:01</li>
-                    <li>
-                        Typesetter annotation Open /
-                        Submission date: 18 July 2023 16:24 /
-                        Sender: Sara Bin
-                    </li>
-                </ol>
+            {# Previous review-rounds / versions #}
+            <div class="row">
+                <div class="col">
+                    <p class="h3">Other rounds</p>
+                    {% for assignment_and_actions in assignments_and_actions %}
+                        {% if assignment_and_actions.assignment.review_round.round_number != current_review_round %}
+                            {% include "wjs_review/elements/review_assignment.html" with assignment_and_actions=assignment_and_actions %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
             </div>
-        </div>
+        {% endwith %}
     </div>
-{% endblock content %}
+{% endblock center_column %}
+{% block right_column %}
+    {% include "wjs_review/elements/timeline.html" %}
+{% endblock right_column %}

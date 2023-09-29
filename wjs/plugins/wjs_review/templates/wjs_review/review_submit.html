@@ -3,7 +3,7 @@
 {% block title %}
     {% translate "Submit review" %}
 {% endblock title %}
-{% block content_title %}
+{% block content_header %}
     <div class="col-sm-12">
         <h2>
             {% translate "Submit review" %} {% translate "for" %}
@@ -11,13 +11,13 @@
             <i>{{ assignment.article }}</i>
         </h2>
     </div>
-{% endblock content_title %}
+{% endblock content_header %}
 {% block right_column %}
     {% with article=assignment.article %}
         {% include "wjs_review/elements/article_details_for_reviewer.html" %}
     {% endwith %}
 {% endblock right_column %}
-{% block left_column %}
+{% block center_column %}
     <div class="container">
         <div class="row">
             <div class="col">{{ request.journal|setting:"do_review_message" }}</div>
@@ -25,4 +25,4 @@
         {% include "wjs_review/elements/review_report_form.html" with form=report_form %}
         {% include "wjs_review/elements/review_evaluate_form.html" %}
     </div>
-{% endblock left_column %}
+{% endblock center_column %}

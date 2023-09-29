@@ -4,7 +4,7 @@
 {% block title %}
   {{ workflow.article }}
 {% endblock title %}
-{% block content_title %}
+{% block content_header %}
   <div class="col-sm-12">
     <h2>
       <i>{{ workflow.article }}</i>
@@ -29,7 +29,7 @@
       {% endif %}
     </p>
   </div>
-{% endblock content_title %}
+{% endblock content_header %}
 {% block content %}
   <div class="container">
     <form method="post" action="{% url "wjs_article_decision" workflow.pk %}">

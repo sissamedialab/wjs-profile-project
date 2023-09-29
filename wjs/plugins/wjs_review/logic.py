@@ -188,7 +188,14 @@ class EvaluateReview:
         reviewer_conditions = self.check_reviewer_conditions(self.assignment, self.reviewer)
         editor_conditions = self.check_editor_conditions(self.assignment, self.editor)
         date_due_set = bool(self.assignment.date_due)
-        gdpr_compliant = self.form_data.get("accept_gdpr") or self.form_data.get("reviewer_decision") != "1"
+        gdpr_compliant = (
+            # if the reviewer is already gdpr-compliant, the gdpr field widged is not shown in the form, so the form
+            # data will be empty / false. Since the gdpr check is necessary only for "invited" (new) users, it seems
+            # safer to just ignore what comes from the form if the user is already compliant.
+            self.reviewer.jcomprofile.gdpr_checkbox
+            or self.form_data.get("accept_gdpr")
+            or self.form_data.get("reviewer_decision") != "1"
+        )
         return reviewer_conditions and editor_conditions and date_due_set and gdpr_compliant
 
     def _handle_accept(self) -> Optional[bool]:
