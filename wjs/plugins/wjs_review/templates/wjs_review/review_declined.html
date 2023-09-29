@@ -3,22 +3,22 @@
 {% block title %}
     {% translate "Declined review request" %}
 {% endblock title %}
-{% block content_title %}
+{% block content_header %}
     <h2>
         {% translate "Declined review request" %} {% translate "for" %}
         <span class="badge bg-secondary">{{ assignment.article.section.name }}</span>
         <i>{{ assignment.article }}</i>
     </h2>
-{% endblock content_title %}
+{% endblock content_header %}
 {% block right_column %}
     {% with article=assignment.article %}
         {% include "wjs_review/elements/article_details_for_reviewer.html" %}
     {% endwith %}
 {% endblock right_column %}
-{% block left_column %}
+{% block center_column %}
     <div class="container">
         <div class="row">
             <div class="col">{{ request.journal|setting:"declined_review_message" }}</div>
         </div>
     </div>
-{% endblock left_column %}
+{% endblock center_column %}

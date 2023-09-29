@@ -6,7 +6,9 @@
                 {% if attention_flag %}<p class="text-warning">{{ attention_flag }}</p>{% endif %}
                 <p>
                     Assignment {{ assignment.id }} to
-                    {% if assignment.date_accepted %}
+                    {% if assignment.date_accepted and assignment.is_complete %}
+                        <a href="{% url "wjs_review_end" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% elif assignment.date_accepted %}
                         <a href="{% url "wjs_review_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
                     {% elif assignment.date_declined %}
                         <a href="{% url "wjs_declined_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
@@ -19,11 +21,16 @@
                     Due
                     {{ assignment.date_due }} and
                     {% if assignment.date_accepted %}
-                        accepted {{ assignment.date_accepted }}
+                        {% if assignment.is_complete %}
+                            accepted
+                        {% else %}
+                            <span class="text-warning">accepted</span>
+                        {% endif %}
+                        {{ assignment.date_accepted }}
                     {% elif assignment.date_declined %}
-                        declined {{ assignment.date_declined }}
+                        <span class="text-muted">declined</span> {{ assignment.date_declined }}
                     {% else %}
-                        waiting for anwer.
+                        <span class="text-warning">waiting for anwer.</span>
                     {% endif %}
                 </p>
                 {% if assignment.date_reminded %}
@@ -34,7 +41,7 @@
                 {% endif %}
                 {% if assignment.date_accepted and assignment.is_complete %}
                     <p>
-                        Completed on
+                        <span class="text-success">Completed on</span>
                         {{ assignment.date_complete }}.
                     </p>
                 {% endif %}

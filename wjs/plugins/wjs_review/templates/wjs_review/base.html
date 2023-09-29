@@ -23,14 +23,6 @@
     {% block content_wrapper %}
         <div class="container">
             <div class="row">
-                <div class="col-sm-12 border-bottom border-2">
-                    {% block content_title %}<h2>CONTENT TITLE</h2>{% endblock content_title %}
-                </div>
-            </div>
-        </div>
-
-        <div class="container">
-            <div class="row">
                 {# use for content which needs a custom content above the two sections layout below #}
                 {% block content_header %}{% endblock content_header %}
             </div>
@@ -39,11 +31,15 @@
         {% block content %}
             <div class="container">
                 <div class="row">
-                    <div class="col-sm-8">
-                        {% block left_column %}MAIN CONTENT{% endblock left_column %}
+                    <div class="col-sm-2">
+                        {% block left_column %}NAVIGATION AND FILTERS{% endblock left_column %}
                     </div>
 
-                    <div class="col-sm-4 border-start border-2">
+                    <div class="col-sm-7">
+                        {% block center_column %}MAIN CONTENT{% endblock center_column %}
+                    </div>
+
+                    <div class="col-sm-3 border-start border-2">
                         {% block right_column %}<p>GLOBAL ACTIONS? CAT PICTURES?</p>{% endblock right_column %}
                     </div>
                 </div>
