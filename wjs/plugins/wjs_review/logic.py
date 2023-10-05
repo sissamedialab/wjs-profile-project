@@ -23,12 +23,12 @@ from submission.models import STAGE_ASSIGNED, Article
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
-from . import permissions
+from . import communication_utils, permissions
 
 if TYPE_CHECKING:
     from .forms import ReportForm
 
-from .models import ArticleWorkflow, EditorDecision
+from .models import ArticleWorkflow, EditorDecision, Message
 
 Account = get_user_model()
 
@@ -70,6 +70,17 @@ class AssignToEditor:
         state_conditions = can_proceed(self.workflow.director_selects_editor)
         return is_section_editor and state_conditions
 
+    def _log_operation(self):
+        # TODO: should we use signal/events to log the operations?
+        # TODO: should I record the name here also? Probably not...
+        # TODO: this message does not read well in the automatic notification,
+        #       but something like "{article.id} assigned..." won't read well in timeline.
+        communication_utils.log_operation(
+            self.workflow.article,
+            "Assigned to editor",
+            recipients=[self.editor],
+        )
+
     def run(self) -> ArticleWorkflow:
         with transaction.atomic():
             self._create_workflow()
@@ -77,6 +88,7 @@ class AssignToEditor:
                 raise ValueError("Invalid state transition")
             self._assign_editor()
             self._update_state()
+            self._log_operation()
         return self.workflow
 
 
@@ -132,9 +144,15 @@ class AssignToReviewer:
         """
         return quick_assign(request=self.request, article=self.workflow.article, reviewer_user=self.reviewer)
 
-    def _notify_reviewer(self):
-        # TODO: Send email notification
-        print("SEND EMAIL")
+    def _log_operation(self):
+        communication_utils.log_operation(
+            self.workflow.article,
+            message_subject="Assigned to reviewer",
+            message_body=self.form_data["message"],
+            actor=self.editor,
+            recipients=[self.reviewer],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
 
     def run(self) -> ReviewAssignment:
         # TODO: verificare in futuro se controllare assegnazione multiupla allo stesso reviewer quando si saranno
@@ -156,7 +174,7 @@ class AssignToReviewer:
             assignment = self._assign_reviewer()
             if not assignment:
                 raise ValueError(_("Cannot assign review"))
-            self._notify_reviewer()
+            self._log_operation()
         return assignment
 
 
@@ -208,6 +226,7 @@ class EvaluateReview:
         """
         accept_review_request(request=self.request, assignment_id=self.assignment.pk)
         self.assignment.refresh_from_db()
+        self._log_accept()
         if self.assignment.date_accepted:
             return True
 
@@ -221,6 +240,7 @@ class EvaluateReview:
         """
         decline_review_request(request=self.request, assignment_id=self.assignment.pk)
         self.assignment.refresh_from_db()
+        self._log_decline()
         if self.assignment.date_declined:
             return False
 
@@ -248,6 +268,24 @@ class EvaluateReview:
             # which already set the attribute (but the object is not saved because form save method is overridden)
             self.assignment.date_due = date_due
             self.assignment.save()
+
+    def _log_accept(self):
+        # TODO: exceptions here just disappear
+        # try print(self.workflow.article) (no workflow in EvaluateReview instances!!!)
+        communication_utils.log_operation(
+            self.assignment.article,
+            "Review assignment accepted",
+            actor=self.assignment.reviewer,
+            recipients=[self.assignment.editor],
+        )
+
+    def _log_decline(self):
+        communication_utils.log_operation(
+            self.assignment.article,
+            "Review assignment declined",
+            actor=self.assignment.reviewer,
+            recipients=[self.assignment.editor],
+        )
 
     def run(self) -> Optional[bool]:
         with transaction.atomic():
@@ -323,7 +361,7 @@ class InviteReviewer:
             reviewer=user.janeway_account,
             workflow=self.workflow,
             editor=self.editor,
-            form_data={},
+            form_data=self.form_data,
             request=self.request,
         )
         return assign_service.run()
@@ -338,6 +376,8 @@ class InviteReviewer:
             # The user (which is a JCOMProfile instance) is also used to check for the invitation token and to choose
             # the right message for the notification.
             self._notify_user(user=user)
+            # No need to log anything here, because the real action is AssignToReviewer.
+            # TODO: or do we want to log if the reviewer has been invited (new user) or was already here?
             return user
 
 
@@ -388,12 +428,20 @@ class SubmitReview:
                 **kwargs,
             )
 
+    def _log_operation(self):
+        communication_utils.log_operation(
+            self.assignment.article,
+            "Review submitted",
+            recipients=[self.assignment.editor],
+        )
+
     def run(self):
         with transaction.atomic():
             assignment = self._upload_files(self.assignment, self.request)
             assignment = self._save_report_form(assignment, self.form)
             assignment = self._complete_review(assignment, self.submit_final)
             self._trigger_complete_event(assignment, self.request, self.submit_final)
+            self._log_operation()
             return assignment
 
 
@@ -435,6 +483,34 @@ class HandleDecision:
             "skip": False,
         }
 
+    def _log_accept(self, email_context):
+        # TODO: use the email_context to build a nice message
+        communication_utils.log_operation(
+            self.workflow.article,
+            "Paper accepted",
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+            # do we have a subject? message_subject=email_context.pop("subject")
+        )
+
+    def _log_decline(self, email_context):
+        # TODO: use the email_context to build a nice message
+        communication_utils.log_operation(
+            self.workflow.article,
+            "Paper rejected",
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_not_suitable(self, email_context):
+        # TODO: use the email_context to build a nice message
+        communication_utils.log_operation(
+            self.workflow.article,
+            "Paper deemed not suitable",
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
     def _accept_article(self) -> Article:
         """
         Accept article.
@@ -453,6 +529,7 @@ class HandleDecision:
 
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_ACCEPTED, context)
+        self._log_accept(context)
         return self.workflow.article
 
     def _decline_article(self) -> Article:
@@ -471,6 +548,7 @@ class HandleDecision:
 
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
+        self._log_decline(context)
         return self.workflow.article
 
     def _not_suitable_article(self) -> Article:
@@ -489,6 +567,7 @@ class HandleDecision:
 
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
+        self._log_not_suitable(context)
         return self.workflow.article
 
     def _close_unsubmitted_reviews(self):
@@ -496,7 +575,7 @@ class HandleDecision:
         Mark all non completed reviews are as declined and closed.
         """
         for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
-            # FIXME: Is this the righe state?
+            # FIXME: Is this the right state?
             assignment.date_declined = timezone.now()
             assignment.is_complete = True
             assignment.save()

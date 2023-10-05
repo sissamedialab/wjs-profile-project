@@ -269,12 +269,13 @@ def test_invite_reviewer(
     invited_user = service.run()
     assigned_article.refresh_from_db()
     invitation_token = generate_token(user_data["email"], assigned_article.journal.code)
-    gdpr_acceptance_url = assigned_article.journal.site_url(
-        reverse(
-            "wjs_evaluate_review",
-            kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
-        ),
+    url = reverse(
+        "wjs_evaluate_review",
+        kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
     )
+    if not url.startswith(f"/{assigned_article.journal.code}"):
+        url = f"/{assigned_article.journal.code}{url}"
+    gdpr_acceptance_url = assigned_article.journal.site_url(url)
 
     assert invited_user.janeway_account in assigned_article.journal.users_with_role("reviewer")
     assert not invited_user.is_active
@@ -286,7 +287,11 @@ def test_invite_reviewer(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert len(mail.outbox) == 1
+    # 1 notification to the section editor (by AssignToEditor)
+    # 1 notification to the reviewer (by Janeway)
+    # 1 notification to the reviewer (by InviteReviewer)
+    assert len(mail.outbox) == 3
+    # TODO: drop to "2" when we "silence" Janeway notifications
 
     subject_review_assignment = get_setting(
         "email_subject",
@@ -294,11 +299,14 @@ def test_invite_reviewer(
         assigned_article.journal,
     ).processed_value
     acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
-    assert len(mail.outbox) == 1
-    email = mail.outbox[0]
-    assert email.to == [invited_user.email]
-    assert email.subject == f"[{assigned_article.journal.code}] {subject_review_assignment}"
-    assert acceptance_url in email.body
+    # TODO: review me when we silence Janeway notifications
+    assert len(mail.outbox) == 3
+    emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
+    assert len(emails) == 2
+    assert f"[{assigned_article.journal.code}] {subject_review_assignment}" in [email.subject for email in emails]
+    # super fragile
+    janeway_email = [email for email in emails if email.subject.startswith("[JCOM]")][0]
+    assert acceptance_url in janeway_email.body
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))
@@ -317,6 +325,8 @@ def test_handle_accept_invite_reviewer(
     invited_user = review_assignment.reviewer
     assignment = assigned_article.reviewassignment_set.first()
 
+    # Now there is no need to add `"message": "random message"` here because when a reviewer accepts an assignment he
+    # does not send any message, but MT hinted that we might want to add a message here in the future.
     evaluate_data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr}
 
     fake_request.user = invited_user
@@ -514,6 +524,7 @@ def test_invite_reviewer_but_user_already_exists(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert len(mail.outbox) == 1
-    email = mail.outbox[0]
-    assert email.to == [invited_user.email]
+    # TODO: see notes in test_invite_reviewer() above
+    assert len(mail.outbox) == 3
+    janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
+    assert janeway_email.to == [invited_user.email]

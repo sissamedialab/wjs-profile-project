@@ -1,9 +1,21 @@
+{% load wjs_review %}
+
 <div class="container">
     <div class="row mb-3">
         <div class="col text-center text-primary">
-            Timeline stub
+            Timeline
         </div>
     </div>
+    {% for message in workflow.article|article_messages:user %}
+        {% include "wjs_review/elements/timeline_message.html" %}
+    {% endfor %}
+    <hr/>
+    <div class="row mb-3">
+        <div class="col text-center text-primary">
+            Possible examples
+        </div>
+    </div>
+    <hr/>
     <div class="row mb-3">
         <div class="col text-center">
             Show only <span class="badge bg-info rounded-circle">Me</span> <span class="badge bg-info text-primary rounded-circle">AAA</span> <span class="badge bg-info rounded-circle">RRR</span> <span class="badge bg-info rounded-circle">RBR</span> <span class="badge bg-light text-muted rounded-circle text-mono">sys</span>

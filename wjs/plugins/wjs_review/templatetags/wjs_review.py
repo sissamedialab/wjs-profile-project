@@ -11,8 +11,8 @@ from submission.models import Article
 from utils import models as janeway_utils_models
 from utils.models import LogEntry
 
-from .. import states
-from ..models import ArticleWorkflow
+from .. import communication_utils, states
+from ..models import ArticleWorkflow, Message, MessageRecipients
 from ..types import BootstrapButtonProps
 
 register = template.Library()
@@ -174,6 +174,13 @@ def review_assignment_request_message(assignment: ReviewAssignment):
 
 
 @register.filter
+def article_messages(article: Article, user: Account):
+    """Return all messages related to this article that the user can see."""
+    messages = communication_utils.get_messages_related_to_me(user, article)
+    return messages
+
+
+@register.filter
 def article_requires_attention_tt(workflow: ArticleWorkflow):
     """Inquire with the state-logic class relative to the current workflow state."""
     state_cls = getattr(states, workflow.state)
@@ -188,3 +195,15 @@ def assignment_requires_attention_tt(assignment: ReviewAssignment):
     """
     state_cls = getattr(states, assignment.article.articleworkflow.state)
     return state_cls.assignment_requires_attention(assignment=assignment)
+
+
+# TODO: this seems inelegant... isn't there a better solution?
+@register.filter
+def message_read_by_recipient(message: Message, recipient: Account) -> bool:
+    """Tell if the recipient read this message."""
+    try:
+        return MessageRecipients.objects.get(message=message, recipient=recipient).read
+    except MessageRecipients.DoesNotExist:
+        # A user can also see messages that he wrote, so he is the actor and not the recipient. These are considered as
+        # "read" by default.
+        return True

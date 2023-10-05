@@ -11,7 +11,10 @@
 {% block content_header %}
     <div class="col-sm-12">
         <h2>
-            Select reviewer for <i>{{ workflow.article }}</i>
+            Select reviewer for
+            <a href="{% url 'wjs_article_details' workflow.id %}">
+                <i>{{ workflow.article }}</i>
+            </a>
         </h2>
         <p>
             <span class="badge bg-secondary">{{ workflow.article.section.name }}</span> by {{ workflow.article.correspondence_author }}

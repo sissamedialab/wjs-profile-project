@@ -4,8 +4,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.core.paginator import Page, Paginator
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.http import HttpResponse, HttpResponseRedirect, QueryDict
+from django.shortcuts import get_object_or_404
 from django.template import Context
 from django.urls import reverse, reverse_lazy
 from django.views.generic import DetailView, ListView, UpdateView
@@ -16,6 +17,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.mixins import HtmxMixin
 
+from .communication_utils import get_messages_related_to_me
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
@@ -26,7 +28,7 @@ from .forms import (
     SelectReviewerForm,
 )
 from .mixins import EditorRequiredMixin
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, Message
 
 Account = get_user_model()
 
@@ -482,4 +484,36 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
         context["declined_reviews"] = self.declined_reviews
         context["submitted_reviews"] = self.submitted_reviews
         context["open_reviews"] = self.open_reviews
+        return context
+
+
+class MyMessages(LoginRequiredMixin, ListView):
+    """All messages of a certain user that are not related to any article.
+
+    Pprobably only write-to-eo / write-to-directore message.
+    """
+
+    model = Message
+    template_name = "wjs_review/my_messages.html"
+
+
+class Messages(LoginRequiredMixin, ListView):
+    """Messages related to a certain article that the user can see."""
+
+    model = Message
+    template_name = "wjs_review/article_messages.html"
+
+    def get_queryset(self):
+        """Filter only messages related to a certain article and that the current user can see."""
+        self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
+        self.recipient = get_object_or_404(Account, id=self.kwargs["recipient_id"])
+        messages = get_messages_related_to_me(user=self.request.user, article=self.article)
+        return messages.filter(Q(recipients__in=[self.recipient]) | Q(actor=self.recipient))
+
+    def get_context_data(self, **kwargs):
+        """Add the article and the recipient to the context."""
+        context = super().get_context_data(**kwargs)
+        # These have been "collected" by the get_queryset method
+        context["article"] = self.article
+        context["recipient"] = self.recipient
         return context

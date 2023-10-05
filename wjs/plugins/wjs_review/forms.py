@@ -77,6 +77,7 @@ class SelectReviewerForm(forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
+        """Take care of htmx and reviewer-not-selected."""
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         htmx = kwargs.pop("htmx", False)
@@ -84,25 +85,38 @@ class SelectReviewerForm(forms.ModelForm):
         c_data = self.data.copy()
         c_data["state"] = self.instance.state
         self.data = c_data
+
         # When loading during an htmx request fields are not required because we're only preseeding the reviewer
         # When loading during a normal request (ie: submitting the form) fields are required
         if not htmx:
             self.fields["message"].required = True
             self.fields["reviewer"].required = True
-        # iF reviewer is not set, other fields are disabled, because we need the reviewer to be set first
+
+        # If the reviewer is not set, other fields are disabled, because we need the reviewer to be set first
         if not self.data.get("reviewer"):
             self.fields["acceptance_due_date"].widget.attrs["disabled"] = True
             self.fields["message"].widget.attrs["disabled"] = True
         else:
-            # reviewer is set, so we can load default data
-            self.fields["message"].widget = SummernoteWidget()
-            interval_days = get_setting("wjs_review", "acceptance_due_date_days", self.instance.article.journal)
-            default_message = get_setting("wjs_review", "review_invitation_message", self.instance.article.journal)
-            self.data["acceptance_due_date"] = today() + timedelta(days=interval_days.process_value())
-            self.data["message"] = default_message.process_value()
+            # reviewer is set
+            if htmx:
+                # we can load default data
+                self.fields["message"].widget = SummernoteWidget()
+                interval_days = get_setting("wjs_review", "acceptance_due_date_days", self.instance.article.journal)
+                default_message = get_setting("wjs_review", "review_invitation_message", self.instance.article.journal)
+                self.data["acceptance_due_date"] = today() + timedelta(days=interval_days.process_value())
+                self.data["message"] = default_message.process_value()
+            else:
+                # the form has been submitted (for real, not htmx)
+                # Nothing to do (the field-required thing has been done already some lines above).
+                pass
+
         self.fields["reviewer"].queryset = Account.objects.get_reviewers_choices(self.instance)
 
     def clean_date(self):
+        """Ensure that the due date is in the future.
+
+        We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
+        """
         due_date = self.cleaned_data["acceptance_due_date"]
         if due_date < now().date():
             raise forms.ValidationError(_("Date must be in the future"))
