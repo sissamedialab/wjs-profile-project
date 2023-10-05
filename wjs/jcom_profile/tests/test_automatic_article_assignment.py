@@ -94,6 +94,8 @@ def test_default_special_issue_articles_automatic_assignment(
         expected_editor = get_expected_editor(article_editors, article)
 
         url = reverse("submit_review", args=(article.pk,))
+        if not url.startswith(f"/{article.journal.code}"):
+            url = f"/{article.journal.code}{url}"
 
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302

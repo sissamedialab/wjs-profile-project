@@ -161,11 +161,12 @@ def test_invite_function_creates_inactive_user(
         assigned_article.journal,
     ).processed_value
     acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
-    assert len(mail.outbox) == 1
-    email = mail.outbox[0]
-    assert email.to == [invited_user.email]
-    assert email.subject == f"[{assigned_article.journal.code}] {subject_review_assignment}"
-    assert acceptance_url in email.body
+    # TODO: see notes in test_logic.py::test_invite_reviewer() above
+    assert len(mail.outbox) == 3
+    janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
+    assert janeway_email.to == [invited_user.email]
+    assert janeway_email.subject == f"[{assigned_article.journal.code}] {subject_review_assignment}"
+    assert acceptance_url in janeway_email.body
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))

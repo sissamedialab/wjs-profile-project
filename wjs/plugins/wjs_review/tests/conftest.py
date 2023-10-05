@@ -77,7 +77,7 @@ def review_assignment(
         reviewer=invited_user.janeway_account,
         workflow=assigned_article.articleworkflow,
         editor=editor,
-        form_data={},
+        form_data={"message": "Message from fixture"},
         request=fake_request,
     )
     return assign_service.run()

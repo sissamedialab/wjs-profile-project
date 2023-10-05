@@ -1,11 +1,24 @@
+"""WJS Review and related models."""
+
+from core import models as core_models
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from django.core.mail import send_mail
 from django.db import models
 from django.db.models import QuerySet
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
+from journal.models import Journal
 from model_utils.models import TimeStampedModel
+from submission.models import Article
+from utils.logger import get_logger
 
 from . import permissions
+
+logger = get_logger(__name__)
 
 Account = get_user_model()
 
@@ -263,3 +276,211 @@ class EditorDecision(TimeStampedModel):
 
     def __str__(self):
         return f"{self.decision} (Article {self.workflow.article.id}-{self.review_round.round_number})"
+
+
+class Message(TimeStampedModel):
+    """A generic message.
+
+    Could be:
+    - a workflow action (paper submitted, revision requested,...)
+    - a communication (editor assigns paper, author inquires,...)
+    - a note (an EO note, an editor note,...)
+
+    This is very similar to utils.LogEntry, but a list of recipients of the message is added, so that messages can be
+    filtered by recipient.
+
+    """
+
+    class MessageTypes(models.TextChoices):
+        # generic system actions (STD & SILENT)
+        STD = "Standard", _("Standard message (notifications are sent)")
+        SILENT = "Silent", _("Silent message (no notification is sent)")
+
+        # Verbose notifications are useful for messages such as
+        # - editor removal,
+        # - reviewer removal,
+        # - acknowledgment / thank-you messages,
+        # etc., where the recipient is not required to do anything. So, having the full message in the notification
+        # email saves a click to web page just to see an uninteresting message.
+        VERBOSE = "Verbose", _("Write all the body in the notification email.")
+        # Used for
+        # - invite reviewer
+        # - request revision
+        # - ...
+        VERBINE = "Verbose ma non troppo", _("Add the first 10 lines of the body to the message")
+
+        # NO! replace message_types w/ numeric message_length (number of lines to include into the notification)
+
+    actor = models.ForeignKey(
+        Account,
+        on_delete=models.DO_NOTHING,
+        related_name="authored_messages",
+        verbose_name="from",
+        help_text="The author of the message (for system message, use wjs-support account)",
+        null=False,
+    )
+    recipients = models.ManyToManyField(
+        to=Account,
+        through="MessageRecipients",
+        related_name="received_messages",
+    )
+    subject = models.TextField(
+        blank=True,
+        default="",
+        max_length=111,
+        verbose_name="to",
+        help_text="A short description of the message or the subject of the email.",
+    )
+    body = models.TextField(
+        blank=True,
+        default="",
+        max_length=1111,
+        help_text="The content of the message.",
+    )
+    message_type = models.TextField(
+        choices=MessageTypes.choices,
+        default=MessageTypes.STD,
+        verbose_name="type",
+        help_text="The type of the message: std messages trigger notifications, silent ones do not.",
+    )
+    # Do we want to manage very detailed ACLs?
+    # :START:
+    # nope   acl = models.TextField(
+    # nope       default="111",
+    # nope       verbose_name="Access Control List",
+    # nope       help_text="1 means visible, 0 means not-visible. The position indicates editor, reviewer, author",
+    # nope   )
+    #        :OR:
+    # nope   visible = models.BooleanField(default=True)
+    # nope   by_who = models.ForeignKey(Account, on_delete=models.CASCADE)
+    #        :OR:
+    # with the "through" model (see below)
+    # :END:
+
+    # A message should have a "target", i.e. it should be related either to an Article (e.g. communications between
+    # editor and reviewer, EO and editor,...) or to a Journal (e.g. communications between editor and director).
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        null=False,
+    )
+    object_id = models.PositiveIntegerField(
+        blank=False,
+        null=False,
+    )
+    target = GenericForeignKey(
+        "content_type",
+        "object_id",
+    )
+    # Attachments
+    attachments = models.ManyToManyField(
+        to=core_models.File,
+        null=True,
+        blank=True,
+    )
+
+    # number of chars to show in a "VERBINE" message
+    verbine_lenght = 111
+
+    # TODO: do we need these indexes?
+    class Meta:
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.actor} {self.notification_line} ({'; '.join([str(x) for x in self.recipients.all()])})"
+
+    @property
+    def notification_line(self):
+        """Return a string suitable to be shown in a notification."""
+        return self.subject if self.subject else self.body[: Message.verbine_lenght]
+
+    def to_timeline_line(self, anonymous=False):
+        """Return a string suitable to be shown in a timeline."""
+        # TODO: better here or in a template?
+        # TODO: return a dict? a rendered template? mia nona in cariola?
+        message = self.subject if self.subject else self.body[:111]
+        if anonymous:
+            return {
+                "from": "",
+                "to": "",
+                "message": message,
+            }
+        else:
+            return {
+                "from": self.actor,
+                "to": ",".join(self.recipients),
+                "message": message,
+            }
+
+    def get_url(self, recipient: Account) -> str:
+        """Return the URL to be embedded in the notification email for the given recipient."""
+        if self.message_type == Message.MessageTypes.SILENT:
+            logger.error(f"No need to get an URL for silent messages (requested for msg {self.id})")
+            return ""
+
+        if self.content_type.model_class() == Journal:
+            return reverse("wjs_my_messages")
+
+        assert self.content_type.model_class() == Article
+        # TODO: hmmm... recipient not used at the moment...
+        return self.target.url
+
+    def get_subject_prefix(self) -> str:
+        """Get a prefix string for the notification subject (e.g. [JCOM])."""
+        if type(self.target) == Article:
+            return f"[{self.target.journal.code}]"
+        else:
+            return f"[{self.target.code}]"
+
+    def emit_notification(self):
+        """Send a notification."""
+        # TODO: add to the create function of a custom manager? overkill?
+        # TODO: use src/utils/notify.py::notification ?
+        # (see also notify_hook loaded per-plugin in src/core/include_urls.py)
+        if self.message_type == Message.MessageTypes.SILENT:
+            return
+
+        # TODO: move header and footer to journal setting?
+        notification_header = _("This is an automatic notification. Please do not reply.\n\n")
+        notification_footer = _("\n\nPlease visit {url}\n")
+
+        notification_subject = self.subject if self.subject else self.body[:111]
+        notification_subject = f"🦄 {self.get_subject_prefix()} {notification_subject}"
+
+        if self.message_type == Message.MessageTypes.VERBOSE:
+            notification_body = self.body
+        else:
+            notification_body = self.body[:111]
+
+        for recipient in self.recipients.all():
+            send_mail(
+                notification_subject,
+                notification_header
+                + notification_body
+                + notification_footer.format(
+                    url=self.get_url(recipient),
+                ),
+                # TODO: use fake "no-reply": the mailbox should be real, but with an autoresponder
+                settings.DEFAULT_FROM_EMAIL,
+                [recipient.email],
+                fail_silently=False,
+            )
+
+
+class MessageRecipients(models.Model):
+    """The m2m relation between a message and its recipients."""
+
+    message = models.ForeignKey(Message, on_delete=models.CASCADE)
+    recipient = models.ForeignKey(Account, on_delete=models.CASCADE)
+
+    read = models.BooleanField(
+        default=False,
+        help_text="True only if the message has been read by this recipient.",
+    )
+    # Hmmmm... the following won't work...
+    protected = models.BooleanField(
+        default=False,
+        help_text="When True, the name of this recipient will not be shown.",
+    )

@@ -1,0 +1,7 @@
+{% load wjs_review %}
+<div class="row mb-3">
+    <div class="col {% if message|message_read_by_recipient:user %} text-muted {% else %} text-warning {% endif %}">
+        <span class="badge bg-light text-muted">{{ message.created|date:DATE_FORMAT }}</span>
+        <span title="Click to mark message as read via htmx-magic">{{ message.body }}</span>
+    </div>
+</div>

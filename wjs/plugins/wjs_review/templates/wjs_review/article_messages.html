@@ -1,0 +1,77 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% load wjs_review %}
+{% block title %}
+    {% translate "Messages" %}
+{% endblock title %}
+{% block content_header %}
+    <div class="col-sm-12">
+        <h2>
+            {% translate "Write to" %}
+            {{ recipient }}
+        </h2>
+    </div>
+{% endblock content_header %}
+{% block left_column %}
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <a href="{% url 'wjs_article_details' article.articleworkflow.id %}">Back to {{ article }}</a>
+            </div>
+        </div>
+        {% for message in message_list %}
+            <div class="row border">
+                <div class="col">
+                    <button class="btn btn-primary"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#message{{ message.id }}Details"
+                            aria-expanded="false"
+                            aria-controls="message{{ message.id }}Details">{{ message }}</button>
+                    <div class="collapse card-body" id="message{{ message.id }}Details">
+                        <div>{{ message.created }}</div>
+                        <div>{{ message.body }}</div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock left_column %}
+{% block center_column %}
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                Please note: only a part of your message will be sent directly to {{ recipient }}; the complete message will be visible on the web site. <strong title="Why is this?"><a href="#">ℹ</a></strong>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-4">
+                <strong>Subject:</strong>
+            </div>
+            <div class="col-4">
+                <input type="text" />
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-4">
+                <strong>Body:</strong>
+            </div>
+            <div class="col-4">
+                <textarea></textarea>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-4">
+                <strong>Attachments:</strong>
+            </div>
+            <div class="col-4">
+                <input type="file">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-6">
+                <input type="submit" value="Send">
+            </div>
+        </div>
+    </div>
+{% endblock center_column %}
