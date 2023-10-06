@@ -44,19 +44,9 @@ class JCOMProfileConfig(AppConfig):
         """Register our function in Janeway's events logic."""
         from events import logic as events_logic
 
-        from wjs.jcom_profile.events.assignment import dispatch_assignment
         from wjs.jcom_profile.events.wjs_events import (
             notify_coauthors_article_submission,
         )
-
-        try:
-            # if wjs_review is installed, it will take over dispatch_assignment so we must not register it
-            from wjs_review.events import ReviewEvent  # noqa: F401
-        except ImportError:
-            events_logic.Events.register_for_event(
-                events_logic.Events.ON_ARTICLE_SUBMITTED,
-                dispatch_assignment,
-            )
 
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,

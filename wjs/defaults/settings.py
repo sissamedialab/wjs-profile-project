@@ -117,8 +117,8 @@ the registration process before first login: click here {}
 """
 
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-    None: "wjs.jcom_profile.events.assignment.default_assign_editors_to_articles",
-    "JCOM": "wjs.jcom_profile.events.assignment.jcom_assign_editors_to_articles",
+    None: "wjs_review.events.assignment.default_assign_editors_to_articles",
+    "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
 WJS_REVIEW_CHECK_FUNCTIONS = {
