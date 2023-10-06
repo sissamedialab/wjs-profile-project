@@ -438,6 +438,7 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
+        kwargs["initial"] = {"decision": self.request.GET.get("decision")}
         return kwargs
 
     def form_valid(self, form):

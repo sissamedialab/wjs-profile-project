@@ -141,7 +141,6 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="accepts",
             label="Accept",
             view_name="wjs_article_decision",
-            # TODO: the template "decision.html" does not yet honor the query string, so now it is useless :)
             querystring_params={"decision": "accept"},
         ),
         ArticleAction(
@@ -163,19 +162,28 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="make decision",
             label="Make decision",
             view_name="wjs_article_decision",
+            querystring_params={"decision": "minorRevision"},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
-            name="request revision",
-            label="",
-            view_name="WRITEME!",
+            name="request minor revision",
+            label="Request Minor revision",
+            view_name="wjs_article_decision",
+            querystring_params={"decision": "minorRevision"},
+        ),
+        ArticleAction(
+            permission=permissions.is_article_editor,
+            name="request major revision",
+            label="Request Major revision",
+            view_name="wjs_article_decision",
+            querystring_params={"decision": "majorRevision"},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
             name="assigns self as reviewer",
             label="I will review",
             tooltip="Assign myself as reviewer",
-            view_name="wjs_select_reviewer",
+            view_name="WRITEME!",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,

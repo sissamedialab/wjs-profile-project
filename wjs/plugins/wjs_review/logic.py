@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
+from review.const import EditorialDecisions
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from review.views import (
@@ -18,7 +19,7 @@ from review.views import (
     decline_review_request,
     upload_review_file,
 )
-from submission.models import STAGE_ASSIGNED, Article
+from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
@@ -28,7 +29,7 @@ from . import communication_utils, permissions
 if TYPE_CHECKING:
     from .forms import ReportForm
 
-from .models import ArticleWorkflow, EditorDecision, Message
+from .models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 
 Account = get_user_model()
 
@@ -116,11 +117,21 @@ class AssignToReviewer:
         """Editor must be assigned to the article."""
         return EditorAssignment.objects.filter(article=workflow.article, editor=editor).exists()
 
+    @staticmethod
+    def check_article_conditions(workflow: ArticleWorkflow) -> bool:
+        """
+        Workflow state must be EDITOR_SELECTED.
+
+        Current state must be tested explicitly because there is no FSM transition to use for checking the correct
+        """
+        return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
         reviewer_conditions = self.check_reviewer_conditions(self.workflow, self.reviewer)
         editor_conditions = self.check_editor_conditions(self.workflow, self.editor)
-        return reviewer_conditions and editor_conditions
+        article_state = self.check_article_conditions(self.workflow)
+        return reviewer_conditions and editor_conditions and article_state
 
     def _ensure_reviewer(self):
         """Ensure that the reviewer has the reviewer role, assigning it if necessary."""
@@ -136,13 +147,16 @@ class AssignToReviewer:
                 role=Role.objects.get(slug="reviewer"),
             )
 
-    def _assign_reviewer(self) -> ReviewAssignment:
+    def _assign_reviewer(self) -> Optional[ReviewAssignment]:
         """
         Assign the reviewer to the article.
 
         Use janeway review logic quick_assign function.
         """
-        return quick_assign(request=self.request, article=self.workflow.article, reviewer_user=self.reviewer)
+        assignment = quick_assign(request=self.request, article=self.workflow.article, reviewer_user=self.reviewer)
+        if assignment and self.form_data.get("acceptance_due_date", None):
+            assignment.date_due = self.form_data.get("acceptance_due_date")
+        return assignment
 
     def _log_operation(self):
         communication_utils.log_operation(
@@ -201,6 +215,15 @@ class EvaluateReview:
         """Editor must be assigned to the article."""
         return editor == assignment.editor
 
+    @staticmethod
+    def check_article_conditions(assignment: ReviewAssignment) -> bool:
+        """
+        Workflow state must be EDITOR_SELECTED.
+
+        Current state must be tested explicitly because there is no FSM transition to use for checking the correct
+        """
+        return assignment.article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
         reviewer_conditions = self.check_reviewer_conditions(self.assignment, self.reviewer)
@@ -214,7 +237,8 @@ class EvaluateReview:
             or self.form_data.get("accept_gdpr")
             or self.form_data.get("reviewer_decision") != "1"
         )
-        return reviewer_conditions and editor_conditions and date_due_set and gdpr_compliant
+        article_state = self.check_article_conditions(self.assignment)
+        return reviewer_conditions and editor_conditions and date_due_set and gdpr_compliant and article_state
 
     def _handle_accept(self) -> Optional[bool]:
         """
@@ -315,10 +339,20 @@ class InviteReviewer:
     def _generate_token(self) -> str:
         return generate_token(self.form_data["email"], self.request.journal.code)
 
+    @staticmethod
+    def check_article_conditions(workflow: ArticleWorkflow) -> bool:
+        """
+        Workflow state must be EDITOR_SELECTED.
+
+        Current state must be tested explicitly because there is no FSM transition to use for checking the correct
+        """
+        return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
         has_journal = self.request.journal
-        return has_journal
+        article_state = self.check_article_conditions(self.workflow)
+        return has_journal and article_state
 
     def _create_user(self, token: str) -> JCOMProfile:
         user = JCOMProfile.objects.create(
@@ -452,11 +486,35 @@ class HandleDecision:
     user: Account
     request: HttpRequest
 
+    _decision_handlers = {
+        ArticleWorkflow.Decisions.ACCEPT: "_accept_article",
+        ArticleWorkflow.Decisions.REJECT: "_decline_article",
+        ArticleWorkflow.Decisions.NOT_SUITABLE: "_not_suitable_article",
+        ArticleWorkflow.Decisions.MINOR_REVISION: "_revision_article",
+        ArticleWorkflow.Decisions.MAJOR_REVISION: "_revision_article",
+    }
+
+    @staticmethod
+    def check_editor_conditions(workflow: ArticleWorkflow, editor: Account) -> bool:
+        """Editor must be assigned to the article."""
+        editor_selected = workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+        editor_has_permissions = permissions.is_article_editor(workflow, editor)
+        return editor_selected and editor_has_permissions
+
+    @staticmethod
+    def check_article_conditions(workflow: ArticleWorkflow) -> bool:
+        """
+        Workflow state must be EDITOR_SELECTED.
+
+        Current state must be tested explicitly because there is no FSM transition to use for checking the correct
+        """
+        return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
     def check_conditions(self) -> bool:
         """Check if the conditions for the decision are met."""
-        editor_selected = self.workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-        editor_has_permissions = permissions.is_article_editor(self.workflow, self.user)
-        return editor_selected and editor_has_permissions
+        editor_has_permissions = self.check_editor_conditions(self.workflow, self.user)
+        article_state = self.check_article_conditions(self.workflow)
+        return editor_has_permissions and article_state
 
     def _trigger_article_event(self, event: str, context: Dict[str, Any]):
         """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
@@ -530,11 +588,16 @@ class HandleDecision:
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_ACCEPTED, context)
         self._log_accept(context)
+        self._trigger_workflow_event()
         return self.workflow.article
 
     def _decline_article(self) -> Article:
         """
         Decline article.
+
+        The editor rejects the article, this action has nothing to do with the
+        editor that does not want to work on this article anymore (editor declines
+        the assignment).
 
         - Call janeway decline_article
         - Advance workflow state
@@ -549,6 +612,7 @@ class HandleDecision:
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._log_decline(context)
+        self._trigger_workflow_event()
         return self.workflow.article
 
     def _not_suitable_article(self) -> Article:
@@ -568,6 +632,7 @@ class HandleDecision:
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._log_not_suitable(context)
+        self._trigger_workflow_event()
         return self.workflow.article
 
     def _close_unsubmitted_reviews(self):
@@ -580,6 +645,31 @@ class HandleDecision:
             assignment.is_complete = True
             assignment.save()
             # TODO: Should we email reviewers to inform them that the review is closed?
+
+    def _revision_article(self):
+        """
+        Ask for article revision.
+
+        - Update workflow and article states
+        - Creare EditorRevisionRequest
+        """
+        self.workflow.editor_writes_editor_report()
+        self.workflow.editor_requires_a_revision()
+        self.workflow.save()
+        self.workflow.article.stage = STAGE_UNDER_REVISION
+        self.workflow.article.save()
+        EditorRevisionRequest.objects.create(
+            article=self.workflow.article,
+            editor=self.user,
+            type=EditorialDecisions.MINOR_REVISIONS.value
+            if self.form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
+            else EditorialDecisions.MAJOR_REVISIONS.value,
+            date_requested=timezone.now(),
+            date_due=self.form_data["date_due"],
+            editor_note=self.form_data["decision_editor_report"],
+            review_round=self.workflow.article.current_review_round_object(),
+        )
+        # TODO: Notify author
 
     def _store_decision(self) -> EditorDecision:
         """Store decision information."""
@@ -600,13 +690,9 @@ class HandleDecision:
             if not conditions:
                 raise ValidationError(_("Decision conditions not met"))
             decision = self._store_decision()
-            if self.form_data["decision"] == ArticleWorkflow.Decisions.ACCEPT:
-                self._accept_article()
-            elif self.form_data["decision"] == ArticleWorkflow.Decisions.REJECT:
-                self._decline_article()
-            elif self.form_data["decision"] == ArticleWorkflow.Decisions.NOT_SUITABLE:
-                self._not_suitable_article()
-            self._trigger_workflow_event()
+            handler = self._decision_handlers.get(self.form_data["decision"], None)
+            if handler:
+                getattr(self, handler)()
             if self.form_data["decision"]:
                 self._close_unsubmitted_reviews()
             return decision

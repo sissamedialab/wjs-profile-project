@@ -49,7 +49,11 @@ class WjsReviewConfig(AppConfig):
         from events import logic as events_logic
 
         from .events import ReviewEvent
-        from .events.handlers import on_article_submitted, on_workflow_submitted
+        from .events.handlers import (
+            on_article_submitted,
+            on_revision_complete,
+            on_workflow_submitted,
+        )
 
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,
@@ -59,4 +63,8 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED,
             on_workflow_submitted,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_REVISIONS_COMPLETE,
+            on_revision_complete,
         )

@@ -3,6 +3,7 @@ from typing import Optional
 from django.conf import settings
 from django.utils.module_loading import import_string
 from events import logic as events_logic
+from review import models as review_models
 from submission import models as submission_models
 
 from wjs.jcom_profile.events.assignment import dispatch_assignment
@@ -21,6 +22,7 @@ def on_article_submitted(**kwargs) -> None:
         article.articleworkflow.author_submits_paper()
         article.articleworkflow.save()
         kwargs = {"workflow": article.articleworkflow}
+        review_models.ReviewRound.objects.create(article=article, round_number=1)
         events_logic.Events.raise_event(ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED, task_object=article, **kwargs)
 
 
@@ -54,3 +56,14 @@ def dispatch_checks(article: submission_models.Article) -> Optional[bool]:
 
     assignment = dispatch_assignment(article=article)
     return bool(assignment)
+
+
+def on_revision_complete(**kwargs) -> None:
+    """When a new article revision is submitted, start the revision process again."""
+    article = kwargs["revision"].article
+    article.articleworkflow.author_submits_again()
+    new_round_number = article.current_review_round() + 1
+    review_models.ReviewRound.objects.create(article=article, round_number=new_round_number)
+    article.articleworkflow.save()
+    article.stage = submission_models.STAGE_ASSIGNED
+    article.save()

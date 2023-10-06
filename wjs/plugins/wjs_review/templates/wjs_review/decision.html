@@ -32,7 +32,7 @@
 {% endblock content_header %}
 {% block content %}
   <div class="container">
-    <form method="post" action="{% url "wjs_article_decision" workflow.pk %}">
+    <form name="decision" method="post" action="{% url "wjs_article_decision" workflow.pk %}">
       <div class="row">
         <div class="col-sm-12 border-bottom border-2">
           <div class="card border border-1">
@@ -75,6 +75,11 @@
               {% csrf_token %}
               {% bootstrap_form_errors form layout='inline' %}
               {% bootstrap_field form.decision %}
+              {% if form.hide_date_due %}
+                {% bootstrap_field form.date_due wrapper_class="visually-hidden date-due" %}
+              {% else %}
+                {% bootstrap_field form.date_due wrapper_class="date-due" %}
+              {% endif %}
               {% bootstrap_field form.decision_editor_report %}
               {% bootstrap_field form.decision_internal_note %}
             </div>
@@ -85,4 +90,26 @@
 
     </form>
   </div>
+  <script>
+    function checkDateVisibility(decision)
+    {
+      if(["minorRevision", "majorRevision"].indexOf(decision.selectedOptions[0].value) > -1) {
+        document.querySelector('.date-due').classList.remove('visually-hidden')
+      } else {
+        document.querySelector('.date-due').classList.add('visually-hidden')
+      }
+    }
+
+    (function () {
+      'use strict'
+      const decision = document.querySelector('#id_decision')
+
+      decision.addEventListener('change', function () {
+          checkDateVisibility(decision)
+      })
+
+      checkDateVisibility(decision)
+
+})()
+    </script>
 {% endblock content %}

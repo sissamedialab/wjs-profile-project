@@ -1,4 +1,5 @@
 import pytest  # noqa
+from core.models import Workflow, WorkflowElement
 from django.http import HttpRequest
 from events import logic as events_logic
 from review import models as review_models
@@ -8,14 +9,31 @@ from utils import setting_handler  # noqa
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
-from ..logic import AssignToEditor, AssignToReviewer
+from ..logic import AssignToEditor
 from ..models import ArticleWorkflow
-from ..plugin_settings import set_default_plugin_settings
+from ..plugin_settings import HANDSHAKE_URL, SHORT_NAME, set_default_plugin_settings
+from .test_helpers import _create_review_assignment
 
 
 @pytest.fixture
-def review_settings():
+def review_settings(journal):
+    """
+    Initialize plugin settings and install wjs_review as part of the workflow.
+
+    It must be declared as first fixture in the test function to ensure it's called before the other fixtures.
+    """
     set_default_plugin_settings()
+    workflow = Workflow.objects.get(journal=journal)
+    workflow.elements.filter(element_name="review").delete()
+    workflow.elements.add(
+        WorkflowElement.objects.create(
+            element_name=SHORT_NAME,
+            journal=journal,
+            order=0,
+            stage="wjs_review",
+            handshake_url=HANDSHAKE_URL,
+        ),
+    )
 
 
 @pytest.fixture
@@ -43,24 +61,38 @@ def submitted_workflow(
 
 
 @pytest.fixture
-def review_form(journal):
-    review_form = review_models.ReviewForm(name="A Form", slug="A Slug", intro="i", thanks="t", journal=journal)
-    review_form.save()
-
-    review_form_element, __ = review_models.ReviewFormElement.objects.get_or_create(
-        name="Review",
-        kind="text",
-        order=1,
-        width="full",
-        required=True,
-    )
-    review_form.elements.add(review_form_element)
-    setting_handler.save_setting(
+def review_form(journal) -> review_models.ReviewForm:
+    current_setting = setting_handler.get_setting(
         "general",
         "default_review_form",
         journal,
-        review_form_element.pk,
-    )
+    ).value
+    if current_setting:
+        return review_models.ReviewForm.objects.get(pk=current_setting)
+    else:
+        review_form = review_models.ReviewForm.objects.create(
+            name="A Form",
+            slug="A Slug",
+            intro="i",
+            thanks="t",
+            journal=journal,
+        )
+
+        review_form_element, __ = review_models.ReviewFormElement.objects.get_or_create(
+            name="Review",
+            kind="text",
+            order=1,
+            width="full",
+            required=True,
+        )
+        review_form.elements.add(review_form_element)
+        setting_handler.save_setting(
+            "general",
+            "default_review_form",
+            journal,
+            review_form_element.pk,
+        )
+        return review_form
 
 
 @pytest.fixture
@@ -71,16 +103,11 @@ def review_assignment(
     review_form: review_models.ReviewForm,
     review_settings,
 ) -> ReviewAssignment:
-    editor = assigned_article.editorassignment_set.first().editor
-    fake_request.user = editor
-    assign_service = AssignToReviewer(
-        reviewer=invited_user.janeway_account,
-        workflow=assigned_article.articleworkflow,
-        editor=editor,
-        form_data={"message": "Message from fixture"},
-        request=fake_request,
+    return _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=invited_user,
+        assigned_article=assigned_article,
     )
-    return assign_service.run()
 
 
 @pytest.fixture
