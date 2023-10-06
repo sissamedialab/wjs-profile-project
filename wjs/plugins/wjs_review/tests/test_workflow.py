@@ -19,10 +19,10 @@ def test_unsubmitted_article(article: submission_models.Article):
 
 @pytest.mark.django_db
 def test_submitted_article(
+    review_settings,
     article: submission_models.Article,
     fake_request: HttpRequest,
     coauthors_setting,
-    review_settings,
     director: JCOMProfile,
     with_no_hooks_for_on_article_workflow_submitted,
 ):
@@ -44,10 +44,10 @@ def test_submitted_article(
 
 @pytest.mark.django_db
 def test_submitted_workflow(
+    review_settings,
     submitted_workflow: ArticleWorkflow,
     fake_request: HttpRequest,
     coauthors_setting,
-    review_settings,
     director: JCOMProfile,
 ):
     """When an article is submitted, the workflow is moved to submitted state."""
@@ -64,10 +64,10 @@ def test_submitted_workflow(
 
 @pytest.mark.django_db
 def test_submitted_workflow_issues(
+    review_settings,
     submitted_workflow: ArticleWorkflow,
     fake_request: HttpRequest,
     coauthors_setting,
-    review_settings,
     director: JCOMProfile,
     settings,
 ):

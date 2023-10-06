@@ -13,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
+from review.models import RevisionRequest
 from submission.models import Article
 from utils.logger import get_logger
 
@@ -59,6 +60,8 @@ class ArticleWorkflow(TimeStampedModel):
 
         ACCEPT = "accept", _("Accept")
         REJECT = "reject", _("Reject")
+        MINOR_REVISION = "minorRevision", _("Minor revision")
+        MAJOR_REVISION = "majorRevision", _("Major revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
@@ -484,3 +487,11 @@ class MessageRecipients(models.Model):
         default=False,
         help_text="When True, the name of this recipient will not be shown.",
     )
+
+
+class EditorRevisionRequest(RevisionRequest):
+    """
+    Extend Janeway's RevisionRequest model to add review round reference.
+    """
+
+    review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)

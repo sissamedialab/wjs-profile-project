@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 import pytest
 from django.core import mail
@@ -8,15 +9,23 @@ from django.urls import reverse
 from django.utils.timezone import now
 from faker import Faker
 from review import models as review_models
-from review.models import ReviewAssignment
+from review.const import EditorialDecisions
+from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
-from ..logic import AssignToEditor, AssignToReviewer, EvaluateReview, InviteReviewer
-from ..models import ArticleWorkflow
+from ..logic import (
+    AssignToEditor,
+    AssignToReviewer,
+    EvaluateReview,
+    HandleDecision,
+    InviteReviewer,
+)
+from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest
+from .test_helpers import _create_review_assignment, _submit_review, get_next_workflow
 
 fake_factory = Faker()
 
@@ -124,6 +133,58 @@ def test_assign_to_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == normal_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
+
+
+@pytest.mark.django_db
+def test_cannot_assign_to_reviewer_if_revision_requested(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+):
+    """A reviewer canot be assigned if a revision request is in progress."""
+    fake_request.user = section_editor.janeway_account
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        # we must pass the Account object linked to the JCOMProfile instance, to ensure it
+        # can be used in janeway core
+        reviewer=normal_user.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "message": "random message",
+        },
+        request=fake_request,
+    )
+    assert normal_user.janeway_account not in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.reviewassignment_set.count() == 0
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+
+    with pytest.raises(ValueError, match="Transition conditions not met"):
+        service.run()
+
+    assert assigned_article.reviewassignment_set.count() == 0
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
 
 
 @pytest.mark.django_db
@@ -241,11 +302,11 @@ def test_assign_to_reviewer_author(
 
 @pytest.mark.django_db
 def test_invite_reviewer(
+    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_settings,
 ):
     """A user can be invited and a user a review assignment must be created."""
     fake_request.user = section_editor.janeway_account
@@ -312,12 +373,12 @@ def test_invite_reviewer(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_handle_accept_invite_reviewer(
+    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
-    review_settings,
     accept_gdpr: bool,
 ):
     """If the user accepts the invitation, assignment is accepted and user is confirmed if they accept GDPR."""
@@ -368,12 +429,12 @@ def test_handle_accept_invite_reviewer(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_handle_decline_invite_reviewer(
+    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
-    review_settings,
     accept_gdpr: bool,
 ):
     """If the user declines the invitation, assignment is declined and user is confirmed if they accept GDPR."""
@@ -410,10 +471,10 @@ def test_handle_decline_invite_reviewer(
 
 @pytest.mark.django_db
 def test_handle_update_due_date_in_evaluate_review_in_the_future(
+    review_settings,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
-    review_settings,
 ):
     """If the user decides to postpone the due date, and it's in the future with respect to the current due date."""
 
@@ -446,10 +507,10 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
 
 @pytest.mark.django_db
 def test_handle_update_due_date_in_evaluate_review_in_the_past(
+    review_settings,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
-    review_settings,
 ):
     """If the user decides to postpone the due date, and it's in the past with respect to the current due date."""
 
@@ -485,12 +546,12 @@ def test_handle_update_due_date_in_evaluate_review_in_the_past(
 
 @pytest.mark.django_db
 def test_invite_reviewer_but_user_already_exists(
+    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_settings,
 ):
     """A user can be invited but if the email is of an existing user the assignment is automatically created."""
     fake_request.user = section_editor.janeway_account
@@ -528,3 +589,180 @@ def test_invite_reviewer_but_user_already_exists(
     assert len(mail.outbox) == 3
     janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
     assert janeway_email.to == [invited_user.email]
+
+
+@patch("plugins.wjs_review.logic.events_logic.Events.raise_event")
+@pytest.mark.parametrize(
+    "submit_final",
+    (True, False),
+)
+@pytest.mark.django_db
+def test_submit_review(
+    raise_event,
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+    submit_final: bool,
+):
+    """
+    If the reviewer submits a review, reviewassignment is marked as complete (and accepted if not).
+    """
+
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(is_complete=False).count() == 1
+    fake_request.user = review_assignment.reviewer
+    _submit_review(review_assignment, review_form, fake_request, submit_final)
+    assert assigned_article.reviewassignment_set.all().count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
+
+    if submit_final:
+        # When submitting a review, reviewassignment is marked as accepted
+        assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=False).count() == 1
+        assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 1
+        raise_event.assert_called_with(
+            "on_review_complete",
+            task_object=assigned_article,
+            review_assignment=review_assignment,
+            request=fake_request,
+        )
+    else:
+        # review_assignment is not accepted by the user
+        assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+        assert assigned_article.reviewassignment_set.filter(is_complete=False).count() == 1
+        raise_event.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "decision,final_state,has_revision",
+    (
+        (ArticleWorkflow.Decisions.ACCEPT, ArticleWorkflow.ReviewStates.ACCEPTED, False),
+        (ArticleWorkflow.Decisions.REJECT, ArticleWorkflow.ReviewStates.REJECTED, False),
+        (ArticleWorkflow.Decisions.NOT_SUITABLE, ArticleWorkflow.ReviewStates.NOT_SUITABLE, False),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED, True),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED, True),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_editor_decision(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+    decision: str,
+    final_state: str,
+    has_revision: bool,
+):
+    """
+    If the editor makes a decision, article.stage is set to the next workflow stage if decision is final
+    and articleworkflow.state is updated according to the decision.
+    """
+    section_editor = assigned_article.editorassignment_set.first().editor
+    fake_request.user = jcom_user
+    review_2 = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=jcom_user,
+        assigned_article=assigned_article,
+    )
+    _submit_review(review_2, review_form, fake_request)
+    # Ensure initial data is consistent: review_2 is accepted and complete, review_assignment is not
+    assert assigned_article.reviewassignment_set.all().count() == 2
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 0
+    assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 1
+
+    fake_request.user = section_editor
+    form_data = {
+        "decision": decision,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+    }
+    if has_revision:
+        form_data["date_due"] = now().date() + datetime.timedelta(days=7)
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+
+    if has_revision:
+        # article is kept the as ON_WORKFLOW_ELEMENT_COMPLETE event is not triggered
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVISION
+        assert assigned_article.articleworkflow.state == final_state
+        revision = EditorRevisionRequest.objects.get(
+            article=assigned_article,
+            review_round=review_assignment.review_round,
+        )
+        assert revision.editor_note == "random message"
+        assert revision.date_due == form_data["date_due"]
+        assert revision.type == (
+            EditorialDecisions.MINOR_REVISIONS.value
+            if form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
+            else EditorialDecisions.MAJOR_REVISIONS.value
+        )
+    else:
+        # article is moved to the next stage by ON_WORKFLOW_ELEMENT_COMPLETE event triggered by HandleDecision
+        next_stage = get_next_workflow(assigned_article.journal)
+        assert assigned_article.stage == next_stage.stage
+
+        assert assigned_article.articleworkflow.state == final_state
+
+    # All review assignments are marked as complete, review_assignment is automatically marked as declined
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
+    assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 2
+
+    editor_decision = EditorDecision.objects.get(
+        workflow=assigned_article.articleworkflow,
+        review_round=assigned_article.articleworkflow.article.current_review_round_object(),
+    )
+    assert editor_decision.decision == decision
+    assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
+    assert editor_decision.decision_internal_note == form_data["decision_internal_note"]
+
+
+@pytest.mark.django_db
+def test_handle_editor_decision_check_conditions(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+):
+    """
+    If the HandleDecision is triggered by a non editor, an exception is raised and article is not updated.
+    """
+
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 0
+    jcom_user.add_account_role("section-editor", assigned_article.journal)
+    fake_request.user = jcom_user
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.ACCEPT,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=jcom_user,
+        request=fake_request,
+    )
+    with pytest.raises(ValidationError, match="Decision conditions not met"):
+        handle.run()
+    assigned_article.refresh_from_db()
+    assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert not EditorDecision.objects.filter(
+        workflow=assigned_article.articleworkflow,
+        review_round=assigned_article.articleworkflow.article.current_review_round_object(),
+    ).exists()
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
+    assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 0

@@ -379,6 +379,7 @@ class DecisionForm(forms.ModelForm):
         widget=SummernoteWidget(),
         required=False,
     )
+    date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
 
     class Meta:
@@ -388,7 +389,23 @@ class DecisionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         self.request = kwargs.pop("request", None)
+        self.hide_date_due = kwargs["initial"].get("decision", None) not in (
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+        )
         super().__init__(*args, **kwargs)
+
+    def clean_date_due(self):
+        date_due = self.cleaned_data["date_due"]
+        if (
+            self.cleaned_data["decision"]
+            in (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION)
+            and not date_due
+        ):
+            raise forms.ValidationError(_("Please provide a date due for author to submit a revision"))
+        if date_due and date_due < now().date():
+            raise forms.ValidationError(_("Date must be in the future"))
+        return date_due
 
     def get_logic_instance(self) -> HandleDecision:
         """Instantiate :py:class:`EvaluateReview` class."""
