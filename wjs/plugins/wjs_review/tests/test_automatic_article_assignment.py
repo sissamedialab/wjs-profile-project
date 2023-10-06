@@ -6,8 +6,11 @@ from review.models import EditorAssignment
 
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
+DEFAULT_ASSIGN_EDITORS_TO_ARTICLES = "wjs_review.events.assignment.default_assign_editors_to_articles"
+JCOM_ASSIGN_EDITORS_TO_ARTICLES = "wjs_review.events.assignment.jcom_assign_editors_to_articles"
+
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-    None: "wjs.jcom_profile.events.assignment.default_assign_editors_to_articles",
+    None: DEFAULT_ASSIGN_EDITORS_TO_ARTICLES,
 }
 
 
@@ -126,9 +129,7 @@ def test_jcom_normal_issue_articles_automatic_assignment(
     article_editors = None
 
     jcom_assignment_settings = WJS_ARTICLE_ASSIGNMENT_FUNCTIONS
-    jcom_assignment_settings[
-        article.journal.code
-    ] = "wjs.jcom_profile.events.assignment.jcom_assign_editors_to_articles"
+    jcom_assignment_settings[article.journal.code] = JCOM_ASSIGN_EDITORS_TO_ARTICLES
 
     if has_editors:
         article_editors = directors
@@ -167,9 +168,7 @@ def test_jcom_special_issue_articles_automatic_assignment(
 ):
     article_editors = None
     jcom_assignment_settings = WJS_ARTICLE_ASSIGNMENT_FUNCTIONS
-    jcom_assignment_settings[
-        article.journal.code
-    ] = "wjs.jcom_profile.events.assignment.jcom_assign_editors_to_articles"
+    jcom_assignment_settings[article.journal.code] = DEFAULT_ASSIGN_EDITORS_TO_ARTICLES
 
     if has_editors:
         article_editors = special_issue.editors.all()

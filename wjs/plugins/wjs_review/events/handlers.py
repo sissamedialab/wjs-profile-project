@@ -5,8 +5,7 @@ from django.utils.module_loading import import_string
 from events import logic as events_logic
 from review import models as review_models
 from submission import models as submission_models
-
-from wjs.jcom_profile.events.assignment import dispatch_assignment
+from wjs_review.events.assignment import dispatch_assignment
 
 from ..models import ArticleWorkflow
 from . import ReviewEvent

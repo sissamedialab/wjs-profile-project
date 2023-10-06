@@ -311,6 +311,7 @@ def test_invite_reviewer(
     """A user can be invited and a user a review assignment must be created."""
     fake_request.user = section_editor.janeway_account
 
+    journal_code = assigned_article.journal.code
     user_data = {
         "first_name": fake_factory.first_name(),
         "last_name": fake_factory.last_name(),
@@ -334,9 +335,9 @@ def test_invite_reviewer(
         "wjs_evaluate_review",
         kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
     )
-    if not url.startswith(f"/{assigned_article.journal.code}"):
-        url = f"/{assigned_article.journal.code}{url}"
-    gdpr_acceptance_url = assigned_article.journal.site_url(url)
+    # url starts with journal code, but just in case that the tests run makes it NOT start with the journal code...
+    if not url.startswith(f"/{journal_code}"):
+        url = f"/{journal_code}{url}"
 
     assert invited_user.janeway_account in assigned_article.journal.users_with_role("reviewer")
     assert not invited_user.is_active
@@ -359,7 +360,7 @@ def test_invite_reviewer(
         "subject_review_assignment",
         assigned_article.journal,
     ).processed_value
-    acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
+    acceptance_url = f"{url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
     # TODO: review me when we silence Janeway notifications
     assert len(mail.outbox) == 3
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]

@@ -16,7 +16,7 @@ def get_special_issue_parameters(article):
     :param article: The assigned article.
     :return: The Editor assignment parameters for a special issue article.
     """
-    from ..models import EditorAssignmentParameters
+    from wjs.jcom_profile.models import EditorAssignmentParameters
 
     return EditorAssignmentParameters.objects.filter(
         journal=article.journal,
@@ -29,7 +29,7 @@ def default_assign_editors_to_articles(**kwargs) -> Optional[review_models.Edito
     from review.logic import assign_editor
     from utils.logic import get_current_request
 
-    from ..models import EditorAssignmentParameters
+    from wjs.jcom_profile.models import EditorAssignmentParameters
 
     article = kwargs["article"]
     parameters = None
@@ -57,7 +57,7 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAs
     from review.logic import assign_editor
     from utils.logic import get_current_request
 
-    from ..models import EditorAssignmentParameters
+    from wjs.jcom_profile.models import EditorAssignmentParameters
 
     article = kwargs["article"]
     parameters = None
