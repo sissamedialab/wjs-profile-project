@@ -14,7 +14,7 @@ from django.conf import settings as django_settings
 from django.contrib.messages.storage import default_storage
 from django.core import management
 from django.core.cache import cache
-from django.urls.base import clear_script_prefix, clear_url_caches
+from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
 from django.utils.timezone import now
 from identifiers.models import Identifier
@@ -336,9 +336,14 @@ def _journal_factory(code, press, domain=None):
 
 
 @pytest.fixture
-def journal(press):
+def journal(press, director_role):
     """Prepare a journal."""
-    return _journal_factory(JOURNAL_CODE, press, domain="testserver.org")
+    journal = _journal_factory(JOURNAL_CODE, press, domain="testserver.org")
+    # This injects current journal code as prefix for all URLs in the current thread, ensuring reverse correctly
+    # generates URLs with the journal code as prefix
+    # This is the same code run by `core.middleware.SiteSettingsMiddleware` ensuring the same behavior in the tests
+    set_script_prefix(f"/{journal.code}")
+    return journal
 
 
 @pytest.fixture
@@ -539,9 +544,7 @@ def install_jcom_theme():
     management.call_command("install_themes")
 
 
-# FIXME: We should mark this as autouse and fix the tests relying on the dirty script prefix
-# We (unconsciously) rely on this in a few tests, and we should not do this anymore.
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def clear_script_prefix_fix():
     """Clear django's script prefix at the end of the test.
 

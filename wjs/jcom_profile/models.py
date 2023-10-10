@@ -102,9 +102,9 @@ class SIQuerySet(models.QuerySet):
         or with the user in the invitees.
         """
         request = utils_logic.get_current_request()
-        if request and request.user:
+        if request and request.user and request.user.is_authenticated:
             return self.filter(
-                Q(invitees__isnull=True) | Q(invitees=request.user),
+                Q(invitees__isnull=True) | Q(invitees__in=[request.user]),
             )
         else:
             return self.none()

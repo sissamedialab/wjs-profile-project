@@ -33,9 +33,6 @@ def test_filter_articles_by_author(editor, published_articles, press, admin, sec
     active_authors = core_models.Account.objects.filter(pk__in=published_articles.values_list("authors", flat=True))
     author = random.choice(active_authors)
     url = reverse("articles_by_author", kwargs={"author": author.pk})
-    # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
-    if not url.startswith(f"/{journal.code}"):
-        url = f"/{journal.code}{url}"
     response = client.get(url)
 
     articles_per_author = published_articles.filter(frozenauthor__author__in=[author], journal=journal)
@@ -60,9 +57,6 @@ def test_filter_articles_by_section(editor, published_articles, press, admin, se
     active_sections = Section.objects.filter(pk__in=published_articles.values_list("section", flat=True))
     section = random.choice(active_sections)
     url = reverse("articles_by_section", kwargs={"section": section.pk})
-    # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
-    if not url.startswith(f"/{journal.code}"):
-        url = f"/{journal.code}{url}"
     response = client.get(url)
 
     assert response.status_code == 200
@@ -85,9 +79,6 @@ def test_filter_articles_by_keyword(editor, published_articles, press, admin, se
     active_keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
     keyword = random.choice(active_keywords)
     url = reverse("articles_by_keyword", kwargs={"keyword": keyword.pk})
-    # we need this check because janeway url includes pollutes the url resolver. See fixme at clear_script_prefix_fix
-    if not url.startswith(f"/{journal.code}"):
-        url = f"/{journal.code}{url}"
     response = client.get(url)
 
     assert response.status_code == 200

@@ -56,12 +56,11 @@ def test_select_reviewer_raise_403_for_not_editor(
     client: Client,
     jcom_user: JCOMProfile,
     assigned_article: submission_models.Article,
-    clear_script_prefix_fix,
 ):
     """Not editors gets permission denied error when accessing SelectReviewer."""
     url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
     client.force_login(jcom_user.janeway_account)
-    response = client.get(f"{assigned_article.journal.code}/{url}")
+    response = client.get(url)
     assert response.status_code == 403
 
 
@@ -71,7 +70,6 @@ def test_select_reviewer_raise_404_for_editor_not_assigned(
     client: Client,
     section_editor: JCOMProfile,
     submitted_articles: List[submission_models.Article],
-    clear_script_prefix_fix,
 ):
     """An editor is returned a 404 status for when accessing SelectReviewer for an article they are not editor for."""
     article = submitted_articles[0]
@@ -87,12 +85,11 @@ def test_select_reviewer_status_code_200_for_assigned_editor(
     client: Client,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
-    clear_script_prefix_fix,
 ):
     """An editor can access SelectReviewer for their own articles."""
     url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
     client.force_login(section_editor.janeway_account)
-    response = client.get(f"{assigned_article.journal.code}/{url}")
+    response = client.get(url)
     assert response.status_code == 200
     assert response.context["workflow"] == assigned_article.articleworkflow
 
@@ -102,11 +99,9 @@ def test_invite_button_is_in_select_reviewer_interface(
     review_settings,
     client: Client,
     assigned_article: submission_models.Article,
-    clear_script_prefix_fix,
 ):
     section_editor = assigned_article.editorassignment_set.first().editor
     url = reverse("wjs_select_reviewer", args=(assigned_article.articleworkflow.pk,))
-    url = f"{assigned_article.journal.code}/{url}"
     client.force_login(section_editor)
     response = client.get(url)
     invite_url = reverse("wjs_review_invite", args=(assigned_article.articleworkflow.pk,))
@@ -120,11 +115,9 @@ def test_invite_function_creates_inactive_user(
     client: Client,
     assigned_article: submission_models.Article,
     review_form: ReviewForm,
-    clear_script_prefix_fix,
 ):
     section_editor = assigned_article.editorassignment_set.first().editor
     url = reverse("wjs_review_invite", args=(assigned_article.articleworkflow.pk,))
-    url = f"{assigned_article.journal.code}/{url}"
     client.force_login(section_editor)
     data = {
         "first_name": "Name",
@@ -176,17 +169,14 @@ def test_accept_invite(
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
-    clear_script_prefix_fix,
     accept_gdpr: bool,
 ):
     """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
     invited_user = review_assignment.reviewer
     url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"/{review_assignment.article.journal.code}{url}?access_code={review_assignment.access_code}"
+    url = f"{url}?access_code={review_assignment.access_code}"
     redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
-    redirect_url = (
-        f"/{review_assignment.article.journal.code}{redirect_url}?access_code={review_assignment.access_code}"
-    )
+    redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": review_assignment.date_due.date()}
     response = client.post(url, data=data)
     review_assignment.refresh_from_db()
@@ -217,17 +207,14 @@ def test_accept_invite_date_due_in_the_future(
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
-    clear_script_prefix_fix,
     accept_gdpr: bool,
 ):
     """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
     invited_user = review_assignment.reviewer
     url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"/{review_assignment.article.journal.code}{url}?access_code={review_assignment.access_code}"
+    url = f"{url}?access_code={review_assignment.access_code}"
     redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
-    redirect_url = (
-        f"/{review_assignment.article.journal.code}{redirect_url}?access_code={review_assignment.access_code}"
-    )
+    redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
     date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
@@ -265,13 +252,12 @@ def test_accept_invite_but_date_due_in_the_past(
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
-    clear_script_prefix_fix,
     accept_gdpr: bool,
 ):
     """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
     invited_user = review_assignment.reviewer
     url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"/{review_assignment.article.journal.code}{url}?access_code={review_assignment.access_code}"
+    url = f"{url}?access_code={review_assignment.access_code}"
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
     date_due = review_assignment.date_due.date() - datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
@@ -304,18 +290,15 @@ def test_decline_invite(
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
-    clear_script_prefix_fix,
     accept_gdpr: bool,
     reason: str,
 ):
     """If user declines the invitation, is activated only if accepts gdpr and declined only if it provides reason."""
     invited_user = review_assignment.reviewer
     url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"/{review_assignment.article.journal.code}{url}?access_code={review_assignment.access_code}"
+    url = f"{url}?access_code={review_assignment.access_code}"
     redirect_url = reverse("wjs_declined_review", args=(review_assignment.pk,))
-    redirect_url = (
-        f"/{review_assignment.article.journal.code}{redirect_url}?access_code={review_assignment.access_code}"
-    )
+    redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
     data = {
         "reviewer_decision": "0",
         "accept_gdpr": accept_gdpr,
