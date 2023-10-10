@@ -42,7 +42,6 @@
 services:
   db:
     image: postgres:13.8
-    restart: always
     # Must match with test_settings.DATABASES
     environment:
       - POSTGRES_USER=janeway

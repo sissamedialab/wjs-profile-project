@@ -262,11 +262,10 @@ class TestInfoStage:
         """When no SI has been choosen, a normal author (i.e. not manager) sees only public sections."""
         # add role "Author" to user coauthor (cannot move to fixture,
         # because roles are related to a journal)
-        from core.models import AccountRole, Role
+        from core.models import Role
 
-        author_role = Role.objects.create(name="Author", slug="author")
+        author_role, __ = Role.objects.get_or_create(name="Author", slug="author")
         coauthor.add_account_role(author_role.slug, journal_with_three_sections)
-        print(AccountRole.objects.filter(journal=journal_with_three_sections))
 
         # create an article owned by the user that will do the request (admin)
         #
@@ -395,13 +394,13 @@ class TestInfoStage:
         """Simulate Janeway's middleware."""
         # simulate login
         request.user = kwargs["user"]
+        # simulate J. middleware
+        request.journal = kwargs["journal"]
+        SiteSettingsMiddleware.process_request(request)
         # simulate session middleware (it is needed because the
         # template of the response uses the templatetag
         # "hijack_notification")
         SessionMiddleware().process_request(request)
-        # simulate J. middleware
-        request.journal = kwargs["journal"]
-        SiteSettingsMiddleware.process_request(request)
         # https://youtu.be/vZraNnWnYXE?t=10
 
     def sections_in_the_form(self, response):

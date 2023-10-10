@@ -1,8 +1,10 @@
 """Tests related to the automatic assignment of articles after submission."""
 import pytest
+from django.shortcuts import get_object_or_404
 from django.test import Client, override_settings
 from django.urls import reverse
 from review.models import EditorAssignment
+from submission.models import Article
 
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
@@ -60,7 +62,8 @@ def test_default_normal_issue_articles_automatic_assignment(
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)
 
-        url = f"/{article.journal.code}/submit/{article.pk}/review/"
+        assert get_object_or_404(Article, pk=article.pk)
+        url = reverse("submit_review", args=(article.pk,))
 
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
@@ -97,9 +100,6 @@ def test_default_special_issue_articles_automatic_assignment(
         expected_editor = get_expected_editor(article_editors, article)
 
         url = reverse("submit_review", args=(article.pk,))
-        if not url.startswith(f"/{article.journal.code}"):
-            url = f"/{article.journal.code}{url}"
-
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
 
@@ -140,7 +140,6 @@ def test_jcom_normal_issue_articles_automatic_assignment(
         expected_editor = get_expected_editor(article_editors, article)
 
         url = reverse("submit_review", args=(article.pk,))
-
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
 
@@ -178,8 +177,8 @@ def test_jcom_special_issue_articles_automatic_assignment(
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)
 
+        assert get_object_or_404(Article, pk=article.pk)
         url = reverse("submit_review", args=(article.pk,))
-
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
 

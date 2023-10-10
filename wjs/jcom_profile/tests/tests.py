@@ -6,7 +6,7 @@ from django.test import Client
 
 from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.tests.conftest import EXTRAFIELDS_FRAGMENTS, JOURNAL_CODE
+from wjs.jcom_profile.tests.conftest import EXTRAFIELDS_FRAGMENTS
 
 
 class TestJCOMProfileProfessionModelTests:
@@ -40,26 +40,24 @@ class TestJCOMProfileProfessionModelTests:
 
 class TestJCOMProfileURLs:
     @pytest.mark.skip(reason="Package installed as app (not as plugin).")
-    def test_register_url_points_to_plugin(self, journal, clear_script_prefix_fix):
+    def test_register_url_points_to_plugin(self, journal):
         """The "register" link points to the plugin's registration form."""
         client = Client()
-        journal_path = f"/{JOURNAL_CODE}/"
+        journal_path = f"/{journal.code}/"
         response = client.get(journal_path)
-        expected_register_link = f'/{JOURNAL_CODE}/plugins/register/step/1/"> Register'
+        expected_register_link = f'/{journal.code}/plugins/register/step/1/"> Register'
         assert expected_register_link in response.content.decode()
 
     @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    def test_journal_registration_form_has_extrafields(self, journal, fragment, clear_script_prefix_fix):
+    def test_journal_registration_form_has_extrafields(self, journal, fragment):
         """The extra fields must appear in the **journal** registration form."""
         client = Client()
-        response = client.get(f"/{JOURNAL_CODE}/register/step/1/")
+        response = client.get(f"/{journal.code}/register/step/1/")
         assert fragment in response.content.decode()
 
     @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    # No need for the fixture "clear_script_prefix_fix" because we
-    # don't visit URLs related to a journal.
     def test_press_registration_form_has_extrafields(self, press, fragment):
         """The extra fields must appear in the **press** registration form."""
         # The press "theme" is managed by INSTALLATION_BASE_THEME.
@@ -69,19 +67,17 @@ class TestJCOMProfileURLs:
 
     @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    def test_journal_user_profile_form_has_extrafields(self, admin, journal, fragment, clear_script_prefix_fix):
+    def test_journal_user_profile_form_has_extrafields(self, admin, journal, fragment):
         """The extra fields must appear in the **journal** user profile form."""
         client = Client()
         client.force_login(admin)
-        response = client.get(f"/{JOURNAL_CODE}/profile/")
+        response = client.get(f"/{journal.code}/profile/")
 
         assert response.status_code == 200
         assert fragment in response.content.decode()
 
     @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
     @pytest.mark.django_db
-    # No need for the fixture "clear_script_prefix_fix" because we
-    # don't visit URLs related to a journal.
     def test_press_user_profile_form_has_extrafields(self, admin, press, fragment):
         """The extra fields must appear in the **press** user profile form."""
         # The press "theme" is managed by INSTALLATION_BASE_THEME.
