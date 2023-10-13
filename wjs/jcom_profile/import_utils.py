@@ -302,15 +302,27 @@ def extract_reviews_info(maketitle: HtmlElement) -> Optional[HtmlElement]:
     """Extract Book and Conference Review info from div.maketitle."""
     # The part that we are interested in starts with a <h2> (please
     # note that this method is called _after_ headings have been
-    # promoted), then some text, then a <br/>, then some final text.
+    # promoted), then some texts and <br/>s.
     # It should be at the end of the div.maketitle. E.g.:
     #
+    # For a CONFERENCE review
     # ...
-    # <h2 class="likesectionHead"><a id="x1-3000"/>Contents</h2>
+    #   <h2 class="likesectionHead"><a id="x1-3000"/>Contents</h2>
     #
-    # <h2 class="likesectionHead"><a id="x1-4000"/>Reviewed Conference<a id="Q1-1-7"/></h2>
-    # Forum Wissenschaftskommunikation 2022<br/>
-    # Leibniz Universit&#228;t, Hannover, Germany, 4&#8211;6 October 2022
+    #   <h2 class="likesectionHead"><a id="x1-4000"/>Reviewed Conference<a id="Q1-1-7"/></h2>
+    #   Forum Wissenschaftskommunikation 2022<br/>
+    #   Leibniz Universit&#228;t, Hannover, Germany, 4&#8211;6 October 2022
+    # </div>
+    # ...
+    #
+    # OR, for a BOOK review
+    # ...
+    #   <h2 class="likesectionHead"><a id="x1-3000"/>Contents</h2>
+    #
+    #   <h2 class="likesectionHead"><a id="x1-4000"></a>Reviewed Book<a id="Q1-1-7"></a></h3>
+    #   Christiansen, J. (2023).<br/>
+    #   Building Science Graphics: an... diagrams and visualizations.<br/>
+    #   Boca Raton &amp; Oxon: CRC Press
     # </div>
     # ...
     #
@@ -328,28 +340,25 @@ def extract_reviews_info(maketitle: HtmlElement) -> Optional[HtmlElement]:
         return None
 
     logger.debug(f'Found "{header_text}"')
-
-    if not header == maketitle[-2]:
-        logger.error("Reviewd info found in unexpected place. Trying to continue.")
+    review_header_index = maketitle.index(header)
 
     # I prefer to have an element to move around
     wrapper = lxml.html.etree.Element("div")
     wrapper.append(header)
     # Let's also encapsulate the text in a <p>
     p = lxml.html.etree.SubElement(wrapper, "p")
-
-    # The first text line should be the conference's title...
     p.text = header.tail
     header.tail = None
 
-    br = maketitle[-1]
-    if br.tag != "br":
-        logger.error(f"Unexpected tag {br} found. Trying to continue.")
+    # For a conference review, I expect header + title + venue = 3 items
+    # For a book review, I expect header + author + title + publisher = 4 items
+    index_from_bottom = review_header_index - len(maketitle) - 1
+    if index_from_bottom not in (-3, -4):
+        logger.warning("Please check info about review in the galley.")
 
-    p.append(br)
-    # ...and the second text line should be the conference's venue and date.
-    if not br.tail:
-        logger.error("Missing expect final text. Trying to continue.")
+    elements_to_keep = maketitle[review_header_index:]
+    for element in elements_to_keep:
+        p.append(element)
     return wrapper
 
 
