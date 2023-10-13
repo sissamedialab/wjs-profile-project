@@ -596,3 +596,74 @@ class TestImportFromWjappSetAuthors:
             in caplog.text
         )
         assert "Janeway different@email.it vs. new natasha.constant@rspb.org.uk" in caplog.text
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "xml_string, expected_info",
+    [
+        (
+            """<div class="maketitle">
+  <h1 class="titleHead">Visualising...</h1>
+  <b><span class="author">Marnell...</span></b>
+  <h2 class="likesectionHead"><a id="x1-1000"></a>Abstract<a id="Q1-1-2"></a></h2>
+  ...
+  <h2 class="likesectionHead"><a id="x1-2000"></a>Keywords<a id="Q1-1-4"></a></h2>
+  ...
+  <h2 class="likesectionHead"><a id="x1-3000"></a>Contents</h2>
+  <div class="tableofcontents">
+    <span class="sectionToc"><a href="#Q1-1-2">Abstract</a></span>
+    <br/> <span class="sectionToc"><a href="#Q1-1-4">...</a></span>
+  </div>
+  <h2 class="likesectionHead"><a id="x1-4000"></a>Reviewed Book<a id="Q1-1-7"></a></h2>
+  Christiansen, J. (2023).<br/>
+  Building Science Graphics.<br/>
+  Boca Raton &amp; Oxon: CRC Press
+</div>
+""",
+            (
+                "Reviewed Book",
+                "Christiansen",
+                "Building Science",
+                "Boca Raton",
+            ),
+        ),
+        (
+            """<div class="maketitle">
+  <h1 class="titleHead">Visualising...</h1>
+  <b><span class="author">Marnell...</span></b>
+  <h2 class="likesectionHead"><a id="x1-1000"></a>Abstract<a id="Q1-1-2"></a></h2>
+  ...
+  <h2 class="likesectionHead"><a id="x1-2000"></a>Keywords<a id="Q1-1-4"></a></h2>
+  ...
+  <h2 class="likesectionHead"><a id="x1-3000"></a>Contents</h2>
+  <div class="tableofcontents">
+    <span class="sectionToc"><a href="#Q1-1-2">Abstract</a></span>
+    <br/> <span class="sectionToc"><a href="#Q1-1-4">...</a></span>
+  </div>
+  <h2 class="likesectionHead"><a id="x1-4000"></a>Reviewed Conference<a id="Q1-1-7"></a></h2>
+  Christiansen, J. (2023).<br/>
+  Boca Raton &amp; Oxon: CRC Press
+</div>
+""",
+            (
+                "Reviewed Conference",
+                "Christiansen",
+                "Boca Raton",
+            ),
+        ),
+    ],
+)
+def test_extract_reviews_info(xml_string: str, expected_info: list):
+    """Test that the info about a review are extracted correctly."""
+    from wjs.jcom_profile.import_utils import extract_reviews_info
+
+    html = lxml.html.fromstring(xml_string)
+
+    h2_elements = html.findall(".//h2")
+    assert len(h2_elements) == 4
+
+    wrapper_element: lxml.html.HtmlElement = extract_reviews_info(html)
+    text_content = "".join(wrapper_element.itertext())
+    for expected_fragment in expected_info:
+        assert expected_fragment in text_content
