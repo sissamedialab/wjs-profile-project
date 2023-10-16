@@ -47,6 +47,7 @@ class WjsReviewConfig(AppConfig):
     def register_events(self):
         """Register our function in Janeway's events logic."""
         from events import logic as events_logic
+        from utils import transactional_emails
 
         from .events import ReviewEvent
         from .events.handlers import (
@@ -67,4 +68,8 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,
             on_revision_complete,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY,
+            transactional_emails.send_revisions_request,
         )

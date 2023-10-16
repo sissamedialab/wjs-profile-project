@@ -15,6 +15,11 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     None: DEFAULT_ASSIGN_EDITORS_TO_ARTICLES,
 }
 
+JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
+    None: DEFAULT_ASSIGN_EDITORS_TO_ARTICLES,
+    "JCOM": JCOM_ASSIGN_EDITORS_TO_ARTICLES,
+}
+
 
 def get_expected_editor(editors, article):
     """
@@ -49,6 +54,7 @@ def get_expected_editor(editors, article):
 def test_default_normal_issue_articles_automatic_assignment(
     admin,
     article,
+    directors,
     editors,
     coauthors_setting,
     has_editors,
@@ -85,6 +91,8 @@ def test_default_normal_issue_articles_automatic_assignment(
 def test_default_special_issue_articles_automatic_assignment(
     admin,
     article,
+    directors,
+    editors,
     coauthors_setting,
     special_issue,
     has_editors,
@@ -128,13 +136,10 @@ def test_jcom_normal_issue_articles_automatic_assignment(
 ):
     article_editors = None
 
-    jcom_assignment_settings = WJS_ARTICLE_ASSIGNMENT_FUNCTIONS
-    jcom_assignment_settings[article.journal.code] = JCOM_ASSIGN_EDITORS_TO_ARTICLES
-
     if has_editors:
         article_editors = directors
 
-    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=jcom_assignment_settings):
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
         client = Client()
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)
@@ -161,18 +166,18 @@ def test_jcom_normal_issue_articles_automatic_assignment(
 def test_jcom_special_issue_articles_automatic_assignment(
     admin,
     article,
+    directors,
+    editors,
     coauthors_setting,
     special_issue,
     has_editors,
 ):
     article_editors = None
-    jcom_assignment_settings = WJS_ARTICLE_ASSIGNMENT_FUNCTIONS
-    jcom_assignment_settings[article.journal.code] = DEFAULT_ASSIGN_EDITORS_TO_ARTICLES
 
     if has_editors:
         article_editors = special_issue.editors.all()
 
-    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=jcom_assignment_settings):
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
         client = Client()
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)

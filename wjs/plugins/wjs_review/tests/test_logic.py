@@ -636,13 +636,13 @@ def test_submit_review(
 
 
 @pytest.mark.parametrize(
-    "decision,final_state,has_revision",
+    "decision,final_state",
     (
-        (ArticleWorkflow.Decisions.ACCEPT, ArticleWorkflow.ReviewStates.ACCEPTED, False),
-        (ArticleWorkflow.Decisions.REJECT, ArticleWorkflow.ReviewStates.REJECTED, False),
-        (ArticleWorkflow.Decisions.NOT_SUITABLE, ArticleWorkflow.ReviewStates.NOT_SUITABLE, False),
-        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED, True),
-        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED, True),
+        (ArticleWorkflow.Decisions.ACCEPT, ArticleWorkflow.ReviewStates.ACCEPTED),
+        (ArticleWorkflow.Decisions.REJECT, ArticleWorkflow.ReviewStates.REJECTED),
+        (ArticleWorkflow.Decisions.NOT_SUITABLE, ArticleWorkflow.ReviewStates.NOT_SUITABLE),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
     ),
 )
 @pytest.mark.django_db
@@ -654,7 +654,6 @@ def test_handle_editor_decision(
     review_form: ReviewForm,
     decision: str,
     final_state: str,
-    has_revision: bool,
 ):
     """
     If the editor makes a decision, article.stage is set to the next workflow stage if decision is final
@@ -680,8 +679,13 @@ def test_handle_editor_decision(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
     }
-    if has_revision:
+    if final_state not in (
+        ArticleWorkflow.ReviewStates.ACCEPTED,
+        ArticleWorkflow.ReviewStates.REJECTED,
+        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ):
         form_data["date_due"] = now().date() + datetime.timedelta(days=7)
+    mail.outbox = []
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
         form_data=form_data,
@@ -691,7 +695,7 @@ def test_handle_editor_decision(
     handle.run()
     assigned_article.refresh_from_db()
 
-    if has_revision:
+    if final_state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
         # article is kept the as ON_WORKFLOW_ELEMENT_COMPLETE event is not triggered
         assert assigned_article.stage == submission_models.STAGE_UNDER_REVISION
         assert assigned_article.articleworkflow.state == final_state
@@ -706,12 +710,27 @@ def test_handle_editor_decision(
             if form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
             else EditorialDecisions.MAJOR_REVISIONS.value
         )
-    else:
+        assert len(mail.outbox) == 1
+        assert any(True for m in mail.outbox if "Revision is requested" in m.subject)
+    elif final_state == ArticleWorkflow.ReviewStates.ACCEPTED:
         # article is moved to the next stage by ON_WORKFLOW_ELEMENT_COMPLETE event triggered by HandleDecision
         next_stage = get_next_workflow(assigned_article.journal)
         assert assigned_article.stage == next_stage.stage
 
         assert assigned_article.articleworkflow.state == final_state
+        assert len(mail.outbox) == 2
+        assert any(True for m in mail.outbox if "Article Accepted" in m.subject)
+        assert any(True for m in mail.outbox if "Paper accepted" in m.subject)
+    elif final_state == ArticleWorkflow.ReviewStates.NOT_SUITABLE:
+        assert assigned_article.stage == submission_models.STAGE_REJECTED
+        assert assigned_article.articleworkflow.state == final_state
+        assert len(mail.outbox) == 2
+        assert any(True for m in mail.outbox if "Paper deemed not suitable" in m.subject)
+    elif final_state == ArticleWorkflow.ReviewStates.REJECTED:
+        assert assigned_article.stage == submission_models.STAGE_REJECTED
+        assert assigned_article.articleworkflow.state == final_state
+        assert len(mail.outbox) == 2
+        assert any(True for m in mail.outbox if "Paper rejected" in m.subject)
 
     # All review assignments are marked as complete, review_assignment is automatically marked as declined
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1

@@ -590,7 +590,7 @@ def keywords():
 def directors(director_role, journal):
     directors = []
     for i in range(3):
-        director = JCOMProfile.objects.create(
+        user_director = JCOMProfile.objects.create(
             username=f"Director{i}",
             email=f"Director{i}@Director{i}.it",
             first_name=f"Director{i}",
@@ -598,12 +598,12 @@ def directors(director_role, journal):
             is_active=True,
         )
         EditorAssignmentParameters.objects.create(
-            editor=director.janeway_account,
+            editor=user_director.janeway_account,
             journal=journal,
             workload=random.randint(1, 10),
         )
-        director.janeway_account.add_account_role("director", journal)
-        directors.append(director.janeway_account)
+        user_director.janeway_account.add_account_role("director", journal)
+        directors.append(user_director.janeway_account)
     return directors
 
 
@@ -611,22 +611,22 @@ def directors(director_role, journal):
 def editors(roles, journal):
     editors = []
     for i in range(3):
-        editor = JCOMProfile.objects.create(
+        user_editor = JCOMProfile.objects.create(
             username=f"Editor{i}",
             email=f"Editor{i}@Editor{i}.it",
             first_name=f"Editor{i}",
             last_name=f"Editor{i}",
             is_active=True,
         )
-        editor.janeway_account.add_account_role("editor", journal)
+        user_editor.janeway_account.add_account_role("section-editor", journal)
 
         EditorAssignmentParameters.objects.create(
-            editor=editor.janeway_account,
+            editor=user_editor.janeway_account,
             journal=journal,
             workload=random.randint(1, 10),
         )
 
-        editors.append(editor.janeway_account)
+        editors.append(user_editor.janeway_account)
     return editors
 
 

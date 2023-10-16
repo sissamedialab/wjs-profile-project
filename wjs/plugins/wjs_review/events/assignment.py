@@ -4,9 +4,14 @@ Journal level configuration is made using the 'WJS_ARTICLE_ASSIGNMENT_FUNCTIONS'
 """
 from typing import Optional
 
+from core.models import AccountRole, Role
 from django.conf import settings
 from django.utils.module_loading import import_string
 from review import models as review_models
+from review.logic import assign_editor
+from utils.logic import get_current_request
+
+from wjs.jcom_profile.models import EditorAssignmentParameters
 
 
 def get_special_issue_parameters(article):
@@ -16,8 +21,6 @@ def get_special_issue_parameters(article):
     :param article: The assigned article.
     :return: The Editor assignment parameters for a special issue article.
     """
-    from wjs.jcom_profile.models import EditorAssignmentParameters
-
     return EditorAssignmentParameters.objects.filter(
         journal=article.journal,
         editor__in=article.articlewrapper.special_issue.editors.all(),
@@ -26,18 +29,15 @@ def get_special_issue_parameters(article):
 
 def default_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign editors to article for review. Default algorithm."""
-    from review.logic import assign_editor
-    from utils.logic import get_current_request
-
-    from wjs.jcom_profile.models import EditorAssignmentParameters
-
     article = kwargs["article"]
-    parameters = None
-    if article.articlewrapper.special_issue:
-        if article.articlewrapper.special_issue.editors:
-            parameters = get_special_issue_parameters(article)
+    if article.articlewrapper.special_issue and article.articlewrapper.special_issue.editors:
+        parameters = get_special_issue_parameters(article)
     else:
-        parameters = EditorAssignmentParameters.objects.filter(journal=article.journal)
+        editors = AccountRole.objects.filter(
+            journal=article.journal,
+            role=Role.objects.get(slug="section-editor"),
+        ).values_list("user")
+        parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=editors)
     if parameters:
         request = get_current_request()
         if parameters.order_by("workload").first():
@@ -53,18 +53,10 @@ def default_assign_editors_to_articles(**kwargs) -> Optional[review_models.Edito
 
 def jcom_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign editors to article for review. JCOM algorithm."""
-    from core.models import AccountRole, Role
-    from review.logic import assign_editor
-    from utils.logic import get_current_request
-
-    from wjs.jcom_profile.models import EditorAssignmentParameters
-
     article = kwargs["article"]
-    parameters = None
 
-    if article.articlewrapper.special_issue:
-        if article.articlewrapper.special_issue.editors:
-            parameters = get_special_issue_parameters(article)
+    if article.articlewrapper.special_issue and article.articlewrapper.special_issue.editors:
+        parameters = get_special_issue_parameters(article)
     else:
         directors = AccountRole.objects.filter(
             journal=article.journal,
