@@ -532,10 +532,16 @@ class HandleDecision:
         self._trigger_article_event(events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
 
     @staticmethod
-    def _get_email_context(article: Article, request: HttpRequest, form_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_email_context(
+        article: Article,
+        request: HttpRequest,
+        form_data: Dict[str, Any],
+        revision: Optional[EditorRevisionRequest] = None,
+    ) -> Dict[str, Any]:
         return {
             "article": article,
             "request": request,
+            "revision": revision,
             "decision": form_data["decision"],
             "user_message_content": form_data["decision_editor_report"],
             "skip": False,
@@ -565,6 +571,15 @@ class HandleDecision:
         communication_utils.log_operation(
             self.workflow.article,
             "Paper deemed not suitable",
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_revision_request(self, email_context):
+        # TODO: use the email_context to build a nice message
+        communication_utils.log_operation(
+            self.workflow.article,
+            "Revision is requested",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )
@@ -612,7 +627,6 @@ class HandleDecision:
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._log_decline(context)
-        self._trigger_workflow_event()
         return self.workflow.article
 
     def _not_suitable_article(self) -> Article:
@@ -632,7 +646,6 @@ class HandleDecision:
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._log_not_suitable(context)
-        self._trigger_workflow_event()
         return self.workflow.article
 
     def _close_unsubmitted_reviews(self):
@@ -658,7 +671,7 @@ class HandleDecision:
         self.workflow.save()
         self.workflow.article.stage = STAGE_UNDER_REVISION
         self.workflow.article.save()
-        EditorRevisionRequest.objects.create(
+        revision = EditorRevisionRequest.objects.create(
             article=self.workflow.article,
             editor=self.user,
             type=EditorialDecisions.MINOR_REVISIONS.value
@@ -669,7 +682,10 @@ class HandleDecision:
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
         )
-        # TODO: Notify author
+        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data, revision)
+        self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
+        self._log_revision_request(context)
+        return revision
 
     def _store_decision(self) -> EditorDecision:
         """Store decision information."""
