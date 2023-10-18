@@ -1,10 +1,8 @@
 """Tests related to the automatic assignment of articles after submission."""
 import pytest
-from django.shortcuts import get_object_or_404
 from django.test import Client, override_settings
 from django.urls import reverse
 from review.models import EditorAssignment
-from submission.models import Article
 
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
@@ -16,7 +14,6 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
 }
 
 JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-    None: DEFAULT_ASSIGN_EDITORS_TO_ARTICLES,
     "JCOM": JCOM_ASSIGN_EDITORS_TO_ARTICLES,
 }
 
@@ -28,19 +25,17 @@ def get_expected_editor(editors, article):
     :param article: the submitted article
     :return: The expected editor
     """
-    lowest_workload = 1000
-    expected_editor = None
     if not editors:
-        return expected_editor
-    for editor in editors:
-        params = EditorAssignmentParameters.objects.get(
-            editor=editor,
+        return None
+    parameters = (
+        EditorAssignmentParameters.objects.filter(
+            editor__in=editors,
             journal=article.journal,
         )
-        if params.workload < lowest_workload:
-            expected_editor = params.editor
-            lowest_workload = params.workload
-    return expected_editor
+        .order_by("workload", "id")
+        .first()
+    )
+    return parameters.editor
 
 
 @pytest.mark.parametrize(
@@ -60,6 +55,7 @@ def test_default_normal_issue_articles_automatic_assignment(
     has_editors,
 ):
     article_editors = None
+
     if has_editors:
         article_editors = editors
 
@@ -68,9 +64,7 @@ def test_default_normal_issue_articles_automatic_assignment(
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)
 
-        assert get_object_or_404(Article, pk=article.pk)
         url = reverse("submit_review", args=(article.pk,))
-
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
 
@@ -114,7 +108,6 @@ def test_default_special_issue_articles_automatic_assignment(
         article.refresh_from_db()
         if has_editors:
             editor_assignment = EditorAssignment.objects.get(article=article)
-
             assert editor_assignment.editor == expected_editor
 
 
@@ -151,7 +144,6 @@ def test_jcom_normal_issue_articles_automatic_assignment(
         article.refresh_from_db()
         if has_editors:
             editor_assignment = EditorAssignment.objects.get(article=article)
-
             assert editor_assignment.editor == expected_editor
 
 
@@ -182,7 +174,6 @@ def test_jcom_special_issue_articles_automatic_assignment(
         client.force_login(admin)
         expected_editor = get_expected_editor(article_editors, article)
 
-        assert get_object_or_404(Article, pk=article.pk)
         url = reverse("submit_review", args=(article.pk,))
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
@@ -190,5 +181,4 @@ def test_jcom_special_issue_articles_automatic_assignment(
         article.refresh_from_db()
         if has_editors:
             editor_assignment = EditorAssignment.objects.get(article=article)
-
             assert editor_assignment.editor == expected_editor
