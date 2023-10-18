@@ -40,10 +40,10 @@ def default_assign_editors_to_articles(**kwargs) -> Optional[review_models.Edito
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=editors)
     if parameters:
         request = get_current_request()
-        if parameters.order_by("workload").first():
+        if parameter := parameters.order_by("workload", "id").first():
             assignment, created = assign_editor(
                 article,
-                parameters.order_by("workload").first().editor,
+                parameter.editor,
                 "editor",
                 request,
                 False,
@@ -65,10 +65,10 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAs
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=directors)
     if parameters:
         request = get_current_request()
-        if parameters.order_by("workload").first():
+        if parameter := parameters.order_by("workload", "id").first():
             assignment, created = assign_editor(
                 article,
-                parameters.order_by("workload").first().editor,
+                parameter.editor,
                 "editor",
                 request,
                 False,

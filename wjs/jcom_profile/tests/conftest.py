@@ -639,9 +639,8 @@ def special_issue(article, editors, journal, director_role):
         open_date=timezone.now(),
         close_date=timezone.now() + timezone.timedelta(1),
     )
-    for editor in editors:
-        special_issue.editors.add(editor)
-        special_issue.save()
+    special_issue.editors.set(editors)
+
     article_wrapper = ArticleWrapper.objects.get(janeway_article=article)
     article_wrapper.special_issue = special_issue
     article_wrapper.save()
