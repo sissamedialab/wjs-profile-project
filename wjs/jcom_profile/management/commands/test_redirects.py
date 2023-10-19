@@ -34,6 +34,8 @@ TESTS = {
         # Issue
         ("/archive/03/03", 301, r"/issue/10/info"),
         ("/archive/03/03/", 301, r"/issue/10/info/"),
+        ("/archive/12/3-4", 301, r"/issue/46/info/"),
+        ("/archive/12/3-4/", 301, r"/issue/46/info/"),
         #
         # Galleys
         ("/sites/default/files/documents/JCOM_2107_2022_A02.pdf", 301, r"/article/(\d+)/galley/(\d+)/download/"),
@@ -52,6 +54,7 @@ TESTS = {
         #       appears in the "src" part (and may change because of
         #       import order)
         # NON-GENERIC: ("/article/pubid/JCOM_2002_2021_A01/1234", 301, r"/article/(\d+)/galley/(\d+)/download/"),
+        ("/archive/08/04/Jcom0804(2009)A02/Jcom0804(2009)A02.pdf", 301, "/article/342/galley/504/download/"),
         #
         # Archive and volumes
         ("/archive", 301, "/issues/"),
@@ -68,6 +71,9 @@ TESTS = {
         ("/all-articles/RSS", 301, "/feed/articles/"),
         ("/all/RSS", 301, "/feed/articles/"),
         ("/rss.xml", 301, "/feed/articles/"),
+        #
+        # Favicon
+        ("/sites/all/themes/jcom/favicon.png", 301, "/media/cover_images/"),
     ),
     "JCOMAL": (
         # Warning: JCOMAL URLS are messy:
@@ -127,6 +133,9 @@ TESTS = {
         ("/es/rss.xml", 301, "/feed/articles/"),
         ("/pt-br/rss.xml", 301, "/feed/articles/"),
         #
+        # Favicon
+        ("/sites/all/themes/jcomal/favicon.png", 301, "/media/cover_images/"),
+        #
         # Cherry picks
         # Landing page, main pdf, main pdf form citation_pdf_url, and
         # supplementary file for JCOMAL_0302_2020_A02
@@ -174,7 +183,7 @@ class Command(BaseCommand):
             else:
                 if expected_http_code in [301, 302]:
                     location_path = response.headers["Location"].replace(scheme_and_domain, "")
-                    if match_obj := re.search(expected_location_path, location_path):
+                    if match_obj := re.match(expected_location_path, location_path):
                         self.notice(f'"{url}" ok')
                         logger.debug(f"Match obj: {match_obj}")
                     else:

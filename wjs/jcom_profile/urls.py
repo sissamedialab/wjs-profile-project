@@ -121,6 +121,12 @@ urlpatterns = [
     re_path(r"^articles/section/(?P<section>[\w.-]+)/$", views.filter_articles, name="articles_by_section"),
     re_path(r"^articles/author/(?P<author>[\w.-]+)/$", views.filter_articles, name="articles_by_author"),
     # Redirects - start
+    # Drupal favicon
+    re_path(
+        r"^sites/all/themes/jcom(?:al)?/favicon.png$",
+        views.FaviconRedirect.as_view(),
+        name="jcom_redirect_favicon",
+    ),
     # JCOM issues were /archive/01/02/
     # JCOMAL issues were /es/01/02/ (or /pt-br/01/02/)
     re_path(

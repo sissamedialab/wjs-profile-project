@@ -24,7 +24,9 @@ RewriteRule "^/article/pubid/([^/]+).abstract/?$" "/article/pubid/$1/" [R=301,L]
 # From: //jcom.sissa.it/archive/13/04/JCOM_1304_2014_E
 # To:   //jcom.sissa.it/article/pubid/JCOM_1304_2014_E
 #
-# Watch out: non-standard issue /archive/12/3-4/JCOM....(2013)...
+# Watch out: non-standard issue 12/3-4 (e.g. /archive/12/3-4/JCOM....(2013)...)
+RewriteRule "^/archive/12/3-4/?$" "/issue/46/info/" [R=301,L]
+#
 RewriteCond %{REQUEST_URI} "!.*pdf$"
 RewriteCond %{REQUEST_URI} "!.*epub$"
 RewriteRule "^/archive/12/3-4/(JCOM\d{4}\(2013\)[A-Z0-9]{3}/)?(JCOM\d{4}\(2013\)[A-Z0-9]{3})$" "/article/pubid/$2/" [R=301,L]
@@ -99,17 +101,17 @@ RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(?<pubid>[^/]+)$" "/arti
 # Main galley in citation_pdf_url for sub-documents
 # The easiest thing here seams to just drop the "parent" part and proxy
 # to Janeway for correct resolution
-RewriteCond %{REQUEST_URI} ".*pdf$" [OR]
-RewriteCond %{REQUEST_URI} ".*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)(?<rest>.*)$" "/sites/default/files/documents/$5$6$7" [PT,L]
-# old style - /archive/02/04/C020401/C020402.pdf
-RewriteCond %{REQUEST_URI} ".*pdf$" [OR]
-RewriteCond %{REQUEST_URI} ".*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/([A-Z][0-9]{6})/([A-Z][0-9]{6})(?<rest>.*)$" "/sites/default/files/documents/$4$5"  [PT,L]
-# old style - /archive/09/04/Jcom0904%282010%29C01/Jcom0904%282010%29C02.pdf
-RewriteCond %{REQUEST_URI} ".*pdf$" [OR]
-RewriteCond %{REQUEST_URI} ".*epub$"
-RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(Jcom[A-Z0-9()]{13})/(Jcom[A-Z0-9()]{13})(?<rest>.*)$" "/sites/default/files/documents/$4$5" [PT,L]
+# do NOT enable! issue-475 # RewriteCond %{REQUEST_URI} ".*pdf$" [OR]
+# do NOT enable! issue-475 # RewriteCond %{REQUEST_URI} ".*epub$"
+# do NOT enable! issue-475 # RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)/(JCOM_\d{4}_\d{4}_)([A-Z0-9]+)(?<rest>.*)$" "/sites/default/files/documents/$5$6$7" [PT,L]
+# do NOT enable! issue-475 # old style - /archive/02/04/C020401/C020402.pdf
+# do NOT enable! issue-475 # RewriteCond %{REQUEST_URI} ".*pdf$" [OR]
+# do NOT enable! issue-475 # RewriteCond %{REQUEST_URI} ".*epub$"
+# do NOT enable! issue-475 # RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/([A-Z][0-9]{6})/([A-Z][0-9]{6})(?<rest>.*)$" "/sites/default/files/documents/$4$5"  [PT,L]
+# do NOT enable! issue-475 # old style - /archive/09/04/Jcom0904%282010%29C01/Jcom0904%282010%29C02.pdf
+# do NOT enable! issue-475 # RewriteCond %{REQUEST_URI} ".*pdf$" [OR]
+# do NOT enable! issue-475 # RewriteCond %{REQUEST_URI} ".*epub$"
+# do NOT enable! issue-475 # RewriteRule "^/archive/(?<volume>\d{2})/(?<issue>\d{2})/(Jcom[A-Z0-9()]{13})/(Jcom[A-Z0-9()]{13})(?<rest>.*)$" "/sites/default/files/documents/$4$5" [PT,L]
 
 
 # Archive and volumes --> /issues

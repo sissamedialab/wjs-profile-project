@@ -214,3 +214,13 @@ def drupal_style_slugify(elements, accents_to_ascii=True):
         django_slug = "".join([c if ord(c) <= 127 else "-" for c in django_slug])
 
     return django_slug
+
+
+class FaviconRedirect(RedirectView):
+    permanent = True
+
+    def get_redirect_url(self, *args, **kwargs):
+        """Get the url of the favicon for this journal."""
+        if self.request.journal and self.request.journal.favicon:
+            return self.request.journal.favicon.url
+        return Http404()
