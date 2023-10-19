@@ -1,0 +1,17 @@
+<div class="card my-4">
+    <div class="card-body">
+        <h3 class="card-title">Information</h3>
+        <p>
+            You have been asked to revise your article manuscript. If the editor
+            has made peer review comments
+            available for you to view, these will be visible below. The
+            manuscript and any additional files are
+            also listed below.
+        </p>
+        <p>
+            The editor, {{ revision_request.editor.full_name }}, supplied the
+            following note
+        </p>
+        {{ revision_request.editor_note|safe }}
+    </div>
+</div>

@@ -14,21 +14,21 @@
                         <div class="col">
                             {% bootstrap_button button_type="submit" content="Search" %}
                         </div>
-                      <div class="col"><a href="{% url "wjs_review_invite" pk=workflow.pk %}" class="btn btn-primary">Invite new</a></div>
+                      <div class="col"><a href="{% url "wjs_invite_reviewer" pk=workflow.pk %}" class="btn btn-primary">Invite new</a></div>
                     </div>
                 </div>
                 <table class="table">
                     <tr>
-                        <th scope="col" title="Score">
+                        <th title="Score">
                             <a href="#" title="Help page on how we compute score">🎯</a>
                         </th>
-                        <th scope="col"
+                        <th
                             title="Click to go user's profile-as-revier with nome, orcid, affil, reviewer stats, workload-as-reviewer?, kwd-as-rev?, editor's personal notes on the rev.,...">
                             Name
                         </th>
-                        <th scope="col">Email</th>
-                        <th scope="col" title="Past | prophy | notes | declined-or-removed |">Flags</th>
-                        <th scope="col"
+                        <th>Email</th>
+                        <th title="Past | prophy | notes | declined-or-removed |">Flags</th>
+                        <th
                             title="Gray out if already-assigned | author-of-paper | disabled">Action</th>
                     </tr>
                     {% include "wjs_review/elements/reviewers_list.html" with users=reviewers selected=form.data.reviewer %}
@@ -44,6 +44,13 @@
                     </div>
                     <div class="row">
                         <div class="col">{% bootstrap_form form %}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <a href="{% url "wjs_article_details" workflow.pk %}#author-cover-letter" target="_blank">
+                                {% translate "Past review notes" %}
+                            </a>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col">{% bootstrap_button button_type="submit" content="Assign" %}</div>

@@ -1,0 +1,33 @@
+{% load hooks %}
+<div class="card my-4">
+    <div class="card-body">
+        <h3 class="card-title">Tasks</h3>
+        <table class="table">
+            {% for revision in article.active_revision_requests %}
+                {% if not revision.date_completed %}
+                    <tr>
+                        <td>
+                            <a class="btn btn-primary"
+                               href="{% url 'do_revisions' article.pk revision.pk %}">
+                                Revision Request due
+                                on {{ revision.date_due|date:"Y-m-d" }}
+                            </a>
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+            {% for review in article.active_author_copyedits %}
+                <tr>
+                    <td>
+                        <a class="btn btn-primary"
+                           href="{% url 'author_copyedit' article.pk review.pk %}">
+                            Copyediting Review assigned
+                            on {{ review.assigned|date:"Y-m-d" }}
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+        {% hook 'core_article_tasks' %}
+    </div>
+</div>

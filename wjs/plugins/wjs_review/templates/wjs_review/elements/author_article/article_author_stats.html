@@ -1,0 +1,17 @@
+{% if article.is_published %}
+    <div class="card my-4">
+        <div class="card-body">
+            <h3 class="card-title">View and Download Stats</h3>
+            <table class="table">
+                <tr>
+                    <th>Views</th>
+                    <td>{{ article.metrics.views }}</td>
+                </tr>
+                <tr>
+                    <th>Downloads</th>
+                    <td>{{ article.metrics.downloads }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+{% endif %}

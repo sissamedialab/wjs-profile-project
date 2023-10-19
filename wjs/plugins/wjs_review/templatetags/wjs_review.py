@@ -89,7 +89,7 @@ def get_review_assignments(
     # - assignment
     # - list of actions (possibly empty)
     results = []
-    for assignment in workflow.article.reviewassignment_set.all():
+    for assignment in workflow.article.reviewassignment_set.all().order_by("-review_round__round_number"):
         actions = None
         if state_class is not None and state_class.review_assignment_actions is not None:
             actions = [
