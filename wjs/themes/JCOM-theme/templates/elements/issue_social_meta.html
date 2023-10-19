@@ -1,6 +1,9 @@
-{% if issue.large_image %}
+{% load wjs_tags %}
+{% with issue_meta_image_url=issue|get_issue_meta_image_url %}
+{% if issue_meta_image_url %}
     <meta name="twitter:image"
-          content="{{ issue.hero_image_url }}" />
+          content="{{ issue_meta_image_url }}" />
     <meta property="og:image"
-          content="{{ issue.hero_image_url }}" />
+          content="{{ issue_meta_image_url }}" />
 {% endif %}
+{% endwith %}

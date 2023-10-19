@@ -4,10 +4,14 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="{{ article.title }}">
 <meta name="twitter:description" content="{{ article|description }}">
-{% if article.large_image_file.id %}
+{% with article_meta_image_path=article.get_meta_image_path %}
+{% if article_meta_image_path %}
     <meta name="twitter:image"
-          content="{% journal_url 'article_file_download' 'id' article.id article.large_image_file.id %}">
+          content="{{ article_meta_image_path }}">
+    <meta property="og:image"
+          content="{{ article_meta_image_path }}" />
 {% endif %}
+{% endwith %}
 <meta property="og:title" content="{{ article.title }}" />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="{{ article.url }}" />
@@ -18,10 +22,6 @@
 {% if article.last_modified %}
     <meta property="og:updated_time"
           content="{{ article.last_modified|date:"c" }}" />
-{% endif %}
-{% if article.large_image_file.id %}
-    <meta property="og:image"
-          content="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}" />
 {% endif %}
 {# TODO: Maybe fix the value in Journal.description to reflect what we want here? #}
 <meta property="og:site_name"

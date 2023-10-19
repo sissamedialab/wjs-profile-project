@@ -3,10 +3,12 @@
 <!-- <meta name="DC.Coverage.spatial" xml:lang="en" content="London" /> -->
 <!-- <meta name="DC.Coverage.temporal" xml:lang="en" content="long-eighteenth century" /> -->
 <meta name="description" content="{{ article|description }}" />
-{% if article.large_image_file.id %}
+{% with article_meta_image_path=article.get_meta_image_path %}
+{% if article_meta_image_path %}
     <link rel="image_src"
-          href="{% url 'article_file_download' 'id' article.id article.large_image_file.id %}" />
+          href="{{ article_meta_image_path }}" />
 {% endif %}
+{% endwith %}
 <link rel="canonical" href="{{ article.url }}" />
 <meta http-equiv="content-language" content="{{ article.language }}" />
 {% if article.date_published %}
