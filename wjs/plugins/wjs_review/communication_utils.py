@@ -65,11 +65,11 @@ def log_silent_operation(article: Article, message_body: str) -> Message:
 
 def log_operation(
     article: Article,
-    message_body: str,
+    message_subject: str,
+    message_body="",
     actor=None,
     recipients=None,
     message_type=Message.MessageTypes.STD,
-    message_subject="",
 ) -> Message:
     """Create a Message to log something. Send out notifications as needed."""
     if not actor:

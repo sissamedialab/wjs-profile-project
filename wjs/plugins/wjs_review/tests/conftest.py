@@ -3,6 +3,7 @@ import os
 
 import pytest  # noqa
 from core.models import Workflow, WorkflowElement
+from django.core import mail
 from django.http import HttpRequest
 from events import logic as events_logic
 from review import models as review_models
@@ -13,11 +14,17 @@ from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
 from ..logic import AssignToEditor
-from ..models import ArticleWorkflow
+from ..models import ArticleWorkflow, Message
 from ..plugin_settings import HANDSHAKE_URL, SHORT_NAME, set_default_plugin_settings
 from .test_helpers import _create_review_assignment
 
 TEST_FILES_EXTENSION = ".santaveronica"
+
+
+def cleanup_notifications_side_effects():
+    """Clean up messages and notifications."""
+    mail.outbox = []
+    Message.objects.all().delete()
 
 
 @pytest.fixture
@@ -43,6 +50,17 @@ def review_settings(journal):
 
 @pytest.fixture
 def assigned_article(fake_request, article, section_editor):
+    """
+    Assign an editor to an article.
+
+    By default the assignment creates notifications (one mail and one message), and this can give problems
+    in the tests using this fixture, because they have to distinguish between these notifications and the
+    ones that are to be checked during the test itself.
+
+    Calling the cleanup_notifications_side_effects() function here will remove the AssignToEditor() mail and
+    message, so that the test using this fixture can check the notifications created *during* the test without
+    interferences and without knowing the side effects of the fixture or of AssignToEditor().
+    """
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     article.articleworkflow.save()
     workflow = AssignToEditor(
@@ -51,6 +69,7 @@ def assigned_article(fake_request, article, section_editor):
         request=fake_request,
     ).run()
     assert workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    cleanup_notifications_side_effects()
     return workflow.article
 
 

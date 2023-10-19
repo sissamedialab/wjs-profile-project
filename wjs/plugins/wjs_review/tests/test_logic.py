@@ -17,6 +17,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
+from .. import communication_utils
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -24,7 +25,7 @@ from ..logic import (
     HandleDecision,
     InviteReviewer,
 )
-from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest
+from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 from .test_helpers import _create_review_assignment, _submit_review, get_next_workflow
 
 fake_factory = Faker()
@@ -62,6 +63,12 @@ def test_assign_to_editor(
     assert article.reviewround_set.count() == 1
     assert article.reviewround_set.filter(round_number=1).count() == 1
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    # Check messages
+    assert Message.objects.count() == 1
+    message_to_editor = Message.objects.get(subject="Assigned to editor")
+    assert message_to_editor.body == ""
+    assert message_to_editor.message_type == "Standard"
+    assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
 
 
 @pytest.mark.django_db
@@ -90,10 +97,13 @@ def test_assign_to_non_editor(
     article.refresh_from_db()
     assert article.editorassignment_set.count() == 0
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    # Check messages
+    assert Message.objects.count() == 0
 
 
 @pytest.mark.django_db
 def test_assign_to_reviewer(
+    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -133,6 +143,34 @@ def test_assign_to_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == normal_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
+
+    subject_review_assignment = get_setting(
+        "email_subject",
+        "subject_review_assignment",
+        assigned_article.journal,
+    ).processed_value
+    url = reverse("wjs_evaluate_review", kwargs={"assignment_id": assignment.pk})
+    acceptance_url = f"{url}?access_code={assignment.access_code}"
+    # 1 notification to the reviewer (by Janeway)
+    # 1 notification to the reviewer (by AssignToReviewer)
+    # TODO: review me when we silence Janeway notifications
+    assert len(mail.outbox) == 2
+    emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
+    assert len(emails) == 2
+    assert f"[{assigned_article.journal.code}] {subject_review_assignment}" in [email.subject for email in emails]
+    # super fragile
+    janeway_email = [email for email in emails if email.subject.startswith("[JCOM]")][0]
+    # Check that the email body is for a non invited reviewer.
+    assert "You have been invited" not in janeway_email.body
+    assert f'We are requesting that you undertake a review of "{assigned_article.title}"' in janeway_email.body
+    assert acceptance_url in janeway_email.body
+    # Check messages
+    assert Message.objects.count() == 1
+    message_to_reviewer = Message.objects.get(subject="Assigned to reviewer")
+    assert message_to_reviewer.body == "random message"
+    assert message_to_reviewer.message_type == "Verbose"
+    assert message_to_reviewer.actor == section_editor.janeway_account
+    assert list(message_to_reviewer.recipients.all()) == [normal_user.janeway_account]
 
 
 @pytest.mark.django_db
@@ -185,6 +223,14 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     assert assigned_article.reviewround_set.count() == 1
     assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+    # Check messages
+    wjs_support_user = communication_utils.get_system_user()
+    assert Message.objects.count() == 1
+    message_to_correspondence_author = Message.objects.get(subject="Revision is requested")
+    assert message_to_correspondence_author.body == ""
+    assert message_to_correspondence_author.message_type == "Verbose"
+    assert message_to_correspondence_author.actor == wjs_support_user
+    assert list(message_to_correspondence_author.recipients.all()) == [assigned_article.correspondence_author]
 
 
 @pytest.mark.django_db
@@ -221,10 +267,14 @@ def test_assign_to_reviewer_fails_no_form(
     assert assigned_article.stage == "Assigned"
     assert assigned_article.reviewassignment_set.count() == 0
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert len(mail.outbox) == 0
+    # Check messages
+    assert Message.objects.count() == 0
 
 
 @pytest.mark.django_db
 def test_assign_to_reviewer_no_editor(
+    review_settings,
     fake_request: HttpRequest,
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -259,10 +309,14 @@ def test_assign_to_reviewer_no_editor(
     assert assigned_article.stage == "Assigned"
     assert assigned_article.reviewassignment_set.count() == 0
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert len(mail.outbox) == 0
+    # Check messages
+    assert Message.objects.count() == 0
 
 
 @pytest.mark.django_db
 def test_assign_to_reviewer_author(
+    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -298,6 +352,9 @@ def test_assign_to_reviewer_author(
     assert assigned_article.stage == "Assigned"
     assert assigned_article.reviewassignment_set.count() == 0
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert len(mail.outbox) == 0
+    # Check messages
+    assert Message.objects.count() == 0
 
 
 @pytest.mark.django_db
@@ -349,11 +406,9 @@ def test_invite_reviewer(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    # 1 notification to the section editor (by AssignToEditor)
     # 1 notification to the reviewer (by Janeway)
     # 1 notification to the reviewer (by InviteReviewer)
-    assert len(mail.outbox) == 3
-    # TODO: drop to "2" when we "silence" Janeway notifications
+    assert len(mail.outbox) == 2
 
     subject_review_assignment = get_setting(
         "email_subject",
@@ -362,13 +417,19 @@ def test_invite_reviewer(
     ).processed_value
     acceptance_url = f"{url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
     # TODO: review me when we silence Janeway notifications
-    assert len(mail.outbox) == 3
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
     assert len(emails) == 2
     assert f"[{assigned_article.journal.code}] {subject_review_assignment}" in [email.subject for email in emails]
     # super fragile
     janeway_email = [email for email in emails if email.subject.startswith("[JCOM]")][0]
     assert acceptance_url in janeway_email.body
+    # Check messages
+    assert Message.objects.count() == 1
+    message_to_invited_user = Message.objects.get(subject="Assigned to reviewer")
+    assert message_to_invited_user.body == "random message"
+    assert message_to_invited_user.message_type == "Verbose"
+    assert message_to_invited_user.actor == section_editor.janeway_account
+    assert list(message_to_invited_user.recipients.all()) == [invited_user.janeway_account]
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))
@@ -586,10 +647,16 @@ def test_invite_reviewer_but_user_already_exists(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    # TODO: see notes in test_invite_reviewer() above
-    assert len(mail.outbox) == 3
+    assert len(mail.outbox) == 2
     janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
     assert janeway_email.to == [invited_user.email]
+    # Check messages
+    assert Message.objects.count() == 1
+    message_to_reviewer = Message.objects.get(subject="Assigned to reviewer")
+    assert message_to_reviewer.body == "random message"
+    assert message_to_reviewer.message_type == "Verbose"
+    assert message_to_reviewer.actor == section_editor.janeway_account
+    assert list(message_to_reviewer.recipients.all()) == [normal_user.janeway_account]
 
 
 @patch("plugins.wjs_review.logic.events_logic.Events.raise_event")
