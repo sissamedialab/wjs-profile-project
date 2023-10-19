@@ -187,3 +187,14 @@ def language_alpha3(alpha_2):
 def display_title(issue):
     """Return a translatable display_title for issues."""
     return mark_safe(issue.update_display_title(save=False))
+
+
+@register.filter
+def get_issue_meta_image_url(issue):
+    """For issues, return the image to use for Facebook & co."""
+    if issue.cover_image:
+        return issue.cover_image.url
+    elif issue.large_image:
+        return issue.large_image.url
+    else:
+        return ""

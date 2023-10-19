@@ -4,7 +4,7 @@
         {% if issue.large_image %}
             <div class="card-image full-width-card-image">
                 <img class="issue_image img-fluid"
-                     src="{{ issue.hero_image_url }}"
+                     src="{{ issue.large_image.url }}"
                      alt="{{ issue|display_title }}">
             </div>
         {% endif %}
