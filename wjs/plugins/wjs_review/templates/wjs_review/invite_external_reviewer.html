@@ -17,7 +17,7 @@
     </div>
     <div class="container">
         <div class="row">
-            <form method="post" action="{% url "wjs_review_invite" pk=workflow.pk %}">
+            <form method="post" action="{% url "wjs_invite_reviewer" pk=workflow.pk %}">
                 {% csrf_token %}
                 <div class="col">{% bootstrap_form form %}</div>
                 {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Invite" %}

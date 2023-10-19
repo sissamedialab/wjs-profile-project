@@ -1,0 +1,17 @@
+{% load roles %}
+
+{% user_has_role request "editor" as user_is_editor %}
+{% user_has_role request "section-editor" as user_is_section_editor %}
+{% user_has_role request "production" as user_is_production %}
+
+{% if user_is_editor or user_is_production or user_is_section_editor %}
+    <a href="{% url "edit_metadata" article.pk %}?return={{ request.path|urlencode }}">
+        Edit Metadata
+    </a>
+{% endif %}
+
+{% include "wjs_review/elements/author_article/article_author_metadata_base.html" %}
+{% include "wjs_review/elements/author_article/article_author_metadata_funders.html" %}
+{% include "wjs_review/elements/author_article/article_author_metadata_authors.html" %}
+{% include "wjs_review/elements/author_article/article_author_metadata_editors.html" %}
+{% include "wjs_review/elements/author_article/article_author_metadata_files.html" %}

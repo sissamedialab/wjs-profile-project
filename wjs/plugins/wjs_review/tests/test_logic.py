@@ -122,6 +122,7 @@ def test_assign_to_reviewer(
         form_data={
             "acceptance_due_date": now().date() + datetime.timedelta(days=7),
             "message": "random message",
+            "author_note_visible": False,
         },
         request=fake_request,
     )
@@ -143,6 +144,7 @@ def test_assign_to_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == normal_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
+    assert not assignment.author_note_visible
 
     subject_review_assignment = get_setting(
         "email_subject",
@@ -374,6 +376,7 @@ def test_invite_reviewer(
         "last_name": fake_factory.last_name(),
         "email": fake_factory.email(),
         "message": "random message",
+        "author_note_visible": True,
     }
 
     service = InviteReviewer(
@@ -406,6 +409,7 @@ def test_invite_reviewer(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
+    assert assignment.workflowreviewassignment.author_note_visible
     # 1 notification to the reviewer (by Janeway)
     # 1 notification to the reviewer (by InviteReviewer)
     assert len(mail.outbox) == 2

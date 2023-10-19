@@ -31,7 +31,12 @@ from .logic import (
     InviteReviewer,
     SubmitReview,
 )
-from .models import ArticleWorkflow, Message
+from .models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    Message,
+    WorkflowReviewAssignment,
+)
 
 Account = get_user_model()
 
@@ -78,6 +83,7 @@ class SelectReviewerForm(forms.ModelForm):
     message = forms.CharField(widget=forms.Textarea(), required=False)
     acceptance_due_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
+    author_note_visible = forms.BooleanField(required=False)
 
     class Meta:
         model = ArticleWorkflow
@@ -103,15 +109,18 @@ class SelectReviewerForm(forms.ModelForm):
         if not self.data.get("reviewer"):
             self.fields["acceptance_due_date"].widget.attrs["disabled"] = True
             self.fields["message"].widget.attrs["disabled"] = True
+            self.fields["author_note_visible"].widget.attrs["disabled"] = True
         else:
             # reviewer is set
             if htmx:
                 # we can load default data
+                default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
                 self.fields["message"].widget = SummernoteWidget()
                 interval_days = get_setting("wjs_review", "acceptance_due_date_days", self.instance.article.journal)
                 default_message = get_setting("wjs_review", "review_invitation_message", self.instance.article.journal)
                 self.data["acceptance_due_date"] = today() + timedelta(days=interval_days.process_value())
                 self.data["message"] = default_message.process_value()
+                self.data["author_note_visible"] = default_visibility
             else:
                 # the form has been submitted (for real, not htmx)
                 # Nothing to do (the field-required thing has been done already some lines above).
@@ -159,6 +168,7 @@ class SelectReviewerForm(forms.ModelForm):
             form_data={
                 "acceptance_due_date": cleaned_data["acceptance_due_date"],
                 "message": cleaned_data["message"],
+                "author_note_visible": cleaned_data["author_note_visible"],
             },
             request=self.request,
         )
@@ -195,6 +205,7 @@ class InviteUserForm(forms.Form):
     last_name = forms.CharField()
     email = forms.EmailField()
     message = forms.CharField(widget=forms.Textarea)
+    author_note_visible = forms.BooleanField(required=False)
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
@@ -438,6 +449,19 @@ class DecisionForm(forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class UploadArticleForm(forms.Form):
+    file_type = forms.ChoiceField(choices=(("manuscript", _("Manuscript")), ("data", _("Data/Figure"))))
+    label = forms.CharField(widget=forms.TextInput(attrs={"placeholder": "Label"}))
+    file = forms.FileField(widget=forms.FileInput())
+
+
+class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["cover_letter_file"]
+        widgets = {"cover_letter_file": forms.ClearableFileInput()}
 
 
 class MessageForm(forms.ModelForm):

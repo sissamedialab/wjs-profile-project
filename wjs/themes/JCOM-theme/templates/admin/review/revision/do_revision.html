@@ -1,0 +1,18 @@
+{% extends "wjs_review/base.html" %}
+
+{% block title %}Revision for {{ revision_request.article.title }}{% endblock title %}
+
+{% block center_column %}
+    {% include "wjs_review/elements/revision_author_info.html" %}
+    {% include "wjs_review/elements/revision_author_reviews.html" %}
+    {% include "wjs_review/elements/revision_author_revision.html" %}
+    {% if form.modal %}
+        {% include "admin/elements/confirm_modal.html" with modal=form.modal form_id="do_revision" %}
+    {% endif %}
+{% endblock center_column %}
+
+{% block js %}
+    {% if form.modal %}
+        {% include "admin/elements/open_modal.html" with target=form.modal.id %}
+    {% endif %}
+{% endblock js %}

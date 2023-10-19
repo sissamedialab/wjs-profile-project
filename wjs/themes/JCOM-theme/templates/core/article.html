@@ -1,0 +1,17 @@
+{% extends "wjs_review/base.html" %}
+{% load hooks %}
+{% block title %}
+    {{ article }}
+{% endblock title %}
+
+{% block center_column %}
+    {% if article.stage == "Published" %}
+        {% hook 'edit_article' %}
+    {% endif %}
+    {% include "wjs_review/elements/author_article/article_author_metadata.html" %}
+    {% include "wjs_review/elements/author_article/article_author_reviews.html" %}
+    {% include "wjs_review/elements/author_article/article_author_stats.html" %}
+    {% include "wjs_review/elements/author_article/article_author_tasks.html" %}
+
+    {% hook 'core_article_footer' %}
+{% endblock center_column %}

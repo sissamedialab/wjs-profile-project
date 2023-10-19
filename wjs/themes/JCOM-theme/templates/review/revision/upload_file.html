@@ -1,0 +1,47 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 static %}
+
+{% block title %}Uploading Article File for {{ revision_request.article.title }}{% endblock title %}
+
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="card my-4">
+                    <div class="card-body">
+                        <h3 class="card-title">Submission Guidelines</h3>
+                        <p>To upload a file, select it using one of the "Choose file" buttons,
+                            then upload it with the "Upload file" button. You can add a label to help the editor identify the file.</p>
+                    </div>
+                </div>
+                <div class="card my-4">
+                    <div class="card-body">
+                        <h3 class="card-title">New File</h3>
+                        {% if error %}
+                            <div class="alert alert-warning" role="alert">{{ error }}</div>
+                        {% endif %}
+                        <p>Please upload your new file.</p>
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <label for="file_type">File Type</label>
+                            <select name="file_type" id="file_type">
+                                <option value="manuscript">Manuscript</option>
+                                <option value="data">Data/Figure</option>
+                            </select>
+
+                            <label for="label">File Label</label>
+                            <input name="label" id="label" type="text" placeholder="Add a file label">
+
+                            <label for="File">File</label>
+                            <input name="file" type="file" id="file" class="filestyle" data-placeholder="No file"
+                                   data-buttonName="btn-primary" required>
+                            <br/>
+
+                            {% bootstrap_button button_type="submit" name="replacement" value=1 content="Upload" %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

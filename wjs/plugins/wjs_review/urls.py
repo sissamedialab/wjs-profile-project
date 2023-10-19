@@ -15,6 +15,7 @@ from .views import (
     ReviewSubmit,
     SelectReviewer,
     UpdateState,
+    UploadRevisionAuthorCoverLetterFile,
 )
 
 urlpatterns = [
@@ -25,8 +26,8 @@ urlpatterns = [
     path(
         "invite_reviewer/<int:pk>/",
         InviteReviewer.as_view(),
-        name="wjs_review_invite",
-    ),  # TODO: rename view name in the form predicate_object (e.g. wjs_invite_review) ?
+        name="wjs_invite_reviewer",
+    ),
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
     path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("review/<int:assignment_id>/", ReviewSubmit.as_view(), name="wjs_review_review"),
@@ -38,6 +39,7 @@ urlpatterns = [
         name="wjs_evaluate_review",
     ),
     path("review/<int:assignment_id>/declined/", ReviewDeclined.as_view(), name="wjs_declined_review"),
+    path("revision/<int:revision_id>/upload/", UploadRevisionAuthorCoverLetterFile.as_view(), name="wjs_upload_file"),
     path("my_messages", MyMessages.as_view(), name="wjs_my_messages"),
     path("messages/<int:article_id>/<int:recipient_id>", Messages.as_view(), name="wjs_article_messages"),
 ]

@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import Page, Paginator
@@ -28,9 +28,10 @@ from .forms import (
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
+    UploadRevisionAuthorCoverLetterFileForm,
 )
 from .mixins import EditorRequiredMixin
-from .models import ArticleWorkflow, Message
+from .models import ArticleWorkflow, EditorRevisionRequest, Message
 
 Account = get_user_model()
 
@@ -167,7 +168,6 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
     context_object_name = "workflow"
 
     def get_success_url(self):
-        # TBV:  reverse("wjs_review_list")?  wjs_review_review?
         return reverse("wjs_article_details", args=(self.object.id,))
 
     def get_form_kwargs(self) -> Dict[str, Any]:
@@ -554,3 +554,29 @@ class Messages(LoginRequiredMixin, CreateView):
         context["recipient"] = self.recipient
         context["message_list"] = self.messages
         return context
+
+
+class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+    """
+    Basic view to upload the optional file of the author cover letter.
+
+    We keep the author's cover letter file in wjs EditorRevisionRequest model instead of in Janeway's RevisionRequest
+    model (where the covering letter/authors note text field is saved) in order to keep the plugin pluggable
+    (i.e. Janeway can still work well without wjs_review).
+
+    Also, since it's the author's direct reply to the editor's revision request, this is not semantically wrong.
+
+    """
+
+    model = EditorRevisionRequest
+    pk_url_kwarg = "revision_id"
+    template_name = "wjs_review/revision/upload_revision_author_cover_letter_file.html"
+    form_class = UploadRevisionAuthorCoverLetterFileForm
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        return self.model.objects.filter(pk=self.kwargs[self.pk_url_kwarg], article__owner=self.request.user).exists()
+
+    def get_success_url(self):
+        """Redirect to the article details page."""
+        return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})

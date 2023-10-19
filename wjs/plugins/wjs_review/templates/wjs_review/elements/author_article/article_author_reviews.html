@@ -1,0 +1,52 @@
+{% if not journal_settings.general.hide_review_data_pre_release or article.peer_reviews_for_author_consumption %}
+    <div class="card my-4">
+        <div class="card-body">
+            <h3 class="card-title">Reviews</h3>
+            {% if journal_settings.general.enable_peer_review_data_block %}
+                <table class="table">
+                    <tr>
+                        <th>Date Requested</th>
+                        <th>Date Due</th>
+                        <th>Date Completed</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                    {% for review in article.reviewassignment_set.all %}
+                        <tr>
+                            <td>{{ review.date_requested }}</td>
+                            <td>{{ review.date_due }}</td>
+                            <td>{{ review.date_complete }}</td>
+                            <td>
+                                <span
+                                    class="{{ review.status.span_class }}">{{ review.status.display }}</span>
+                            </td>
+                            <td>
+                                {% if review.for_author_consumption %}
+                                    <a href="{% url 'review_author_view' article.pk %}">View
+                                        Reviews</a>
+                                {% else %}
+                                    Access has not been granted.
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <table class="table">
+                    {% for review in article.peer_reviews_for_author_consumption %}
+                        <tr>
+                            <th>Review #{{ review.pk }}</th>
+                            <td><a
+                                href="{% url 'review_author_view' article.pk %}">View
+                                Reviews</a></td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td>No review data to display</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}

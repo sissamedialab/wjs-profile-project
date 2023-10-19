@@ -1,0 +1,76 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 static %}
+
+{% block title %}Replacing Article File for
+    {{ revision_request.article.title }}{% endblock title %}
+
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="card my-4">
+                    <div class="card-body">
+                        <h3 class="card-title">Upload Guidelines</h3>
+                        <p>You are revising article
+                            #{{ article.pk }}, {{ article.title|safe }}. </p>
+                        <p>Select a file and use the Upload and
+                            Continue button to upload the file</p>
+                        {% if error %}
+                            <div class="alert alert-warning"
+                                 role="alert">{{ error }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="large-6 columns">
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="title-area">
+                                <h2>Upload Revised File</h2>
+                            </div>
+                            <input name="label" type="text"
+                                   value="Revised Manuscript">
+                            <input name="replacement-file" type="file"
+                                   class="filestyle" data-placeholder="No file"
+                                   data-buttonName="btn-primary">
+                            <br/>
+                            <button type="submit" class="button success"
+                                    name="replacement"><i class="fa fa-upload">
+                                &nbsp;</i>Upload and Continue
+                            </button>
+                        </form>
+                    </div>
+                    <div class="large-6 columns">
+                        <div class="title-area">
+                            <h2>Current File</h2>
+                        </div>
+                        <table class="scroll small">
+                            <tr>
+                                <th>Label</th>
+                                <th>File Name</th>
+                            </tr>
+                            <tr>
+                                <td>{{ file.label }}</td>
+                                <td><a href="?download=true"><i
+                                    class="fa fa-download">&nbsp;{{ file }}</i></a>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+
+{% block js %}
+    <script type="text/javascript"
+            src="{% static "js/bootstrap-filestyle.min.js" %}"></script>
+    <script type="text/javascript">
+        $(":file").filestyle({
+            placeholder: "No file",
+            buttonName: "btn-primary",
+            buttonBefore: true,
+            buttonText: "&nbsp; Choose file"
+        });
+    </script>
+{% endblock js %}

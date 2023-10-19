@@ -29,7 +29,13 @@ from . import communication_utils, permissions
 if TYPE_CHECKING:
     from .forms import ReportForm
 
-from .models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
+from .models import (
+    ArticleWorkflow,
+    EditorDecision,
+    EditorRevisionRequest,
+    Message,
+    WorkflowReviewAssignment,
+)
 
 Account = get_user_model()
 
@@ -147,15 +153,30 @@ class AssignToReviewer:
                 role=Role.objects.get(slug="reviewer"),
             )
 
-    def _assign_reviewer(self) -> Optional[ReviewAssignment]:
+    def _assign_reviewer(self) -> Optional[WorkflowReviewAssignment]:
         """
         Assign the reviewer to the article.
 
         Use janeway review logic quick_assign function.
         """
         assignment = quick_assign(request=self.request, article=self.workflow.article, reviewer_user=self.reviewer)
-        if assignment and self.form_data.get("acceptance_due_date", None):
-            assignment.date_due = self.form_data.get("acceptance_due_date")
+        if assignment:
+            if self.form_data.get("acceptance_due_date", None):
+                assignment.date_due = self.form_data.get("acceptance_due_date")
+
+            # hackish to convert a model to a subclass
+            # 1. change the underlying python class
+            # 2. set the id of the pointer field to the id of the original model
+            # 3. save -> this creates the record in the linked table (WorkflowReviewAssignment) but keeps the original
+            #    record in the ReviewAssignment table intact, so the two are now linked and we can later retrieve
+            #    WorkflowReviewAssignment instance or original ReviewAssignment object and the access the linked
+            #    object through the workflowreviewassignment field
+            default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
+            assignment_id = assignment.pk
+            assignment.__class__ = WorkflowReviewAssignment
+            assignment.reviewassignment_ptr_id = assignment_id
+            assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
+            assignment.save()
         return assignment
 
     def _log_operation(self):
@@ -168,7 +189,7 @@ class AssignToReviewer:
             message_type=Message.MessageTypes.VERBOSE,
         )
 
-    def run(self) -> ReviewAssignment:
+    def run(self) -> WorkflowReviewAssignment:
         # TODO: verificare in futuro se controllare assegnazione multiupla allo stesso reviewer quando si saranno
         #       decisi i meccanismi digestione dei round e delle versioni
         # TODO: se il reviewer non ha il ruolo bisogna fare l'enrolment
@@ -389,7 +410,7 @@ class InviteReviewer:
             # If there is no token, the user was already existing and thus assigned to the review automatically
             messages.add_message(self.request, messages.INFO, _("%s assigned to the article review.") % user.last_name)
 
-    def _assign_reviewer(self, user: JCOMProfile) -> ReviewAssignment:
+    def _assign_reviewer(self, user: JCOMProfile) -> WorkflowReviewAssignment:
         """Create a review assignment for the invited user."""
         assign_service = AssignToReviewer(
             reviewer=user.janeway_account,

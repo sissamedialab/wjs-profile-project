@@ -105,7 +105,7 @@ def test_invite_button_is_in_select_reviewer_interface(
     url = reverse("wjs_select_reviewer", args=(assigned_article.articleworkflow.pk,))
     client.force_login(section_editor)
     response = client.get(url)
-    invite_url = reverse("wjs_review_invite", args=(assigned_article.articleworkflow.pk,))
+    invite_url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
     assert response.status_code == 200
     assert invite_url in response.content.decode()
 
@@ -118,7 +118,7 @@ def test_invite_function_creates_inactive_user(
     review_form: ReviewForm,
 ):
     section_editor = assigned_article.editorassignment_set.first().editor
-    url = reverse("wjs_review_invite", args=(assigned_article.articleworkflow.pk,))
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
     client.force_login(section_editor)
     data = {
         "first_name": "Name",

@@ -1,0 +1,29 @@
+{% if article.funders.exists %}
+    <div class="card my-4">
+        <div class="card-body">
+            <h3 class="card-title">Funders</h3>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>FundRef ID</th>
+                    <th>Grant Number</th>
+                </tr>
+                </thead>
+                <tbody id="sortable">
+                {% for funder in article.funders.all %}
+                    <tr id="funder-{{ funder.pk }}">
+                        <td>{{ funder.name|default_if_none:"" }}</td>
+                        <td>{{ funder.fundref_id|default_if_none:"" }}</td>
+                        <td>{{ funder.funding_id|default_if_none:"" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="2">No funders added.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endif %}

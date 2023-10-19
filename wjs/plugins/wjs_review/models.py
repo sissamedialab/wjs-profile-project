@@ -1,4 +1,5 @@
 """WJS Review and related models."""
+from typing import Optional
 
 from core import models as core_models
 from django.conf import settings
@@ -13,7 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from review.models import RevisionRequest
+from review.models import ReviewAssignment, ReviewRound, RevisionRequest
 from submission.models import Article
 from utils.logger import get_logger
 
@@ -496,4 +497,32 @@ class EditorRevisionRequest(RevisionRequest):
     Extend Janeway's RevisionRequest model to add review round reference.
     """
 
-    review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
+    review_round = models.OneToOneField("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
+    cover_letter_file = models.FileField(blank=True, null=True, verbose_name=_("Cover letter file"))
+
+
+class WorkflowReviewAssignment(ReviewAssignment):
+    """
+    Extend Janeway's ReviewAssignment model to add author cover letter permissions.
+
+    This model will usually be accessed by using its reference in ReviewAssignment:
+
+    - `review_assignment.workflowreviewassignment.author_note_file`
+    - `review_assignment.workflowreviewassignment.author_note_text`
+
+    because in most cases we are going to use janeway's views and templates as a base where the original model is used.
+
+    This is not a big deal as we don't have performance concerns in these templates.
+    """
+
+    author_note_visible = models.BooleanField(_("Author note visible"), default=True)
+
+    @property
+    def previous_review_round(self) -> Optional[ReviewRound]:
+        """Return the previous review round."""
+        if self.review_round.round_number < 2:
+            return None
+        return ReviewRound.objects.filter(
+            article=self.article,
+            round_number=self.review_round.round_number - 1,
+        ).first()

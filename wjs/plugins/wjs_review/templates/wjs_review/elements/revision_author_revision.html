@@ -1,0 +1,94 @@
+{% load django_bootstrap5 files %}
+<form method="post" id="do_revision">
+    {% csrf_token %}
+    <div class="card my-4">
+        <div class="card-body">
+            <h3 class="card-title">Files</h3>
+            <p>
+                Your article files are listed below. You can use the 'Upload
+                Revised
+                File' button next to each
+                file to upload a new version of the file, or use the 'Upload New
+                File' button to upload a new
+                file.
+            </p>
+            <a href="{% url 'revisions_upload_new_file' article.pk revision_request.pk %}"
+               class="btn btn-primary">Upload New File</a>
+            <table class="table">
+                <tr>
+                    <th>Label</th>
+                    <th>Filename</th>
+                    <th>Type</th>
+                    <th>Uploaded</th>
+                    <th>Size</th>
+                    <th>Download</th>
+                    <th>Upload Revised File</th>
+                    <th>Delete</th>
+                </tr>
+                {% for file in article.manuscript_files.all %}
+                    <tr>
+                        <td>{{ file.label }}</td>
+                        <td>{{ file.original_filename }}</td>
+                        <td>Manuscript</td>
+                        <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
+                        <td>{% file_size file article %}</td>
+                        <td><a href="?file_id={{ file.id }}">↓</a></td>
+                        <td>
+                            <a href="{% url 'revisions_replace_file' article.pk revision_request.pk file.pk %}">↑</a>
+                        </td>
+                        <td>
+                            <button type="submit" name="delete"
+                                    value="{{ file.id }}"
+                                    onclick="return confirm('Are you sure you want to delete this item?');">
+                                🗙
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                {% for file in article.data_figure_files.all %}
+                    <tr>
+                        <td>{{ file.label }}</td>
+                        <td>{{ file.original_filename }}</td>
+                        <td>Data/Figure</td>
+                        <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
+                        <td>{% file_size file article %}</td>
+                        <td><a href="?file_id={{ file.id }}">↓</a></td>
+                        <td>
+                            <a href="{% url 'revisions_replace_file' article.pk revision_request.pk file.pk %}">↑</a>
+                        </td>
+                        <td>
+                            <button type="submit" name="delete"
+                                    value="{{ file.id }}"
+                                    onclick="return confirm('Are you sure you want to delete this item?');">
+                                🗙
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+            {% bootstrap_form_errors form layout='inline' %}
+            {% bootstrap_field form.author_note %}
+
+            {% if revision_request.editorrevisionrequest.cover_letter_file %}
+                <a href="{% url 'wjs_upload_file' revision_request.pk %}" class="btn btn-primary">Replace Cover letter</a>
+                <a href="{{ revision_request.editorrevisionrequest.cover_letter_file.url }}">Download current ↓</a>
+            {% else %}
+                <a href="{% url 'wjs_upload_file' revision_request.pk %}" class="btn btn-primary">Upload Cover letter</a>
+            {% endif %}
+            <p>If you want to save your covering letter and come back later,
+                click
+                the 'Save Covering Letter' button below. Once you are ready to
+                send
+                your letter, see the 'Finishing Up' section below.</p>
+            {% bootstrap_button button_class="btn-secondary" button_type="submit" name="save" value=1 content="Save Covering Letter" %}
+        </div>
+    </div>
+
+    <div class="card my-4">
+        <div class="card-body">
+            <h3 class="card-title">Finishing Up</h3>
+            <p>{% trans "When you have completed your revisions and finished writing your covering letter, click the 'Submit Revisions' button below to finish. Please note that you will not be able to make any further changes to your letter or revisions once you click 'Submit Revisions'" %}</p>
+            {% bootstrap_button button_type="submit" name=form.CONFIRMABLE_BUTTON_NAME value=1 content="Submit Revisions" %}
+        </div>
+    </div>
+</form>

@@ -1,0 +1,123 @@
+{% load wjs_articles %}
+
+{% latest_completed_revision article as revision %}
+<div class="card my-4">
+    <div class="card-body">
+        <table class="table">
+            <tbody>
+            <tr>
+                <th>Section</th>
+                <th>Correspondence Author</th>
+                <th>Licence</th>
+                <th>Language</th>
+            </tr>
+            <tr>
+                <td>{{ article.section.name }}</td>
+                {% if article.correspondence_author %}
+                    <td>{{ article.correspondence_author.full_name }}</td>
+                {% else %}
+                    <td>This article has no correspondence_author
+                    </td>
+                {% endif %}
+                <td>{{ article.license.short_name }}</td>
+                <td>{{ article.get_language_display }}</td>
+            </tr>
+            <tr>
+                <th colspan="2">Started</th>
+                <th>Submitted</th>
+                <th>Last revision</th>
+            </tr>
+            <tr>
+                <td colspan="2">{{ article.date_started }}</td>
+                <td>{{ article.date_submitted }}</td>
+                <td>{{ revision.date_completed }}</td>
+            </tr>
+            <tr>
+                <th colspan="4">Abstract</th>
+            </tr>
+            <tr>
+                <td colspan="4">{{ article.abstract|safe }}</td>
+            </tr>
+            <tr>
+                <th colspan="4">Keywords</th>
+            </tr>
+            <tr>
+                <td colspan="4">
+                    {% for keyword in article.keywords.all %}
+                        {{ keyword }}
+                        {% if not forloop.last %}, {% endif %}
+                    {% empty %}
+                        No keywords recorded
+                    {% endfor %}
+                </td>
+            </tr>
+            {% if journal_settings.general.submission_summary %}
+                <tr>
+                    <th colspan="4">Non Specialist Summary</th>
+                </tr>
+                <tr>
+                    <td colspan="4">
+                        {% if article.competing_interests %}
+                            {{ article.non_specialist_summary|safe }}
+                        {% else %}
+                            No Summary Supplied
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+            <tr>
+                <th colspan="4">Comments to Editor</th>
+            </tr>
+            <tr>
+                <td colspan="4">
+                    {% if article.comments_editor %}
+                        {{ article.comments_editor|linebreaksbr }}
+                    {% else %}
+                        No comments
+                    {% endif %}
+                </td>
+            </tr>
+            {% if journal_settings.general.submission_competing_interests %}
+                <tr>
+                    <th colspan="4">Competing Interests</th>
+                </tr>
+                <tr>
+                    <td colspan="4">
+                        {% if article.competing_interests %}
+                            {{ article.competing_interests|safe }}
+                        {% else %}
+                            No CI
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+            <tr>
+                <th>First Page</th>
+                <th>Last Page</th>
+                <th>Page Numbers</th>
+                <th>Total Pages</th>
+            </tr>
+            <tr>
+                <td>{{ article.first_page }}</td>
+                <td>{{ article.last_page }}</td>
+                <td>{{ article.page_numbers }}</td>
+                <td>{{ article.total_pages }}</td>
+            </tr>
+            <tr>
+                <th colspan="4">Rights</th>
+            </tr>
+            <tr>
+                <td colspan="4">{{ article.rights|safe }}</td>
+            </tr>
+            {% for field_answer in article.fieldanswer_set.all %}
+                <tr>
+                    <th colspan="4">{{ field_answer.field.name }}</th>
+                </tr>
+                <tr>
+                    <td colspan="4">{{ field_answer.answer|safe }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

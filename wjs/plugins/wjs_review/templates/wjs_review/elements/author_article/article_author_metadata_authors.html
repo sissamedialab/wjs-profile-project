@@ -1,0 +1,38 @@
+{% if article.frozenauthor_set.all %}
+    <div class="card my-4">
+        <div class="card-body">
+            <h3 class="card-title">Frozen Authors</h3>
+            <p>These records are those of the article authors frozen at the
+                point of
+                submission.</p>
+            <table class="table">
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Primary?</th>
+                </tr>
+                {% for f_author in article.frozenauthor_set.all %}
+                    <tr>
+                        <td>{{ f_author.full_name }}</td>
+                        <td>
+                            {% if user_is_editor or user_is_production or user_is_section_editor %}
+                                {% if f_author.author.email %}
+                                    {{ f_author.author.email }}{% else %} No
+                                    email address recorded.{% endif %}
+                                <a href="{% url "wjs_article_messages" article_id=article.pk recipient_id=f_author.author.pk %}"
+                                   title="Click to contact / communicate">📧</a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if f_author.author == article.correspondence_author %}
+                                🗹
+                            {% else %}
+                                □
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+{% endif %}
