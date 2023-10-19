@@ -1,13 +1,19 @@
 from datetime import timedelta
 from typing import Any, Dict, Iterable, Optional
 
+from core import files as core_files
+from core import models as core_models
 from dateutil.utils import today
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
+from journal.models import Journal
 from review.forms import GeneratedForm
 from review.models import (
     ReviewAssignment,
@@ -15,6 +21,7 @@ from review.models import (
     ReviewForm,
     ReviewFormElement,
 )
+from submission.models import Article
 from utils.setting_handler import get_setting
 
 from .logic import (
@@ -24,7 +31,7 @@ from .logic import (
     InviteReviewer,
     SubmitReview,
 )
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, Message
 
 Account = get_user_model()
 
@@ -431,3 +438,105 @@ class DecisionForm(forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class MessageForm(forms.ModelForm):
+    attachment = forms.FileField(required=False, label=_("Optional attachment"))
+    recipient = forms.ModelChoiceField(queryset=None, required=True, widget=forms.widgets.HiddenInput())
+
+    class Meta:
+        model = Message
+        fields = [
+            "subject",
+            "body",
+            "actor",
+            "content_type",
+            "object_id",
+            "message_type",
+        ]
+        widgets = {
+            "subject": forms.TextInput(),
+            "body": SummernoteWidget(),
+            "actor": forms.widgets.HiddenInput(),
+            "content_type": forms.widgets.HiddenInput(),
+            "object_id": forms.widgets.HiddenInput(),
+            "message_type": forms.widgets.HiddenInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        """Set subject and body as required and store actor and target gotten from the view."""
+        self.actor = kwargs.pop("actor", None)
+        self.target = kwargs.pop("target")
+        super().__init__(*args, **kwargs)
+        self.fields["subject"].required = True
+        self.fields["body"].required = True
+        self.fields["recipient"].queryset = self._get_allowed_recipients()
+
+    def _get_allowed_recipients(self):
+        """Return a queryset of allowed recipients for the current actor/article combination.
+
+        This list will be checked also in HandleMessage._can_write_to so the logic must agree.
+        """
+        if ContentType.objects.get_for_model(self.target) == Journal:
+            raise NotImplementedError("🦤")
+
+        # EO is always available
+        allowed_recipients = Account.objects.filter(is_staff=True, is_active=True)
+
+        # TODO (general): if a director is also an author, the system can get confused!
+
+        # TODO: allowed_recipients.union(...) with
+        # - journal directors
+        # - article editors
+        # - article reviewers
+        # - article authors
+        # based on self.target (assuming target is Article)
+        # For now just return everyone
+        allowed_recipients = Account.objects.all()
+        return allowed_recipients
+
+    def clean(self):
+        """Ignore what's coming from the web form and use what the view provided.
+
+        This should prevent any tampering of these fields.
+
+        These fields (actor, content_type, object_id, message_type) are in Meta.fields, because keeping them there
+        ensures that they are managed during save().
+
+        """
+        clean_data = self.cleaned_data
+        clean_data["actor"] = self.actor
+        clean_data["content_type"] = ContentType.objects.get_for_model(self.target)
+        clean_data["object_id"] = self.target.pk
+        clean_data["message_type"] = Message.MessageTypes.VERBOSE
+        return clean_data
+
+    # TODO: IMPORTANT: enforce security:
+    def save(self, commit: bool = True) -> Message:
+        """Set the logged-in user as actor for this message and save.
+
+        TODO: at the moment only attachments related to Article are managed! I.e. attachments for messages not related
+        to a specific article are not managed.
+        """
+        instance: Message = self.instance
+        with transaction.atomic():
+            instance = super().save()
+            instance.recipients.add(self.cleaned_data["recipient"])
+            if self.cleaned_data["attachment"]:
+                if instance.content_type.model_class() != Article:
+                    # TODO: where do we save attachements of messages not related to articles?
+                    # flat structure? "user files" (e.g. files/users/ID/uuid.ext)?
+                    raise ValidationError("Unhandled type. Please go back and try again.")
+
+                target: Article = get_object_or_404(Article, id=instance.object_id)
+                attachment: core_models.File = core_files.save_file_to_article(
+                    file_to_handle=self.cleaned_data["attachment"],
+                    article=target,
+                    owner=instance.actor,
+                    label=None,  # TODO: TBD: no label (default)
+                    description=None,  # TODO: TBD: no description (default)
+                )
+                instance.attachments.add(attachment)
+            instance.emit_notification()
+
+        return instance

@@ -331,7 +331,7 @@ class Message(TimeStampedModel):
         blank=True,
         default="",
         max_length=111,
-        verbose_name="to",
+        verbose_name="subject",
         help_text="A short description of the message or the subject of the email.",
     )
     body = models.TextField(
@@ -392,7 +392,9 @@ class Message(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.actor} {self.notification_line} ({'; '.join([str(x) for x in self.recipients.all()])})"
+        # Including recipients here may give max-recursion error if recipients.add is called before self is saved in DB
+        # Was `return ... '; '.join([str(x) for x in self.recipients.all()])`
+        return f"{self.actor} {self.notification_line}"
 
     @property
     def notification_line(self):

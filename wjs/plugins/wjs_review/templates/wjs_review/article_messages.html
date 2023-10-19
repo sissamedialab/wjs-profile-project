@@ -45,33 +45,12 @@
             </div>
         </div>
         <div class="row">
-            <div class="col-4">
-                <strong>Subject:</strong>
-            </div>
-            <div class="col-4">
-                <input type="text" />
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-4">
-                <strong>Body:</strong>
-            </div>
-            <div class="col-4">
-                <textarea></textarea>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-4">
-                <strong>Attachments:</strong>
-            </div>
-            <div class="col-4">
-                <input type="file">
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-6">
-                <input type="submit" value="Send">
-            </div>
+            {% bootstrap_form_errors form %}
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="col">{% bootstrap_form form %}</div>
+                {% bootstrap_button button_type="submit" name="submit" content="Send" %}
+            </form>
         </div>
     </div>
 {% endblock center_column %}
