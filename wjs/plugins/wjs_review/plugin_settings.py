@@ -199,8 +199,8 @@ def set_default_plugin_settings():
             "journal": None,
             "setting": None,
             "value": """
-            {%load fqdn %}
-            Dear {{ review_assignment.reviewer.full_name }},<br/><br/
+            {% load fqdn %}
+            Dear {{ review_assignment.reviewer.full_name }},<br/><br/>
             {% if review_assignment.reviewer.jcomprofile.invitation_token %}
             You have been invited to {{ article.journal.name }} in order to review "{{ article.title }}".
             {% else %}

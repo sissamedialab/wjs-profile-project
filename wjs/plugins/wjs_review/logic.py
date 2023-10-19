@@ -77,8 +77,8 @@ class AssignToEditor:
         # TODO: this message does not read well in the automatic notification,
         #       but something like "{article.id} assigned..." won't read well in timeline.
         communication_utils.log_operation(
-            self.workflow.article,
-            "Assigned to editor",
+            article=self.workflow.article,
+            message_subject="Assigned to editor",
             recipients=[self.editor],
         )
 
@@ -160,7 +160,7 @@ class AssignToReviewer:
 
     def _log_operation(self):
         communication_utils.log_operation(
-            self.workflow.article,
+            article=self.workflow.article,
             message_subject="Assigned to reviewer",
             message_body=self.form_data["message"],
             actor=self.editor,
@@ -297,16 +297,16 @@ class EvaluateReview:
         # TODO: exceptions here just disappear
         # try print(self.workflow.article) (no workflow in EvaluateReview instances!!!)
         communication_utils.log_operation(
-            self.assignment.article,
-            "Review assignment accepted",
+            article=self.assignment.article,
+            message_subject="Review assignment accepted",
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
         )
 
     def _log_decline(self):
         communication_utils.log_operation(
-            self.assignment.article,
-            "Review assignment declined",
+            article=self.assignment.article,
+            message_subject="Review assignment declined",
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
         )
@@ -464,8 +464,8 @@ class SubmitReview:
 
     def _log_operation(self):
         communication_utils.log_operation(
-            self.assignment.article,
-            "Review submitted",
+            article=self.assignment.article,
+            message_subject="Review submitted",
             recipients=[self.assignment.editor],
         )
 
@@ -550,8 +550,8 @@ class HandleDecision:
     def _log_accept(self, email_context):
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
-            self.workflow.article,
-            "Paper accepted",
+            article=self.workflow.article,
+            message_subject="Paper accepted",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
             # do we have a subject? message_subject=email_context.pop("subject")
@@ -560,8 +560,8 @@ class HandleDecision:
     def _log_decline(self, email_context):
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
-            self.workflow.article,
-            "Paper rejected",
+            article=self.workflow.article,
+            message_subject="Paper rejected",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )
@@ -569,8 +569,8 @@ class HandleDecision:
     def _log_not_suitable(self, email_context):
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
-            self.workflow.article,
-            "Paper deemed not suitable",
+            article=self.workflow.article,
+            message_subject="Paper deemed not suitable",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )

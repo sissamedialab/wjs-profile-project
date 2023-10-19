@@ -13,6 +13,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
+from ..models import Message
 from ..views import SelectReviewer
 
 
@@ -154,12 +155,18 @@ def test_invite_function_creates_inactive_user(
         assigned_article.journal,
     ).processed_value
     acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
-    # TODO: see notes in test_logic.py::test_invite_reviewer() above
-    assert len(mail.outbox) == 3
+    assert len(mail.outbox) == 2
     janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
     assert janeway_email.to == [invited_user.email]
     assert janeway_email.subject == f"[{assigned_article.journal.code}] {subject_review_assignment}"
     assert acceptance_url in janeway_email.body
+    # Check messages
+    assert Message.objects.count() == 1
+    message_to_reviewer = Message.objects.get(subject="Assigned to reviewer")
+    assert message_to_reviewer.body == "Message"
+    assert message_to_reviewer.message_type == "Verbose"
+    assert message_to_reviewer.actor == section_editor
+    assert list(message_to_reviewer.recipients.all()) == [invited_user.janeway_account]
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))
