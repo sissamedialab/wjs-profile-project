@@ -67,6 +67,7 @@ from . import forms
 from .drupal_redirect_views import (  # noqa F401
     DrupalAuthorsRedirect,
     DrupalKeywordsRedirect,
+    FaviconRedirect,
     JcomFileRedirect,
     JcomIssueRedirect,
 )
