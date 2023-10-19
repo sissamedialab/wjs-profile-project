@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import Page, Paginator
 from django.db.models import Q, QuerySet
@@ -9,7 +10,7 @@ from django.http import HttpResponse, HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404
 from django.template import Context
 from django.urls import reverse, reverse_lazy
-from django.views.generic import DetailView, ListView, UpdateView
+from django.views.generic import CreateView, DetailView, ListView, UpdateView
 from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission import models as submission_models
@@ -23,6 +24,7 @@ from .forms import (
     DecisionForm,
     EvaluateReviewForm,
     InviteUserForm,
+    MessageForm,
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
@@ -491,30 +493,64 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
 class MyMessages(LoginRequiredMixin, ListView):
     """All messages of a certain user that are not related to any article.
 
-    Pprobably only write-to-eo / write-to-directore message.
+    Probably only write-to-eo / write-to-directore message.
     """
 
     model = Message
     template_name = "wjs_review/my_messages.html"
 
 
-class Messages(LoginRequiredMixin, ListView):
-    """Messages related to a certain article that the user can see."""
+class Messages(LoginRequiredMixin, CreateView):
+    """A view to let the user write a new message.
+
+    The view also lists all messages of a certain article that the user can see.
+    """
 
     model = Message
     template_name = "wjs_review/article_messages.html"
+    form_class = MessageForm
 
-    def get_queryset(self):
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        """Add article (target) to the form's kwargs.
+
+        Actor will be evinced by the form directly from the request.
+        """
+        kwargs = super().get_form_kwargs()
+        kwargs["actor"] = self.request.user
+        kwargs["target"] = self.article
+        return kwargs
+
+    def get_success_url(self):
+        """Point back to the article's detail page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk})
+
+    def setup(self, request, *args, **kwargs):
         """Filter only messages related to a certain article and that the current user can see."""
+        super().setup(request, *args, **kwargs)
         self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
         self.recipient = get_object_or_404(Account, id=self.kwargs["recipient_id"])
         messages = get_messages_related_to_me(user=self.request.user, article=self.article)
-        return messages.filter(Q(recipients__in=[self.recipient]) | Q(actor=self.recipient))
+        self.messages = messages.filter(Q(recipients__in=[self.recipient]) | Q(actor=self.recipient))
+
+    def get_initial(self):
+        """Populate the hidden fields.
+
+        Some of these (actor, content_type, object_id, message_type) will be overriden in the form's clean() method but
+        we include the correct values here also for good practice.
+
+        """
+        return {
+            "actor": self.request.user.id,
+            "recipient": self.recipient.id,
+            "content_type": ContentType.objects.get_for_model(self.article).id,
+            "object_id": self.article.id,
+            "message_type": Message.MessageTypes.VERBOSE,
+        }
 
     def get_context_data(self, **kwargs):
         """Add the article and the recipient to the context."""
         context = super().get_context_data(**kwargs)
-        # These have been "collected" by the get_queryset method
         context["article"] = self.article
         context["recipient"] = self.recipient
+        context["message_list"] = self.messages
         return context

@@ -1,3 +1,6 @@
+import glob
+import os
+
 import pytest  # noqa
 from core.models import Workflow, WorkflowElement
 from django.http import HttpRequest
@@ -13,6 +16,8 @@ from ..logic import AssignToEditor
 from ..models import ArticleWorkflow
 from ..plugin_settings import HANDSHAKE_URL, SHORT_NAME, set_default_plugin_settings
 from .test_helpers import _create_review_assignment
+
+TEST_FILES_EXTENSION = ".santaveronica"
 
 
 @pytest.fixture
@@ -117,3 +122,11 @@ def with_no_hooks_for_on_article_workflow_submitted():
     events_logic.Events._hooks[ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED] = []
     yield
     events_logic.Events._hooks[ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED] = old_setting
+
+
+@pytest.fixture
+def cleanup_test_files_from_folder_files(settings):
+    """Remove all files with extension .santaveronica from src/files."""
+    yield
+    for f in glob.glob(f"{settings.BASE_DIR}/files/**/*{TEST_FILES_EXTENSION}", recursive=True):
+        os.unlink(f)

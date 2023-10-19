@@ -75,8 +75,8 @@
                                     <div class="collapse" id="paperAuthorsDetails">
                                         {% for author in article.authors.all %}
                                             <div>
-                                                {{ author }} ({{ author.country }})
-                                                <p>{{ author.biography }}</p>
+                                                {{ author }} (from {{ author.country }}) <a href="{% url "wjs_article_messages" article_id=article.id recipient_id=author.id %}" title="Click to contact / communicate">📧</a>
+                                                <p><strong>Bio:</strong> {{ author.biography }}</p>
                                             </div>
                                         {% endfor %}
                                     </div>
@@ -91,6 +91,7 @@
                                     <ol>
                                         <li>EO User in charge: cassano [Giulia Cassano] take in charge</li>
                                         <li>Typesetter:  	Sara Bin</li>
+                                        <li>Add personal note <a href="{% url "wjs_article_messages" article_id=article.id recipient_id=user.id %}" title="Click to contact / communicate">📧</a></li>
                                     </ol>
                                 </div>
                             </div>
