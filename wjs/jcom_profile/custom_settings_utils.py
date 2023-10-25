@@ -25,7 +25,7 @@ def get_group(name: str) -> SettingGroup:
 class SettingParams(TypedDict):
     name: str
     group: SettingGroup
-    types: str
+    types: str  # E.g. "rich-text", "text", "boolean",... (TODO: make full list)
     pretty_name: str
     description: str
     is_translatable: bool

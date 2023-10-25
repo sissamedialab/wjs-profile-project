@@ -1,16 +1,30 @@
-import dataclasses
-from typing import TYPE_CHECKING, Any, Dict, Optional
+"""Business logic is here.
 
+Most logic is encapsulated into dataclasses that take the necessary data structures upon creation and perform their
+action in a method named "run()".
+
+"""
+import dataclasses
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from core import files as core_files
+from core import (
+    models as core_models,  # TODO: I don't want to typehint using just "File" (there are too many "File"sg
+)
 from core.models import AccountRole, Role
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import QuerySet
 from django.http import HttpRequest
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
+from journal.models import Journal
 from review.const import EditorialDecisions
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
@@ -20,6 +34,7 @@ from review.views import (
     upload_review_file,
 )
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
@@ -733,3 +748,142 @@ class HandleDecision:
             if self.form_data["decision"]:
                 self._close_unsubmitted_reviews()
             return decision
+
+
+@dataclasses.dataclass
+class HandleMessage:
+    message: Message
+    form_data: Dict[str, Any]
+
+    def __post_init__(self):
+        if ContentType.objects.get_for_model(self.message.target) == Journal:
+            raise NotImplementedError("🦆")
+
+    # TODO: refactor the following 3 methods by extending AccountManager as a manager for JCOMProfile
+    @staticmethod
+    def _allowed_recipients_for_actor_pks(actor: Account, article: Article) -> List[int]:
+        """Return the list of ids of allowed recipients for the given actor/article combination."""
+        # TODO: if a director is also an author, the system can get confused! Or, more generally, all "roles" should be
+        # defined with respect to the article.
+
+        # EO is always available
+        allowed_recipients = Account.objects.filter(is_staff=True, is_active=True)
+        others = []
+
+        # The actor himself is always available also
+        others.append(
+            Account.objects.filter(id=actor.id),
+        )
+
+        articleworkflow = article.articleworkflow
+
+        # Editor can write to:
+        if permissions.is_article_editor(instance=articleworkflow, user=actor):
+            # the journal's director(s)
+            others.append(
+                Account.objects.filter(
+                    accountrole__journal=article.journal,
+                    accountrole__role__slug="director",
+                ),
+            )
+            # the correspondence author
+            others.append(
+                Account.objects.filter(id=article.correspondence_author.id),
+            )
+            # all the article's reviewers
+            others.append(
+                Account.objects.filter(
+                    id__in=article.reviewassignment_set.all().values_list("reviewer", flat=True),
+                ),
+            )
+        # Reviewers can write to:
+        elif permissions.is_article_reviewer(instance=articleworkflow, user=actor):
+            # the journal's director(s)
+            others.append(
+                Account.objects.filter(
+                    accountrole__journal=article.journal,
+                    accountrole__role__slug="director",
+                ),
+            )
+            # "His" editor(s): only the editor that created the ReviewAssigment for this reviewer
+            # I.e. not _all_ paper's editor. Other alternatives:
+            # - all editors, e.g.: article.editorassignment_set.all()
+            # - only the current/last editor
+            others.append(
+                Account.objects.filter(
+                    id__in=article.reviewassignment_set.filter(reviewer=actor.id).values_list("editor", flat=True),
+                ),
+            )
+        # Author(s) can write to:
+        elif permissions.is_article_author(instance=articleworkflow, user=actor):
+            # (Only) the current/last editor
+            # Other alternatives:
+            # - all editors, e.g. article.editorassignment_set.all()
+            #
+            # NB: editor assignments do not have a direct reference to a review_round (this is a wjs concept). But we
+            # can use review assignments, that have a direct referenc to both editor and review_round.
+            others.append(
+                Account.objects.filter(
+                    id__in=article.reviewassignment_set.filter(
+                        review_round__round_number=article.current_review_round(),
+                    ).values_list("editor", flat=True),
+                ),
+            )
+            # the journal's director(s) (if permitted by the journal configuration)
+            if get_setting(
+                "wjs_review",
+                "author_can_contact_director",
+                article.journal,
+            ).processed_value:
+                others.append(
+                    Account.objects.filter(
+                        accountrole__journal=article.journal,
+                        accountrole__role__slug="director",
+                    ),
+                )
+
+        # Note that MessageForm' clean method will try to do a `get()` on this queryset, and raise
+        # django.db.utils.NotSupportedError:
+        #   Calling QuerySet.get(...) with filters after union() is not supported.
+        # so we have to "refresh" it later on
+        # and cannot "fileter" it directly.
+        qs = allowed_recipients.union(*others)
+        return qs.values_list("id", flat=True)
+
+    @staticmethod
+    def allowed_recipients_for_actor(actor: Account, article: Article) -> QuerySet:
+        """Return the list of allowed recipients for the actor of the message.
+
+        This method is used to build the queryset for the recipient ModelChoiceField in the MessageForm, and possibly
+        other places.
+
+        """
+        pks = HandleMessage._allowed_recipients_for_actor_pks(actor, article)
+        return Account.objects.filter(id__in=pks)
+
+    @staticmethod
+    def can_write_to(actor: Account, article: Article, recipient: Account) -> bool:
+        """Check if the sender (:py:param: actor) can write to :py:param: recipient wrt this :py:param: article."""
+        pks = HandleMessage._allowed_recipients_for_actor_pks(actor, article)
+        return recipient.id in pks
+
+    def run(self):
+        """Save (and send) a message."""
+        recipient = get_object_or_404(Account, id=self.form_data["recipient"])
+        if not Message.can_write_to(self.message.actor, self.message.target, recipient):
+            raise ValidationError("Cannot write to this recipient. Please contact EO.")
+
+        with transaction.atomic():
+            self.message.message_type = Message.MessageTypes.VERBOSE
+            self.message.save()
+            self.message.recipients.add(recipient)
+            if self.form_data["attachment"]:
+                attachment: core_models.File = core_files.save_file_to_article(
+                    file_to_handle=self.form_data["attachment"],
+                    article=self.message.target,  # TODO: review when implementing messages for Journal
+                    owner=self.message.actor,
+                    label=None,  # TODO: TBD: no label (default)
+                    description=None,  # TODO: TBD: no description (default)
+                )
+                self.message.attachments.add(attachment)
+            self.message.emit_notification()
