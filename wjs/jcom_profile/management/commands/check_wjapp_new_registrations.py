@@ -26,11 +26,6 @@ class Command(BaseCommand):
             "Defaults to %(default)s",
         )
         parser.add_argument(
-            "--journal-code",
-            default="JCOM",
-            help="The code of the journal that we are working on. Defaults to %(default)s",
-        )
-        parser.add_argument(
             "--mail-recipients",
             default="wjs-support@medialab.sissa.it",
             help="Recipients of eventual notifications (comma-separated). Defaults to %(default)s",
