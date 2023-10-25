@@ -223,9 +223,33 @@ def set_default_plugin_settings():
         }
         patch_setting(review_message_email_setting, review_message_setting_value)
 
+    def author_can_contact_director():
+        author_can_contact_director_setting: SettingParams = {
+            "name": "author_can_contact_director",
+            "group": wjs_review_settings_group,
+            "types": "boolean",
+            "pretty_name": _("Whether the author of a paper can contact the director"),
+            "description": _(
+                "The communication system will allow an author of a paper to directly contact the director of the journal only if this setting is true.",
+            ),
+            "is_translatable": False,
+        }
+        author_can_contact_director_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "",
+            "translations": {},
+        }
+        create_customization_setting(
+            author_can_contact_director_setting,
+            author_can_contact_director_setting_value,
+            author_can_contact_director_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
     declined_review_message()
     do_review_message()
     patch_review_message()
+    author_can_contact_director()

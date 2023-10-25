@@ -13,7 +13,6 @@ from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
-from journal.models import Journal
 from review.forms import GeneratedForm
 from review.models import (
     ReviewAssignment,
@@ -28,6 +27,7 @@ from .logic import (
     AssignToReviewer,
     EvaluateReview,
     HandleDecision,
+    HandleMessage,
     InviteReviewer,
     SubmitReview,
 )
@@ -497,26 +497,9 @@ class MessageForm(forms.ModelForm):
         self.fields["recipient"].queryset = self._get_allowed_recipients()
 
     def _get_allowed_recipients(self):
-        """Return a queryset of allowed recipients for the current actor/article combination.
-
-        This list will be checked also in HandleMessage._can_write_to so the logic must agree.
-        """
-        if ContentType.objects.get_for_model(self.target) == Journal:
-            raise NotImplementedError("🦤")
-
-        # EO is always available
-        allowed_recipients = Account.objects.filter(is_staff=True, is_active=True)
-
-        # TODO (general): if a director is also an author, the system can get confused!
-
-        # TODO: allowed_recipients.union(...) with
-        # - journal directors
-        # - article editors
-        # - article reviewers
-        # - article authors
-        # based on self.target (assuming target is Article)
-        # For now just return everyone
-        allowed_recipients = Account.objects.all()
+        """Use a logic class to return a queryset of allowed recipients for the current actor/article combination."""
+        # TODO: see the note about refactoring this part in HandleMessage code
+        allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=self.actor, article=self.target)
         return allowed_recipients
 
     def clean(self):

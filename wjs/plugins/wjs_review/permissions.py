@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from django.contrib.auth import get_user_model
+from review.models import ReviewAssignment
 
 if TYPE_CHECKING:
     from .models import ArticleWorkflow
@@ -26,10 +27,27 @@ def is_admin(instance: "ArticleWorkflow", user: Account) -> bool:
 
 
 def is_reviewer(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True if the user has the "reviewer" role for this journal.
+
+    We don't look at the relation with the single article.
+    """
     return user.check_role(instance.article.journal, "reviewer")
 
 
+def is_article_reviewer(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True if the user is one of reviewers of the article.
+
+    We don't look at the state of the assignment: we consider the user a reviewer for this paper as long as an
+    assignment exists with this user as reviewer.
+    """
+    return ReviewAssignment.objects.filter(article=instance.article, reviewer=user).exists()
+
+
 def is_author(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True if the user has the "author" role for this journal.
+
+    We don't look at the relation with the single article.
+    """
     return user.check_role(instance.article.journal, "author")
 
 
@@ -48,9 +66,21 @@ def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
 
 
 def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True only is the user is the correspondence author.
+
+    I.e. we don't look at the full authors list.
+    """
     return instance.article.correspondence_author == user
 
 
 def is_system(instance: "ArticleWorkflow", user: Account) -> bool:
     """Fake permission for system-managed transitions."""
     return user is None
+
+
+def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True if the user is one of the authors or the correspondence author.
+
+    Remember that, in J., it is not mandatory for the correspondence author to be one of the authors!
+    """
+    return (instance.article.correspondence_author == user) | (user in instance.article.authors.all())
