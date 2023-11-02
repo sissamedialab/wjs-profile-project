@@ -2,55 +2,15 @@
 {% load django_bootstrap5 i18n %}
 {% load wjs_review %}
 {% block title %}
-    {% translate "Messages" %}
+    {% translate "Article messages" %}
 {% endblock title %}
 {% block content_header %}
-    <div class="col-sm-12">
-        <h2>
-            {% translate "Write to" %}
-            {{ recipient }}
-        </h2>
-    </div>
+    {% include "wjs_review/elements/article_title_and_authors.html" %}
 {% endblock content_header %}
-{% block left_column %}
+{% block content %}
     <div class="container">
-        <div class="row">
-            <div class="col">
-                <a href="{% url 'wjs_article_details' article.articleworkflow.id %}">Back to {{ article }}</a>
-            </div>
-        </div>
-        {% for message in message_list %}
-            <div class="row border">
-                <div class="col">
-                    <button class="btn btn-primary"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#message{{ message.id }}Details"
-                            aria-expanded="false"
-                            aria-controls="message{{ message.id }}Details">{{ message }}</button>
-                    <div class="collapse card-body" id="message{{ message.id }}Details">
-                        <div>{{ message.created }}</div>
-                        <div>{{ message.body }}</div>
-                    </div>
-                </div>
-            </div>
+        {% for message in object_list %}
+            {% include "wjs_review/elements/message.html" %}
         {% endfor %}
     </div>
-{% endblock left_column %}
-{% block center_column %}
-    <div class="container">
-        <div class="row">
-            <div class="col">
-                Please note: only a part of your message will be sent directly to {{ recipient }}; the complete message will be visible on the web site. <strong title="Why is this?"><a href="#">ℹ</a></strong>
-            </div>
-        </div>
-        <div class="row">
-            {% bootstrap_form_errors form %}
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="col">{% bootstrap_form form %}</div>
-                {% bootstrap_button button_type="submit" name="submit" content="Send" %}
-            </form>
-        </div>
-    </div>
-{% endblock center_column %}
+{% endblock content %}

@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
+from core import files as core_files
+from core import models as core_models
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
@@ -28,10 +30,11 @@ from .forms import (
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
+    ToggleMessageReadForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
 from .mixins import EditorRequiredMixin
-from .models import ArticleWorkflow, EditorRevisionRequest, Message
+from .models import ArticleWorkflow, EditorRevisionRequest, Message, MessageRecipients
 
 Account = get_user_model()
 
@@ -490,24 +493,70 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
         return context
 
 
-class MyMessages(LoginRequiredMixin, ListView):
+class ArticleMessages(LoginRequiredMixin, ListView):
     """All messages of a certain user that are not related to any article.
 
     Probably only write-to-eo / write-to-directore message.
     """
 
     model = Message
-    template_name = "wjs_review/my_messages.html"
+    template_name = "wjs_review/article_messages.html"
+
+    def setup(self, request, *args, **kwargs):
+        """Filter only messages related to a certain article and that the current user can see."""
+        super().setup(request, *args, **kwargs)
+        self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
+
+    def get_queryset(self):
+        """Return the list of messages that the user is entitled to see for this article."""
+        return get_messages_related_to_me(user=self.request.user, article=self.article)
+
+    def get_context_data(self, **kwargs):
+        """Add the article to the context."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.article.articleworkflow
+        context["article"] = self.article
+        # Retrieve manytomany through model:
+        # - self.get_queryset() gives Messages
+        # - the toggle form wants MessageRecipients (because the "read" flag is in the through-table)
+        # This works because there is only one MessageRecipient for each Message-Recipient combination.
+        messagerecipients_records = MessageRecipients.objects.filter(
+            message__in=self.get_queryset(),
+            recipient=self.request.user,
+        )
+        forms = {mr.message.id: ToggleMessageReadForm(instance=mr) for mr in messagerecipients_records}
+        context["forms"] = forms
+        return context
 
 
-class Messages(LoginRequiredMixin, CreateView):
+class MessageAttachmentDownloadView(UserPassesTestMixin, DetailView):
+    """Let the recipients of a message with attachment download the attachment."""
+
+    model = Message
+    pk_url_kwarg = "message_id"
+
+    def test_func(self):
+        """The recipients and the actor of the message can download the file."""
+        user = self.request.user
+        message = self.get_object()
+        return user.is_staff or user == message.actor or user in message.recipients.all()
+
+    def get(self, request, *args, **kwargs):
+        """Serve the attachment file."""
+        attachment = core_models.File.objects.get(id=self.kwargs["attachment_id"])
+        article = self.get_object().target
+        # Here, public=True means that the downloaded file will have a human-readable name, not the uuid
+        return core_files.serve_file(request, attachment, article, public=True)
+
+
+class WriteMessage(LoginRequiredMixin, CreateView):
     """A view to let the user write a new message.
 
     The view also lists all messages of a certain article that the user can see.
     """
 
     model = Message
-    template_name = "wjs_review/article_messages.html"
+    template_name = "wjs_review/write_message.html"
     form_class = MessageForm
 
     def get_form_kwargs(self) -> Dict[str, Any]:
@@ -556,6 +605,45 @@ class Messages(LoginRequiredMixin, CreateView):
         return context
 
 
+class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
+    """A view to let the user toggle read/unread flag on a message."""
+
+    model = MessageRecipients
+    form_class = ToggleMessageReadForm
+    template_name = "wjs_review/elements/toggle_message_read.html"
+
+    def test_func(self):
+        """User must be the recipient (or staff)."""
+        return self.request.user.is_staff or self.request.user.id == self.kwargs["recipient_id"]
+
+    def get_object(self, queryset=None):
+        """Return the object the view is displaying.
+
+        Since we are looking at a through table of m2m relationship, we can get the instance using the message id and
+        recipient id.
+
+        If this is not overridden, we get:
+        AttributeError: Generic detail view ToggleMessageReadView must be called with either an object pk or a slug in
+        the URLconf.
+
+        """
+        return get_object_or_404(
+            MessageRecipients,
+            message_id=self.kwargs["message_id"],
+            recipient_id=self.kwargs["recipient_id"],
+        )
+
+    def form_valid(self, form):
+        """If the form is valid, save the associate model (the flag on the MessageRecipient).
+
+        Then, just return a response with the flag template rendered. I.e. do not redirect anywhere.
+
+        """
+        self.object = form.save()
+        return self.render_to_response(self.get_context_data(form=form, message=self.object.message))
+
+
+# TODO: verify if LoginRequiredMixin overrides UserPassesTestMixin
 class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
     """
     Basic view to upload the optional file of the author cover letter.

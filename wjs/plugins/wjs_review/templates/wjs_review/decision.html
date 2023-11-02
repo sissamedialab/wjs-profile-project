@@ -2,33 +2,10 @@
 {% load django_bootstrap5 i18n %}
 {% load wjs_review %}
 {% block title %}
-  {{ workflow.article }}
+      {% translate "Take a decision" %}
 {% endblock title %}
 {% block content_header %}
-  <div class="col-sm-12">
-    <h2>
-      <i>{{ workflow.article }}</i>
-    </h2>
-      <i>{{ workflow.state }}</i>
-    <p>
-      <span class="badge bg-secondary">{{ workflow.article.section.name }}</span>
-      by {{ workflow.article.correspondence_author }}
-      {% if workflow.article.authors.count > 1 %}
-        <a class="text-secondary"
-           data-bs-toggle="collapse"
-           href="#otherAuthors"
-           role="button"
-           aria-expanded="false"
-           aria-controls="collapseExample">et al.</a>
-        <span class="collapse" id="otherAuthors">
-                    {% for author in workflow.article.authors.all %}
-                      {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
-                      {% if not forloop.last %},{% endif %}
-                    {% endfor %}
-                </span>
-      {% endif %}
-    </p>
-  </div>
+    {% include "wjs_review/elements/article_title_and_authors.html" %}
 {% endblock content_header %}
 {% block content %}
   <div class="container">

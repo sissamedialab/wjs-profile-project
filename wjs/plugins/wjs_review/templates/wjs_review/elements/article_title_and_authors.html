@@ -1,0 +1,20 @@
+<div class="col-sm-12">
+    <p class="h2">{{ workflow.article }}</p>
+    <p>
+        <span class="badge bg-secondary">{{ workflow.article.section.name }}</span> by {{ workflow.article.correspondence_author }}
+        {% if workflow.article.authors.count > 1 %}
+            <a class="text-secondary"
+               data-bs-toggle="collapse"
+               href="#otherAuthors"
+               role="button"
+               aria-expanded="false"
+               aria-controls="otherAuthors">et al.</a>
+            <span class="collapse" id="otherAuthors">
+                {% for author in workflow.article.authors.all %}
+                    {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
+                    {% if not forloop.last %},{% endif %}
+                {% endfor %}
+            </span>
+        {% endif %}
+    </p>
+</div>

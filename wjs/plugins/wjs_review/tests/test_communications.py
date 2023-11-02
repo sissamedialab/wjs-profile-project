@@ -1,11 +1,13 @@
 """Tests related to the communication system."""
 import datetime
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Callable, Optional
 
 import pytest
+from core import files as core_files
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
+from django.core.files import File as DjangoFile
 from django.http import HttpRequest
 from django.test import Client
 from django.urls import reverse
@@ -99,7 +101,7 @@ def test_post_message_form_with_attachment_creates_file(
     """Test that when a user writes a message with an attachment, the attachment is saved in the article's folder."""
     user = article.owner
     client.force_login(user)  # logged-in user will be the "actor"
-    url = reverse("wjs_article_messages", kwargs={"article_id": article.id, "recipient_id": user.id})
+    url = reverse("wjs_message_write", kwargs={"article_id": article.id, "recipient_id": user.id})
     # Django doc: https://docs.djangoproject.com/en/dev/topics/testing/tools/#django.test.Client.post
     attachment = StringIO("Sono un file!")
     attachment.name = f"fake-file{conftest.TEST_FILES_EXTENSION}"
@@ -304,3 +306,142 @@ def test_allowed_recipients_for_actor(
     assert editor in allowed_recipients
     assert (director in allowed_recipients) is author_can_contact_director
     assert admin in allowed_recipients
+
+
+@pytest.mark.django_db
+def test_only_staff_or_recipient_can_toggle_read(
+    article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    client,
+):
+    """Test that the read flag can be toggled only by the recipient or staff."""
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body="CIAOOONE",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.id,
+    )
+    msg.recipients.add(tuvok)
+    assert msg.recipients.count() == 1
+    assert msg.recipients.first() != chakotay
+    assert msg.messagerecipients_set.count() == 1
+    mr = msg.messagerecipients_set.first()
+    assert mr.recipient_id == tuvok.id
+
+    url = reverse("wjs_message_toggle_read", kwargs={"message_id": msg.id, "recipient_id": tuvok.id})
+    client.force_login(chakotay)
+    response = client.post(url, data={"read": True})
+    assert response.status_code == 403
+
+    client.force_login(tuvok)
+    response = client.post(url, data={"read": True})
+    assert response.status_code == 200
+    mr.refresh_from_db()
+    assert mr.read is True
+    response = client.post(url, data={"read": False})
+    mr.refresh_from_db()
+    assert mr.read is False
+
+
+@pytest.mark.django_db
+def test_message_attachment_access(
+    assigned_article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    admin: JCOMProfile,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+    client,
+):
+    """Test that only actor, recipient and staff can download an attachment."""
+    # TODO: the author of the "assigned_article" is an admin user
+    # Let's set it to a normal user (no staff and no admin)
+    author: Account = create_jcom_user("simple_author").janeway_account
+    assigned_article.correspondence_author = author
+    assigned_article.save()
+    assigned_article.authors.clear()
+    assigned_article.authors.add(author)
+
+    reviewer_1: Account = create_jcom_user("reviewer_1").janeway_account
+    reviewer_2: Account = create_jcom_user("reviewer_2").janeway_account
+
+    # Let's make all actors point directly to the Janeway's account (i.e. not to the JCOMProfile), because it's easier
+    # to use.
+    editor: Account = assigned_article.editorassignment_set.first().editor
+
+    # TODO: EO role is not yet well defined. For now, it is anyone with is_staff=True
+    admin: Account = admin.janeway_account
+
+    # Need to have a couple of reviewers already assigned, so we can test a richer scenario
+    fake_request.user = editor  # NB: quick_assign expects request.user to be the editor... sigh...
+    for reviewer in (reviewer_1, reviewer_2):
+        service = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            # we must pass the Account object linked to the JCOMProfile instance, to ensure it
+            # can be used in janeway core
+            reviewer=reviewer,
+            editor=editor,
+            form_data={
+                "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+            },
+            request=fake_request,
+        )
+        service.run()
+
+    # Let's ensure that our main actors are not "special" in some way
+    assert editor.is_staff is False
+    assert reviewer_1.is_staff is False
+    assert reviewer_2.is_staff is False
+    assert author.is_staff is False
+
+    # Create a message for the given article.
+    # (see also wjs-utils-project scenario_review)
+    # The actor is the reviewer and the recipient is the editor
+    actor = reviewer_1
+    recipient = editor
+    message = Message.objects.create(
+        actor=actor,
+        subject="A random subject",
+        body="A random body",
+        content_type=ContentType.objects.get_for_model(assigned_article),
+        object_id=assigned_article.id,
+    )
+    message.recipients.add(recipient)
+
+    attachment_dj = DjangoFile(BytesIO(b"ciao"), "Msg attachment.txt")
+    attachment_file = core_files.save_file_to_article(
+        attachment_dj,
+        assigned_article,
+        actor,
+    )
+    attachment_file.label = "Attachment LABEL"
+    attachment_file.description = "Long and useless attachment file description"
+    attachment_file.save()
+    message.attachments.add(attachment_file)
+
+    url = reverse(
+        "wjs_message_download_attachment",
+        kwargs={"message_id": message.id, "attachment_id": attachment_file.id},
+    )
+    # Actor
+    client.force_login(reviewer_1)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Recipient
+    client.force_login(editor)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Staff
+    client.force_login(admin)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Another reviewer from the same paper, but he's not the recipient
+    client.force_login(reviewer_2)
+    response = client.get(url)
+    assert response.status_code == 403

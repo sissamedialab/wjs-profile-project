@@ -15,7 +15,7 @@
                     {% else %}
                         <a href="{% url "wjs_evaluate_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
                         {% endif %}
-                        <a href="{% url "wjs_article_messages" article_id=assignment.article.id recipient_id=assignment.reviewer.id %}" title="Click to contact / communicate">📧</a>{# TODO: add id of reviewer #}
+                        <a href="{% url "wjs_message_write" article_id=assignment.article.id recipient_id=assignment.reviewer.id %}" title="Click to contact / communicate">📧</a>{# TODO: add id of reviewer #}
                     (requested {{ assignment.date_requested }}) for review round {{ assignment.review_round.round_number }}.
                 </p>
                 <p>
