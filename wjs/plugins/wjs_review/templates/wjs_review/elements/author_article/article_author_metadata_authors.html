@@ -19,7 +19,7 @@
                                 {% if f_author.author.email %}
                                     {{ f_author.author.email }}{% else %} No
                                     email address recorded.{% endif %}
-                                <a href="{% url "wjs_article_messages" article_id=article.pk recipient_id=f_author.author.pk %}"
+                                <a href="{% url "wjs_message_write" article_id=article.pk recipient_id=f_author.author.pk %}"
                                    title="Click to contact / communicate">📧</a>
                             {% endif %}
                         </td>

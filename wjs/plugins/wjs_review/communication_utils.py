@@ -5,10 +5,10 @@ Keeping here also anything that we might want to test easily 🙂.
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q, QuerySet
+from django.db.models import Exists, OuterRef, Q, QuerySet
 from submission.models import Article
 
-from .models import Message
+from .models import Message, MessageRecipients
 
 Account = get_user_model()
 
@@ -18,17 +18,27 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
     content_type = ContentType.objects.get_for_model(article)
     object_id = article.id
 
-    messages = Message.objects.filter(
-        # Get messages for this article...
-        Q(Q(content_type=content_type) & Q(object_id=object_id))
-        # ...but only...
-        & Q(
-            # ...if they have some relation with me
-            Q(Q(recipients__in=[user]) | Q(actor=user))
-            # ...or if they are "generic" messages
-            | Q(recipients__isnull=True),
-        ),
-    ).order_by("created")
+    _filter = MessageRecipients.objects.filter(
+        message=OuterRef("id"),
+        recipient=user,
+        read=True,
+    )
+
+    messages = (
+        Message.objects.filter(
+            # Get messages for this article...
+            Q(Q(content_type=content_type) & Q(object_id=object_id))
+            # ...but only...
+            & Q(
+                # ...if they have some relation with me
+                Q(Q(recipients__in=[user]) | Q(actor=user))
+                # ...or if they are "generic" messages
+                | Q(recipients__isnull=True),
+            ),
+        )
+        .annotate(read=Exists(_filter))
+        .order_by("-created")
+    )
     return messages
 
 

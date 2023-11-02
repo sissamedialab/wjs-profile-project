@@ -35,6 +35,7 @@ from .models import (
     ArticleWorkflow,
     EditorRevisionRequest,
     Message,
+    MessageRecipients,
     WorkflowReviewAssignment,
 )
 
@@ -547,3 +548,9 @@ class MessageForm(forms.ModelForm):
             instance.emit_notification()
 
         return instance
+
+
+class ToggleMessageReadForm(forms.ModelForm):
+    class Meta:
+        model = MessageRecipients
+        fields = ["read"]

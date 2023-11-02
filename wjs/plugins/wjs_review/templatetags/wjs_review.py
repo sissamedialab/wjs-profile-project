@@ -198,6 +198,8 @@ def assignment_requires_attention_tt(assignment: ReviewAssignment):
 
 
 # TODO: this seems inelegant... isn't there a better solution?
+# TODO: drop me! superceeded by annotation in get_messages_related_to_me
+# (was used as {% with read=message|message_read_by_recipient:user %} )
 @register.filter
 def message_read_by_recipient(message: Message, recipient: Account) -> bool:
     """Tell if the recipient read this message."""

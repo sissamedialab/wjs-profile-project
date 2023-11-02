@@ -5,17 +5,19 @@ from .plugin_settings import MANAGER_URL
 from .views import (
     ArticleDecision,
     ArticleDetails,
+    ArticleMessages,
     EvaluateReviewRequest,
     InviteReviewer,
     ListArticles,
-    Messages,
-    MyMessages,
+    MessageAttachmentDownloadView,
     ReviewDeclined,
     ReviewEnd,
     ReviewSubmit,
     SelectReviewer,
+    ToggleMessageReadView,
     UpdateState,
     UploadRevisionAuthorCoverLetterFile,
+    WriteMessage,
 )
 
 urlpatterns = [
@@ -40,6 +42,16 @@ urlpatterns = [
     ),
     path("review/<int:assignment_id>/declined/", ReviewDeclined.as_view(), name="wjs_declined_review"),
     path("revision/<int:revision_id>/upload/", UploadRevisionAuthorCoverLetterFile.as_view(), name="wjs_upload_file"),
-    path("my_messages", MyMessages.as_view(), name="wjs_my_messages"),
-    path("messages/<int:article_id>/<int:recipient_id>", Messages.as_view(), name="wjs_article_messages"),
+    path("messages/<int:article_id>/", ArticleMessages.as_view(), name="wjs_article_messages"),
+    path("messages/<int:article_id>/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
+    path(
+        "messages/toggle_read/<int:message_id>/<int:recipient_id>",
+        ToggleMessageReadView.as_view(),
+        name="wjs_message_toggle_read",
+    ),
+    path(
+        "messages/attachment/<int:message_id>/<int:attachment_id>",
+        MessageAttachmentDownloadView.as_view(),
+        name="wjs_message_download_attachment",
+    ),
 ]

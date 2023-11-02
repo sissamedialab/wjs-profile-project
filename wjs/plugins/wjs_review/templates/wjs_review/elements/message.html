@@ -1,0 +1,36 @@
+{% load wjs_tags %}
+<div class="row">
+    <div class="col-11">
+        <div class="d-flex align-items-center border{% if message.actor != user %} text-right justify-content-end border-secondary{% else %} border-primary{% endif %}">
+            <div class="card">
+                <div class="card-body">
+                    <h5>
+                        {{ message.subject }} <span class="badge bg-light text-muted float-end">{{ message.created|date:DATE_FORMAT }}</span>
+                    </h5>
+                    <div class="body">{{ message.body|safe }}</div>
+                    {% if message.attachments.exists %}xxxx
+                        {% with attachment=message.attachments.first %}
+                            <div class="attachment">
+                                <a href="{% url 'wjs_message_download_attachment' message_id=message.id attachment_id=attachment.id %}">{{ attachment.original_filename }}</a>
+                            </div>
+                        {% endwith %}
+                    {% endif %}
+                </div>
+                {% if message.actor == user %}
+                    <div class="badge bg-primary">
+                        to
+                        {% for recipient in message.recipients.all %}{{ recipient }}{% endfor %}
+                    </div>
+                {% else %}
+                    <div class="badge bg-secondary">by {{ message.actor }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% comment %}We show read/unread toggle only for messages for which the user is
+    also recipient. A user can "write" to himself (a personal note), so this
+    should cover all needed cases.  {% endcomment %}
+    {% if user in message.recipients.all %}
+        {% include "wjs_review/elements/toggle_message_read.html" with form=forms|keyvalue:message.id %}
+    {% endif %}
+</div>
