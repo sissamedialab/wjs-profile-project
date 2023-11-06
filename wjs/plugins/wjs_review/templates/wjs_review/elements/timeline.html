@@ -1,10 +1,7 @@
 {% load wjs_review %}
-
 <div class="container">
     <div class="row mb-3">
-        <div class="col text-center text-primary">
-            Timeline
-        </div>
+        <div class="col text-center text-primary">Timeline</div>
     </div>
     {% for message in workflow.article|article_messages:user %}
         {% include "wjs_review/elements/timeline_message.html" %}

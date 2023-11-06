@@ -1,7 +1,13 @@
 {% load wjs_review %}
 <div class="row mb-3">
-    <div class="col {% if message|message_read_by_recipient:user %} text-muted {% else %} text-warning {% endif %}">
-        <span class="badge bg-light text-muted">{{ message.created|date:DATE_FORMAT }}</span>
-        <span title="Click to mark message as read via htmx-magic">{{ message.body }}</span>
+    <div class="col {% if message.read %} bg-muted {% else %} bg-warning {% endif %}">
+        <span class="badge bg-light text-muted" title="{{ message.created }}">{{ message.created|date:DATE_FORMAT }}</span>
+        <span title="Click view more"><a href="{% url 'wjs_article_messages' article_id=workflow.article.id %}#msg-{{ message.id }}"
+   class="text-decoration-none">{{ message.subject|truncatewords:4 }}</a></span>
+        {% if message.actor != user %}
+            {% with actor_role=workflow.article|role_for_article_tt:message.actor %}
+                {% if actor_role %}<span>(from {{ actor_role }})</span>{% endif %}
+            {% endwith %}
+        {% endif %}
     </div>
 </div>

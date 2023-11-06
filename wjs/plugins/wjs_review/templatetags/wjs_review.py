@@ -209,3 +209,9 @@ def message_read_by_recipient(message: Message, recipient: Account) -> bool:
         # A user can also see messages that he wrote, so he is the actor and not the recipient. These are considered as
         # "read" by default.
         return True
+
+
+@register.filter
+def role_for_article_tt(article: Article, user: Account) -> str:
+    """Return a role slug that describes the role of the given user on the article."""
+    return communication_utils.role_for_article(article, user)

@@ -117,8 +117,10 @@ def test_post_message_form_with_attachment_creates_file(
             "actor": user.id,
             "content_type": ContentType.objects.get_for_model(article).id,
             "object_id": article.id,
-            "recipient": user.id,
             "message_type": Message.MessageTypes.STD,
+            "recipientsFS-TOTAL_FORMS": "1",
+            "recipientsFS-INITIAL_FORMS": "0",
+            "recipientsFS-0-recipient": [user.id],
         },
     )
     assert response.status_code == 302

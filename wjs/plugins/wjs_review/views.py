@@ -12,6 +12,7 @@ from django.http import HttpResponse, HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404
 from django.template import Context
 from django.urls import reverse, reverse_lazy
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 from review import logic as review_logic
 from review.models import ReviewAssignment
@@ -567,7 +568,36 @@ class WriteMessage(LoginRequiredMixin, CreateView):
         kwargs = super().get_form_kwargs()
         kwargs["actor"] = self.request.user
         kwargs["target"] = self.article
+        kwargs["initial_recipient"] = self.recipient
         return kwargs
+
+    def post(self, request, *args, **kwargs):
+        """Complete the message form.
+
+        Bind the recipients formset to POST data and use the recipients_formset's cleaned_data to populate the
+        "recipients" field of the main form.
+
+        """
+        form = self.get_form()
+        recipients_formset = form.MessageRecipientsFormSet(
+            prefix="recipientsFS",
+            form_kwargs={
+                "actor": request.user,
+                "article": self.article,
+            },
+            data=request.POST,
+        )
+        if recipients_formset.is_valid():
+            request_post_copy = request.POST.copy()
+            # It is possible that the user leaves some formset uncompleted.
+            # This is not a problem as long as there is at least one recipient.
+            request_post_copy["recipients"] = [
+                f.cleaned_data["recipient"].id for f in recipients_formset if "recipient" in f.cleaned_data
+            ]
+            if len(request_post_copy["recipients"]) < 1:
+                raise ValidationError(_("At least one recipient is necessary"), code="missing_recipient")
+            request.POST = request_post_copy
+        return super().post(request, *args, **kwargs)
 
     def get_success_url(self):
         """Point back to the article's detail page."""
@@ -599,6 +629,7 @@ class WriteMessage(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         """Add the article and the recipient to the context."""
         context = super().get_context_data(**kwargs)
+        context["workflow"] = self.article.articleworkflow
         context["article"] = self.article
         context["recipient"] = self.recipient
         context["message_list"] = self.messages
