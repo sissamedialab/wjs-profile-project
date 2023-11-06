@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.forms import formset_factory
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
@@ -465,9 +466,30 @@ class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
         widgets = {"cover_letter_file": forms.ClearableFileInput()}
 
 
+class MessageRecipientForm(forms.Form):
+    """Helper form to collect a message recipients.
+
+    This will be the base for an inline form.
+    """
+
+    # TODO: when switching to django >= 4, see https://github.com/jrief/django-formset
+    recipient = forms.ModelChoiceField(queryset=None)
+
+    def __init__(self, *args, **kwargs):
+        """Set the queryset for the recipient."""
+        actor = kwargs.pop("actor")
+        article = kwargs.pop("article")
+        super().__init__(*args, **kwargs)
+        allowed_recipients = HandleMessage.allowed_recipients_for_actor(
+            actor=actor,
+            article=article,
+        )
+        self.fields["recipient"].queryset = allowed_recipients  # used at display
+
+
 class MessageForm(forms.ModelForm):
     attachment = forms.FileField(required=False, label=_("Optional attachment"))
-    recipient = forms.ModelChoiceField(queryset=None, required=True, widget=forms.widgets.HiddenInput())
+    recipients = forms.ModelMultipleChoiceField(queryset=None, required=True, widget=forms.widgets.HiddenInput())
 
     class Meta:
         model = Message
@@ -492,10 +514,25 @@ class MessageForm(forms.ModelForm):
         """Set subject and body as required and store actor and target gotten from the view."""
         self.actor = kwargs.pop("actor", None)
         self.target = kwargs.pop("target")
+        initial_recipient = kwargs.pop("initial_recipient")
         super().__init__(*args, **kwargs)
         self.fields["subject"].required = True
         self.fields["body"].required = True
-        self.fields["recipient"].queryset = self._get_allowed_recipients()
+        self.fields["recipients"].queryset = self._get_allowed_recipients()  # used at validation
+        self.MessageRecipientsFormSet = formset_factory(  # noqa N806
+            MessageRecipientForm,
+            can_delete=True,
+            min_num=1,
+            extra=0,
+        )
+        self.recipients_formset = self.MessageRecipientsFormSet(
+            prefix="recipientsFS",
+            form_kwargs={
+                "actor": self.actor,
+                "article": self.target,
+            },
+            initial=[{"recipient": initial_recipient.id}],
+        )
 
     def _get_allowed_recipients(self):
         """Use a logic class to return a queryset of allowed recipients for the current actor/article combination."""
@@ -529,7 +566,7 @@ class MessageForm(forms.ModelForm):
         instance: Message = self.instance
         with transaction.atomic():
             instance = super().save()
-            instance.recipients.add(self.cleaned_data["recipient"])
+            instance.recipients.set(self.cleaned_data["recipients"])
             if self.cleaned_data["attachment"]:
                 if instance.content_type.model_class() != Article:
                     # TODO: where do we save attachements of messages not related to articles?

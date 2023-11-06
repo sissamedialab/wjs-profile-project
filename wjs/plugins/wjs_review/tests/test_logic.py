@@ -65,7 +65,7 @@ def test_assign_to_editor(
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     # Check messages
     assert Message.objects.count() == 1
-    message_to_editor = Message.objects.get(subject="Assigned to editor")
+    message_to_editor = Message.objects.get(subject="Paper assigned to editor")
     assert message_to_editor.body == ""
     assert message_to_editor.message_type == "Standard"
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
@@ -168,7 +168,7 @@ def test_assign_to_reviewer(
     assert acceptance_url in janeway_email.body
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject="Assigned to reviewer")
+    message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
     assert message_to_reviewer.body == "random message"
     assert message_to_reviewer.message_type == "Verbose"
     assert message_to_reviewer.actor == section_editor.janeway_account
@@ -228,7 +228,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     # Check messages
     wjs_support_user = communication_utils.get_system_user()
     assert Message.objects.count() == 1
-    message_to_correspondence_author = Message.objects.get(subject="Revision is requested")
+    message_to_correspondence_author = Message.objects.get(subject="Editor requires revision")
     assert message_to_correspondence_author.body == ""
     assert message_to_correspondence_author.message_type == "Verbose"
     assert message_to_correspondence_author.actor == wjs_support_user
@@ -429,7 +429,7 @@ def test_invite_reviewer(
     assert acceptance_url in janeway_email.body
     # Check messages
     assert Message.objects.count() == 1
-    message_to_invited_user = Message.objects.get(subject="Assigned to reviewer")
+    message_to_invited_user = Message.objects.get(subject="Editor assigns reviewer")
     assert message_to_invited_user.body == "random message"
     assert message_to_invited_user.message_type == "Verbose"
     assert message_to_invited_user.actor == section_editor.janeway_account
@@ -656,7 +656,7 @@ def test_invite_reviewer_but_user_already_exists(
     assert janeway_email.to == [invited_user.email]
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject="Assigned to reviewer")
+    message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
     assert message_to_reviewer.body == "random message"
     assert message_to_reviewer.message_type == "Verbose"
     assert message_to_reviewer.actor == section_editor.janeway_account
@@ -782,7 +782,7 @@ def test_handle_editor_decision(
             else EditorialDecisions.MAJOR_REVISIONS.value
         )
         assert len(mail.outbox) == 1
-        assert any(True for m in mail.outbox if "Revision is requested" in m.subject)
+        assert any(True for m in mail.outbox if "Editor requires revision" in m.subject)
     elif final_state == ArticleWorkflow.ReviewStates.ACCEPTED:
         # article is moved to the next stage by ON_WORKFLOW_ELEMENT_COMPLETE event triggered by HandleDecision
         next_stage = get_next_workflow(assigned_article.journal)
@@ -791,17 +791,17 @@ def test_handle_editor_decision(
         assert assigned_article.articleworkflow.state == final_state
         assert len(mail.outbox) == 2
         assert any(True for m in mail.outbox if "Article Accepted" in m.subject)
-        assert any(True for m in mail.outbox if "Paper accepted" in m.subject)
+        assert any(True for m in mail.outbox if "Editor accepts paper" in m.subject)
     elif final_state == ArticleWorkflow.ReviewStates.NOT_SUITABLE:
         assert assigned_article.stage == submission_models.STAGE_REJECTED
         assert assigned_article.articleworkflow.state == final_state
         assert len(mail.outbox) == 2
-        assert any(True for m in mail.outbox if "Paper deemed not suitable" in m.subject)
+        assert any(True for m in mail.outbox if "Editor deems paper not suitable" in m.subject)
     elif final_state == ArticleWorkflow.ReviewStates.REJECTED:
         assert assigned_article.stage == submission_models.STAGE_REJECTED
         assert assigned_article.articleworkflow.state == final_state
         assert len(mail.outbox) == 2
-        assert any(True for m in mail.outbox if "Paper rejected" in m.subject)
+        assert any(True for m in mail.outbox if "Editor rejects paper" in m.subject)
 
     # All review assignments are marked as complete, review_assignment is automatically marked as declined
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1

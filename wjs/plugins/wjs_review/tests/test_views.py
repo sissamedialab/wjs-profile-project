@@ -162,7 +162,7 @@ def test_invite_function_creates_inactive_user(
     assert acceptance_url in janeway_email.body
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject="Assigned to reviewer")
+    message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
     assert message_to_reviewer.body == "Message"
     assert message_to_reviewer.message_type == "Verbose"
     assert message_to_reviewer.actor == section_editor

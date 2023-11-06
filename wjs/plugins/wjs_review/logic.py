@@ -99,7 +99,7 @@ class AssignToEditor:
         #       but something like "{article.id} assigned..." won't read well in timeline.
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Assigned to editor",
+            message_subject="Paper assigned to editor",
             recipients=[self.editor],
         )
 
@@ -197,7 +197,7 @@ class AssignToReviewer:
     def _log_operation(self):
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Assigned to reviewer",
+            message_subject="Editor assigns reviewer",
             message_body=self.form_data["message"],
             actor=self.editor,
             recipients=[self.reviewer],
@@ -334,7 +334,7 @@ class EvaluateReview:
         # try print(self.workflow.article) (no workflow in EvaluateReview instances!!!)
         communication_utils.log_operation(
             article=self.assignment.article,
-            message_subject="Review assignment accepted",
+            message_subject="Reviewer accepts assignment",
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
         )
@@ -342,7 +342,7 @@ class EvaluateReview:
     def _log_decline(self):
         communication_utils.log_operation(
             article=self.assignment.article,
-            message_subject="Review assignment declined",
+            message_subject="Reviewer declines assignment",
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
         )
@@ -501,7 +501,7 @@ class SubmitReview:
     def _log_operation(self):
         communication_utils.log_operation(
             article=self.assignment.article,
-            message_subject="Review submitted",
+            message_subject="Reviewer sends report",
             recipients=[self.assignment.editor],
         )
 
@@ -587,7 +587,7 @@ class HandleDecision:
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Paper accepted",
+            message_subject="Editor accepts paper",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
             # do we have a subject? message_subject=email_context.pop("subject")
@@ -597,7 +597,7 @@ class HandleDecision:
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Paper rejected",
+            message_subject="Editor rejects paper",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )
@@ -606,16 +606,20 @@ class HandleDecision:
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Paper deemed not suitable",
+            message_subject="Editor deems paper not suitable",
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )
 
-    def _log_revision_request(self, email_context):
+    def _log_revision_request(self, email_context, revision_type=None):
         # TODO: use the email_context to build a nice message
+        if revision_type == EditorialDecisions.MINOR_REVISIONS:
+            message_subject = "Editor requires (minor) revision"
+        else:
+            message_subject = "Editor requires revision"
         communication_utils.log_operation(
-            self.workflow.article,
-            "Revision is requested",
+            article=self.workflow.article,
+            message_subject=message_subject,
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )
@@ -720,7 +724,7 @@ class HandleDecision:
         )
         context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data, revision)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
-        self._log_revision_request(context)
+        self._log_revision_request(context, revision_type=revision.type)
         return revision
 
     def _store_decision(self) -> EditorDecision:

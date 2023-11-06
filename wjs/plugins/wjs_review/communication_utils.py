@@ -6,6 +6,7 @@ Keeping here also anything that we might want to test easily 🙂.
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, OuterRef, Q, QuerySet
+from review import models as review_models
 from submission.models import Article
 
 from .models import Message, MessageRecipients
@@ -19,9 +20,18 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
     object_id = article.id
 
     _filter = MessageRecipients.objects.filter(
-        message=OuterRef("id"),
-        recipient=user,
-        read=True,
+        Q(
+            message=OuterRef("id"),
+            recipient=user,
+            read=True,
+        )
+        |
+        # Messages written are considered "read"
+        # This is useful in the timeline sidebar to easily mute/unmute messages by their "read" status
+        Q(
+            message=OuterRef("id"),
+            message__actor=user,
+        ),
     )
 
     messages = (
@@ -36,6 +46,7 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
                 | Q(recipients__isnull=True),
             ),
         )
+        .distinct()  # because the same msg can have many recipients
         .annotate(read=Exists(_filter))
         .order_by("-created")
     )
@@ -99,3 +110,21 @@ def log_operation(
         message.recipients.set(recipients)
     message.emit_notification()
     return message
+
+
+def role_for_article(article: Article, user: Account) -> str:
+    """Return a role slug that describes the role of the given user on the article."""
+    # TODO: is it possible for a user to have more than one role on one article?
+    if review_models.EditorAssignment.objects.filter(editor=user, article=article).exists():
+        return "editor"
+
+    if review_models.ReviewAssignment.objects.filter(reviewer=user, article=article).exists():
+        return "reviewer"
+
+    if user == article.correspondence_author:
+        return "author"
+
+    if user in article.authors.all():
+        return "co-author"
+
+    return ""

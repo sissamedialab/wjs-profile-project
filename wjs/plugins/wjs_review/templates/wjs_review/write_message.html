@@ -1,22 +1,21 @@
 {% extends "wjs_review/base.html" %}
-{% load django_bootstrap5 i18n %}
-{% load wjs_review %}
+{% load django_bootstrap5 i18n static wjs_review %}
+{% block bootstrap5_extra_head %}
+    <script type="text/javascript"
+            src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+    <script type="text/javascript" src="{% static '/js/jquery.formset.js' %}"></script>
+{% endblock bootstrap5_extra_head %}
 {% block title %}
     {% translate "Write a message" %}
 {% endblock title %}
 {% block content_header %}
-    <div class="col-sm-12">
-        <h2>
-            {% translate "Write to" %}
-            {{ recipient }}
-        </h2>
-    </div>
+    {% include "wjs_review/elements/article_title_and_authors.html" %}
 {% endblock content_header %}
 {% block left_column %}
     <div class="container">
-        <div class="row">
+        <div class="row border">
             <div class="col">
-                <a href="{% url 'wjs_article_details' article.articleworkflow.id %}">Back to {{ article }}</a>
+                <strong>Other messages to the same recipient.</strong>
             </div>
         </div>
         {% for message in message_list %}
@@ -45,12 +44,78 @@
             </div>
         </div>
         <div class="row">
-            {% bootstrap_form_errors form %}
-            <form method="post" enctype="multipart/form-data">
+            {% comment %} TODO: `bootstrap_form_errors form` does not render anything!! Same for formset errors, but unteste. {% endcomment %}
+            <div>{{ form.errors }}</div>
+            {% comment %} If I don't use an `if` below, I get an empty list in the rendered template ("[]") {% endcomment %}
+            {% if form.recipients_formset.errors %}<div>{{ form.recipients_formset.errors }}</div>{% endif %}
+            <form id="id_html_form"
+                  method="post"
+                  enctype="multipart/form-data"
+                  autocomplete="off">
                 {% csrf_token %}
+                <!-- The "recipients" formset -->
+                <div id="recipients_formset_container">
+                    {% for recipient_form in form.recipients_formset %}
+                        <div class="recipient_form_container">
+                            {% bootstrap_field recipient_form.recipient %}
+                            {% comment %} recipient_form.DELETE is taken care by the js {% endcomment %}
+                        </div>
+                    {% endfor %}
+                </div>
+                {% comment %} Keep the management form _outside_ the formset wrapper (the js will suffer if you don't) {% endcomment %}
+                {{ form.recipients_formset.management_form }}
+                <!-- The "main" message-create form -->
                 <div class="col">{% bootstrap_form form %}</div>
-                {% bootstrap_button button_type="submit" name="submit" content="Send" %}
+                {% bootstrap_button button_type="submit" name="submit" content="Send" id="id_formset_submit_button" %}
             </form>
+            {% comment %} Jquery (and js in general) does not see ids/classes of items inside a <template>. See https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_shadow_DOM {% endcomment %}
+            {% comment %} Warning: a newline between <template> and div breaks the system! The "row" seen by jquery.formset.js becames a text blob without children.{% endcomment %}
+            {# djlint:off #}<template id="recipients_formset_template"><div class="recipient_form_container">{% bootstrap_field form.recipients_formset.empty_form.recipient %}</div></template>{# djlint:on #}
         </div>
     </div>
+    <script type="text/javascript">
+    function update_selectable_options(event) {
+        // find all currently selected values
+        const all_selects = $(".recipient_form_container select");
+        const selected_values = [];
+        for (const select_element of all_selects) {
+            // NB: calling  "value" on a <select> gives the value of the selected <option>
+            selected_values.push(select_element.value);
+        }
+        // "disable" all currently selected values in all select elements
+        // (except for the selected option in each select)
+        for (const select_element of all_selects) {
+            for (const option of select_element) {
+                if (option.selected) continue;
+                if (selected_values.includes(option.value)) { option.disabled = true; continue; }
+                option.disabled = false;
+            }
+        }
+    }
+    function added_callback(row) {
+        // add a callback to the select input
+        const select_input = row.find("select")[0];
+        select_input.addEventListener("change", update_selectable_options);
+        update_selectable_options(null)
+    }
+    function removed_callback(row) {
+        // when a form is removed, if there was an option selected, add it back to all <select>s
+        update_selectable_options(null)
+    }
+    $(function() {
+        $('.recipient_form_container').formset(
+            {
+                prefix: "recipientsFS",
+                formTemplate: $("#recipients_formset_template").contents()[0],
+                addText: '➕',          // Text for the add link
+                {% comment %} Read the code of jquery.formset.js to understand what `addContainerClass` does (the comment there says "Container CSS class for the add link", but i'ts not what you'd think...)  {% endcomment %}
+                deleteText: '❌',
+                added: added_callback,
+                removed: removed_callback,
+            });
+        // Do not forget to add the event listener to the first select also
+        const first_select = $('.recipient_form_container select')[0];
+        first_select.addEventListener("change", update_selectable_options);
+    })
+    </script>
 {% endblock center_column %}
