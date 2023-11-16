@@ -51,7 +51,7 @@ class Command(BaseCommand):
                 default=True,
             ).value
             send_mail(
-                subject=f"{options['journal_code']} new users to check",
+                subject="Janeway - new users to check",
                 message=message,
                 from_email=from_address,
                 recipient_list=options["mail_recipients"].split(","),
