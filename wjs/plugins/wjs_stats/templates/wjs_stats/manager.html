@@ -1,0 +1,11 @@
+{% extends "admin/core/base.html" %}
+{% load foundation %}
+{% block title %}WJS Stats Manager{% endblock title %}
+{% block body %}
+    <div class="box">
+        <div class="title-area">
+            <h2>Management Form</h2>
+        </div>
+        <div class="content">{{ form|foundation }}</div>
+    </div>
+{% endblock body %}
