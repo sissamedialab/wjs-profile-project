@@ -1270,3 +1270,142 @@ def test_multiple_registrations_to_newsletter_as_anonymous_user_with_grace(
     assert recipient.confirmation_email_last_sent > confirmation_email_last_sent
 
     assert "Refusing to send" not in caplog.text
+
+
+@pytest.mark.django_db
+def test_order_of_articles(
+    account_factory,
+    recipient_factory,
+    newsletter_factory,
+    article_factory,
+    section_factory,
+    keyword_factory,
+    custom_newsletter_setting,
+    journal,
+    mock_premailer_load_url,
+):
+    """Test that, in the sent message, articles are ordered by the publication date."""
+    newsletter_service = newsletter_factory()
+    correspondence_author = account_factory()
+    newsletter_user_keyword = keyword_factory()
+    newsletter_article_user = account_factory(email="article@article.it")
+    article_aaa = article_factory(
+        journal=journal,
+        date_published=timezone.now() + datetime.timedelta(days=1),
+        stage=submission_models.STAGE_PUBLISHED,
+        correspondence_author=correspondence_author,
+        section=section_factory(),
+        title="AAA",
+    )
+    article_aaa.keywords.add(newsletter_user_keyword)
+    article_aaa.authors.add(correspondence_author)
+    article_aaa.snapshot_authors()
+    article_aaa.save()
+
+    article_bbb = article_factory(
+        journal=journal,
+        date_published=timezone.now() + datetime.timedelta(days=2),
+        stage=submission_models.STAGE_PUBLISHED,
+        correspondence_author=correspondence_author,
+        section=section_factory(),
+        title="BBB",
+    )
+    article_bbb.keywords.add(newsletter_user_keyword)
+    article_bbb.authors.add(correspondence_author)
+    article_bbb.snapshot_authors()
+    article_bbb.save()
+
+    newsletter_article_recipient = recipient_factory(
+        user=newsletter_article_user,
+        news=True,
+    )
+    newsletter_article_recipient.topics.add(newsletter_user_keyword)
+    newsletter_article_recipient.save()
+
+    management.call_command("send_newsletter_notifications", journal.code)
+    newsletter_service.refresh_from_db()
+    assert newsletter_service.last_sent.date() == timezone.now().date()
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].to == [newsletter_article_recipient.newsletter_destination_email]
+
+    body = mail.outbox[0].body
+    # article_bbb has publication date greater (more recent) than article_aaa,
+    # so it should appear first in the mail
+    assert body.find("BBB") < body.find("AAA")
+
+    # Now let's switch the dates and retry
+    article_aaa.date_published = timezone.now() + datetime.timedelta(days=2)
+    article_aaa.save()
+    article_bbb.date_published = timezone.now() + datetime.timedelta(days=1)
+    article_bbb.save()
+    newsletter_service.last_sent = timezone.now() - datetime.timedelta(days=1)
+    newsletter_service.save()
+
+    mail.outbox.clear()
+    management.call_command("send_newsletter_notifications", journal.code)
+    body = mail.outbox[0].body
+    assert body.find("AAA") < body.find("BBB")
+
+
+@pytest.mark.django_db
+def test_order_of_news(
+    account_factory,
+    recipient_factory,
+    newsletter_factory,
+    news_item_factory,
+    custom_newsletter_setting,
+    keywords,
+    journal,
+    mock_premailer_load_url,
+):
+    """Test that, in the sent message, news are ordered by the start_display."""
+    十日前 = timezone.now() - datetime.timedelta(days=10)
+    五日前 = timezone.now() - datetime.timedelta(days=5)
+    二日前 = timezone.now() - datetime.timedelta(days=2)
+
+    newsletter_service = newsletter_factory(journal=journal)
+    newsletter_service.last_sent = 十日前
+    newsletter_service.save()
+
+    news_user = account_factory(email="news@news.it")
+    recipient_factory(user=news_user, news=True)
+
+    content_type = ContentType.objects.get_for_model(journal)
+    news_aaa = news_item_factory(
+        posted=十日前,
+        start_display=五日前,
+        content_type=content_type,
+        object_id=journal.pk,
+        title="AAA",
+    )
+    news_bbb = news_item_factory(
+        posted=十日前,
+        start_display=二日前,
+        content_type=content_type,
+        object_id=journal.pk,
+        title="BBB",
+    )
+
+    management.call_command("send_newsletter_notifications", journal.code)
+    newsletter_service.refresh_from_db()
+    assert newsletter_service.last_sent.date() == timezone.now().date()
+    assert len(mail.outbox) == 1
+
+    # News items are ordered oldest-first:
+    # bbb, that has a start_display 2 days ago, so it should come after aaa that has a start_display of 5 days ago (and
+    # is therefore older)
+    body = mail.outbox[0].body
+    assert body.find("AAA") < body.find("BBB")
+
+    # Now switch the dates and check again
+    news_aaa.start_display = 二日前
+    news_aaa.save()
+    news_bbb.start_display = 五日前
+    news_bbb.save()
+    newsletter_service.last_sent = 十日前
+    newsletter_service.save()
+
+    mail.outbox.clear()
+    management.call_command("send_newsletter_notifications", journal.code)
+    body = mail.outbox[0].body
+    assert body.find("BBB") < body.find("AAA")
