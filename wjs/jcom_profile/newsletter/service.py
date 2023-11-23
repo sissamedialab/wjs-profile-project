@@ -161,13 +161,16 @@ class NewsletterMailerService:
     ) -> Tuple[Iterable[Recipient], Iterable[Article], Iterable[NewsItem]]:
         content_type = ContentType.objects.get_for_model(journal)
 
-        filtered_articles = Article.objects.filter(date_published__date__gt=last_sent, journal=journal)
+        filtered_articles = Article.objects.filter(
+            date_published__date__gt=last_sent,
+            journal=journal,
+        ).order_by("-date_published")
         filtered_news = NewsItem.objects.filter(
             start_display__gt=last_sent,
             start_display__lte=now(),
             content_type=content_type,
             object_id=journal.pk,
-        )
+        ).order_by("start_display")
         # Explicitly filter Recipient objects by Journal
         journal_subscribers = Recipient.objects.filter(journal=journal)
         subscribers_filter = Q(topics__in=filtered_articles.values_list("keywords"))
