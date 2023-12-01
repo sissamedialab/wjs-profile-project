@@ -124,7 +124,7 @@ def test_invite_function_creates_inactive_user(
         "first_name": "Name",
         "last_name": "Surname",
         "email": "email@email.it",
-        "message": "Message",
+        "message": "random message",
     }
     response = client.post(url, data=data)
     assert response.status_code == 302
@@ -155,15 +155,13 @@ def test_invite_function_creates_inactive_user(
         assigned_article.journal,
     ).processed_value
     acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
-    assert len(mail.outbox) == 2
-    janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
-    assert janeway_email.to == [invited_user.email]
-    assert janeway_email.subject == f"[{assigned_article.journal.code}] {subject_review_assignment}"
-    assert acceptance_url in janeway_email.body
+    assert len(mail.outbox) == 1
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
-    assert message_to_reviewer.body == "Message"
+    message_to_reviewer = Message.objects.first()
+    assert subject_review_assignment == message_to_reviewer.subject
+    assert "random message" in message_to_reviewer.body
+    assert acceptance_url in message_to_reviewer.body
     assert message_to_reviewer.message_type == "Verbose"
     assert message_to_reviewer.actor == section_editor
     assert list(message_to_reviewer.recipients.all()) == [invited_user.janeway_account]

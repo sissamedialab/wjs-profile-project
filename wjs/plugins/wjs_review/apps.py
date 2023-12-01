@@ -73,3 +73,15 @@ class WjsReviewConfig(AppConfig):
             events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY,
             transactional_emails.send_revisions_request,
         )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVIEW_WITHDRAWL,
+            transactional_emails.send_reviewer_withdrawl_notice,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_ARTICLE_ASSIGNED_ACKNOWLEDGE,
+            transactional_emails.send_editor_assigned_acknowledgements,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVIEWER_REQUESTED_ACKNOWLEDGE,
+            transactional_emails.send_reviewer_requested_acknowledgements,
+        )

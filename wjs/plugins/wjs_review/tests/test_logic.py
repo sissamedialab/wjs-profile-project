@@ -12,6 +12,7 @@ from review import models as review_models
 from review.const import EditorialDecisions
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
+from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -33,6 +34,7 @@ fake_factory = Faker()
 
 @pytest.mark.django_db
 def test_assign_to_editor(
+    review_settings,
     fake_request: HttpRequest,
     director: JCOMProfile,
     section_editor: JCOMProfile,
@@ -65,9 +67,33 @@ def test_assign_to_editor(
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     # Check messages
     assert Message.objects.count() == 1
-    message_to_editor = Message.objects.get(subject="Paper assigned to editor")
-    assert message_to_editor.body == ""
-    assert message_to_editor.message_type == "Standard"
+    message_to_editor = Message.objects.first()
+    editor_assignment_template = get_setting(
+        setting_group_name="email",
+        setting_name="editor_assignment",
+        journal=article.journal,
+    ).processed_value
+    review_in_review_url = fake_request.journal.site_url(
+        path=reverse(
+            "review_in_review",
+            kwargs={"article_id": article.pk},
+        ),
+    )
+    editor_assignment_message_context = {
+        "article": article,
+        "request": fake_request,
+        "editor": section_editor.janeway_account,
+        "review_in_review_url": review_in_review_url,
+    }
+    editor_assignment_message = get_message_content(
+        request=fake_request,
+        context=editor_assignment_message_context,
+        template=editor_assignment_template,
+        template_is_setting=True,
+    )
+    assert message_to_editor.body == editor_assignment_message
+    assert review_in_review_url in message_to_editor.body
+    assert message_to_editor.message_type == "Verbose"
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
 
 
@@ -151,28 +177,30 @@ def test_assign_to_reviewer(
         "subject_review_assignment",
         assigned_article.journal,
     ).processed_value
-    url = reverse("wjs_evaluate_review", kwargs={"assignment_id": assignment.pk})
-    acceptance_url = f"{url}?access_code={assignment.access_code}"
-    # 1 notification to the reviewer (by Janeway)
+    url = reverse(
+        "wjs_evaluate_review",
+        kwargs={"assignment_id": assignment.pk},
+    )
+    acceptance_url = f"{url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
     # 1 notification to the reviewer (by AssignToReviewer)
-    # TODO: review me when we silence Janeway notifications
-    assert len(mail.outbox) == 2
+    # Check emails
+    assert len(mail.outbox) == 1
     emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
-    assert len(emails) == 2
-    assert f"[{assigned_article.journal.code}] {subject_review_assignment}" in [email.subject for email in emails]
-    # super fragile
-    janeway_email = [email for email in emails if email.subject.startswith("[JCOM]")][0]
-    # Check that the email body is for a non invited reviewer.
-    assert "You have been invited" not in janeway_email.body
-    assert f'We are requesting that you undertake a review of "{assigned_article.title}"' in janeway_email.body
-    assert acceptance_url in janeway_email.body
+    assert len(emails) == 1
+    assert subject_review_assignment in emails[0].subject
+    assert "You have been invited" not in emails[0].body
+    assert acceptance_url in emails[0].body
+    assert "random message" in emails[0].body
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
-    assert message_to_reviewer.body == "random message"
-    assert message_to_reviewer.message_type == "Verbose"
-    assert message_to_reviewer.actor == section_editor.janeway_account
-    assert list(message_to_reviewer.recipients.all()) == [normal_user.janeway_account]
+    message_to_invited_user = Message.objects.first()
+    assert message_to_invited_user.subject == subject_review_assignment
+    assert "random message" in message_to_invited_user.body
+    assert acceptance_url in message_to_invited_user.body
+    assert "You have been invited" not in message_to_invited_user.body
+    assert message_to_invited_user.message_type == "Verbose"
+    assert message_to_invited_user.actor == section_editor.janeway_account
+    assert list(message_to_invited_user.recipients.all()) == [normal_user.janeway_account]
 
 
 @pytest.mark.django_db
@@ -370,7 +398,6 @@ def test_invite_reviewer(
     """A user can be invited and a user a review assignment must be created."""
     fake_request.user = section_editor.janeway_account
 
-    journal_code = assigned_article.journal.code
     user_data = {
         "first_name": fake_factory.first_name(),
         "last_name": fake_factory.last_name(),
@@ -391,13 +418,6 @@ def test_invite_reviewer(
     invited_user = service.run()
     assigned_article.refresh_from_db()
     invitation_token = generate_token(user_data["email"], assigned_article.journal.code)
-    url = reverse(
-        "wjs_evaluate_review",
-        kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
-    )
-    # url starts with journal code, but just in case that the tests run makes it NOT start with the journal code...
-    if not url.startswith(f"/{journal_code}"):
-        url = f"/{journal_code}{url}"
 
     assert invited_user.janeway_account in assigned_article.journal.users_with_role("reviewer")
     assert not invited_user.is_active
@@ -410,27 +430,34 @@ def test_invite_reviewer(
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
     assert assignment.workflowreviewassignment.author_note_visible
-    # 1 notification to the reviewer (by Janeway)
-    # 1 notification to the reviewer (by InviteReviewer)
-    assert len(mail.outbox) == 2
 
     subject_review_assignment = get_setting(
         "email_subject",
         "subject_review_assignment",
         assigned_article.journal,
     ).processed_value
+    url = reverse(
+        "wjs_evaluate_review",
+        kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
+    )
     acceptance_url = f"{url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
-    # TODO: review me when we silence Janeway notifications
+
+    # 1 notification to the reviewer (by InviteReviewer)
+    # Check emails
+    assert len(mail.outbox) == 1
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
-    assert len(emails) == 2
-    assert f"[{assigned_article.journal.code}] {subject_review_assignment}" in [email.subject for email in emails]
-    # super fragile
-    janeway_email = [email for email in emails if email.subject.startswith("[JCOM]")][0]
-    assert acceptance_url in janeway_email.body
+    assert len(emails) == 1
+    assert subject_review_assignment in emails[0].subject
+    assert "You have been invited" in emails[0].body
+    assert acceptance_url in emails[0].body
+    assert "random message" in emails[0].body
     # Check messages
     assert Message.objects.count() == 1
-    message_to_invited_user = Message.objects.get(subject="Editor assigns reviewer")
-    assert message_to_invited_user.body == "random message"
+    message_to_invited_user = Message.objects.first()
+    assert message_to_invited_user.subject == subject_review_assignment
+    assert "random message" in message_to_invited_user.body
+    assert acceptance_url in message_to_invited_user.body
+    assert "You have been invited" in message_to_invited_user.body
     assert message_to_invited_user.message_type == "Verbose"
     assert message_to_invited_user.actor == section_editor.janeway_account
     assert list(message_to_invited_user.recipients.all()) == [invited_user.janeway_account]
@@ -651,13 +678,11 @@ def test_invite_reviewer_but_user_already_exists(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert len(mail.outbox) == 2
-    janeway_email = [email for email in mail.outbox if email.subject.startswith("[JCOM]")][0]
-    assert janeway_email.to == [invited_user.email]
+    assert len(mail.outbox) == 1
     # Check messages
     assert Message.objects.count() == 1
     message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
-    assert message_to_reviewer.body == "random message"
+    assert "random message" in message_to_reviewer.body
     assert message_to_reviewer.message_type == "Verbose"
     assert message_to_reviewer.actor == section_editor.janeway_account
     assert list(message_to_reviewer.recipients.all()) == [normal_user.janeway_account]
