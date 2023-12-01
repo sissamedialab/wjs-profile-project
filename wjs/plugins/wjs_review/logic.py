@@ -20,6 +20,7 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
@@ -34,6 +35,7 @@ from review.views import (
     upload_review_file,
 )
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
+from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -65,6 +67,7 @@ class AssignToEditor:
     article: Article
     request: HttpRequest
     workflow: Optional[ArticleWorkflow] = None
+    assignment: Optional[EditorAssignment] = None
 
     def _create_workflow(self):
         self.workflow, __ = ArticleWorkflow.objects.get_or_create(
@@ -92,15 +95,55 @@ class AssignToEditor:
         state_conditions = can_proceed(self.workflow.director_selects_editor)
         return is_section_editor and state_conditions
 
-    def _log_operation(self):
+    def _get_message_context(self) -> Dict[str, Any]:
+        review_in_review_url = self.request.journal.site_url(
+            path=reverse(
+                "review_in_review",
+                kwargs={"article_id": self.article.pk},
+            ),
+        )
+        return {
+            "article": self.workflow.article,
+            "request": self.request,
+            "editor_assigment": self.assignment,
+            "editor": self.editor,
+            "review_in_review_url": review_in_review_url,
+        }
+
+    def _log_operation(self, context: Dict[str, Any]):
         # TODO: should we use signal/events to log the operations?
         # TODO: should I record the name here also? Probably not...
         # TODO: this message does not read well in the automatic notification,
         #       but something like "{article.id} assigned..." won't read well in timeline.
+        editor_assignment_subject_template = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_editor_assignment",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        editor_assignment_subject = get_message_content(
+            request=self.request,
+            context={"article": self.workflow.article},
+            template=editor_assignment_subject_template,
+            template_is_setting=True,
+        )
+        editor_assignment_message = get_setting(
+            setting_group_name="email",
+            setting_name="editor_assignment",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        message_body = get_message_content(
+            request=self.request,
+            context=context,
+            template=editor_assignment_message,
+            template_is_setting=True,
+        )
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Paper assigned to editor",
+            message_subject=editor_assignment_subject,
+            message_body=message_body,
+            # TODO: actor=???,
             recipients=[self.editor],
+            message_type=Message.MessageTypes.VERBOSE,
         )
 
     def run(self) -> ArticleWorkflow:
@@ -108,9 +151,12 @@ class AssignToEditor:
             self._create_workflow()
             if not self._check_conditions():
                 raise ValueError("Invalid state transition")
-            self._assign_editor()
+            # We save the assignment here because it's used by _get_message_context() to create the context
+            # to be passed to _log_operation()
+            self.assignment = self._assign_editor()
             self._update_state()
-            self._log_operation()
+            context = self._get_message_context()
+            self._log_operation(context=context)
         return self.workflow
 
 
@@ -127,6 +173,7 @@ class AssignToReviewer:
     editor: Account
     form_data: Dict[str, Any]
     request: HttpRequest
+    assignment: Optional[WorkflowReviewAssignment] = None
 
     @staticmethod
     def check_reviewer_conditions(workflow: ArticleWorkflow, reviewer: Account) -> bool:
@@ -194,11 +241,36 @@ class AssignToReviewer:
             assignment.save()
         return assignment
 
-    def _log_operation(self):
+    def _get_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.workflow.article,
+            "request": self.request,
+            "user_message_content": self.form_data["message"],
+            "skip": False,
+            "review_assignment": self.assignment,
+        }
+
+    def _log_operation(self, context: Dict[str, Any]):
+        review_assignment_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_assignment",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        review_assignment_message = get_setting(
+            setting_group_name="email",
+            setting_name="review_assignment",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        message_body = get_message_content(
+            request=self.request,
+            context=context,
+            template=review_assignment_message,
+            template_is_setting=True,
+        )
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject="Editor assigns reviewer",
-            message_body=self.form_data["message"],
+            message_subject=review_assignment_subject,
+            message_body=message_body,
             actor=self.editor,
             recipients=[self.reviewer],
             message_type=Message.MessageTypes.VERBOSE,
@@ -221,11 +293,14 @@ class AssignToReviewer:
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
             self._ensure_reviewer()
-            assignment = self._assign_reviewer()
-            if not assignment:
+            # We save the assignment here because it's used by _get_message_context() to create the context
+            # to be passed to _log_operation()
+            self.assignment = self._assign_reviewer()
+            if not self.assignment:
                 raise ValueError(_("Cannot assign review"))
-            self._log_operation()
-        return assignment
+            context = self._get_message_context()
+            self._log_operation(context=context)
+        return self.assignment
 
 
 @dataclasses.dataclass
@@ -567,19 +642,16 @@ class HandleDecision:
         }
         self._trigger_article_event(events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
 
-    @staticmethod
-    def _get_email_context(
-        article: Article,
-        request: HttpRequest,
-        form_data: Dict[str, Any],
+    def _get_message_context(
+        self,
         revision: Optional[EditorRevisionRequest] = None,
     ) -> Dict[str, Any]:
         return {
-            "article": article,
-            "request": request,
+            "article": self.workflow.article,
+            "request": self.request,
             "revision": revision,
-            "decision": form_data["decision"],
-            "user_message_content": form_data["decision_editor_report"],
+            "decision": self.form_data["decision"],
+            "user_message_content": self.form_data["decision_editor_report"],
             "skip": False,
         }
 
@@ -640,7 +712,7 @@ class HandleDecision:
         self.workflow.editor_accepts_paper()
         self.workflow.save()
 
-        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
+        context = self._get_message_context()
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_ACCEPTED, context)
         self._log_accept(context)
         self._trigger_workflow_event()
@@ -664,7 +736,7 @@ class HandleDecision:
         self.workflow.editor_rejects_paper()
         self.workflow.save()
 
-        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
+        context = self._get_message_context()
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._log_decline(context)
         return self.workflow.article
@@ -683,7 +755,7 @@ class HandleDecision:
         self.workflow.editor_deems_paper_not_suitable()
         self.workflow.save()
 
-        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data)
+        context = self._get_message_context()
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._log_not_suitable(context)
         return self.workflow.article
@@ -722,7 +794,7 @@ class HandleDecision:
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
         )
-        context = HandleDecision._get_email_context(self.workflow.article, self.request, self.form_data, revision)
+        context = self._get_message_context(revision)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
         self._log_revision_request(context, revision_type=revision.type)
         return revision

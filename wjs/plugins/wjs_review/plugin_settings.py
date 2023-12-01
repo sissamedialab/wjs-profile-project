@@ -4,6 +4,7 @@ from typing import Any, Dict
 from core.models import SettingGroup
 from django.utils.translation import gettext_lazy as _
 from utils import plugins
+from utils.setting_handler import save_setting
 
 from wjs.jcom_profile.custom_settings_utils import (
     SettingParams,
@@ -70,6 +71,7 @@ def set_default_plugin_settings():
     except SettingGroup.DoesNotExist:
         wjs_review_settings_group = SettingGroup.objects.create(name="wjs_review", enabled=True)
     email_settings_group = get_group("email")
+    email_subject_settings_group = get_group("email_subject")
 
     def acceptance_due_date():
         acceptance_days_setting: SettingParams = {
@@ -184,7 +186,60 @@ def set_default_plugin_settings():
             do_review_message_setting["name"],
         )
 
-    def patch_review_message():
+    def patch_review_messages():
+        editor_assignment_subject_setting: SettingParams = {
+            "name": "subject_editor_assignment",
+            "group": email_subject_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the assign to editor message"),
+            "description": _(
+                "Provide instructions to handle editor assignments",
+            ),
+            "is_translatable": False,
+        }
+        editor_assignment_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            # https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/merge_requests/267#note_11875
+            "value": "{{ article.id }} assigned",
+            "translations": {},
+        }
+        patch_setting(editor_assignment_subject_setting, editor_assignment_subject_setting_value)
+        editor_assignment_body_setting: SettingParams = {
+            "name": "editor_assignment",
+            "group": email_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of the assign to editor message"),
+            "description": _(
+                "Provide instructions to handle editor assignments",
+            ),
+            "is_translatable": False,
+        }
+        editor_assignment_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ editor.full_name }},
+            <br/><br/>
+            You have been assigned as an editor to "{{ article.title }}" in the journal {{ request.journal.name }}.
+            <br/><br/>
+            If you are unable to be the editor for this article, please reply to this email.
+            <br/><br/>
+            You can view this article's data on the journal site: {{ review_in_review_url }}
+            <br/><br/>
+            Regards,
+            <br/><br/>
+            {{ request.user.signature|safe }}
+            """,
+            "translations": {},
+        }
+        patch_setting(editor_assignment_body_setting, editor_assignment_body_setting_value)
+        save_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_assignment",
+            journal=None,
+            value="Editor assigns reviewer",
+        )
         review_message_email_setting: SettingParams = {
             "name": "review_assignment",
             "group": email_settings_group,
@@ -206,6 +261,8 @@ def set_default_plugin_settings():
             {% else %}
             We are requesting that you undertake a review of "{{ article.title }}" in {{ article.journal.name }}.
             {% endif %}
+            <br/><br/>
+            {{ user_message_content }}
             <br/><br/>
             We would be most grateful for your time as the feedback from our reviewers is of the utmost importance
             to our editorial decision-making processes.<br/><br/>You can let us know your decision or decline to
@@ -251,5 +308,5 @@ def set_default_plugin_settings():
     review_invitation_message()
     declined_review_message()
     do_review_message()
-    patch_review_message()
+    patch_review_messages()
     author_can_contact_director()
