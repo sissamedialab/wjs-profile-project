@@ -159,6 +159,8 @@ DATETIME_FORMATS = {
 
 WJS_NEWSLETTER_TOKEN_SALT = "CHANGEME"
 
+# Http auth to access munin graphs (specs#486)
+WJS_MUNIN_AUTH = ("username", "password")
 
 ENABLE_FULL_TEXT_SEARCH = True
 CORE_FILETEXT_MODEL = "core.PGFileText"
