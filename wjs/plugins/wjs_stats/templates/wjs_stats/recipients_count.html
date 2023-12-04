@@ -4,13 +4,16 @@
 {% endblock title %}
 {% block body %}
     <h2>Newsletter recipients count</h2>
-<p>Via Munin. <strong>NB</strong>: these graphs are only visible if Janeway runs
-on a machine that can access our internal net (i.e. if you don't see anything,
-ensure you have the correct VPN activated.).</p>
+    <p>
+        Via Munin.
+        <br />
+        <strong>NB</strong>: if the graphs are missing there might be
+        an issue with a related service. Please contact assitance.
+    </p>
     <p>
         <img alt="Monthly recipients count"
-             src="{% url 'wjs_stats_munin_proxy' server='jannon' image='count_recipients-month' %}"/>
+             src="{% url 'wjs_stats_munin_proxy' server='jannon' image='count_recipients-month' %}" />
         <img alt="Yearly recipients count"
-             src="{% url 'wjs_stats_munin_proxy' server='jannon' image='count_recipients-year' %}"/>
+             src="{% url 'wjs_stats_munin_proxy' server='jannon' image='count_recipients-year' %}" />
     </p>
 {% endblock body %}

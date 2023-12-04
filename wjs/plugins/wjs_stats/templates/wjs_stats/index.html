@@ -1,0 +1,10 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+    WJS Stats plugin - index
+{% endblock title %}
+{% block body %}
+<ul>
+    <li><a href="{% url 'wjs_stats' %}">Stats (wip)</a></li>
+    <li><a href="{% url 'wjs_stats_recipients_count' %}">Newsletter recipients count</a></li>
+</ul>
+{% endblock body %}

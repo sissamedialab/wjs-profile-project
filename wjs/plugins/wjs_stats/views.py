@@ -6,26 +6,23 @@ import requests
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import FileResponse
-from django.shortcuts import render
 from django.utils import timezone
 from django.views.generic import TemplateView, View
-from plugins.wjs_stats import forms
+from requests.auth import HTTPBasicAuth
 from utils.logger import get_logger
 
 # TODO: add specific permission to plugin and use PermissionRequiredMixin?
 logger = get_logger(__name__)
 
 
-def manager(request):
-    """Provide the manager ??? of this plugin."""
-    form = forms.DummyManagerForm()
+class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Just an index."""
 
-    template = "wjs_stats/manager.html"
-    context = {
-        "form": form,
-    }
+    template_name = "wjs_stats/index.html"
 
-    return render(request, template, context)
+    def test_func(self):
+        """Verify that only staff can see statistics."""
+        return self.request.user.is_staff
 
 
 class StatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -73,7 +70,7 @@ class StatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 
 class MuninProxy(LoginRequiredMixin, UserPassesTestMixin, View):
-    """Proxy to internal machine to retrieve images of munin graphs."""
+    """Proxy to (internal) machine to retrieve images of munin graphs."""
 
     def test_func(self):
         """Verify that only staff can request a proxy to munin."""
@@ -84,12 +81,19 @@ class MuninProxy(LoginRequiredMixin, UserPassesTestMixin, View):
         server = kwargs["server"]
         image = kwargs["image"]
         img_url = (
-            "https://benton.ud.sissamedialab.it/munin-cgi/munin-cgi-graph/ud.sissamedialab.it/"
+            "https://medialab.sissa.it/munin-cgi/munin-cgi-graph/ud.sissamedialab.it/"
             f"{server}.ud.sissamedialab.it/{image}.png"
         )
+
+        if auth := settings.WJS_MUNIN_AUTH:
+            basic_auth = HTTPBasicAuth(*auth)
+        else:
+            basic_auth = None
+
         munin_response = requests.get(
             url=img_url,
-            verify=False,
+            verify=True,
+            auth=basic_auth,
         )
         response = FileResponse(BytesIO(munin_response.content))
         return response
