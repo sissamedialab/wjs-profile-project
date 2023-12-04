@@ -65,6 +65,13 @@ class JCOMProfileFactory(factory.django.DjangoModelFactory):
     # I think it's "circular" and would try to create the Account again...
     # DETAIL:  Key (janeway_account_id)=(1) already exists.
 
+    first_name = factory.Faker("first_name")
+    last_name = factory.Faker("last_name")
+    email = factory.Faker("email")
+    username = email
+    is_admin = False
+    is_active = True
+
 
 class JournalFactory(factory.django.DjangoModelFactory):
     """Journal factory."""

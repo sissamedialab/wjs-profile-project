@@ -7,10 +7,9 @@ action in a method named "run()".
 import dataclasses
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+# There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
-from core import (
-    models as core_models,  # TODO: I don't want to typehint using just "File" (there are too many "File"sg
-)
+from core import models as core_models
 from core.models import AccountRole, Role
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -29,11 +28,7 @@ from journal.models import Journal
 from review.const import EditorialDecisions
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
-from review.views import (
-    accept_review_request,
-    decline_review_request,
-    upload_review_file,
-)
+from review.views import upload_review_file
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
 from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
@@ -351,30 +346,41 @@ class EvaluateReview:
         article_state = self.check_article_conditions(self.assignment)
         return reviewer_conditions and editor_conditions and date_due_set and gdpr_compliant and article_state
 
-    def _handle_accept(self) -> Optional[bool]:
-        """
-        Accept the review by calling janeway :py:func:`accept_review_request`.
+    def _janeway_logic_handle_accept(self):
+        """Accept an assignment.
 
-        Response returned by janeway is discarded.
+        Taken from review.views.accept_review_request
+        """
+        self.assignment.date_accepted = timezone.now()
+        self.assignment.save()
+
+    def _handle_accept(self) -> Optional[bool]:
+        """Accept the review.
 
         Return boolean value of the assignment date_accepted field.
         """
-        accept_review_request(request=self.request, assignment_id=self.assignment.pk)
+        self._janeway_logic_handle_accept()
         self.assignment.refresh_from_db()
         self._log_accept()
         if self.assignment.date_accepted:
             return True
 
-    def _handle_decline(self) -> Optional[bool]:
-        """
-        Decline the review by calling janeway :py:func:`decline_review_request`.
+    def _janeway_logic_handle_decline(self):
+        """Decline an assignment.
 
-        Response returned by janeway is discarded.
+        Taken from review.views.decline_review_request
+        """
+        self.assignment.date_declined = timezone.now()
+        self.assignment.date_accepted = None
+        self.assignment.is_complete = True
+        self.assignment.save()
+
+    def _handle_decline(self) -> Optional[bool]:
+        """Decline the review.
 
         Return boolean value of the assignment date_declined field.
         """
-        decline_review_request(request=self.request, assignment_id=self.assignment.pk)
-        self.assignment.refresh_from_db()
+        self._janeway_logic_handle_decline()
         self._log_decline()
         if self.assignment.date_declined:
             return False
@@ -658,6 +664,7 @@ class HandleDecision:
     def _log_accept(self, email_context):
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
+            actor=self.user,
             article=self.workflow.article,
             message_subject="Editor accepts paper",
             recipients=[self.workflow.article.correspondence_author],
@@ -668,6 +675,7 @@ class HandleDecision:
     def _log_decline(self, email_context):
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
+            actor=self.user,
             article=self.workflow.article,
             message_subject="Editor rejects paper",
             recipients=[self.workflow.article.correspondence_author],
@@ -677,6 +685,7 @@ class HandleDecision:
     def _log_not_suitable(self, email_context):
         # TODO: use the email_context to build a nice message
         communication_utils.log_operation(
+            actor=self.user,
             article=self.workflow.article,
             message_subject="Editor deems paper not suitable",
             recipients=[self.workflow.article.correspondence_author],
@@ -690,6 +699,7 @@ class HandleDecision:
         else:
             message_subject = "Editor requires revision"
         communication_utils.log_operation(
+            actor=self.user,
             article=self.workflow.article,
             message_subject=message_subject,
             recipients=[self.workflow.article.correspondence_author],

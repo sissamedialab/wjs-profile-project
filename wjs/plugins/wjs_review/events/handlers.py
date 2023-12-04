@@ -6,7 +6,8 @@ from events import logic as events_logic
 from review import models as review_models
 from submission import models as submission_models
 
-from ..models import ArticleWorkflow
+from ..communication_utils import log_operation
+from ..models import ArticleWorkflow, Message
 from . import ReviewEvent
 from .assignment import dispatch_assignment
 
@@ -65,4 +66,26 @@ def on_revision_complete(**kwargs) -> None:
     review_models.ReviewRound.objects.create(article=article, round_number=new_round_number)
     article.articleworkflow.save()
     article.stage = submission_models.STAGE_ASSIGNED
+    # NB: STAGE_ASSIGNED is the correct stage here, becase the other candidate STAGE_UNDER_REVIEW is set by
+    # review.logic.quick_assign() only when a review assigment is created.
     article.save()
+
+
+def log_author_uploads_revision(**kwargs) -> Message:
+    """Log a message when the author uploads a revision.
+
+    This is used because we let Janeway manage the upload of a revision.
+    """
+    revision_request = kwargs.pop("revision")
+    article = revision_request.article
+    actor = article.correspondence_author
+    editor = revision_request.editor
+    message = log_operation(
+        article=article,
+        message_subject="Author submits revision.",
+        message_body=revision_request.author_note,
+        actor=actor,
+        recipients=[editor],
+        message_type=Message.MessageTypes.STD,
+    )
+    return message

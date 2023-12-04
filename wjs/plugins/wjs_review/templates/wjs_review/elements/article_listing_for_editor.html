@@ -1,23 +1,33 @@
 {% load wjs_review %}
-{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt %}
-    <div class="row{% if attention_flag %} text-warning{% endif %}">
+{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
+    <div class="row{% if attention_flag %} bg-warning{% endif %} border-bottom border-start">
         <div class="col-1">{{ article.section.name }} {{ article.id }}</div>
         <div class="col-4">
-            <a title="Paper's details"
+            <a title="{{ article.title }}"
                href="{% url 'wjs_article_details' workflow.id %}"
-               class="btn btn-primary text-white fw-bold">{{ article.title|truncatewords:5 }}</a>
+               class="btn btn-primary text-white fw-bold">{{ article.title|truncatewords:6 }}</a>
         </div>
         <div class="col-2">
-            {% for author in article.authors.all %}
-                {% if author == article.correspondence_author %}
-                    <span class="fst-italic" title="Corresponding / correspondence author">{{ author }},</span>
-                {% else %}
-                    <span>{{ author }},</span>
-                {% endif %}
-            {% endfor %}
+            {{ workflow.article.correspondence_author }}
+            {% if workflow.article.authors.count > 1 %}
+                <a class="text-secondary"
+                   data-bs-toggle="collapse"
+                   href="#otherAuthors-{{ article.id }}"
+                   role="button"
+                   aria-expanded="false"
+                   aria-controls="otherAuthors-{{ article.id }}">…</a>
+                <span class="collapse" id="otherAuthors-{{ article.id }}">
+                    {% for author in workflow.article.authors.all %}
+                        {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
+                        {% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                </span>
+            {% endif %}
         </div>
-        <div class="col-1">{{ article.primary_issue|default:"No issue yet" }}</div>
-        <div class="col-4">{% if attention_flag %}{{ attention_flag }}{% endif %}
-{{ workflow.get_state_display }} ({{ workflow.modified }})</div>
+        <div class="col-1" title="Issue (if available)">{{ article.primary_issue|default:"—" }}</div>
+        <div class="col-4">
+            {% if attention_flag %}<span title="Attention reason">{{ attention_flag }} — </span>{% endif %}
+            <span title="State">{{ workflow.get_state_display }}</span> (<span title="last transition">{{ workflow.modified }}</span>)
+        </div>
     </div>
 {% endwith %}

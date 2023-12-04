@@ -18,7 +18,6 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
-from .. import communication_utils
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -254,12 +253,11 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
     # Check messages
-    wjs_support_user = communication_utils.get_system_user()
     assert Message.objects.count() == 1
     message_to_correspondence_author = Message.objects.get(subject="Editor requires revision")
     assert message_to_correspondence_author.body == ""
     assert message_to_correspondence_author.message_type == "Verbose"
-    assert message_to_correspondence_author.actor == wjs_support_user
+    assert message_to_correspondence_author.actor == section_editor.janeway_account
     assert list(message_to_correspondence_author.recipients.all()) == [assigned_article.correspondence_author]
 
 

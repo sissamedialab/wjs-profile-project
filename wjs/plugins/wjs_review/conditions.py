@@ -5,12 +5,14 @@ to the user and should describe the situation. The idea here is to tell the user
 attention.
 
 """
-
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
-from django.utils.timezone import now, timedelta
+from django.utils import timezone
 from review.models import ReviewAssignment
 from submission.models import Article
+
+from .models import Message
 
 Account = get_user_model()
 
@@ -24,7 +26,7 @@ def is_late(assignment: ReviewAssignment, user: Account) -> str:
     # NB: do not use assignment.is_late!
     # That property doesn't check if the assignment is complete, so one can have late, but complete assignments, which
     # is not what we are interested here.
-    if not assignment.date_complete and now().date() >= assignment.date_due:
+    if not assignment.date_complete and timezone.now().date() >= assignment.date_due:
         return "Review assignment is late"
     else:
         return ""
@@ -37,8 +39,8 @@ def is_late_invitation(assignment: ReviewAssignment, user: Account) -> str:
     """
     # TODO: use a journal setting?
     if not assignment.date_accepted and not assignment.date_declined:
-        grace_period = timedelta(days=4)
-        if now() - assignment.date_requested > grace_period:
+        grace_period = timezone.timedelta(days=4)
+        if timezone.now() - assignment.date_requested > grace_period:
             return "The reviewer has not yet answered to the invitation."
 
     return ""
@@ -128,5 +130,60 @@ def all_assignments_completed(article: Article) -> str:
     )
     if assignments.exists() and not pending_assignments.exists():
         return "All review assignments are ready."
+    else:
+        return ""
+
+
+def has_unread_message(article: Article, recipient: Account) -> str:
+    """Tell if the recipient has any unread message."""
+    # TODO: alternatively, we can implement something like:
+    #   def current_editor_has_unread_message(article)
+    #       ...
+    # and estrapolate the editor from the (pseudocode) `article.editor_assignment_set().last()`
+    #
+    # This avoids the necessity of receiving the "recipient" from outside. Since we'll probably be called through a
+    # templatetag, this implementation might be easiet to maintain.
+    unread_messages = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.id,
+        recipients__in=[recipient],
+        messagerecipients__read=False,
+    )
+    if unread_messages.exists():
+        return "You have unread messages"
+    else:
+        return ""
+
+
+def one_review_assignment_late(article: Article) -> str:
+    """Tell if the article has one "late" review_assignment."""
+    # TODO: review this condition. Is this too invasive?
+    review_round = article.current_review_round_object()
+    # TODO: use django.db.models.functions.Now() ?
+    now = timezone.now().date()
+    late_assignments = ReviewAssignment.objects.filter(
+        Q(article=article, review_round=review_round)
+        & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
+    )
+    if late_assignments.exists():
+        return "There is a late review assignment."
+    else:
+        return ""
+
+
+def editor_as_reviewer_is_late(article: Article) -> str:
+    """Tell if the article has the editor as reviewer and the editor is "late" with the review."""
+    if editor_assignment := article.editorassignment_set.order_by("assigned").last():
+        editor = editor_assignment.editor
+    else:
+        return ""
+    review_round = article.current_review_round_object()
+    now = timezone.now().date()
+    late_assignments = ReviewAssignment.objects.filter(
+        Q(article=article, review_round=review_round, reviewer=editor)
+        & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
+    )
+    if late_assignments.exists():
+        return "The editor's review is late."
     else:
         return ""
