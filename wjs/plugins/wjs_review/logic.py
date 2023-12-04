@@ -246,6 +246,12 @@ class AssignToReviewer:
         }
 
     def _log_operation(self, context: Dict[str, Any]):
+        if self.reviewer == self.editor:
+            # TODO: review me after specs#606
+            message_type = Message.MessageTypes.SYSTEM
+        else:
+            message_type = Message.MessageTypes.VERBOSE
+
         review_assignment_subject = get_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_assignment",
@@ -268,7 +274,7 @@ class AssignToReviewer:
             message_body=message_body,
             actor=self.editor,
             recipients=[self.reviewer],
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=message_type,
         )
 
     def run(self) -> WorkflowReviewAssignment:
@@ -580,10 +586,16 @@ class SubmitReview:
             )
 
     def _log_operation(self):
+        if self.assignment.reviewer == self.assignment.editor:
+            message_type = Message.MessageTypes.SYSTEM
+        else:
+            message_type = Message.MessageTypes.VERBOSE
+
         communication_utils.log_operation(
             article=self.assignment.article,
             message_subject="Reviewer sends report",
             recipients=[self.assignment.editor],
+            message_type=message_type,
         )
 
     def run(self):

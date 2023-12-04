@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
-from review.models import ReviewAssignment
+from review.models import ReviewAssignment, RevisionRequest
 from submission.models import Article
 
 from .models import Message
@@ -103,7 +103,7 @@ def needs_assignment(article: Article) -> str:
         ),
     )
     if not assignments.exists():
-        return "The paper has not yet been assigned to any reviewer."
+        return "The paper should be be assigned to some reviewer."
     else:
         return ""
 
@@ -185,5 +185,17 @@ def editor_as_reviewer_is_late(article: Article) -> str:
     )
     if late_assignments.exists():
         return "The editor's review is late."
+    else:
+        return ""
+
+
+def author_revision_is_late(article: Article) -> str:
+    """Tell if the author is late in submitting a revision."""
+    late_revision_request = RevisionRequest.objects.filter(
+        article_id=article.id,
+        date_due__lt=timezone.now().date(),
+    )
+    if late_revision_request.exists():
+        return "The revision request is late."
     else:
         return ""

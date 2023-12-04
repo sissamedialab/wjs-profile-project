@@ -2,8 +2,12 @@
 <div class="card border border-1">
     {% with assignment=assignment_and_actions.assignment %}
         {% with attention_flag=assignment|assignment_requires_attention_tt %}
-            <div class="card-body">
+    <div class="card-body">
+        {% if assignment.date_declined %}
+        <p class="text-muted">Declined assignment</p>
+        {% else %}
                 {% if attention_flag %}<p class="text-warning">{{ attention_flag }}</p>{% endif %}
+        {% endif %}
                 <p>
                     Assignment {{ assignment.id }} to
                     {% if assignment.date_accepted and assignment.is_complete %}

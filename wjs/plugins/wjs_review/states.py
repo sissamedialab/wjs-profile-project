@@ -353,6 +353,15 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
         ),
     )
 
+    @staticmethod
+    def article_requires_attention(article: Article, **kwargs) -> str:
+        """Rifle through the situations that require attention."""
+        if attention_flag := conditions.author_revision_is_late(article):
+            return attention_flag
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        return ""
+
 
 class Rejected(BaseState):  # noqa N801 CapWords convention
     "Rejected"

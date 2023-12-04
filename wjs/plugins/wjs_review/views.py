@@ -46,6 +46,35 @@ class ListArticles(LoginRequiredMixin, ListView):
     template_name = "wjs_review/reviews.html"
     context_object_name = "workflows"
 
+    def get_queryset(self):
+        """Keep only articles (workflows) for which the user is editor."""
+        # TODO: what happens to EditorAssignments when the editor is changed?
+        #       - we want to track the info about past assignments
+        #       - we want to have only one "live" editor an any given moment
+        return ArticleWorkflow.objects.filter(article__editorassignment__editor__in=[self.request.user])
+
+
+class ListArchivedArticles(LoginRequiredMixin, ListView):
+    model = ArticleWorkflow
+    ordering = "id"
+    template_name = "wjs_review/reviews.html"
+    context_object_name = "workflows"
+
+    def get_queryset(self):
+        """Keep only articles (workflows) for which the user is editor and a "final" decision has been made."""
+        # Articles in states such as SUBMITTED, INCOMPLETE_SUBMISSION, PAPER_MIGHT_HAVE_ISSUES do not have any editor
+        # assignment, so they can be left out of the list.
+        return ArticleWorkflow.objects.filter(
+            article__editorassignment__editor__in=[self.request.user],
+            state__in=[
+                ArticleWorkflow.ReviewStates.WITHDRAWN,
+                ArticleWorkflow.ReviewStates.REJECTED,
+                ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+                ArticleWorkflow.ReviewStates.ACCEPTED,
+                ArticleWorkflow.ReviewStates.WRITEME_PRODUCTION,
+            ],
+        )
+
 
 class UpdateState(LoginRequiredMixin, UpdateView):
     model = ArticleWorkflow
