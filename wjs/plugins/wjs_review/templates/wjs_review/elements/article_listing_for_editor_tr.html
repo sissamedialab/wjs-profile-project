@@ -1,0 +1,60 @@
+{% load wjs_review wjs_articles %}
+{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
+    <tr {% if attention_flag %}class="table-warning"{% endif %}>
+        <td>{{ article.id }}</td>
+        <td>
+            {{ workflow.article.correspondence_author }}
+            {% if workflow.article.authors.count > 1 %}
+                <a class="text-secondary"
+                   data-bs-toggle="collapse"
+                   href="#otherAuthors-{{ article.id }}"
+                   role="button"
+                   aria-expanded="false"
+                   aria-controls="otherAuthors-{{ article.id }}">…</a>
+                <span class="collapse" id="otherAuthors-{{ article.id }}">
+                    {% for author in workflow.article.authors.all %}
+                        {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
+                        {% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                </span>
+            {% endif %}
+        </td>
+        <td>
+            <a title="{{ article.title }}"
+               href="{% url 'wjs_article_details' workflow.id %}"
+               class="fw-bold">{{ article.title|truncatewords:6 }}</a>
+        </td>
+        <td>{{ article.section.name }}</td>
+        <td title="Issue (if available)">{{ article.primary_issue|default:"—" }}</td>
+        <td>
+            <span title="State">State: "{{ workflow.get_state_display }}"</span> (<span title="last transition">{{ workflow.modified|date:"d-M" }}</span>)
+            {% if attention_flag %}
+                <br />
+                <span title="Needs attention"><strong>{{ attention_flag }}</strong></span>
+            {% endif %}
+        </td>
+        <td>
+            {% if workflow.get_state_display == "Editor selected" %}
+                {% include "wjs_review/elements/reviews_cell.html" %}
+            {% endif %}
+        </td>
+        <td title="latest personal note">
+            {% last_editor_note article=workflow.article user=user as note %}
+            {% if note %}
+                <div>
+                    <a class="text-decoration-none"
+                       data-bs-toggle="collapse"
+                       href="#note-{{ workflow.article.id }}"
+                       role="button"
+                       aria-expanded="false"
+                       aria-controls="note-{{ workflow.article.id }}">ℹ</a>
+                    {% comment %} I'd prefer to use a div with class="d-inline", but d-inline and collapse don't go along nicely and d-inline breaks the collapsing. 😢 {% endcomment %}
+                    <span class="collapse personal-note" id="note-{{ workflow.article.id }}">
+                        <strong>{{ note.subject }}</strong>
+                        <div>{{ note.body }}</div>
+                    </span>
+                </div>
+            {% endif %}
+        </td>
+    </tr>
+{% endwith %}

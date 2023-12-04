@@ -1,1 +1,3 @@
 wjs/themes/JCOM-theme/assets/materialize-src/**
+wjs/plugins/wjs_review/static/css/datatables.css
+wjs/plugins/wjs_review/static/js/datatables.min.js

@@ -28,3 +28,5 @@ node_modules
 jcomassistant.log
 
 .dir-locals.el
+
+.emacs.desktop*

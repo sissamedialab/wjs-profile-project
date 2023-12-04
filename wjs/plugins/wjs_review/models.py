@@ -313,7 +313,10 @@ class Message(TimeStampedModel):
         # - ...
         VERBINE = "Verbose ma non troppo", _("Add the first 10 lines of the body to the message")
 
-        # NO! replace message_types w/ numeric message_length (number of lines to include into the notification)
+        SYSTEM = "System log message", _("A system message")
+
+        # No need to replace `message_types` w/ some kind of numeric `message_length` (to indicate, for instance, the
+        # number of lines to include into the notification)
 
     actor = models.ForeignKey(
         Account,
