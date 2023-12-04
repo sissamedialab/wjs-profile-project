@@ -27,7 +27,7 @@
                         <div class="collapse show card-body" id="paperDetails">
                             <div>
                                 {# article id, type, title and authors are already in the content_header #}
-                                {% with attention_flag=workflow|article_requires_attention_tt %}
+                                {% with attention_flag=workflow|article_requires_attention_tt:user %}
                                     <p class="{% if attention_flag %}text-warning{% else %}text-primary{% endif %}">
                                         {% if attention_flag %}{{ attention_flag }} -{% endif %}
                                         Current state: "{{ workflow.get_state_display }}" (last transition {{ workflow.modified }}) on review round (aka version) {{ workflow.article.current_review_round }}

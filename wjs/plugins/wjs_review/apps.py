@@ -51,6 +51,7 @@ class WjsReviewConfig(AppConfig):
 
         from .events import ReviewEvent
         from .events.handlers import (
+            log_author_uploads_revision,
             on_article_submitted,
             on_revision_complete,
             on_workflow_submitted,
@@ -60,7 +61,6 @@ class WjsReviewConfig(AppConfig):
             events_logic.Events.ON_ARTICLE_SUBMITTED,
             on_article_submitted,
         )
-
         events_logic.Events.register_for_event(
             ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED,
             on_workflow_submitted,
@@ -68,6 +68,10 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,
             on_revision_complete,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_REVISIONS_COMPLETE,
+            log_author_uploads_revision,
         )
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY,

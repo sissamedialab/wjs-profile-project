@@ -181,10 +181,10 @@ def article_messages(article: Article, user: Account):
 
 
 @register.filter
-def article_requires_attention_tt(workflow: ArticleWorkflow):
+def article_requires_attention_tt(workflow: ArticleWorkflow, user=None):
     """Inquire with the state-logic class relative to the current workflow state."""
     state_cls = getattr(states, workflow.state)
-    return state_cls.article_requires_attention(article=workflow.article)
+    return state_cls.article_requires_attention(article=workflow.article, user=user)
 
 
 @register.filter

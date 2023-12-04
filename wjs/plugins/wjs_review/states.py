@@ -269,17 +269,20 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         Return True as soon as one is found.
         This can be use to highlight a paper that requires some action.
 
-        Warning: States also have a requires_attention function, but that works on a review assignment.
+        Warning: States also have a assignment_requires_attention function,
+        but that works on a review assignment.
 
         """
         if attention_flag := conditions.needs_assignment(article):
             return attention_flag
         if attention_flag := conditions.all_assignments_completed(article):
             return attention_flag
-        # TODO: also report
-        # - at least one late assignement (either invitation or report)
-        # - unread messages
-        # - ...
+        if attention_flag := conditions.editor_as_reviewer_is_late(article):
+            return attention_flag
+        # The `conditions.one_review_assignment_late(article)` is more invasive: it reports all late assignments, not
+        # just the editors'
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
         return ""
 
     @staticmethod

@@ -435,7 +435,7 @@ class Message(TimeStampedModel):
 
     def get_subject_prefix(self) -> str:
         """Get a prefix string for the notification subject (e.g. [JCOM])."""
-        if type(self.target) == Article:
+        if isinstance(self.target, Article):
             return f"[{self.target.journal.code}]"
         else:
             return f"[{self.target.code}]"
@@ -493,9 +493,7 @@ class MessageRecipients(models.Model):
 
 
 class EditorRevisionRequest(RevisionRequest):
-    """
-    Extend Janeway's RevisionRequest model to add review round reference.
-    """
+    """Extend Janeway's RevisionRequest model to add review round reference."""
 
     review_round = models.OneToOneField("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     cover_letter_file = models.FileField(blank=True, null=True, verbose_name=_("Cover letter file"))
