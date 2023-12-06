@@ -169,6 +169,11 @@ urlpatterns = [
         name="drupal_author_redirect",
     ),
     # Redirects - end
+    path(
+        "dashboard/eo/",
+        views.eo_home,
+        name="dashboard_eo",
+    ),
 ]
 
 # Some experimental / Easter-egg URLs

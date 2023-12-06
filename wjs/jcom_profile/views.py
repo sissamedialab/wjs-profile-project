@@ -13,7 +13,7 @@ from core.models import Account
 from django.apps import apps
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.mixins import PermissionRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.mail import send_mail
@@ -72,6 +72,7 @@ from .drupal_redirect_views import (  # noqa F401
     JcomIssueRedirect,
 )
 from .newsletter.service import NewsletterMailerService
+from .permissions import is_eo
 from .utils import PATH_PARTS, generate_token, save_file_to_special_issue
 
 logger = get_logger(__name__)
@@ -1427,3 +1428,9 @@ def search(request):
     }
 
     return render(request, template, context)
+
+
+@user_passes_test(lambda u: is_eo(u))
+def eo_home(request):
+    """Redirect to the list of articles."""
+    return render(request, "eo/home.html")

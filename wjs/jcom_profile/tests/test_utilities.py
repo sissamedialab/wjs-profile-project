@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from submission.models import FrozenAuthor
 
+from wjs.jcom_profile.permissions import is_eo
 from wjs.jcom_profile.templatetags.wjs_tags import how_to_cite
 from wjs.jcom_profile.utils import (
     abbreviate_first_middle,
@@ -148,3 +149,10 @@ class TestHTC:
         assert how_to_cite(mockarticle) == ""
         mockarticle.frozenauthor_set = FrozenAuthor.objects.none()
         assert how_to_cite(mockarticle) == ""
+
+
+@pytest.mark.django_db
+def test_eo_permission(eo_user, jcom_user):
+    """Test the EO membership."""
+    assert is_eo(eo_user)
+    assert not is_eo(jcom_user)

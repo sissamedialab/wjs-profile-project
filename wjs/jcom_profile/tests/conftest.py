@@ -11,6 +11,7 @@ import pytest_factoryboy
 from core.middleware import GlobalRequestMiddleware
 from core.models import File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
+from django.contrib.auth.models import Group
 from django.contrib.messages.storage import default_storage
 from django.core import management
 from django.core.cache import cache
@@ -33,6 +34,7 @@ from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.testing.helpers import create_galley
 
+from wjs.jcom_profile.apps import GROUP_EO
 from wjs.jcom_profile.custom_settings_utils import (
     add_coauthors_submission_email_settings,
     add_generic_analytics_code_setting,
@@ -245,12 +247,26 @@ def reviewer(create_jcom_user, roles, journal, keywords):
 
 
 @pytest.fixture()
-def normal_user(create_jcom_user, roles, journal, keywords):
+def eo_group() -> Group:
+    """Create EO group."""
+    return Group.objects.get_or_create(name=GROUP_EO)[0]
+
+
+@pytest.fixture()
+def eo_user(create_jcom_user, journal, eo_group) -> JCOMProfile:
+    """Create EO user."""
+    eo = create_jcom_user("eo_user")
+    eo.groups.add(eo_group)
+    return eo
+
+
+@pytest.fixture()
+def normal_user(create_jcom_user, roles, journal, keywords) -> JCOMProfile:
     return create_jcom_user("normal_user")
 
 
 @pytest.fixture()
-def director(create_jcom_user, roles, journal, director_role):
+def director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("director")
     jcom_user.add_account_role("editor", journal)
     jcom_user.add_account_role("section-editor", journal)
