@@ -1,0 +1,33 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+    WJS Stats
+{% endblock title %}
+{% block css %}
+    <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+    </style>
+{% endblock css %}
+{% block body %}
+    <table>
+        <thead>
+            <tr>
+                <th>year-month</th>
+                <th>published papers</th>
+                <th>registered dois</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in counts %}
+                <tr {% if record.papers != record.dois %}class="amber"{% endif %}>
+                    <td>
+                        <a href="{% url 'journal_identifier_manager' %}?date_published__gte={{ record.year_month }}-01&date_published__lte={{ record.month_end }}">{{ record.year_month }} {{ record.note }}</a>
+                    </td>
+                    <td>{{ record.papers }}</td>
+                    <td>{{ record.dois }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock body %}
