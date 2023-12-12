@@ -2,6 +2,7 @@ import datetime
 from typing import Iterable, List
 
 import pytest
+from django.contrib.auth.models import AnonymousUser
 from django.core import mail
 from django.http import HttpRequest
 from django.test.client import Client
@@ -14,6 +15,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
 from ..models import Message
+from ..templatetags.wjs_articles import user_is_coauthor
 from ..views import SelectReviewer
 
 
@@ -340,3 +342,33 @@ def test_decline_invite(
         assert not review_assignment.date_accepted
         assert review_assignment.date_declined
         assert review_assignment.is_complete
+
+
+@pytest.mark.django_db
+def test_user_is_coauthor(article: submission_models.Article, jcom_user: JCOMProfile):
+    """user_is_coauthor check input user is coauthor."""
+    article.correspondence_author = None
+    article.authors.add(jcom_user.janeway_account)
+    article.save()
+    assert user_is_coauthor(article, jcom_user.janeway_account) is True
+
+
+@pytest.mark.django_db
+def test_user_is_not_coauthor_author(article: submission_models.Article, jcom_user: JCOMProfile):
+    """user_is_coauthor check input user is not coauthor."""
+    article.correspondence_author = jcom_user.janeway_account
+    article.authors.add(jcom_user.janeway_account)
+    article.save()
+    assert user_is_coauthor(article, jcom_user.janeway_account) is False
+
+
+@pytest.mark.django_db
+def test_user_is_not_coauthor_no_author(article: submission_models.Article, jcom_user: JCOMProfile):
+    """user_is_coauthor check input user is not coauthor."""
+    assert user_is_coauthor(article, jcom_user.janeway_account) is False
+
+
+@pytest.mark.django_db
+def test_user_is_not_coauthor_anonymous(article: submission_models.Article):
+    """user_is_coauthor check input user is not coauthor (anonymous)."""
+    assert user_is_coauthor(article, AnonymousUser()) is None

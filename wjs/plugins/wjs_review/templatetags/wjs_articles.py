@@ -3,12 +3,18 @@
 For generic tags and filters, see module wjs_review.
 
 """
+from typing import Optional
+
 from django import template
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from submission.models import Article
 
 from ..models import Message
 
 register = template.Library()
+
+Account = get_user_model()
 
 
 @register.simple_tag()
@@ -46,3 +52,27 @@ def last_editor_note(article, user):
         .order_by("-created")
     )
     return personal_notes.last() or ""
+
+
+@register.filter
+def user_is_coauthor(article: Article, user: Account) -> Optional[bool]:
+    """
+    Check if user is coauthor of the article.
+
+    If return value is None, it means that the user is not authenticated.
+    """
+    if user.is_authenticated:
+        return article.user_is_author(user) and article.correspondence_author != user
+    return None
+
+
+@register.filter
+def user_is_corresponding_author(article: Article, user: Account) -> Optional[bool]:
+    """
+    Check if user is corresponding author of the article.
+
+    If return value is None, it means that the user is not authenticated.
+    """
+    if user.is_authenticated:
+        return article.user_is_author(user) and article.correspondence_author == user
+    return None

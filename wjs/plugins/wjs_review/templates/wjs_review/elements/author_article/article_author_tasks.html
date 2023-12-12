@@ -1,4 +1,5 @@
-{% load hooks %}
+{% load hooks wjs_articles %}
+{% if article|user_is_corresponding_author:request.user %}
 <div class="card my-4">
     <div class="card-body">
         <h3 class="card-title">Tasks</h3>
@@ -31,3 +32,4 @@
         {% hook 'core_article_tasks' %}
     </div>
 </div>
+{% endif %}
