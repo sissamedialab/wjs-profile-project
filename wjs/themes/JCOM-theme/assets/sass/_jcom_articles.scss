@@ -220,6 +220,18 @@ span.paragraphHead {
 
 /* Lists deriving from LaTeX's itemize environment */
 ul.itemize1 > li {
-  list-style-type: circle;
+  list-style-type: "–";
   margin-left: 2rem;
+}
+ul.itemize2 > li {
+  list-style-type: square;
+  margin-left: 2.5rem;
+}
+ul.itemize3 > li {
+  list-style-type: disc;
+  margin-left: 3rem;
+}
+ul.itemize4 > li {
+  list-style-type: circle;
+  margin-left: 3.5rem;
 }
