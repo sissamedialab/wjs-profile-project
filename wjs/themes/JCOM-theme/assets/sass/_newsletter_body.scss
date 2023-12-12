@@ -6,26 +6,53 @@ a {
 }
 
 body {
-  background: color("grey", "lighten-2");
+  background: color("grey", "lighten-5");
   font-family: "Roboto", sans-serif;
-  padding: 5rem;
+  padding: 1rem;
   text-align: left;
 }
 
 .container {
-  background: color("grey", "lighten-5");
+  clear: both;
   margin-bottom: 2.5rem;
-  padding: 1.25rem;
+  padding: 0;
   text-align: left;
 }
 
 .logos {
   background: none;
   margin-bottom: 1.25rem;
-}
 
-.logo {
-  width: 80%;
+  &__left {
+    float: left;
+    width: 50%;
+  }
+
+  &__line-container {
+    margin-bottom: 2rem;
+    order: 0;
+    width: 100%;
+  }
+
+  &__line-text {
+    margin-left: 1rem;
+    margin-top: 2rem;
+  }
+
+  &__line {
+    border-bottom: 1px solid color("journal-color", "darken-2");
+  }
+
+  &__right {
+    float: right;
+    height: 6rem;
+    text-align: right;
+    width: 50%;
+
+    img {
+      height: 100%;
+    }
+  }
 }
 
 h2 {
@@ -76,4 +103,8 @@ h2 {
       text-align: left;
     }
   }
+}
+
+.mobile-hidden {
+  display: none;
 }

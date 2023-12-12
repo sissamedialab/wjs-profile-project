@@ -190,6 +190,7 @@ experimental_urls = [
         experimental_views.ArticlesByKeywordForceGraph.as_view(),
         name="articles_forcegraph",
     ),
+    re_path(r"newsletter/(?P<journal>[\w.()-]+)/(?P<days>\d+)/", newsletter_views.newsletter, name="newsletter"),
     re_path(r"newsletter/(?P<journal>[\w.()-]+)/", newsletter_views.newsletter, name="newsletter"),
 ]
 

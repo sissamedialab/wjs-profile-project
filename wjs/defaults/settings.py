@@ -165,3 +165,6 @@ WJS_MUNIN_AUTH = ("username", "password")
 ENABLE_FULL_TEXT_SEARCH = True
 CORE_FILETEXT_MODEL = "core.PGFileText"
 SUMMERNOTE_THEME = "bs5"
+
+# Override to dev email address to test newsletter on actual email client
+WJS_NEWSLETTER_TEST_RECIPIENT = ""
