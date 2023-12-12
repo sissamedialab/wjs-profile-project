@@ -850,7 +850,7 @@ def check_mappings(
     except wjs_models.Correspondence.DoesNotExist:
         pass
     else:
-        logger.warning(f"Setting {imported_email} onto previously empty mapping {match.id}")
+        logger.info(f"Setting {imported_email} onto previously empty mapping {match.id}")
         match.email = imported_email
         match.save()
         return match
