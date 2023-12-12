@@ -47,13 +47,15 @@ class NewsletterMailerService:
         else:
             return journal.site_url()
 
-    @property
-    def send_always_timestamp(self) -> datetime.datetime:
-        """Get timestamp that ensures that there will be something in the publication alert message.
+    def send_always_timestamp(self, days=120) -> datetime.datetime:
+        """
+        Get timestamp that ensures that there will be something in the publication alert message.
+
+        :param days: number of days to go back in time.
 
         Debug purposes only.
         """
-        return now() - datetime.timedelta(days=120)
+        return now() - datetime.timedelta(days=days)
 
     def process_content(self, content: str, journal: Journal):
         """Process the message content with premailer."""
@@ -64,6 +66,7 @@ class NewsletterMailerService:
             allow_loading_external_files=True,
             allow_insecure_ssl=getattr(settings, "NEWSLETTER_URL_INSECURE", False),
             cssutils_logging_level="CRITICAL",
+            strip_important=False,
         )
         return processed
 
@@ -138,7 +141,7 @@ class NewsletterMailerService:
             newsletter.save()
         last_sent = newsletter.last_sent
         if force:
-            last_sent = self.send_always_timestamp
+            last_sent = self.send_always_timestamp()
         return newsletter, last_sent
 
     def _get_request(self, journal: Journal) -> HttpRequest:
@@ -219,18 +222,35 @@ class NewsletterMailerService:
                 rendered_news.append(news.rendered)
         return rendered_news
 
-    def _render_newsletters_batch(self, journal_code: str, last_sent: datetime.datetime) -> NewsletterItem:
-        """Return a generator that yields the rendered content of the newsletter for each subscriber."""
+    def _render_newsletters_batch(
+        self,
+        journal_code: str,
+        last_sent: datetime.datetime,
+        sample: bool = False,
+    ) -> NewsletterItem:
+        """
+        Return a generator that yields the rendered content of the newsletter for each subscriber.
+
+        If sample is True, only the first two articles and news are rendered.
+        """
         journal = Journal.objects.get(code=journal_code)
         request = self._get_request(journal)
 
         filtered_subscribers, filtered_articles, filtered_news = self._get_objects(journal, last_sent)
+
+        if sample:
+            # when sampling, we only need a single item, no need to render all the subscribers
+            filtered_subscribers = filtered_subscribers[0:1]
 
         for subscriber in filtered_subscribers:
             # https://docs.djangoproject.com/en/1.11/ref/utils/#django.utils.translation.override
             with override(subscriber.language):
                 rendered_articles = self._render_articles(subscriber, filtered_articles, request)
                 rendered_news = self._render_news(subscriber, filtered_news, request)
+
+                if sample:
+                    rendered_articles = rendered_articles[:2]
+                    rendered_news = rendered_news[:2]
 
                 if rendered_news or rendered_articles:
                     yield NewsletterItem(
@@ -265,10 +285,25 @@ class NewsletterMailerService:
                 html_message=newsletter_content,
             )
 
-    def render_sample_newsletter(self, journal_code: str) -> str:
+    def render_sample_newsletter(self, journal_code: str, days: int = 120) -> NewsletterItem:
         """Render a sample message for one the existing subscribers for debugging."""
-        messages = list(self._render_newsletters_batch(journal_code, self.send_always_timestamp))
-        return messages[0]
+        journal = Journal.objects.get(code=journal_code)
+
+        try:
+            message = next(self._render_newsletters_batch(journal_code, self.send_always_timestamp(days), sample=True))
+        except StopIteration:
+            raise Exception(f"No article available for rendering in journal {journal_code}.")
+        try:
+            # If settings.WJS_NEWSLETTER_TEST_RECIPIENT is set, send the sample message to that address
+            if settings.WJS_NEWSLETTER_TEST_RECIPIENT:
+                self._send_newsletter(
+                    Recipient(journal=journal, email=settings.WJS_NEWSLETTER_TEST_RECIPIENT),
+                    message["content"],
+                )
+        except Exception:
+            # Skip message sending if no test email is configured
+            pass
+        return message
 
     def send_newsletter(self, journal_code: str, force: bool = False) -> List[str]:
         """Send the publication alerts.
