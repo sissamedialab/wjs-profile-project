@@ -52,6 +52,31 @@ from .models import (
 Account = get_user_model()
 
 
+def render_template_from_setting(
+    setting_group_name: str,
+    setting_name: str,
+    journal: Journal,
+    request: HttpRequest,
+    context: Dict[str, Any],
+    template_is_setting: Optional[bool] = True,
+):
+    """
+    Auxiliary function to "ease" the rendering of a template taken from Janeway's settings.
+    """
+    template = get_setting(
+        setting_group_name=setting_group_name,
+        setting_name=setting_name,
+        journal=journal,
+    ).processed_value
+    rendered_template = get_message_content(
+        request=request,
+        context=context,
+        template=template,
+        template_is_setting=template_is_setting,
+    )
+    return rendered_template
+
+
 @dataclasses.dataclass
 class AssignToEditor:
     """
@@ -110,26 +135,22 @@ class AssignToEditor:
         # TODO: should I record the name here also? Probably not...
         # TODO: this message does not read well in the automatic notification,
         #       but something like "{article.id} assigned..." won't read well in timeline.
-        editor_assignment_subject_template = get_setting(
+        editor_assignment_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_editor_assignment",
             journal=self.workflow.article.journal,
-        ).processed_value
-        editor_assignment_subject = get_message_content(
             request=self.request,
-            context={"article": self.workflow.article},
-            template=editor_assignment_subject_template,
+            context={
+                "article": self.workflow.article,
+            },
             template_is_setting=True,
         )
-        editor_assignment_message = get_setting(
+        message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="editor_assignment",
             journal=self.workflow.article.journal,
-        ).processed_value
-        message_body = get_message_content(
             request=self.request,
             context=context,
-            template=editor_assignment_message,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -257,15 +278,12 @@ class AssignToReviewer:
             setting_name="subject_review_assignment",
             journal=self.workflow.article.journal,
         ).processed_value
-        review_assignment_message = get_setting(
+        message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_assignment",
             journal=self.workflow.article.journal,
-        ).processed_value
-        message_body = get_message_content(
             request=self.request,
             context=context,
-            template=review_assignment_message,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -585,15 +603,79 @@ class SubmitReview:
                 **kwargs,
             )
 
+    # TODO: Use this method
+    # TODO: The idea is to make the context variables as flat as possible, but in this
+    # stage of development the settings themselves that are already in Janeway are not
+    # to be modified, as we don't know yet the content we want.
+    def _get_editor_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.assignment.article,
+            "request": self.request,
+            "skip": False,
+            "review_assignment": self.assignment,
+        }
+
+    # TODO: Use this method
+    # TODO: The idea is to make the context variables as flat as possible, but in this
+    # stage of development the settings themselves that are already in Janeway are not
+    # to be modified, as we don't know yet the content we want.
+    def _get_reviewer_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.assignment.article,
+            "request": self.request,
+            "skip": False,
+            "review_assignment": self.assignment,
+        }
+
+    # There are two messages/mails that are sent when a reviewer completes a review:
+    # - To the reviewer(s) (settings: {subject_,}review_complete_reviewer_acknowledgement)
+    # - To the editor(s): (settings: {subject_,}review_complete_acknowledgement)
     def _log_operation(self):
+        # Message to the reviewer
+        reviewer_message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_complete_reviewer_acknowledgement",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        reviewer_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_complete_reviewer_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_reviewer_message_context(),
+            template_is_setting=True,
+        )
         if self.assignment.reviewer == self.assignment.editor:
             message_type = Message.MessageTypes.SYSTEM
         else:
             message_type = Message.MessageTypes.VERBOSE
-
         communication_utils.log_operation(
+            # TODO: actor
             article=self.assignment.article,
-            message_subject="Reviewer sends report",
+            message_subject=reviewer_message_subject,
+            message_body=reviewer_message_body,
+            recipients=[self.assignment.reviewer],
+            message_type=message_type,
+        )
+        # Message to the editor
+        editor_message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_complete_acknowledgement",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        editor_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_complete_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_reviewer_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            # TODO: actor
+            article=self.assignment.article,
+            message_subject=editor_message_subject,
+            message_body=editor_message_body,
             recipients=[self.assignment.editor],
             message_type=message_type,
         )

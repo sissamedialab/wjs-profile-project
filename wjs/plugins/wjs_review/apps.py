@@ -77,6 +77,7 @@ class WjsReviewConfig(AppConfig):
             events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY,
             transactional_emails.send_revisions_request,
         )
+        # TODO: check service dataclass and tests
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVIEW_WITHDRAWL,
             transactional_emails.send_reviewer_withdrawl_notice,
@@ -88,4 +89,11 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVIEWER_REQUESTED_ACKNOWLEDGE,
             transactional_emails.send_reviewer_requested_acknowledgements,
+        )
+        # There are two messages/mails that are sent when a reviewer completes a review:
+        # - To the reviewer(s) (settings: {subject_,}review_complete_reviewer_acknowledgement)
+        # - To the editor(s): (settings: {subject_,}review_complete_acknowledgement)
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVIEW_COMPLETE,
+            transactional_emails.send_review_complete_acknowledgements,
         )
