@@ -20,6 +20,7 @@ from submission import models as submission_models
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.mixins import HtmxMixin
+from wjs.jcom_profile.permissions import is_eo
 
 from .communication_utils import get_messages_related_to_me
 from .forms import (
@@ -39,8 +40,39 @@ from .models import ArticleWorkflow, EditorRevisionRequest, Message, MessageReci
 
 Account = get_user_model()
 
+states_when_article_is_considered_archived = [
+    ArticleWorkflow.ReviewStates.WITHDRAWN,
+    ArticleWorkflow.ReviewStates.REJECTED,
+    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ArticleWorkflow.ReviewStates.ACCEPTED,
+    ArticleWorkflow.ReviewStates.WRITEME_PRODUCTION,
+]
+
+# "In review" means articles that are
+# - not archived,
+# - not in states such as SUBMITTED, INCOMPLETE_SUBMISSION, PAPER_MIGHT_HAVE_ISSUES
+# - not in "production" (not yet defined)
+states_when_article_is_considered_in_review = [
+    ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+    ArticleWorkflow.ReviewStates.PAPER_HAS_EDITOR_REPORT,
+    ArticleWorkflow.ReviewStates.TO_BE_REVISED,
+]
+
+# TODO: write me!
+states_when_article_is_considered_in_production = [
+    ArticleWorkflow.ReviewStates.ACCEPTED,
+]
+
+states_when_article_is_considered_missing_editor = [
+    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+    ArticleWorkflow.ReviewStates.SUBMITTED,
+    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+]
+
 
 class ListArticles(LoginRequiredMixin, ListView):
+    """Editor's main page."""
+
     model = ArticleWorkflow
     ordering = "id"
     template_name = "wjs_review/reviews.html"
@@ -51,7 +83,10 @@ class ListArticles(LoginRequiredMixin, ListView):
         # TODO: what happens to EditorAssignments when the editor is changed?
         #       - we want to track the info about past assignments
         #       - we want to have only one "live" editor an any given moment
-        return ArticleWorkflow.objects.filter(article__editorassignment__editor__in=[self.request.user])
+        return ArticleWorkflow.objects.filter(
+            article__editorassignment__editor__in=[self.request.user],
+            state__in=states_when_article_is_considered_in_review,
+        )
 
 
 class ListArchivedArticles(LoginRequiredMixin, ListView):
@@ -62,18 +97,75 @@ class ListArchivedArticles(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         """Keep only articles (workflows) for which the user is editor and a "final" decision has been made."""
-        # Articles in states such as SUBMITTED, INCOMPLETE_SUBMISSION, PAPER_MIGHT_HAVE_ISSUES do not have any editor
-        # assignment, so they can be left out of the list.
         return ArticleWorkflow.objects.filter(
             article__editorassignment__editor__in=[self.request.user],
-            state__in=[
-                ArticleWorkflow.ReviewStates.WITHDRAWN,
-                ArticleWorkflow.ReviewStates.REJECTED,
-                ArticleWorkflow.ReviewStates.NOT_SUITABLE,
-                ArticleWorkflow.ReviewStates.ACCEPTED,
-                ArticleWorkflow.ReviewStates.WRITEME_PRODUCTION,
-            ],
+            state__in=states_when_article_is_considered_archived,
         )
+
+
+class EOPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """EO's main page."""
+
+    model = ArticleWorkflow
+    ordering = "id"
+    template_name = "wjs_review/eo_pending.html"
+    context_object_name = "workflows"
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+        return self.request.user.is_staff or is_eo(self.request.user)
+
+    def get_queryset(self):
+        """Keep only pending (no final decision) articles."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            state__in=states_when_article_is_considered_in_review,
+        )
+
+
+class EOArchived(EOPending):
+    def get_queryset(self):
+        """Get all published / withdrawn / rejected / not suitable articles."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            state__in=states_when_article_is_considered_archived,
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add a "title" to the context for the header."""
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Archived papers"
+        return context
+
+
+class EOProduction(EOPending):
+    def get_queryset(self):
+        """Get all articles in production."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            state__in=states_when_article_is_considered_in_production,
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add a "title" to the context for the header."""
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Papers in production"
+        return context
+
+
+class EOMissingEditor(EOPending):
+    def get_queryset(self):
+        """Get all articles that should be assigned to some editor to be reviewed."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            state__in=states_when_article_is_considered_missing_editor,
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add a "title" to the context for the header."""
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Papers without an editor"
+        return context
 
 
 class UpdateState(LoginRequiredMixin, UpdateView):
@@ -524,7 +616,7 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
 
 
 class ArticleMessages(LoginRequiredMixin, ListView):
-    """All messages of a certain user that are not related to any article.
+    """All messages of a certain user that are related to an article.
 
     Probably only write-to-eo / write-to-directore message.
     """
@@ -569,7 +661,7 @@ class MessageAttachmentDownloadView(UserPassesTestMixin, DetailView):
         """The recipients and the actor of the message can download the file."""
         user = self.request.user
         message = self.get_object()
-        return user.is_staff or user == message.actor or user in message.recipients.all()
+        return user == message.actor or user in message.recipients.all() or user.is_staff or is_eo(self.request.user)
 
     def get(self, request, *args, **kwargs):
         """Serve the attachment file."""
@@ -673,8 +765,12 @@ class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
     template_name = "wjs_review/elements/toggle_message_read.html"
 
     def test_func(self):
-        """User must be the recipient (or staff)."""
-        return self.request.user.is_staff or self.request.user.id == self.kwargs["recipient_id"]
+        """User must be the recipient (or staff or EO)."""
+        return (
+            self.request.user.id == self.kwargs["recipient_id"]
+            or self.request.user.is_staff
+            or is_eo(self.request.user)
+        )
 
     def get_object(self, queryset=None):
         """Return the object the view is displaying.
@@ -703,7 +799,6 @@ class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
         return self.render_to_response(self.get_context_data(form=form, message=self.object.message))
 
 
-# TODO: verify if LoginRequiredMixin overrides UserPassesTestMixin
 class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
     """
     Basic view to upload the optional file of the author cover letter.

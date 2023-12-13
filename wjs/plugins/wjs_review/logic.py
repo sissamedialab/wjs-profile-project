@@ -864,8 +864,9 @@ class HandleMessage:
         # TODO: if a director is also an author, the system can get confused! Or, more generally, all "roles" should be
         # defined with respect to the article.
 
-        # EO is always available
-        allowed_recipients = Account.objects.filter(is_staff=True, is_active=True)
+        # EO system user is always available
+        # (I need to do this funny `filter(id=...)` because I need a QuerySet)
+        allowed_recipients = Account.objects.filter(id=communication_utils.get_eo_user(article).id)
         others = []
 
         # The actor himself is always available also
@@ -944,7 +945,7 @@ class HandleMessage:
         # django.db.utils.NotSupportedError:
         #   Calling QuerySet.get(...) with filters after union() is not supported.
         # so we have to "refresh" it later on
-        # and cannot "fileter" it directly.
+        # and cannot "filter" it directly.
         qs = allowed_recipients.union(*others)
         return qs.values_list("id", flat=True)
 

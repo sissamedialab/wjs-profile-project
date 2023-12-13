@@ -18,7 +18,7 @@ from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
 
-from ..communication_utils import get_messages_related_to_me
+from ..communication_utils import get_eo_user, get_messages_related_to_me
 from ..logic import AssignToReviewer, HandleMessage
 from ..models import Message
 from . import conftest
@@ -156,8 +156,7 @@ def test_message_addressing(
 
     director: Account = director.janeway_account
 
-    # TODO: EO role is not yet well defined. For now, it is anyone with is_staff=True
-    admin: Account = admin.janeway_account
+    eo_system_user: Account = get_eo_user(assigned_article)
 
     # The fixture `review_settings` ensures that all needed (journal) settings exist, but we still need to set the
     # desired value
@@ -195,7 +194,7 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(editor, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(editor, assigned_article, author) is True
     assert HandleMessage.can_write_to(editor, assigned_article, director) is True
-    assert HandleMessage.can_write_to(editor, assigned_article, admin) is True
+    assert HandleMessage.can_write_to(editor, assigned_article, eo_system_user) is True
 
     # Reviewer
     # ======
@@ -203,7 +202,7 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(reviewer, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, author) is False
     assert HandleMessage.can_write_to(reviewer, assigned_article, director) is True
-    assert HandleMessage.can_write_to(reviewer, assigned_article, admin) is True
+    assert HandleMessage.can_write_to(reviewer, assigned_article, eo_system_user) is True
 
     # Author
     # ======
@@ -211,7 +210,7 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(author, assigned_article, reviewer) is False
     assert HandleMessage.can_write_to(author, assigned_article, author) is True
     assert HandleMessage.can_write_to(author, assigned_article, director) is author_can_contact_director
-    assert HandleMessage.can_write_to(author, assigned_article, admin) is True
+    assert HandleMessage.can_write_to(author, assigned_article, eo_system_user) is True
 
 
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
@@ -221,7 +220,6 @@ def test_allowed_recipients_for_actor(
     assigned_article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,
-    admin: JCOMProfile,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     author_can_contact_director: bool,
@@ -244,8 +242,7 @@ def test_allowed_recipients_for_actor(
 
     director: Account = director.janeway_account
 
-    # TODO: EO role is not yet well defined. For now, it is anyone with is_staff=True
-    admin: Account = admin.janeway_account
+    eo_system_user: Account = get_eo_user(assigned_article)
 
     # The fixture `review_settings` ensures that all needed (journal) settings exist, but we still need to set the
     # desired value
@@ -287,7 +284,7 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 in allowed_recipients
     assert editor in allowed_recipients
     assert director in allowed_recipients
-    assert admin in allowed_recipients
+    assert eo_system_user in allowed_recipients
 
     # Reviewer
     # ======
@@ -297,7 +294,7 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
     assert director in allowed_recipients
-    assert admin in allowed_recipients
+    assert eo_system_user in allowed_recipients
 
     # Author
     # ======
@@ -307,16 +304,17 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
     assert (director in allowed_recipients) is author_can_contact_director
-    assert admin in allowed_recipients
+    assert eo_system_user in allowed_recipients
 
 
 @pytest.mark.django_db
 def test_only_staff_or_recipient_can_toggle_read(
     article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    eo_user: JCOMProfile,
     client,
 ):
-    """Test that the read flag can be toggled only by the recipient or staff."""
+    """Test that the read flag can be toggled only by the recipient or staff or EO."""
     chakotay = create_jcom_user("Chakotay")
     tuvok = create_jcom_user("Tuvok")
     msg = Message.objects.create(
@@ -347,17 +345,23 @@ def test_only_staff_or_recipient_can_toggle_read(
     mr.refresh_from_db()
     assert mr.read is False
 
+    client.force_login(eo_user)
+    response = client.post(url, data={"read": True})
+    assert response.status_code == 200
+    mr.refresh_from_db()
+    assert mr.read is True
+
 
 @pytest.mark.django_db
 def test_message_attachment_access(
     assigned_article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
-    admin: JCOMProfile,
     fake_request: HttpRequest,
+    eo_user: JCOMProfile,
     review_form: review_models.ReviewForm,
     client,
 ):
-    """Test that only actor, recipient and staff can download an attachment."""
+    """Test that only actor, recipient and EO can download an attachment."""
     # TODO: the author of the "assigned_article" is an admin user
     # Let's set it to a normal user (no staff and no admin)
     author: Account = create_jcom_user("simple_author").janeway_account
@@ -373,8 +377,7 @@ def test_message_attachment_access(
     # to use.
     editor: Account = assigned_article.editorassignment_set.first().editor
 
-    # TODO: EO role is not yet well defined. For now, it is anyone with is_staff=True
-    admin: Account = admin.janeway_account
+    eo_user: Account = eo_user.janeway_account
 
     # Need to have a couple of reviewers already assigned, so we can test a richer scenario
     fake_request.user = editor  # NB: quick_assign expects request.user to be the editor... sigh...
@@ -438,8 +441,8 @@ def test_message_attachment_access(
     response = client.get(url)
     assert response.status_code == 200
 
-    # Staff
-    client.force_login(admin)
+    # EO
+    client.force_login(eo_user)
     response = client.get(url)
     assert response.status_code == 200
 

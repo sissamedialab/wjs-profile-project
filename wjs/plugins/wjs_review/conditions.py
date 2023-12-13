@@ -5,6 +5,7 @@ to the user and should describe the situation. The idea here is to tell the user
 attention.
 
 """
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -150,7 +151,23 @@ def has_unread_message(article: Article, recipient: Account) -> str:
         messagerecipients__read=False,
     )
     if unread_messages.exists():
-        return "You have unread messages"
+        return "You have unread messages."
+    else:
+        return ""
+
+
+def article_has_old_unread_message(article: Article) -> str:
+    """Tell if there is any message left unread for a long time."""
+    days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
+    oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
+    unread_messages = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.id,
+        messagerecipients__read=False,
+        created__lt=oldest_acceptable_message_date,
+    )
+    if unread_messages.exists():
+        return "This article has unattended messages."
     else:
         return ""
 
@@ -191,11 +208,20 @@ def editor_as_reviewer_is_late(article: Article) -> str:
 
 def author_revision_is_late(article: Article) -> str:
     """Tell if the author is late in submitting a revision."""
-    late_revision_request = RevisionRequest.objects.filter(
+    late_revision_requests = RevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
-    )
-    if late_revision_request.exists():
-        return "The revision request is late."
+    ).order_by()
+    if late_revision_requests.exists():
+        expected = late_revision_requests.first().date_due
+        days_late = (timezone.now().date() - expected).days
+        return f"The revision request is {days_late} days late (was expected by {expected.strftime('%b-%d')})."
     else:
         return ""
+
+
+def eo_has_unread_messages(article: Article) -> str:
+    """Tell if there is some unread message for EO on this article."""
+    code = article.journal.code.lower()
+    eo_user = Account.objects.get(email=f"{code}-eo@{code}.sissa.it")
+    return has_unread_message(article=article, recipient=eo_user)

@@ -111,6 +111,7 @@ class ArticleFactory(factory.django.DjangoModelFactory):
     #     ... foo.value = 1
 
     # TODO: use dall.e (https://labs.openai.com) to fill `thumbnail_image_file`
+    section = factory.LazyAttribute(lambda self: Section.objects.filter(journal=self.journal).order_by("?").first())
 
 
 def yesterday():
