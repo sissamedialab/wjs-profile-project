@@ -12,7 +12,6 @@ from review import models as review_models
 from review.const import EditorialDecisions
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
-from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -24,6 +23,7 @@ from ..logic import (
     EvaluateReview,
     HandleDecision,
     InviteReviewer,
+    render_template_from_setting,
 )
 from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 from .test_helpers import _create_review_assignment, _submit_review, get_next_workflow
@@ -67,27 +67,23 @@ def test_assign_to_editor(
     # Check messages
     assert Message.objects.count() == 1
     message_to_editor = Message.objects.first()
-    editor_assignment_template = get_setting(
-        setting_group_name="email",
-        setting_name="editor_assignment",
-        journal=article.journal,
-    ).processed_value
     review_in_review_url = fake_request.journal.site_url(
         path=reverse(
             "review_in_review",
             kwargs={"article_id": article.pk},
         ),
     )
-    editor_assignment_message_context = {
-        "article": article,
-        "request": fake_request,
-        "editor": section_editor.janeway_account,
-        "review_in_review_url": review_in_review_url,
-    }
-    editor_assignment_message = get_message_content(
+    editor_assignment_message = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="editor_assignment",
+        journal=article.journal,
         request=fake_request,
-        context=editor_assignment_message_context,
-        template=editor_assignment_template,
+        context={
+            "article": article,
+            "request": fake_request,
+            "editor": section_editor.janeway_account,
+            "review_in_review_url": review_in_review_url,
+        },
         template_is_setting=True,
     )
     assert message_to_editor.body == editor_assignment_message
@@ -727,6 +723,73 @@ def test_submit_review(
         assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
         assert assigned_article.reviewassignment_set.filter(is_complete=False).count() == 1
         raise_event.assert_not_called()
+
+
+@patch("plugins.wjs_review.logic.events_logic.Events.raise_event")
+@pytest.mark.parametrize(
+    "submit_final",
+    (True, False),
+)
+@pytest.mark.django_db
+def test_submit_review_messages(
+    raise_event,
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+    submit_final: bool,
+):
+    """
+    If the reviewer submits a review, two messages are created, and sent to the editor and
+    the reviewer.
+    """
+
+    fake_request.user = review_assignment.reviewer
+    assert Message.objects.count() == 1
+    _submit_review(review_assignment, review_form, fake_request, submit_final)
+    assert Message.objects.count() == 3
+    message_to_the_reviewer = (
+        Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).order_by("created").last()
+    )
+    reviewer_message_subject = get_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_complete_reviewer_acknowledgement",
+        journal=assigned_article.journal,
+    ).processed_value
+    assert message_to_the_reviewer.subject == reviewer_message_subject
+    reviewer_message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="review_complete_reviewer_acknowledgement",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "review_assignment": review_assignment,
+            "article": assigned_article,
+        },
+        template_is_setting=True,
+    )
+    assert message_to_the_reviewer.body == reviewer_message_body
+    assert message_to_the_reviewer.message_type == Message.MessageTypes.VERBOSE
+    message_to_the_editor = Message.objects.get(recipients__pk=review_assignment.editor.pk)
+    editor_message_subject = get_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_complete_acknowledgement",
+        journal=assigned_article.journal,
+    ).processed_value
+    assert message_to_the_editor.subject == editor_message_subject
+    editor_message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="review_complete_acknowledgement",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "review_assignment": review_assignment,
+            "article": assigned_article,
+        },
+        template_is_setting=True,
+    )
+    assert message_to_the_editor.body == editor_message_body
+    assert message_to_the_editor.message_type == Message.MessageTypes.VERBOSE
 
 
 @pytest.mark.parametrize(
