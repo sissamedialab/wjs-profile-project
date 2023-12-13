@@ -166,5 +166,7 @@ ENABLE_FULL_TEXT_SEARCH = True
 CORE_FILETEXT_MODEL = "core.PGFileText"
 SUMMERNOTE_THEME = "bs5"
 
+# Number of days after which an "unread" message is considered "late" and requiring attention.
+WJS_UNREAD_MESSAGES_LATE_AFTER = 3
 # Override to dev email address to test newsletter on actual email client
 WJS_NEWSLETTER_TEST_RECIPIENT = ""

@@ -186,20 +186,20 @@ def article_messages(article: Article, user: Account):
 
 
 @register.filter
-def article_requires_attention_tt(workflow: ArticleWorkflow, user=None):
+def article_requires_attention_tt(workflow: ArticleWorkflow, user: Account = None):
     """Inquire with the state-logic class relative to the current workflow state."""
     state_cls = getattr(states, workflow.state)
     return state_cls.article_requires_attention(article=workflow.article, user=user)
 
 
 @register.filter
-def assignment_requires_attention_tt(assignment: ReviewAssignment):
+def assignment_requires_attention_tt(assignment: ReviewAssignment, user: Account = None):
     """Tell if the assignment requires attention.
 
     An empty string means there is nothing important to report.
     """
     state_cls = getattr(states, assignment.article.articleworkflow.state)
-    return state_cls.assignment_requires_attention(assignment=assignment)
+    return state_cls.assignment_requires_attention(assignment=assignment, user=user)
 
 
 @register.filter

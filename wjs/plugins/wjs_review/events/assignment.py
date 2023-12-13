@@ -6,12 +6,15 @@ from typing import Optional
 
 from core.models import AccountRole, Role
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.utils.module_loading import import_string
 from review import models as review_models
 from review.logic import assign_editor
 from utils.logic import get_current_request
 
 from wjs.jcom_profile.models import EditorAssignmentParameters
+
+Account = get_user_model()
 
 
 def get_special_issue_parameters(article):
@@ -83,3 +86,11 @@ def dispatch_assignment(**kwargs) -> Optional[review_models.EditorAssignment]:
         return import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(journal))(**kwargs)
     else:
         return import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None))(**kwargs)
+
+
+def dispatch_eo_assignment(**kwargs) -> Optional[Account]:
+    """Dispatch EO assignment."""
+    # TODO: writeme in #608
+    from wjs.jcom_profile.apps import GROUP_EO
+
+    return Account.objects.filter(groups__name=GROUP_EO).order_by("?").first()

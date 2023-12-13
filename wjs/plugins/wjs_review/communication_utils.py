@@ -3,15 +3,22 @@
 Keeping here also anything that we might want to test easily 🙂.
 """
 
+from typing import Union
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, OuterRef, Q, QuerySet
+from journal.models import Journal
 from review import models as review_models
 from submission.models import Article
+from utils.logger import get_logger
+
+from wjs.jcom_profile.apps import GROUP_EO
 
 from .models import Message, MessageRecipients
 
 Account = get_user_model()
+logger = get_logger(__name__)
 
 
 def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Message]:
@@ -66,6 +73,28 @@ def get_system_user() -> Account:
     return account
 
 
+def get_eo_user(obj: Union[Article, Journal]):
+    """Return the EO system user."""
+    if isinstance(obj, Article):
+        code = obj.journal.code.lower()
+    else:
+        code = obj.code.lower()
+
+    email = f"{code}-eo@{code}.sissa.it"
+    account, created = Account.objects.get_or_create(
+        email=email,
+        username=email,
+        first_name="",
+        last_name=f"{code.upper()} Editorial Office",
+    )
+    if created:
+        from django.contrib.auth.models import Group
+
+        account.groups.add(Group.objects.get(name=GROUP_EO))
+        logger.warning(f"Create system EO account {email}")
+    return account
+
+
 def log_silent_operation(article: Article, message_body: str) -> Message:
     """Create a Message to log a system operation.
 
@@ -115,6 +144,9 @@ def log_operation(
 def role_for_article(article: Article, user: Account) -> str:
     """Return a role slug that describes the role of the given user on the article."""
     # TODO: is it possible for a user to have more than one role on one article?
+    if user.groups.filter(name=GROUP_EO).exists():
+        return "eo"
+
     if review_models.EditorAssignment.objects.filter(editor=user, article=article).exists():
         return "editor"
 

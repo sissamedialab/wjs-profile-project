@@ -8,9 +8,12 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from review.models import ReviewAssignment
 from submission.models import Article
+from utils.logger import get_logger
 
-from . import conditions, permissions
+from . import communication_utils, conditions, permissions
 from .models import ArticleWorkflow
+
+logger = get_logger(__name__)
 
 Account = get_user_model()
 
@@ -93,15 +96,37 @@ class BaseState:
     article_actions = None
     review_assignment_actions = None
 
-    @staticmethod
-    def article_requires_attention(article: Article, **kwargs) -> str:
-        """Tell if the article requires attention."""
-        return ""
+    @classmethod
+    def article_requires_attention(cls, article: Article, user: Account) -> str:
+        """Dispatch the request to per-user functions.
 
-    @staticmethod
-    def assignment_requires_attention(assignment: ReviewAssignment, **kwargs) -> str:
-        """Tell if the assignment requires attention."""
-        return ""
+        An article, in a certain state, requires attention from a certain role in certain conditions. For instance: an
+        article assigned to an editor, but without andy reviewers requires immediate attention by the editor, but
+        requires attention by EO/director only when all automatic reminders to the editor have been sent.
+
+        """
+        role = communication_utils.role_for_article(article, user)
+        # Since this method will be called by a "child" class, here `cls` will refer to that class (the real state)
+        if func := getattr(cls, f"article_requires_{role}_attention", None):
+            return func(article=article, user=user)
+        else:
+            logger.debug(
+                f"In {cls}. Article {article.id} does not require attention by {role} {user.full_name()}",
+            )
+            return ""
+
+    @classmethod
+    def assignment_requires_attention(cls, assignment: ReviewAssignment, user: Account) -> str:
+        """Dispatch the request to per-user functions."""
+        article = assignment.article
+        role = communication_utils.role_for_article(article, user)
+        if func := getattr(cls, f"assignment_requires_{role}_attention", None):
+            return func(assignment=assignment, user=user)
+        else:
+            logger.debug(
+                f"In {cls}. Assignment {assignment.id} does not require attention by {role} {user.full_name()}",
+            )
+            return ""
 
 
 class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
@@ -115,8 +140,8 @@ class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
         ),
     )
 
-    @staticmethod
-    def article_requires_attention(article: Article, **kwargs) -> str:
+    @classmethod
+    def article_requires_attention(cls, article: Article, **kwargs) -> str:
         """Articles in this state always require attention (from EO or director)."""
         return conditions.always(article)
 
@@ -262,8 +287,8 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         ),
     )
 
-    @staticmethod
-    def article_requires_attention(article: Article, **kwargs) -> str:
+    @classmethod
+    def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
         """Rifle through the situations that require attention.
 
         Return True as soon as one is found.
@@ -285,8 +310,8 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             return attention_flag
         return ""
 
-    @staticmethod
-    def assignment_requires_attention(assignment: ReviewAssignment) -> str:
+    @classmethod
+    def assignment_requires_editor_attention(cls, assignment: ReviewAssignment, user: Account = None) -> str:
         """Rifle through the situations that require attention.
 
         Return True as soon as one is found.
@@ -294,6 +319,15 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         if attention_flag := conditions.is_late_invitation(assignment, user=None):
             return attention_flag
         if attention_flag := conditions.is_late(assignment, user=None):
+            return attention_flag
+        return ""
+
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        """Tell if the article requires attention by the EO."""
+        if attention_flag := conditions.eo_has_unread_messages(article):
+            return attention_flag
+        if attention_flag := conditions.article_has_old_unread_message(article):
             return attention_flag
         return ""
 
@@ -353,8 +387,8 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
         ),
     )
 
-    @staticmethod
-    def article_requires_attention(article: Article, **kwargs) -> str:
+    @classmethod
+    def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
         """Rifle through the situations that require attention."""
         if attention_flag := conditions.author_revision_is_late(article):
             return attention_flag

@@ -1,66 +1,69 @@
 {% extends "wjs_review/bootstrap.html" %}
 {% load django_bootstrap5 static %}
-
 {% block bootstrap5_extra_head %}
     <script src="{% static '/js/htmx.min.js' %}"></script>
     <link rel="stylesheet" href="{% static '/css/wjs_review.css' %}">
 {% endblock bootstrap5_extra_head %}
-
 {% block bootstrap5_content %}
-<div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    {% block header %}
-        <div class="container-fluid bg-primary text-white text-center">
-            <h1>{% block title %}(no title){% endblock title %}</h1>
-            <p>Header...🎩</p>
-            {% include "wjs_review/elements/navbar.html" %}
-        </div>
-    {% endblock header %}
-
-    {% autoescape off %}
-    {% bootstrap_messages %}
-    {% endautoescape %}
-
-    {% block content_wrapper %}
-        <div class="container">
-            <div class="row">
-                {# use for content which needs a custom content above the two sections layout below #}
-                {% block content_header %}{% endblock content_header %}
+    <div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        {% block header %}
+            <div class="container-fluid bg-primary text-white text-center">
+                <h1>
+                    {% block title %}
+                        (no title)
+                    {% endblock title %}
+                </h1>
+                {% block navbarblock %}
+                    {% include "wjs_review/elements/navbar.html" %}
+                {% endblock navbarblock %}
             </div>
-        </div>
-
-        {% block content %}
+        {% endblock header %}
+        {% autoescape off %}
+            {% bootstrap_messages %}
+        {% endautoescape %}
+        {% block content_wrapper %}
             <div class="container">
                 <div class="row">
-                    <div class="col-sm-2">
-                        {% block left_column %}NAVIGATION AND FILTERS{% endblock left_column %}
-                    </div>
-
-                    <div class="col-sm-7">
-                        {% block center_column %}MAIN CONTENT{% endblock center_column %}
-                    </div>
-
-                    <div class="col-sm-3 border-start border-2">
-                        {% block right_column %}<p>GLOBAL ACTIONS? CAT PICTURES?</p>{% endblock right_column %}
-                    </div>
+                    {# use for content which needs a custom content above the two sections layout below #}
+                    {% block content_header %}
+                    {% endblock content_header %}
                 </div>
             </div>
-        {% endblock content %}
-
-        <div class="container">
-            <div class="row">
-                {# use for content which needs a custom content below the two sections layout above #}
-                {% block content_footer %}{% endblock content_footer %}
+            {% block content %}
+                <div class="container">
+                    <div class="row">
+                        <div class="col-sm-2">
+                            {% block left_column %}
+                                NAVIGATION AND FILTERS
+                            {% endblock left_column %}
+                        </div>
+                        <div class="col-sm-7">
+                            {% block center_column %}
+                                MAIN CONTENT
+                            {% endblock center_column %}
+                        </div>
+                        <div class="col-sm-3 border-start border-2">
+                            {% block right_column %}
+                                <p>GLOBAL ACTIONS? CAT PICTURES?</p>
+                            {% endblock right_column %}
+                        </div>
+                    </div>
+                </div>
+            {% endblock content %}
+            <div class="container">
+                <div class="row">
+                    {# use for content which needs a custom content below the two sections layout above #}
+                    {% block content_footer %}
+                    {% endblock content_footer %}
+                </div>
             </div>
-        </div>
-
-    {% endblock content_wrapper %}
-
-    {% block footer %}
-        <div class="container-fluid bg-primary text-white text-center">
-            <p>Footer...👣</p>
-        </div>
-    {% endblock footer %}
-</div>
-{% block js %}
-{% endblock js %}
+        {% endblock content_wrapper %}
+        {% block footer %}
+            <div class="container-fluid bg-primary text-white text-center">
+                <p>Footer...👣</p>
+            </div>
+        {% endblock footer %}
+    </div>
+    {% block js %}
+    {% endblock js %}
 {% endblock bootstrap5_content %}

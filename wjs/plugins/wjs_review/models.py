@@ -68,6 +68,13 @@ class ArticleWorkflow(TimeStampedModel):
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
     state = FSMField(default=ReviewStates.INCOMPLETE_SUBMISSION, choices=ReviewStates.choices, verbose_name=_("State"))
+    eo_in_charge = models.ForeignKey(
+        Account,
+        verbose_name=_("EO in charge"),
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+    )
 
     class Meta:
         verbose_name = _("Article workflow")

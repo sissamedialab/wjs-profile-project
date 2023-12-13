@@ -4,6 +4,7 @@ from typing import Any, Dict
 from core.models import SettingGroup
 from django.utils.translation import gettext_lazy as _
 from utils import plugins
+from utils.logger import get_logger
 from utils.setting_handler import save_setting
 
 from wjs.jcom_profile.custom_settings_utils import (
@@ -13,6 +14,8 @@ from wjs.jcom_profile.custom_settings_utils import (
     get_group,
     patch_setting,
 )
+
+logger = get_logger(__name__)
 
 PLUGIN_NAME = "WJS Review articles"
 DISPLAY_NAME = "WJS Review articles"
@@ -52,6 +55,7 @@ def install():
     """Register the plugin instance and create the corresponding HomepageElement."""
     WJSReviewArticles.install()
     set_default_plugin_settings()
+    ensure_workflow_elements()
 
 
 def hook_registry() -> Dict[str, Any]:
@@ -310,3 +314,42 @@ def set_default_plugin_settings():
     do_review_message()
     patch_review_messages()
     author_can_contact_director()
+
+
+def ensure_workflow_elements():
+    """Ensure that WJS's workflow element is the first element in all journals."""
+    from core.models import Workflow, WorkflowElement
+    from journal.models import Journal
+
+    for journal in Journal.objects.all():
+        journal_workflow = Workflow.objects.get(journal=journal)
+
+        element_name = PLUGIN_NAME
+        if journal_workflow.elements.filter(element_name=element_name).exists():
+            # Our wf element is already there: do nothing
+            return
+
+        defaults = {
+            "handshake_url": HANDSHAKE_URL,
+            "stage": STAGE,
+            "article_url": ARTICLE_PK_IN_HANDSHAKE_URL,
+            "jump_url": JUMP_URL,
+            "order": 0,
+        }
+
+        element_obj_to_add, created = WorkflowElement.objects.get_or_create(
+            journal=journal,
+            element_name=element_name,
+            defaults=defaults,
+        )
+
+        if created:
+            logger.info(f"Created workflow element {element_obj_to_add.element_name}")
+
+        # Put our wf element at the beginning of the list
+        # (remember that it has order=0 on a PositiveIntegerfield)
+        for element in journal_workflow.elements.all():
+            element.order += 1
+            element.save()
+
+        journal_workflow.elements.add(element_obj_to_add)

@@ -8,7 +8,10 @@ from typing import Optional
 from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from submission.models import Article
+
+from wjs.jcom_profile.apps import GROUP_EO
 
 from ..models import Message
 
@@ -52,6 +55,48 @@ def last_editor_note(article, user):
         .order_by("-created")
     )
     return personal_notes.last() or ""
+
+
+@register.simple_tag()
+def last_eo_note(article):
+    """Return the last note that any EO wrote on a paper.
+
+    Useful in the EO main page.
+    """
+    eo_notes = (
+        Message.objects.filter(
+            content_type=ContentType.objects.get_for_model(article),
+            object_id=article.id,
+            actor__groups__name=GROUP_EO,
+        )
+        .exclude(message_type=Message.MessageTypes.SYSTEM)
+        .order_by("-created")
+    )
+    return eo_notes.last() or ""
+
+
+@register.filter
+def article_current_editor(article):
+    """Return the current editor."""
+    # TODO: registering as a `filter` because I don't know how to use it with with otherwise
+    # e.g.: {% with editor_assignment_data=article|article_current_editor %}
+
+    # The latest assigned editor is the current editor (I think...)
+    # TODO: review when we handle the editor-declines-assignment scenario
+    editor_assignment = article.editorassignment_set.order_by("assigned").first()
+    if editor_assignment:
+        return {
+            "editor": editor_assignment.editor,
+            "days_elapsed": (timezone.now() - editor_assignment.assigned).days,
+        }
+    else:
+        return {
+            "editor": "Not assigned",
+            # NB: this might not be accurate if there was a previous assignment that has been rejected, but the
+            # importance of the delay can be comparable with more common situations (i.e. older papers are _usually_
+            # more urgent).
+            "days_elapsed": (timezone.now() - article.date_submitted).days,
+        }
 
 
 @register.filter

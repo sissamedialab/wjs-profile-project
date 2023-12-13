@@ -4,6 +4,9 @@ from django.core.management.base import BaseCommand
 
 from ...newsletter.service import NewsletterMailerService
 
+# TODO: should this be replaced by the following?
+#   from utils.logger import get_logger  # noqa E800 commented out code
+#   logger = get_logger(__name__)        # noqa E800 commented out code
 logger = logging.getLogger("wjs.newsletter")
 
 

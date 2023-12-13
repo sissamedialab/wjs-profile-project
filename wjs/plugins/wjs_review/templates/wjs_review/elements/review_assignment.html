@@ -1,7 +1,7 @@
 {% load i18n wjs_review %}
 <div class="card border border-1">
     {% with assignment=assignment_and_actions.assignment %}
-        {% with attention_flag=assignment|assignment_requires_attention_tt %}
+        {% with attention_flag=assignment|assignment_requires_attention_tt:user %}
     <div class="card-body">
         {% if assignment.date_declined %}
         <p class="text-muted">Declined assignment</p>
