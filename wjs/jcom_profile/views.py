@@ -1338,6 +1338,8 @@ def search(request):
         page = 1
     try:
         year = int(request.GET.get("year", None))
+        if not year > 0:
+            year = None
     except (TypeError, ValueError):
         year = None
 

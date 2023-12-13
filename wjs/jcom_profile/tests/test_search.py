@@ -7,6 +7,9 @@ import pytest
     (
         "/search/?SearchableText=zivkovic%27",
         "/search/?page=99%27",
+        "/search/?year=-1",
+        "/search/?year=a",
+        "/search/?year=1%27",
         "/search/?sort=-date_published%27",
         "/search/?SearchableText=zivkovic%27&page=99%27&sort=-date_published%27",
         "/search/?article_search=the&sections=hOq5Ey0K",
