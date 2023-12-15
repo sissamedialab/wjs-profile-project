@@ -130,7 +130,7 @@ urlpatterns = [
     # JCOM issues were /archive/01/02/
     # JCOMAL issues were /es/01/02/ (or /pt-br/01/02/)
     re_path(
-        r"^(?P<root>archive|es|pt-br)/(?P<volume>\d{2})/(?P<issue>[\d-]{2,3})/?$",
+        r"^(?P<root>archive|es|pt-br)/(?P<volume>\d{2})/(?P<issue>[\d]{2,3})/?$",
         views.JcomIssueRedirect.as_view(),
         name="jcom_redirect_issue",
     ),
