@@ -10,7 +10,9 @@
         {% endif %}
                 <p>
                     Assignment {{ assignment.id }} to
-                    {% if assignment.date_accepted and assignment.is_complete %}
+                    {% if assignment.is_complete and assignment.decistion == "withdrawn" %}
+                        <a href="{% url "wjs_review_end" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% elif assignment.date_accepted and assignment.is_complete %}
                         <a href="{% url "wjs_review_end" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
                     {% elif assignment.date_accepted %}
                         <a href="{% url "wjs_review_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
@@ -23,31 +25,29 @@
                     (requested {{ assignment.date_requested }}) for review round {{ assignment.review_round.round_number }}.
                 </p>
                 <p>
-                    Due
-                    {{ assignment.date_due }} and
-                    {% if assignment.date_accepted %}
-                        {% if assignment.is_complete %}
-                            accepted
-                        {% else %}
-                            <span class="text-warning">accepted</span>
+                    {% if assignment.is_complete %}
+                        {% if assignment.decision == "withdrawn" %}
+                            <span class="text-muted">Widthdrawn</span> on {{ assignment.date_complete }}.
+                        {% elif assignment.date_accepted %}
+                            <span class="text-success">Completed</span> on {{ assignment.date_complete }}.
+                        {% elif assignment.date_declined %}
+                            <span class="text-muted">declined</span> {{ assignment.date_declined }}.
                         {% endif %}
-                        {{ assignment.date_accepted }}
-                    {% elif assignment.date_declined %}
-                        <span class="text-muted">declined</span> {{ assignment.date_declined }}
                     {% else %}
-                        <span class="text-warning">waiting for anwer.</span>
+                        Due
+                        {{ assignment.date_due }} and
+                        {% if assignment.date_accepted %}
+                            <span class="text-warning">accepted</span>
+                            {{ assignment.date_accepted }}
+                        {% else %}
+                            <span class="text-warning">waiting for answer.</span>
+                        {% endif %}
                     {% endif %}
                 </p>
                 {% if assignment.date_reminded %}
                     <p>
                         Last reminder sent on
                         {{ assignment.date_reminded }}
-                    </p>
-                {% endif %}
-                {% if assignment.date_accepted and assignment.is_complete %}
-                    <p>
-                        <span class="text-success">Completed on</span>
-                        {{ assignment.date_complete }}.
                     </p>
                 {% endif %}
             </div>

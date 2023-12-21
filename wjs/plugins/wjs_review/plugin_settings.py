@@ -190,6 +190,73 @@ def set_default_plugin_settings():
             do_review_message_setting["name"],
         )
 
+    def withdraw_review_message():
+        withdraw_review_subject_setting: SettingParams = {
+            "name": "review_withdraw_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for review withdraw notification"),
+            "description": _(
+                "Provide context for automatic review withdraw.",
+            ),
+            "is_translatable": False,
+        }
+        withdraw_review_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Review withdraw notice"),
+            "translations": {},
+        }
+        create_customization_setting(
+            withdraw_review_subject_setting,
+            withdraw_review_subject_setting_value,
+            withdraw_review_subject_setting["name"],
+        )
+        withdraw_review_message_setting: SettingParams = {
+            "name": "review_withdraw_message",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Default message for review withdraw notification"),
+            "description": _(
+                "Provide context for automatic review withdraw.",
+            ),
+            "is_translatable": False,
+        }
+        withdraw_review_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _(
+                "The review has been withdrawn because the article is undergoing a revision.<br>{{ withdraw_notice }}"
+            ),
+            "translations": {},
+        }
+        create_customization_setting(
+            withdraw_review_message_setting,
+            withdraw_review_message_setting_value,
+            withdraw_review_message_setting["name"],
+        )
+        withdraw_notice_setting: SettingParams = {
+            "name": "review_withdraw_notice",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Default message for review withdraw notification"),
+            "description": _(
+                "Provide context for automatic review withdraw.",
+            ),
+            "is_translatable": False,
+        }
+        withdraw_notice_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Provide context for the decision."),
+            "translations": {},
+        }
+        create_customization_setting(
+            withdraw_notice_setting,
+            withdraw_notice_setting_value,
+            withdraw_notice_setting["name"],
+        )
+
     def patch_review_messages():
         editor_assignment_subject_setting: SettingParams = {
             "name": "subject_editor_assignment",
@@ -313,6 +380,7 @@ def set_default_plugin_settings():
     declined_review_message()
     do_review_message()
     patch_review_messages()
+    withdraw_review_message()
     author_can_contact_director()
 
 

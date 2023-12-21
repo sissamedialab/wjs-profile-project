@@ -212,6 +212,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
@@ -835,6 +836,7 @@ def test_handle_editor_decision(
         "decision": decision,
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
     }
     if final_state not in (
         ArticleWorkflow.ReviewStates.ACCEPTED,
@@ -867,8 +869,9 @@ def test_handle_editor_decision(
             if form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
             else EditorialDecisions.MAJOR_REVISIONS.value
         )
-        assert len(mail.outbox) == 1
+        assert len(mail.outbox) == 2
         assert any(True for m in mail.outbox if "Editor requires revision" in m.subject)
+        assert any(True for m in mail.outbox if "Review withdraw notice" in m.subject)
     elif final_state == ArticleWorkflow.ReviewStates.ACCEPTED:
         # article is moved to the next stage by ON_WORKFLOW_ELEMENT_COMPLETE event triggered by HandleDecision
         next_stage = get_next_workflow(assigned_article.journal)
@@ -891,7 +894,10 @@ def test_handle_editor_decision(
 
     # All review assignments are marked as complete, review_assignment is automatically marked as declined
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
-    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
+    if final_state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
+        assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 2
+    else:
+        assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
     assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 2
 
     editor_decision = EditorDecision.objects.get(
@@ -901,6 +907,81 @@ def test_handle_editor_decision(
     assert editor_decision.decision == decision
     assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
     assert editor_decision.decision_internal_note == form_data["decision_internal_note"]
+
+
+@pytest.mark.django_db
+def test_handle_withdraw_review_assignment(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+):
+    """
+    If the editor request a revision, pending review assignment are marked as withdrawn.
+    """
+    section_editor = assigned_article.editorassignment_set.first().editor
+    fake_request.user = jcom_user
+    submitted_review = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=jcom_user,
+        assigned_article=assigned_article,
+    )
+    _submit_review(submitted_review, review_form, fake_request)
+    accepted_review = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=jcom_user,
+        assigned_article=assigned_article,
+    )
+    accepted_review.date_accepted = now()
+    accepted_review.save()
+    declined_review = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=jcom_user,
+        assigned_article=assigned_article,
+    )
+    declined_review.date_declined = now()
+    declined_review.date_accepted = None
+    declined_review.is_complete = True
+    declined_review.save()
+    # Ensure initial data is consistent
+    # review_assignment is not accepted by the user
+    # submitted_review is accepted and submitted
+    # accepted_review is accepted and not submitted
+    # declined_review is declined
+    assert assigned_article.reviewassignment_set.all().count() == 4
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=False).count() == 2
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
+    assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 2
+
+    fake_request.user = section_editor
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    mail.outbox = []
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+
+    # All review assignment are closed
+    # review_assignment is withdrawn
+    # submitted_review is accepted and submitted
+    # accepted_review is withdrawn
+    # declined_review is declined
+    assert assigned_article.reviewassignment_set.all().count() == 4
+    assert assigned_article.reviewassignment_set.filter(decision="withdrawn").count() == 2
+    assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 4
+    assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=False).count() == 2
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
 
 
 @pytest.mark.django_db
