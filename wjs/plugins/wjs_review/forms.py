@@ -399,6 +399,11 @@ class DecisionForm(forms.ModelForm):
         widget=SummernoteWidget(),
         required=False,
     )
+    withdraw_notice = forms.CharField(
+        label=_("Notice to reviewers"),
+        widget=SummernoteWidget(),
+        required=False,
+    )
     date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
 
@@ -413,6 +418,13 @@ class DecisionForm(forms.ModelForm):
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
         )
+        if "initial" not in kwargs:
+            kwargs["initial"] = {}
+        kwargs["initial"]["withdraw_notice"] = get_setting(
+            "wjs_review",
+            "review_withdraw_notice",
+            self.request.journal,
+        ).processed_value
         super().__init__(*args, **kwargs)
 
     def clean_date_due(self):

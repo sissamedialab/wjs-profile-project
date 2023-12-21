@@ -752,6 +752,7 @@ class HandleDecision:
             "revision": revision,
             "decision": self.form_data["decision"],
             "user_message_content": self.form_data["decision_editor_report"],
+            "withdraw_notice": self.form_data["withdraw_notice"],
             "skip": False,
         }
 
@@ -797,6 +798,39 @@ class HandleDecision:
             article=self.workflow.article,
             message_subject=message_subject,
             recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_review_withdraw(self, email_context: Dict[str, str], reviewer: Account):
+        review_withdraw_subject_template = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_subject",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        review_withdraw_subject = get_message_content(
+            request=self.request,
+            context={"article": self.workflow.article},
+            template=review_withdraw_subject_template,
+            template_is_setting=True,
+        )
+        review_withdraw_message_template = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_message",
+            journal=self.workflow.article.journal,
+        ).processed_value
+
+        review_withdraw_message = get_message_content(
+            request=self.request,
+            context=email_context,
+            template=review_withdraw_message_template,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.workflow.article,
+            message_subject=review_withdraw_subject,
+            recipients=[reviewer],
+            message_body=review_withdraw_message,
             message_type=Message.MessageTypes.VERBOSE,
         )
 
@@ -899,9 +933,25 @@ class HandleDecision:
             review_round=self.workflow.article.current_review_round_object(),
         )
         context = self._get_message_context(revision)
+        if self.form_data["decision"] in (
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+        ):
+            self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
         self._log_revision_request(context, revision_type=revision.type)
         return revision
+
+    def _withdraw_unfinished_review_requests(self, email_context: Dict[str, str]):
+        """
+        Mark unfinished review requests as withdrawn.
+        """
+        for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
+            assignment.decision = "withdrawn"
+            assignment.is_complete = True
+            assignment.date_complete = timezone.now()
+            assignment.save()
+            self._log_review_withdraw(email_context=email_context, reviewer=assignment.reviewer)
 
     def _store_decision(self) -> EditorDecision:
         """Store decision information."""
