@@ -67,6 +67,19 @@ psql --quiet -U $j_test_db_user -h $j_test_db_host --no-password --dbname $j_tes
 update press_press set domain='serra-pp-journals.wjapp.it';
 update journal_journal set domain='serra-pp-jcom.wjapp.it' where code='JCOM';
 update journal_journal set domain='serra-pp-jcomal.wjapp.it' where code='JCOMAL';
+
+UPDATE core_settingvalue
+SET
+  value = '',
+  value_en = ''
+FROM core_setting s
+WHERE
+  s.name = 'use_crossref'
+  AND core_settingvalue.setting_id = s.id
+  AND core_settingvalue.journal_id IS NOT NULL
+;
+
+-- useless once we set use_crossref to off/false, but...
 UPDATE core_settingvalue
 SET
   value = 'on',
