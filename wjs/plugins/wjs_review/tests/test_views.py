@@ -14,6 +14,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token
 
+from ..logic import render_template_from_setting
 from ..models import Message
 from ..templatetags.wjs_articles import user_is_coauthor
 from ..views import SelectReviewer
@@ -185,10 +186,38 @@ def test_accept_invite(
     redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
     redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": review_assignment.date_due.date()}
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
     response = client.post(url, data=data)
+    request = response.wsgi_request
     review_assignment.refresh_from_db()
     invited_user.refresh_from_db()
     if accept_gdpr:
+        assert Message.objects.count() == 2
+        # Message related to the reviewer accepting the assignment
+        message = Message.objects.last()
+        assert message.actor == invited_user
+        assert list(message.recipients.all()) == [review_assignment.editor]
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_accept_acknowledgement",
+            journal=review_assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_accept_acknowledgement",
+            journal=review_assignment.article.journal,
+            request=request,
+            context={
+                "article": review_assignment.article,
+                "request": request,
+                "review_assignment": review_assignment,
+                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+            },
+            template_is_setting=True,
+        )
+        assert message.subject == message_subject
+        assert message.body == message_body
         assert response.status_code == 302
         assert response.headers["Location"] == redirect_url
         assert invited_user.is_active
@@ -198,6 +227,8 @@ def test_accept_invite(
         assert not review_assignment.date_declined
         assert not review_assignment.is_complete
     else:
+        # No new message created
+        assert Message.objects.count() == 1
         assert "You must accept GDPR to continue" in response.content.decode()
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
@@ -225,11 +256,39 @@ def test_accept_invite_date_due_in_the_future(
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
     date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
     response = client.post(url, data=data)
+    request = response.wsgi_request
     review_assignment.refresh_from_db()
     invited_user.refresh_from_db()
 
     if accept_gdpr:
+        assert Message.objects.count() == 2
+        # Message related to the reviewer accepting the assignment
+        message = Message.objects.last()
+        assert message.actor == invited_user
+        assert list(message.recipients.all()) == [review_assignment.editor]
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_accept_acknowledgement",
+            journal=review_assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_accept_acknowledgement",
+            journal=review_assignment.article.journal,
+            request=request,
+            context={
+                "article": review_assignment.article,
+                "request": request,
+                "review_assignment": review_assignment,
+                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+            },
+            template_is_setting=True,
+        )
+        assert message.subject == message_subject
+        assert message.body == message_body
         assert response.status_code == 302
         assert response.headers["Location"] == redirect_url
         assert invited_user.is_active
@@ -241,6 +300,8 @@ def test_accept_invite_date_due_in_the_future(
         # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date
         assert review_assignment.date_due == date_due
     else:
+        # No new message created
+        assert Message.objects.count() == 1
         assert "You must accept GDPR to continue" in response.content.decode()
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
@@ -268,6 +329,8 @@ def test_accept_invite_but_date_due_in_the_past(
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
     date_due = review_assignment.date_due.date() - datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
     response = client.post(url, data=data)
     review_assignment.refresh_from_db()
     invited_user.refresh_from_db()
@@ -285,6 +348,8 @@ def test_accept_invite_but_date_due_in_the_past(
         assert "You must accept GDPR to continue" not in response.content.decode()
     else:
         assert "You must accept GDPR to continue" in response.content.decode()
+    # No new message created, in any case
+    assert Message.objects.count() == 1
 
 
 @pytest.mark.parametrize(
@@ -312,7 +377,10 @@ def test_decline_invite(
         "date_due": review_assignment.date_due.date(),
         "decline_reason": reason,
     }
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
     response = client.post(url, data=data)
+    request = response.wsgi_request
     review_assignment.refresh_from_db()
     invited_user.refresh_from_db()
     if not reason:
@@ -342,6 +410,36 @@ def test_decline_invite(
         assert not review_assignment.date_accepted
         assert review_assignment.date_declined
         assert review_assignment.is_complete
+
+    if reason:
+        assert Message.objects.count() == 2
+        # Message related to the reviewer declining the assignment
+        message = Message.objects.last()
+        assert message.actor == invited_user
+        assert list(message.recipients.all()) == [review_assignment.editor]
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_decline_acknowledgement",
+            journal=review_assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_decline_acknowledgement",
+            journal=review_assignment.article.journal,
+            request=request,
+            context={
+                "article": review_assignment.article,
+                "request": request,
+                "review_assignment": review_assignment,
+                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+            },
+            template_is_setting=True,
+        )
+        assert message.subject == message_subject
+        assert message.body == message_body
+    else:
+        # No new message created
+        assert Message.objects.count() == 1
 
 
 @pytest.mark.django_db
