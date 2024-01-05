@@ -97,3 +97,15 @@ class WjsReviewConfig(AppConfig):
             events_logic.Events.ON_REVIEW_COMPLETE,
             transactional_emails.send_review_complete_acknowledgements,
         )
+        # send_reviewer_accepted_or_decline_acknowledgements() is linked to two separate events:
+        # ON_REVIEWER_ACCEPTED and ON_REVIEWER_DECLINED
+        # The 4 settings are:
+        # {subject_,}review_{accept,decline}_acknowledgement
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVIEWER_ACCEPTED,
+            transactional_emails.send_reviewer_accepted_or_decline_acknowledgements,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVIEWER_DECLINED,
+            transactional_emails.send_reviewer_accepted_or_decline_acknowledgements,
+        )

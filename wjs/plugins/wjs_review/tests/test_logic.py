@@ -474,10 +474,10 @@ def test_handle_accept_invite_reviewer(
     invited_user = review_assignment.reviewer
     assignment = assigned_article.reviewassignment_set.first()
 
-    # Now there is no need to add `"message": "random message"` here because when a reviewer accepts an assignment he
-    # does not send any message, but MT hinted that we might want to add a message here in the future.
     evaluate_data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr}
 
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
     fake_request.user = invited_user
     evaluate = EvaluateReview(
         assignment=assignment,
@@ -496,6 +496,35 @@ def test_handle_accept_invite_reviewer(
     invited_user.refresh_from_db()
     invited_user.jcomprofile.refresh_from_db()
 
+    if accept_gdpr:
+        assert Message.objects.count() == 2
+        # Message related to the reviewer accepting the assignment
+        message = Message.objects.last()
+        assert message.actor == invited_user
+        assert list(message.recipients.all()) == [section_editor.janeway_account]
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_accept_acknowledgement",
+            journal=assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_accept_acknowledgement",
+            journal=assignment.article.journal,
+            request=fake_request,
+            context={
+                "article": assignment.article,
+                "request": fake_request,
+                "review_assignment": assignment,
+                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
+            },
+            template_is_setting=True,
+        )
+        assert message.subject == message_subject
+        assert message.body == message_body
+    else:
+        # No new message created
+        assert Message.objects.count() == 1
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
 
     assert not assignment.date_declined
@@ -533,6 +562,9 @@ def test_handle_decline_invite_reviewer(
 
     evaluate_data = {"reviewer_decision": "0", "accept_gdpr": accept_gdpr}
 
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+
     fake_request.user = invited_user
     evaluate = EvaluateReview(
         assignment=assignment,
@@ -546,6 +578,32 @@ def test_handle_decline_invite_reviewer(
     assignment.refresh_from_db()
     invited_user.refresh_from_db()
 
+    # Regardless of the value of accept_gdpr, the message is created and sent
+    assert Message.objects.count() == 2
+    # Message related to the reviewer declining the assignment
+    message = Message.objects.last()
+    assert message.actor == invited_user
+    assert list(message.recipients.all()) == [section_editor.janeway_account]
+    message_subject = get_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_decline_acknowledgement",
+        journal=assignment.article.journal,
+    ).processed_value
+    message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="review_decline_acknowledgement",
+        journal=assignment.article.journal,
+        request=fake_request,
+        context={
+            "article": assignment.article,
+            "request": fake_request,
+            "review_assignment": assignment,
+            "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
+        },
+        template_is_setting=True,
+    )
+    assert message.subject == message_subject
+    assert message.body == message_body
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
 
     assert invited_user.is_active == accept_gdpr
@@ -576,6 +634,9 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
 
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+
     fake_request.user = invited_user
     evaluate = EvaluateReview(
         assignment=review_assignment,
@@ -587,6 +648,9 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
     )
     evaluate.run()
     review_assignment.refresh_from_db()
+
+    # No new message created
+    assert Message.objects.count() == 1
 
     # check that the due date is updated
     # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object
@@ -612,6 +676,9 @@ def test_handle_update_due_date_in_evaluate_review_in_the_past(
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
 
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+
     fake_request.user = invited_user
     evaluate = EvaluateReview(
         assignment=review_assignment,
@@ -623,6 +690,9 @@ def test_handle_update_due_date_in_evaluate_review_in_the_past(
     )
     evaluate.run()
     review_assignment.refresh_from_db()
+
+    # No new message created
+    assert Message.objects.count() == 1
 
     # Check that the low level logic class allows to update the due date even if it's in the past
     # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object

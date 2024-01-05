@@ -434,20 +434,63 @@ class EvaluateReview:
             self.assignment.date_due = date_due
             self.assignment.save()
 
+    def _get_accept_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.assignment.article,
+            "request": self.request,
+            "review_assignment": self.assignment,
+            "review_url": reverse("wjs_review_review", kwargs={"assignment_id": self.assignment.id}),
+        }
+
+    def _get_decline_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.assignment.article,
+            "request": self.request,
+            "review_assignment": self.assignment,
+        }
+
     def _log_accept(self):
         # TODO: exceptions here just disappear
         # try print(self.workflow.article) (no workflow in EvaluateReview instances!!!)
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_accept_acknowledgement",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_accept_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_accept_message_context(),
+            template_is_setting=True,
+        )
         communication_utils.log_operation(
             article=self.assignment.article,
-            message_subject="Reviewer accepts assignment",
+            message_subject=message_subject,
+            message_body=message_body,
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
         )
 
     def _log_decline(self):
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_decline_acknowledgement",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_decline_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_decline_message_context(),
+            template_is_setting=True,
+        )
         communication_utils.log_operation(
             article=self.assignment.article,
-            message_subject="Reviewer declines assignment",
+            message_subject=message_subject,
+            message_body=message_body,
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
         )
