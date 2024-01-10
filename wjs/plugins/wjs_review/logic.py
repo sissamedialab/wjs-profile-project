@@ -975,6 +975,7 @@ class HandleDecision:
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
         )
+        self._assign_files(revision)
         context = self._get_message_context(revision)
         if self.form_data["decision"] in (
             ArticleWorkflow.Decisions.MINOR_REVISION,
@@ -984,6 +985,19 @@ class HandleDecision:
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
         self._log_revision_request(context, revision_type=revision.type)
         return revision
+
+    def _assign_files(self, revision: EditorRevisionRequest):
+        """Assign files to the revision request to keep track of the changes."""
+        revision.manuscript_files.set(self.workflow.article.manuscript_files.all())
+        revision.data_figure_files.set(self.workflow.article.data_figure_files.all())
+        revision.supplementary_files.set(self.workflow.article.supplementary_files.all())
+        revision.source_files.set(self.workflow.article.source_files.all())
+        revision.article_history = {
+            "title": self.workflow.article.title,
+            "abstract": self.workflow.article.abstract,
+            "keywords": list(self.workflow.article.keywords.values_list("word", flat=True)),
+        }
+        revision.save()
 
     def _withdraw_unfinished_review_requests(self, email_context: Dict[str, str]):
         """

@@ -507,6 +507,15 @@ class EditorRevisionRequest(RevisionRequest):
 
     review_round = models.OneToOneField("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     cover_letter_file = models.FileField(blank=True, null=True, verbose_name=_("Cover letter file"))
+    article_history = models.JSONField(blank=True, null=True, verbose_name=_("Article history"))
+    manuscript_files = models.ManyToManyField("core.File", null=True, blank=True, related_name="+")
+    data_figure_files = models.ManyToManyField("core.File", null=True, blank=True, related_name="+")
+    supplementary_files = models.ManyToManyField("core.SupplementaryFile", null=True, blank=True, related_name="+")
+    source_files = models.ManyToManyField(
+        "core.File",
+        blank=True,
+        related_name="+",
+    )
 
 
 class WorkflowReviewAssignment(ReviewAssignment):
