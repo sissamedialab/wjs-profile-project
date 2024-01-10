@@ -13,7 +13,13 @@ from django.shortcuts import get_object_or_404
 from django.template import Context
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import CreateView, DetailView, ListView, UpdateView
+from django.views.generic import (
+    CreateView,
+    DetailView,
+    ListView,
+    TemplateView,
+    UpdateView,
+)
 from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission import models as submission_models
@@ -66,6 +72,16 @@ states_when_article_is_considered_missing_editor = [
     ArticleWorkflow.ReviewStates.SUBMITTED,
     ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
 ]
+
+
+class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Plugin manager page.Just an index."""
+
+    template_name = "wjs_review/index.html"
+
+    def test_func(self):
+        """Verify that only staff can access."""
+        return self.request.user.is_staff
 
 
 class ListArticles(LoginRequiredMixin, ListView):
