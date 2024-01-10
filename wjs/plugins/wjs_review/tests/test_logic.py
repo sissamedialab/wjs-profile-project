@@ -12,6 +12,7 @@ from review import models as review_models
 from review.const import EditorialDecisions
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
+from submission.models import Keyword
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -1052,6 +1053,43 @@ def test_handle_withdraw_review_assignment(
     assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 4
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=False).count() == 2
     assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
+
+
+@pytest.mark.django_db
+def test_article_snapshot_on_revision_request(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+):
+    """
+    If the editor requests a revision, title, abstract and kwds are "saved" into article_history.
+    """
+    for __ in range(3):
+        assigned_article.keywords.add(Keyword.objects.create(word=fake_factory.word()))
+    section_editor = assigned_article.editorassignment_set.first().editor
+
+    fake_request.user = section_editor
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    mail.outbox = []
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+    assert revision.article_history["title"] == assigned_article.title
+    assert revision.article_history["abstract"] == assigned_article.abstract
+    assert revision.article_history["keywords"] == list(assigned_article.keywords.values_list("word", flat=True))
 
 
 @pytest.mark.django_db

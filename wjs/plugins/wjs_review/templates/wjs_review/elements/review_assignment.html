@@ -51,18 +51,6 @@
                     </p>
                 {% endif %}
             </div>
-            {% if assignment.review_round.editorrevisionrequest %}
-                <div class="card-footer">
-                    <h3 id="author-cover-letter">Author cover letter</h3>
-                    {% if assignment.review_round.editorrevisionrequest.cover_letter_file %}
-                        <a href="{{ assignment.review_round.editorrevisionrequest.cover_letter_file.url }}">Cover letter</a><br>
-                    {% endif %}
-                    {% if assignment.review_round.editorrevisionrequest.author_note %}
-                        {# FIXME: Content is not really safe, we must add a sanitizer (see https://pypi.org/project/html-sanitizer/) #}
-                        {{ assignment.review_round.editorrevisionrequest.author_note|safe }}
-                    {% endif %}
-                </div>
-            {% endif %}
         {% endwith %}
     {% endwith %}
     <div>

@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django_fsm import Transition
-from review.models import ReviewAssignment
+from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 from utils import models as janeway_utils_models
 from utils.models import LogEntry
@@ -83,22 +83,22 @@ def get_review_assignment_actions(
 @register.simple_tag(takes_context=True)
 def get_review_assignments(
     context: Dict[str, Any],
-    workflow: ArticleWorkflow,
+    review_round: ReviewRound,
     tag: Union[str, None] = None,
 ) -> List[AssignmentAndActions]:
     """Get the available actions on a review assignement."""
     user = context["request"].user
-    state_class = getattr(states, workflow.state)
+    state_class = getattr(states, review_round.article.articleworkflow.state)
 
     # I want to return a list of objects with
     # - assignment
     # - list of actions (possibly empty)
     results = []
-    for assignment in workflow.article.reviewassignment_set.all().order_by("-review_round__round_number"):
+    for assignment in review_round.reviewassignment_set.all().order_by("-review_round__round_number"):
         actions = None
         if state_class is not None and state_class.review_assignment_actions is not None:
             actions = [
-                action.as_dict(workflow, user)
+                action.as_dict(review_round.article.articleworkflow, user)
                 for action in state_class.review_assignment_actions
                 if action.condition_is_met(assignment, user)
                 # TODO: might need: if action.has_permission(workflow, user) and action.tag == tag
