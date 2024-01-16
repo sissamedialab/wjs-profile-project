@@ -1,0 +1,29 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+    WJS Review plugin - index
+{% endblock title %}
+{% block body %}
+    <h4>Useful pages</h4>
+    <p>Links to per-role main pages.</p>
+    <dl>
+        <dt>EO</dt>
+        <dd>
+            as any staff user <a href="{% url 'wjs_review_eo_pending' %}">dashboard / papers list</a>
+        </dd>
+        <dt>Editor</dt>
+        <dd>
+            <a href="{% url 'wjs_review_list' %}">dashboard / papers list</a> (in a dev environment, one could hijack <a href="{% url 'admin:core_account_changelist' %}?q=eee@a.it">eee@a.it</a>)
+        </dd>
+        <dt>Reviewer</dt>
+        <dd>
+            <a href="{% url 'core_dashboard' %}">dashboard / papers list</a> (in a dev environment, one could hijack <a href="{% url 'admin:core_account_changelist' %}?q=rrr@a.it">rrr@a.it</a>)
+        </dd>
+        <dt>Author</dt>
+        <dd>
+            <a href="{% url 'core_dashboard' %}">dashboard / papers list</a> (in a dev environment, one could hijack <a href="{% url 'admin:core_account_changelist' %}?q=aaa@a.it">aaa@a.it</a>)
+        </dd>
+    </dl>
+    <p>
+        Also see wiki page about <a href="https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#scenario_reviewpy-management-command">scenario_review</a>
+    </p>
+{% endblock body %}

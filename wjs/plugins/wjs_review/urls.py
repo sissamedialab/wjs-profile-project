@@ -1,5 +1,4 @@
 from django.urls import path
-from django.views.generic import TemplateView
 
 from .plugin_settings import MANAGER_URL
 from .views import (
@@ -14,6 +13,7 @@ from .views import (
     InviteReviewer,
     ListArchivedArticles,
     ListArticles,
+    Manager,
     MessageAttachmentDownloadView,
     ReviewDeclined,
     ReviewEnd,
@@ -26,7 +26,7 @@ from .views import (
 )
 
 urlpatterns = [
-    path("manager/", TemplateView.as_view(), name=MANAGER_URL),
+    path("manager/", Manager.as_view(), name=MANAGER_URL),
     path("review/", ListArticles.as_view(), name="wjs_review_list"),
     path("archived_papers/", ListArchivedArticles.as_view(), name="wjs_review_archived_papers"),
     path("eo_pending/", EOPending.as_view(), name="wjs_review_eo_pending"),
