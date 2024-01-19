@@ -8,21 +8,7 @@
                class="btn btn-primary text-white fw-bold">{{ article.title|truncatewords:6 }}</a>
         </div>
         <div class="col-2">
-            {{ workflow.article.correspondence_author }}
-            {% if workflow.article.authors.count > 1 %}
-                <a class="text-secondary"
-                   data-bs-toggle="collapse"
-                   href="#otherAuthors-{{ article.id }}"
-                   role="button"
-                   aria-expanded="false"
-                   aria-controls="otherAuthors-{{ article.id }}">…</a>
-                <span class="collapse" id="otherAuthors-{{ article.id }}">
-                    {% for author in workflow.article.authors.all %}
-                        {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
-                        {% if not forloop.last %},{% endif %}
-                    {% endfor %}
-                </span>
-            {% endif %}
+                {% include "wjs_review/corresponding_author.html" %}
         </div>
         <div class="col-1" title="Issue (if available)">{{ article.primary_issue|default:"—" }}</div>
         <div class="col-4">

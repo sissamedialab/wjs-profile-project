@@ -29,21 +29,7 @@
             {% endif %}
         </td>
         <td>
-            {{ workflow.article.correspondence_author }}
-            {% if workflow.article.authors.count > 1 %}
-                <a class="text-secondary"
-                   data-bs-toggle="collapse"
-                   href="#otherAuthors-{{ article.id }}"
-                   role="button"
-                   aria-expanded="false"
-                   aria-controls="otherAuthors-{{ article.id }}">…</a>
-                <span class="collapse" id="otherAuthors-{{ article.id }}">
-                    {% for author in workflow.article.authors.all %}
-                        {% if author != workflow.article.correspondence_author %}{{ author }}{% endif %}
-                        {% if not forloop.last %},{% endif %}
-                    {% endfor %}
-                </span>
-            {% endif %}
+            {% include "wjs_review/corresponding_author.html" %}
         </td>
         <td>
             {% with editor_assignment_data=article|article_current_editor %}

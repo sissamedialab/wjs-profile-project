@@ -75,6 +75,25 @@ def last_eo_note(article):
     return eo_notes.last() or ""
 
 
+@register.simple_tag()
+def article_state_details(article):
+    waiting_for_revision = article.active_revision_requests().filter(
+        editorrevisionrequest__review_round=article.current_review_round_object(),
+    )
+
+    if waiting_for_revision.exists():
+        return waiting_for_revision.first().get_type_display()
+
+    elif article.active_reviews.exists():
+        return "Assigned to reviewers"
+
+    elif article.completed_reviews.exclude(decision="withdrawn").exists():
+        return "Waiting for decision"
+
+    else:
+        return article.articleworkflow.get_state_display()
+
+
 @register.filter
 def article_current_editor(article):
     """Return the current editor."""

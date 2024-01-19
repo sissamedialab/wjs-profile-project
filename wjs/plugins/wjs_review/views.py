@@ -182,6 +182,41 @@ class EOMissingEditor(EOPending):
         return context
 
 
+class AuthorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Author's main page."""
+
+    model = ArticleWorkflow
+    ordering = "id"
+    template_name = "wjs_review/author_pending.html"
+    context_object_name = "workflows"
+
+    def test_func(self):
+        """Allow access only for Authors of this Journal"""
+        return self.request.user.is_author(self.request)
+
+    def get_queryset(self):
+        """Keep only pending (no final decision) articles."""
+        return ArticleWorkflow.objects.filter(
+            Q(article__journal=self.request.journal, state__in=states_when_article_is_considered_in_review)
+            & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
+        )
+
+
+class AuthorArchived(AuthorPending):
+    def get_queryset(self):
+        """Get all published / withdrawn / rejected / not suitable articles."""
+        return ArticleWorkflow.objects.filter(
+            Q(article__journal=self.request.journal, state__in=states_when_article_is_considered_archived)
+            & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add a "title" to the context for the header."""
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Archived papers"
+        return context
+
+
 class UpdateState(LoginRequiredMixin, UpdateView):
     model = ArticleWorkflow
     form_class = ArticleReviewStateForm

@@ -5,21 +5,13 @@
     <link rel="stylesheet"
           type="text/css"
           href="{% static '/css/datatables.css' %}" />
-    <script type="text/javascript"
-            src="{% static '/js/datatables.min.js' %}"></script>
+    <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
 {% endblock bootstrap5_extra_head %}
 {% block title %}
-    Dashboard
+    {{ title|default:"Pending papers" }}
 {% endblock title %}
 {% load wjs_review %}
 {% block content_wrapper %}
-    <div class="container">
-        <div class="row">
-            <div class="col-sm-12">
-                <h2>Pending papers</h2>
-            </div>
-        </div>
-    </div>
     <div class="container">
         <div class="row">
             <div class="column sm-12">
@@ -52,57 +44,30 @@
         </div>
     </div>
     <div class="container">
-        <table class="table table-hover" id="editor-papers">
+        <table class="table table-hover" id="author-papers">
             <thead class="sticky-top top-0 bg-white text-center">
                 <tr>
-                    <th scope="col">ID</th>
-                    <th scope="col">Authors</th>
+                    <th scope="col">Article ID</th>
+                    <th scope="col">Corresponding Author</th>
                     <th scope="col">Title</th>
-                    <th scope="col" title="article type">Type</th>
-                    <th scope="col" title="special Issue">SI</th>
+                    <th scope="col">Article Type</th>
+                    <th scope="col">SI</th>
                     <th scope="col">Status</th>
-                    <th scope="col" title="review requests">Reviewers</th>
-                    <th scope="col" title="latest personal note">
-                        <a class="text-decoration-none"
-                           data-bs-toggle="collapse"
-                           href=".personal-note"
-                           role="button"
-                           aria-expanded="false"
-                           aria-controls="personal-note">Notes</a>
-                    </th>
                 </tr>
             </thead>
             <tbody>
                 {% for workflow in workflows %}
-                    {% include "wjs_review/elements/article_listing_for_editor_tr.html" %}
+                    {% include "wjs_review/elements/article_listing_for_authors.html" %}
                 {% endfor %}
             </tbody>
         </table>
         <script>
-            new DataTable('#editor-papers', {
+            new DataTable('#author-papers', {
                 info: false,
                 searching: false,
                 ordering: true,
-                paging: false,
-            columnDefs: [
-                { orderable: false, targets: 7 }
-            ]
+                paging: false
             });
         </script>
-    </div>
-    <div class="container">
-        <div>
-            <button class="btn btn-primary"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#oldVersion"
-                    aria-expanded="false"
-                    aria-controls="oldVersion">Non-table previous version</button>
-        </div>
-        <div class="collapse" id="oldVersion">
-            {% for workflow in workflows %}
-                {% include "wjs_review/elements/article_listing_for_editor.html" %}
-            {% endfor %}
-        </div>
     </div>
 {% endblock content_wrapper %}
