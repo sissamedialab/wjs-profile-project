@@ -789,7 +789,7 @@ class HandleDecision:
         self,
         revision: Optional[EditorRevisionRequest] = None,
     ) -> Dict[str, Any]:
-        return {
+        context = {
             "article": self.workflow.article,
             "request": self.request,
             "revision": revision,
@@ -798,74 +798,140 @@ class HandleDecision:
             "withdraw_notice": self.form_data["withdraw_notice"],
             "skip": False,
         }
-
-    def _log_accept(self, email_context):
-        # TODO: use the email_context to build a nice message
-        communication_utils.log_operation(
-            actor=self.user,
-            article=self.workflow.article,
-            message_subject="Editor accepts paper",
-            recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
-            # do we have a subject? message_subject=email_context.pop("subject")
-        )
-
-    def _log_decline(self, email_context):
-        # TODO: use the email_context to build a nice message
-        communication_utils.log_operation(
-            actor=self.user,
-            article=self.workflow.article,
-            message_subject="Editor rejects paper",
-            recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
-        )
-
-    def _log_not_suitable(self, email_context):
-        # TODO: use the email_context to build a nice message
-        communication_utils.log_operation(
-            actor=self.user,
-            article=self.workflow.article,
-            message_subject="Editor deems paper not suitable",
-            recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
-        )
-
-    def _log_revision_request(self, email_context, revision_type=None):
-        # TODO: use the email_context to build a nice message
-        if revision_type == EditorialDecisions.MINOR_REVISIONS:
-            message_subject = "Editor requires (minor) revision"
+        if revision:
+            context.update(
+                {
+                    "major_revision": revision.type
+                    in (
+                        ArticleWorkflow.Decisions.MAJOR_REVISION.value,
+                        EditorialDecisions.MAJOR_REVISIONS.value,
+                    ),
+                    "minor_revision": revision.type
+                    in (
+                        ArticleWorkflow.Decisions.MINOR_REVISION.value,
+                        EditorialDecisions.MINOR_REVISIONS.value,
+                    ),
+                },
+            )
         else:
-            message_subject = "Editor requires revision"
+            context.update(
+                {
+                    "major_revision": False,
+                    "minor_revision": False,
+                },
+            )
+        return context
+
+    def _log_accept(self, context: Dict[str, Any]):
+        accept_message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_decision_accept",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        accept_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_decision_accept",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         communication_utils.log_operation(
-            actor=self.user,
             article=self.workflow.article,
-            message_subject=message_subject,
+            message_subject=accept_message_subject,
+            message_body=accept_message_body,
+            actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
         )
 
-    def _log_review_withdraw(self, email_context: Dict[str, str], reviewer: Account):
-        review_withdraw_subject_template = get_setting(
+    def _log_decline(self, context):
+        decline_message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_decision_decline",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        decline_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_decision_decline",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=decline_message_subject,
+            message_body=decline_message_body,
+            actor=self.user,
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_not_suitable(self, context):
+        not_suitable_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_not_suitable_subject",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        not_suitable_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_not_suitable_body",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=not_suitable_message_subject,
+            message_body=not_suitable_message_body,
+            actor=self.user,
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_revision_request(self, context, revision_type=None):
+        revision_request_message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_revision_request_subject",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        revision_request_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_revision_request_body",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.workflow.article,
+            message_subject=revision_request_message_subject,
+            recipients=[self.workflow.article.correspondence_author],
+            message_body=revision_request_message_body,
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_review_withdraw(self, context: Dict[str, str], reviewer: Account):
+        review_withdraw_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="review_withdraw_subject",
             journal=self.workflow.article.journal,
-        ).processed_value
-        review_withdraw_subject = get_message_content(
             request=self.request,
-            context={"article": self.workflow.article},
-            template=review_withdraw_subject_template,
+            context=context,
             template_is_setting=True,
         )
-        review_withdraw_message_template = get_setting(
+        review_withdraw_message = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="review_withdraw_message",
+            setting_name="review_withdraw_body",
             journal=self.workflow.article.journal,
-        ).processed_value
-
-        review_withdraw_message = get_message_content(
             request=self.request,
-            context=email_context,
-            template=review_withdraw_message_template,
+            context=context,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -983,7 +1049,7 @@ class HandleDecision:
         ):
             self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
-        self._log_revision_request(context, revision_type=revision.type)
+        self._log_revision_request(context=context, revision_type=revision.type)
         return revision
 
     def _assign_files(self, revision: EditorRevisionRequest):
@@ -1008,7 +1074,7 @@ class HandleDecision:
             assignment.is_complete = True
             assignment.date_complete = timezone.now()
             assignment.save()
-            self._log_review_withdraw(email_context=email_context, reviewer=assignment.reviewer)
+            self._log_review_withdraw(context=email_context, reviewer=assignment.reviewer)
 
     def _store_decision(self) -> EditorDecision:
         """Store decision information."""

@@ -2,6 +2,7 @@ import datetime
 from unittest.mock import patch
 
 import pytest
+from django.conf import settings
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest
@@ -206,8 +207,9 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
+    review_settings,
 ):
-    """A reviewer canot be assigned if a revision request is in progress."""
+    """A reviewer cannot be assigned if a revision request is in progress."""
     fake_request.user = section_editor.janeway_account
     form_data = {
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
@@ -250,13 +252,56 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     assert assigned_article.reviewround_set.count() == 1
     assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
-    # Check messages
+    # Prepare templates
+    revision_request_message_subject = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="review_decision_revision_request_subject",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "minor_revision": form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION,
+            "major_revision": form_data["decision"] == ArticleWorkflow.Decisions.MAJOR_REVISION,
+        },
+        template_is_setting=True,
+    )
+    revision = EditorRevisionRequest.objects.get(
+        article=assigned_article,
+        review_round=assigned_article.reviewround_set.get(),
+    )
+    revision_request_message_body = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="review_decision_revision_request_body",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "article": assigned_article,
+            "request": fake_request,
+            "revision": revision,
+            "decision": form_data["decision"],
+            "user_message_content": form_data["decision_editor_report"],
+            "withdraw_notice": form_data["withdraw_notice"],
+            "skip": False,
+            "minor_revision": form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION,
+            "major_revision": form_data["decision"] == ArticleWorkflow.Decisions.MAJOR_REVISION,
+        },
+        template_is_setting=True,
+    )
+    # Check message
     assert Message.objects.count() == 1
-    message_to_correspondence_author = Message.objects.get(subject="Editor requires revision")
-    assert message_to_correspondence_author.body == ""
+    message_to_correspondence_author = Message.objects.get()
+    assert message_to_correspondence_author.subject == revision_request_message_subject
+    assert message_to_correspondence_author.body == revision_request_message_body
     assert message_to_correspondence_author.message_type == "Verbose"
     assert message_to_correspondence_author.actor == section_editor.janeway_account
     assert list(message_to_correspondence_author.recipients.all()) == [assigned_article.correspondence_author]
+    # Check email
+    assert len(mail.outbox) == 1
+    mail_to_correspondence_author = mail.outbox[0]
+    assert revision_request_message_subject in mail_to_correspondence_author.subject
+    assert revision_request_message_body in mail_to_correspondence_author.body
+    assert mail_to_correspondence_author.from_email == settings.DEFAULT_FROM_EMAIL
+    assert mail_to_correspondence_author.from_email != section_editor.email
+    assert list(mail_to_correspondence_author.recipients()) == [assigned_article.correspondence_author.email]
 
 
 @pytest.mark.django_db
@@ -883,6 +928,7 @@ def test_handle_editor_decision(
     review_form: ReviewForm,
     decision: str,
     final_state: str,
+    review_settings,
 ):
     """
     If the editor makes a decision, article.stage is set to the next workflow stage if decision is final
@@ -915,7 +961,9 @@ def test_handle_editor_decision(
         ArticleWorkflow.ReviewStates.NOT_SUITABLE,
     ):
         form_data["date_due"] = now().date() + datetime.timedelta(days=7)
+    # Reset email and messages just before calling HandleDecision.run()
     mail.outbox = []
+    Message.objects.all().delete()
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
         form_data=form_data,
@@ -940,28 +988,191 @@ def test_handle_editor_decision(
             if form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
             else EditorialDecisions.MAJOR_REVISIONS.value
         )
+        # Prepare subjects and bodies
+        context = {
+            "article": assigned_article,
+            "request": fake_request,
+            "revision": revision,
+            "major_revision": revision.type
+            in (
+                ArticleWorkflow.Decisions.MAJOR_REVISION.value,
+                EditorialDecisions.MAJOR_REVISIONS.value,
+            ),
+            "minor_revision": revision.type
+            in (
+                ArticleWorkflow.Decisions.MINOR_REVISION.value,
+                EditorialDecisions.MINOR_REVISIONS.value,
+            ),
+            "decision": form_data["decision"],
+            "user_message_content": form_data["decision_editor_report"],
+            "withdraw_notice": form_data["withdraw_notice"],
+            "skip": False,
+        }
+        review_withdraw_message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_subject",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        review_withdraw_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_body",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        revision_request_message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_revision_request_subject",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        revision_request_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_revision_request_body",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        # Check the messages
+        assert Message.objects.count() == 2
+        withdrawn_review_message = Message.objects.order_by("created").first()
+        revision_request_message = Message.objects.order_by("created").last()
+        assert withdrawn_review_message.subject == review_withdraw_message_subject
+        assert withdrawn_review_message.body == review_withdraw_message_body
+        assert withdrawn_review_message.message_type == Message.MessageTypes.VERBOSE
+        assert revision_request_message.subject == revision_request_message_subject
+        assert revision_request_message.body == revision_request_message_body
+        assert revision_request_message.message_type == Message.MessageTypes.VERBOSE
+        # Check the emails
         assert len(mail.outbox) == 2
-        assert any(True for m in mail.outbox if "Editor requires revision" in m.subject)
-        assert any(True for m in mail.outbox if "Review withdraw notice" in m.subject)
+        withdrawn_review_mail = mail.outbox[0]
+        revision_request_mail = mail.outbox[1]
+        assert review_withdraw_message_subject in withdrawn_review_mail.subject
+        assert review_withdraw_message_body in withdrawn_review_mail.body
+        assert revision_request_message_subject in revision_request_mail.subject
+        assert revision_request_message_body in revision_request_mail.body
     elif final_state == ArticleWorkflow.ReviewStates.ACCEPTED:
         # article is moved to the next stage by ON_WORKFLOW_ELEMENT_COMPLETE event triggered by HandleDecision
         next_stage = get_next_workflow(assigned_article.journal)
         assert assigned_article.stage == next_stage.stage
-
         assert assigned_article.articleworkflow.state == final_state
-        assert len(mail.outbox) == 2
-        assert any(True for m in mail.outbox if "Article Accepted" in m.subject)
-        assert any(True for m in mail.outbox if "Editor accepts paper" in m.subject)
+        # Prepare subject and body
+        accept_message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_decision_accept",
+            journal=assigned_article.journal,
+        ).processed_value
+        accept_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_decision_accept",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context={
+                "article": assigned_article,
+                "request": fake_request,
+                "revision": None,
+                "decision": form_data["decision"],
+                "user_message_content": form_data["decision_editor_report"],
+                "withdraw_notice": form_data["withdraw_notice"],
+                "skip": False,
+            },
+            template_is_setting=True,
+        )
+        # Check the message
+        assert Message.objects.count() == 1
+        accept_message = Message.objects.get()
+        assert accept_message.actor == section_editor
+        assert list(accept_message.recipients.all()) == [assigned_article.correspondence_author]
+        assert accept_message.subject == accept_message_subject
+        assert accept_message.body == accept_message_body
+        assert accept_message.message_type == Message.MessageTypes.VERBOSE
+        # Check that one email is sent by us (and not by Janeway)
+        assert len(mail.outbox) == 1
+        accept_mail = mail.outbox[0]
+        assert accept_message_subject in accept_mail.subject
+        assert accept_message_body in accept_mail.body
     elif final_state == ArticleWorkflow.ReviewStates.NOT_SUITABLE:
         assert assigned_article.stage == submission_models.STAGE_REJECTED
         assert assigned_article.articleworkflow.state == final_state
-        assert len(mail.outbox) == 2
-        assert any(True for m in mail.outbox if "Editor deems paper not suitable" in m.subject)
+        # Prepare subject and body
+        not_suitable_message = Message.objects.get()
+        not_suitable_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_not_suitable_subject",
+            journal=assigned_article.journal,
+        ).processed_value
+        not_suitable_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_not_suitable_body",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context={
+                "article": assigned_article,
+                "request": fake_request,
+                "revision": None,
+                "decision": form_data["decision"],
+                "user_message_content": form_data["decision_editor_report"],
+                "withdraw_notice": form_data["withdraw_notice"],
+                "skip": False,
+            },
+            template_is_setting=True,
+        )
+        # Check the message
+        assert Message.objects.count() == 1
+        assert not_suitable_message.actor == section_editor
+        assert list(not_suitable_message.recipients.all()) == [assigned_article.correspondence_author]
+        assert not_suitable_message.subject == not_suitable_message_subject
+        assert not_suitable_message.body == not_suitable_message_body
+        # Check the mail
+        assert len(mail.outbox) == 1
+        not_suitable_mail = mail.outbox[0]
+        assert not_suitable_message_subject in not_suitable_mail.subject
+        assert not_suitable_message_body in not_suitable_mail.body
     elif final_state == ArticleWorkflow.ReviewStates.REJECTED:
         assert assigned_article.stage == submission_models.STAGE_REJECTED
         assert assigned_article.articleworkflow.state == final_state
-        assert len(mail.outbox) == 2
-        assert any(True for m in mail.outbox if "Editor rejects paper" in m.subject)
+        # Prepare subject and body
+        reject_message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_decision_decline",
+            journal=assigned_article.journal,
+        ).processed_value
+        reject_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_decision_decline",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context={
+                "article": assigned_article,
+                "request": fake_request,
+                "revision": None,
+                "decision": form_data["decision"],
+                "user_message_content": form_data["decision_editor_report"],
+                "withdraw_notice": form_data["withdraw_notice"],
+                "skip": False,
+            },
+            template_is_setting=True,
+        )
+        # Check the message
+        assert Message.objects.count() == 1
+        reject_message = Message.objects.get()
+        assert reject_message.actor == section_editor
+        assert list(reject_message.recipients.all()) == [assigned_article.correspondence_author]
+        assert reject_message.subject == reject_message_subject
+        assert reject_message.body == reject_message_body
+        assert reject_message.message_type == Message.MessageTypes.VERBOSE
+        # Check that one email is sent by us (and not by Janeway)
+        assert len(mail.outbox) == 1
+        reject_mail = mail.outbox[0]
+        assert reject_message_subject in reject_mail.subject
+        assert reject_message_body in reject_mail.body
 
     # All review assignments are marked as complete, review_assignment is automatically marked as declined
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
@@ -1061,6 +1272,7 @@ def test_article_snapshot_on_revision_request(
     assigned_article: submission_models.Article,
     jcom_user: JCOMProfile,
     review_form: ReviewForm,
+    review_settings,
 ):
     """
     If the editor requests a revision, title, abstract and kwds are "saved" into article_history.
