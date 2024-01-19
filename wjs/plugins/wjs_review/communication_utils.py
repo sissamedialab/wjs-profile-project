@@ -3,18 +3,21 @@
 Keeping here also anything that we might want to test easily 🙂.
 """
 
-from typing import Union
+from typing import Optional, Union
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, OuterRef, Q, QuerySet
+from django.http import HttpRequest
 from journal.models import Journal
 from review import models as review_models
 from submission.models import Article
 from utils.logger import get_logger
+from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile.apps import GROUP_EO
 
+from .logic import render_template_from_setting
 from .models import Message, MessageRecipients
 
 Account = get_user_model()
@@ -53,6 +56,8 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
                 | Q(recipients__isnull=True),
             ),
         )
+        # Hijack notifications are not shown in the timeline as they are a duplicate of the original message
+        .exclude(message_type=Message.MessageTypes.HIJACK)
         .distinct()  # because the same msg can have many recipients
         .annotate(read=Exists(_filter))
         .order_by("-created")
@@ -118,12 +123,15 @@ def log_operation(
     message_subject: str,
     message_body="",
     actor=None,
+    hijacking_actor=None,
+    notify_actor=False,
     recipients=None,
     message_type=Message.MessageTypes.STD,
 ) -> Message:
     """Create a Message to log something. Send out notifications as needed."""
     if not actor:
         actor = get_system_user()
+        notify_actor = False
 
     content_type = ContentType.objects.get_for_model(article)
     object_id = article.id
@@ -134,11 +142,45 @@ def log_operation(
         message_type=message_type,
         content_type=content_type,
         object_id=object_id,
+        hijacking_actor=hijacking_actor,
     )
     if recipients:
         message.recipients.set(recipients)
     message.emit_notification()
+    if notify_actor and hijacking_actor:
+        fake_request = create_fake_request(user=None, journal=article.journal)
+        hijack_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="hijack_notification_subject",
+            journal=article.journal,
+            request=fake_request,
+            context={"original_subject": message_subject, "original_body": message_body, "hijacker": hijacking_actor},
+            template_is_setting=True,
+        )
+        hijack_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="hijack_notification_body",
+            journal=article.journal,
+            request=fake_request,
+            context={"original_subject": message_subject, "original_body": message_body, "hijacker": hijacking_actor},
+            template_is_setting=True,
+        )
+        log_operation(article, hijack_subject, hijack_body, recipients=[actor])
     return message
+
+
+def get_hijacker(request: HttpRequest) -> Optional[Account]:
+    """Return the hijacker of the given message."""
+    try:
+        # user.is_hijacked is only set if middlewre is activated. during the tests it might not be
+        # and in general it's safer to handle the case where it's not set
+        if request.user.is_hijacked:
+            hijack_history = request.session["hijack_history"]
+            if hijack_history:
+                hijacker_id = hijack_history[-1]
+                return Account.objects.get(pk=hijacker_id)
+    except AttributeError:
+        pass
 
 
 def role_for_article(article: Article, user: Account) -> str:

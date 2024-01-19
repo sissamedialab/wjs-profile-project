@@ -125,6 +125,56 @@ def test_assign_to_non_editor(
 
 
 @pytest.mark.django_db
+def test_assign_to_reviewer_hijacked(
+    review_settings,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+):
+    """
+    A reviewer can be assigned to an article and objects states are updated.
+
+    When the user is hijacked, an additional notification is sent to the hijacked user.
+    """
+    fake_request.user = section_editor.janeway_account
+    fake_request.user.is_hijacked = True
+    setattr(fake_request, "session", {"hijack_history": [eo_user.pk]})  # noqa: B010
+
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        # we must pass the Account object linked to the JCOMProfile instance, to ensure it
+        # can be used in janeway core
+        reviewer=normal_user.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    )
+    service.run()
+    assigned_article.refresh_from_db()
+    assert len(mail.outbox) == 2
+    user_emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
+    editor_emails = [m for m in mail.outbox if m.to[0] == section_editor.email]
+
+    subject_review_assignment = get_setting(
+        "email_subject",
+        "subject_review_assignment",
+        assigned_article.journal,
+    ).processed_value
+
+    assert len(user_emails) == 1
+    assert len(editor_emails) == 1
+    assert subject_review_assignment in user_emails[0].subject
+    assert f"User {eo_user} executed Editor assigns reviewer" in editor_emails[0].subject
+
+
+@pytest.mark.django_db
 def test_assign_to_reviewer(
     review_settings,
     fake_request: HttpRequest,

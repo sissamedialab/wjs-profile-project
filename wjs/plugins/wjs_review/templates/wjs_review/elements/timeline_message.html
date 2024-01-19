@@ -9,5 +9,11 @@
                 {% if actor_role %}<span>(from {{ actor_role }})</span>{% endif %}
             {% endwith %}
         {% endif %}
+        {# hijacked actions are always shown, users without roles (superusers) have a generic "Staff" label #}
+        {% if message.hijacking_actor and message.hijacking_actor != user and message.actor == user %}
+            {% with actor_role=workflow.article|role_for_article_tt:message.hijacking_actor %}
+                <span>(Impersonated by {{ actor_role|default:"Staff" }})</span>
+            {% endwith %}
+        {% endif %}
     </div>
 </div>
