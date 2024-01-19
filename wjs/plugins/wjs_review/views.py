@@ -815,11 +815,7 @@ class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         """User must be the recipient (or staff or EO)."""
-        return (
-            self.request.user.id == self.kwargs["recipient_id"]
-            or self.request.user.is_staff
-            or is_eo(self.request.user)
-        )
+        return self.request.user.id == self.kwargs["recipient_id"]
 
     def get_object(self, queryset=None):
         """Return the object the view is displaying.

@@ -104,9 +104,7 @@ CORE_FILETEXT_MODEL = "core.FileText"  # Use "core.PGFileText" for Postgres
 
 DEBUG = True
 
-MIDDLEWARE = (
-    # "wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",
-)
+MIDDLEWARE = ("hijack.middleware.HijackUserMiddleware",)
 CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
     "/profile/",
     "/logout/",

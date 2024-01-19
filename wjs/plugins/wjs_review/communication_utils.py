@@ -16,6 +16,7 @@ from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile.permissions import is_eo
 
 from .logic import render_template_from_setting
 from .models import Message, MessageRecipients
@@ -44,18 +45,18 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
         ),
     )
 
+    # Get messages for this article...
+    by_article = Q(Q(content_type=content_type) & Q(object_id=object_id))
+    if is_eo(user) or user.is_superuser:
+        # if I am an EO/staff, in that case I see all messages, using a dummy filter
+        by_current_user = Q(pk__gt=0)
+    else:
+        # if they have some relation with me
+        by_current_user = Q(Q(recipients__in=[user]) | Q(actor=user))
+    # if they are "generic" messages
+    generic_message = Q(recipients__isnull=True)
     messages = (
-        Message.objects.filter(
-            # Get messages for this article...
-            Q(Q(content_type=content_type) & Q(object_id=object_id))
-            # ...but only...
-            & Q(
-                # ...if they have some relation with me
-                Q(Q(recipients__in=[user]) | Q(actor=user))
-                # ...or if they are "generic" messages
-                | Q(recipients__isnull=True),
-            ),
-        )
+        Message.objects.filter(by_article & Q(by_current_user | generic_message))
         # Hijack notifications are not shown in the timeline as they are a duplicate of the original message
         .exclude(message_type=Message.MessageTypes.HIJACK)
         .distinct()  # because the same msg can have many recipients

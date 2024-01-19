@@ -308,7 +308,7 @@ def test_allowed_recipients_for_actor(
 
 
 @pytest.mark.django_db
-def test_only_staff_or_recipient_can_toggle_read(
+def test_recipient_can_toggle_read(
     article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     eo_user: JCOMProfile,
@@ -342,14 +342,15 @@ def test_only_staff_or_recipient_can_toggle_read(
     mr.refresh_from_db()
     assert mr.read is True
     response = client.post(url, data={"read": False})
+    assert response.status_code == 200
     mr.refresh_from_db()
     assert mr.read is False
 
     client.force_login(eo_user)
     response = client.post(url, data={"read": True})
-    assert response.status_code == 200
+    assert response.status_code == 403
     mr.refresh_from_db()
-    assert mr.read is True
+    assert mr.read is False
 
 
 @pytest.mark.django_db
