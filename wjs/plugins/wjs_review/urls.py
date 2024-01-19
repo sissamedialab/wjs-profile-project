@@ -5,6 +5,8 @@ from .views import (
     ArticleDecision,
     ArticleDetails,
     ArticleMessages,
+    AuthorArchived,
+    AuthorPending,
     EOArchived,
     EOMissingEditor,
     EOPending,
@@ -33,6 +35,8 @@ urlpatterns = [
     path("eo_archived/", EOArchived.as_view(), name="wjs_review_eo_archived"),
     path("eo_production/", EOProduction.as_view(), name="wjs_review_eo_production"),
     path("eo_missing_editor/", EOMissingEditor.as_view(), name="wjs_review_eo_missing_editor"),
+    path("author_pending/", AuthorPending.as_view(), name="wjs_review_author_pending"),
+    path("author_archived/", AuthorArchived.as_view(), name="wjs_review_author_archived"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path(

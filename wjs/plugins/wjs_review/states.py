@@ -331,6 +331,15 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             return attention_flag
         return ""
 
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
+        """Rifle through the situations that require attention."""
+        if attention_flag := conditions.author_revision_is_late(article):
+            return attention_flag
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        return ""
+
 
 class Submitted(BaseState):  # noqa N801 CapWords convention
     "Submitted"
@@ -389,6 +398,15 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
+        """Rifle through the situations that require attention."""
+        if attention_flag := conditions.author_revision_is_late(article):
+            return attention_flag
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        return ""
+
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
         """Rifle through the situations that require attention."""
         if attention_flag := conditions.author_revision_is_late(article):
             return attention_flag
