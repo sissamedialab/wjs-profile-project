@@ -321,6 +321,7 @@ class Message(TimeStampedModel):
         VERBINE = "Verbose ma non troppo", _("Add the first 10 lines of the body to the message")
 
         SYSTEM = "System log message", _("A system message")
+        HIJACK = "User hijacked action log message", _("A hijacking notification message")
 
         # No need to replace `message_types` w/ some kind of numeric `message_length` (to indicate, for instance, the
         # number of lines to include into the notification)
@@ -332,6 +333,15 @@ class Message(TimeStampedModel):
         verbose_name="from",
         help_text="The author of the message (for system message, use wjs-support account)",
         null=False,
+    )
+    hijacking_actor = models.ForeignKey(
+        Account,
+        on_delete=models.DO_NOTHING,
+        related_name="authored_messages_as_hijacker",
+        verbose_name="hijacker",
+        help_text="The real author of the message (if actor has been hijacked)",
+        null=True,
+        blank=True,
     )
     recipients = models.ManyToManyField(
         to=Account,

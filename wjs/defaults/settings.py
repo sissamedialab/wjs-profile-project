@@ -3,8 +3,8 @@
 For details on how to use this, see
 https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 """
-
 from core.janeway_global_settings import TEMPLATES
+from django.urls import reverse_lazy
 
 INSTALLED_APPS = [
     "wjs",
@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "django_fsm",
     "model_utils",
     "django_bootstrap5",
+    "hijack.contrib.admin",
 ]
 
 # This is the default redirect if no other sites are found.
@@ -21,7 +22,7 @@ DEFAULT_HOST = "https://www.example.org"
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "default@default.it"
 
-LOGIN_REDIRECT_URL = "/user/profile/"
+LOGIN_REDIRECT_URL = reverse_lazy("core_edit_profile")
 
 # CATCHA_TYPE should be either 'simple_math', 'recaptcha' or 'hcaptcha' to enable captcha
 # fields, otherwise disabled
@@ -170,3 +171,6 @@ SUMMERNOTE_THEME = "bs5"
 WJS_UNREAD_MESSAGES_LATE_AFTER = 3
 # Override to dev email address to test newsletter on actual email client
 WJS_NEWSLETTER_TEST_RECIPIENT = ""
+
+HIJACK_USERS_ENABLED = True
+HIJACK_PERMISSION_CHECK = "wjs.jcom_profile.permissions.hijack_eo_and_admins_only"

@@ -3,6 +3,11 @@
 {% block bootstrap5_extra_head %}
     <script src="{% static '/js/htmx.min.js' %}"></script>
     <link rel="stylesheet" href="{% static '/css/wjs_review.css' %}">
+    {% comment %}
+    janeway manager/dashboard styles added to support hijack notifications, it should not introduce any css conflict,
+    but we may want to get the django-hijack styles from janeway and add them to a custom css
+    {% endcomment %}
+    <link rel="stylesheet" href="{% static '/admin/css/admin.css' %}">
 {% endblock bootstrap5_extra_head %}
 {% block bootstrap5_content %}
     <div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

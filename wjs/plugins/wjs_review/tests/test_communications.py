@@ -360,6 +360,7 @@ def test_message_attachment_access(
     eo_user: JCOMProfile,
     review_form: review_models.ReviewForm,
     client,
+    review_settings,
 ):
     """Test that only actor, recipient and EO can download an attachment."""
     # TODO: the author of the "assigned_article" is an admin user

@@ -359,6 +359,50 @@ def set_default_plugin_settings():
             withdraw_notice_setting["name"],
         )
 
+    def hijack_notification_message():
+        hijack_notification_subject: SettingParams = {
+            "name": "hijack_notification_subject",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Default subject for notifications of actions as hijacked users"),
+            "description": _(
+                "Provide context for notifications of actions as hijacked users.",
+            ),
+            "is_translatable": False,
+        }
+        hijack_notification_subject_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("User {{ hijacker }} executed {{ original_subject }}"),
+            "translations": {},
+        }
+        create_customization_setting(
+            hijack_notification_subject,
+            hijack_notification_subject_value,
+            hijack_notification_subject["name"],
+        )
+        hijack_notification_body: SettingParams = {
+            "name": "hijack_notification_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Default message for notifications of actions as hijacked users"),
+            "description": _(
+                "Provide context for notifications of actions as hijacked users.",
+            ),
+            "is_translatable": False,
+        }
+        hijack_notification_body_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("User {{ hijacker }} executed {{ original_subject }} impersonating you."),
+            "translations": {},
+        }
+        create_customization_setting(
+            hijack_notification_body,
+            hijack_notification_body_value,
+            hijack_notification_body["name"],
+        )
+
     def patch_review_messages():
         editor_assignment_subject_setting: SettingParams = {
             "name": "subject_editor_assignment",
@@ -486,6 +530,7 @@ def set_default_plugin_settings():
     review_decision_not_suitable_message()
     withdraw_review_message()
     author_can_contact_director()
+    hijack_notification_message()
 
 
 def ensure_workflow_elements():

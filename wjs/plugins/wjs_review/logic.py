@@ -293,6 +293,8 @@ class AssignToReviewer:
             actor=self.editor,
             recipients=[self.reviewer],
             message_type=message_type,
+            hijacking_actor=communication_utils.get_hijacker(self.request),
+            notify_actor=True,
         )
 
     def run(self) -> WorkflowReviewAssignment:
