@@ -190,6 +190,108 @@ def set_default_plugin_settings():
             do_review_message_setting["name"],
         )
 
+    def review_decision_revision_request_message():
+        subject_review_decision_revision_request_setting: SettingParams = {
+            "name": "review_decision_revision_request_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for revision request notification"),
+            "description": _(
+                "Provide context for the notification when the Editor requests a major/minor revision for an article.",
+            ),
+            "is_translatable": False,
+        }
+        subject_review_decision_revision_request_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _(
+                "{% if major_revision %}Editor requires revision{% elif minor_revision %}Editor requires (minor) revision{% endif %}"
+            ),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_review_decision_revision_request_setting,
+            subject_review_decision_revision_request_setting_value,
+            subject_review_decision_revision_request_setting["name"],
+        )
+        review_decision_revision_request_setting: SettingParams = {
+            "name": "review_decision_revision_request_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for revision request notification"),
+            "description": _(
+                "Provide context for the notification when the Editor requests a major/minor revision for an article.",
+            ),
+            "is_translatable": False,
+        }
+        review_decision_revision_request_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ article.correspondence_author.full_name }},
+            {{ editor.full_name }} has requested a {% if minor_revision %}minor{% endif %} revision of {{ article.title }}.
+            You can view your reviews and feedback on the manuscript at: {{ review_url }}
+            Regards,
+            {{ request.user.signature|safe }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            review_decision_revision_request_setting,
+            review_decision_revision_request_setting_value,
+            review_decision_revision_request_setting["name"],
+        )
+
+    def review_decision_not_suitable_message():
+        subject_review_decision_not_suitable_setting: SettingParams = {
+            "name": "review_decision_not_suitable_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for article not suitable decision notification"),
+            "description": _(
+                "Provide context for the notification when the article is deemed not suitable.",
+            ),
+            "is_translatable": False,
+        }
+        subject_review_decision_not_suitable_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article is deemed not suitable"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_review_decision_not_suitable_setting,
+            subject_review_decision_not_suitable_setting_value,
+            subject_review_decision_not_suitable_setting["name"],
+        )
+        review_decision_not_suitable_setting: SettingParams = {
+            "name": "review_decision_not_suitable_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for article not suitable decision notification"),
+            "description": _(
+                "Provide context for the notification when the article is deemed not suitable.",
+            ),
+            "is_translatable": False,
+        }
+        review_decision_not_suitable_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ article.correspondence_author.full_name }},
+            We are sorry to inform you that "{{ article.title }}" has been deemed not suitable for {{ article.journal.name }}.
+            You can view your reviews and feedback on the manuscript at: {{ review_url }}
+            Regards,
+            {{ request.user.signature|safe }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            review_decision_not_suitable_setting,
+            review_decision_not_suitable_setting_value,
+            review_decision_not_suitable_setting["name"],
+        )
+
     def withdraw_review_message():
         withdraw_review_subject_setting: SettingParams = {
             "name": "review_withdraw_subject",
@@ -213,7 +315,7 @@ def set_default_plugin_settings():
             withdraw_review_subject_setting["name"],
         )
         withdraw_review_message_setting: SettingParams = {
-            "name": "review_withdraw_message",
+            "name": "review_withdraw_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
             "pretty_name": _("Default message for review withdraw notification"),
@@ -380,6 +482,8 @@ def set_default_plugin_settings():
     declined_review_message()
     do_review_message()
     patch_review_messages()
+    review_decision_revision_request_message()
+    review_decision_not_suitable_message()
     withdraw_review_message()
     author_can_contact_director()
 

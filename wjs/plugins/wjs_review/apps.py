@@ -77,7 +77,6 @@ class WjsReviewConfig(AppConfig):
             events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY,
             transactional_emails.send_revisions_request,
         )
-        # TODO: check service dataclass and tests
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVIEW_WITHDRAWL,
             transactional_emails.send_reviewer_withdrawl_notice,
@@ -108,4 +107,34 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVIEWER_DECLINED,
             transactional_emails.send_reviewer_accepted_or_decline_acknowledgements,
+        )
+        # send_article_decision() is linked to three separate events:
+        # ON_ARTICLE_ACCEPTED, ON_ARTICLE_DECLINED, ON_ARTICLE_UNDECLINED
+        # the 6 settings are:
+        # {subject_,}review_decision_{accept,decline,undecline}
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_ARTICLE_ACCEPTED,
+            transactional_emails.send_article_decision,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_ARTICLE_DECLINED,
+            transactional_emails.send_article_decision,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_ARTICLE_UNDECLINED,
+            transactional_emails.send_article_decision,
+        )
+
+        # Disable these three functions
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVISIONS_COMPLETE,
+            transactional_emails.send_revisions_complete,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_REVISIONS_COMPLETE,
+            transactional_emails.send_revisions_author_receipt,
+        )
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_ARTICLE_UNASSIGNED,
+            transactional_emails.send_editor_unassigned_notice,
         )
