@@ -3,6 +3,15 @@ default:
   # Runner must be inside Inasset's farm
   tags:
     - inasset
+    - janeway
+
+  cache:
+    key: cache-default
+    paths:
+      - .cache
+
+variables:
+  PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
 
 stages:
   - test

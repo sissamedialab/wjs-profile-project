@@ -4,14 +4,7 @@
 
   stage: build
 
-  cache:
-    key: cache-default
-    paths:
-      - .cache
-
   variables:
-    PIP_CACHE: ".cache"
-
     # CI_API_V4_URL: The GitLab API v4 root URL.
     # CI_PROJECT_ID: The ID of the current project.
 

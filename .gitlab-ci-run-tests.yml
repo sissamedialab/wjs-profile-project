@@ -2,11 +2,6 @@
   stage: test
   image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
 
-  cache:
-    key: cache-default
-    paths:
-      - .cache
-
   # NB: Must match with test_settings.DATABASES
   variables:
     POSTGRES_USER: janeway
