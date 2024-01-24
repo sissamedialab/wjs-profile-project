@@ -9,8 +9,3 @@
   script:
     - pip install --user pre-commit
     - python -m pre_commit run -a  # python module invocation is required because pre-commit script is not included in default path
-
-  cache:
-    - key: "pre-commit"
-      paths:
-        - .pre-commit
