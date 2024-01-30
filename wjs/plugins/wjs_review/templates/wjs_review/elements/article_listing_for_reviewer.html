@@ -1,0 +1,46 @@
+{% load wjs_review wjs_articles %}
+{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
+    <tr {% if attention_flag %}class="table-warning"{% endif %}>
+        <td>
+            <a title="{{ article.title }}"
+                   href="{% url 'wjs_article_details' workflow.id %}"
+                   class="fw-bold">{{ article.id }}</a>
+        </td>
+        <td>
+             <p>
+                {{ article.title|truncatewords:6 }}
+             </p>
+        </td>
+        <td>
+            {% with editor_assignment_data=article|article_current_editor %}
+                <p>
+                    {{ editor_assignment_data.editor }}
+                </p>
+            {% endwith %}
+        </td>
+        <td>
+            <p>
+                {% get_requested_date user=user article=workflow.article %}
+            </p>
+        </td>
+        <td>
+             <p>
+                {{ article.section.name }}
+             </p>
+        </td>
+        <td>
+            <p>
+                {{ article.articlewrapper.special_issue|default_if_none:"" }}
+            </p>
+        </td>
+        <td>
+            <p>
+                {% article_state_details article=workflow.article %}
+                {% if attention_flag %}
+                    <br />
+                    <span title="Needs attention"><strong>{{ attention_flag }}</strong></span>
+                {% endif %}
+            </p>
+        </td>
+    </tr>
+{% endwith %}

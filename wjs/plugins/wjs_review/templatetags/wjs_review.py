@@ -14,6 +14,7 @@ from django_fsm import Transition
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 from utils import models as janeway_utils_models
+from utils.logger import get_logger
 from utils.models import LogEntry
 
 from .. import communication_utils, states
@@ -23,6 +24,8 @@ from ..types import BootstrapButtonProps
 register = template.Library()
 
 Account = get_user_model()
+
+logger = get_logger(__name__)
 
 
 class AssignmentAndActions(TypedDict):
@@ -159,6 +162,16 @@ def reviewer_btn_props(reviewer: Account, selected: str, workflow: ArticleWorkfl
         "disabled_cause": disabled_cause,
     }
     return data
+
+
+@register.simple_tag()
+def get_requested_date(user, article):
+    review_round = article.current_review_round_object()
+    try:
+        return ReviewAssignment.objects.get(reviewer=user, review_round=review_round).date_requested
+    except ReviewAssignment.DoesNotExist:
+        logger.warning(f"Date requested not found for article {article}, round {review_round}")
+        return ""
 
 
 @register.filter

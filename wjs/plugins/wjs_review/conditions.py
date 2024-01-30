@@ -225,3 +225,19 @@ def eo_has_unread_messages(article: Article) -> str:
     code = article.journal.code.lower()
     eo_user = Account.objects.get(email=f"{code}-eo@{code}.sissa.it")
     return has_unread_message(article=article, recipient=eo_user)
+
+
+def reviewer_report_is_late(article: Article) -> str:
+    """Tell if the reviewer is late with the review."""
+    # The business logic should prevent having active review assignments for past review rounds (when a revision is
+    # asked, pending/unfinished assignments are withdrawn). The filter on the round should thus be superfluous.
+    review_round = article.current_review_round_object()
+    now = timezone.now().date()
+    late_assignments = ReviewAssignment.objects.filter(
+        Q(article=article, review_round=review_round)
+        & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
+    )
+    if late_assignments.exists():
+        return "The review is late."
+    else:
+        return ""
