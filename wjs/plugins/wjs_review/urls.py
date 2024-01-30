@@ -19,6 +19,8 @@ from .views import (
     MessageAttachmentDownloadView,
     ReviewDeclined,
     ReviewEnd,
+    ReviewerArchived,
+    ReviewerPending,
     ReviewSubmit,
     SelectReviewer,
     ToggleMessageReadView,
@@ -37,6 +39,8 @@ urlpatterns = [
     path("eo_missing_editor/", EOMissingEditor.as_view(), name="wjs_review_eo_missing_editor"),
     path("author_pending/", AuthorPending.as_view(), name="wjs_review_author_pending"),
     path("author_archived/", AuthorArchived.as_view(), name="wjs_review_author_archived"),
+    path("reviewer_pending/", ReviewerPending.as_view(), name="wjs_review_reviewer_pending"),
+    path("reviewer_archived/", ReviewerArchived.as_view(), name="wjs_review_reviewer_archived"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path(

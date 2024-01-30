@@ -1,0 +1,77 @@
+{% extends "wjs_review/base.html" %}
+{% load static %}
+{% block bootstrap5_extra_head %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          type="text/css"
+          href="{% static '/css/datatables.css' %}" />
+    <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
+{% endblock bootstrap5_extra_head %}
+{% block title %}
+    {{ title|default:"Pending papers" }}
+{% endblock title %}
+{% load wjs_review %}
+{% block navbarblock %}
+    {% include "wjs_review/elements/navbar_for_eo.html" %}
+{% endblock navbarblock %}
+{% block content_wrapper %}
+    <div class="container">
+        <div class="row">
+            <div class="column sm-12">
+                <div class="card border border-2">
+                    <div class="card-body">
+                        TODO: <strong>Filters</strong> (click or type to filter paper)
+                        Title, reviewer or author:
+                        <input type="text" />
+                        ;
+                        <button type="button" class="btn btn-secondary">only requiring attention</button>
+                        ;
+                        <span class="dropdown">
+                            <button class="btn btn-secondary dropdown-toggle"
+                                    type="button"
+                                    id="dropdownMenuButton1"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false">Special issue</button>
+                            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                                <li>
+                                    <a class="dropdown-item" href="#">SI-1</a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#">...</a>
+                                </li>
+                            </ul>
+                        </span>; ...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <table class="table table-hover" id="editor-papers">
+            <thead class="sticky-top top-0 bg-white text-center">
+                <tr>
+                    <th scope="col">Article ID</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Editor</th>
+                    <th scope="col" title="assignment to referee date">Assignment Date</th>
+                    <th scope="col">Article Type</th>
+                    <th scope="col" title="special Issue">SI</th>
+                    <th scope="col">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for workflow in workflows %}
+                    {% include "wjs_review/elements/article_listing_for_reviewer.html" %}
+                {% endfor %}
+            </tbody>
+        </table>
+        <script>
+            new DataTable('#editor-papers', {
+                info: false,
+                searching: false,
+                ordering: true,
+                paging: false,
+            });
+        </script>
+    </div>
+{% endblock content_wrapper %}

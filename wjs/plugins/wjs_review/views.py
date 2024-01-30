@@ -217,6 +217,43 @@ class AuthorArchived(AuthorPending):
         return context
 
 
+class ReviewerPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Reviewer's main page."""
+
+    model = ArticleWorkflow
+    ordering = "id"
+    template_name = "wjs_review/reviewer_pending.html"
+    context_object_name = "workflows"
+
+    def test_func(self):
+        """Allow access only for Reviewers of this Journal"""
+        return self.request.user.is_reviewer(self.request)
+
+    def get_queryset(self):
+        """Keep only pending (no final decision) articles."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            article__reviewassignment__reviewer=self.request.user,
+            article__reviewassignment__is_complete=False,
+        )
+
+
+class ReviewerArchived(AuthorPending):
+    def get_queryset(self):
+        """Get all published / withdrawn / rejected / not suitable articles."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            article__reviewassignment__is_complete=True,
+            article__reviewassignment__reviewer=self.request.user,
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add a "title" to the context for the header."""
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Archived papers"
+        return context
+
+
 class UpdateState(LoginRequiredMixin, UpdateView):
     model = ArticleWorkflow
     form_class = ArticleReviewStateForm
