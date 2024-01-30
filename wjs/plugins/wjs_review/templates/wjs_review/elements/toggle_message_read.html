@@ -3,7 +3,7 @@
     <form hx-target="#read-toggle-{{ message.id }}-{{ user.id }}"
           hx-post="{% url "wjs_message_toggle_read" message_id=message.id recipient_id=user.id %}"
           hx-trigger="click"
-          hx-swap="outherHTML">
+          hx-swap="outerHTML">
         {% bootstrap_form form show_help=False %}
     </form>
 </div>

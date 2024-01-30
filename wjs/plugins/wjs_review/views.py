@@ -38,6 +38,7 @@ from .forms import (
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
+    ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
@@ -734,6 +735,20 @@ class ArticleMessages(LoginRequiredMixin, ListView):
         )
         forms = {mr.message.id: ToggleMessageReadForm(instance=mr) for mr in messagerecipients_records}
         context["forms"] = forms
+        # The following is context to allow the EO to mark messages as read
+        # TODO Refactor ArticleMessages to not create a form for each message. Issue 55
+        message_records = Message.objects.filter(
+            id__in=self.get_queryset(),
+        )
+        eo_forms = {mr.id: ToggleMessageReadByEOForm(instance=mr) for mr in message_records}
+        context["eo_forms"] = eo_forms
+        context["is_user_eo"] = is_eo(self.request.user)
+        context["human_message_types"] = [
+            Message.MessageTypes.STD,
+            Message.MessageTypes.SILENT,
+            Message.MessageTypes.VERBOSE,
+            Message.MessageTypes.VERBINE,
+        ]
         return context
 
 
@@ -879,6 +894,32 @@ class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
         """
         self.object = form.save()
         return self.render_to_response(self.get_context_data(form=form, message=self.object.message))
+
+
+class ToggleMessageReadByEOView(UserPassesTestMixin, UpdateView):
+    """A view to let the EO toggle read/unread flag on a message by other two actors."""
+
+    model = Message
+    form_class = ToggleMessageReadByEOForm
+    template_name = "wjs_review/elements/toggle_message_read_by_eo.html"
+
+    def test_func(self):
+        """User must be part of the EO."""
+        return is_eo(self.request.user)
+
+    def get_object(self, queryset=None):
+        return get_object_or_404(
+            Message,
+            id=self.kwargs["message_id"],
+        )
+
+    def form_valid(self, form):
+        """If the form is valid, save the associate model (the flag on the Message read_by_eo).
+
+        Then, just return a response with the flag template rendered. I.e. do not redirect anywhere.
+        """
+        self.object = form.save()
+        return self.render_to_response(self.get_context_data(form=form, message=self.object))
 
 
 class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
