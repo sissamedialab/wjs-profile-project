@@ -402,7 +402,10 @@ class Message(TimeStampedModel):
         null=True,
         blank=True,
     )
-
+    read_by_eo = models.BooleanField(
+        default=False,
+        help_text="True when a member of the EO marks as read a message exchanged by other two actors",
+    )
     # number of chars to show in a "VERBINE" message
     verbine_lenght = 111
 

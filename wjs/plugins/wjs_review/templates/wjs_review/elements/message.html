@@ -38,4 +38,7 @@
     {% if user in message.recipients.all and not user == message.actor %}
         {% include "wjs_review/elements/toggle_message_read.html" with form=forms|keyvalue:message.id %}
     {% endif %}
+    {% if is_user_eo and message.message_type in human_message_types %}
+        {% include "wjs_review/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.id %}
+    {% endif %}
 </div>

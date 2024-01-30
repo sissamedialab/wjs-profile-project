@@ -603,3 +603,9 @@ class ToggleMessageReadForm(forms.ModelForm):
     class Meta:
         model = MessageRecipients
         fields = ["read"]
+
+
+class ToggleMessageReadByEOForm(forms.ModelForm):
+    class Meta:
+        model = Message
+        fields = ["read_by_eo"]

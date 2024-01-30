@@ -23,6 +23,7 @@ from .views import (
     ReviewerPending,
     ReviewSubmit,
     SelectReviewer,
+    ToggleMessageReadByEOView,
     ToggleMessageReadView,
     UpdateState,
     UploadRevisionAuthorCoverLetterFile,
@@ -62,6 +63,11 @@ urlpatterns = [
     path("revision/<int:revision_id>/upload/", UploadRevisionAuthorCoverLetterFile.as_view(), name="wjs_upload_file"),
     path("messages/<int:article_id>/", ArticleMessages.as_view(), name="wjs_article_messages"),
     path("messages/<int:article_id>/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
+    path(
+        "messages/toggle_read_by_eo/<int:message_id>/",
+        ToggleMessageReadByEOView.as_view(),
+        name="wjs_message_toggle_read_by_eo",
+    ),
     path(
         "messages/toggle_read/<int:message_id>/<int:recipient_id>",
         ToggleMessageReadView.as_view(),
