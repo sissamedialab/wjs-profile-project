@@ -12,9 +12,8 @@ from submission import models as submission_models
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.utils import generate_token
+from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
-from ..logic import render_template_from_setting
 from ..models import Message
 from ..templatetags.wjs_articles import user_is_coauthor
 from ..views import SelectReviewer

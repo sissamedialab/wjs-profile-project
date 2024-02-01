@@ -17,8 +17,8 @@ from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile.apps import GROUP_EO
 from wjs.jcom_profile.permissions import is_eo
+from wjs.jcom_profile.utils import render_template_from_setting
 
-from .logic import render_template_from_setting
 from .models import Message, MessageRecipients
 
 Account = get_user_model()

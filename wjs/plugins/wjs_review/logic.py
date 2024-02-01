@@ -30,16 +30,18 @@ from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from review.views import upload_review_file
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
-from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.utils import generate_token
+from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
+from .reminders.models import Reminder
 
 if TYPE_CHECKING:
     from .forms import ReportForm
+
+from utils.logger import get_logger
 
 from .models import (
     ArticleWorkflow,
@@ -48,33 +50,41 @@ from .models import (
     Message,
     WorkflowReviewAssignment,
 )
+from .reminders.settings import ReminderSetting, reminders
 
+logger = get_logger(__name__)
 Account = get_user_model()
 
 
-def render_template_from_setting(
-    setting_group_name: str,
-    setting_name: str,
-    journal: Journal,
-    request: HttpRequest,
-    context: Dict[str, Any],
-    template_is_setting: Optional[bool] = True,
-):
-    """
-    Auxiliary function to "ease" the rendering of a template taken from Janeway's settings.
-    """
-    template = get_setting(
-        setting_group_name=setting_group_name,
-        setting_name=setting_name,
-        journal=journal,
-    ).processed_value
-    rendered_template = get_message_content(
-        request=request,
-        context=context,
-        template=template,
-        template_is_setting=template_is_setting,
+def create_reminder(journal: Journal, target, reminder_code) -> Reminder:
+    """Auxiliary function that knows how to create a reminder."""
+    # TODO: move to reminders.utils? (cannot move to reminders.__init__ because of circular import)
+    storage = reminders.get(journal.code, reminders["DEFAULT"])
+    reminder: ReminderSetting = storage.get(reminder_code)
+
+    # try/except?: TODO: manage exceptions elsewhere
+    if not reminder:
+        logger.error("AAAHHHH...")
+        return None
+
+    subject = reminder.get_rendered_subject(target)
+    body = reminder.get_rendered_body(target)
+    date_due = reminder.get_date_due(target)
+    actor = reminder.get_actor(target, journal)
+    recipient = reminder.get_recipient(target, journal)
+
+    obj = Reminder.objects.create(
+        code=reminder.code,
+        message_subject=subject,
+        message_body=body,
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.id,
+        date_due=date_due,
+        clemency_days=reminder.clemency_days,
+        actor=actor,
+        recipient=recipient,
     )
-    return rendered_template
+    return obj
 
 
 @dataclasses.dataclass
@@ -255,6 +265,7 @@ class AssignToReviewer:
             assignment.reviewassignment_ptr_id = assignment_id
             assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
             assignment.save()
+        # TODO: set self.assigment = assigment ?
         return assignment
 
     def _get_message_context(self) -> Dict[str, Any]:
@@ -297,6 +308,29 @@ class AssignToReviewer:
             notify_actor=True,
         )
 
+    def _create_reviewevaluate_reminders(self) -> None:
+        """Create reminders related to evaluation of this review request."""
+        if isinstance(self.assignment, WorkflowReviewAssignment):
+            target = self.assignment.reviewassignment_ptr
+        else:
+            # if we are here, self.assigment is a ReviewAssigment
+            target = self.assignment
+        create_reminder(
+            self.workflow.article.journal,
+            target,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+        )
+        create_reminder(
+            self.workflow.article.journal,
+            target,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+        )
+        create_reminder(
+            self.workflow.article.journal,
+            target,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+        )
+
     def run(self) -> WorkflowReviewAssignment:
         # TODO: verificare in futuro se controllare assegnazione multiupla allo stesso reviewer quando si saranno
         #       decisi i meccanismi digestione dei round e delle versioni
@@ -321,6 +355,7 @@ class AssignToReviewer:
                 raise ValueError(_("Cannot assign review"))
             context = self._get_message_context()
             self._log_operation(context=context)
+            self._create_reviewevaluate_reminders()
         return self.assignment
 
 
@@ -388,6 +423,8 @@ class EvaluateReview:
         self._janeway_logic_handle_accept()
         self.assignment.refresh_from_db()
         self._log_accept()
+        self._delete_reviewevaluate_reminders()
+        self._create_reviewreport_reminders()
         if self.assignment.date_accepted:
             return True
 
@@ -408,8 +445,45 @@ class EvaluateReview:
         """
         self._janeway_logic_handle_decline()
         self._log_decline()
+        self._delete_reviewevaluate_reminders()
         if self.assignment.date_declined:
             return False
+
+    def _delete_reviewevaluate_reminders(self):
+        """Delete reminders related to the evaluation of this review request."""
+        if isinstance(self.assignment, WorkflowReviewAssignment):
+            target = self.assignment.reviewassignment_ptr
+        else:
+            # if we are here, self.assigment is a ReviewAssigment
+            target = self.assignment
+
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.id,
+            code__in=[
+                Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+                Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+                Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+            ],
+        ).delete()
+
+    def _create_reviewreport_reminders(self):
+        """Create reminders related to writing the review report."""
+        if isinstance(self.assignment, WorkflowReviewAssignment):
+            target = self.assignment.reviewassignment_ptr
+        else:
+            # if we are here, self.assigment is a ReviewAssigment
+            target = self.assignment
+        create_reminder(
+            self.assignment.article.journal,
+            target,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
+        )
+        create_reminder(
+            self.assignment.article.journal,
+            target,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
+        )
 
     def _activate_invitation(self, token: str):
         """
@@ -725,6 +799,25 @@ class SubmitReview:
             message_type=message_type,
         )
 
+    def _delete_reviewreport_reminders(self):
+        """Delete reminders related to the submission of the review report.
+
+        It is possible that the reviewer submits a review even if he never explicitly accepted the assignement.
+
+        In this case,
+        - no REVIEWER_SHOULD_WRITE_REVIEW reminders have been created
+        - here still exist the REVIEWER_SHOULD_EVALUATE_ASSIGNMENT reminders
+
+        So we need to find and delete the right ones. This is easy, because we can just delete all reminders related to
+        this assignment.
+
+        """
+        target = self.assignment
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.id,
+        ).delete()
+
     def run(self):
         with transaction.atomic():
             assignment = self._upload_files(self.assignment, self.request)
@@ -732,6 +825,7 @@ class SubmitReview:
             assignment = self._complete_review(assignment, self.submit_final)
             self._trigger_complete_event(assignment, self.request, self.submit_final)
             self._log_operation()
+            self._delete_reviewreport_reminders()
             return assignment
 
 

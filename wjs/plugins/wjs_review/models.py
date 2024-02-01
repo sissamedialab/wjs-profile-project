@@ -2,7 +2,6 @@
 from typing import Optional
 
 from core import models as core_models
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -19,6 +18,7 @@ from submission.models import Article
 from utils.logger import get_logger
 
 from . import permissions
+from .reminders.models import Reminder  # noqa F401
 
 logger = get_logger(__name__)
 
@@ -463,8 +463,13 @@ class Message(TimeStampedModel):
         else:
             return f"[{self.target.code}]"
 
-    def emit_notification(self):
-        """Send a notification."""
+    def emit_notification(self, from_email=None):
+        """Send a notification.
+
+        :param from_email is passed directly to django.core.mail.send_mail (therefore, if it's None, the
+        DEFAULT_FROM_EMAIL is used).
+
+        """
         # TODO: add to the create function of a custom manager? overkill?
         # TODO: use src/utils/notify.py::notification ?
         # (see also notify_hook loaded per-plugin in src/core/include_urls.py)
@@ -492,7 +497,7 @@ class Message(TimeStampedModel):
                     url=self.get_url(recipient),
                 ),
                 # TODO: use fake "no-reply": the mailbox should be real, but with an autoresponder
-                settings.DEFAULT_FROM_EMAIL,
+                from_email,
                 [recipient.email],
                 fail_silently=False,
             )

@@ -39,7 +39,29 @@
 #     docker-compose -f docker-compose-test-local.yml up -d db
 #     docker-compose -f docker-compose-test-local.yml exec -T db dropdb --if-exists -U janeway janeway
 #     docker-compose -f docker-compose-test-local.yml exec -T db createdb -U janeway janeway
-
+#
+#
+# ** Troubleshooting
+#
+# *** gitlab 2 factor authentication (2FA), docker login and personal access token (PAT)
+#
+# If `docker-compose -f docker-compose-test-local.yml run janeway /bin/bash` gives
+# ```
+# Error response from daemon: Head "https://registry.gitlab.sissamedialab.it/v2/wjs/janeway/debian-python-git-janeway/manifests/develop": unauthorized: HTTP Basic: Access denied. The provided password or token is incorrect or your account has 2FA enabled and you must use a personal access token instead of a password. See https://gitlab.sissamedialab.it/help/user/profile/account/two_factor_authentication#troubleshooting
+# ```
+#
+# try as follow:
+#   - (on gitlab) create a PAT as described above
+#   - (on your machine) logout from docker registry (just in case...):
+#     docker logout  registry.gitlab.sissamedialab.it
+#   - (on your machine) login to the registry:
+#     docker login -u gamboz@medialab.sissa.it registry.gitlab.sissamedialab.it
+#     NB: the username is useless; the important part is to use the PAT when asked for a password
+#   - (on your machine) try a pull (optional):
+#     docker pull registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+#   - (on your machine) try again the command:
+#     docker-compose -f docker-compose-test-local.yml run janeway /bin/bash
+#
 services:
   db:
     image: postgres:13.8

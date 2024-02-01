@@ -17,7 +17,7 @@ from submission.models import Keyword
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.utils import generate_token
+from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from ..logic import (
     AssignToEditor,
@@ -25,7 +25,6 @@ from ..logic import (
     EvaluateReview,
     HandleDecision,
     InviteReviewer,
-    render_template_from_setting,
 )
 from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 from .test_helpers import _create_review_assignment, _submit_review, get_next_workflow

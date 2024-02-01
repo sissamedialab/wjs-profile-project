@@ -4,13 +4,18 @@ import hashlib
 import os
 import re
 import shutil
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from core import files as core_files
 from django.conf import settings
+from django.http import HttpRequest
+from django.template import Context, Template
+from journal.models import Journal
 from submission.models import Article
 from utils.logger import get_logger
+from utils.render_template import get_message_content
+from utils.setting_handler import get_setting
 
 logger = get_logger(__name__)
 
@@ -220,3 +225,36 @@ def generate_doi(article: Article) -> Optional[str]:
 
     doi = f"{prefix}/{system_number}.{volume}{issue}{type_code}{eid}"
     return doi
+
+
+def render_template(template_str: str, context_dict: dict) -> str:
+    """Auxiliary function to "ease" the rendering of a string template."""
+
+    template = Template(template_str)
+    context = Context(context_dict)
+    return template.render(context)
+
+
+def render_template_from_setting(
+    setting_group_name: str,
+    setting_name: str,
+    journal: Journal,
+    request: HttpRequest,
+    context: Dict[str, Any],
+    template_is_setting: Optional[bool] = True,
+):
+    """
+    Auxiliary function to "ease" the rendering of a template taken from Janeway's settings.
+    """
+    template = get_setting(
+        setting_group_name=setting_group_name,
+        setting_name=setting_name,
+        journal=journal,
+    ).processed_value
+    rendered_template = get_message_content(
+        request=request,
+        context=context,
+        template=template,
+        template_is_setting=template_is_setting,
+    )
+    return rendered_template
