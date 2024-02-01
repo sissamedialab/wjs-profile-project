@@ -83,4 +83,4 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
 
     Remember that, in J., it is not mandatory for the correspondence author to be one of the authors!
     """
-    return (instance.article.correspondence_author == user) | (user in instance.article.authors.all())
+    return instance.article.correspondence_author == user | instance.article.authors.filter(pk=user.pk).exists()
