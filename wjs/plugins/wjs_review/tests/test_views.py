@@ -55,7 +55,6 @@ def test_select_reviewer_queryset_for_non_editor(
 
 @pytest.mark.django_db
 def test_select_reviewer_raise_403_for_not_editor(
-    review_settings,
     client: Client,
     jcom_user: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -84,7 +83,6 @@ def test_select_reviewer_raise_404_for_editor_not_assigned(
 
 @pytest.mark.django_db
 def test_select_reviewer_status_code_200_for_assigned_editor(
-    review_settings,
     client: Client,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -99,7 +97,6 @@ def test_select_reviewer_status_code_200_for_assigned_editor(
 
 @pytest.mark.django_db
 def test_invite_button_is_in_select_reviewer_interface(
-    review_settings,
     client: Client,
     assigned_article: submission_models.Article,
 ):
@@ -114,7 +111,6 @@ def test_invite_button_is_in_select_reviewer_interface(
 
 @pytest.mark.django_db
 def test_invite_function_creates_inactive_user(
-    review_settings,
     client: Client,
     assigned_article: submission_models.Article,
     review_form: ReviewForm,
@@ -172,7 +168,6 @@ def test_invite_function_creates_inactive_user(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_accept_invite(
-    review_settings,
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
@@ -240,7 +235,6 @@ def test_accept_invite(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_accept_invite_date_due_in_the_future(
-    review_settings,
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
@@ -315,7 +309,6 @@ def test_accept_invite_date_due_in_the_future(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_accept_invite_but_date_due_in_the_past(
-    review_settings,
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,
@@ -357,7 +350,6 @@ def test_accept_invite_but_date_due_in_the_past(
 )
 @pytest.mark.django_db
 def test_decline_invite(
-    review_settings,
     client: Client,
     review_assignment: ReviewAssignment,
     review_form: ReviewForm,

@@ -175,7 +175,6 @@ def test_assign_to_reviewer_hijacked(
 
 @pytest.mark.django_db
 def test_assign_to_reviewer(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -256,7 +255,6 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_settings,
 ):
     """A reviewer cannot be assigned if a revision request is in progress."""
     fake_request.user = section_editor.janeway_account
@@ -394,7 +392,6 @@ def test_assign_to_reviewer_fails_no_form(
 
 @pytest.mark.django_db
 def test_assign_to_reviewer_no_editor(
-    review_settings,
     fake_request: HttpRequest,
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -436,7 +433,6 @@ def test_assign_to_reviewer_no_editor(
 
 @pytest.mark.django_db
 def test_assign_to_reviewer_author(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -479,7 +475,6 @@ def test_assign_to_reviewer_author(
 
 @pytest.mark.django_db
 def test_invite_reviewer(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -556,7 +551,6 @@ def test_invite_reviewer(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_handle_accept_invite_reviewer(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -641,7 +635,6 @@ def test_handle_accept_invite_reviewer(
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_handle_decline_invite_reviewer(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
@@ -712,7 +705,6 @@ def test_handle_decline_invite_reviewer(
 
 @pytest.mark.django_db
 def test_handle_update_due_date_in_evaluate_review_in_the_future(
-    review_settings,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
@@ -754,7 +746,6 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
 
 @pytest.mark.django_db
 def test_handle_update_due_date_in_evaluate_review_in_the_past(
-    review_settings,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
@@ -799,7 +790,6 @@ def test_handle_update_due_date_in_evaluate_review_in_the_past(
 
 @pytest.mark.django_db
 def test_invite_reviewer_but_user_already_exists(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -977,7 +967,6 @@ def test_handle_editor_decision(
     review_form: ReviewForm,
     decision: str,
     final_state: str,
-    review_settings,
 ):
     """
     If the editor makes a decision, article.stage is set to the next workflow stage if decision is final
@@ -1022,6 +1011,48 @@ def test_handle_editor_decision(
     handle.run()
     assigned_article.refresh_from_db()
 
+    # We had an incomplete review assignement; when the editor makes a decision, these are withdrawn and the reviewer
+    # informed. Let's drop the Message and the email for the reviewers to ease testing.
+    message_template_context = {
+        "article": assigned_article,
+        "request": fake_request,
+        "decision": form_data["decision"],
+        "user_message_content": form_data["decision_editor_report"],
+        "withdraw_notice": form_data["withdraw_notice"],
+        "skip": False,
+    }
+    review_withdraw_message_subject = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="review_withdraw_subject",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context=message_template_context,
+        template_is_setting=True,
+    )
+    review_withdraw_message_body = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="review_withdraw_body",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context=message_template_context,
+        template_is_setting=True,
+    )
+    assert Message.objects.count() == 2
+    withdrawn_review_message = Message.objects.order_by("created").first()
+    assert withdrawn_review_message.subject == review_withdraw_message_subject
+    assert withdrawn_review_message.body == review_withdraw_message_body
+    assert withdrawn_review_message.message_type == Message.MessageTypes.VERBOSE
+    assert len(mail.outbox) == 2
+    withdrawn_review_mail = mail.outbox[0]
+    assert review_withdraw_message_subject in withdrawn_review_mail.subject
+    assert review_withdraw_message_body in withdrawn_review_mail.body
+
+    Message.objects.get(subject=review_withdraw_message_subject).delete()
+    for message in mail.outbox:
+        if review_withdraw_message_subject in message.subject:
+            mail.outbox.remove(message)
+            break
+
     if final_state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
         # article is kept the as ON_WORKFLOW_ELEMENT_COMPLETE event is not triggered
         assert assigned_article.stage == submission_models.STAGE_UNDER_REVISION
@@ -1038,47 +1069,27 @@ def test_handle_editor_decision(
             else EditorialDecisions.MAJOR_REVISIONS.value
         )
         # Prepare subjects and bodies
-        context = {
-            "article": assigned_article,
-            "request": fake_request,
-            "revision": revision,
-            "major_revision": revision.type
-            in (
-                ArticleWorkflow.Decisions.MAJOR_REVISION.value,
-                EditorialDecisions.MAJOR_REVISIONS.value,
-            ),
-            "minor_revision": revision.type
-            in (
-                ArticleWorkflow.Decisions.MINOR_REVISION.value,
-                EditorialDecisions.MINOR_REVISIONS.value,
-            ),
-            "decision": form_data["decision"],
-            "user_message_content": form_data["decision_editor_report"],
-            "withdraw_notice": form_data["withdraw_notice"],
-            "skip": False,
-        }
-        review_withdraw_message_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_withdraw_subject",
-            journal=assigned_article.journal,
-            request=fake_request,
-            context=context,
-            template_is_setting=True,
-        )
-        review_withdraw_message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_withdraw_body",
-            journal=assigned_article.journal,
-            request=fake_request,
-            context=context,
-            template_is_setting=True,
+        message_template_context.update(
+            {
+                "revision": revision,
+                "major_revision": revision.type
+                in (
+                    ArticleWorkflow.Decisions.MAJOR_REVISION.value,
+                    EditorialDecisions.MAJOR_REVISIONS.value,
+                ),
+                "minor_revision": revision.type
+                in (
+                    ArticleWorkflow.Decisions.MINOR_REVISION.value,
+                    EditorialDecisions.MINOR_REVISIONS.value,
+                ),
+            },
         )
         revision_request_message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="review_decision_revision_request_subject",
             journal=assigned_article.journal,
             request=fake_request,
-            context=context,
+            context=message_template_context,
             template_is_setting=True,
         )
         revision_request_message_body = render_template_from_setting(
@@ -1086,25 +1097,18 @@ def test_handle_editor_decision(
             setting_name="review_decision_revision_request_body",
             journal=assigned_article.journal,
             request=fake_request,
-            context=context,
+            context=message_template_context,
             template_is_setting=True,
         )
         # Check the messages
-        assert Message.objects.count() == 2
-        withdrawn_review_message = Message.objects.order_by("created").first()
-        revision_request_message = Message.objects.order_by("created").last()
-        assert withdrawn_review_message.subject == review_withdraw_message_subject
-        assert withdrawn_review_message.body == review_withdraw_message_body
-        assert withdrawn_review_message.message_type == Message.MessageTypes.VERBOSE
+        assert Message.objects.count() == 1
+        revision_request_message = Message.objects.get()
         assert revision_request_message.subject == revision_request_message_subject
         assert revision_request_message.body == revision_request_message_body
         assert revision_request_message.message_type == Message.MessageTypes.VERBOSE
         # Check the emails
-        assert len(mail.outbox) == 2
-        withdrawn_review_mail = mail.outbox[0]
-        revision_request_mail = mail.outbox[1]
-        assert review_withdraw_message_subject in withdrawn_review_mail.subject
-        assert review_withdraw_message_body in withdrawn_review_mail.body
+        assert len(mail.outbox) == 1
+        revision_request_mail = mail.outbox[0]
         assert revision_request_message_subject in revision_request_mail.subject
         assert revision_request_message_body in revision_request_mail.body
     elif final_state == ArticleWorkflow.ReviewStates.ACCEPTED:
@@ -1223,13 +1227,12 @@ def test_handle_editor_decision(
         assert reject_message_subject in reject_mail.subject
         assert reject_message_body in reject_mail.body
 
-    # All review assignments are marked as complete, review_assignment is automatically marked as declined
+    # All review assignments are marked as complete; the one that was pending when the editor decision was take is
+    # marked as "withdrawn".
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
-    if final_state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
-        assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 2
-    else:
-        assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 1
+    assert assigned_article.reviewassignment_set.filter(date_declined__isnull=False).count() == 0
     assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 2
+    assert assigned_article.reviewassignment_set.filter(decision="withdrawn").count() == 1
 
     editor_decision = EditorDecision.objects.get(
         workflow=assigned_article.articleworkflow,
@@ -1321,7 +1324,6 @@ def test_article_snapshot_on_revision_request(
     assigned_article: submission_models.Article,
     jcom_user: JCOMProfile,
     review_form: ReviewForm,
-    review_settings,
 ):
     """
     If the editor requests a revision, title, abstract and kwds are "saved" into article_history.

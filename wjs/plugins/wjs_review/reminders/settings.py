@@ -9,15 +9,20 @@ We decided not to use journal settings because
 """
 
 import dataclasses
-from typing import Any
+import inspect
+from typing import Any, List
 
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from journal.models import Journal
+from review.models import EditorAssignment, ReviewAssignment
 from utils.logger import get_logger
 
 from wjs.jcom_profile.utils import render_template
 
-from ..communication_utils import get_eo_user
+from ..communication_utils import get_director_user, get_eo_user
+from ..models import WorkflowReviewAssignment
 from .models import Reminder
 
 logger = get_logger(__name__)
@@ -27,12 +32,15 @@ logger = get_logger(__name__)
 class ReminderSetting:
     """Settings for a reminder.
 
-    Think of the "code" as the ID of a reminder.
-    The "target" is attribute name of one of the logic service attributes (usually assigment or article).
-    The fields "actor" and "recipient" are attribute names of the target object.
-    # TODO: might be better to use the attribute name of something in the service? E.g. review_asignment.editor...
+    Think of the "code" as the ID or class of a reminder.
 
-    The fields subject and body are template strings (for django's default template engine).
+    The "target" is an object to which the reminder should be "attached" (usually an assigment).
+
+    The fields "actor" and "recipient" are attribute names of the target object (e.g. reviewer or editor). There are two special cases:
+    - "EO" means to use the EO system user
+    - "director" means to get the director of the journal
+
+    The fields "subject" and "body" are template strings (for django's default template engine).
     """
 
     code: Reminder.ReminderCodes
@@ -94,6 +102,8 @@ class ReminderSetting:
         self.target_obj = target
         if self.actor == "EO":
             actor = get_eo_user(journal)
+        elif self.actor == "director":
+            actor = get_director_user(journal)
         else:
             actor = getattr(self.target_obj, self.actor)
         return actor
@@ -102,19 +112,21 @@ class ReminderSetting:
         self.target_obj = target
         if self.recipient == "EO":
             recipient = get_eo_user(journal)
+        elif self.recipient == "director":
+            recipient = get_director_user(journal)
         else:
             recipient = getattr(self.target_obj, self.recipient)
         return recipient
 
 
-reminders = {
+reminders_configuration = {
     "DEFAULT": {},
 }
 
 
 def new_reminder(reminder: ReminderSetting, journal="DEFAULT"):
     """Auxiliary function to store a reminder in the "reminders" dictionary by its code."""
-    storage = reminders.setdefault(journal, {})
+    storage = reminders_configuration.setdefault(journal, {})
     if reminder.code in storage:
         logger.warning(
             f"Adding settings for reminder {reminder.code} for journal {journal}, but it's already there."
@@ -212,5 +224,166 @@ new_reminder(
     )
 )
 
+new_reminder(
+    ReminderSetting(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+        subject=_("[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Please select reviewer"),
+        body="""Dear editor,
+            please select a reviewer.
+            Bests,
+            EO
+            """,
+        actor="EO",
+        recipient="editor",
+        days_after=10,
+    )
+)
+
+new_reminder(
+    ReminderSetting(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+        subject=_("[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Please select reviewer"),
+        body="""Dear editor,
+            please select a reviewer! N'edemo dei ciò!!!
+            Bests,
+            EO
+            """,
+        actor="EO",
+        recipient="editor",
+        days_after=8,
+    )
+)
+
+new_reminder(
+    ReminderSetting(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+        subject=_(
+            "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Editor is late in selecting a reviewer"
+        ),
+        body="""Dear director,
+            the editor non se movi. Cosa femo?
+            Bests,
+            EO
+            """,
+        actor="EO",
+        recipient="director",
+        days_after=10,
+    )
+)
+
+new_reminder(
+    ReminderSetting(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
+        subject=_("[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Please make a decision"),
+        body="""Dear ,
+
+            Bests,
+            """,
+        actor="EO",
+        recipient="editor",
+        days_after=5,
+    )
+)
+
+new_reminder(
+    ReminderSetting(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
+        subject=_("[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Please make a decision"),
+        body="""Dear ,
+
+            Bests,
+            """,
+        actor="EO",
+        recipient="editor",
+        days_after=8,
+    )
+)
+
+new_reminder(
+    ReminderSetting(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
+        subject=_(
+            "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Editor il late in making a decision"
+        ),
+        body="""Dear ,
+
+            Bests,
+            """,
+        actor="EO",
+        recipient="director",
+        days_after=10,
+    )
+)
+
 # // DEFAULTs ends here!
 # Per-journal custom: new_reminder(..., journal="JCOM")
+
+
+def create_reminder(
+    journal: Journal,
+    target: [ReviewAssignment, EditorAssignment],
+    reminder_code: Reminder.ReminderCodes,
+) -> Reminder:
+    """Auxiliary function that knows how to create a reminder."""
+    storage = reminders_configuration.get(journal.code, reminders_configuration["DEFAULT"])
+    reminder_configuration: ReminderSetting = storage.get(reminder_code)
+
+    # TBD: the current solution means that, in case of a configuration problem (i.e. missing the configuration for some
+    # reminder), the reminder is _not_ created, we log an error and proceed. We could also raise an exception, but this
+    # would disrupt the experience of the user operating the system (e.g. an editor taking a decision).
+    if not reminder_configuration:
+        logger.error(f"No configuration for reminder {reminder_code} ({journal.code}); working on {target}.")
+        return None
+
+    subject = reminder_configuration.get_rendered_subject(target)
+    body = reminder_configuration.get_rendered_body(target)
+    date_due = reminder_configuration.get_date_due(target)
+    actor = reminder_configuration.get_actor(target, journal)
+    recipient = reminder_configuration.get_recipient(target, journal)
+
+    reminder = Reminder.objects.create(
+        code=reminder_configuration.code,
+        message_subject=subject,
+        message_body=body,
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.id,
+        date_due=date_due,
+        clemency_days=reminder_configuration.clemency_days,
+        actor=actor,
+        recipient=recipient,
+    )
+    return reminder
+
+
+def create_EDMD_reminders(review_assignment: ReviewAssignment):  # noqa N802
+    """Nomen omen"""
+    target = EditorAssignment.objects.get(
+        article=review_assignment.article,
+        editor=review_assignment.editor,
+    )
+    journal = review_assignment.article.journal
+    create_reminder(journal, target, Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1)
+    create_reminder(journal, target, Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2)
+    create_reminder(journal, target, Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3)
+    # TODO: drop me before going production:
+    stack = inspect.stack()
+    logger.debug(
+        f"Created editor-should-make-decision reminders for {target} in {stack[2].function}::{stack[1].function}",
+    )
+
+
+def create_EDSR_reminders(review_assignment: ReviewAssignment):  # noqa N802
+    """Nomen omen"""
+    target = EditorAssignment.objects.get(
+        article=review_assignment.article,
+        editor=review_assignment.editor,
+    )
+    journal = review_assignment.article.journal
+    create_reminder(journal, target, Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1)
+    create_reminder(journal, target, Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2)
+    create_reminder(journal, target, Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3)
+    # TODO: drop me before going production:
+    stack = inspect.stack()
+    logger.debug(
+        f"Created editor-should-select-reviewer reminders for {target} in {stack[2].function}::{stack[1].function}",
+    )

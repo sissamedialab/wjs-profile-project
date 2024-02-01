@@ -129,7 +129,6 @@ def test_post_message_form_with_attachment_creates_file(
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
 @pytest.mark.django_db
 def test_message_addressing(
-    review_settings,
     assigned_article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     reviewer: JCOMProfile,
@@ -216,7 +215,6 @@ def test_message_addressing(
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
 @pytest.mark.django_db
 def test_allowed_recipients_for_actor(
-    review_settings,
     assigned_article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,

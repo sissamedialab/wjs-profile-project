@@ -50,7 +50,7 @@ def review_settings(journal, eo_user):
 
 
 @pytest.fixture
-def assigned_article(fake_request, article, section_editor):
+def assigned_article(fake_request, article, section_editor, review_settings):
     """
     Assign an editor to an article.
 
@@ -126,7 +126,6 @@ def review_assignment(
     invited_user: JCOMProfile,  # noqa: F405
     assigned_article: submission_models.Article,  # noqa: F405
     review_form: review_models.ReviewForm,
-    review_settings,
 ) -> ReviewAssignment:
     return _create_review_assignment(
         fake_request=fake_request,

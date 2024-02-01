@@ -2,7 +2,6 @@
 
 Keeping here also anything that we might want to test easily 🙂.
 """
-
 from typing import Optional, Union
 
 from django.contrib.auth import get_user_model
@@ -79,7 +78,7 @@ def get_system_user() -> Account:
     return account
 
 
-def get_eo_user(obj: Union[Article, Journal]):
+def get_eo_user(obj: Union[Article, Journal]) -> Account:
     """Return the EO system user."""
     if isinstance(obj, Article):
         code = obj.journal.code.lower()
@@ -99,6 +98,36 @@ def get_eo_user(obj: Union[Article, Journal]):
         account.groups.add(Group.objects.get(name=GROUP_EO))
         logger.warning(f"Create system EO account {email}")
     return account
+
+
+def get_director_user(obj: Union[Article, Journal]) -> Account:
+    """Return the director of the journal."""
+    if isinstance(obj, Article):
+        journal = obj.journal
+    else:
+        journal = obj
+    # TODO: should we set this somewhere more centralized?
+    director_slug = "director"
+    directors = Account.objects.filter(
+        accountrole__role__slug=director_slug,
+        accountrole__journal=journal,
+    )
+    if len(directors) == 1:
+        return directors.first()
+    elif len(directors) > 1:
+        logger.error(
+            f"Journal {journal.code} has {len(directors)} directors!"
+            " Using the first one and hoping for the best..."
+            " Please enroll only one director (manager -> roles -> director -> view enrolled users)",
+        )
+        return directors.first()
+    else:
+        logger.error(
+            f"Journal {journal.code} has no directors!"
+            " Using the EO system user and hoping for the best..."
+            " Please enrol one director (manager -> enrol users)",
+        )
+        return get_eo_user(obj)
 
 
 def log_silent_operation(article: Article, message_body: str) -> Message:
