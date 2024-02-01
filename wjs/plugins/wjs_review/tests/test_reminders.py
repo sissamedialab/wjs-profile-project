@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Callable
+from typing import Callable, Optional
 
 import freezegun
 import pytest
@@ -10,13 +10,20 @@ from django.http import HttpRequest
 from django.utils import timezone
 from journal import models as journal_models
 from review import models as review_models
+from review.models import ReviewAssignment
 from submission import models as submission_models
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_eo_user
-from ..logic import AssignToEditor, AssignToReviewer, EvaluateReview, create_reminder
+from ..logic import (
+    AssignToEditor,
+    AssignToReviewer,
+    EvaluateReview,
+    HandleDecision,
+    create_reminder,
+)
 from ..models import ArticleWorkflow, Reminder, WorkflowReviewAssignment
 from . import test_helpers
 
@@ -29,7 +36,6 @@ def test_render_template():
 
 @pytest.mark.django_db
 def test_create_a_reminder(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -59,7 +65,8 @@ def test_create_a_reminder(
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
     )
 
-    reminders = Reminder.objects.all()
+    # Remember that the fixture `assigned_article` creates the EDITOR_SHOULD_SELECT_REVIEWER reminders
+    reminders = Reminder.objects.filter(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
     assert reminders.count() == 1
     assert reminders.first() == reminder_obj
 
@@ -72,7 +79,6 @@ def test_create_a_reminder(
 
 @pytest.mark.django_db
 def test_assign_reviewer_creates_reminders(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -81,6 +87,10 @@ def test_assign_reviewer_creates_reminders(
 ):
     """Test that when a reviewers is assigned, reminders are created."""
     fake_request.user = section_editor.janeway_account
+
+    # Let's delete all reminders (e.g. those for the editor created by the `assigned_article` fixture), so that we can
+    # test what comes next easily.
+    Reminder.objects.all().delete()
 
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -115,7 +125,6 @@ def test_assign_reviewer_creates_reminders(
 
 @pytest.mark.django_db
 def test_reminders_know_their_article(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -128,6 +137,10 @@ def test_reminders_know_their_article(
     # - test another batch for a different article (same action)
     # - test a batch for a every action
     fake_request.user = section_editor.janeway_account
+
+    # Let's delete all reminders (e.g. those for the editor created by the `assigned_article` fixture), so that we can
+    # test what comes next easily.
+    Reminder.objects.all().delete()
 
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -164,7 +177,6 @@ def test_send_reminders__no_reminders(
 
 @pytest.mark.django_db
 def test_send_reminders__simple_case(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -179,6 +191,10 @@ def test_send_reminders__simple_case(
     # - test a batch for every action
     # - specifically test a date (a day before, the same day, a day after)
     fake_request.user = section_editor.janeway_account
+
+    # Let's delete all reminders (e.g. those for the editor created by the `assigned_article` fixture), so that we can
+    # test what comes next easily.
+    Reminder.objects.all().delete()
 
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -207,7 +223,6 @@ def test_send_reminders__simple_case(
 
 @pytest.mark.django_db
 def test_reviewer_accepts__deletes_some_reminders(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -216,6 +231,10 @@ def test_reviewer_accepts__deletes_some_reminders(
 ):
     """Test that when a reviewer accepts an assignments the ESR reminders for that assignment are deleted."""
     fake_request.user = section_editor.janeway_account
+
+    # Let's delete all reminders (e.g. those for the editor created by the `assigned_article` fixture), so that we can
+    # test what comes next easily.
+    Reminder.objects.all().delete()
 
     service__assign_reviewer = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -251,49 +270,515 @@ def test_reviewer_accepts__deletes_some_reminders(
     assert r_2.recipient == service__evaluate_review.editor
 
 
+class TestReviewerDeclines:
+    """What happens when a reviewer declines an assignment.
+
+    See https://gitlab.sissamedialab.it/wjs/specs/-/issues/619#implementation-details
+
+    Different situations that require different behavior:
+    - at least one assigment completed (i.e. there is a review)
+    - no other assignement completed (i.e. there are no review)
+      - at least one assignment pending (i.e. the paper is assigned to at least one reviewer)
+      - no other assignement pending
+    """
+
+    @pytest.mark.django_db
+    def test__one_other_assignment_completed(
+        self,
+        fake_request: HttpRequest,
+        section_editor: JCOMProfile,
+        director: JCOMProfile,
+        normal_user: JCOMProfile,
+        create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+        assigned_article: submission_models.Article,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+    ):
+        """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
+        # TODO: remove me! Sanity check: (twin with test_paper_assignment_create_reminders_for_editor)
+        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+            article=assigned_article,
+            editor=section_editor,
+        )
+        editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            ],
+        )
+        assert editor_reminders.count() == 3
+
+        fake_request.user = section_editor.janeway_account
+        review_assignment: review_models.ReviewAssignment = (
+            AssignToReviewer(
+                workflow=assigned_article.articleworkflow,
+                reviewer=normal_user.janeway_account,
+                editor=section_editor.janeway_account,
+                form_data={
+                    "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                    "message": "random message",
+                    "author_note_visible": False,
+                },
+                request=fake_request,
+            )
+            .run()
+            .reviewassignment_ptr
+        )
+
+        # Sanity check: we should now have no reminders for the editor and three for the reviewer
+        assert (
+            Reminder.objects.filter(
+                content_type=ContentType.objects.get_for_model(review_assignment),
+                object_id=review_assignment.id,
+                code__in=[
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+                ],
+            ).count()
+            == 3
+        )
+        assert Reminder.objects.all().count() == 3
+
+        # Let's assign to another reviewer and let this reviewer complete the review
+        bernardos_review_assignment = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=create_jcom_user("Bernardo Da Corleone").janeway_account,
+            editor=section_editor.janeway_account,
+            form_data={
+                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
+        test_helpers._submit_review(
+            review_assignment=bernardos_review_assignment,
+            review_form=review_form,
+            fake_request=fake_request,
+        )
+
+        # Now we go back to the first reviewer, who is a bad person and declines our kind request 😠
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            form_data={"reviewer_decision": "0"},
+            request=fake_request,
+            token="",
+        ).run()
+
+        # This one reviewer declined the assignement _but_ Bernardo completed his review.
+        # There should be _no_ reminders for the editor yet.
+        new_editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
+            ],
+        )
+        assert new_editor_reminders.count() == 3
+
+    @pytest.mark.django_db
+    def test__no_other_assignment_completed__one_pending(
+        self,
+        fake_request: HttpRequest,
+        section_editor: JCOMProfile,
+        director: JCOMProfile,
+        normal_user: JCOMProfile,
+        create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+        assigned_article: submission_models.Article,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+    ):
+        """Test that reminders for the reviewer are deleted and reminders for the editor are _not_ created."""
+        # TODO: remove me! Sanity check: (twin with test_paper_assignment_create_reminders_for_editor)
+        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+            article=assigned_article,
+            editor=section_editor,
+        )
+        editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            ],
+        )
+        assert editor_reminders.count() == 3
+
+        fake_request.user = section_editor.janeway_account
+        review_assignment: review_models.ReviewAssignment = (
+            AssignToReviewer(
+                workflow=assigned_article.articleworkflow,
+                reviewer=normal_user.janeway_account,
+                editor=section_editor.janeway_account,
+                form_data={
+                    "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                    "message": "random message",
+                    "author_note_visible": False,
+                },
+                request=fake_request,
+            )
+            .run()
+            .reviewassignment_ptr
+        )
+
+        # Sanity check: we should now have no reminders for the editor and three for the reviewer
+        assert (
+            Reminder.objects.filter(
+                content_type=ContentType.objects.get_for_model(review_assignment),
+                object_id=review_assignment.id,
+                code__in=[
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+                ],
+            ).count()
+            == 3
+        )
+        assert Reminder.objects.all().count() == 3
+
+        # Let's assign to another reviewer and let this reviewer do nothing (i.e. we make another pending assignment)
+        AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=create_jcom_user("Bernardo Da Corleone").janeway_account,
+            editor=section_editor.janeway_account,
+            form_data={
+                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
+
+        # Now we go back to the first reviewer, who is a bad person and declines our kind request 😠
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            form_data={"reviewer_decision": "0"},
+            request=fake_request,
+            token="",
+        ).run()
+
+        # This one reviewer declined the assignement _but_ there still is Bernardo's assignment pending.
+        # There should be no reminders for the editor.
+        new_editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            ],
+        )
+        assert new_editor_reminders.count() == 0
+
+    @pytest.mark.django_db
+    def test__no_other_assignment_completed__none_pending(
+        self,
+        fake_request: HttpRequest,
+        section_editor: JCOMProfile,
+        director: JCOMProfile,
+        normal_user: JCOMProfile,
+        assigned_article: submission_models.Article,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+    ):
+        """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
+        # Sanity check: (twin with test_paper_assignment_create_reminders_for_editor)
+        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+            article=assigned_article,
+            editor=section_editor,
+        )
+        editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            ],
+        )
+        assert editor_reminders.count() == 3
+
+        fake_request.user = section_editor.janeway_account
+        review_assignment: review_models.ReviewAssignment = (
+            AssignToReviewer(
+                workflow=assigned_article.articleworkflow,
+                reviewer=normal_user.janeway_account,
+                editor=section_editor.janeway_account,
+                form_data={
+                    "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                    "message": "random message",
+                    "author_note_visible": False,
+                },
+                request=fake_request,
+            )
+            .run()
+            .reviewassignment_ptr
+        )
+
+        # Sanity check: we should now have no reminders for the editor and three for the reviewer
+        assert (
+            Reminder.objects.filter(
+                content_type=ContentType.objects.get_for_model(review_assignment),
+                object_id=review_assignment.id,
+                code__in=[
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+                    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+                ],
+            ).count()
+            == 3
+        )
+        assert Reminder.objects.all().count() == 3
+
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            form_data={"reviewer_decision": "0"},
+            request=fake_request,
+            token="",
+        ).run()
+
+        # The only reviewer declined the assignement and there is nothing else.
+        # There should be three "new" reminders for the editor
+        new_editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            ],
+        )
+        assert new_editor_reminders.count() == 3
+        assert new_editor_reminders.order_by(
+            "id",
+        ).values_list(
+            "id",
+            flat=True,
+        ) != editor_reminders.order_by(
+            "id",
+        ).values_list(
+            "id",
+            flat=True,
+        )
+        assert Reminder.objects.count() == 3
+
+
+class TestReviewerSubmits:
+    """What happens when a reviewer submits an assignment.
+
+    We should create the editor-should-make-decision reminders only if there are not other pending assignments.
+
+    """
+
+    @pytest.mark.django_db
+    def test__only_one_assignment(
+        self,
+        fake_request: HttpRequest,
+        section_editor: JCOMProfile,
+        director: JCOMProfile,
+        normal_user: JCOMProfile,
+        create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+        review_assignment: ReviewAssignment,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+    ):
+        """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
+        assigned_article = review_assignment.article
+        # Sanity check:
+        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+            article=assigned_article,
+            editor=section_editor,
+        )
+        editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+        )
+        assert not editor_reminders.exists()
+
+        # NB: review_assignment is really a WorkflowReviewAssignment!
+        review_assignment = review_assignment.reviewassignment_ptr
+        reviewer_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.id,
+        )
+        # The reviewers has not yet accepted the assignment
+        assert reviewer_reminders.count() == 3
+        assert list(reviewer_reminders.order_by("code").values_list("code", flat=True)) == [
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1.value,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2.value,
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3.value,
+        ]
+
+        # This is the interesting part: the reviewer submits his review and reminders magically change!
+        fake_request.user = review_assignment.reviewer
+        test_helpers._submit_review(review_assignment, review_form, fake_request, submit_final=True)
+
+        # And these are the important tests:
+        editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+        )
+        assert editor_reminders.count() == 3
+        assert list(editor_reminders.order_by("code").values_list("code", flat=True)) == [
+            Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1.value,
+            Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2.value,
+            Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3.value,
+        ]
+        reviewer_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.id,
+        )
+        assert not reviewer_reminders.exists()
+
+    @pytest.mark.django_db
+    def test__two_assignment__first_declined(
+        self,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+        director: JCOMProfile,
+        create_jcom_user: Callable,
+        assigned_article: submission_models.Article,
+        fake_request: HttpRequest,
+    ):
+        """Test that editor-should-make-decision reminder are created only after the last review is submitted."""
+        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+            article=assigned_article,
+        )
+        editor = editor_assignment.editor
+        fake_request.user = editor
+        r1 = create_jcom_user("Rev Aone").janeway_account
+        r2 = create_jcom_user("Rev Atwo").janeway_account
+        review_assignment_r1 = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=r1,
+            editor=editor,
+            form_data={
+                "acceptance_due_date": timezone.now().date(),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
+        review_assignment_r2 = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=r2,
+            editor=editor,
+            form_data={
+                "acceptance_due_date": timezone.now().date(),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
+
+        # Now that we have two review assignments, let the first decline...
+        EvaluateReview(
+            assignment=review_assignment_r1,
+            reviewer=r1,
+            editor=editor,
+            form_data={"reviewer_decision": "0"},
+            request=fake_request,
+            token="",
+        ).run()
+        assert not Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+        ).exists()
+
+        # ... and not the interesting part: after the second reviewer submits his review, there is one submitted review
+        # and no more pending reviews, so the editor-should-make-decision reminders are created.
+        test_helpers._submit_review(review_assignment_r2, review_form, fake_request)
+        assert (
+            Reminder.objects.filter(
+                content_type=ContentType.objects.get_for_model(editor_assignment),
+                object_id=editor_assignment.id,
+                code__in=[
+                    Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1.value,
+                    Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2.value,
+                    Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3.value,
+                ],
+            ).count()
+            == 3
+        )
+
+    @pytest.mark.django_db
+    def test__two_assignment__first_submitted(
+        self,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+        director: JCOMProfile,
+        create_jcom_user: Callable,
+        assigned_article: submission_models.Article,
+        fake_request: HttpRequest,
+    ):
+        """Test editor-should-make-decision reminders are not created if there is a pending assignment."""
+        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+            article=assigned_article,
+        )
+        editor = editor_assignment.editor
+        fake_request.user = editor
+        r1 = create_jcom_user("Rev Aone").janeway_account
+        r2 = create_jcom_user("Rev Atwo").janeway_account
+        review_assignment_r1 = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=r1,
+            editor=editor,
+            form_data={
+                "acceptance_due_date": timezone.now().date(),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
+        AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=r2,
+            editor=editor,
+            form_data={
+                "acceptance_due_date": timezone.now().date(),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
+
+        test_helpers._submit_review(review_assignment_r1, review_form, fake_request)
+        assert (
+            Reminder.objects.filter(
+                content_type=ContentType.objects.get_for_model(editor_assignment),
+                object_id=editor_assignment.id,
+            ).count()
+            == 0
+        )
+
+
 @pytest.mark.django_db
-def test_reviewer_declines__deletes_reminders(
-    review_settings,
+def test_paper_assignment_create_reminders_for_editor(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
-    review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
 ):
-    """Test that when a reviewer declines an assignments all reminders for that assignment are deleted."""
-    fake_request.user = section_editor.janeway_account
-
-    service__assign_reviewer = AssignToReviewer(
-        workflow=assigned_article.articleworkflow,
-        reviewer=normal_user.janeway_account,
-        editor=section_editor.janeway_account,
-        form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
-            "message": "random message",
-            "author_note_visible": False,
-        },
-        request=fake_request,
+    """Test that when a paper is assigned to an editor, reminders are created for the editor to select reviewers."""
+    # The `assigned_article` fixture already performed the assignment, so we just check the reminders
+    editor_assignment = review_models.EditorAssignment.objects.get(article=assigned_article, editor=section_editor)
+    reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(editor_assignment),
+        object_id=editor_assignment.id,
     )
-
-    assert not Reminder.objects.exists()
-    service__assign_reviewer.run()
-    assert Reminder.objects.count() == 3
-
-    service__evaluate_review = EvaluateReview(
-        assignment=service__assign_reviewer.assignment,
-        reviewer=service__assign_reviewer.reviewer,
-        editor=service__assign_reviewer.editor,
-        form_data={"reviewer_decision": "0"},
-        request=fake_request,
-        token="",
-    )
-    service__evaluate_review.run()
-    assert Reminder.objects.count() == 0
+    assert reminders.count() == 3
+    # TODO: expand me!
 
 
 @pytest.mark.django_db
 def test_reminders_handling_for_reviewer_cycle(
-    review_settings,
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
@@ -302,6 +787,10 @@ def test_reminders_handling_for_reviewer_cycle(
 ):
     """Test the creation/deletion of reminders on a full cycle or reviewer assigned-accept-report."""
     fake_request.user = section_editor.janeway_account
+
+    # Let's delete all reminders (e.g. those for the editor created by the `assigned_article` fixture), so that we can
+    # test what comes next easily.
+    Reminder.objects.all().delete()
 
     service__assign_reviewer = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -365,7 +854,26 @@ def test_reminders_handling_for_reviewer_cycle(
         review_form=review_form,
         fake_request=fake_request,
     )
-    assert Reminder.objects.count() == 0
+    # I'm checking only the reminders for the reviewer, because I should have some other rimenders for the editor.
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(assignment),
+            object_id=assignment.id,
+        ).count()
+        == 0
+    )
+    assert (
+        Reminder.objects.filter(
+            code__in=[
+                Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+                Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+                Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+                Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
+                Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
+            ],
+        ).count()
+        == 0
+    )
 
 
 @pytest.mark.django_db
@@ -551,3 +1059,71 @@ def test_two_papers_three_reviewers(
             object_id=assignment_B_r1.id,
         )
         assert esr1_for_rb1.date_sent.date() == t3
+
+
+class TestEditorDecides:
+    """What happens when an editor makes a decision.
+
+    As per specs#619, in all cases, we should just delete the editor reminders:
+    - accept article
+    - decline (i.e. reject) article
+    - deem paper not suitable
+    - request revision
+      - major
+      - minor
+      - technical  <-- even here we don't keep reminders for the editor, because the author should act!
+
+    Existing ReviewAssignments in any state (open, declined or completed) do not play a role here, so I'm not testing
+    any combination of decision x ReviewAssignment-state.
+
+    """
+
+    @pytest.mark.parametrize(
+        "decision",
+        (
+            ArticleWorkflow.Decisions.ACCEPT,
+            ArticleWorkflow.Decisions.REJECT,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+            # TODO: ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        ),
+    )
+    @pytest.mark.django_db
+    def test__all_decisions__no_reviews(
+        self,
+        fake_request: HttpRequest,
+        director: JCOMProfile,
+        normal_user: JCOMProfile,
+        assigned_article: submission_models.Article,
+        review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+        decision: str,
+    ):
+        """Test that reminders for the editor are deleted."""
+        editor_assignment = assigned_article.editorassignment_set.first()
+        section_editor = editor_assignment.editor
+        fake_request.user = section_editor
+        form_data = {
+            "decision": decision,
+            "decision_editor_report": "random message",
+            "decision_internal_note": "random internal message",
+            "withdraw_notice": "notice",
+        }
+        if decision not in (
+            ArticleWorkflow.Decisions.ACCEPT,
+            ArticleWorkflow.Decisions.REJECT,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+        ):
+            form_data["date_due"] = timezone.now().date() + datetime.timedelta(days=7)
+        handle = HandleDecision(
+            workflow=assigned_article.articleworkflow,
+            form_data=form_data,
+            user=section_editor,
+            request=fake_request,
+        )
+        handle.run()
+        assigned_article.refresh_from_db()
+        assert not Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+        ).exists()

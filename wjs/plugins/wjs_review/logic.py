@@ -37,6 +37,12 @@ from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
 from .reminders.models import Reminder
+from .reminders.settings import (
+    create_EDMD_reminders,
+    create_EDSR_reminders,
+    create_reminder,
+)
+from .utils import get_other_review_assignments_for_this_round
 
 if TYPE_CHECKING:
     from .forms import ReportForm
@@ -50,41 +56,9 @@ from .models import (
     Message,
     WorkflowReviewAssignment,
 )
-from .reminders.settings import ReminderSetting, reminders
 
 logger = get_logger(__name__)
 Account = get_user_model()
-
-
-def create_reminder(journal: Journal, target, reminder_code) -> Reminder:
-    """Auxiliary function that knows how to create a reminder."""
-    # TODO: move to reminders.utils? (cannot move to reminders.__init__ because of circular import)
-    storage = reminders.get(journal.code, reminders["DEFAULT"])
-    reminder: ReminderSetting = storage.get(reminder_code)
-
-    # try/except?: TODO: manage exceptions elsewhere
-    if not reminder:
-        logger.error("AAAHHHH...")
-        return None
-
-    subject = reminder.get_rendered_subject(target)
-    body = reminder.get_rendered_body(target)
-    date_due = reminder.get_date_due(target)
-    actor = reminder.get_actor(target, journal)
-    recipient = reminder.get_recipient(target, journal)
-
-    obj = Reminder.objects.create(
-        code=reminder.code,
-        message_subject=subject,
-        message_body=body,
-        content_type=ContentType.objects.get_for_model(target),
-        object_id=target.id,
-        date_due=date_due,
-        clemency_days=reminder.clemency_days,
-        actor=actor,
-        recipient=recipient,
-    )
-    return obj
 
 
 @dataclasses.dataclass
@@ -172,17 +146,37 @@ class AssignToEditor:
             message_type=Message.MessageTypes.VERBOSE,
         )
 
+    def _create_editor_should_select_reviewer_reminders(self):
+        """Create reminders for the editor to select a reviewer."""
+        target = self.assignment
+        create_reminder(
+            self.workflow.article.journal,
+            target,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+        )
+        create_reminder(
+            self.workflow.article.journal,
+            target,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+        )
+        create_reminder(
+            self.workflow.article.journal,
+            target,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+        )
+
     def run(self) -> ArticleWorkflow:
         with transaction.atomic():
             self._create_workflow()
             if not self._check_conditions():
                 raise ValueError("Invalid state transition")
             # We save the assignment here because it's used by _get_message_context() to create the context
-            # to be passed to _log_operation()
+            # to be passed to _log_operation(), and other places
             self.assignment = self._assign_editor()
             self._update_state()
             context = self._get_message_context()
             self._log_operation(context=context)
+            self._create_editor_should_select_reviewer_reminders()
         return self.workflow
 
 
@@ -331,6 +325,26 @@ class AssignToReviewer:
             Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
         )
 
+    def _delete_editorselectreviewer_reminders(self):
+        """Delete reminders for the editor to select a reviewer."""
+        editor_assignment: EditorAssignment = EditorAssignment.objects.get(
+            editor=self.assignment.editor,
+            article=self.assignment.article,
+        )
+        Reminder.objects.filter(
+            code__in=[
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            ],
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+        ).delete()
+        logger.debug(
+            "Deleted editor-should-select-reviewer reminders"
+            f" for {editor_assignment} in {self._delete_editorselectreviewer_reminders.__qualname__}",
+        )
+
     def run(self) -> WorkflowReviewAssignment:
         # TODO: verificare in futuro se controllare assegnazione multiupla allo stesso reviewer quando si saranno
         #       decisi i meccanismi digestione dei round e delle versioni
@@ -356,6 +370,7 @@ class AssignToReviewer:
             context = self._get_message_context()
             self._log_operation(context=context)
             self._create_reviewevaluate_reminders()
+            self._delete_editorselectreviewer_reminders()
         return self.assignment
 
 
@@ -446,8 +461,36 @@ class EvaluateReview:
         self._janeway_logic_handle_decline()
         self._log_decline()
         self._delete_reviewevaluate_reminders()
+        self._create_editor_reminders_maybe()
         if self.assignment.date_declined:
             return False
+
+    def _create_editor_reminders_maybe(self):
+        """Create reminders for the editor.
+
+        When, for the current review round,
+        - at least one completed review exists ⮕ create editor-should-make-decision reminders
+        - no completed or pending review exist ⮕ create editor-should-assign-reviewer reminders
+
+        """
+        # TODO: to be dropped in wjs-profile-project#59
+        if isinstance(self.assignment, WorkflowReviewAssignment):
+            import inspect
+
+            # stack()[1] is probably always self.run(), or intermediate, I'm interested in who's upstream
+            callee = inspect.stack()[4]
+            logger.warning(f"Unexpected type for {self.assignment}. Called by {callee.function}::{callee.lineno}")
+            review_assignment = self.assignment.reviewassignment_ptr
+        else:
+            review_assignment = self.assignment
+
+        other_assignments = get_other_review_assignments_for_this_round(review_assignment)
+        if other_assignments.filter(is_complete=True, date_declined__isnull=True).exists():
+            # ≊ article.completed_reviews
+            create_EDMD_reminders(review_assignment)
+        elif not other_assignments.filter(is_complete=False, date_declined__isnull=True).exists():
+            # ≊ article.active_reviews
+            create_EDSR_reminders(review_assignment)
 
     def _delete_reviewevaluate_reminders(self):
         """Delete reminders related to the evaluation of this review request."""
@@ -818,6 +861,32 @@ class SubmitReview:
             object_id=target.id,
         ).delete()
 
+    def _create_editor_should_make_decision_reminders_maybe(self):
+        """Create reminders for the editor to make a decision.
+
+        Only when, for the current review round, there is no other pending assignment.
+
+        The editor could also select another reviewer, but since the most important action is to make a decision, we
+        should create reminders for that action.
+
+        """
+        # TODO: to be dropped in wjs-profile-project#59
+        if isinstance(self.assignment, WorkflowReviewAssignment):
+            import inspect
+
+            # stack()[1] is probably always self.run(), or intermediate, I'm interested in who's upstream
+            callee = inspect.stack()[4]
+            logger.warning(f"Unexpected type for {self.assignment}. Called by {callee.function}::{callee.lineno}")
+            review_assignment = self.assignment.reviewassignment_ptr
+        else:
+            review_assignment = self.assignment
+
+        other_assignments = get_other_review_assignments_for_this_round(review_assignment)
+        if not other_assignments.filter(is_complete=False, date_declined__isnull=True).exists():
+            # ≊ article.active_reviews.
+            # NB: don't use Janeway's article.active_reviews since it includes "withdrawn" reviews.
+            create_EDMD_reminders(review_assignment)
+
     def run(self):
         with transaction.atomic():
             assignment = self._upload_files(self.assignment, self.request)
@@ -826,6 +895,7 @@ class SubmitReview:
             self._trigger_complete_event(assignment, self.request, self.submit_final)
             self._log_operation()
             self._delete_reviewreport_reminders()
+            self._create_editor_should_make_decision_reminders_maybe()
             return assignment
 
 
@@ -1057,6 +1127,7 @@ class HandleDecision:
 
         context = self._get_message_context()
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_ACCEPTED, context)
+        self._withdraw_unfinished_review_requests(email_context=context)
         self._log_accept(context)
         self._trigger_workflow_event()
         return self.workflow.article
@@ -1081,6 +1152,7 @@ class HandleDecision:
 
         context = self._get_message_context()
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
+        self._withdraw_unfinished_review_requests(email_context=context)
         self._log_decline(context)
         return self.workflow.article
 
@@ -1100,19 +1172,9 @@ class HandleDecision:
 
         context = self._get_message_context()
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
+        self._withdraw_unfinished_review_requests(email_context=context)
         self._log_not_suitable(context)
         return self.workflow.article
-
-    def _close_unsubmitted_reviews(self):
-        """
-        Mark all non completed reviews are as declined and closed.
-        """
-        for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
-            # FIXME: Is this the right state?
-            assignment.date_declined = timezone.now()
-            assignment.is_complete = True
-            assignment.save()
-            # TODO: Should we email reviewers to inform them that the review is closed?
 
     def _revision_article(self):
         """
@@ -1185,6 +1247,20 @@ class HandleDecision:
         )
         return decision
 
+    def _delete_editor_reminders(self):
+        """Delete all reminders for the editor.
+
+        When the editor makes a decision, he is done.
+        """
+        editor_assignment: EditorAssignment = EditorAssignment.objects.get(
+            editor=self.user,
+            article=self.workflow.article,
+        )
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(editor_assignment),
+            object_id=editor_assignment.id,
+        ).delete()
+
     def run(self) -> EditorDecision:
         with transaction.atomic():
             conditions = self.check_conditions()
@@ -1194,8 +1270,7 @@ class HandleDecision:
             handler = self._decision_handlers.get(self.form_data["decision"], None)
             if handler:
                 getattr(self, handler)()
-            if self.form_data["decision"]:
-                self._close_unsubmitted_reviews()
+                self._delete_editor_reminders()
             return decision
 
 
@@ -1271,7 +1346,7 @@ class HandleMessage:
             # - all editors, e.g. article.editorassignment_set.all()
             #
             # NB: editor assignments do not have a direct reference to a review_round (this is a wjs concept). But we
-            # can use review assignments, that have a direct referenc to both editor and review_round.
+            # can use review assignments, that have a direct reference to both editor and review_round.
             others.append(
                 Account.objects.filter(
                     id__in=article.reviewassignment_set.filter(
