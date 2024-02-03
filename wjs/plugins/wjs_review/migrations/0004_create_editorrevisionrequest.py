@@ -2,6 +2,7 @@
 
 import django.db.models.deletion
 from django.db import migrations, models
+from review.const import EditorialDecisions
 
 
 class Migration(migrations.Migration):
@@ -17,8 +18,9 @@ class Migration(migrations.Migration):
                 choices=[
                     ("accept", "Accept"),
                     ("reject", "Reject"),
-                    ("minorRevision", "Minor revision"),
-                    ("majorRevision", "Major revision"),
+                    (EditorialDecisions.MINOR_REVISIONS, "Minor revision"),
+                    (EditorialDecisions.MAJOR_REVISIONS, "Major revision"),
+                    (EditorialDecisions.TECHNICAL_REVISIONS, "Technical revision"),
                     ("not_suitable", "Not suitable"),
                 ],
                 max_length=255,

@@ -175,6 +175,12 @@ def get_requested_date(user, article):
 
 
 @register.filter
+def active_revision_request(article: Article) -> Optional[QuerySet[LogEntry]]:
+    """Return the active revision request for the given article."""
+    return article.active_revision_requests()
+
+
+@register.filter
 def review_assignment_request_message(assignment: ReviewAssignment):
     """Return the "invitation" message sent by an editor to a reviewer to ask for a review."""
     # These email messages are stored as LogEntries.

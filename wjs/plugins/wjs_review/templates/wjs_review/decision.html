@@ -71,7 +71,7 @@
   <script>
     function checkDateVisibility(decision)
     {
-      if(["minorRevision", "majorRevision"].indexOf(decision.selectedOptions[0].value) > -1) {
+      if(["minor_revisions", "major_revisions", "tech_revisions"].indexOf(decision.selectedOptions[0].value) > -1) {
         document.querySelector('.date-due').classList.remove('visually-hidden')
       } else {
         document.querySelector('.date-due').classList.add('visually-hidden')

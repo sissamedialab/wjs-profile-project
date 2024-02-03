@@ -1,0 +1,19 @@
+{% load django_bootstrap5 files %}
+    {% if meta_data_form %}
+    <form method="post" id="do_revision">
+        {% csrf_token %}
+        <div class="card my-4">
+            <div class="card-body">
+                <h3 class="card-title">Metadata</h3>
+                {% bootstrap_form_errors meta_data_form layout='inline' %}
+                {% bootstrap_field meta_data_form.title %}
+                {% bootstrap_field meta_data_form.abstract %}
+
+                {% bootstrap_button button_type="submit" name="save_metadata" value=1 content="Submit meta data" %}
+                {% if meta_data_form.is_valid %}
+                    To confirm the submission of the meta data, please provide the cover letter and Click "Submit revision" below
+                {% endif %}
+            </div>
+        </div>
+    </form>
+{% endif %}

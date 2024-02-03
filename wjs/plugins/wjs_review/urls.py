@@ -5,6 +5,7 @@ from .views import (
     ArticleDecision,
     ArticleDetails,
     ArticleMessages,
+    ArticleRevisionUpdate,
     AuthorArchived,
     AuthorPending,
     EOArchived,
@@ -60,7 +61,12 @@ urlpatterns = [
         name="wjs_evaluate_review",
     ),
     path("review/<int:assignment_id>/declined/", ReviewDeclined.as_view(), name="wjs_declined_review"),
-    path("revision/<int:revision_id>/upload/", UploadRevisionAuthorCoverLetterFile.as_view(), name="wjs_upload_file"),
+    path("article/<int:article_id>/revision/<int:revision_id>/", ArticleRevisionUpdate.as_view(), name="do_revisions"),
+    path(
+        "article/<int:article_id>/revision/<int:revision_id>/upload/",
+        UploadRevisionAuthorCoverLetterFile.as_view(),
+        name="wjs_upload_file",
+    ),
     path("messages/<int:article_id>/", ArticleMessages.as_view(), name="wjs_article_messages"),
     path("messages/<int:article_id>/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
     path(
