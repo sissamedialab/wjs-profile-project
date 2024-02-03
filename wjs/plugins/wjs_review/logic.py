@@ -25,7 +25,6 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
-from review.const import EditorialDecisions
 from review.logic import assign_editor, quick_assign
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from review.views import upload_review_file
@@ -765,10 +764,6 @@ class SubmitReview:
                 **kwargs,
             )
 
-    # TODO: Use this method
-    # TODO: The idea is to make the context variables as flat as possible, but in this
-    # stage of development the settings themselves that are already in Janeway are not
-    # to be modified, as we don't know yet the content we want.
     def _get_editor_message_context(self) -> Dict[str, Any]:
         return {
             "article": self.assignment.article,
@@ -777,10 +772,6 @@ class SubmitReview:
             "review_assignment": self.assignment,
         }
 
-    # TODO: Use this method
-    # TODO: The idea is to make the context variables as flat as possible, but in this
-    # stage of development the settings themselves that are already in Janeway are not
-    # to be modified, as we don't know yet the content we want.
     def _get_reviewer_message_context(self) -> Dict[str, Any]:
         return {
             "article": self.assignment.article,
@@ -789,10 +780,14 @@ class SubmitReview:
             "review_assignment": self.assignment,
         }
 
-    # There are two messages/mails that are sent when a reviewer completes a review:
-    # - To the reviewer(s) (settings: {subject_,}review_complete_reviewer_acknowledgement)
-    # - To the editor(s): (settings: {subject_,}review_complete_acknowledgement)
     def _log_operation(self):
+        """
+        Send messages at the end of the review process.
+
+        There are two messages/mails that are sent when a reviewer completes a review:
+        - To the reviewer(s) (settings: {subject_,}review_complete_reviewer_acknowledgement)
+        - To the editor(s): (settings: {subject_,}review_complete_acknowledgement)
+        """
         # Message to the reviewer
         reviewer_message_subject = get_setting(
             setting_group_name="email_subject",
@@ -900,6 +895,104 @@ class SubmitReview:
 
 
 @dataclasses.dataclass
+class AuthorHandleRevision:
+    revision: EditorRevisionRequest
+    form_data: Dict[str, Any]
+    user: Account
+    request: HttpRequest
+
+    def _confirm_revision(self):
+        self.revision.date_completed = timezone.now()
+        self.revision.save()
+
+    @staticmethod
+    def _trigger_complete_event(revision: EditorRevisionRequest, request: HttpRequest):
+        """Trigger the ON_REVIEW_COMPLETE event to comply with upstream review workflow."""
+        kwargs = {
+            "revision": revision,
+            "request": request,
+        }
+        events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
+
+    def _get_revision_submission_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.revision.article,
+            "request": self.request,
+            "skip": False,
+            "revision": self.revision,
+        }
+
+    def _notify_reviewers(self):
+        """
+        Send notifications to all reviewers of unsubmitted revisions.
+
+        Unsubmitted reviews are available only in case of technical revisions, because for major / minor revisions
+        reviewers are withdrawn when requesting the revision.
+        """
+        reviewer_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_submission_subject",
+            journal=self.revision.article.journal,
+        ).processed_value
+        reviewer_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_submission_message",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        message_type = Message.MessageTypes.VERBOSE
+
+        for assignment in self.revision.article.active_revision_requests():
+            communication_utils.log_operation(
+                actor=self.revision.editor,
+                article=self.revision.article,
+                message_subject=reviewer_message_subject,
+                message_body=reviewer_message_body,
+                recipients=[assignment.reviewer],
+                message_type=message_type,
+            )
+
+    def _notify_editor(self):
+        """Send notification to the editor."""
+        reviewer_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_submission_subject",
+            journal=self.revision.article.journal,
+        ).processed_value
+        reviewer_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_submission_message",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        message_type = Message.MessageTypes.VERBOSE
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.revision.article,
+            message_subject=reviewer_message_subject,
+            message_body=reviewer_message_body,
+            recipients=[self.revision.editor],
+            message_type=message_type,
+        )
+
+    def _log_operation(self):
+        """Send notifications to editor and reviewers."""
+        self._notify_reviewers()
+        self._notify_editor()
+
+    def run(self):
+        with transaction.atomic():
+            self._confirm_revision()
+            self._trigger_complete_event(self.revision, self.request)
+            self._log_operation()
+            return self.revision
+
+
+@dataclasses.dataclass
 class HandleDecision:
     workflow: ArticleWorkflow
     form_data: Dict[str, Any]
@@ -912,6 +1005,7 @@ class HandleDecision:
         ArticleWorkflow.Decisions.NOT_SUITABLE: "_not_suitable_article",
         ArticleWorkflow.Decisions.MINOR_REVISION: "_revision_article",
         ArticleWorkflow.Decisions.MAJOR_REVISION: "_revision_article",
+        ArticleWorkflow.Decisions.TECHNICAL_REVISION: "_technical_revision_article",
     }
 
     @staticmethod
@@ -967,16 +1061,9 @@ class HandleDecision:
         if revision:
             context.update(
                 {
-                    "major_revision": revision.type
-                    in (
-                        ArticleWorkflow.Decisions.MAJOR_REVISION.value,
-                        EditorialDecisions.MAJOR_REVISIONS.value,
-                    ),
-                    "minor_revision": revision.type
-                    in (
-                        ArticleWorkflow.Decisions.MINOR_REVISION.value,
-                        EditorialDecisions.MINOR_REVISIONS.value,
-                    ),
+                    "major_revision": revision.type == ArticleWorkflow.Decisions.MAJOR_REVISION,
+                    "minor_revision": revision.type == ArticleWorkflow.Decisions.MINOR_REVISION,
+                    "tech_revision": revision.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION,
                 },
             )
         else:
@@ -984,16 +1071,20 @@ class HandleDecision:
                 {
                     "major_revision": False,
                     "minor_revision": False,
+                    "tech_revision": False,
                 },
             )
         return context
 
     def _log_accept(self, context: Dict[str, Any]):
-        accept_message_subject = get_setting(
+        accept_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_decision_accept",
             journal=self.workflow.article.journal,
-        ).processed_value
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         accept_message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_decision_accept",
@@ -1012,11 +1103,14 @@ class HandleDecision:
         )
 
     def _log_decline(self, context):
-        decline_message_subject = get_setting(
+        decline_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_decision_decline",
             journal=self.workflow.article.journal,
-        ).processed_value
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         decline_message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_decision_decline",
@@ -1035,11 +1129,14 @@ class HandleDecision:
         )
 
     def _log_not_suitable(self, context):
-        not_suitable_message_subject = get_setting(
+        not_suitable_message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="review_decision_not_suitable_subject",
             journal=self.workflow.article.journal,
-        ).processed_value
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         not_suitable_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="review_decision_not_suitable_body",
@@ -1080,6 +1177,32 @@ class HandleDecision:
             message_subject=revision_request_message_subject,
             recipients=[self.workflow.article.correspondence_author],
             message_body=revision_request_message_body,
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
+    def _log_technical_revision_request(self, context: Dict[str, str]):
+        technical_revision_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="technical_revision_subject",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context={"article": self.workflow.article},
+            template_is_setting=True,
+        )
+        technical_revision_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="technical_revision_body",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.workflow.article,
+            message_subject=technical_revision_subject,
+            recipients=[self.workflow.article.correspondence_author],
+            message_body=technical_revision_body,
             message_type=Message.MessageTypes.VERBOSE,
         )
 
@@ -1176,6 +1299,31 @@ class HandleDecision:
         self._log_not_suitable(context)
         return self.workflow.article
 
+    def _technical_revision_article(self):
+        """
+        Ask for article technical revision.
+
+        - Create EditorRevisionRequest
+        - Store historical article metadata / files
+        - Send notification to author
+        """
+        self.workflow.editor_writes_editor_report()
+        self.workflow.editor_requires_a_revision()
+        self.workflow.save()
+        revision = EditorRevisionRequest.objects.create(
+            article=self.workflow.article,
+            editor=self.user,
+            type=ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+            date_requested=timezone.now(),
+            date_due=self.form_data["date_due"],
+            editor_note=self.form_data["decision_editor_report"],
+            review_round=self.workflow.article.current_review_round_object(),
+        )
+        self._assign_files(revision)
+        context = self._get_message_context(revision)
+        self._log_technical_revision_request(context)
+        return revision
+
     def _revision_article(self):
         """
         Ask for article revision.
@@ -1191,9 +1339,9 @@ class HandleDecision:
         revision = EditorRevisionRequest.objects.create(
             article=self.workflow.article,
             editor=self.user,
-            type=EditorialDecisions.MINOR_REVISIONS.value
+            type=ArticleWorkflow.Decisions.MINOR_REVISION
             if self.form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
-            else EditorialDecisions.MAJOR_REVISIONS.value,
+            else ArticleWorkflow.Decisions.MAJOR_REVISION,
             date_requested=timezone.now(),
             date_due=self.form_data["date_due"],
             editor_note=self.form_data["decision_editor_report"],
@@ -1201,11 +1349,7 @@ class HandleDecision:
         )
         self._assign_files(revision)
         context = self._get_message_context(revision)
-        if self.form_data["decision"] in (
-            ArticleWorkflow.Decisions.MINOR_REVISION,
-            ArticleWorkflow.Decisions.MAJOR_REVISION,
-        ):
-            self._withdraw_unfinished_review_requests(email_context=context)
+        self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
         self._log_revision_request(context=context, revision_type=revision.type)
         return revision

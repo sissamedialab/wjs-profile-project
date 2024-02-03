@@ -13,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
+from review.const import EditorialDecisions
 from review.models import ReviewAssignment, ReviewRound, RevisionRequest
 from submission.models import Article
 from utils.logger import get_logger
@@ -61,8 +62,9 @@ class ArticleWorkflow(TimeStampedModel):
 
         ACCEPT = "accept", _("Accept")
         REJECT = "reject", _("Reject")
-        MINOR_REVISION = "minorRevision", _("Minor revision")
-        MAJOR_REVISION = "majorRevision", _("Major revision")
+        MINOR_REVISION = EditorialDecisions.MINOR_REVISIONS.value, _("Minor revision")
+        MAJOR_REVISION = EditorialDecisions.MAJOR_REVISIONS.value, _("Major revision")
+        TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
@@ -480,7 +482,7 @@ class Message(TimeStampedModel):
         notification_header = _("This is an automatic notification. Please do not reply.\n\n")
         notification_footer = _("\n\nPlease visit {url}\n")
 
-        notification_subject = self.subject if self.subject else self.body[:111]
+        notification_subject = self.subject if self.subject else self.body[:111].replace("\n", " ")
         notification_subject = f"🦄 {self.get_subject_prefix()} {notification_subject}"
 
         if self.message_type == Message.MessageTypes.VERBOSE:
@@ -523,7 +525,7 @@ class MessageRecipients(models.Model):
 class EditorRevisionRequest(RevisionRequest):
     """Extend Janeway's RevisionRequest model to add review round reference."""
 
-    review_round = models.OneToOneField("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
+    review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     cover_letter_file = models.FileField(blank=True, null=True, verbose_name=_("Cover letter file"))
     article_history = models.JSONField(blank=True, null=True, verbose_name=_("Article history"))
     manuscript_files = models.ManyToManyField("core.File", null=True, blank=True, related_name="+")

@@ -205,7 +205,7 @@ def set_default_plugin_settings():
             "journal": None,
             "setting": None,
             "value": _(
-                "{% if major_revision %}Editor requires revision{% elif minor_revision %}Editor requires (minor) revision{% endif %}"
+                "{% if major_revision %}Editor requires revision{% elif minor_revision %}Editor requires (minor) revision{% elif tech_revision %}Editor enables metadata update{% endif %}"
             ),
             "translations": {},
         }
@@ -357,6 +357,94 @@ def set_default_plugin_settings():
             withdraw_notice_setting,
             withdraw_notice_setting_value,
             withdraw_notice_setting["name"],
+        )
+
+    def technical_revision_body():
+        technical_revision_subject_setting: SettingParams = {
+            "name": "technical_revision_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for technical revision request"),
+            "description": _(
+                "Provide context for technical revision.",
+            ),
+            "is_translatable": False,
+        }
+        technical_revision_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Technical revision request"),
+            "translations": {},
+        }
+        create_customization_setting(
+            technical_revision_subject_setting,
+            technical_revision_subject_setting_value,
+            technical_revision_subject_setting["name"],
+        )
+        technical_revision_body_setting: SettingParams = {
+            "name": "technical_revision_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Automatic message for technical revision request"),
+            "description": _(
+                "Provide context for technical revision request.",
+            ),
+            "is_translatable": False,
+        }
+        technical_revision_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Editor has requested a technical revision, you can now edit article metadata."),
+            "translations": {},
+        }
+        create_customization_setting(
+            technical_revision_body_setting,
+            technical_revision_body_setting_value,
+            technical_revision_body_setting["name"],
+        )
+
+    def author_submits_revision_message():
+        revision_submission_subject_setting: SettingParams = {
+            "name": "revision_submission_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for submission of author revision"),
+            "description": _(
+                "Provide context for technical revision.",
+            ),
+            "is_translatable": False,
+        }
+        revision_submission_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Author revision submission"),
+            "translations": {},
+        }
+        create_customization_setting(
+            revision_submission_subject_setting,
+            revision_submission_subject_setting_value,
+            revision_submission_subject_setting["name"],
+        )
+        revision_submission_message_setting: SettingParams = {
+            "name": "revision_submission_message",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Automatic message for author revision submission"),
+            "description": _(
+                "Provide context for author revision submission.",
+            ),
+            "is_translatable": False,
+        }
+        revision_submission_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Author has submitted a revision of their article, you can now check edited content."),
+            "translations": {},
+        }
+        create_customization_setting(
+            revision_submission_message_setting,
+            revision_submission_message_setting_value,
+            revision_submission_message_setting["name"],
         )
 
     def hijack_notification_message():
@@ -529,8 +617,10 @@ def set_default_plugin_settings():
     review_decision_revision_request_message()
     review_decision_not_suitable_message()
     withdraw_review_message()
+    technical_revision_body()
     author_can_contact_director()
     hijack_notification_message()
+    author_submits_revision_message()
 
 
 def ensure_workflow_elements():

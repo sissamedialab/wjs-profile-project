@@ -1,13 +1,15 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from core import files as core_files
 from core import models as core_models
+from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import Page, Paginator
 from django.db.models import Q, QuerySet
+from django.forms import models as model_forms
 from django.http import HttpResponse, HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404
 from django.template import Context
@@ -23,6 +25,7 @@ from django.views.generic import (
 from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission import models as submission_models
+from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.mixins import HtmxMixin
@@ -32,6 +35,7 @@ from .communication_utils import get_messages_related_to_me
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
+    EditorRevisionRequestEditForm,
     EvaluateReviewForm,
     InviteUserForm,
     MessageForm,
@@ -43,7 +47,13 @@ from .forms import (
     UploadRevisionAuthorCoverLetterFileForm,
 )
 from .mixins import EditorRequiredMixin
-from .models import ArticleWorkflow, EditorRevisionRequest, Message, MessageRecipients
+from .models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    Message,
+    MessageRecipients,
+    WorkflowReviewAssignment,
+)
 
 Account = get_user_model()
 
@@ -946,3 +956,104 @@ class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixi
     def get_success_url(self):
         """Redirect to the article details page."""
         return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
+
+
+class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+    model = EditorRevisionRequest
+    form_class = EditorRevisionRequestEditForm
+    pk_url_kwarg = "revision_id"
+    template_name = "admin/review/revision/do_revision.html"
+    context_object_name = "revision_request"
+    meta_data_fields = ["title", "abstract"]
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        return self.model.objects.filter(pk=self.kwargs[self.pk_url_kwarg], article__owner=self.request.user).exists()
+
+    def _get_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
+        return WorkflowReviewAssignment.objects.filter(
+            article=self.object.article,
+            is_complete=True,
+            for_author_consumption=True,
+        ).exclude(decision="withdrawn")
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        return kwargs
+
+    def _get_form_class(self) -> Type[model_forms.BaseModelForm]:
+        """Return EditorRevisionRequestEditForm or MetadataForm class depending on the POST submit button."""
+        if self.request.POST.get("save_metadata"):
+            return self._get_metadata_form_class()
+        else:
+            return super().get_form_class()
+
+    def _get_form(self, form_class: Optional[Type[forms.Form]] = None) -> model_forms.BaseModelForm:
+        """Return EditorRevisionRequestEditForm or MetadataForm instance depending on the POST submit button."""
+        if self.request.POST.get("save_metadata"):
+            return self._get_metadata_form()
+        else:
+            return super().get_form()
+
+    def _get_metadata_form_class(self) -> Type[model_forms.BaseModelForm]:
+        """Generate a MetadataForm class for the article."""
+        return model_forms.modelform_factory(Article, fields=self.meta_data_fields)
+
+    def _get_metadata_form(self) -> Optional[model_forms.BaseModelForm]:
+        """
+        Return the MetadataForm instance for the article.
+
+        Form might be None if the article is not in a state where metadata can be edited.
+        """
+        if self.object.type != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            return None
+        form_class = self._get_metadata_form_class()
+
+        if self.request.method == "POST" and self.request.POST.get("save_metadata"):
+            meta_data_form = form_class(self.request.POST, instance=self.object.article)
+            meta_data_form.is_valid()
+            return meta_data_form
+        else:
+            return form_class(instance=self.object.article)
+
+    def form_valid(self, form):
+        """
+        Executed when either EditorRevisionRequestEditForm or MetadataForm is valid.
+
+        Depending on the form and the submit button, differenct actions are taken:
+        - if the submit button is "confirmed", it means the user has confirmed the revision, the control is passed to
+          ```AuthorHandleRevision``` logic class to complete the revision submission process and redirect to article
+          status page;
+        - if the submit button is "save_metadata", it means the user has updated the metadata, we can just save the
+          form, update aricle object associated with the revision request and redirect back to revision request page;
+        - in all the other cases we just save the form and redirect back to revision request page.
+        """
+        if self.request.POST.get(self.form_class.CONFIRMED_BUTTON_NAME):
+            self.object = form.finish()
+            return HttpResponseRedirect(self.get_success_url())
+        meta_data_form = self._get_metadata_form()
+        if meta_data_form and meta_data_form.is_valid():
+            self.object.article = meta_data_form.save()
+        self.object = form.save()
+        return self.render_to_response(self.get_context_data(form=form))
+
+    def get_success_url(self):
+        """
+        Redirect to the article details page if the revision confirmation is submitted or to the revision request page.
+        """
+        if self.request.POST.get(self.form_class.CONFIRMED_BUTTON_NAME):
+            return reverse("core_dashboard_article", kwargs={"article_id": self.object.article.pk})
+        else:
+            return reverse(
+                "do_revisions",
+                kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk},
+            )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["article"] = self.object.article
+        context["reviews"] = self._get_reviews()
+        context["meta_data_form"] = self._get_metadata_form()
+        return context

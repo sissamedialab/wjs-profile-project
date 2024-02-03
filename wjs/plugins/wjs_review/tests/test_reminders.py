@@ -1086,7 +1086,7 @@ class TestEditorDecides:
             ArticleWorkflow.Decisions.NOT_SUITABLE,
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
-            # TODO: ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+            ArticleWorkflow.Decisions.TECHNICAL_REVISION,
         ),
     )
     @pytest.mark.django_db

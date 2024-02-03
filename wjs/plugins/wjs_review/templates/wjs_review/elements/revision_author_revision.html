@@ -12,8 +12,10 @@
                 File' button to upload a new
                 file.
             </p>
+            {% if revision_request.type != "tech_revisions" %}
             <a href="{% url 'revisions_upload_new_file' article.pk revision_request.pk %}"
                class="btn btn-primary">Upload New File</a>
+            {% endif %}
             <table class="table">
                 <tr>
                     <th>Label</th>
@@ -22,8 +24,10 @@
                     <th>Uploaded</th>
                     <th>Size</th>
                     <th>Download</th>
-                    <th>Upload Revised File</th>
-                    <th>Delete</th>
+                    {% if revision_request.type != "tech_revisions" %}
+                        <th>Upload Revised File</th>
+                        <th>Delete</th>
+                    {% endif %}
                 </tr>
                 {% for file in article.manuscript_files.all %}
                     <tr>
@@ -33,16 +37,18 @@
                         <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
                         <td>{% file_size file article %}</td>
                         <td><a href="?file_id={{ file.id }}">↓</a></td>
-                        <td>
-                            <a href="{% url 'revisions_replace_file' article.pk revision_request.pk file.pk %}">↑</a>
-                        </td>
-                        <td>
-                            <button type="submit" name="delete"
-                                    value="{{ file.id }}"
-                                    onclick="return confirm('Are you sure you want to delete this item?');">
-                                🗙
-                            </button>
-                        </td>
+                        {% if revision_request.type != "tech_revisions" %}
+                            <td>
+                                <a href="{% url 'revisions_replace_file' article.pk revision_request.pk file.pk %}">↑</a>
+                            </td>
+                            <td>
+                                <button type="submit" name="delete"
+                                        value="{{ file.id }}"
+                                        onclick="return confirm('Are you sure you want to delete this item?');">
+                                    🗙
+                                </button>
+                            </td>
+                        {% endif %}
                     </tr>
                 {% endfor %}
                 {% for file in article.data_figure_files.all %}
@@ -70,10 +76,10 @@
             {% bootstrap_field form.author_note %}
 
             {% if revision_request.editorrevisionrequest.cover_letter_file %}
-                <a href="{% url 'wjs_upload_file' revision_request.pk %}" class="btn btn-primary">Replace Cover letter</a>
+                <a href="{% url 'wjs_upload_file' revision_request.article_id revision_request.pk %}" class="btn btn-primary">Replace Cover letter</a>
                 <a href="{{ revision_request.editorrevisionrequest.cover_letter_file.url }}">Download current ↓</a>
             {% else %}
-                <a href="{% url 'wjs_upload_file' revision_request.pk %}" class="btn btn-primary">Upload Cover letter</a>
+                <a href="{% url 'wjs_upload_file' revision_request.article_id revision_request.pk %}" class="btn btn-primary">Upload Cover letter</a>
             {% endif %}
             <p>If you want to save your covering letter and come back later,
                 click

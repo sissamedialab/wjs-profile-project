@@ -3,6 +3,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from core import files as core_files
 from core import models as core_models
+from core.forms import ConfirmableForm
 from dateutil.utils import today
 from django import forms
 from django.contrib.auth import get_user_model
@@ -26,6 +27,7 @@ from utils.setting_handler import get_setting
 
 from .logic import (
     AssignToReviewer,
+    AuthorHandleRevision,
     EvaluateReview,
     HandleDecision,
     HandleMessage,
@@ -417,6 +419,7 @@ class DecisionForm(forms.ModelForm):
         self.hide_date_due = kwargs["initial"].get("decision", None) not in (
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
+            ArticleWorkflow.Decisions.TECHNICAL_REVISION,
         )
         if "initial" not in kwargs:
             kwargs["initial"] = {}
@@ -431,7 +434,11 @@ class DecisionForm(forms.ModelForm):
         date_due = self.cleaned_data["date_due"]
         if (
             self.cleaned_data["decision"]
-            in (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION)
+            in (
+                ArticleWorkflow.Decisions.MINOR_REVISION,
+                ArticleWorkflow.Decisions.MAJOR_REVISION,
+                ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+            )
             and not date_due
         ):
             raise forms.ValidationError(_("Please provide a date due for author to submit a revision"))
@@ -476,6 +483,42 @@ class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
         model = EditorRevisionRequest
         fields = ["cover_letter_file"]
         widgets = {"cover_letter_file": forms.ClearableFileInput()}
+
+
+class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["author_note"]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        self.request = kwargs.pop("request", None)
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> AuthorHandleRevision:
+        """Instantiate :py:class:`AuthorHandleRevision` class."""
+        service = AuthorHandleRevision(
+            revision=self.instance,
+            form_data=self.cleaned_data,
+            user=self.user,
+            request=self.request,
+        )
+        return service
+
+    def finish(self) -> EditorRevisionRequest:
+        """
+        Change the state of the review using :py:class:`AuthorHandleRevision`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
 
 
 class MessageRecipientForm(forms.Form):

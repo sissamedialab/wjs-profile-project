@@ -4,6 +4,7 @@
 
 {% block center_column %}
     {% include "wjs_review/elements/revision_author_info.html" %}
+    {% include "wjs_review/elements/revision_author_meta_data.html" %}
     {% include "wjs_review/elements/revision_author_reviews.html" %}
     {% include "wjs_review/elements/revision_author_revision.html" %}
     {% if form.modal %}
@@ -11,8 +12,9 @@
     {% endif %}
 {% endblock center_column %}
 
-{% block js %}
+{% block bootstrap5_extra_head %}
+    {{ block.super }}
     {% if form.modal %}
         {% include "admin/elements/open_modal.html" with target=form.modal.id %}
     {% endif %}
-{% endblock js %}
+{% endblock bootstrap5_extra_head %}
