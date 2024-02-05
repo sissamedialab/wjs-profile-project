@@ -17,8 +17,17 @@ from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry
 
+from wjs.jcom_profile.permissions import is_eo
+
 from .. import communication_utils, states
 from ..models import ArticleWorkflow
+from ..permissions import (
+    is_article_author,
+    is_article_editor,
+    is_article_reviewer,
+    is_director,
+    is_one_of_the_authors,
+)
 from ..types import BootstrapButtonProps
 
 register = template.Library()
@@ -225,3 +234,39 @@ def assignment_requires_attention_tt(assignment: ReviewAssignment, user: Account
 def role_for_article_tt(article: Article, user: Account) -> str:
     """Return a role slug that describes the role of the given user on the article."""
     return communication_utils.role_for_article(article, user)
+
+
+@register.filter
+def is_user_eo(user: Account, article: ArticleWorkflow = None) -> bool:
+    """Returns if user is part of the EO."""
+    return is_eo(user)
+
+
+@register.filter
+def is_user_article_editor(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is an Editor for the article."""
+    return is_article_editor(article, user)
+
+
+@register.filter
+def is_user_director(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is a Director."""
+    return is_director(article, user)
+
+
+@register.filter
+def is_user_article_reviewer(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is a Reviewer for the article."""
+    return is_article_reviewer(article, user)
+
+
+@register.filter
+def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is the correspondence Author for the article."""
+    return is_article_author(article, user)
+
+
+@register.filter
+def is_user_one_of_the_authors(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is one of the Article's authors."""
+    return is_one_of_the_authors(article, user)

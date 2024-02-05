@@ -1,4 +1,5 @@
 {% load wjs_tags %}
+{% load wjs_review %}
 <div class="row" id="msg-{{ message.id }}">
     <div class="col-11 p-2">
         <div class="d-flex align-items-center {% if message.actor != user %} text-right justify-content-end {% endif %}">
@@ -38,7 +39,7 @@
     {% if user in message.recipients.all and not user == message.actor %}
         {% include "wjs_review/elements/toggle_message_read.html" with form=forms|keyvalue:message.id %}
     {% endif %}
-    {% if is_user_eo and message.message_type in human_message_types %}
+    {% if request.user|is_user_eo:workflow and message.message_type in human_message_types %}
         {% include "wjs_review/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.id %}
     {% endif %}
 </div>
