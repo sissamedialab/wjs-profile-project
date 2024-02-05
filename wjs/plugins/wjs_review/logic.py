@@ -35,6 +35,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
+from .communication_utils import update_date_send_reminders
 from .reminders.models import Reminder
 from .reminders.settings import (
     create_EDMD_reminders,
@@ -549,6 +550,8 @@ class EvaluateReview:
         if date_due:
             # This can be a noop if EvaluateReview is called from EvaluateReviewForm because it's a model form
             # which already set the attribute (but the object is not saved because form save method is overridden)
+            if self.assignment.date_due != date_due:
+                update_date_send_reminders(self.assignment, new_assignment_date_due=date_due)
             self.assignment.date_due = date_due
             self.assignment.save()
 

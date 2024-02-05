@@ -6,6 +6,7 @@ from core.models import Workflow, WorkflowElement
 from django.core import mail
 from django.http import HttpRequest
 from events import logic as events_logic
+from plugins.wjs_review.reminders.settings import reminders_configuration
 from review import models as review_models
 from review.models import ReviewAssignment
 from utils import setting_handler  # noqa
@@ -14,7 +15,7 @@ from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
 from ..logic import AssignToEditor
-from ..models import ArticleWorkflow, Message
+from ..models import ArticleWorkflow, Message, Reminder
 from ..plugin_settings import HANDSHAKE_URL, SHORT_NAME, set_default_plugin_settings
 from .test_helpers import _create_review_assignment
 
@@ -149,3 +150,50 @@ def cleanup_test_files_from_folder_files(settings):
     yield
     for f in glob.glob(f"{settings.BASE_DIR}/files/**/*{TEST_FILES_EXTENSION}", recursive=True):
         os.unlink(f)
+
+
+@pytest.fixture
+def known_reminders_configuration():
+    """A fixture that sets the reminders configuration to known values."""
+    # Using a fixture instead than mocking the dictionary for easier reuse
+    # (and also because I'm not very confortable with mock ;)
+    configuration = reminders_configuration["DEFAULT"]
+
+    # Store old config in a dictionary using the reminder code as a key that points to a tuple of (old, mine) values
+    tmp_config = {
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: (
+            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1].days_after,
+            4,
+        ),
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: (
+            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2].days_after,
+            7,
+        ),
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3: (
+            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3].days_after,
+            9,
+        ),
+        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1: (
+            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1].days_after,
+            7,
+        ),
+        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2: (
+            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2].days_after,
+            14,
+        ),
+    }
+    # At the time of writing I also had:
+    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1].days_after = 5
+    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2].days_after = 8
+    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3].days_after = 10
+    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1].days_after = 5
+    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2].days_after = 8
+    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3].days_after = 10
+
+    for reminder_code, values in tmp_config.items():
+        my_value = values[1]
+        configuration[reminder_code].days_after = my_value
+    yield
+    for reminder_code, values in tmp_config.items():
+        old_value = values[0]
+        configuration[reminder_code].days_after = old_value

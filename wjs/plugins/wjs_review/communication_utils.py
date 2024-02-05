@@ -2,6 +2,7 @@
 
 Keeping here also anything that we might want to test easily 🙂.
 """
+import datetime
 from typing import Optional, Union
 
 from django.contrib.auth import get_user_model
@@ -18,7 +19,7 @@ from wjs.jcom_profile.apps import GROUP_EO
 from wjs.jcom_profile.permissions import is_eo
 from wjs.jcom_profile.utils import render_template_from_setting
 
-from .models import Message, MessageRecipients
+from .models import Message, MessageRecipients, Reminder
 
 Account = get_user_model()
 logger = get_logger(__name__)
@@ -232,3 +233,36 @@ def role_for_article(article: Article, user: Account) -> str:
         return "co-author"
 
     return ""
+
+
+def update_date_send_reminders(assignment: review_models.ReviewAssignment, new_assignment_date_due: datetime.datetime):
+    """Update reminders' sending date when the assignment due date changes.
+
+    As per specs#620:
+    - If new due date - old due date (Δt) > clemency time
+      - all reminders are marked as not sent and their send date is updated by Δt
+    - If new due date - old due date (Δt) <= clemency time
+      - all non sent reminders send date is updated by Δt
+      - all sent reminder are unchanged
+    """
+    # The business-logic ensures that all reminders that I have reated to this assignment are "good"
+    # reminders. I.e. there is no need to distinguish between REEA and REWR reminders (using, for instance, the
+    # assignment.date_accepted). I only need to tweak the date_due of all.
+
+    # TODO: can I turn this in to an SQL "UPDATE"?
+    reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+    )
+    delta = new_assignment_date_due - assignment.date_due.date()
+    for reminder in reminders:
+        if delta.days > reminder.clemency_days:
+            reminder.date_sent = None
+            reminder.date_due += delta
+            reminder.save()
+        else:
+            if reminder.date_sent:
+                continue
+            else:
+                reminder.date_due += delta
+                reminder.save()
