@@ -38,6 +38,11 @@
                                title="Paper's communication: contact author, reviewer, etc."
                                href="{% url 'wjs_article_messages' article_id=workflow.article.id %}">WARNING: non functional! Communications</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link"
+                               title="Reminders related to the article."
+                               href="{% url 'wjs_article_reminders' article_id=workflow.article.id %}">WARNING: non functional! Reminders</a>
+                        </li>
                     {% endif %}
                 </ul>
             </div>
