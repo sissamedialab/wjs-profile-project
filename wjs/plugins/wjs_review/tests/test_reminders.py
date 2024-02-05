@@ -1,6 +1,7 @@
 import datetime
 import logging
 from typing import Callable, Optional
+from unittest import mock
 
 import freezegun
 import pytest
@@ -16,7 +17,7 @@ from submission import models as submission_models
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import render_template
 
-from ..communication_utils import get_eo_user
+from ..communication_utils import get_eo_user, update_date_send_reminders
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -879,6 +880,7 @@ def test_reminders_handling_for_reviewer_cycle(
 @pytest.mark.django_db
 def test_two_papers_three_reviewers(
     review_settings,
+    known_reminders_configuration,
     review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
     journal: journal_models.Journal,
     create_submitted_articles: Callable,
@@ -1127,3 +1129,156 @@ class TestEditorDecides:
             content_type=ContentType.objects.get_for_model(editor_assignment),
             object_id=editor_assignment.id,
         ).exists()
+
+
+class TestResetDate:
+    """Tests relative to the resetting of ReviewAssignments' date_due.
+
+    When a reviewer modifies an assignment's due date, all relative reminders should be checked.
+
+    """
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize(
+        "clemency_days,delta_days,reminder_is_sent",
+        (
+            (0, 0, True),
+            (0, 0, False),
+            (0, 1, True),
+            (0, 1, False),
+            (0, 3, True),
+            (0, 3, False),
+            (2, 0, True),
+            (2, 0, False),
+            (2, 1, True),
+            (2, 1, False),
+            (2, 3, True),
+            (2, 3, False),
+        ),
+    )
+    def test_reset_date_function(
+        self,
+        fake_request: HttpRequest,
+        review_form: review_models.ReviewForm,
+        review_assignment: WorkflowReviewAssignment,
+        clemency_days: int,
+        delta_days: int,
+        reminder_is_sent,
+    ):
+        """Test the function `update_date_send_reminders`."""
+        review_assignment: ReviewAssignment = review_assignment.reviewassignment_ptr
+
+        reminder = create_reminder(
+            journal=review_assignment.article.journal,
+            target=review_assignment,
+            reminder_code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+        )
+
+        # Force a known clemency_days for testing
+        reminder.clemency_days = clemency_days
+
+        # Simulate that a reminder has been sent by setting any date
+        if reminder_is_sent:
+            reminder.date_sent = timezone.now()
+
+        reminder.save()
+        reminder.refresh_from_db()  # ⬅ correct the date_due type from datetime to date
+
+        # Store the reminder's due date for later comparison
+        reminder_date_due_t0 = reminder.date_due
+
+        # Simulate an update of the reminder date
+        # NB: Remember tha the update of the reminder's date happens _before_ the assignment's date_due is updated!
+        new_assignment_date_due = review_assignment.date_due + datetime.timedelta(days=delta_days)
+        update_date_send_reminders(review_assignment, new_assignment_date_due.date())
+
+        # Change the assigment due_date
+        review_assignment.date_due = new_assignment_date_due
+        review_assignment.save()
+
+        reminder.refresh_from_db()
+
+        reminder_date_due_t1 = reminder.date_due
+        reminder_date_due_delta = (reminder_date_due_t1 - reminder_date_due_t0).days
+        if delta_days > clemency_days:
+            assert reminder.date_sent is None
+            assert reminder_date_due_delta == delta_days
+        else:
+            if reminder_is_sent:
+                assert reminder.date_sent is not None
+                assert reminder.date_due == reminder_date_due_t0
+            else:
+                assert reminder.date_sent is None
+                assert reminder_date_due_delta == delta_days
+
+    @pytest.mark.django_db
+    def test_reset_function_is_called(
+        self,
+        fake_request: HttpRequest,
+        review_form: review_models.ReviewForm,
+        review_assignment: WorkflowReviewAssignment,
+    ):
+        """Verify that update_date_send_reminders is called."""
+        # Let the reviewer update the date
+        with mock.patch("plugins.wjs_review.logic.update_date_send_reminders") as mocked_update_date_send_reminders:
+            fake_request.user = review_assignment.reviewer
+            new_date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+            EvaluateReview(
+                assignment=review_assignment,
+                reviewer=review_assignment.reviewer,
+                editor=review_assignment.editor,
+                form_data={
+                    "reviewer_decision": "2",
+                    "date_due": new_date_due,
+                },
+                request=fake_request,
+                token="",
+            ).run()
+
+            # ⮶ 本番 ⮷
+            mocked_update_date_send_reminders.assert_called_once()
+            # NB: the function bumps the dates of _all_ reminders (of a certain target), so
+            # `mocked_update_date_send_reminders.call_count == 3` is False!
+
+    @pytest.mark.django_db
+    def test_reset_REEA_reminders_send_date(  # noqa N802 lowercase
+        self,
+        fake_request: HttpRequest,
+        review_form: review_models.ReviewForm,
+        review_assignment: WorkflowReviewAssignment,
+    ):
+        """Verify that all REEA reminders are "touched"."""
+        # Sanity check: we should have the three REEA reminders on this review assignment
+        review_assignment: ReviewAssignment = review_assignment.reviewassignment_ptr
+        reea_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.id,
+        )
+        assert reea_reminders.count() == 3
+        assert all("REEA" in code for code in reea_reminders.values_list("code", flat=True))
+
+        # Save the initial dates for later comparison.
+        # NB: remember that values_list() returns a queryset, which is lazy, so we need list() to fixate it!
+        initial_dates = list(reea_reminders.order_by("id").values_list("date_due", flat=True))
+
+        # Let the reviewer update the date
+        fake_request.user = review_assignment.reviewer
+        new_date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            form_data={
+                "reviewer_decision": "2",
+                "date_due": new_date_due,
+            },
+            request=fake_request,
+            token="",
+        ).run()
+        review_assignment.refresh_from_db()
+        reea_reminders.all()
+
+        # REEA reminders have clemeny_days = 0, and no reminder has been sent, so here I simply test that the due date
+        # has been bumped.
+        updated_dates = reea_reminders.order_by("id").values_list("date_due", flat=True)
+        assert all(initial < updated for initial, updated in zip(initial_dates, updated_dates))

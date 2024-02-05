@@ -36,11 +36,13 @@ class ReminderSetting:
 
     The "target" is an object to which the reminder should be "attached" (usually an assigment).
 
-    The fields "actor" and "recipient" are attribute names of the target object (e.g. reviewer or editor). There are two special cases:
+    The fields "actor" and "recipient" are attribute names of the target object (e.g. reviewer or editor).
+    There are two special cases:
     - "EO" means to use the EO system user
     - "director" means to get the director of the journal
 
     The fields "subject" and "body" are template strings (for django's default template engine).
+
     """
 
     code: Reminder.ReminderCodes
@@ -48,7 +50,7 @@ class ReminderSetting:
     body: str
     actor: str
     recipient: str
-    days_after: int
+    days_after: int  # NB: the number of days _after_ the due_date of the target!
     target_obj: Any = None
     clemency_days: int = 0
 
@@ -149,7 +151,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="reviewer",
-        days_after=4,
+        days_after=1,
     )
 )
 
@@ -167,7 +169,7 @@ new_reminder(
             """,
         actor="editor",
         recipient="reviewer",
-        days_after=7,
+        days_after=3,
     )
 )
 
@@ -187,7 +189,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="editor",
-        days_after=9,
+        days_after=6,
     )
 )
 
@@ -203,7 +205,8 @@ new_reminder(
             """,
         actor="editor",
         recipient="reviewer",
-        days_after=7,
+        days_after=0,
+        clemency_days=3,
     )
 )
 
@@ -220,7 +223,8 @@ new_reminder(
             """,
         actor="EO",
         recipient="editor",
-        days_after=11,
+        days_after=4,
+        clemency_days=3,
     )
 )
 
@@ -235,7 +239,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="editor",
-        days_after=10,
+        days_after=0,
     )
 )
 
@@ -250,7 +254,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="editor",
-        days_after=8,
+        days_after=3,
     )
 )
 
@@ -267,7 +271,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="director",
-        days_after=10,
+        days_after=5,
     )
 )
 
@@ -281,7 +285,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="editor",
-        days_after=5,
+        days_after=0,
     )
 )
 
@@ -295,7 +299,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="editor",
-        days_after=8,
+        days_after=3,
     )
 )
 
@@ -311,7 +315,7 @@ new_reminder(
             """,
         actor="EO",
         recipient="director",
-        days_after=10,
+        days_after=5,
     )
 )
 
