@@ -1,0 +1,16 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% load wjs_review %}
+{% block title %}
+    {% translate "Article reminders" %}
+{% endblock title %}
+{% block content_header %}
+    {% include "wjs_review/elements/article_title_and_authors.html" %}
+{% endblock content_header %}
+{% block content %}
+    <div class="container">
+        {% for reminder in object_list %}
+            {% include "wjs_review/elements/reminder.html" %}
+        {% endfor %}
+    </div>
+{% endblock content %}

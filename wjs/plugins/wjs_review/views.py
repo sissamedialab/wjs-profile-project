@@ -23,7 +23,7 @@ from django.views.generic import (
     UpdateView,
 )
 from review import logic as review_logic
-from review.models import ReviewAssignment
+from review.models import EditorAssignment, ReviewAssignment
 from submission import models as submission_models
 from submission.models import Article
 from utils.setting_handler import get_setting
@@ -52,6 +52,7 @@ from .models import (
     EditorRevisionRequest,
     Message,
     MessageRecipients,
+    Reminder,
     WorkflowReviewAssignment,
 )
 
@@ -1056,4 +1057,43 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
         context["article"] = self.object.article
         context["reviews"] = self._get_reviews()
         context["meta_data_form"] = self._get_metadata_form()
+        return context
+
+
+class ArticleReminders(UserPassesTestMixin, ListView):
+    """All reminders related to an article."""
+
+    model = Message
+    template_name = "wjs_review/article_reminders.html"
+
+    def test_func(self):
+        """Let's show reminders only to EO or staff."""
+        return self.request.user.is_staff or is_eo(self.request.user)
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
+
+    def get_queryset(self):
+        """Get reminders related to an article via ReviewAssignment or EditorAssignment or similar."""
+        # TODO: optimize
+        review_assignments = ReviewAssignment.objects.filter(article=self.article).values_list("id")
+        reviewer_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(ReviewAssignment),
+            object_id__in=review_assignments,
+        )
+        editor_assignments = EditorAssignment.objects.filter(article=self.article).values_list("id")
+        editor_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(EditorAssignment),
+            object_id__in=editor_assignments,
+        )
+        result = reviewer_reminders.union(editor_reminders)
+        return result
+
+    def get_context_data(self, **kwargs):
+        """Add the article to the context."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.article.articleworkflow
+        context["article"] = self.article
         return context

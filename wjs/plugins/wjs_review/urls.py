@@ -5,6 +5,7 @@ from .views import (
     ArticleDecision,
     ArticleDetails,
     ArticleMessages,
+    ArticleReminders,
     ArticleRevisionUpdate,
     AuthorArchived,
     AuthorPending,
@@ -84,4 +85,7 @@ urlpatterns = [
         MessageAttachmentDownloadView.as_view(),
         name="wjs_message_download_attachment",
     ),
+    # TODO: rethink naming of views.
+    # For the messages we have messages/..., but for the reminders it is article/ID/reminders
+    path("article/<int:article_id>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
 ]
