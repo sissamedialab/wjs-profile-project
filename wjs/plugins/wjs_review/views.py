@@ -753,7 +753,6 @@ class ArticleMessages(LoginRequiredMixin, ListView):
         )
         eo_forms = {mr.id: ToggleMessageReadByEOForm(instance=mr) for mr in message_records}
         context["eo_forms"] = eo_forms
-        context["is_user_eo"] = is_eo(self.request.user)
         context["human_message_types"] = [
             Message.MessageTypes.STD,
             Message.MessageTypes.SILENT,
