@@ -5,7 +5,11 @@
     <tr>
         <td>.9</td>
         <td>
-            <a href="#" title="Reviewer's details (if available)">{{ user.id }}</a> {{ user.full_name }}
+            {% if user.wjs_is_only_prophy %}
+              <a href="{{ user.wjs_prophy_auth_url }}{{ user.author_id }}" title="Candidates's details (if available)">Prophy site {{ user.author_id }}</a> {{ user.full_name }}
+            {% else %}
+               <a href="#" title="Reviewer's details (if available)">{{ user.id }}</a> {{ user.full_name }}
+            {% endif %}
         </td>
         <td>{{ user.email }}</td>
         <td>
@@ -33,13 +37,18 @@
                 {% endif %}
             {% endif %}
             {% if user == request.user %}<span title="Me">Me!</span>{% endif %}
+            {% if user.wjs_is_prophy_candidate %}<span title="Prophy candidate for the paper">P</span>{% endif %}
         </td>
         <td>
             {% comment %}Tooltips for .disabled or disabled elements must be triggered on a wrapper element.{% endcomment %}
-            <span class="d-inline-block"
+            {% if user.wjs_is_only_prophy %}
+            <a href="{% url "wjs_invite_reviewer_prophy" pk=workflow.pk prophy_account_id=user.author_id %}" class="btn btn-primary">Invite</a>
+            {% else %}
+                  <span class="d-inline-block"
                   tabindex="0"
                   data-toggle="tooltip"
                   title="{{ btn.disabled_cause }}">{% bootstrap_button disabled=btn.disabled button_class=btn.css_class hx_vals=btn.value button_type="button" hx_trigger="click" hx_post=wjs_select_reviewer data_toggle=btn.disabled_cause content="Select" %}</span>
+            {% endif %}
         </td>
     </tr>
 {% endfor %}

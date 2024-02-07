@@ -35,12 +35,16 @@ class WjsReviewConfig(AppConfig):
         AccountManager.annotate_declined_current_review_round = users.annotate_declined_current_review_round
         AccountManager.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
         AccountManager.annotate_worked_with_me = users.annotate_worked_with_me
+        AccountManager.annotate_is_prophy_candidate = users.annotate_is_prophy_candidate
+        AccountManager.annotate_is_only_prophy = users.annotate_is_only_prophy
 
         AccountQuerySet.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
         AccountQuerySet.annotate_has_previously_completed_review = users.annotate_has_previously_completed_review
         AccountQuerySet.annotate_declined_current_review_round = users.annotate_declined_current_review_round
         AccountQuerySet.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
         AccountQuerySet.annotate_worked_with_me = users.annotate_worked_with_me
+        AccountQuerySet.annotate_is_prophy_candidate = users.annotate_is_prophy_candidate
+        AccountQuerySet.annotate_is_only_prophy = users.annotate_is_only_prophy
 
         self.register_events()
 
@@ -55,6 +59,7 @@ class WjsReviewConfig(AppConfig):
             on_article_submitted,
             on_revision_complete,
             on_workflow_submitted,
+            send_to_prophy,
         )
 
         events_logic.Events.register_for_event(
@@ -72,6 +77,14 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,
             log_author_uploads_revision,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_SUBMITTED,
+            send_to_prophy,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_REVISIONS_COMPLETE,
+            send_to_prophy,
         )
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY,

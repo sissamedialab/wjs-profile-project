@@ -18,6 +18,8 @@ from review.models import ReviewAssignment, ReviewRound, RevisionRequest
 from submission.models import Article
 from utils.logger import get_logger
 
+from wjs.jcom_profile.models import Correspondence
+
 from . import permissions
 from .reminders.models import Reminder  # noqa F401
 
@@ -563,3 +565,36 @@ class WorkflowReviewAssignment(ReviewAssignment):
             article=self.article,
             round_number=self.review_round.round_number - 1,
         ).first()
+
+
+class ProphyAccount(models.Model):
+    """PROPHY Management Models"""
+
+    author_id = models.IntegerField(unique=True)
+
+    affiliation = models.CharField(max_length=1000, null=True, blank=True, verbose_name=_("Institution"))
+    articles_count = models.IntegerField(blank=True, null=True)
+    authors_groups = models.CharField(blank=True, null=True, max_length=1000)
+    citations_count = models.IntegerField(blank=True, null=True)
+    email = models.EmailField(unique=True, null=True, verbose_name=_("Email"))
+    h_index = models.IntegerField(blank=True, null=True)
+    name = models.CharField(
+        max_length=900,
+        null=True,
+        blank=False,
+        verbose_name=_("Full name"),
+    )
+    orcid = models.CharField(max_length=40, null=True, blank=True, verbose_name=_("ORCiD"))
+    url = models.CharField(max_length=300, null=True, blank=True, verbose_name="Prophy author url")
+    correspondence = models.ForeignKey(Correspondence, null=True, blank=True, on_delete=models.CASCADE)
+
+
+class ProphyCandidate(models.Model):
+    prophy_account = models.ForeignKey(ProphyAccount, on_delete=models.CASCADE)
+    article = models.ForeignKey(Article, on_delete=models.CASCADE)
+    score = models.FloatField(
+        null=True,
+        blank=False,
+        verbose_name=_("Prophy score"),
+    )
+    prophy_manuscript_id = models.IntegerField(blank=True, null=True)

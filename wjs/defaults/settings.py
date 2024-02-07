@@ -172,3 +172,18 @@ WJS_NEWSLETTER_TEST_RECIPIENT = ""
 
 HIJACK_USERS_ENABLED = True
 HIJACK_PERMISSION_CHECK = "wjs.jcom_profile.permissions.hijack_eo_and_admins_only"
+
+# PROPHY SETTINGS
+PROPHY_ORGANIZATION = "SISSA"
+
+# prophy upload
+PROPHY_API_KEY = ""
+PROPHY_URL = "https://www.prophy.science/api/external/proposal/"
+
+# JWT token
+PROPHY_JWT_SUB = "SISSA"
+PROPHY_JWT_URL = "https://www.prophy.science/api/auth/api-jwt-login/?token="
+PROPHY_JWT_KEY = ""
+
+# prophy author page
+PROPHY_AUTH = "https://www.prophy.science/author/"

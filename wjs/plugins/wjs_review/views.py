@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Any, Dict, List, Optional, Type, Union
 
 from core import files as core_files
@@ -55,6 +56,7 @@ from .models import (
     Reminder,
     WorkflowReviewAssignment,
 )
+from .prophy import Prophy
 
 Account = get_user_model()
 
@@ -348,7 +350,14 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
         context = super().get_context_data(**kwargs)
         context["htmx"] = self.htmx
         context["search_form"] = self.get_search_form()
-        context["reviewers"] = self.paginate(Account.objects.filter_reviewers(self.object, self.search_data))
+        context["reviewers"] = self.paginate(
+            list(
+                chain(
+                    Account.objects.filter_reviewers(self.object, self.search_data),
+                    Prophy(self.object.article).get_not_account_article_prophycandidates(self.search_data),
+                ),
+            ),
+        )
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:
@@ -398,6 +407,8 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
+        if "prophy_account_id" in self.kwargs.keys():
+            kwargs["prophy_account_id"] = self.kwargs["prophy_account_id"]
         return kwargs
 
     def form_valid(self, form):

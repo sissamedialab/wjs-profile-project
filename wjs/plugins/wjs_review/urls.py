@@ -51,6 +51,11 @@ urlpatterns = [
         InviteReviewer.as_view(),
         name="wjs_invite_reviewer",
     ),
+    path(
+        "invite_reviewer/<int:pk>/<int:prophy_account_id>/",
+        InviteReviewer.as_view(),
+        name="wjs_invite_reviewer_prophy",
+    ),
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
     path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("review/<int:assignment_id>/", ReviewSubmit.as_view(), name="wjs_review_review"),

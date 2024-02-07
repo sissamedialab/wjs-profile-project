@@ -20,7 +20,7 @@ from utils.models import LogEntry
 from wjs.jcom_profile.permissions import is_eo
 
 from .. import communication_utils, states
-from ..models import ArticleWorkflow
+from ..models import ArticleWorkflow, ProphyAccount
 from ..permissions import (
     is_article_author,
     is_article_editor,
@@ -28,6 +28,7 @@ from ..permissions import (
     is_director,
     is_one_of_the_authors,
 )
+from ..prophy import Prophy
 from ..types import BootstrapButtonProps
 
 register = template.Library()
@@ -132,7 +133,11 @@ def get_article_log_entries(article: Article) -> Optional[QuerySet[LogEntry]]:
 
 
 @register.simple_tag()
-def reviewer_btn_props(reviewer: Account, selected: str, workflow: ArticleWorkflow) -> BootstrapButtonProps:
+def reviewer_btn_props(
+    reviewer: Union[Account, ProphyAccount],
+    selected: str,
+    workflow: ArticleWorkflow,
+) -> BootstrapButtonProps:
     """
     Return the properties for the select reviewer button.
 
@@ -236,7 +241,6 @@ def role_for_article_tt(article: Article, user: Account) -> str:
     return communication_utils.role_for_article(article, user)
 
 
-@register.filter
 def is_user_eo(user: Account, article: ArticleWorkflow = None) -> bool:
     """Returns if user is part of the EO."""
     return is_eo(user)
@@ -270,3 +274,17 @@ def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
 def is_user_one_of_the_authors(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is one of the Article's authors."""
     return is_one_of_the_authors(article, user)
+
+
+@register.filter
+def jwt_token_url(article: Article, user: Account) -> str:
+    """return generated jwt_token for article"""
+    p = Prophy(article)
+    return p.jwt_token_url(user)
+
+
+@register.filter
+def has_prophy_candidates(article: Article) -> bool:
+    """True if article has prophy candidates"""
+    p = Prophy(article)
+    return p.article_has_prophycandidates()

@@ -72,6 +72,13 @@
                                 </div>
                                 <div>
                                     <strong>TODO:</strong>
+                                       <p>
+                                        {% if workflow.article|has_prophy_candidates %}
+                                        <a href={{ workflow.article|jwt_token_url:request.user }}> {{ workflow.article.id }} page on Prophy</a>
+                                         {% else %}
+                                         Article not sent to Prophy
+                                         {% endif %}
+                                        </p>
                                     <ol>
                                         <li>EO User in charge: cassano [Giulia Cassano] take in charge</li>
                                         <li>Typesetter:  	Sara Bin</li>

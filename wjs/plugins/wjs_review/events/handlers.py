@@ -5,11 +5,15 @@ from django.utils.module_loading import import_string
 from events import logic as events_logic
 from review import models as review_models
 from submission import models as submission_models
+from utils.logger import get_logger
 
 from ..communication_utils import log_operation
 from ..models import ArticleWorkflow, Message
+from ..prophy import Prophy
 from . import ReviewEvent
 from .assignment import dispatch_assignment
+
+logger = get_logger(__name__)
 
 
 def on_article_submitted(**kwargs) -> None:
@@ -89,3 +93,19 @@ def log_author_uploads_revision(**kwargs) -> Message:
         message_type=Message.MessageTypes.STD,
     )
     return message
+
+
+def send_to_prophy(**kwargs) -> None:
+    """Send article to prophy."""
+    # This function can be called by different event handlers. Upon submission events, we get a `article` kwarg, but
+    # upon revision-submission events we get a `revision` kwarg.
+    if "article" in kwargs:
+        article = kwargs["article"]
+    elif "revision" in kwargs:
+        article = kwargs["revision"].article
+    else:
+        logger.error("unexpected missing article")
+        return
+    p = Prophy(article)
+    p.async_article_prophy_upload()
+    return

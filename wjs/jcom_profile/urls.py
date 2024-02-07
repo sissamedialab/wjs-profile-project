@@ -197,6 +197,10 @@ experimental_urls = [
 if "rosetta" in settings.INSTALLED_APPS:
     urlpatterns += [path("rosetta/", include("rosetta.urls"))]
 
+if "wjs_mgmt_cmds" in settings.INSTALLED_APPS:
+    urlpatterns += [path("wjs_mgmt_cmds/", include("wjs_mgmt_cmds.urls"))]
+
+
 urlpatterns.extend(experimental_urls)
 
 urlpatterns.extend(include_urls.urlpatterns)
