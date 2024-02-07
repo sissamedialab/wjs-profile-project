@@ -2,14 +2,14 @@ from typing import Iterable, Optional
 
 from core.models import AccountRole
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, OuterRef, Q, QuerySet
+from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery, Value
 from django.http import QueryDict
 from journal.models import Journal
 from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
 
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, ProphyCandidate
 
 logger = get_logger(__name__)
 
@@ -75,6 +75,9 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
     qs = qs.annotate_declined_current_review_round(workflow.article)
     qs = qs.annotate_declined_previous_review_round(workflow.article)
 
+    qs = qs.annotate_is_prophy_candidate(workflow.article)
+    qs = qs.annotate_is_only_prophy()
+
     if user_type := search_data.get("user_type"):
         if user_type == "known":
             qs = qs.annotate_worked_with_me(
@@ -85,6 +88,8 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
             qs = qs.filter(wjs_is_past_reviewer=True)
         if user_type == "declined":
             qs = qs.filter(wjs_has_delined_previous_review_round=True)
+        if user_type == "prophy":
+            qs = qs.filter(wjs_is_prophy_candidate=True)
         else:
             logger.warning(f'Unknown (or not yet implemented) user_type "{user_type}"')
 
@@ -222,4 +227,27 @@ def annotate_worked_with_me(self, editor: Account):
 
     return self.annotate(
         wjs_worked_with_me=Exists(_filter),
+    )
+
+
+def annotate_is_prophy_candidate(self, article: Article):
+    """Annotate Accounts, indicating if the person is a prophy candidate for the article."""
+
+    _filter = Subquery(
+        ProphyCandidate.objects.filter(
+            article=article.id,
+            prophy_account__correspondence__account=OuterRef("id"),
+        ),
+    )
+
+    return self.annotate(
+        wjs_is_prophy_candidate=Exists(_filter),
+    )
+
+
+def annotate_is_only_prophy(self):
+    """Annotate Accounts, indicating that the person is NOT a prophy candidate without account."""
+
+    return self.annotate(
+        wjs_is_only_prophy=Value(False),
     )

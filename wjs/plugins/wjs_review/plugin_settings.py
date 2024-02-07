@@ -74,6 +74,10 @@ def set_default_plugin_settings():
         wjs_review_settings_group = get_group("wjs_review")
     except SettingGroup.DoesNotExist:
         wjs_review_settings_group = SettingGroup.objects.create(name="wjs_review", enabled=True)
+    try:
+        wjs_prophy_settings_group = get_group("wjs_prophy")
+    except SettingGroup.DoesNotExist:
+        wjs_prophy_settings_group = SettingGroup.objects.create(name="wjs_prophy", enabled=True)
     email_settings_group = get_group("email")
     email_subject_settings_group = get_group("email_subject")
 
@@ -608,6 +612,50 @@ def set_default_plugin_settings():
             author_can_contact_director_setting["name"],
         )
 
+    def prophy_settings():
+        prophy_journal_setting: SettingParams = {
+            "name": "prophy_journal",
+            "group": wjs_prophy_settings_group,
+            "types": "char",
+            "pretty_name": _("Journal directory on prophy site"),
+            "description": _(
+                "The folder on Prophy site which contains the papers sent from the journal.",
+            ),
+            "is_translatable": False,
+        }
+        prophy_journal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "",
+            "translations": {},
+        }
+        create_customization_setting(
+            prophy_journal_setting,
+            prophy_journal_setting_value,
+            prophy_journal_setting["name"],
+        )
+        prophy_upload_enabled_setting: SettingParams = {
+            "name": "prophy_upload_enabled",
+            "group": wjs_prophy_settings_group,
+            "types": "boolean",
+            "pretty_name": _("Enables Prophy upload"),
+            "description": _(
+                "Enables the journal to upload pdf files to prophy.",
+            ),
+            "is_translatable": False,
+        }
+        prophy_upload_enabled_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": False,
+            "translations": {},
+        }
+        create_customization_setting(
+            prophy_upload_enabled_setting,
+            prophy_upload_enabled_setting_value,
+            prophy_upload_enabled_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -621,6 +669,7 @@ def set_default_plugin_settings():
     author_can_contact_director()
     hijack_notification_message()
     author_submits_revision_message()
+    prophy_settings()
 
 
 def ensure_workflow_elements():

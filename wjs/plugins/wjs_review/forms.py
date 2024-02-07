@@ -39,6 +39,7 @@ from .models import (
     EditorRevisionRequest,
     Message,
     MessageRecipients,
+    ProphyAccount,
     WorkflowReviewAssignment,
 )
 
@@ -198,6 +199,7 @@ class ReviewerSearchForm(forms.Form):
             ("past", "R. who have already worked on this paper"),
             ("known", "R. w/ whom I've already worked"),
             ("declined", "R. who declined previous assignments (for this paper)"),
+            ("prophy", "R. who is a prophy suggestion (for this paper)"),
         ],
     )
 
@@ -215,7 +217,16 @@ class InviteUserForm(forms.Form):
         self.request = kwargs.pop("request")
         self.instance = kwargs.pop("instance")
         self.user = kwargs.pop("user")
+        prophy_account = None
+        if "prophy_account_id" in kwargs:
+            prophy_account = ProphyAccount.objects.filter(author_id=kwargs.pop("prophy_account_id"))[0]
         super().__init__(*args, **kwargs)
+        if prophy_account:
+            self.fields["first_name"].label = "TO BE INSERTED"
+            self.initial = {
+                "last_name": prophy_account.name,
+                "email": prophy_account.email,
+            }
 
     def get_logic_instance(self) -> InviteReviewer:
         """Instantiate :py:class:`InviteReviewer` class."""
