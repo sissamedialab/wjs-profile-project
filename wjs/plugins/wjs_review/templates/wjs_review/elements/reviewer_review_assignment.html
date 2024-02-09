@@ -1,0 +1,58 @@
+{% load i18n wjs_review %}
+{% with round=reviewassignment.review_round %}
+    {% if round == workflow.article.current_review_round_object %}
+        <p class="h3">Current round (round {{ round.round_number }})</p>
+    {% else %}
+        <p class="h3">Previous round (round {{ round.round_number }})</p>
+    {% endif %}
+{% endwith %}
+<div class="card border border-1">
+    {% with assignment=reviewassignment %}
+    <div class="card-body">
+        {% if assignment.date_declined %}
+            <p class="text-muted">Declined assignment</p>
+        {% endif %}
+                <p>
+                    Assignment {{ assignment.id }} to
+                    {% if assignment.is_complete and assignment.decistion == "withdrawn" %}
+                        <a href="{% url "wjs_review_end" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% elif assignment.date_accepted and assignment.is_complete %}
+                        <a href="{% url "wjs_review_end" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% elif assignment.date_accepted %}
+                        <a href="{% url "wjs_review_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% elif assignment.date_declined %}
+                        <a href="{% url "wjs_declined_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                    {% else %}
+                        <a href="{% url "wjs_evaluate_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
+                        {% endif %}
+                        <a href="{% url "wjs_message_write" article_id=assignment.article.id recipient_id=assignment.reviewer.id %}" title="Click to contact / communicate">📧</a>{# TODO: add id of reviewer #}
+                    (requested {{ assignment.date_requested }}) for review round {{ assignment.review_round.round_number }}.
+                </p>
+                <p>
+                    {{ assignment.date_requested }}
+                </p>
+                <p>
+                    {{ assignment.date_due }}
+                </p>
+                <p>
+                    {{ assignment.date_accepted }}
+                </p>
+                <p>
+                    {{ assignment.date_declined }}
+                </p>
+                <p>
+                    {{ assignment.date_complete }}
+                </p>
+                <p>
+                    {{ assignment.date_reminded }}
+                </p>
+            </div>
+        {% endwith %}
+    Form Table:
+    <div>
+        {% for answer in assignment.reviewassignmentanswer_set.all %}
+            field:{{ answer.best_label }}, answer: {{ answer.answer }}
+        {% endfor %}
+    </div>
+    ## TODO: Removed the actions part
+</div>

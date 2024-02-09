@@ -52,6 +52,11 @@
                 {% endif %}
             </div>
         {% endwith %}
+    <div>
+        {% for answer in assignment.reviewassignmentanswer_set.all %}
+            field:{{ answer.best_label }}, answer: {{ answer.answer }}
+        {% endfor %}
+    </div>
     {% endwith %}
     <div>
         {% for action in assignment_and_actions.actions %}

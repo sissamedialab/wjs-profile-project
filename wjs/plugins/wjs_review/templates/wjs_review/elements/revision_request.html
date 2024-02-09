@@ -1,0 +1,72 @@
+{% load i18n wjs_review %}
+{% if round == workflow.article.current_review_round_object %}
+    <p class="h3">Current round (round {{ round.round_number }})</p>
+{% else %}
+    <p class="h3">Previous round (round {{ round.round_number }})</p>
+{% endif %}
+<div class="card border border-1">
+    <div class="card-body">
+        <p class="h3">Revision request</p>
+        <p>Requested on {{ round.editorrevisionrequest.date_requested }}</p>
+        <button class="btn btn-primary"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#rr{{ round.pk }}History"
+                aria-expanded="false"
+                aria-controls="rr{{ round.pk }}History">Article historical data</button>
+                <div class="collapse" id="rr{{ round.pk }}History">
+                    <p><b>Title</b>: {{ round.editorrevisionrequest.article_history.title }}</p>
+                    <p><b>Abstract</b>: {{ round.editorrevisionrequest.article_history.abstract|safe }}</p>
+                    <p><b>Keywords</b>: {{ round.editorrevisionrequest.article_history.keywords|join:", " }}</p>
+                </div>
+        <button class="btn btn-primary"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#rr{{ round.pk }}Files"
+                aria-expanded="false"
+                aria-controls="rr{{ round.pk }}Files">Article files</button>
+        <div class="collapse" id="rr{{ round.pk }}Files">
+            <ul>
+                {% for file in round.editorrevisionrequest.manuscript_files.all %}
+                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+                {% endfor %}
+                {% for file in round.editorrevisionrequest.data_figure_files.all %}
+                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+                {% endfor %}
+                {% for file in round.editorrevisionrequest.supplementary_files.all %}
+                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+                {% endfor %}
+                {% for file in round.editorrevisionrequest.source_files.all %}
+                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% if round.editorrevisionrequest.cover_letter_file or round.editorrevisionrequest.cover_letter or round.editorrevisionrequest.author_note %}
+        <div class="card-footer">
+            <h3 id="author-cover-letter">Author cover letter</h3>
+            {% if round.editorrevisionrequest.cover_letter_file %}
+                <a href="{{ round.editorrevisionrequest.cover_letter_file.url }}">Cover letter</a><br>
+            {% else %}
+                {{ round.editorrevisionrequest.cover_letter }}
+            {% endif %}
+            {% if round.editorrevisionrequest.author_note %}
+                {# FIXME: Content is not really safe, we must add a sanitizer (see https://pypi.org/project/html-sanitizer/) #}
+                {{ round.editorrevisionrequest.author_note|safe }}
+            {% endif %}
+        </div>
+    {% endif %}
+    {% for revision in article.active_revision_requests %}
+        {% if not revision.date_completed and workflow|is_user_article_author:request.user %}
+            <tr>
+                <td>
+                    <a class="btn btn-primary"
+                       href="{% url 'do_revisions' article.pk revision.pk %}">
+                        Revision Request due
+                        on {{ revision.date_due|date:"Y-m-d" }}
+                    </a>
+                </td>
+            </tr>
+        {% endif %}
+    {% endfor %}
+</div>

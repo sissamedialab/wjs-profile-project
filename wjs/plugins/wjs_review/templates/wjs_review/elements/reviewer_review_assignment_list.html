@@ -1,0 +1,4 @@
+{% load wjs_review %}
+{% for review in workflow.article|reviewer_review_assignments:request.user %}
+    {% include "wjs_review/elements/reviewer_review_assignment.html" with reviewassignment=review %}
+{% endfor %}
