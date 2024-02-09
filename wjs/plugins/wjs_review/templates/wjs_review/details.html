@@ -40,12 +40,9 @@
                                             data-bs-target="#paperAbstract"
                                             aria-expanded="false"
                                             aria-controls="paperAbstract">Abstract</button>
-                                    <button class="btn btn-primary"
-                                            type="button"
-                                            data-bs-toggle="collapse"
-                                            data-bs-target="#paperAuthorsDetails"
-                                            aria-expanded="false"
-                                            aria-controls="paperAuthorsDetails">Authors details</button>
+                                    {% if request.user|is_user_eo:workflow or workflow|is_user_one_of_the_authors:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
+                                        {% include "wjs_review/elements/author_list_button.html" %}
+                                    {% endif %}
                                     <button class="btn btn-primary"
                                             type="button"
                                             data-bs-toggle="collapse"
@@ -53,17 +50,6 @@
                                             aria-expanded="false"
                                             aria-controls="paperKeywords">Keywords</button>
                                     <div class="collapse" id="paperAbstract">{{ article.abstract }}</div>
-                                    <div class="collapse" id="paperAuthorsDetails">
-                                        {% for author in article.authors.all %}
-                                            <div>
-                                                {{ author }} (from {{ author.country }}) <a href="{% url "wjs_message_write" article_id=article.id recipient_id=author.id %}"
-    title="Click to contact / communicate">📧</a>
-                                                <p>
-                                                    <strong>Bio:</strong> {{ author.biography }}
-                                                </p>
-                                            </div>
-                                        {% endfor %}
-                                    </div>
                                     <div class="collapse" id="paperKeywords">
                                         <ul>
                                             {% for keyword in article.keywords.all %}<li>{{ keyword.word }}</li>{% endfor %}
@@ -80,8 +66,6 @@
                                          {% endif %}
                                         </p>
                                     <ol>
-                                        <li>EO User in charge: cassano [Giulia Cassano] take in charge</li>
-                                        <li>Typesetter:  	Sara Bin</li>
                                         <li>
                                             Add personal note <a href="{% url "wjs_message_write" article_id=article.id recipient_id=user.id %}"
     title="Click to contact / communicate">📧</a>
@@ -93,83 +77,31 @@
                     </div>
                 </div>
             </div>
-            {# Files #}
-            <div class="row">
-                <div class="col">TODO: writeme!</div>
-            </div>
-            {% for round in workflow.article.reviewround_set.all %}
-                <div class="row">
-                    <div class="col">
-                        {% if round == workflow.article.current_review_round_object %}
-                            <p class="h3">Current round (round {{ round.round_number }})</p>
-                        {% else %}
-                            <p class="h3">Previous round (round {{ round.round_number }})</p>
-                        {% endif %}
-                        {% if round.editorrevisionrequest %}
-                            <div class="card border border-1">
-                                <div class="card-body">
-                                    <p class="h3">Revision request</p>
-                                    <p>Requested on {{ round.editorrevisionrequest.date_requested }}</p>
-
-                                    <button class="btn btn-primary"
-                                            type="button"
-                                            data-bs-toggle="collapse"
-                                            data-bs-target="#rr{{ round.pk }}History"
-                                            aria-expanded="false"
-                                            aria-controls="rr{{ round.pk }}History">Article historical data</button>
-                                            <div class="collapse" id="rr{{ round.pk }}History">
-                                                <p><b>Title</b>: {{ round.editorrevisionrequest.article_history.title }}</p>
-                                                <p><b>Abstract</b>: {{ round.editorrevisionrequest.article_history.abstract|safe }}</p>
-                                                <p><b>Keywords</b>: {{ round.editorrevisionrequest.article_history.keywords|join:", " }}</p>
-                                            </div>
-                                    <button class="btn btn-primary"
-                                            type="button"
-                                            data-bs-toggle="collapse"
-                                            data-bs-target="#rr{{ round.pk }}Files"
-                                            aria-expanded="false"
-                                            aria-controls="rr{{ round.pk }}Files">Article files</button>
-                                    <div class="collapse" id="rr{{ round.pk }}Files">
-                                        <ul>
-                                            {% for file in round.editorrevisionrequest.manuscript_files.all %}
-                                                <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                                            {% endfor %}
-                                            {% for file in round.editorrevisionrequest.data_figure_files.all %}
-                                                <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                                            {% endfor %}
-                                            {% for file in round.editorrevisionrequest.supplementary_files.all %}
-                                                <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                                            {% endfor %}
-                                            {% for file in round.editorrevisionrequest.source_files.all %}
-                                                <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                                            {% endfor %}
-                                        </ul>
+                                    {# Files #}
+                                    <div class="row">
+                                        <div class="col">
+                                            {% for manuscript_file in article.manuscript_files.all %}<li>{{ manuscript_file.original_filename }}</li>{% endfor %}
+                                        </div>
+                                        <div class="col">
+                                            {% for supplementary_file in article.supplementary_files.all %}<li>{{ supplementary_file.original_filename }}</li>{% endfor %}
+                                        </div>
+                                        <div class="col">
+                                            {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
+                                        </div>
                                     </div>
                                 </div>
-                                {% if round.editorrevisionrequest.cover_letter_file or round.editorrevisionrequest.cover_letter or round.editorrevisionrequest.author_note %}
-                                    <div class="card-footer">
-                                        <h3 id="author-cover-letter">Author cover letter</h3>
-                                        {% if round.editorrevisionrequest.cover_letter_file %}
-                                            <a href="{{ round.editorrevisionrequest.cover_letter_file.url }}">Cover letter</a><br>
-                                        {% else %}
-                                            {{ round.editorrevisionrequest.cover_letter }}
-                                        {% endif %}
-                                        {% if round.editorrevisionrequest.author_note %}
-                                            {# FIXME: Content is not really safe, we must add a sanitizer (see https://pypi.org/project/html-sanitizer/) #}
-                                            {{ round.editorrevisionrequest.author_note|safe }}
-                                        {% endif %}
-                                    </div>
-                                {% endif %}
-                            </div>
+                <div class="row">
+                    <div class="col">
+                        {% if workflow|is_user_one_of_the_authors:request.user %}
+                            {% include "wjs_review/elements/revision_request_list.html" %}
+                        {% elif workflow|is_user_article_reviewer:request.user %}
+                            {% include "wjs_review/elements/reviewer_review_assignment_list.html" %}
+                        {% elif request.user|is_user_eo:workflow or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
+                            {% include "wjs_review/elements/editor_review_assignment_list.html" %}
                         {% endif %}
-                        {% get_review_assignments round "" as assignments_and_actions %}
-                        {% for assignment_and_actions in assignments_and_actions %}
-                            {% include "wjs_review/elements/review_assignment.html" with assignment_and_actions=assignment_and_actions %}
-                        {% endfor %}
                     </div>
                 </div>
-            {% endfor %}
         {% endwith %}
-    </div>
 {% endblock center_column %}
 {% block right_column %}
     {% include "wjs_review/elements/timeline.html" %}

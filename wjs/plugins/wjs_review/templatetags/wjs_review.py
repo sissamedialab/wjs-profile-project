@@ -241,6 +241,7 @@ def role_for_article_tt(article: Article, user: Account) -> str:
     return communication_utils.role_for_article(article, user)
 
 
+@register.filter
 def is_user_eo(user: Account, article: ArticleWorkflow = None) -> bool:
     """Returns if user is part of the EO."""
     return is_eo(user)
@@ -266,7 +267,7 @@ def is_user_article_reviewer(article: ArticleWorkflow, user: Account) -> bool:
 
 @register.filter
 def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
-    """Returns if user is the correspondence Author for the article."""
+    """Returns if user is an Author for the article."""
     return is_article_author(article, user)
 
 
@@ -274,6 +275,14 @@ def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
 def is_user_one_of_the_authors(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is one of the Article's authors."""
     return is_one_of_the_authors(article, user)
+
+
+@register.filter
+def reviewer_review_assignments(article: ArticleWorkflow, user: Account):
+    """
+    Returns the list of Review Assignments assigned to the current user.
+    """
+    return ReviewAssignment.objects.filter(reviewer=user, article=article)
 
 
 @register.filter

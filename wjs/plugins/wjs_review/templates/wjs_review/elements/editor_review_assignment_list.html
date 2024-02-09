@@ -1,0 +1,12 @@
+{% load wjs_review %}
+{% for round in workflow.article.reviewround_set.all %}
+    {% if round == workflow.article.current_review_round_object %}
+        <p class="h3">Current round (round {{ round.round_number }})</p>
+    {% else %}
+        <p class="h3">Previous round (round {{ round.round_number }})</p>
+    {% endif %}
+    {% get_review_assignments round "" as assignments_and_actions %}
+    {% for assignment_and_actions in assignments_and_actions %}
+        {% include "wjs_review/elements/editor_review_assignment.html" with assignment_and_actions=assignment_and_actions %}
+    {% endfor %}
+{% endfor %}

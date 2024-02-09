@@ -1,0 +1,5 @@
+{% for revision in workflow.article.revisionrequest_set.all %}
+    {% if revision.type != "Technical Revisions" %}{# To be verified we may decide to keep also technical revisions #}
+        {% include "wjs_review/elements/revision_request.html" with round=revision.editorrevisionrequest.review_round %}
+    {% endif %}
+{% endfor %}
