@@ -47,6 +47,7 @@ from .forms import (
     ToggleMessageReadForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
+from .logic import render_template_from_setting
 from .mixins import EditorRequiredMixin
 from .models import (
     ArticleWorkflow,
@@ -328,7 +329,10 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
     def get_template_names(self) -> List[str]:
         """Select the template based on the request type."""
         if self.htmx:
-            return ["wjs_review/elements/select_reviewer.html"]
+            if self.request.POST.get("message"):
+                return ["wjs_review/elements/select_reviewer_message_preview.html"]
+            else:
+                return ["wjs_review/elements/select_reviewer.html"]
         else:
             return ["wjs_review/select_reviewer.html"]
 
@@ -346,6 +350,18 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
         paginator = Paginator(queryset, review_lists_page_size.process_value())
         return paginator.get_page(page_number)
 
+    def _render_message_preview(self, form: SelectReviewerForm) -> str:
+        logic_context = form.get_message_context()
+        preview = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_assignment",
+            journal=self.object.article.journal,
+            request=self.request,
+            context=logic_context,
+            template_is_setting=True,
+        )
+        return preview
+
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
         context["htmx"] = self.htmx
@@ -358,6 +374,9 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
                 ),
             ),
         )
+        context["reviewer"] = context["form"].data.get("reviewer")
+        if context["form"].data.get("reviewer"):
+            context["preview"] = self._render_message_preview(form=context["form"])
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:

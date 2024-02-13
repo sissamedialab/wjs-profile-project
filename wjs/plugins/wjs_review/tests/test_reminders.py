@@ -1190,7 +1190,7 @@ class TestResetDate:
         # Simulate an update of the reminder date
         # NB: Remember tha the update of the reminder's date happens _before_ the assignment's date_due is updated!
         new_assignment_date_due = review_assignment.date_due + datetime.timedelta(days=delta_days)
-        update_date_send_reminders(review_assignment, new_assignment_date_due.date())
+        update_date_send_reminders(review_assignment, new_assignment_date_due)
 
         # Change the assigment due_date
         review_assignment.date_due = new_assignment_date_due
@@ -1222,7 +1222,7 @@ class TestResetDate:
         # Let the reviewer update the date
         with mock.patch("plugins.wjs_review.logic.update_date_send_reminders") as mocked_update_date_send_reminders:
             fake_request.user = review_assignment.reviewer
-            new_date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+            new_date_due = review_assignment.date_due + datetime.timedelta(days=1)
             EvaluateReview(
                 assignment=review_assignment,
                 reviewer=review_assignment.reviewer,
@@ -1263,7 +1263,7 @@ class TestResetDate:
 
         # Let the reviewer update the date
         fake_request.user = review_assignment.reviewer
-        new_date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+        new_date_due = review_assignment.date_due + datetime.timedelta(days=1)
         EvaluateReview(
             assignment=review_assignment,
             reviewer=review_assignment.reviewer,

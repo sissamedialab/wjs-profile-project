@@ -68,7 +68,7 @@ def hook_registry() -> Dict[str, Any]:
     return {}
 
 
-def set_default_plugin_settings():
+def set_default_plugin_settings(force: bool = False):
     """Create default settings for the plugin."""
     try:
         wjs_review_settings_group = get_group("wjs_review")
@@ -99,7 +99,7 @@ def set_default_plugin_settings():
             "translations": {},
         }
         create_customization_setting(
-            acceptance_days_setting, acceptance_days_setting_value, acceptance_days_setting["name"]
+            acceptance_days_setting, acceptance_days_setting_value, acceptance_days_setting["name"], force=force
         )
 
     def review_lists_page_size():
@@ -123,6 +123,7 @@ def set_default_plugin_settings():
             review_lists_page_size_setting,
             review_lists_page_size_setting_value,
             review_lists_page_size_setting["name"],
+            force=force,
         )
 
     def review_invitation_message():
@@ -139,13 +140,26 @@ def set_default_plugin_settings():
         review_invitation_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Please review the article"),
+            "value": """
+            Dear Colleague,
+            {% if already_reviewed %}
+                I am writing to ask for your help in reviewing the revised version of "{{ article.title }}" for which you have been so kind as to review the previous version.
+            {%else %}
+                I am writing to ask for your help in reviewing the {{ article.section.name }} "{{ article.title }}" for {{ journal.code }}.
+            {% endif %}
+            Please find the automatically generated instructions for reviewers appended below.<br><br>
+            In the hope that you will accept my request, I would like to thank you in advance for your cooperation.<br><br>
+            Kind regards,
+            {{ request.user.signature|safe }}
+            JCOM Editor-in-charge
+            """,
             "translations": {},
         }
         create_customization_setting(
             review_invitation_message_setting,
             review_invitation_message_setting_value,
             review_invitation_message_setting["name"],
+            force=force,
         )
 
     def declined_review_message():
@@ -169,6 +183,7 @@ def set_default_plugin_settings():
             declined_review_message_setting,
             declined_review_message_setting_value,
             declined_review_message_setting["name"],
+            force=force,
         )
 
     def do_review_message():
@@ -192,6 +207,7 @@ def set_default_plugin_settings():
             do_review_message_setting,
             do_review_message_setting_value,
             do_review_message_setting["name"],
+            force=force,
         )
 
     def review_decision_revision_request_message():
@@ -217,6 +233,7 @@ def set_default_plugin_settings():
             subject_review_decision_revision_request_setting,
             subject_review_decision_revision_request_setting_value,
             subject_review_decision_revision_request_setting["name"],
+            force=force,
         )
         review_decision_revision_request_setting: SettingParams = {
             "name": "review_decision_revision_request_body",
@@ -244,6 +261,7 @@ def set_default_plugin_settings():
             review_decision_revision_request_setting,
             review_decision_revision_request_setting_value,
             review_decision_revision_request_setting["name"],
+            force=force,
         )
 
     def review_decision_not_suitable_message():
@@ -267,6 +285,7 @@ def set_default_plugin_settings():
             subject_review_decision_not_suitable_setting,
             subject_review_decision_not_suitable_setting_value,
             subject_review_decision_not_suitable_setting["name"],
+            force=force,
         )
         review_decision_not_suitable_setting: SettingParams = {
             "name": "review_decision_not_suitable_body",
@@ -294,6 +313,7 @@ def set_default_plugin_settings():
             review_decision_not_suitable_setting,
             review_decision_not_suitable_setting_value,
             review_decision_not_suitable_setting["name"],
+            force=force,
         )
 
     def withdraw_review_message():
@@ -317,6 +337,7 @@ def set_default_plugin_settings():
             withdraw_review_subject_setting,
             withdraw_review_subject_setting_value,
             withdraw_review_subject_setting["name"],
+            force=force,
         )
         withdraw_review_message_setting: SettingParams = {
             "name": "review_withdraw_body",
@@ -340,6 +361,7 @@ def set_default_plugin_settings():
             withdraw_review_message_setting,
             withdraw_review_message_setting_value,
             withdraw_review_message_setting["name"],
+            force=force,
         )
         withdraw_notice_setting: SettingParams = {
             "name": "review_withdraw_notice",
@@ -361,6 +383,7 @@ def set_default_plugin_settings():
             withdraw_notice_setting,
             withdraw_notice_setting_value,
             withdraw_notice_setting["name"],
+            force=force,
         )
 
     def technical_revision_body():
@@ -472,6 +495,7 @@ def set_default_plugin_settings():
             hijack_notification_subject,
             hijack_notification_subject_value,
             hijack_notification_subject["name"],
+            force=force,
         )
         hijack_notification_body: SettingParams = {
             "name": "hijack_notification_body",
@@ -493,6 +517,7 @@ def set_default_plugin_settings():
             hijack_notification_body,
             hijack_notification_body_value,
             hijack_notification_body["name"],
+            force=force,
         )
 
     def patch_review_messages():
@@ -547,7 +572,7 @@ def set_default_plugin_settings():
             setting_group_name="email_subject",
             setting_name="subject_review_assignment",
             journal=None,
-            value="Editor assigns reviewer",
+            value='Request to review "{{ article.title }}"',
         )
         review_message_email_setting: SettingParams = {
             "name": "review_assignment",
@@ -564,26 +589,42 @@ def set_default_plugin_settings():
             "setting": None,
             "value": """
             {% load fqdn %}
-            Dear {{ review_assignment.reviewer.full_name }},<br/><br/>
-            {% if review_assignment.reviewer.jcomprofile.invitation_token %}
-            You have been invited to {{ article.journal.name }} in order to review "{{ article.title }}".
+            <p>
+            <br><br>
+            {{ user_message_content|safe }}
+            </p>
+            <p>---------------------------------------</p>
+            <p><b>{{ article.section.name }} to review:</b><br>
+            {{ article_details }}<br>
+            <b>Link to web page:</b><br>
+            {% if reviewer.jcomprofile.invitation_token %}
+                <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
             {% else %}
-            We are requesting that you undertake a review of "{{ article.title }}" in {{ article.journal.name }}.
+                <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id%}?access_code={{ review_assignment.access_code }}">Click here to review</a>
             {% endif %}
-            <br/><br/>
-            {{ user_message_content }}
-            <br/><br/>
-            We would be most grateful for your time as the feedback from our reviewers is of the utmost importance
-            to our editorial decision-making processes.<br/><br/>You can let us know your decision or decline to
-            undertake the review:
-            {% if review_assignment.reviewer.jcomprofile.invitation_token %}
-                {% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=review_assignment.reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}
+            <br>
+            </p>
+            <p><b>Please accept/decline this request to review by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
+            <p>
+            {% if already_reviewed %}
+                <br>
             {% else %}
-                {% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id %}?access_code={{ review_assignment.access_code }}
+                {{ journal.code }} is a diamond open access journal focusing on research in science communication.<br>
+                Its scope is available on [link to a specific help section for the journal in question].<br><br>
+                Its editorial board (the name links to the relevant webpage) relies on the
+                goodwill of referees to ensure the quality of the manuscripts it
+                publishes and hopes that you will be able to help on this occasion.<br>
+                More information about the Journal’s ethical and financial policy are
+                available on [link to a specific help section for the journal in question]<br><br>
+                It is {{ journal.code }}’s policy that authors and referees remain anonymous to each other.<br>
             {% endif %}
-            <br/><br/>
-            This review assignment is due on {{ review_assignment.date_due|date:"Y-m-d" }}.  <br/><br/>
-            {{ article_details }}<br/><br/>Regards,<br/>{{ request.user.signature|safe }}'
+            <br>The {{ article.section.name }} you are being asked to review is available on the link provided above,
+            together with the buttons to accept or decline this assignment and tools to communicate with the
+            Editor in charge {{ request.user.signature|safe }}. <br><br>
+            All the necessary information and instructions to do the review are available at:<br>
+            [link to pdf file]<br><br>
+            Do not hesitate to contact {{ request.user.signature|safe }} or the Editorial Office for any further information or assistance that you may need.
+            </p>
             """,
             "translations": {},
         }
@@ -610,6 +651,7 @@ def set_default_plugin_settings():
             author_can_contact_director_setting,
             author_can_contact_director_setting_value,
             author_can_contact_director_setting["name"],
+            force=force,
         )
 
     def prophy_settings():

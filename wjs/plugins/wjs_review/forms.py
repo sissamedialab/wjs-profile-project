@@ -33,6 +33,7 @@ from .logic import (
     HandleMessage,
     InviteReviewer,
     SubmitReview,
+    render_template_from_setting,
 )
 from .models import (
     ArticleWorkflow,
@@ -121,11 +122,25 @@ class SelectReviewerForm(forms.ModelForm):
                 # we can load default data
                 default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
                 self.fields["message"].widget = SummernoteWidget()
-                interval_days = get_setting("wjs_review", "acceptance_due_date_days", self.instance.article.journal)
-                default_message = get_setting("wjs_review", "review_invitation_message", self.instance.article.journal)
-                self.data["acceptance_due_date"] = today() + timedelta(days=interval_days.process_value())
-                self.data["message"] = default_message.process_value()
-                self.data["author_note_visible"] = default_visibility
+                if not self.data.get("message", None):
+                    default_message_rendered = render_template_from_setting(
+                        setting_group_name="wjs_review",
+                        setting_name="review_invitation_message",
+                        journal=self.instance.article.journal,
+                        request=self.request,
+                        context=self.get_message_context(),
+                        template_is_setting=True,
+                    )
+                    self.data["message"] = default_message_rendered
+                if not self.data.get("acceptance_due_date", None):
+                    interval_days = get_setting(
+                        "wjs_review",
+                        "acceptance_due_date_days",
+                        self.instance.article.journal,
+                    )
+                    self.data["acceptance_due_date"] = today() + timedelta(days=interval_days.process_value())
+                if not self.data.get("author_note_visible", None):
+                    self.data["author_note_visible"] = default_visibility
             else:
                 # the form has been submitted (for real, not htmx)
                 # Nothing to do (the field-required thing has been done already some lines above).
@@ -133,15 +148,34 @@ class SelectReviewerForm(forms.ModelForm):
 
         self.fields["reviewer"].queryset = Account.objects.get_reviewers_choices(self.instance)
 
+    def get_message_context(self) -> Dict[str, Any]:
+        """
+        Return a dictionary with the context  to render default form message.
+
+        The context is generated using AssignToReviewer._get_message_context method.
+
+        Reviewer is a fake Account instance, as we don't have one yet: we only need its id to render the message.
+        WorkflowReviewAssignment is a fake WorkflowReviewAssignment instance, as we don't have one yet.
+        """
+        form_data = self.data.copy()
+        if reviewer_id := form_data.get("reviewer", False):
+            form_data["reviewer"] = Account.objects.get(id=reviewer_id)
+        else:
+            fake_reviewer = Account(id=self.data.get("reviewer"))
+            form_data["reviewer"] = fake_reviewer
+        logic = self.get_logic_instance(form_data)
+        logic.assignment = WorkflowReviewAssignment(id=1, access_code="sample")
+        return logic._get_message_context()
+
     def clean_date(self):
         """Ensure that the due date is in the future.
 
         We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
         """
-        due_date = self.cleaned_data["acceptance_due_date"]
-        if due_date < now().date():
+        acceptance_due_date = self.cleaned_data["acceptance_due_date"]
+        if acceptance_due_date < now().date():
             raise forms.ValidationError(_("Date must be in the future"))
-        return due_date
+        return acceptance_due_date
 
     def clean_reviewer(self):
         """
@@ -171,9 +205,10 @@ class SelectReviewerForm(forms.ModelForm):
             workflow=self.instance,
             editor=self.user,
             form_data={
-                "acceptance_due_date": cleaned_data["acceptance_due_date"],
-                "message": cleaned_data["message"],
-                "author_note_visible": cleaned_data["author_note_visible"],
+                "acceptance_due_date": cleaned_data.get("acceptance_due_date", None),
+                "message": cleaned_data.get("message", ""),
+                "author_note_visible": cleaned_data.get("author_note_visible", False),
+                "reviewer": cleaned_data.get("reviewer", False),
             },
             request=self.request,
         )

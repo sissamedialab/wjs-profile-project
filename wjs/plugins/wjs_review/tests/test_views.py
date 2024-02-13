@@ -179,7 +179,7 @@ def test_accept_invite(
     url = f"{url}?access_code={review_assignment.access_code}"
     redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
     redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
-    data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": review_assignment.date_due.date()}
+    data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": review_assignment.date_due}
     # Message related to the editor assignment
     assert Message.objects.count() == 1
     response = client.post(url, data=data)
@@ -247,7 +247,7 @@ def test_accept_invite_date_due_in_the_future(
     redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
     redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
     # Message related to the editor assignment
     assert Message.objects.count() == 1
@@ -319,7 +319,7 @@ def test_accept_invite_but_date_due_in_the_past(
     url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
     url = f"{url}?access_code={review_assignment.access_code}"
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    date_due = review_assignment.date_due.date() - datetime.timedelta(days=1)
+    date_due = review_assignment.date_due - datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
     # Message related to the editor assignment
     assert Message.objects.count() == 1
@@ -365,7 +365,7 @@ def test_decline_invite(
     data = {
         "reviewer_decision": "0",
         "accept_gdpr": accept_gdpr,
-        "date_due": review_assignment.date_due.date(),
+        "date_due": review_assignment.date_due,
         "decline_reason": reason,
     }
     # Message related to the editor assignment
