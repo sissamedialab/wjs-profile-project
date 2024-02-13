@@ -1,6 +1,7 @@
 from typing import Optional, TypedDict, Union
 
 from core.models import Setting, SettingGroup, SettingValue
+from django.conf import settings
 from django.utils.translation import gettext as _
 from journal.models import Journal
 from utils.logger import get_logger
@@ -54,7 +55,7 @@ def create_customization_setting(
     setting_params: SettingParams,
     settingvalue_params: SettingValueParams,
     name_for_messages: str,
-    update=False,
+    force=False,
 ):
     """
     Command to create a Setting, with its SettingValue
@@ -64,7 +65,17 @@ def create_customization_setting(
     setting, setting_created = Setting.objects.get_or_create(**setting_params)
     try:
         SettingValue.objects.get(journal=None, setting=setting)
-        logger.warning(f"{name_for_messages_capitalized} already exists. Do nothing.")
+        if force:
+            if settings.DEBUG:
+                patch_setting(setting_params, settingvalue_params)
+                logger.warning(f"Overwriting {name_for_messages_capitalized} as requested.")
+            else:
+                logger.warning(
+                    f"You are trying to patch {name_for_messages_capitalized} in a production environment. "
+                    f"Doing nothing!",
+                )
+        else:
+            logger.warning(f"{name_for_messages_capitalized} already exists. Do nothing.")
     except SettingValue.DoesNotExist:
         translations = settingvalue_params.pop("translations")
         settingvalue_params.update(translations)

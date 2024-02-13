@@ -1,0 +1,10 @@
+{% if preview %}
+<div class="card" id="preview">
+    <div class="card-body">
+        <h5 class="card-title">Preview</h5>
+        <p class="card-text">
+            {{ preview|safe }}
+        </p>
+    </div>
+</div>
+{% endif %}

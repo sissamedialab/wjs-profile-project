@@ -5,12 +5,14 @@ action in a method named "run()".
 
 """
 import dataclasses
+from copy import copy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
 from core import models as core_models
 from core.models import AccountRole, Role
+from dateutil.parser import parse
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -259,16 +261,63 @@ class AssignToReviewer:
             assignment.reviewassignment_ptr_id = assignment_id
             assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
             assignment.save()
-        # TODO: set self.assigment = assigment ?
+            # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
+            # by refreshing it from db, the value is casted to a date object
+            assignment.refresh_from_db()
         return assignment
 
     def _get_message_context(self) -> Dict[str, Any]:
+        """
+        Return a dictionary with the context for default form message.
+
+        Provides:
+        - major_revision: True if we are requesting the review for a major revision
+        - minor_revision: True if we are requesting the review for a minor revision
+        - already_reviewed: True if the reviewer has already been assigned to this article
+        - article: Article instance
+        - journal: Journal instance
+        - request: Request object
+        - user_message_content: Content of the editor message
+        - reviewer: Selected reviewer (it might be an unsaved model when using to render the message preview)
+        - skip: False
+        - review_assignment: Review assignment instance
+        - acceptance_due_date: Due date for the review
+        """
+        try:
+            review_round = self.workflow.article.reviewround_set.get(
+                round_number=self.workflow.article.current_review_round() - 1,
+            )
+            already_reviewed = (
+                WorkflowReviewAssignment.objects.filter(
+                    article=self.workflow.article,
+                    reviewer=self.reviewer,
+                )
+                .exclude(review_round=self.workflow.article.current_review_round_object())
+                .exists()
+            )
+
+            revision_request = review_round.editorrevisionrequest_set.exclude(
+                type=ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+            ).first()
+        except ReviewRound.DoesNotExist:
+            revision_request = None
+            already_reviewed = False
+        acceptance_due_date = self.form_data.get("acceptance_due_date", self.assignment.date_due)
+        if isinstance(acceptance_due_date, str):
+            acceptance_due_date = parse(acceptance_due_date).date()
+        # skipping tech_revision because it does not trigger a new review round
         return {
+            "major_revision": revision_request and revision_request.type == ArticleWorkflow.Decisions.MAJOR_REVISION,
+            "minor_revision": revision_request and revision_request.type == ArticleWorkflow.Decisions.MINOR_REVISION,
+            "already_reviewed": already_reviewed,
             "article": self.workflow.article,
+            "journal": self.workflow.article.journal,
             "request": self.request,
             "user_message_content": self.form_data["message"],
+            "reviewer": self.form_data.get("reviewer", self.assignment.reviewer),
             "skip": False,
             "review_assignment": self.assignment,
+            "acceptance_due_date": acceptance_due_date,
         }
 
     def _log_operation(self, context: Dict[str, Any]):
@@ -696,11 +745,13 @@ class InviteReviewer:
 
     def _assign_reviewer(self, user: JCOMProfile) -> WorkflowReviewAssignment:
         """Create a review assignment for the invited user."""
+        form_data = copy(self.form_data)
+        form_data["reviewer"] = user.janeway_account
         assign_service = AssignToReviewer(
             reviewer=user.janeway_account,
             workflow=self.workflow,
             editor=self.editor,
-            form_data=self.form_data,
+            form_data=form_data,
             request=self.request,
         )
         return assign_service.run()

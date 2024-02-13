@@ -254,7 +254,8 @@ def update_date_send_reminders(assignment: review_models.ReviewAssignment, new_a
         content_type=ContentType.objects.get_for_model(assignment),
         object_id=assignment.id,
     )
-    delta = new_assignment_date_due - assignment.date_due.date()
+    date_due = assignment.date_due if isinstance(assignment.date_due, datetime.date) else assignment.date_due.date()
+    delta = new_assignment_date_due - date_due
     for reminder in reminders:
         if delta.days > reminder.clemency_days:
             reminder.date_sent = None

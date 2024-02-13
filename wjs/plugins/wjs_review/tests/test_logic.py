@@ -18,6 +18,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
+from ..events.handlers import on_revision_complete
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -169,7 +170,7 @@ def test_assign_to_reviewer_hijacked(
     assert len(user_emails) == 1
     assert len(editor_emails) == 1
     assert subject_review_assignment in user_emails[0].subject
-    assert f"User {eo_user} executed Editor assigns reviewer" in editor_emails[0].subject
+    assert f"User {eo_user} executed Request to review" in editor_emails[0].subject
 
 
 @pytest.mark.django_db
@@ -183,6 +184,7 @@ def test_assign_to_reviewer(
     """A reviewer can be assigned to an article and objects states are updated."""
     fake_request.user = section_editor.janeway_account
 
+    acceptance_due_date = now().date() + datetime.timedelta(days=7)
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         # we must pass the Account object linked to the JCOMProfile instance, to ensure it
@@ -190,7 +192,7 @@ def test_assign_to_reviewer(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": acceptance_due_date.strftime("%Y-%m-%d"),
             "message": "random message",
             "author_note_visible": False,
         },
@@ -204,6 +206,19 @@ def test_assign_to_reviewer(
 
     assignment = service.run()
     assigned_article.refresh_from_db()
+
+    context = service._get_message_context()
+    assert context["article"] == assigned_article
+    assert context["journal"] == assigned_article.journal
+    assert context["request"] == fake_request
+    assert context["user_message_content"] == "random message"
+    assert context["review_assignment"] == assignment
+    assert context["acceptance_due_date"] == acceptance_due_date
+    assert context["reviewer"] == normal_user.janeway_account
+    assert not context["major_revision"]
+    assert not context["minor_revision"]
+    assert not context["already_reviewed"]
+    assert isinstance(context["acceptance_due_date"], datetime.date)
 
     assert normal_user.janeway_account in assigned_article.journal.users_with_role("reviewer")
     assert assigned_article.stage == "Under Review"
@@ -348,6 +363,90 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     assert mail_to_correspondence_author.from_email == settings.DEFAULT_FROM_EMAIL
     assert mail_to_correspondence_author.from_email != section_editor.email
     assert list(mail_to_correspondence_author.recipients()) == [assigned_article.correspondence_author.email]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "revision_type,previous_assignment",
+    (
+        (ArticleWorkflow.Decisions.MINOR_REVISION, False),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, False),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, True),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, True),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
+    ),
+)
+def test_assign_to_reviewer_after_revision(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    review_settings,
+    revision_type: str,
+    previous_assignment: bool,
+):
+    """Context after completed revision request is marked with revision status flags."""
+    fake_request.user = section_editor.janeway_account
+    form_data = {
+        "decision": revision_type,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    if previous_assignment:
+        _create_review_assignment(
+            fake_request=fake_request,
+            reviewer_user=normal_user,
+            assigned_article=assigned_article,
+        )
+
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+    revision_request = EditorRevisionRequest.objects.get(article=assigned_article)
+    revision_request.date_completed = now()
+    revision_request.save()
+    on_revision_complete(revision=revision_request)
+
+    acceptance_due_date = now().date() + datetime.timedelta(days=7)
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        reviewer=normal_user.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": acceptance_due_date,
+            "message": "random message",
+        },
+        request=fake_request,
+    )
+    assignment = service.run()
+    context = service._get_message_context()
+
+    if revision_type == ArticleWorkflow.Decisions.MINOR_REVISION:
+        assert context["minor_revision"]
+        assert not context["major_revision"]
+    elif revision_type == ArticleWorkflow.Decisions.MAJOR_REVISION:
+        assert not context["minor_revision"]
+        assert context["major_revision"]
+    elif revision_type == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+        assert not context["minor_revision"]
+        assert not context["major_revision"]
+    assert context["article"] == assigned_article
+    assert context["journal"] == assigned_article.journal
+    assert context["request"] == fake_request
+    assert context["user_message_content"] == "random message"
+    assert context["review_assignment"] == assignment
+    assert context["acceptance_due_date"] == acceptance_due_date
+    assert context["reviewer"] == normal_user.janeway_account
+    assert context["already_reviewed"] == previous_assignment
 
 
 @pytest.mark.django_db
@@ -532,7 +631,7 @@ def test_invite_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
     assert len(emails) == 1
     assert subject_review_assignment in emails[0].subject
-    assert "You have been invited" in emails[0].body
+    assert "is a diamond open access" in emails[0].body
     assert acceptance_url in emails[0].body
     assert "random message" in emails[0].body
     # Check messages
@@ -541,7 +640,7 @@ def test_invite_reviewer(
     assert message_to_invited_user.subject == subject_review_assignment
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
-    assert "You have been invited" in message_to_invited_user.body
+    assert "is a diamond open access" in message_to_invited_user.body
     assert message_to_invited_user.message_type == "Verbose"
     assert message_to_invited_user.actor == section_editor.janeway_account
     assert list(message_to_invited_user.recipients.all()) == [invited_user.janeway_account]
@@ -715,8 +814,8 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    assert review_assignment.date_due.date() == now().date() + datetime.timedelta(default_review_days)
-    new_date_due = review_assignment.date_due.date() + datetime.timedelta(days=1)
+    assert review_assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+    new_date_due = review_assignment.date_due + datetime.timedelta(days=1)
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
 
@@ -756,8 +855,8 @@ def test_handle_update_due_date_in_evaluate_review_in_the_past(
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    assert review_assignment.date_due.date() == now().date() + datetime.timedelta(default_review_days)
-    new_date_due = review_assignment.date_due.date() - datetime.timedelta(days=1)
+    assert review_assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+    new_date_due = review_assignment.date_due - datetime.timedelta(days=1)
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
 
@@ -830,7 +929,7 @@ def test_invite_reviewer_but_user_already_exists(
     assert len(mail.outbox) == 1
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject="Editor assigns reviewer")
+    message_to_reviewer = Message.objects.get(subject__startswith="Request to review")
     assert "random message" in message_to_reviewer.body
     assert message_to_reviewer.message_type == "Verbose"
     assert message_to_reviewer.actor == section_editor.janeway_account
