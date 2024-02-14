@@ -55,6 +55,11 @@
                         {{ previous_revision.author_note|safe }}
                     {% endif %}
                 </div>
+            {% else %}
+                <div class="col">
+                    <h3>Comments to the editor</h3>
+                    {{ article.comments_editor }}
+                </div>
             {% endif %}
         {% endwith %}
     {% endif %}
