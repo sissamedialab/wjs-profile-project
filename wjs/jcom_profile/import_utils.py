@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 # Janeway and wjapp country names do not completely overlap (sigh...)
 COUNTRIES_MAPPING = {
+    "Czechia": "Czech Republic",
     "Netherlands (the)": "Netherlands",
     "Philippines (the)": "Philippines",
     "Russian Federation (the)": "Russian Federation",
