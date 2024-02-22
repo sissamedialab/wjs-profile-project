@@ -461,3 +461,31 @@ def test_user_is_not_coauthor_no_author(article: submission_models.Article, jcom
 def test_user_is_not_coauthor_anonymous(article: submission_models.Article):
     """user_is_coauthor check input user is not coauthor (anonymous)."""
     assert user_is_coauthor(article, AnonymousUser()) is None
+
+
+# MOVED FROM wjs/jcom_profile/tests/test_views.py
+# because needs review_settings
+@pytest.mark.django_db
+def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
+    review_settings,
+    admin,
+    article,
+    coauthors_setting,
+    director_role,
+):
+    client = Client()
+    client.force_login(admin)
+    url = reverse("submit_review", args=(article.pk,))
+    coauthors_email = list(
+        article.authors.exclude(email=article.correspondence_author.email).values_list("email", flat=True),
+    )
+
+    response = client.post(url, data={"next_step": "next_step"})
+    assert response.status_code == 302
+    assert len(mail.outbox) == article.authors.count()
+
+    for m in mail.outbox:
+        if m.subject == f"[{article.journal.code}] Coauthor - Article Submission":
+            assert m.to == coauthors_email
+        else:
+            assert m.to == [article.correspondence_author.email]

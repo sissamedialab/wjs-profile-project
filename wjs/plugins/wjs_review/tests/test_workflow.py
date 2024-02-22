@@ -8,6 +8,7 @@ from wjs.jcom_profile.models import JCOMProfile
 
 from ..events import ReviewEvent
 from ..models import ArticleWorkflow
+from ..plugin_settings import STAGE
 
 
 @pytest.mark.django_db
@@ -33,7 +34,7 @@ def test_submitted_article(
     # mimics submission.views.submit_review to complete the submission of an article
     kwargs = {"article": article, "request": fake_request}
     article.date_submitted = timezone.now()
-    article.stage = submission_models.STAGE_UNASSIGNED
+    article.stage = STAGE
     article.current_step = 5
     article.save()
     events_logic.Events.raise_event(events_logic.Events.ON_ARTICLE_SUBMITTED, task_object=article, **kwargs)
