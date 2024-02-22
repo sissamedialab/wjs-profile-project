@@ -9,6 +9,7 @@ from utils.logger import get_logger
 
 from ..communication_utils import log_operation
 from ..models import ArticleWorkflow, Message
+from ..plugin_settings import STAGE
 from ..prophy import Prophy
 from . import ReviewEvent
 from .assignment import dispatch_assignment
@@ -19,10 +20,7 @@ logger = get_logger(__name__)
 def on_article_submitted(**kwargs) -> None:
     """Sync ArticleWorkflow state with article on submission."""
     article = kwargs["article"]
-    if (
-        article.stage == submission_models.STAGE_UNASSIGNED
-        and article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
-    ):
+    if article.stage == STAGE and article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION:
         article.articleworkflow.author_submits_paper()
         article.articleworkflow.save()
         kwargs = {"workflow": article.articleworkflow}

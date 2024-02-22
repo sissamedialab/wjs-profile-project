@@ -47,6 +47,7 @@ def get_expected_editor(editors, article):
 )
 @pytest.mark.django_db
 def test_default_normal_issue_articles_automatic_assignment(
+    review_settings,
     admin,
     article,
     directors,
@@ -83,6 +84,7 @@ def test_default_normal_issue_articles_automatic_assignment(
 )
 @pytest.mark.django_db
 def test_default_special_issue_articles_automatic_assignment(
+    review_settings,
     admin,
     article,
     directors,
@@ -120,6 +122,7 @@ def test_default_special_issue_articles_automatic_assignment(
 )
 @pytest.mark.django_db
 def test_jcom_normal_issue_articles_automatic_assignment(
+    review_settings,
     admin,
     article,
     directors,
@@ -156,6 +159,7 @@ def test_jcom_normal_issue_articles_automatic_assignment(
 )
 @pytest.mark.django_db
 def test_jcom_special_issue_articles_automatic_assignment(
+    review_settings,
     admin,
     article,
     directors,

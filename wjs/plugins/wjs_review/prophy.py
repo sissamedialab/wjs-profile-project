@@ -23,10 +23,12 @@ class Prophy:
 
     def __init__(self, article):
         self.article = article
+        self.prophy_upload_enabled = self.get_prophy_upload_enabled()
+        self.prophy_journal_value = self.get_prophy_journal_value()
 
     def article_prophy_upload(self):
         output = ""
-        if not self.prophy_upload_enabled():
+        if not self.prophy_upload_enabled:
             logger.debug("prophy upload for this journal is not enabled")
             return output
         else:
@@ -48,11 +50,6 @@ class Prophy:
 
             corr_auth = self.article.correspondence_author
             # used article id as origin: "origin_id": self.article.id,
-            prophy_journal_value = get_setting(
-                "wjs_prophy",
-                "prophy_journal",
-                self.article.journal,
-            ).processed_value
             try:
                 multipart_data = MultipartEncoder(
                     fields={
@@ -60,7 +57,7 @@ class Prophy:
                         # plain text fields
                         "api_key": api_key,
                         "organization": settings.PROPHY_ORGANIZATION,
-                        "journal": prophy_journal_value,
+                        "journal": self.prophy_journal_value,
                         "origin_id": f"{self.article.id}",
                         "title": self.article.title,
                         "abstract": self.article.abstract,
@@ -95,7 +92,8 @@ class Prophy:
 
     def async_article_prophy_upload(self):
         # async upload to prophy
-        threading.Thread(target=self.article_prophy_upload).start()
+        if self.prophy_upload_enabled:
+            threading.Thread(target=self.article_prophy_upload).start()
         return
 
     def jwt_token(self, user):
@@ -124,11 +122,6 @@ class Prophy:
         # the folder/panel where the documents are available.
         #
         # Prophy automatically creates both the team and the folder (if necessary) during the first upload.
-        prophy_journal_value = get_setting(
-            "wjs_prophy",
-            "prophy_journal",
-            self.article.journal,
-        ).processed_value
 
         # `iat` is the time at which the JWT token was issued (UNIX timestamp). Token expires in 1 hour.
         iat = round(time.time())
@@ -144,7 +137,7 @@ class Prophy:
                 "sub": settings.PROPHY_JWT_SUB,
                 "iat": iat,
                 "organization": settings.PROPHY_ORGANIZATION,
-                "journal": prophy_journal_value,
+                "journal": self.prophy_journal_value,
                 "name": f"{user.first_name} {user.last_name}",
                 "email": user.email,
                 "manuscript_id": prophy_manuscript_id,
@@ -327,10 +320,17 @@ class Prophy:
 
         return prophy_accounts_candidates.order_by("-is_active", "name")
 
-    def prophy_upload_enabled(self):
+    def get_prophy_upload_enabled(self):
         prophy_upload_enabled_value = get_setting(
             "wjs_prophy",
             "prophy_upload_enabled",
             self.article.journal,
         ).processed_value
         return prophy_upload_enabled_value
+
+    def get_prophy_journal_value(self):
+        return get_setting(
+            "wjs_prophy",
+            "prophy_journal",
+            self.article.journal,
+        ).processed_value

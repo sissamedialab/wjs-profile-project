@@ -16,7 +16,12 @@ from wjs.jcom_profile.tests.conftest import *  # noqa
 from ..events import ReviewEvent
 from ..logic import AssignToEditor
 from ..models import ArticleWorkflow, Message, Reminder
-from ..plugin_settings import HANDSHAKE_URL, SHORT_NAME, set_default_plugin_settings
+from ..plugin_settings import (
+    HANDSHAKE_URL,
+    SHORT_NAME,
+    STAGE,
+    set_default_plugin_settings,
+)
 from .test_helpers import _create_review_assignment
 
 TEST_FILES_EXTENSION = ".santaveronica"
@@ -44,7 +49,7 @@ def review_settings(journal, eo_user):
             element_name=SHORT_NAME,
             journal=journal,
             order=0,
-            stage="wjs_review",
+            stage=STAGE,
             handshake_url=HANDSHAKE_URL,
         ),
     )
