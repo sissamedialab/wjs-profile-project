@@ -89,9 +89,11 @@ def get_eo_user(obj: Union[Article, Journal]) -> Account:
     email = f"{code}-eo@{code}.sissa.it"
     account, created = Account.objects.get_or_create(
         email=email,
-        username=email,
-        first_name="",
-        last_name=f"{code.upper()} Editorial Office",
+        defaults={
+            "username": email,
+            "first_name": "",
+            "last_name": f"{code.upper()} Editorial Office",
+        },
     )
     if created:
         from django.contrib.auth.models import Group

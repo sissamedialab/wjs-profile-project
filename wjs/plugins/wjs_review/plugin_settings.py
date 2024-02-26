@@ -698,6 +698,107 @@ def set_default_plugin_settings(force: bool = False):
             prophy_upload_enabled_setting["name"],
         )
 
+    def due_date_postpone_message():
+        subject_due_date_postpone_setting: SettingParams = {
+            "name": "due_date_postpone_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for postponing due date notification"),
+            "description": _(
+                "The subject of the notification that is sent to the reviewer, when the editor postpones the report due date",
+            ),
+            "is_translatable": False,
+        }
+        subject_due_date_postpone_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Reviewer report due date is postponed"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_due_date_postpone_setting,
+            subject_due_date_postpone_setting_value,
+            subject_due_date_postpone_setting["name"],
+        )
+        due_date_postpone_setting: SettingParams = {
+            "name": "due_date_postpone_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for postponing due date notification"),
+            "description": _(
+                "The body of the notification that is sent to the reviewer, when the editor postpones the report due date",
+            ),
+            "is_translatable": False,
+        }
+        due_date_postpone_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ reviewer.full_name }},
+            We are inform you that the reviewer report due date for the article "{{ article.title }}" is postponed to
+            {{ date_due }}.
+            Regards,
+            {{ request.user.signature|safe }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            due_date_postpone_setting,
+            due_date_postpone_setting_value,
+            due_date_postpone_setting["name"],
+        )
+
+    def due_date_far_future_message():
+        subject_due_date_far_future_setting: SettingParams = {
+            "name": "due_date_far_future_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for notification when due date is postponed far in the future."),
+            "description": _(
+                "The subject of a notification that the system sends to EO when an editor postpones a reviewer report due date fare into the future.",
+            ),
+            "is_translatable": False,
+        }
+        subject_due_date_far_future_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Editor postpones reviewer report due date far in the future."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_due_date_far_future_setting,
+            subject_due_date_far_future_setting_value,
+            subject_due_date_far_future_setting["name"],
+        )
+        due_date_far_future_setting: SettingParams = {
+            "name": "due_date_far_future_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for when due date is postponed in the far future."),
+            "description": _(
+                "The subject of a notification that the system sends to EO when an editor postpones a reviewer report due date"
+                "far into the future.",
+            ),
+            "is_translatable": False,
+        }
+        due_date_far_future_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ EO.full_name }},
+            I inform you that the reviewer report due date for the article "{{ article.title }}" is postponed to
+            {{ date_due }}.
+            Regards,
+            {{ request.user.signature|safe }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            due_date_far_future_setting,
+            due_date_far_future_setting_value,
+            due_date_far_future_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -712,6 +813,8 @@ def set_default_plugin_settings(force: bool = False):
     hijack_notification_message()
     author_submits_revision_message()
     prophy_settings()
+    due_date_postpone_message()
+    due_date_far_future_message()
 
 
 def ensure_workflow_elements():

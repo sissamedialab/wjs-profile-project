@@ -275,9 +275,9 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         ),
         ReviewAssignmentAction(
             condition=conditions.review_not_done,
-            name="postpones rev.report deadline",
-            label="",
-            view_name="WRITEME!",
+            name="postpone reviewer report due date",
+            label="Postpone Report due date",
+            view_name="wjs_postpone_report_due_date",
         ),
         ReviewAssignmentAction(
             condition=conditions.review_done,

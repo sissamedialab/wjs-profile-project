@@ -45,6 +45,7 @@ from .forms import (
     SelectReviewerForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
+    UpdateReviewerReportDueDateForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
 from .logic import render_template_from_setting
@@ -57,6 +58,7 @@ from .models import (
     Reminder,
     WorkflowReviewAssignment,
 )
+from .permissions import is_article_editor
 from .prophy import Prophy
 
 Account = get_user_model()
@@ -1126,3 +1128,28 @@ class ArticleReminders(UserPassesTestMixin, ListView):
         context["workflow"] = self.article.articleworkflow
         context["article"] = self.article
         return context
+
+
+class UpdateReviewerReportDueDate(UserPassesTestMixin, UpdateView):
+    """
+    View to allow the Editor to postpone Reviewer Report due date.
+    """
+
+    model = ReviewAssignment
+    form_class = UpdateReviewerReportDueDateForm
+    template_name = "wjs_review/elements/update_reviewer_report_due_date.html"
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        return kwargs
+
+    def test_func(self):
+        """User must be the article's editor"""
+        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).article.articleworkflow
+        return is_article_editor(self.article, self.request.user)
+
+    def get_success_url(self):
+        """Point back to the article's detail page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.article.pk})

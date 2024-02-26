@@ -27,6 +27,7 @@ from .views import (
     SelectReviewer,
     ToggleMessageReadByEOView,
     ToggleMessageReadView,
+    UpdateReviewerReportDueDate,
     UpdateState,
     UploadRevisionAuthorCoverLetterFile,
     WriteMessage,
@@ -46,6 +47,7 @@ urlpatterns = [
     path("reviewer_archived/", ReviewerArchived.as_view(), name="wjs_review_reviewer_archived"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
+    path("postpone_duedate/<int:pk>/", UpdateReviewerReportDueDate.as_view(), name="wjs_postpone_report_due_date"),
     path(
         "invite_reviewer/<int:pk>/",
         InviteReviewer.as_view(),
