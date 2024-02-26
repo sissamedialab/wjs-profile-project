@@ -799,6 +799,56 @@ def set_default_plugin_settings(force: bool = False):
             due_date_far_future_setting["name"],
         )
 
+    def editor_decline_assignment_message():
+        subject_editor_decline_assignment_setting: SettingParams = {
+            "name": "editor_decline_assignment_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for declination of Editor assignment"),
+            "description": _(
+                "The subject of the notification that is sent to the director when an editor declines an assignment.",
+            ),
+            "is_translatable": False,
+        }
+        subject_editor_decline_assignment_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Editor assignment is declined"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_editor_decline_assignment_setting,
+            subject_editor_decline_assignment_setting_value,
+            subject_editor_decline_assignment_setting["name"],
+        )
+        editor_decline_assignment_setting: SettingParams = {
+            "name": "editor_decline_assignment_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for declination of Editor assignment"),
+            "description": _(
+                "The body of the notification that is sent to the director when an editor declines an assignment.",
+            ),
+            "is_translatable": False,
+        }
+        editor_decline_assignment_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ director }},
+            I'm sorry to inform you that I cant fulfill your request. My assigment is declined for the following
+            reasons:
+            Regards,
+            {{ editor }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            editor_decline_assignment_setting,
+            editor_decline_assignment_setting_value,
+            editor_decline_assignment_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -815,6 +865,7 @@ def set_default_plugin_settings(force: bool = False):
     prophy_settings()
     due_date_postpone_message()
     due_date_far_future_message()
+    editor_decline_assignment_message()
 
 
 def ensure_workflow_elements():

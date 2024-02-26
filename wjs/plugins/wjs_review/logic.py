@@ -1714,3 +1714,65 @@ class PostponeReviewerReportDueDate:
             if self._report_postponed_far_future_date():
                 self._log_eo_far_future_date()
             self._log_reviewer_if_date_is_postponed()
+
+
+@dataclasses.dataclass
+class HandleEditorDeclinesAssignment:
+    """
+    Handle the decision of the editor to decline an assignment.
+    """
+
+    assignment: EditorAssignment
+    editor: Account
+    request: HttpRequest
+    director: Optional[Account] = None
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "editor": self.editor,
+            "director": self.director,
+            "article": self.assignment.article,
+        }
+
+    def _log_director(self):
+        """Logs a message to the Director containing information about the motivation of the declination."""
+        self.director = communication_utils.get_director_user(self.assignment.article)
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_decline_assignment_subject",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_decline_assignment_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.editor,
+            recipients=[self.director],
+        )
+
+    @staticmethod
+    def _check_editor_conditions(assignment: ReviewAssignment, editor: Account) -> bool:
+        """Editor must be assigned to the article."""
+        return editor == assignment.editor
+
+    def check_conditions(self):
+        """Check if the conditions for the assignment are met."""
+        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
+        return editor_conditions
+
+    def run(self):
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            self._log_director()
+            self.assignment.delete()

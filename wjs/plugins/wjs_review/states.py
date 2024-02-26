@@ -152,8 +152,8 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         ArticleAction(
             permission=permissions.is_article_editor,
             name="declines assignment",
-            label="",
-            view_name="WRITEME!",
+            label="Decline Assignment",
+            view_name="wjs_unassign_assignment",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
