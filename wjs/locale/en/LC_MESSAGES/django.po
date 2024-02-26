@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-05-11 09:59+0200\n"
+"POT-Creation-Date: 2024-02-23 11:25+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,81 +17,121 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: wjs/defaults/settings.py:53
+#: wjs/defaults/settings.py:57
 msgid "English"
 msgstr ""
 
-#: wjs/defaults/settings.py:54
+#: wjs/defaults/settings.py:58
 msgid "French"
 msgstr ""
 
-#: wjs/defaults/settings.py:55
+#: wjs/defaults/settings.py:59
 msgid "German"
 msgstr ""
 
-#: wjs/defaults/settings.py:56
+#: wjs/defaults/settings.py:60
 msgid "Dutch"
 msgstr ""
 
-#: wjs/defaults/settings.py:57
+#: wjs/defaults/settings.py:61
 msgid "Welsh"
 msgstr ""
 
-#: wjs/defaults/settings.py:58
+#: wjs/defaults/settings.py:62
 msgid "Spanish"
 msgstr ""
 
-#: wjs/defaults/settings.py:59
+#: wjs/defaults/settings.py:63
 msgid "Portughese"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:72
+#: wjs/jcom_profile/custom_settings_utils.py:94
+msgid "Files Submission - Title of Figures and Data Files Field"
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:95
+msgid "Displayed on the Files Submission page."
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:121
+msgid "Submission Coauthors Acknowledgement"
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:122
+msgid "Email sent to coauthors when they have submitted an article."
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:142
+msgid "Submission Subject Coauthors Acknowledgement"
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:143
+msgid "Subject for Email sent to coauthors when they have submitted an article."
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:167
+msgid "User automatically as main author"
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:169
+msgid "If true, the submitting user is set as main author. To work, the setting 'user_automatically_author' must be on."
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:348
+msgid "Analytics tracking code"
+msgstr ""
+
+#: wjs/jcom_profile/custom_settings_utils.py:350
+msgid "Code added to every page of the journal in order to track visits and analytics. E.g. Google Analitics or Matomo complete tracking code. Not just the site code 🙂"
+msgstr ""
+
+#: wjs/jcom_profile/forms.py:75
 msgid "Password"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:73
+#: wjs/jcom_profile/forms.py:76
 msgid "Repeat Password"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:178
+#: wjs/jcom_profile/forms.py:171
 #: wjs/themes/JCOM-theme/templates/journal/components/article_sidebar.html:30
 msgid "Keywords"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:229
+#: wjs/jcom_profile/forms.py:222
 #: wjs/themes/JCOM-theme/templates/journal/search.html:16
 msgid "Keyword"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:266
+#: wjs/jcom_profile/forms.py:259
 msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:271
+#: wjs/jcom_profile/forms.py:264
 msgid "If set to false, articles are not created. The authors must start a submission themselves."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:281
+#: wjs/jcom_profile/forms.py:274
 msgid "Match euristics - NOT IMPLEMENTED"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:282
+#: wjs/jcom_profile/forms.py:275
 msgid "Being optimistic ... TODO WRITE ME!"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:287
+#: wjs/jcom_profile/forms.py:280
 msgid "All new contributions will have the choosen section (article type)."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:311
+#: wjs/jcom_profile/forms.py:304
 msgid "Apply changes to this user account"
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:371
+#: wjs/jcom_profile/forms.py:364
 msgid "I want to receive alerts about news published in the journal."
 msgstr ""
 
-#: wjs/jcom_profile/forms.py:374
+#: wjs/jcom_profile/forms.py:367
 msgid "Preferred language for alerts"
 msgstr ""
 
@@ -127,80 +167,44 @@ msgstr ""
 msgid "Edit my subscription"
 msgstr ""
 
-#: wjs/jcom_profile/management/commands/add_coauthors_submission_email_settings.py:16
-msgid "Submission Coauthors Acknowledgement"
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_coauthors_submission_email_settings.py:17
-msgid "Email sent to coauthors when they have submitted an article."
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_coauthors_submission_email_settings.py:43
-msgid "Submission Subject Coauthors Acknowledgement"
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_coauthors_submission_email_settings.py:44
-msgid "Subject for Email sent to coauthors when they have submitted an article."
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_generic_analytics_code_setting.py:51
-msgid "Code added to every page of the journal in order to track visits and analytics. E.g. Google Analitics or Matomo complete tracking code. Not just the site code 🙂"
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_generic_analytics_code_setting.py:55
-msgid "Analytics tracking code"
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_submission_figures_data_title.py:20
-msgid "Files Submission - Title of Figures and Data Files Field"
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_submission_figures_data_title.py:21
-msgid "Displayed on the Files Submission page."
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_user_as_main_author_setting.py:16
-msgid "User automatically as main author"
-msgstr ""
-
-#: wjs/jcom_profile/management/commands/add_user_as_main_author_setting.py:18
-msgid "If true, the submitting user is set as main author. To work, the setting 'user_automatically_author' must be on."
-msgstr ""
-
-#: wjs/jcom_profile/models.py:50
+#: wjs/jcom_profile/models.py:45
 msgid "GDPR acceptance checkbox"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:51
+#: wjs/jcom_profile/models.py:46
 msgid "Invitation token"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:244
+#: wjs/jcom_profile/models.py:239
 msgid "Newsletter topics user"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:253
+#: wjs/jcom_profile/models.py:248
 msgid "Preferred newsletter's language"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:257
+#: wjs/jcom_profile/models.py:252
 msgid "Newsletter topics' journal"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:258
+#: wjs/jcom_profile/models.py:253
 msgid "Newsletters topics"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:259
+#: wjs/jcom_profile/models.py:254
 msgid "Generic news topic"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:260
+#: wjs/jcom_profile/models.py:255
 msgid "newsletter token for anonymous users"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:261
+#: wjs/jcom_profile/models.py:256
 msgid "Anonymous user email"
+msgstr ""
+
+#: wjs/jcom_profile/models.py:258
+msgid "When the subscription/reminder confirmation email has been sent to an anonymous recipient"
 msgstr ""
 
 #: wjs/jcom_profile/models.py:264
@@ -223,33 +227,54 @@ msgstr ""
 msgid "Last time newsletter emails have been sent to users"
 msgstr ""
 
-#: wjs/jcom_profile/models.py:312
+#: wjs/jcom_profile/models.py:311
 msgid "Journal"
 msgstr ""
 
-#: wjs/jcom_profile/views.py:1236
+#: wjs/jcom_profile/templates/hijack/notification.html:5
+#, python-format
+msgid "You are currently working on behalf of %(user)s."
+msgstr ""
+
+#: wjs/jcom_profile/templates/hijack/notification.html:9
+#, python-format
+msgid "release %(user)s"
+msgstr ""
+
+#: wjs/jcom_profile/templatetags/wjs_tags.py:95
+#: wjs/themes/JCOM-theme/templates/admin/core/si_update.html:141
+#: wjs/themes/JCOM-theme/templates/elements/article_listing.html:23
+msgid "by"
+msgstr ""
+
+#: wjs/jcom_profile/templatetags/wjs_tags.py:98
+#: wjs/themes/JCOM-theme/templates/elements/article_listing.html:28
+msgid "and"
+msgstr ""
+
+#: wjs/jcom_profile/views.py:1265
 #: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:22
 msgid "Filter by section"
 msgstr ""
 
-#: wjs/jcom_profile/views.py:1237
+#: wjs/jcom_profile/views.py:1266
 msgid "Publications included in this section."
 msgstr ""
 
-#: wjs/jcom_profile/views.py:1241
+#: wjs/jcom_profile/views.py:1270
 #: wjs/themes/JCOM-theme/templates/journal/components/search_sidebar.html:41
 msgid "Filter by keyword"
 msgstr ""
 
-#: wjs/jcom_profile/views.py:1242
+#: wjs/jcom_profile/views.py:1271
 msgid "Publications including this keyword are listed below."
 msgstr ""
 
-#: wjs/jcom_profile/views.py:1246
+#: wjs/jcom_profile/views.py:1275
 msgid "Filter by author"
 msgstr ""
 
-#: wjs/jcom_profile/views.py:1247
+#: wjs/jcom_profile/views.py:1276
 msgid "All author's publications are listed below."
 msgstr ""
 
@@ -264,6 +289,734 @@ msgstr ""
 msgid "Number of items shown in the home page"
 msgstr ""
 
+#: wjs/plugins/wjs_latest_news/models.py:17
+msgid "Title of the second box"
+msgstr ""
+
+#: wjs/plugins/wjs_latest_news/models.py:22
+msgid "Tag used to filter news visible in second box"
+msgstr ""
+
+#: wjs/plugins/wjs_latest_news/models.py:26
+msgid "Number of items shown in the second box"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:177 wjs/plugins/wjs_review/forms.py:324
+#: wjs/plugins/wjs_review/forms.py:492
+msgid "Date must be in the future"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:194
+msgid "Assignment conditions not met."
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:293 wjs/plugins/wjs_review/models.py:65
+msgid "Accept"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:293 wjs/plugins/wjs_review/models.py:66
+msgid "Reject"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:293
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:111
+msgid "Update"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:297 wjs/plugins/wjs_review/forms.py:332
+msgid "Please provide a reason for declining"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:338
+msgid "You must accept GDPR to continue"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:441
+msgid "Editor Report"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:446
+msgid "Internal notes"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:451
+msgid "Notice to reviewers"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:490
+msgid "Please provide a date due for author to submit a revision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:522
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:23
+#: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:158
+msgid "Manuscript"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:522
+msgid "Data/Figure"
+msgstr ""
+
+#: wjs/plugins/wjs_review/forms.py:592
+msgid "Optional attachment"
+msgstr ""
+
+#: wjs/plugins/wjs_review/logic.py:412 wjs/plugins/wjs_review/logic.py:672
+msgid "Transition conditions not met"
+msgstr ""
+
+#: wjs/plugins/wjs_review/logic.py:418
+msgid "Cannot assign review"
+msgstr ""
+
+#: wjs/plugins/wjs_review/logic.py:741
+#, python-format
+msgid "Invitation sent to %s."
+msgstr ""
+
+#: wjs/plugins/wjs_review/logic.py:744
+#, python-format
+msgid "%s assigned to the article review."
+msgstr ""
+
+#: wjs/plugins/wjs_review/logic.py:763
+msgid "Invitation conditions not met"
+msgstr ""
+
+#: wjs/plugins/wjs_review/logic.py:1466
+msgid "Decision conditions not met"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:49
+msgid "Editor to be selected"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:50
+msgid "Editor selected"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:51
+#: wjs/plugins/wjs_review/templates/wjs_review/decision.html:25
+msgid "Submitted"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:52
+msgid "To be revised"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:53
+msgid "Withdrawn"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:54
+msgid "Rejected"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:55
+msgid "Incomplete submission"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:56 wjs/plugins/wjs_review/models.py:70
+msgid "Not suitable"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:57
+msgid "Paper has editor report"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:58
+msgid "Accepted"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:59
+msgid "Writeme production"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:60
+msgid "Paper might have issues"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:67
+msgid "Minor revision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:68
+msgid "Major revision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:69
+msgid "Technical revision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:72
+#: wjs/themes/JCOM-theme/templates/journal/article.html:11
+msgid "Article"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:74
+msgid "State"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:77
+msgid "EO in charge"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:84 wjs/plugins/wjs_review/models.py:278
+msgid "Article workflow"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:85
+msgid "Article workflows"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:282 wjs/plugins/wjs_review/models.py:530
+msgid "Review round"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:288
+msgid "Editor decision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:289
+msgid "Editor decisions"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:311
+msgid "Standard message (notifications are sent)"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:312
+msgid "Silent message (no notification is sent)"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:320
+msgid "Write all the body in the notification email."
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:325
+msgid "Add the first 10 lines of the body to the message"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:327
+msgid "A system message"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:328
+msgid "A hijacking notification message"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:484
+msgid ""
+"This is an automatic notification. Please do not reply.\n"
+"\n"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:485
+#, python-brace-format
+msgid ""
+"\n"
+"\n"
+"Please visit {url}\n"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:531
+msgid "Cover letter file"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:532
+msgid "Article history"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:557
+msgid "Author note visible"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:575
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_authors_for_reviewer.html:10
+msgid "Institution"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:579
+msgid "Email"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:585
+msgid "Full name"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:587
+msgid "ORCiD"
+msgstr ""
+
+#: wjs/plugins/wjs_review/models.py:598
+msgid "Prophy score"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:89
+msgid "Default acceptance due date timeframe"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:91
+msgid "Default number of days from current date to set acceptance_due_date."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:110
+msgid "Page size of the items list"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:112
+msgid "Number of items in the lists / tables of items."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:134
+msgid "Default message for review invitation"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:136
+msgid "Provide the default message to invite reviewers."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:170
+msgid "Message shown when reviewer declines the review"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:172
+msgid "Provide a thank you message when reviewer declines the review."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:179
+msgid "Thanks for the time to evaluate the review."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:194
+#: wjs/plugins/wjs_review/plugin_settings.py:581
+msgid "Message shown on review submit page"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:196
+#: wjs/plugins/wjs_review/plugin_settings.py:583
+msgid "Provide instructions to handle reviews."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:203
+msgid "To submit the review do this and this."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:218
+msgid "Subject for revision request notification"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:220
+#: wjs/plugins/wjs_review/plugin_settings.py:244
+msgid "Provide context for the notification when the Editor requests a major/minor revision for an article."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:228
+msgid "{% if major_revision %}Editor requires revision{% elif minor_revision %}Editor requires (minor) revision{% elif tech_revision %}Editor enables metadata update{% endif %}"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:242
+msgid "Default message for revision request notification"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:272
+msgid "Subject for article not suitable decision notification"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:274
+#: wjs/plugins/wjs_review/plugin_settings.py:296
+msgid "Provide context for the notification when the article is deemed not suitable."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:281
+msgid "Article is deemed not suitable"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:294
+msgid "Default message for article not suitable decision notification"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:324
+msgid "Subject for review withdraw notification"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:326
+#: wjs/plugins/wjs_review/plugin_settings.py:348
+#: wjs/plugins/wjs_review/plugin_settings.py:372
+msgid "Provide context for automatic review withdraw."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:333
+msgid "Review withdraw notice"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:346
+#: wjs/plugins/wjs_review/plugin_settings.py:370
+msgid "Default message for review withdraw notification"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:356
+msgid "The review has been withdrawn because the article is undergoing a revision.<br>{{ withdraw_notice }}"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:379
+msgid "Provide context for the decision."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:394
+msgid "Subject for technical revision request"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:396
+#: wjs/plugins/wjs_review/plugin_settings.py:440
+msgid "Provide context for technical revision."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:403
+msgid "Technical revision request"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:415
+msgid "Automatic message for technical revision request"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:417
+msgid "Provide context for technical revision request."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:424
+msgid "Editor has requested a technical revision, you can now edit article metadata."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:438
+msgid "Subject for submission of author revision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:447
+msgid "Author revision submission"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:459
+msgid "Automatic message for author revision submission"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:461
+msgid "Provide context for author revision submission."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:468
+msgid "Author has submitted a revision of their article, you can now check edited content."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:482
+msgid "Default subject for notifications of actions as hijacked users"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:484
+#: wjs/plugins/wjs_review/plugin_settings.py:506
+msgid "Provide context for notifications of actions as hijacked users."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:491
+msgid "User {{ hijacker }} executed {{ original_subject }}"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:504
+msgid "Default message for notifications of actions as hijacked users"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:513
+msgid "User {{ hijacker }} executed {{ original_subject }} impersonating you."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:528
+msgid "Subject of the assign to editor message"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:530
+#: wjs/plugins/wjs_review/plugin_settings.py:548
+msgid "Provide instructions to handle editor assignments"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:546
+msgid "Body of the assign to editor message"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:638
+msgid "Whether the author of a paper can contact the director"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:640
+msgid "The communication system will allow an author of a paper to directly contact the director of the journal only if this setting is true."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:662
+msgid "Journal directory on prophy site"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:664
+msgid "The folder on Prophy site which contains the papers sent from the journal."
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:683
+msgid "Enables Prophy upload"
+msgstr ""
+
+#: wjs/plugins/wjs_review/plugin_settings.py:685
+msgid "Enables the journal to upload pdf files to prophy."
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/models.py:24
+#: wjs/plugins/wjs_review/reminders/models.py:25
+#: wjs/plugins/wjs_review/reminders/models.py:26
+msgid "Reviewer should evaluate assignment"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/models.py:27
+#: wjs/plugins/wjs_review/reminders/models.py:28
+msgid "Reviewer should write review"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/models.py:30
+#: wjs/plugins/wjs_review/reminders/models.py:31
+#: wjs/plugins/wjs_review/reminders/models.py:32
+msgid "Editor should select reviewer"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/models.py:33
+#: wjs/plugins/wjs_review/reminders/models.py:34
+#: wjs/plugins/wjs_review/reminders/models.py:35
+msgid "Editor should make decision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:144
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - review request accept/decline overdue"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:162
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - review request accept/decline is late"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:180
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - review request accept/decline very late"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:199
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - review request overdue"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:216
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - review request is late"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:234
+#: wjs/plugins/wjs_review/reminders/settings.py:249
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Please select reviewer"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:265
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Editor is late in selecting a reviewer"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:281
+#: wjs/plugins/wjs_review/reminders/settings.py:295
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Please make a decision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/reminders/settings.py:310
+msgid "[{{ journal.code }}] {{ article.section.name }} {{ article.id }} - Editor il late in making a decision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/article_messages.html:5
+msgid "Article messages"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/article_reminders.html:5
+msgid "Article reminders"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/decision.html:5
+msgid "Take a decision"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/decision.html:16
+msgid "Reviews"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/decision.html:19
+msgid "Declined"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/decision.html:37
+msgid "Open"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/decision.html:49
+msgid "Decisions"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/details.html:5
+msgid "Paper status and details"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_authors_for_reviewer.html:4
+#: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:48
+#: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:50
+#: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:53
+#: wjs/themes/JCOM-theme/templates/submission/timeline.html:48
+#: wjs/themes/JCOM-theme/templates/submission/timeline.html:50
+#: wjs/themes/JCOM-theme/templates/submission/timeline.html:53
+msgid "Author Information"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_authors_for_reviewer.html:9
+msgid "Name"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_authors_for_reviewer.html:11
+msgid "Department"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_authors_for_reviewer.html:21
+msgid "No files. You should add them before inviting reviewers."
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:5
+#: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:84
+msgid "Abstract"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:10
+msgid "To became part of <strong>special issue</strong>"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:17
+msgid "Part of"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:32
+#, python-format
+msgid ""
+"\n"
+"                <strong>Review</strong> requested by\n"
+"                <a href=\"#\" title=\"Click to contact / communicate\">%(editor)s 📧</a>\n"
+"                on %(date_requested)s\n"
+"            "
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:37
+msgid "last reminder on"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:40
+msgid "Review request declined on"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:41
+msgid "Review request accepted on"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:42
+msgid "Review due on"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/article_details_for_reviewer.html:43
+msgid "Review completed on"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:5
+msgid "General Review Guidelines"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:15
+msgid "Information for this Form"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:26
+msgid "Review Files"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:29
+msgid "Download all as ZIP"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:59
+msgid "Please correct errors below. Note, you'll have to reselect any files you want uploaded."
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:68
+msgid "Save as draft"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/review_report_form.html:73
+#: wjs/themes/JCOM-theme/templates/core/nav.html:264
+#: wjs/themes/JCOM-theme/templates/core/nav.html:307
+msgid "Submit"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/revision_author_revision.html:96
+msgid "When you have completed your revisions and finished writing your covering letter, click the 'Submit Revisions' button below to finish. Please note that you will not be able to make any further changes to your letter or revisions once you click 'Submit Revisions'"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/elements/select_reviewer.html:51
+msgid "Past review notes"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/invite_external_reviewer.html:5
+#: wjs/plugins/wjs_review/templates/wjs_review/invite_external_reviewer.html:14
+msgid "Invite external reviewer"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_declined.html:4
+#: wjs/plugins/wjs_review/templates/wjs_review/review_declined.html:8
+msgid "Declined review request"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_declined.html:8
+#: wjs/plugins/wjs_review/templates/wjs_review/review_end.html:8
+#: wjs/plugins/wjs_review/templates/wjs_review/review_evaluate.html:8
+#: wjs/plugins/wjs_review/templates/wjs_review/review_submit.html:9
+msgid "for"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_end.html:4
+msgid "Submitted review request"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_end.html:8
+msgid "Completed review"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_evaluate.html:4
+#: wjs/plugins/wjs_review/templates/wjs_review/review_evaluate.html:8
+msgid "Evaluate review request"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_evaluate.html:32
+#, python-format
+msgid ""
+"\n"
+"                Please accept or decline this review request by <strong>%(date_due)s</strong>.\n"
+"              "
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/review_submit.html:4
+#: wjs/plugins/wjs_review/templates/wjs_review/review_submit.html:9
+msgid "Submit review"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/select_reviewer.html:4
+msgid "Select reviewer"
+msgstr ""
+
+#: wjs/plugins/wjs_review/templates/wjs_review/write_message.html:9
+msgid "Write a message"
+msgstr ""
+
+#: wjs/plugins/wjs_review/views.py:860
+msgid "At least one recipient is necessary"
+msgstr ""
+
 #: wjs/plugins/wjs_subscribe_newsletter/models.py:16
 msgid "Introduction text"
 msgstr ""
@@ -272,8 +1025,8 @@ msgstr ""
 msgid "Your email"
 msgstr ""
 
-#: wjs/plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:17
-#: wjs/themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:13
+#: wjs/plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:18
+#: wjs/themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:25
 msgid "Subscribe"
 msgstr ""
 
@@ -546,14 +1299,22 @@ msgstr ""
 msgid " (create multiple authors/article by uploading a spreadsheed)."
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/admin/core/si_update.html:141
-#: wjs/themes/JCOM-theme/templates/elements/article_listing.html:23
-#: wjs/themes/JCOM-theme/templates/newsletters/newsletter_article.html:8
-msgid "by"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/admin/core/si_update.html:150
 msgid "Invitees"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/admin/elements/confirm_modal.html:5
+msgid "Confirmation"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/admin/elements/confirm_modal.html:20
+#: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:14
+#: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:18
+msgid "Yes"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/admin/elements/confirm_modal.html:23
+msgid "No, go back"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/admin/submission/submit_files.html:5
@@ -634,10 +1395,6 @@ msgstr ""
 msgid "Issue Type"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:84
-msgid "Abstract"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:92
 msgid "Language"
 msgstr ""
@@ -695,10 +1452,6 @@ msgstr ""
 #: wjs/themes/JCOM-theme/templates/submission/timeline.html:65
 #: wjs/themes/JCOM-theme/templates/submission/timeline.html:68
 msgid "Article Files"
-msgstr ""
-
-#: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:158
-msgid "Manuscript"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/admin/submission/submit_review.html:166
@@ -762,15 +1515,6 @@ msgstr ""
 msgid "Article Information"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:48
-#: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:50
-#: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:53
-#: wjs/themes/JCOM-theme/templates/submission/timeline.html:48
-#: wjs/themes/JCOM-theme/templates/submission/timeline.html:50
-#: wjs/themes/JCOM-theme/templates/submission/timeline.html:53
-msgid "Author Information"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:79
 #: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:81
 #: wjs/themes/JCOM-theme/templates/admin/submission/timeline.html:84
@@ -829,11 +1573,6 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/nav.html:264
-#: wjs/themes/JCOM-theme/templates/core/nav.html:307
-msgid "Submit"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/core/nav.html:269
 #: wjs/themes/JCOM-theme/templates/core/nav.html:303
 msgid "Kanban"
@@ -884,11 +1623,15 @@ msgstr ""
 msgid "Edit News Item"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/news/index.html:13
+#: wjs/themes/JCOM-theme/templates/core/news/index.html:14
+msgid "Call for papers"
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/core/news/index.html:19
 msgid "Filtering tag"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/core/news/index.html:36
+#: wjs/themes/JCOM-theme/templates/core/news/index.html:44
 msgid "This journal currently has no items to display."
 msgstr ""
 
@@ -913,7 +1656,7 @@ msgid ""
 "                        "
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:8
+#: wjs/themes/JCOM-theme/templates/elements/accounts/anonymous_user_register_newsletter.html:12
 #: wjs/themes/JCOM-theme/templates/elements/accounts/delete_subscription.html:8
 #: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:8
 msgid "Publication alert"
@@ -927,23 +1670,27 @@ msgid ""
 "                    "
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:11
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:18
 msgid "Thank you for setting your preferences"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:16
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:23
 msgid "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only."
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:21
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:25
+msgid "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page."
+msgstr ""
+
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:30
 msgid "Save preferences"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:23
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:32
 msgid "Unsubscribe"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:27
+#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_newsletters_subscription.html:36
 msgid "Activate"
 msgstr ""
 
@@ -1026,10 +1773,6 @@ msgstr ""
 msgid "Enter Password Again"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/accounts/edit_profile_body_block.html:111
-msgid "Update"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/elements/accounts/extra_core_fields.html:9
 msgid "By registering an account you agree to our"
 msgstr ""
@@ -1045,11 +1788,6 @@ msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:8
 msgid "Please confirm that you do not wish to receive any JCOM publication alert"
-msgstr ""
-
-#: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:14
-#: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:18
-msgid "Yes"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/elements/accounts/unsubscribe_confirmation_modal.html:20
@@ -1089,11 +1827,6 @@ msgstr ""
 msgid "Options"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/elements/article_listing.html:28
-#: wjs/themes/JCOM-theme/templates/newsletters/newsletter_article.html:12
-msgid "and"
-msgstr ""
-
 #: wjs/themes/JCOM-theme/templates/elements/article_listing.html:61
 msgid "Also a part of:"
 msgstr ""
@@ -1103,10 +1836,12 @@ msgid "Downloads"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:10
+#: wjs/themes/JCOM-theme/templates/journal/issue.html:8
 msgid "Issue"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/elements/journal/issue_sidebar.html:20
+#: wjs/themes/JCOM-theme/templates/journal/issue.html:6
 msgid "Collection"
 msgstr ""
 
@@ -1142,6 +1877,10 @@ msgstr ""
 msgid "Cookie Policy"
 msgstr ""
 
+#: wjs/themes/JCOM-theme/templates/eo/home.html:5
+msgid "EO Home"
+msgstr ""
+
 #: wjs/themes/JCOM-theme/templates/experimental/journal/issues.html:6
 #: wjs/themes/JCOM-theme/templates/experimental/journal/issues.html:20
 #: wjs/themes/JCOM-theme/templates/journal/issues.html:7
@@ -1151,10 +1890,6 @@ msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/journal/article.html:9
 msgid "Preprint"
-msgstr ""
-
-#: wjs/themes/JCOM-theme/templates/journal/article.html:11
-msgid "Article"
 msgstr ""
 
 #: wjs/themes/JCOM-theme/templates/journal/article_issue_list.html:17
@@ -1319,7 +2054,7 @@ msgstr ""
 msgid "New publications"
 msgstr ""
 
-#: wjs/themes/JCOM-theme/templates/newsletters/newsletter_template.html:29
+#: wjs/themes/JCOM-theme/templates/newsletters/newsletter_template.html:39
 #, python-format
 msgid ""
 "\n"

@@ -14,6 +14,7 @@ from easy_select2.widgets import Select2Multiple
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
 from utils.forms import CaptchaForm
+from utils.logger import get_logger
 
 from wjs.jcom_profile.models import (
     ArticleWrapper,
@@ -23,6 +24,8 @@ from wjs.jcom_profile.models import (
     Recipient,
     SpecialIssue,
 )
+
+logger = get_logger(__name__)
 
 
 class GDPRAcceptanceForm(forms.Form):
@@ -396,6 +399,24 @@ class NewsletterTopicForm(forms.ModelForm):
             else:
                 # Let's hide the language select if there is only one choice
                 del self.fields["language"]
+
+    def clean(self):
+        """Log a warning if the user choose no topics and no news.
+
+        We do _not_ raise a Validation error untill specs#474 is done.
+        """
+        cleaned_data = super().clean()
+
+        topics = cleaned_data.get("topics")
+        news = cleaned_data.get("news")
+        if len(topics) == 0 and news is False:
+            logger.warning(f"Recipient {self.instance.email}/{self.instance.user} selected no topics and no news.")
+            # after #474 # raise ValidationError(
+            # after #474 #     _('You have selected no news and no topics.
+            # after #474 #        Please either choose something or click "Unsubscribe".'),
+            # after #474 # )
+
+        return cleaned_data
 
 
 class RegisterUserNewsletterForm(CaptchaForm):

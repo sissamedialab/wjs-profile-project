@@ -7,6 +7,13 @@
         <div class="col s12">
             <h2 class="main-title">{% trans "Publication alert" %}</h2>
             <div class="card-panel">
+                {% if form.errors %}
+                    {% for error in form.non_field_errors %}
+                        <p>
+                            <strong class="red-text label-error">{{ error }}</strong>
+                        </p>
+                    {% endfor %}
+                {% endif %}
                 {% if request.GET.update %}
                     <p class="center jcom-blue-text">{% trans "Thank you for setting your preferences" %}</p>
                 {% endif %}
@@ -14,6 +21,8 @@
                     {% csrf_token %}
                     <p>
                         {% trans "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only." %}
+                        <br />
+                        {% trans "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page." %}
                     </p>
                     {% materialize_form form %}
                     {% if active %}
