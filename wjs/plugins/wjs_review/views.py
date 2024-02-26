@@ -12,7 +12,7 @@ from django.core.paginator import Page, Paginator
 from django.db.models import Q, QuerySet
 from django.forms import models as model_forms
 from django.http import HttpResponse, HttpResponseRedirect, QueryDict
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.template import Context
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -22,6 +22,7 @@ from django.views.generic import (
     ListView,
     TemplateView,
     UpdateView,
+    View,
 )
 from review import logic as review_logic
 from review.models import EditorAssignment, ReviewAssignment
@@ -48,7 +49,7 @@ from .forms import (
     UpdateReviewerReportDueDateForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
-from .logic import render_template_from_setting
+from .logic import HandleEditorDeclinesAssignment, render_template_from_setting
 from .mixins import EditorRequiredMixin
 from .models import (
     ArticleWorkflow,
@@ -1153,3 +1154,37 @@ class UpdateReviewerReportDueDate(UserPassesTestMixin, UpdateView):
     def get_success_url(self):
         """Point back to the article's detail page."""
         return reverse("wjs_article_details", kwargs={"pk": self.article.pk})
+
+
+class EditorDeclineAssignmentView(UserPassesTestMixin, View):
+    model = ArticleWorkflow
+    template_name = "wjs_review/elements/editor_rejects_assignment.html"
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
+
+    def test_func(self):
+        """User must be the article's Editor and must be assigned to the article."""
+        return self.object.article.editorassignment_set.filter(editor=self.request.user).exists()
+
+    def get_logic_instance(self):
+        """Instantiate :py:class:`HandleEditorDeclinesAssignment` class."""
+        service = HandleEditorDeclinesAssignment(
+            assignment=self.object.article.editorassignment_set.get(editor=self.request.user),
+            editor=self.request.user,
+            request=self.request,
+        )
+        return service
+
+    def get(self, request, *args, **kwargs):
+        """Delete declined EditorAssignment using :py:class:`HandleEditorDeclinesAssignment`."""
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            context = {"error": str(e)}
+        else:
+            context = {"object": self.object}
+        return render(request, self.template_name, context)
