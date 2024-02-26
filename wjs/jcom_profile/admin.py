@@ -65,6 +65,7 @@ class RecipientAdmin(admin.ModelAdmin):
     """Helper class to "admin" recipient."""
 
     list_filter = ["journal"]
+    search_fields = ["email", "user__email"]
 
 
 @admin.register(Keyword)

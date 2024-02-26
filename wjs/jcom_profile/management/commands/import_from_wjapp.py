@@ -13,7 +13,7 @@ from core.models import Account
 from core.models import File as JanewayFile
 from django.core.files import File
 from django.core.management.base import BaseCommand
-from django.db.models import Q, QuerySet
+from django.db.models import Count, Q, QuerySet
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
 from jcomassistant import make_epub, make_xhtml
@@ -50,6 +50,8 @@ from wjs.jcom_profile.management.commands.import_from_drupal import (
     rome_timezone,
 )
 from wjs.jcom_profile.utils import from_pubid_to_eid, generate_doi
+
+from ...models import Recipient
 
 # Map wjapp article types to Janeway section names
 SECTIONS_MAPPING = {
@@ -363,6 +365,8 @@ class Command(BaseCommand):
                 mapping.used = True
                 mapping.save()
 
+                link_to_existing_newsletter_recipient_maybe(author, article.journal)
+
             # Sanity check: it is possible that data from Janeway and from wjapp differ.
             # See also https://gitlab.sissamedialab.it/wjs/specs/-/issues/380
             imported_first_name = author_obj.get("firstname")
@@ -425,7 +429,7 @@ class Command(BaseCommand):
         article.save()
         logger.debug(f"Set {article.authors.count()} authors onto {pubid}")
 
-    def set_keywords(self, article, xml_obj, pubid):
+    def set_keywords(self, article: submission_models.Article, xml_obj, pubid):
         """Set the keywords."""
         # Drop all article's kwds (and KeywordArticles, used for kwd ordering)
         article.keywords.clear()
@@ -439,6 +443,17 @@ class Command(BaseCommand):
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
             if created:
                 logger.warning(f'Created keyword "{kwd_word}" for {pubid}. Kwds are not often created. Please check!')
+                manage_newsletter_subscriptions(keyword, article.journal)
+
+            # Always link kwd to journal (remember that journals have a set of kwds!)
+            #
+            # Even if the kwd was not created, it is possible that we got a pre-existing kwd that was linked only to
+            # another journal.
+            #
+            # P.S. `add` won't duplicate an existing relation
+            # https://docs.djangoproject.com/en/3.2/ref/models/relations/
+            article.journal.keywords.add(keyword)
+
             submission_models.KeywordArticle.objects.get_or_create(
                 article=article,
                 keyword=keyword,
@@ -888,3 +903,37 @@ def sanity_check_pdf_filenames(pdf_files: list[str]) -> None:
     for pdf_file in pdf_files:
         if not re.match(pubid_and_maybe_language_pattern, pdf_file.name):
             logger.error(f'Unexpected filename "{pdf_file}". Please check.')
+
+
+def manage_newsletter_subscriptions(keyword: submission_models.Keyword, journal: journal_models.Journal):
+    """Add a newly created keyword to newsletter subscriptions.
+
+    Newsletter recipients have a list of kwds that they are interested in.
+    We always add newly created kwds to this list.
+
+    Recipients are informed of this behavior in their preference page.
+    """
+    for recipient in Recipient.objects.filter(journal=journal).annotate(tc=Count("topics")).filter(tc__gt=0):
+        recipient.topics.add(keyword)
+
+
+def link_to_existing_newsletter_recipient_maybe(author: Account, journal: journal_models.Journal):
+    """Link an account to its corresponding newsletter recipient.
+
+    It is possible that someone
+    - already has an anonymous subscription to the newsletter (the ones with only the email and no account associated)
+    - and then registers to the wjapp journal
+    - and then he is "imported" into Janeway.
+
+    If this happens, here we link the new account to the pre-exisint anonymous recipient.
+
+    But (!) since we don't have _active_ users (for now), we just report the situation and do nothing.
+
+    """
+    number_of_matches = Recipient.objects.filter(journal=journal, email=author.email).count()
+    # When we are ready for active users, just set `.update(user_id=author.id)` in place of `count()` in the line above
+    # and review the log messages below. Maybe also check that we'll update only one Recipient before proceeding.
+    if number_of_matches == 1:
+        logger.info(f"We could link author {author} to a pre-existing newsletter recipient via email {author.email}")
+    elif number_of_matches > 1:
+        logger.error(f"Found {number_of_matches} recipients for author {author} on journal {journal}. This is bad!")
