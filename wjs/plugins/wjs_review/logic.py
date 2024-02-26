@@ -6,6 +6,7 @@ action in a method named "run()".
 """
 import dataclasses
 from copy import copy
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
@@ -13,6 +14,7 @@ from core import files as core_files
 from core import models as core_models
 from core.models import AccountRole, Role
 from dateutil.parser import parse
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -1610,3 +1612,105 @@ class HandleMessage:
                 )
                 self.message.attachments.add(attachment)
             self.message.emit_notification()
+
+
+@dataclasses.dataclass
+class PostponeReviewerReportDueDate:
+    """
+    Handle the decision of the editor to postpone the due date of the reviewer report.
+    """
+
+    assignment: ReviewAssignment
+    editor: Account
+    form_data: Dict[str, Any]
+    request: HttpRequest
+
+    def _report_postponed_far_future_date(self) -> bool:
+        """Check if the editor postponed report due date far in the future."""
+        if self.form_data["date_due"] > timezone.now().date() + timedelta(
+            days=settings.DAYS_CONSIDERED_FAR_FUTURE,
+        ):
+            return True
+
+    def _get_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.assignment.article,
+            "request": self.request,
+            "review_assigment": self.assignment,
+            "reviewer": self.assignment.reviewer,
+            "EO": communication_utils.get_eo_user(self.assignment.article),
+            "editor": self.editor,
+            "date_due": self.form_data["date_due"],
+        }
+
+    def _log_reviewer_if_date_is_postponed(self) -> None:
+        """Log a warning for the reviewer if the due date is postponed."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_postpone_subject",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_postpone_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.assignment.editor,
+            recipients=[self.assignment.reviewer],
+        )
+
+    def _log_eo_far_future_date(self) -> None:
+        """Log a warning for the EO if the editor postponed report due date far in the future."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_far_future_subject",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_far_future_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[communication_utils.get_eo_user(self.assignment.article)],
+        )
+
+    def _save_report_date_due(self):
+        """
+        Set and save the postponed date_due.
+        """
+        self.assignment.date_due = self.form_data.get("date_due")
+        self.assignment.save()
+
+    @staticmethod
+    def check_editor_conditions(assignment: ReviewAssignment, editor: Account) -> bool:
+        """Editor must be assigned to the article."""
+        return editor == assignment.editor
+
+    def check_conditions(self) -> bool:
+        """Check if the conditions for the assignment are met."""
+        editor_conditions = self.check_editor_conditions(self.assignment, self.editor)
+        return editor_conditions
+
+    def run(self):
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Conditions not met"))
+            self._save_report_date_due()
+            if self._report_postponed_far_future_date():
+                self._log_eo_far_future_date()
+            self._log_reviewer_if_date_is_postponed()

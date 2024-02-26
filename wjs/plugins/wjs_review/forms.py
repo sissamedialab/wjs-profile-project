@@ -32,6 +32,7 @@ from .logic import (
     HandleDecision,
     HandleMessage,
     InviteReviewer,
+    PostponeReviewerReportDueDate,
     SubmitReview,
     render_template_from_setting,
 )
@@ -698,3 +699,45 @@ class ToggleMessageReadByEOForm(forms.ModelForm):
     class Meta:
         model = Message
         fields = ["read_by_eo"]
+
+
+class UpdateReviewerReportDueDateForm(forms.ModelForm):
+    class Meta:
+        model = ReviewAssignment
+        fields = ["date_due"]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        """
+        Allow only dates in the future
+        """
+        cleaned_data = super().clean()
+        date_due = cleaned_data.get("date_due")
+        if date_due and date_due <= now().date():
+            raise ValidationError(_("The report due date must be in the future."))
+        return cleaned_data
+
+    def get_logic_instance(self) -> PostponeReviewerReportDueDate:
+        """Instantiate :py:class:`PostponeReviewerReportDueDate` class."""
+        service = PostponeReviewerReportDueDate(
+            assignment=self.instance,
+            editor=self.instance.editor,
+            form_data=self.cleaned_data,
+            request=self.request,
+        )
+        return service
+
+    def save(self) -> ReviewAssignment:
+        """Change the reviewer report due date using :py:class:`PostponeReviewerReportDueDate`."""
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance

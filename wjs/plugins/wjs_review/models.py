@@ -554,6 +554,8 @@ class WorkflowReviewAssignment(ReviewAssignment):
     This is not a big deal as we don't have performance concerns in these templates.
     """
 
+    #  Quando si aggiungono nuovi campi modificare il metodo AssignToReviewer._assign_reviewer per evitare di ottenere
+    #  errori nel salvataggio.
     author_note_visible = models.BooleanField(_("Author note visible"), default=True)
 
     @property

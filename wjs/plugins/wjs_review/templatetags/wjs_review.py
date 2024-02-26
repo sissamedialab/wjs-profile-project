@@ -111,7 +111,7 @@ def get_review_assignments(
         actions = None
         if state_class is not None and state_class.review_assignment_actions is not None:
             actions = [
-                action.as_dict(review_round.article.articleworkflow, user)
+                action.as_dict(assignment, user)
                 for action in state_class.review_assignment_actions
                 if action.condition_is_met(assignment, user)
                 # TODO: might need: if action.has_permission(workflow, user) and action.tag == tag
