@@ -1,6 +1,5 @@
 """Forms for the additional fields in this profile extension."""
 
-import json
 import uuid
 
 from core import models as core_models
@@ -24,6 +23,7 @@ from wjs.jcom_profile.models import (
     Recipient,
     SpecialIssue,
 )
+from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 logger = get_logger(__name__)
 
@@ -382,23 +382,17 @@ class NewsletterTopicForm(forms.ModelForm):
 
         # Manage the language field's choices
         request = utils_logic.get_current_request()
+        available_languages = []
         if request and request.journal:
-            journal_languages_processed_value = request.journal.get_setting("general", "journal_languages")
+            available_languages = get_journal_language_choices(request.journal)
 
         super().__init__(*args, **kwargs)
 
-        if journal_languages_processed_value:
-            if isinstance(journal_languages_processed_value, str):
-                journal_languages_list = json.loads(journal_languages_processed_value)
-            else:
-                journal_languages_list = journal_languages_processed_value
-            if len(journal_languages_list) > 1:
-                self.fields["language"].choices = [
-                    lang for lang in settings.LANGUAGES if lang[0] in journal_languages_list
-                ]
-            else:
-                # Let's hide the language select if there is only one choice
-                del self.fields["language"]
+        if len(available_languages) > 1:
+            self.fields["language"].choices = available_languages
+        else:
+            # Let's hide the language select if there is only one choice
+            del self.fields["language"]
 
     def clean(self):
         """Log a warning if the user choose no topics and no news.

@@ -13,7 +13,8 @@ from django.utils import timezone
 from review.models import ReviewAssignment, RevisionRequest
 from submission.models import Article
 
-from .models import Message
+from .communication_utils import get_eo_user
+from .models import ArticleWorkflow, Message
 
 Account = get_user_model()
 
@@ -136,21 +137,13 @@ def all_assignments_completed(article: Article) -> str:
 
 
 def has_unread_message(article: Article, recipient: Account) -> str:
-    """Tell if the recipient has any unread message."""
-    # TODO: alternatively, we can implement something like:
-    #   def current_editor_has_unread_message(article)
-    #       ...
-    # and estrapolate the editor from the (pseudocode) `article.editor_assignment_set().last()`
-    #
-    # This avoids the necessity of receiving the "recipient" from outside. Since we'll probably be called through a
-    # templatetag, this implementation might be easiet to maintain.
-    unread_messages = Message.objects.filter(
-        content_type=ContentType.objects.get_for_model(article),
-        object_id=article.id,
-        recipients__in=[recipient],
-        messagerecipients__read=False,
-    )
-    if unread_messages.exists():
+    """
+    Tell if the recipient has any unread message for the current article.
+
+    Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
+    """
+    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(recipient).filter(article_id=article.pk)
+    if article_has_unread_messages.exists():
         return "You have unread messages."
     else:
         return ""
@@ -221,9 +214,12 @@ def author_revision_is_late(article: Article) -> str:
 
 
 def eo_has_unread_messages(article: Article) -> str:
-    """Tell if there is some unread message for EO on this article."""
-    code = article.journal.code.lower()
-    eo_user = Account.objects.get(email=f"{code}-eo@{code}.sissa.it")
+    """
+    Tell if EO has any unread message for the current article.
+
+    Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
+    """
+    eo_user = get_eo_user(article.journal)
     return has_unread_message(article=article, recipient=eo_user)
 
 
