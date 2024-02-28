@@ -34,6 +34,7 @@ from wjs.jcom_profile.mixins import HtmxMixin
 from wjs.jcom_profile.permissions import is_eo
 
 from .communication_utils import get_messages_related_to_me
+from .filters import ArticleWorkflowFilter
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
@@ -142,17 +143,40 @@ class EOPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
     ordering = "id"
     template_name = "wjs_review/eo_pending.html"
     context_object_name = "workflows"
+    filterset_class = ArticleWorkflowFilter
+    filterset: ArticleWorkflowFilter
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
         return self.request.user.is_staff or is_eo(self.request.user)
 
-    def get_queryset(self):
-        """Keep only pending (no final decision) articles."""
-        return ArticleWorkflow.objects.filter(
+    def setup(self, request, *args, **kwargs):
+        """Setup and validate filterset data."""
+        super().setup(request, *args, **kwargs)
+        self.filterset = self.filterset_class(
+            self.request.GET,
+            queryset=self._apply_base_filters(self.model.objects.all()),
+            request=self.request,
+            journal=self.request.journal,
+        )
+        self.filterset.is_valid()
+
+    def _apply_base_filters(self, qs):
+        return qs.filter(
             article__journal=self.request.journal,
             state__in=states_when_article_is_considered_in_review,
         )
+
+    def get_queryset(self):
+        """Filter article by state and filterset values."""
+        base_qs = self._apply_base_filters(super().get_queryset())
+        return self.filterset.filter_queryset(base_qs)
+
+    def get_context_data(self, **kwargs):
+        """Add the filterset."""
+        context = super().get_context_data(**kwargs)
+        context["filter"] = self.filterset
+        return context
 
 
 class EOArchived(EOPending):

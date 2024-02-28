@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "model_utils",
     "django_bootstrap5",
     "hijack.contrib.admin",
+    "django_filters",
 ]
 
 # This is the default redirect if no other sites are found.

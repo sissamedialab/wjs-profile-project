@@ -21,6 +21,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile.models import Correspondence
 
 from . import permissions
+from .managers import ArticleWorkflowQuerySet
 from .reminders.models import Reminder  # noqa F401
 
 logger = get_logger(__name__)
@@ -79,6 +80,8 @@ class ArticleWorkflow(TimeStampedModel):
         null=True,
         on_delete=models.SET_NULL,
     )
+
+    objects = ArticleWorkflowQuerySet.as_manager()
 
     class Meta:
         verbose_name = _("Article workflow")

@@ -1,15 +1,16 @@
 import glob
 import os
 
-import pytest  # noqa
-from core.models import Workflow, WorkflowElement
+import pytest
+from core.models import Account, Workflow, WorkflowElement
 from django.core import mail
+from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
 from plugins.wjs_review.reminders.settings import reminders_configuration
 from review import models as review_models
 from review.models import ReviewAssignment
-from utils import setting_handler  # noqa
+from utils import setting_handler
 
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
@@ -55,6 +56,19 @@ def review_settings(journal, eo_user):
     )
 
 
+def _assign_article(fake_request, article, section_editor):
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    article.articleworkflow.save()
+    workflow = AssignToEditor(
+        article=article,
+        editor=section_editor,
+        request=fake_request,
+    ).run()
+    assert workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    cleanup_notifications_side_effects()
+    return workflow.article
+
+
 @pytest.fixture
 def assigned_article(fake_request, article, section_editor, review_settings):
     """
@@ -68,16 +82,7 @@ def assigned_article(fake_request, article, section_editor, review_settings):
     message, so that the test using this fixture can check the notifications created *during* the test without
     interferences and without knowing the side effects of the fixture or of AssignToEditor().
     """
-    article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
-    article.articleworkflow.save()
-    workflow = AssignToEditor(
-        article=article,
-        editor=section_editor,
-        request=fake_request,
-    ).run()
-    assert workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    cleanup_notifications_side_effects()
-    return workflow.article
+    return _assign_article(fake_request, article, section_editor)
 
 
 @pytest.fixture
@@ -202,3 +207,25 @@ def known_reminders_configuration():
     for reminder_code, values in tmp_config.items():
         old_value = values[0]
         configuration[reminder_code].days_after = old_value
+
+
+@pytest.fixture
+def create_set_of_articles_with_assignments(
+    fake_request: HttpRequest,
+    eo_user: Account,
+    journal: journal_models.Journal,  # noqa
+    director: Account,
+    review_settings,
+):
+    """
+    Create a set of articles with assignments using scenario_review command.
+
+    It's a bit heavy in terms of time of execution but it's the most reliable way to have a significant data set
+    for testing the managers and the queries.
+    """
+    # TODO: Using scenario_review has two drawbacks:
+    #  - it's slow
+    #  - it ties the tests to a command meant more for local develoment than test purposes
+    #  In the future we must evaluate if it's possible to replace this fixture with a more targeted one.
+    #  For now it's too much work for little benefit and we must handle other tasks.
+    call_command("scenario_review")
