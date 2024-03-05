@@ -36,6 +36,7 @@ from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.permissions import is_eo
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
@@ -1054,6 +1055,11 @@ class HandleDecision:
     form_data: Dict[str, Any]
     user: Account
     request: HttpRequest
+    admin_form: bool = False
+    """
+    admin_form is a flag to indicate that the form is being used in admin mode, where the user is an admin and can
+    bypass some of the checks that are normally done for regular users and use different transitions
+    """
 
     _decision_handlers = {
         ArticleWorkflow.Decisions.ACCEPT: "_accept_article",
@@ -1065,25 +1071,34 @@ class HandleDecision:
     }
 
     @staticmethod
-    def check_editor_conditions(workflow: ArticleWorkflow, editor: Account) -> bool:
+    def check_editor_conditions(workflow: ArticleWorkflow, editor: Account, admin_mode: bool) -> bool:
         """Editor must be assigned to the article."""
-        editor_selected = workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-        editor_has_permissions = permissions.is_article_editor(workflow, editor)
-        return editor_selected and editor_has_permissions
+        if admin_mode:
+            return is_eo(editor)
+        else:
+            editor_selected = workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+            editor_has_permissions = permissions.is_article_editor(workflow, editor)
+            return editor_selected and editor_has_permissions
 
     @staticmethod
-    def check_article_conditions(workflow: ArticleWorkflow) -> bool:
+    def check_article_conditions(workflow: ArticleWorkflow, admin_mode: bool) -> bool:
         """
-        Workflow state must be EDITOR_SELECTED.
+        Workflow state must be in a state that allows the decision to be made.
 
         Current state must be tested explicitly because there is no FSM transition to use for checking the correct
+        initial state.
+
+        Checked states are different between admin and non-admin mode.
         """
-        return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+        if admin_mode:
+            return workflow.state in (ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,)
+        else:
+            return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
 
     def check_conditions(self) -> bool:
         """Check if the conditions for the decision are met."""
-        editor_has_permissions = self.check_editor_conditions(self.workflow, self.user)
-        article_state = self.check_article_conditions(self.workflow)
+        editor_has_permissions = self.check_editor_conditions(self.workflow, self.user, self.admin_form)
+        article_state = self.check_article_conditions(self.workflow, self.admin_form)
         return editor_has_permissions and article_state
 
     def _trigger_article_event(self, event: str, context: Dict[str, Any]):
@@ -1111,7 +1126,7 @@ class HandleDecision:
             "revision": revision,
             "decision": self.form_data["decision"],
             "user_message_content": self.form_data["decision_editor_report"],
-            "withdraw_notice": self.form_data["withdraw_notice"],
+            "withdraw_notice": self.form_data.get("withdraw_notice", ""),
             "skip": False,
         }
         if revision:
@@ -1345,8 +1360,11 @@ class HandleDecision:
         """
         self.workflow.article.decline_article()
 
-        self.workflow.editor_writes_editor_report()
-        self.workflow.editor_deems_paper_not_suitable()
+        if self.admin_form:
+            self.workflow.admin_deems_paper_not_suitable()
+        else:
+            self.workflow.editor_writes_editor_report()
+            self.workflow.editor_deems_paper_not_suitable()
         self.workflow.save()
 
         context = self._get_message_context()
@@ -1452,14 +1470,16 @@ class HandleDecision:
 
         When the editor makes a decision, he is done.
         """
-        editor_assignment: EditorAssignment = EditorAssignment.objects.get(
+        # When in admin mode, there probably is no EditorAssignment.
+        editor_assignment: EditorAssignment = EditorAssignment.objects.filter(
             editor=self.user,
             article=self.workflow.article,
-        )
-        Reminder.objects.filter(
-            content_type=ContentType.objects.get_for_model(editor_assignment),
-            object_id=editor_assignment.id,
-        ).delete()
+        ).first()
+        if editor_assignment:
+            Reminder.objects.filter(
+                content_type=ContentType.objects.get_for_model(editor_assignment),
+                object_id=editor_assignment.id,
+            ).delete()
 
     def run(self) -> EditorDecision:
         with transaction.atomic():

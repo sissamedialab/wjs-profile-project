@@ -463,11 +463,13 @@ class DecisionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         self.request = kwargs.pop("request", None)
+        self.admin_form = kwargs.pop("admin_form", False)
         self.hide_date_due = kwargs["initial"].get("decision", None) not in (
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
             ArticleWorkflow.Decisions.TECHNICAL_REVISION,
         )
+        self.hide_decision = kwargs["initial"].get("decision", None)
         if "initial" not in kwargs:
             kwargs["initial"] = {}
         kwargs["initial"]["withdraw_notice"] = get_setting(
@@ -476,6 +478,8 @@ class DecisionForm(forms.ModelForm):
             self.request.journal,
         ).processed_value
         super().__init__(*args, **kwargs)
+        if self.admin_form:
+            del self.fields["withdraw_notice"]
 
     def clean_date_due(self):
         date_due = self.cleaned_data["date_due"]
@@ -500,6 +504,7 @@ class DecisionForm(forms.ModelForm):
             form_data=self.cleaned_data,
             user=self.user,
             request=self.request,
+            admin_form=self.admin_form,
         )
         return service
 

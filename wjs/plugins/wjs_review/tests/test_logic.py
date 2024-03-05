@@ -1047,6 +1047,223 @@ def test_submit_review_messages(
 
 
 @pytest.mark.parametrize(
+    "initial_state,decision,final_state",
+    (
+        (
+            ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+            ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_admin_decision(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    eo_user: JCOMProfile,
+    review_form: ReviewForm,
+    initial_state: str,
+    decision: str,
+    final_state: str,
+):
+    """
+    When EO makes an admin-only decision, the article stage is updated and messages are created and sent.
+    """
+    assigned_article.articleworkflow.state = initial_state
+    assigned_article.articleworkflow.save()
+    fake_request.user = eo_user
+    form_data = {
+        "decision": decision,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+    }
+    # Reset email and messages just before calling HandleDecision.run()
+    mail.outbox = []
+    Message.objects.all().delete()
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=eo_user,
+        request=fake_request,
+        admin_form=True,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+    if decision == ArticleWorkflow.Decisions.NOT_SUITABLE:
+        assert assigned_article.stage == submission_models.STAGE_REJECTED
+        assert assigned_article.articleworkflow.state == final_state
+        review = assigned_article.reviewassignment_set.first()
+        # Prepare subject and body
+        message_context = {
+            "article": assigned_article,
+            "request": fake_request,
+            "revision": None,
+            "decision": form_data["decision"],
+            "user_message_content": form_data["decision_editor_report"],
+            "skip": False,
+        }
+        assert Message.objects.count() == 2
+        withdrawn_message = Message.objects.first()
+        not_suitable_message = Message.objects.last()
+        not_suitable_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_not_suitable_subject",
+            journal=assigned_article.journal,
+        ).processed_value
+        not_suitable_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_not_suitable_body",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context=message_context,
+            template_is_setting=True,
+        )
+        withdrawn_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_subject",
+            journal=assigned_article.journal,
+        ).processed_value
+        withdrawn_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_body",
+            journal=assigned_article.journal,
+            request=fake_request,
+            context=message_context,
+            template_is_setting=True,
+        )
+        # Check the message
+        assert not_suitable_message.actor == eo_user.janeway_account
+        assert list(not_suitable_message.recipients.all()) == [assigned_article.correspondence_author]
+        assert not_suitable_message.subject == not_suitable_message_subject
+        assert not_suitable_message.body == not_suitable_message_body
+        assert withdrawn_message.actor == eo_user.janeway_account
+        assert list(withdrawn_message.recipients.all()) == [review.reviewer]
+        assert withdrawn_message.subject == withdrawn_message_subject
+        assert withdrawn_message.body == withdrawn_message_body
+        # Check the mail
+        assert len(mail.outbox) == 2
+        # In HandleDecision.run,
+        # - first we _withdraw_unfinished_review_requests
+        # - then we _log_not_suitable
+        # so the _last_ email is the one about the "not suitable" notification to the author
+        not_suitable_mail = mail.outbox[1]
+        assert not_suitable_message_subject in not_suitable_mail.subject
+        assert not_suitable_message_body in not_suitable_mail.body
+        withdrawn_mail = mail.outbox[0]
+        assert withdrawn_message_subject in withdrawn_mail.subject
+        assert withdrawn_message_body in withdrawn_mail.body
+
+
+@pytest.mark.parametrize(
+    "initial_state,decision,final_state",
+    (
+        (
+            ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+            ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_admin_decision_wrong_user(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+    initial_state: str,
+    decision: str,
+    final_state: str,
+):
+    """
+    If user validation fails in business logic, article stages are not changed.
+    """
+    assigned_article.articleworkflow.state = initial_state
+    assigned_article.articleworkflow.save()
+    fake_request.user = jcom_user
+    form_data = {
+        "decision": decision,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+    }
+    # Reset email and messages just before calling HandleDecision.run()
+    mail.outbox = []
+    Message.objects.all().delete()
+    with pytest.raises(ValidationError):
+        handle = HandleDecision(
+            workflow=assigned_article.articleworkflow,
+            form_data=form_data,
+            user=jcom_user,
+            request=fake_request,
+            admin_form=True,
+        )
+        handle.run()
+    assigned_article.refresh_from_db()
+    if decision == ArticleWorkflow.Decisions.NOT_SUITABLE:
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+        assert assigned_article.articleworkflow.state == initial_state
+
+
+@pytest.mark.parametrize(
+    "initial_state,decision,final_state",
+    (
+        (
+            ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+            ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+        ),
+        (
+            ArticleWorkflow.ReviewStates.SUBMITTED,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+            ArticleWorkflow.ReviewStates.SUBMITTED,
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_admin_decision_wrong_state(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    eo_user: JCOMProfile,
+    review_form: ReviewForm,
+    initial_state: str,
+    decision: str,
+    final_state: str,
+):
+    """
+    If initial state validation fails in business logic, article stages are not changed.
+    """
+    assigned_article.articleworkflow.state = initial_state
+    assigned_article.articleworkflow.save()
+    fake_request.user = eo_user
+    form_data = {
+        "decision": decision,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+    }
+    # Reset email and messages just before calling HandleDecision.run()
+    mail.outbox = []
+    Message.objects.all().delete()
+    with pytest.raises(ValidationError):
+        handle = HandleDecision(
+            workflow=assigned_article.articleworkflow,
+            form_data=form_data,
+            user=eo_user,
+            request=fake_request,
+            admin_form=True,
+        )
+        handle.run()
+    assigned_article.refresh_from_db()
+    if decision == ArticleWorkflow.Decisions.NOT_SUITABLE:
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+        assert assigned_article.articleworkflow.state == initial_state
+
+
+@pytest.mark.parametrize(
     "decision,final_state",
     (
         (ArticleWorkflow.Decisions.ACCEPT, ArticleWorkflow.ReviewStates.ACCEPTED),

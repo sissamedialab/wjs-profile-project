@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 from django.contrib.auth import get_user_model
 from review.models import ReviewAssignment
 
+from wjs.jcom_profile.permissions import is_eo as base_is_eo
+
 if TYPE_CHECKING:
     from .models import ArticleWorkflow
 
@@ -76,6 +78,14 @@ def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
 def is_system(instance: "ArticleWorkflow", user: Account) -> bool:
     """Fake permission for system-managed transitions."""
     return user is None
+
+
+def is_eo(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True only is the user is part of the EO.
+
+    Wraps :py:func:`wjs.jcom_profile.permissions.is_eo`, needed to accept the instance parameter.
+    """
+    return base_is_eo(user)
 
 
 def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
