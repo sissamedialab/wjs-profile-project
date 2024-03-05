@@ -691,6 +691,46 @@ class ReviewSubmit(EvaluateReviewRequest):
             return super().form_valid(form)
 
 
+class ArticleAdminDecision(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = ArticleWorkflow
+    form_class = DecisionForm
+    template_name = "wjs_review/decision.html"
+    context_object_name = "workflow"
+
+    def test_func(self):
+        """Verify that only EO can access."""
+        return is_eo(self.request.user)
+
+    def get_success_url(self):
+        return reverse("wjs_article_details", args=(self.object.id,))
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        kwargs["admin_form"] = True
+        kwargs["initial"] = {"decision": self.request.GET.get("decision")}
+        return kwargs
+
+    def form_valid(self, form):
+        """
+        Executed when DecisionForm is valid
+
+        Even if the form is valid, checks in logic.HandleDecision -called by form.save- may fail as well.
+        """
+        try:
+            return super().form_valid(form)
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            # required to handle exception raised in the form save method (coming for janeway business logic)
+            return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["hide_reviews"] = True
+        return context
+
+
 class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
     model = ArticleWorkflow
     form_class = DecisionForm

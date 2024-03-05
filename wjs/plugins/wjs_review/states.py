@@ -385,10 +385,6 @@ class WritemeProduction(BaseState):  # noqa N801 CapWords convention
     "Writeme production"
 
 
-class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
-    "Paper might have issues"
-
-
 class ToBeRevised(BaseState):  # noqa N801 CapWords convention
     "To be revised"
     article_actions = (
@@ -456,19 +452,20 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
     "Paper might have issues"
     article_actions = (
         ArticleAction(
-            permission=permissions.is_admin,
+            permission=permissions.is_eo,
             name="requires resubmission",
             label="",
             view_name="WRITEME!",
         ),
         ArticleAction(
-            permission=permissions.is_admin,
+            permission=permissions.is_eo,
             name="deems not suitable",
-            label="",
-            view_name="WRITEME!",
+            label="Mark as not suitable",
+            view_name="wjs_article_admin_decision",
+            querystring_params={"decision": ArticleWorkflow.Decisions.NOT_SUITABLE},
         ),
         ArticleAction(
-            permission=permissions.is_admin,
+            permission=permissions.is_eo,
             name="deems issue unimportant",
             label="",
             view_name="WRITEME!",
