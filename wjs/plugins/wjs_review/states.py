@@ -471,3 +471,132 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
             view_name="WRITEME!",
         ),
     )
+
+
+class ReadyForTypesetter(BaseState):
+    """Ready for typesetter"""
+
+    article_actions = (
+        ArticleAction(
+            permission=permissions.is_typesetter,
+            name="typ takes in charge",
+            label="Take in charge",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_admin,
+            name="admin assigns typesetter",
+            label="Assign typesetter",
+            view_name="WRITEME!",
+        ),
+    )
+
+
+class TypesetterSelected(BaseState):
+    """Typesetter selected"""
+
+    article_actions = (
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="delete / replace source for galley generation",  # one action? 4 actions?
+            label="Manage sources (for galley generation issues)",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="uploads sources",  # this pairs with the one above ⮵
+            label="Upload sources",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            # - generate galleys:
+            #   - PDF - common case
+            #   - HTML - JCOM
+            #   - EPUB - JCOM
+            #   - XML - JHEP, JCAP
+            #   - ~~PDF translations~~  # TBV: why not?
+            # - used but are not  stepped / bumped:
+            #   - DOI
+            #   - pubilcation date
+            #   - pubid
+            permission=permissions.is_article_typesetter,
+            name="tests galley generation",
+            label="Test galley generation",  # TBD: name "Test publication?"
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="CRUD attachments",
+            label="Manage supllementary material",  # CRUD Article.supplementary_files
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="toggle paper non-publishable flag",  # is this the same as one of the checks below? ⮷
+            label="toggle paper non-publishable flag",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            # typ marks checks such as:
+            # - galleys OK",
+            # - supplementary material ok",
+            # - ...",
+            permission=permissions.is_article_typesetter,
+            name="marks pre-flight checks",
+            label="marks pre-flight checks",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            # No estemporary haikus from typ to au
+            # TBV: can probably be dropped (see US ID:NA row:260 order:235)
+            permission=permissions.is_article_typesetter,
+            name="asks non-standard messages for author to EO",
+            label="asks non-standard messages for author to EO",
+            view_name="WRITEME!",
+        ),
+    )
+
+
+class Proofreading(BaseState):
+    """Proofreading"""
+
+    article_actions = (
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="author_sends_corrections",
+            label="Send corrections",
+            view_name="WRITEME!",
+        ),
+    )
+
+
+class ReadyForPublication(BaseState):
+    """Ready for publication"""
+
+    article_actions = (
+        ArticleAction(
+            # TBV: very similar to what typs does in TypesetterSelected!
+            #      Double-check might be good.
+            #
+            # EO/admin marks checks such as:
+            # - TA ok
+            # - galleys OK",
+            # - supplementary material ok",
+            # - ...",
+            permission=permissions.is_article_typesetter,
+            name="marks pre-flight checks",
+            label="marks pre-flight checks",
+            view_name="WRITEME!",
+        ),
+    )
+
+
+class SendToEditorForCheck(BaseState):
+    """Send to editor for check"""
+
+    # TBD!
+    article_actions = ()
+
+
+class Published(BaseState):
+    """Published"""

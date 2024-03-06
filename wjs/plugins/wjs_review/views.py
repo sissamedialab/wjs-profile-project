@@ -51,7 +51,14 @@ from .forms import (
     UpdateReviewerReportDueDateForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
-from .logic import HandleEditorDeclinesAssignment, render_template_from_setting
+from .logic import (
+    HandleEditorDeclinesAssignment,
+    render_template_from_setting,
+    states_when_article_is_considered_archived,
+    states_when_article_is_considered_in_production,
+    states_when_article_is_considered_in_review,
+    states_when_article_is_considered_missing_editor,
+)
 from .mixins import EditorRequiredMixin
 from .models import (
     ArticleWorkflow,
@@ -63,35 +70,13 @@ from .models import (
 )
 from .permissions import is_article_editor
 from .prophy import Prophy
+from .views__production import (  # noqa F401
+    TypesetterArchived,
+    TypesetterPending,
+    TypesetterWorkingOn,
+)
 
 Account = get_user_model()
-
-states_when_article_is_considered_archived = [
-    ArticleWorkflow.ReviewStates.WITHDRAWN,
-    ArticleWorkflow.ReviewStates.REJECTED,
-    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
-]
-
-# "In review" means articles that are
-# - not archived,
-# - not in states such as SUBMITTED, INCOMPLETE_SUBMISSION, PAPER_MIGHT_HAVE_ISSUES
-# - not in "production" (not yet defined)
-states_when_article_is_considered_in_review = [
-    ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
-    ArticleWorkflow.ReviewStates.PAPER_HAS_EDITOR_REPORT,
-    ArticleWorkflow.ReviewStates.TO_BE_REVISED,
-]
-
-# TODO: write me!
-states_when_article_is_considered_in_production = [
-    ArticleWorkflow.ReviewStates.ACCEPTED,
-]
-
-states_when_article_is_considered_missing_editor = [
-    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
-    ArticleWorkflow.ReviewStates.SUBMITTED,
-    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
-]
 
 
 class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):

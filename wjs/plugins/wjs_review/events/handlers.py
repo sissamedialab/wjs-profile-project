@@ -107,3 +107,17 @@ def send_to_prophy(**kwargs) -> None:
     p = Prophy(article)
     p.async_article_prophy_upload()
     return
+
+
+# https://gitlab.sissamedialab.it/wjs/specs/-/issues/684 (drop this comment)
+def perform_checks_at_acceptance(**kwargs):
+    """Check if a paper can go to the workflow state READY_FOR_TYPESETTER.
+
+    This function should be called just after the paper has been accepted.
+    """
+    # TODO:
+    # - register for even ON_ARTICLE_ACCEPTED
+    # - write logic class PerformPostAcceptanceCheck
+    #   - for now, just bump the workflow state
+    #   - add placeholder-variables (in django settings) and function (in events.check?) to do nothing
+    # - review with US ID:NA row:243 order:218

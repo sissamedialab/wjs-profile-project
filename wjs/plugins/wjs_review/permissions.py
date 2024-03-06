@@ -93,7 +93,15 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
 
     Remember that, in J., it is not mandatory for the correspondence author to be one of the authors!
     """
-
     is_correspondence_author = instance.article.correspondence_author == user
     is_any_author = instance.article.authors.filter(pk=user.pk).exists()
     return is_correspondence_author | is_any_author
+
+
+def is_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
+    return user.check_role(instance.article.journal, "typesetter")
+
+
+def is_article_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
+    # TODO: writeme!!!
+    return True

@@ -57,8 +57,13 @@ class ArticleWorkflow(TimeStampedModel):
         NOT_SUITABLE = "NotSuitable", _("Not suitable")
         PAPER_HAS_EDITOR_REPORT = "PaperHasEditorReport", _("Paper has editor report")
         ACCEPTED = "Accepted", _("Accepted")
-        WRITEME_PRODUCTION = "WritemeProduction", _("Writeme production")
+        TYPESETTER_SELECTED = "TypesetterSelected", _("Typesetter selected")
         PAPER_MIGHT_HAVE_ISSUES = "PaperMightHaveIssues", _("Paper might have issues")
+        PROOFREADING = "Proofreading", _("Proofreading")
+        READY_FOR_TYPESETTER = "ReadyForTypesetter", _("Ready for typesetter")
+        PUBLISHED = "Published", _("Published")
+        READY_FOR_PUBLICATION = "ReadyForPublication", _("Ready for publication")
+        SEND_TO_EDITOR_FOR_CHECK = "SendToEditorForCheck", _("Send to editor for check")
 
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
@@ -273,6 +278,116 @@ class ArticleWorkflow(TimeStampedModel):
     )
     def editor_assign_different_editor(self):
         pass
+
+    # typesetter takes in charge
+    @transition(
+        field=state,
+        source=ReviewStates.READY_FOR_TYPESETTER,
+        target=ReviewStates.TYPESETTER_SELECTED,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def typesetter_takes_in_charge(self):
+        pass
+
+    # system assigns typesetter
+    @transition(
+        field=state,
+        source=ReviewStates.READY_FOR_TYPESETTER,
+        target=ReviewStates.TYPESETTER_SELECTED,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def system_assigns_typesetter(self):
+        pass
+
+    # typesetter submits
+    @transition(
+        field=state,
+        source=ReviewStates.TYPESETTER_SELECTED,
+        target=ReviewStates.PROOFREADING,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def typesetter_submits(self):
+        pass
+
+    # author sends corrections
+    @transition(
+        field=state,
+        source=ReviewStates.PROOFREADING,
+        target=ReviewStates.TYPESETTER_SELECTED,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def author_sends_corrections(self):
+        pass
+
+    # EO publishes
+    @transition(
+        field=state,
+        source=ReviewStates.READY_FOR_PUBLICATION,
+        target=ReviewStates.PUBLISHED,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def admin_publishes(self):
+        pass
+
+    # EO sends back to typ
+    @transition(
+        field=state,
+        source=ReviewStates.READY_FOR_PUBLICATION,
+        target=ReviewStates.TYPESETTER_SELECTED,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def admin_sends_back_to_typ(self):
+        pass
+
+    # typesetter deems paper ready for publication
+    @transition(
+        field=state,
+        source=ReviewStates.TYPESETTER_SELECTED,
+        target=ReviewStates.READY_FOR_PUBLICATION,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def typesetter_deems_paper_ready_for_publication(self):
+        pass
+
+    # typesetter sends to editor for check
+    @transition(
+        field=state,
+        source=ReviewStates.TYPESETTER_SELECTED,
+        target=ReviewStates.SEND_TO_EDITOR_FOR_CHECK,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def typesetter_sends_to_editor_for_check(self):
+        pass
+
+    # system verifies production requirements
+    @transition(
+        field=state,
+        source=ReviewStates.ACCEPTED,
+        target=ReviewStates.READY_FOR_TYPESETTER,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def system_verifies_production_requirements(self):
+        pass
+
+    # TODO: manage special transition from * to WITHDRAWN # NOQA E800
+    # TBV # @transition(                                  # NOQA E800
+    # TBV #     field=state,                              # NOQA E800
+    # TBV #     source=ReviewStates.WITHDRAWN,            # NOQA E800
+    # TBV #     target=ReviewStates.FINAL,                # NOQA E800
+    # TBV #     # TODO: permission=,                      # NOQA E800
+    # TBV #     # TODO: conditions=[],                    # NOQA E800
+    # TBV # )                                             # NOQA E800
+    # TBV # def UNNAMED_TRANSITION(self):                 # NOQA E800
+    # TBV #     pass                                      # NOQA E800
 
 
 class EditorDecision(TimeStampedModel):
