@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 from core import files as core_files
 from core import models as core_models
 from django import forms
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
@@ -1048,7 +1049,10 @@ class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixi
 
     def test_func(self):
         """User must be corresponding author of the article."""
-        return self.model.objects.filter(pk=self.kwargs[self.pk_url_kwarg], article__owner=self.request.user).exists()
+        return self.model.objects.filter(
+            pk=self.kwargs[self.pk_url_kwarg],
+            article__correspondence_author=self.request.user,
+        ).exists()
 
     def get_success_url(self):
         """Redirect to the article details page."""
@@ -1065,7 +1069,10 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
 
     def test_func(self):
         """User must be corresponding author of the article."""
-        return self.model.objects.filter(pk=self.kwargs[self.pk_url_kwarg], article__owner=self.request.user).exists()
+        return self.model.objects.filter(
+            pk=self.kwargs[self.pk_url_kwarg],
+            article__correspondence_author=self.request.user,
+        ).exists()
 
     def _get_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         return WorkflowReviewAssignment.objects.filter(
@@ -1073,6 +1080,11 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
             is_complete=True,
             for_author_consumption=True,
         ).exclude(decision="withdrawn")
+
+    def _get_revisions(self) -> QuerySet[EditorRevisionRequest]:
+        return EditorRevisionRequest.objects.filter(
+            article=self.object.article,
+        ).order_by("-review_round__round_number")
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -1152,8 +1164,42 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
         context = super().get_context_data(**kwargs)
         context["article"] = self.object.article
         context["reviews"] = self._get_reviews()
+        context["revisions"] = self._get_revisions()
         context["meta_data_form"] = self._get_metadata_form()
         return context
+
+
+class ArticleRevisionFileUpdate(UserPassesTestMixin, LoginRequiredMixin, View):
+    model = EditorRevisionRequest
+    pk_url_kwarg = "revision_id"
+    context_object_name = "revision_request"
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        return self.model.objects.filter(
+            pk=self.kwargs[self.pk_url_kwarg],
+            article__correspondence_author=self.request.user,
+        ).exists()
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the revision request for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(EditorRevisionRequest, pk=self.kwargs[self.pk_url_kwarg])
+
+    def get(self, *args, **kwargs):
+        """Use files from some previous version of the paper.
+
+        We retrieve the files (of a certain type: manuscript, supplementary,...)
+        from the selected version (technically an EditorRevisionRequest linked to a certain review round),
+        and set them as the Article.TYPE_files.
+        """
+        src_file_attr = getattr(self.object, f'{self.kwargs["file_type"]}_files')
+        dst_file_attr = getattr(self.object.article, f'{self.kwargs["file_type"]}_files')
+        dst_file_attr.set(src_file_attr.all())
+        messages.success(self.request, "Files replaced.")
+        return HttpResponseRedirect(
+            reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk}),
+        )
 
 
 class ArticleReminders(UserPassesTestMixin, ListView):

@@ -9,12 +9,13 @@ from django.test.client import Client
 from django.urls import reverse
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
+from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
-from ..models import Message
+from ..models import EditorRevisionRequest, Message
 from ..templatetags.wjs_articles import user_is_coauthor
 from ..views import SelectReviewer
 
@@ -489,3 +490,58 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
             assert m.to == coauthors_email
         else:
             assert m.to == [article.correspondence_author.email]
+
+
+@pytest.mark.django_db
+def test_revision_file_replace(
+    review_settings,
+    article: Article,
+    editor_revision: EditorRevisionRequest,
+):
+    """Files from editorrevision are used to replace article files."""
+    client = Client()
+    client.force_login(article.correspondence_author)
+    assert article.manuscript_files.count() == 1
+    assert article.supplementary_files.count() == 1
+    assert article.data_figure_files.count() == 1
+    assert editor_revision.manuscript_files.count() == 3
+    assert editor_revision.supplementary_files.count() == 2
+    assert editor_revision.data_figure_files.count() == 2
+    url = reverse("revisions_use_files", args=(article.pk, editor_revision.pk, "manuscript"))
+    response = client.get(url)
+    article.refresh_from_db()
+    assert response.status_code == 302
+    assert article.manuscript_files.count() == 3
+    assert set(article.manuscript_files.all()) == set(editor_revision.manuscript_files.all())
+    assert article.supplementary_files.count() == 1
+    assert article.data_figure_files.count() == 1
+    assert editor_revision.manuscript_files.count() == 3
+    assert editor_revision.supplementary_files.count() == 2
+    assert editor_revision.data_figure_files.count() == 2
+
+
+@pytest.mark.django_db
+def test_revision_file_replace_no_perms(
+    review_settings,
+    article: Article,
+    editor_revision: EditorRevisionRequest,
+):
+    """Non correspondence author cannot access view."""
+    client = Client()
+    client.force_login(article.authors.exclude(pk=article.correspondence_author.pk).first())
+    assert article.manuscript_files.count() == 1
+    assert article.supplementary_files.count() == 1
+    assert article.data_figure_files.count() == 1
+    assert editor_revision.manuscript_files.count() == 3
+    assert editor_revision.supplementary_files.count() == 2
+    assert editor_revision.data_figure_files.count() == 2
+    url = reverse("revisions_use_files", args=(article.pk, editor_revision.pk, "manuscript"))
+    response = client.get(url)
+    article.refresh_from_db()
+    assert response.status_code == 403
+    assert article.manuscript_files.count() == 1
+    assert article.supplementary_files.count() == 1
+    assert article.data_figure_files.count() == 1
+    assert editor_revision.manuscript_files.count() == 3
+    assert editor_revision.supplementary_files.count() == 2
+    assert editor_revision.data_figure_files.count() == 2

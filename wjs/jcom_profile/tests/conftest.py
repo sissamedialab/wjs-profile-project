@@ -401,6 +401,15 @@ def article(admin, coauthor, journal, sections):
         section=random.choice(sections),
     )
     article.authors.add(admin, coauthor)
+    for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:
+        file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
+        article.manuscript_files.add(file_obj)
+    for file_ext in ["_es.png", "_en.png"]:
+        file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
+        article.data_figure_files.add(file_obj)
+    for file_ext in ["_es.txt", "_en.txt"]:
+        file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
+        article.supplementary_files.add(SupplementaryFile.objects.create(file=file_obj))
     return article
 
 

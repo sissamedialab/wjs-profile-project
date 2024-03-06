@@ -2,7 +2,7 @@ import glob
 import os
 
 import pytest
-from core.models import Account, Workflow, WorkflowElement
+from core.models import Account, File, SupplementaryFile, Workflow, WorkflowElement
 from django.core import mail
 from django.core.management import call_command
 from django.http import HttpRequest
@@ -10,13 +10,14 @@ from events import logic as events_logic
 from plugins.wjs_review.reminders.settings import reminders_configuration
 from review import models as review_models
 from review.models import ReviewAssignment
+from submission.models import Article
 from utils import setting_handler
 
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
-from ..logic import AssignToEditor
-from ..models import ArticleWorkflow, Message, Reminder
+from ..logic import AssignToEditor, HandleDecision
+from ..models import ArticleWorkflow, EditorRevisionRequest, Message, Reminder
 from ..plugin_settings import (
     HANDSHAKE_URL,
     SHORT_NAME,
@@ -229,3 +230,28 @@ def create_set_of_articles_with_assignments(
     #  In the future we must evaluate if it's possible to replace this fixture with a more targeted one.
     #  For now it's too much work for little benefit and we must handle other tasks.
     call_command("scenario_review")
+
+
+@pytest.fixture
+def editor_revision(assigned_article: Article, fake_request: HttpRequest) -> EditorRevisionRequest:
+    """Return the revision of the article that is in the editor's hands."""
+    decision = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data={
+            "decision": ArticleWorkflow.Decisions.MAJOR_REVISION,
+            "decision_editor_report": "skip",
+            "decision_internal_note": "skip",
+            "date_due": "2024-01-01",
+            "withdraw_notice": "automatic",
+        },
+        user=assigned_article.editorassignment_set.first().editor,
+        request=fake_request,
+    ).run()
+    revision_request = decision.review_round.editorrevisionrequest_set.first()
+    file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{assigned_article.pk}_new.pdf")
+    assigned_article.manuscript_files.set([file_obj])
+    file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{assigned_article.pk}_new.png")
+    assigned_article.data_figure_files.set([file_obj])
+    file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{assigned_article.pk}_new.txt")
+    assigned_article.supplementary_files.set([SupplementaryFile.objects.create(file=file_obj)])
+    return revision_request
