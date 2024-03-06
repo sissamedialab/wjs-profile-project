@@ -41,6 +41,7 @@ from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
 from .communication_utils import update_date_send_reminders
+from .logic__production import AssignTypesetter, RequestProofs, SendProofs  # noqa F401
 from .reminders.models import Reminder
 from .reminders.settings import (
     create_EDMD_reminders,
@@ -64,6 +65,33 @@ from .models import (
 
 logger = get_logger(__name__)
 Account = get_user_model()
+
+states_when_article_is_considered_archived = [
+    ArticleWorkflow.ReviewStates.WITHDRAWN,
+    ArticleWorkflow.ReviewStates.REJECTED,
+    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+]
+
+# "In review" means articles that are
+# - not archived,
+# - not in states such as SUBMITTED, INCOMPLETE_SUBMISSION, PAPER_MIGHT_HAVE_ISSUES
+# - not in "production" (not yet defined)
+states_when_article_is_considered_in_review = [
+    ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+    ArticleWorkflow.ReviewStates.PAPER_HAS_EDITOR_REPORT,
+    ArticleWorkflow.ReviewStates.TO_BE_REVISED,
+]
+
+# TODO: write me!
+states_when_article_is_considered_in_production = [
+    ArticleWorkflow.ReviewStates.ACCEPTED,
+]
+
+states_when_article_is_considered_missing_editor = [
+    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+    ArticleWorkflow.ReviewStates.SUBMITTED,
+    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+]
 
 
 @dataclasses.dataclass
