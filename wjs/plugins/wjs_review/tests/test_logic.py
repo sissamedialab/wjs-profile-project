@@ -20,6 +20,7 @@ from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from ..events.handlers import on_revision_complete
 from ..logic import (
+    AdminActions,
     AssignToEditor,
     AssignToReviewer,
     EvaluateReview,
@@ -27,6 +28,7 @@ from ..logic import (
     InviteReviewer,
 )
 from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
+from ..plugin_settings import STAGE
 from .test_helpers import _create_review_assignment, _submit_review, get_next_workflow
 
 fake_factory = Faker()
@@ -1044,6 +1046,177 @@ def test_submit_review_messages(
     )
     assert message_to_the_editor.body == editor_message_body
     assert message_to_the_editor.message_type == Message.MessageTypes.VERBOSE
+
+
+@pytest.mark.parametrize(
+    "initial_state,decision,final_state",
+    (
+        (
+            ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            "dispatch",
+            ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_issues_to_selected(
+    review_settings,
+    fake_request: HttpRequest,
+    article: submission_models.Article,
+    eo_user: JCOMProfile,
+    review_form: ReviewForm,
+    initial_state: str,
+    decision: str,
+    final_state: str,
+):
+    """
+    If the EO deems a paper's issues not important, article.stage and workflow.state are set as expected.
+    """
+    article.stage = STAGE
+    article.save()
+    article.articleworkflow.state = initial_state
+    article.articleworkflow.save()
+    fake_request.user = eo_user
+    # Reset email and messages just before running the service
+    mail.outbox = []
+    Message.objects.all().delete()
+
+    handle = AdminActions(
+        workflow=article.articleworkflow,
+        user=eo_user,
+        request=fake_request,
+        decision="dispatch",
+    )
+    handle.run()
+    article.refresh_from_db()
+    article.articleworkflow.refresh_from_db()
+    if decision == "dispatch":
+        assert article.stage == STAGE
+        assert article.articleworkflow.state == final_state
+        assert Message.objects.count() == 1
+        message = Message.objects.get()
+        context = {
+            "article": article,
+            "request": fake_request,
+        }
+        requeue_article_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="requeue_article_subject",
+            journal=article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        requeue_article_message = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="requeue_article_message",
+            journal=article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        assert message.subject == requeue_article_subject
+        assert message.body == requeue_article_message
+        assert message.message_type == message.MessageTypes.SYSTEM
+        assert not message.recipients.all().exists()
+        # no email because there is no recipient
+        assert len(mail.outbox) == 0
+
+
+@pytest.mark.parametrize(
+    "initial_state,decision,final_state",
+    (
+        (
+            ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            "dispatch",
+            ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_issues_to_selected_wrong_user(
+    fake_request: HttpRequest,
+    article: submission_models.Article,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+    initial_state: str,
+    decision: str,
+    final_state: str,
+):
+    """
+    If user validation fails in business logic, article stages are not changed.
+    """
+    article.articleworkflow.state = initial_state
+    article.articleworkflow.save()
+    fake_request.user = jcom_user
+    # Reset email and messages just before calling HandleDecision.run()
+    mail.outbox = []
+    Message.objects.all().delete()
+
+    with pytest.raises(ValidationError):
+        handle = AdminActions(
+            workflow=article.articleworkflow,
+            user=jcom_user,
+            request=fake_request,
+            decision="dispatch",
+        )
+        handle.run()
+    article.refresh_from_db()
+    article.articleworkflow.refresh_from_db()
+    if decision == "dispatch":
+        assert article.stage == submission_models.STAGE_UNSUBMITTED
+        assert article.articleworkflow.state == initial_state
+        assert Message.objects.count() == 0
+        assert len(mail.outbox) == 0
+
+
+@pytest.mark.parametrize(
+    "initial_state,decision",
+    (
+        (
+            ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+            "dispatch",
+        ),
+        (
+            ArticleWorkflow.ReviewStates.SUBMITTED,
+            "dispatch",
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_issues_to_selected_wrong_state(
+    fake_request: HttpRequest,
+    article: submission_models.Article,
+    eo_user: JCOMProfile,
+    review_form: ReviewForm,
+    initial_state: str,
+    decision: str,
+):
+    """
+    If initial state validation fails in business logic, article stages are not changed.
+    """
+    article.articleworkflow.state = initial_state
+    article.articleworkflow.save()
+    fake_request.user = eo_user
+    # Reset email and messages just before calling HandleDecision.run()
+    mail.outbox = []
+    Message.objects.all().delete()
+
+    with pytest.raises(ValidationError):
+        handle = AdminActions(
+            workflow=article.articleworkflow,
+            user=eo_user,
+            request=fake_request,
+            decision="dispatch",
+        )
+        handle.run()
+    article.refresh_from_db()
+    article.articleworkflow.refresh_from_db()
+    if decision == "dispatch":
+        assert article.stage == submission_models.STAGE_UNSUBMITTED
+        assert article.articleworkflow.state == initial_state
+        assert Message.objects.count() == 0
+        assert len(mail.outbox) == 0
 
 
 @pytest.mark.parametrize(

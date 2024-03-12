@@ -467,8 +467,8 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
         ArticleAction(
             permission=permissions.is_eo,
             name="deems issue unimportant",
-            label="",
-            view_name="WRITEME!",
+            label="Queue for review",
+            view_name="wjs_article_dispatch_assignment",
         ),
     )
 
