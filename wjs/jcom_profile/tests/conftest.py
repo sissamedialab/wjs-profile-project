@@ -18,6 +18,7 @@ from django.core.cache import cache
 from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
 from django.utils.timezone import now
+from django.utils.translation import activate
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
@@ -105,6 +106,12 @@ def clear_cache():
     """Clear cache after any test to avoid flip-flapping test results due Janeway journal/press domain."""
     yield
     cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def set_language():
+    """Reset base language at the start of every test."""
+    activate("en")
 
 
 @pytest.fixture
