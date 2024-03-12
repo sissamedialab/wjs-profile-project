@@ -7,6 +7,6 @@
     {% endif %}
     {% get_review_assignments round "" as assignments_and_actions %}
     {% for assignment_and_actions in assignments_and_actions %}
-        {% include "wjs_review/elements/editor_review_assignment.html" with assignment_and_actions=assignment_and_actions %}
+        {% include "wjs_review/elements/editor_review_assignment.html" with assignment_and_actions=assignment_and_actions round=round %}
     {% endfor %}
 {% endfor %}

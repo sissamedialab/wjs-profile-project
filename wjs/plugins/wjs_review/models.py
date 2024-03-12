@@ -102,6 +102,15 @@ class ArticleWorkflow(TimeStampedModel):
     def __str__(self):
         return f"{self.article.id}-{self.state}"
 
+    def pending_revision_request(self):
+        try:
+            return EditorRevisionRequest.objects.get(
+                article=self.article,
+                date_completed__isnull=True,
+            )
+        except EditorRevisionRequest.DoesNotExist:
+            return None
+
     # director selects editor
     @transition(
         field=state,
@@ -656,6 +665,9 @@ class EditorRevisionRequest(RevisionRequest):
         blank=True,
         related_name="+",
     )
+
+    class Meta:
+        ordering = ("date_requested",)
 
 
 class WorkflowReviewAssignment(ReviewAssignment):

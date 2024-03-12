@@ -33,6 +33,7 @@ from .logic import (
     HandleMessage,
     InviteReviewer,
     PostponeReviewerReportDueDate,
+    PostponeRevisionRequestDueDate,
     SubmitReview,
     render_template_from_setting,
 )
@@ -738,6 +739,43 @@ class UpdateReviewerReportDueDateForm(forms.ModelForm):
 
     def save(self) -> ReviewAssignment:
         """Change the reviewer report due date using :py:class:`PostponeReviewerReportDueDate`."""
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class EditorRevisionRequestDueDateForm(forms.ModelForm):
+    date_due = forms.DateField(required=True, widget=forms.DateInput(attrs={"type": "date"}))
+
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["date_due"]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def clean_date_due(self):
+        date_due = self.cleaned_data["date_due"]
+        if date_due and date_due < now().date():
+            raise forms.ValidationError(_("Date must be in the future"))
+        return date_due
+
+    def get_logic_instance(self):
+        service = PostponeRevisionRequestDueDate(
+            revision_request=self.instance,
+            form_data=self.cleaned_data,
+            request=self.request,
+        )
+        return service
+
+    def save(self, commit: bool = True) -> EditorRevisionRequest:
         try:
             service = self.get_logic_instance()
             service.run()

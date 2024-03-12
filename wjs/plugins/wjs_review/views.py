@@ -29,6 +29,7 @@ from review import logic as review_logic
 from review.models import EditorAssignment, ReviewAssignment
 from submission import models as submission_models
 from submission.models import Article
+from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.mixins import HtmxMixin
@@ -39,6 +40,7 @@ from .filters import ArticleWorkflowFilter
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
+    EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
     EvaluateReviewForm,
     InviteUserForm,
@@ -77,6 +79,7 @@ from .views__production import (  # noqa F401
     TypesetterWorkingOn,
 )
 
+logger = get_logger(__name__)
 Account = get_user_model()
 
 
@@ -557,6 +560,33 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+
+
+class PostponeRevisionRequestDueDate(UserPassesTestMixin, UpdateView):
+    """
+    View to postpone the date_due of a revision request (done by the editor)
+    """
+
+    model = EditorRevisionRequest
+    form_class = EditorRevisionRequestDueDateForm
+    context_object_name = "workflow"
+    template_name = "wjs_review/elements/editor_revision_request_date_due_form.html"
+
+    def test_func(self):
+        """
+        Check that the user is the article's editor
+        """
+        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).article.articleworkflow
+        return is_article_editor(self.article, self.request.user)
+
+    def get_success_url(self):
+        return reverse("wjs_article_details", args=(self.object.article.articleworkflow.id,))
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        kwargs["user"] = self.request.user
+        return kwargs
 
 
 class ReviewDeclined(OpenReviewMixin):

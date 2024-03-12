@@ -316,6 +316,106 @@ def set_default_plugin_settings(force: bool = False):
             force=force,
         )
 
+    def revision_request_postpone_date_due_messages():
+        revision_request_date_due_postponed_subject_setting: SettingParams = {
+            "name": "revision_request_date_due_postponed_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for revision request due date postponing notification"),
+            "description": _(
+                "Subject of the email sent to the author when an editor postpones the revision due date.",
+            ),
+            "is_translatable": False,
+        }
+        revision_request_date_due_postponed_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Revision due date is postponed"),
+            "translations": {},
+        }
+        create_customization_setting(
+            revision_request_date_due_postponed_subject_setting,
+            revision_request_date_due_postponed_subject_setting_value,
+            revision_request_date_due_postponed_subject_setting["name"],
+        )
+        revision_request_date_due_postponed_body_setting: SettingParams = {
+            "name": "revision_request_date_due_postponed_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for revision request due date postponing notification"),
+            "description": _(
+                "Body of the email sent to the author when an editor postpones the revision due date.",
+            ),
+            "is_translatable": False,
+        }
+        revision_request_date_due_postponed_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ article.correspondence_author.full_name }},
+            The revision request due date for the article "{{ article.title }}" has been postponed until {{ date_due }}.
+            Regards,
+            the editor.
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            revision_request_date_due_postponed_body_setting,
+            revision_request_date_due_postponed_body_setting_value,
+            revision_request_date_due_postponed_body_setting["name"],
+        )
+        # setting_name = "revision_request_date_due_far_future_subject",
+        revision_request_date_due_far_future_subject_setting: SettingParams = {
+            "name": "revision_request_date_due_far_future_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for revision request due date postponing too far in the future notification"),
+            "description": _(
+                "Subject of the notification sent to EO when an editor postpones the revision due date too far in the future.",
+            ),
+            "is_translatable": False,
+        }
+        revision_request_date_due_far_future_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Revision request due date is postponed too far in the future"),
+            "translations": {},
+        }
+        create_customization_setting(
+            revision_request_date_due_far_future_subject_setting,
+            revision_request_date_due_far_future_subject_setting_value,
+            revision_request_date_due_far_future_subject_setting["name"],
+        )
+        revision_request_date_due_far_future_body_setting: SettingParams = {
+            "name": "revision_request_date_due_far_future_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _(
+                "Default message for revision request due date postponing too far in the future notification"
+            ),
+            "description": _(
+                "Body of the notification sent to EO when an editor postpones the revision due date too far in the future.",
+            ),
+            "is_translatable": False,
+        }
+        revision_request_date_due_far_future_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ EO.full_name }},
+            The revision request due date for the article "{{ article.title }}" has been postponed too far in the
+            future, to {{ date_due }}.
+            Regards,
+            {{ request.user.signature|safe }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            revision_request_date_due_far_future_body_setting,
+            revision_request_date_due_far_future_body_setting_value,
+            revision_request_date_due_far_future_body_setting["name"],
+        )
+
     def withdraw_review_message():
         withdraw_review_subject_setting: SettingParams = {
             "name": "review_withdraw_subject",
@@ -901,6 +1001,7 @@ def set_default_plugin_settings(force: bool = False):
     patch_review_messages()
     review_decision_revision_request_message()
     review_decision_not_suitable_message()
+    revision_request_postpone_date_due_messages()
     withdraw_review_message()
     technical_revision_body()
     author_can_contact_director()

@@ -18,6 +18,33 @@ logger = get_logger(__name__)
 Account = get_user_model()
 
 
+def get_url_with_last_editor_revision_request_pk(
+    action: "ArticleAction",
+    workflow: "ArticleWorkflow",
+    user: Account,
+) -> str:
+    """
+    Given the ArticleAction and ArticleWorkflow, reverse the url of the ArticleAction.view_name but
+    using the EditorRevisionRequest's pk.
+    """
+
+    latest_revision_request = (
+        workflow.article.revisionrequest_set.filter(
+            article=workflow.article,
+        )
+        .order_by(
+            "date_requested",
+        )
+        .last()
+    )
+    latest_editor_revision_request = latest_revision_request.editorrevisionrequest
+    url = reverse(action.view_name, kwargs={"pk": latest_editor_revision_request.id})
+    if action.querystring_params is not None:
+        url += "?"
+        url += urllib.parse.urlencode(action.querystring_params)
+    return url
+
+
 @dataclasses.dataclass
 class ArticleAction:
     """An action that can be done on an Article."""
@@ -30,17 +57,23 @@ class ArticleAction:
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
+    custom_get_url: str = None
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
 
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
+        if self.custom_get_url:
+            url = self.custom_get_url(self, workflow, user)
+        else:
+            url = self.get_url(workflow, user)
+
         return {
             "name": self.name,
             "label": self.label,
             "tooltip": self.tooltip,
-            "url": self.get_url(workflow, user),
+            "url": url,
         }
 
     def get_url(self, workflow: "ArticleWorkflow", user: Account) -> str:
@@ -393,6 +426,13 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
             name="reminds author",
             label="",
             view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_editor,
+            name="postpone author revision deadline",
+            label="",
+            view_name="wjs_postpone_revision_request",
+            custom_get_url=get_url_with_last_editor_revision_request_pk,
         ),
         ArticleAction(
             permission=permissions.is_article_author,

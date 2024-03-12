@@ -189,4 +189,6 @@ PROPHY_JWT_KEY = ""
 # prophy author page
 PROPHY_AUTH = "https://www.prophy.science/author/"
 
+# How many days are considered "too far in the future" when postponing an EditorRevisionRequest
+REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD = 30
 DAYS_CONSIDERED_FAR_FUTURE = 30
