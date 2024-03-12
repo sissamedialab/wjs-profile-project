@@ -416,4 +416,4 @@ class NewsletterTopicForm(forms.ModelForm):
 class RegisterUserNewsletterForm(CaptchaForm):
     """Register an Anonymous user to a newsletter."""
 
-    email = forms.EmailField(required=True)
+    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={"placeholder": _("Your email address")}))

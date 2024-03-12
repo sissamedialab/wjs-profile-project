@@ -7,13 +7,8 @@
             {% if wjs_subscribe_newsletter_element.intro %}<p>{{ wjs_subscribe_newsletter_element.intro }}</p>{% endif %}
             <form method="post" action="{% url "register_newsletters" %}">
                 {% csrf_token %}
-                <div class="input-field">
-                    <input type="email"
-                           id="email"
-                           name="email"
-                           placeholder="{% trans "Your email" %}">
-                </div>
-                {% include "forms/field.html" with field=wjs_subscribe_newsletter_form.captcha hide_label=True %}
+                {% include "forms/field.html" with field=wjs_subscribe_newsletter_form.email hide_label=True skip_validate=True %}
+                {% include "forms/field.html" with field=wjs_subscribe_newsletter_form.captcha hide_label=True skip_validate=True %}
                 <div class="input-field">
                     <button name="submit" class="btn">{% trans "Subscribe" %}</button>
                 </div>
