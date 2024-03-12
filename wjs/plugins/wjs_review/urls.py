@@ -23,6 +23,7 @@ from .views import (
     ListArticles,
     Manager,
     MessageAttachmentDownloadView,
+    PostponeRevisionRequestDueDate,
     ReviewDeclined,
     ReviewEnd,
     ReviewerArchived,
@@ -60,6 +61,11 @@ urlpatterns = [
         "invite_reviewer/<int:pk>/",
         InviteReviewer.as_view(),
         name="wjs_invite_reviewer",
+    ),
+    path(
+        "postpone_revision_request/<int:pk>/",
+        PostponeRevisionRequestDueDate.as_view(),
+        name="wjs_postpone_revision_request",
     ),
     path(
         "invite_reviewer/<int:pk>/<int:prophy_account_id>/",

@@ -5,8 +5,8 @@ action in a method named "run()".
 
 """
 import dataclasses
+import datetime
 from copy import copy
-from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
@@ -1523,6 +1523,98 @@ class HandleDecision:
 
 
 @dataclasses.dataclass
+class PostponeRevisionRequestDueDate:
+    """
+    Business logic to postpone the value of EditorRevisionRequest.date_due.
+    """
+
+    # TODO: Look what we need and what we do not need here: ReviewAssignment / EditorRevisionRequest
+    # No ReviewAssignment, the editor is EditorRevisionRequest.editor
+    revision_request: EditorRevisionRequest
+    form_data: Dict[str, Any]
+    request: HttpRequest
+
+    def _check_postponed_date_due_too_far_future(self) -> bool:
+        max_threshold = settings.REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD
+        max_date = timezone.now().date() + datetime.timedelta(days=max_threshold)
+        return self.form_data["date_due"] >= max_date
+
+    def _get_message_context(self) -> Dict[str, Any]:
+        assignment = self.revision_request.review_round.reviewassignment_set.last()
+        return {
+            "article": self.revision_request.article,
+            "request": self.request,
+            "reviewer": assignment.reviewer,
+            "EO": communication_utils.get_eo_user(self.revision_request.article),
+            "editor": self.revision_request.editor,
+            "date_due": self.form_data["date_due"],
+        }
+
+    def _log_eo_date_due_too_far_future(self):
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_request_date_due_far_future_subject",
+            journal=self.revision_request.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_request_date_due_far_future_body",
+            journal=self.revision_request.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            # TODO: actor?
+            article=self.revision_request.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[communication_utils.get_eo_user(self.revision_request.article)],
+        )
+
+    def _log_author_if_date_due_is_postponed(self):
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_request_date_due_postponed_subject",
+            journal=self.revision_request.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="revision_request_date_due_postponed_body",
+            journal=self.revision_request.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.revision_request.editor,
+            article=self.revision_request.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[self.revision_request.article.correspondence_author],
+        )
+
+    def _save_date_due(self):
+        self.revision_request.date_due = self.form_data["date_due"]
+        self.revision_request.save()
+
+    # TODO: Really check the conditions
+    def check_conditions(self):
+        """Check if the conditions for the assignment are met."""
+        return True
+
+    def run(self):
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValidationError(_("Decision conditions not met"))
+            self._save_date_due()
+            if self._check_postponed_date_due_too_far_future():
+                self._log_eo_date_due_too_far_future()
+            self._log_author_if_date_due_is_postponed()
+
+
+@dataclasses.dataclass
 class HandleMessage:
     message: Message
     form_data: Dict[str, Any]
@@ -1765,7 +1857,7 @@ class PostponeReviewerReportDueDate:
 
     def _report_postponed_far_future_date(self) -> bool:
         """Check if the editor postponed report due date far in the future."""
-        if self.form_data["date_due"] > timezone.now().date() + timedelta(
+        if self.form_data["date_due"] > timezone.now().date() + datetime.timedelta(
             days=settings.DAYS_CONSIDERED_FAR_FUTURE,
         ):
             return True

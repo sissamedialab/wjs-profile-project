@@ -50,6 +50,12 @@
                         {{ assignment.date_reminded }}
                     </p>
                 {% endif %}
+                <p class="h3">Revision request</p>
+                <p>Requested on {{ round.editorrevisionrequest_set.last.date_requested }}</p>
+                {% if not round.editorrevisionrequest_set.last.date_completed %}
+                    <p>Revision by author is pending</p>
+                {% endif %}
+
             </div>
         {% endwith %}
     <div>
