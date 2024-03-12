@@ -1220,7 +1220,9 @@ class TestResetDate:
     ):
         """Verify that update_date_send_reminders is called."""
         # Let the reviewer update the date
-        with mock.patch("plugins.wjs_review.logic.update_date_send_reminders") as mocked_update_date_send_reminders:
+        with mock.patch(
+            "plugins.wjs_review.logic.communication_utils.update_date_send_reminders",
+        ) as mocked_update_date_send_reminders:
             fake_request.user = review_assignment.reviewer
             new_date_due = review_assignment.date_due + datetime.timedelta(days=1)
             EvaluateReview(

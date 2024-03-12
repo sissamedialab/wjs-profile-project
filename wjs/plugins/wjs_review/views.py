@@ -52,6 +52,7 @@ from .forms import (
     UploadRevisionAuthorCoverLetterFileForm,
 )
 from .logic import (
+    AdminActions,
     HandleEditorDeclinesAssignment,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -675,6 +676,29 @@ class ReviewSubmit(EvaluateReviewRequest):
             return self._process_report()
         else:
             return super().form_valid(form)
+
+
+class ArticleAdminDispatchAssignment(LoginRequiredMixin, UserPassesTestMixin, View):
+    model = ArticleWorkflow
+
+    def test_func(self):
+        """Verify that only staff can access."""
+        return is_eo(self.request.user)
+
+    def setup(self, request, *args, **kwargs):
+        """Set current article on object for convenience."""
+        super().setup(request, *args, **kwargs)
+        self.articleworkflow = get_object_or_404(self.model, id=self.kwargs["pk"])
+
+    def get(self, *args, **kwargs):
+        """Dispatch the assignment."""
+        AdminActions(
+            workflow=self.articleworkflow,
+            request=self.request,
+            user=self.request.user,
+            decision="dispatch",
+        ).run()
+        return HttpResponseRedirect(reverse("wjs_article_details", args=(self.articleworkflow.id,)))
 
 
 class ArticleAdminDecision(LoginRequiredMixin, UserPassesTestMixin, UpdateView):

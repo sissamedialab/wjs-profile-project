@@ -40,7 +40,7 @@ from wjs.jcom_profile.permissions import is_eo
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
-from .communication_utils import update_date_send_reminders
+from .events.assignment import dispatch_assignment
 from .logic__production import AssignTypesetter, RequestProofs, SendProofs  # noqa F401
 from .reminders.models import Reminder
 from .reminders.settings import (
@@ -631,7 +631,7 @@ class EvaluateReview:
             # This can be a noop if EvaluateReview is called from EvaluateReviewForm because it's a model form
             # which already set the attribute (but the object is not saved because form save method is overridden)
             if self.assignment.date_due != date_due:
-                update_date_send_reminders(self.assignment, new_assignment_date_due=date_due)
+                communication_utils.update_date_send_reminders(self.assignment, new_assignment_date_due=date_due)
             self.assignment.date_due = date_due
             self.assignment.save()
 
@@ -1660,6 +1660,96 @@ class HandleMessage:
                 )
                 self.message.attachments.add(attachment)
             self.message.emit_notification()
+
+
+@dataclasses.dataclass
+class AdminActions:
+    """
+    Service to handle "special" actions on the article workflow.
+
+    This service is meant to handle the transitions which are not part of the normal workflow.
+    """
+
+    user: Account
+    workflow: ArticleWorkflow
+    decision: str
+    request: HttpRequest
+
+    _decision_handlers = {
+        "dispatch": "_queue_for_assignment",
+    }
+
+    def _check_article_state_condition(self, workflow: ArticleWorkflow) -> bool:
+        """Check if the article is in PAPER_MIGHT_HAVE_ISSUES state."""
+        return workflow.state == ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
+
+    def _check_user_condition(self, user: Account) -> bool:
+        """Check if the user is an EO."""
+        return is_eo(user)
+
+    def check_conditions(self) -> bool:
+        """Check if the conditions for the decision are met."""
+        article_state = self._check_article_state_condition(self.workflow)
+        user = self._check_user_condition(self.user)
+        return article_state and user
+
+    def _get_message_context(
+        self,
+        workflow: Article,
+    ) -> Dict[str, Any]:
+        context = {
+            "article": workflow.article,
+            "request": self.request,
+        }
+        return context
+
+    def _log_reassign(self, context: Dict[str, str]):
+        requeue_article_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="requeue_article_subject",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        requeue_article_message = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="requeue_article_message",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.workflow.article,
+            message_subject=requeue_article_subject,
+            message_body=requeue_article_message,
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+
+    def _queue_for_assignment(self) -> ArticleWorkflow:
+        """
+        Queue the article for assignment.
+
+        Set the state to EDITOR_SELECTED and dispatch the assignment.
+        """
+        self.workflow.admin_deems_issues_not_important()
+        self.workflow.save()
+        dispatch_assignment(article=self.workflow.article, request=self.request)
+        self.workflow.refresh_from_db()
+        self._log_reassign(self._get_message_context(workflow=self.workflow))
+        return self.workflow
+
+    def run(self) -> Article:
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValidationError(_("Decision conditions not met"))
+            handler = self._decision_handlers.get(self.decision, None)
+            if handler:
+                workflow = getattr(self, handler)()
+            return workflow
 
 
 @dataclasses.dataclass

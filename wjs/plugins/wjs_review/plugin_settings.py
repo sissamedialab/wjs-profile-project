@@ -474,6 +474,50 @@ def set_default_plugin_settings(force: bool = False):
             revision_submission_message_setting["name"],
         )
 
+    def admin_deems_unimportant():
+        requeue_article_subject_setting: SettingParams = {
+            "name": "requeue_article_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for requeue article for assignment"),
+            "description": _(
+                "The subject of the system message that is logged when EO verifies that an article's issues are not important and the article is requeued for editor assignment.",
+            ),
+            "is_translatable": False,
+        }
+        requeue_article_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article issues deemed not important"),
+            "translations": {},
+        }
+        create_customization_setting(
+            requeue_article_subject_setting,
+            requeue_article_subject_setting_value,
+            requeue_article_subject_setting["name"],
+        )
+        requeue_article_message_setting: SettingParams = {
+            "name": "requeue_article_message",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Automatic message for article requeue after issues verification"),
+            "description": _(
+                "The body of the system message that is logged when EO verifies that an article's issues are not important and the article is requeued for editor assignment.",
+            ),
+            "is_translatable": False,
+        }
+        requeue_article_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("EO has deemed paper issues not important."),
+            "translations": {},
+        }
+        create_customization_setting(
+            requeue_article_message_setting,
+            requeue_article_message_setting_value,
+            requeue_article_message_setting["name"],
+        )
+
     def hijack_notification_message():
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
@@ -862,6 +906,7 @@ def set_default_plugin_settings(force: bool = False):
     author_can_contact_director()
     hijack_notification_message()
     author_submits_revision_message()
+    admin_deems_unimportant()
     prophy_settings()
     due_date_postpone_message()
     due_date_far_future_message()

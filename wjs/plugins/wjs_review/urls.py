@@ -3,6 +3,7 @@ from django.urls import path
 from .plugin_settings import MANAGER_URL
 from .views import (
     ArticleAdminDecision,
+    ArticleAdminDispatchAssignment,
     ArticleDecision,
     ArticleDetails,
     ArticleMessages,
@@ -68,6 +69,11 @@ urlpatterns = [
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
     path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("admin_decision/<int:pk>/", ArticleAdminDecision.as_view(), name="wjs_article_admin_decision"),
+    path(
+        "dispatch_assignment/<int:pk>/",
+        ArticleAdminDispatchAssignment.as_view(),
+        name="wjs_article_dispatch_assignment",
+    ),
     path("decision/unassign/<int:pk>/", EditorDeclineAssignmentView.as_view(), name="wjs_unassign_assignment"),
     path("review/<int:assignment_id>/", ReviewSubmit.as_view(), name="wjs_review_review"),
     path("review/<int:assignment_id>/end/", ReviewEnd.as_view(), name="wjs_review_end"),
