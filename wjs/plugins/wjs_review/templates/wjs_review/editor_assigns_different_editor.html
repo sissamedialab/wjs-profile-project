@@ -1,0 +1,33 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% block content %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Editor Name</th>
+                    <th>Keywords</th>
+                    <th>N. Matching Keywords</th>
+                    <th>Select</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for editor in editors_with_keywords %}
+                <tr>
+                    <td>{{ editor }}</td>
+                    <td>{{ editor.matching_keywords|join:", " }}</td>
+                    <td>{{ editor.num_shared_kwds }}</td>
+                    <td>
+                        <button type="submit" name="editor" value="{{ editor.pk }}" class="btn btn-primary">Select</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+
+{% endblock content %}

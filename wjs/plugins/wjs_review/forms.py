@@ -26,10 +26,12 @@ from submission.models import Article
 from utils.setting_handler import get_setting
 
 from .logic import (
+    AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
     EvaluateReview,
     HandleDecision,
+    HandleEditorDeclinesAssignment,
     HandleMessage,
     InviteReviewer,
     PostponeReviewerReportDueDate,
@@ -778,6 +780,53 @@ class EditorRevisionRequestDueDateForm(forms.ModelForm):
     def save(self, commit: bool = True) -> EditorRevisionRequest:
         try:
             service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class EditorAssignsDifferentEditorForm(forms.ModelForm):
+    editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
+    state = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = ["state"]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        self.request = kwargs.pop("request")
+        self.editor = kwargs.pop("selectable_editors")
+        super().__init__(*args, **kwargs)
+        self.fields["editor"].queryset = self.editor
+
+    def get_logic_instance(self) -> AssignToEditor:
+        """Instantiate :py:class:`AssignToEditor` class."""
+        return AssignToEditor(
+            editor=self.cleaned_data["editor"],
+            article=self.instance.article,
+            request=self.request,
+            first_assignment=False,
+        )
+
+    def get_deassignment_logic_instance(self) -> HandleEditorDeclinesAssignment:
+        """Instantiate :py:class:`DeassignFromEditor` class."""
+        return HandleEditorDeclinesAssignment(
+            # Like in the view, assume that there is only one editorassignment for each article, the condition in the
+            # logic will double-check it.
+            assignment=self.instance.article.editorassignment_set.first(),
+            editor=self.instance.article.editorassignment_set.first().editor,
+            request=self.request,
+        )
+
+    def save(self):
+        try:
+            service = self.get_logic_instance()
+            service_deassignment = self.get_deassignment_logic_instance()
+            service_deassignment.run()
             service.run()
         except ValidationError as e:
             self.add_error(None, e)

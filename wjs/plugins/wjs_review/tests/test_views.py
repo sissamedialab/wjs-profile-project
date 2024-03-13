@@ -2,6 +2,7 @@ import datetime
 from typing import Iterable, List
 
 import pytest
+from core.models import Account
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
 from django.http import HttpRequest
@@ -545,3 +546,16 @@ def test_revision_file_replace_no_perms(
     assert editor_revision.manuscript_files.count() == 3
     assert editor_revision.supplementary_files.count() == 2
     assert editor_revision.data_figure_files.count() == 2
+
+
+@pytest.mark.django_db
+def test_editor_with_kdws_list_retrieval(article_with_keywords, editors_with_keywords):
+    editors_list = Account.objects.get_editors_with_keywords(editors_with_keywords[0], article_with_keywords)
+
+    assert editors_list[0] == editors_with_keywords[1].janeway_account
+    assert editors_list[2] == editors_with_keywords[3].janeway_account
+
+    editors_list = Account.objects.get_editors_with_keywords(editors_with_keywords[1], article_with_keywords)
+
+    assert editors_list[0] == editors_with_keywords[0].janeway_account
+    assert editors_list[2] == editors_with_keywords[3].janeway_account

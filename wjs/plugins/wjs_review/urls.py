@@ -12,6 +12,7 @@ from .views import (
     ArticleRevisionUpdate,
     AuthorArchived,
     AuthorPending,
+    EditorAssignsDifferentEditor,
     EditorDeclineAssignmentView,
     EOArchived,
     EOMissingEditor,
@@ -56,6 +57,11 @@ urlpatterns = [
     path("typesetter_archived/", TypesetterArchived.as_view(), name="wjs_review_typesetter_archived"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
+    path(
+        "assigns_different_editor/<int:pk>/",
+        EditorAssignsDifferentEditor.as_view(),
+        name="wjs_assigns_different_editor",
+    ),
     path("postpone_duedate/<int:pk>/", UpdateReviewerReportDueDate.as_view(), name="wjs_postpone_report_due_date"),
     path(
         "invite_reviewer/<int:pk>/",

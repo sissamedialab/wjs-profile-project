@@ -105,6 +105,7 @@ class AssignToEditor:
     request: HttpRequest
     workflow: Optional[ArticleWorkflow] = None
     assignment: Optional[EditorAssignment] = None
+    first_assignment: bool = True
 
     def _create_workflow(self):
         self.workflow, __ = ArticleWorkflow.objects.get_or_create(
@@ -113,7 +114,8 @@ class AssignToEditor:
 
     def _assign_editor(self) -> EditorAssignment:
         assignment, _ = assign_editor(self.article, self.editor, "section-editor", request=self.request)
-        self._create_review_round()
+        if self.first_assignment:
+            self._create_review_round()
         return assignment
 
     def _create_review_round(self) -> ReviewRound:
@@ -124,13 +126,22 @@ class AssignToEditor:
 
     def _update_state(self):
         """Run FSM transition."""
-        self.workflow.director_selects_editor()
+        if self.first_assignment:
+            self.workflow.director_selects_editor()
+        else:
+            self.workflow.editor_assign_different_editor()
         self.workflow.save()
 
     def _check_conditions(self) -> bool:
         is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
-        state_conditions = can_proceed(self.workflow.director_selects_editor)
-        return is_section_editor and state_conditions
+        state_conditions_director = can_proceed(self.workflow.director_selects_editor)
+        state_conditions_editor = can_proceed(self.workflow.editor_assign_different_editor)
+        exist_other_assignments = self.article.editorassignment_set.exclude(editor=self.editor).exists()
+        return (
+            is_section_editor
+            and (state_conditions_director or state_conditions_editor)
+            and not exist_other_assignments
+        )
 
     def _get_message_context(self) -> Dict[str, Any]:
         review_in_review_url = self.request.journal.site_url(
@@ -2004,5 +2015,6 @@ class HandleEditorDeclinesAssignment:
             conditions = self.check_conditions()
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
-            self._log_director()
+            if self.request.user == self.editor:
+                self._log_director()
             self.assignment.delete()
