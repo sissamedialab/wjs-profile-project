@@ -18,6 +18,7 @@ class WjsReviewConfig(AppConfig):
         # and Account.objects.all().filter_reviewers()
         AccountManager.filter_reviewers = users.filter_reviewers
         AccountManager.get_reviewers_choices = users.get_reviewers_choices
+        AccountManager.get_editors_with_keywords = users.get_editors_with_keywords
         AccountManager.exclude_authors = users.exclude_authors
         AccountManager.annotate_is_author = users.annotate_is_author
         AccountManager.annotate_is_active_reviewer = users.annotate_is_active_reviewer
@@ -25,6 +26,7 @@ class WjsReviewConfig(AppConfig):
 
         AccountQuerySet.filter_reviewers = users.filter_reviewers
         AccountQuerySet.get_reviewers_choices = users.get_reviewers_choices
+        AccountQuerySet.get_editors_with_keywords = users.get_editors_with_keywords
         AccountQuerySet.exclude_authors = users.exclude_authors
         AccountQuerySet.annotate_is_author = users.annotate_is_author
         AccountQuerySet.annotate_is_active_reviewer = users.annotate_is_active_reviewer

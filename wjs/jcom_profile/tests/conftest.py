@@ -59,6 +59,7 @@ from wjs.jcom_profile.factories import (
 from wjs.jcom_profile.models import (
     ArticleWrapper,
     EditorAssignmentParameters,
+    EditorKeyword,
     JCOMProfile,
     SpecialIssue,
 )
@@ -696,6 +697,40 @@ def issue(issue_type, published_articles):
     )
     issue.articles.add(*published_articles)
     return issue
+
+
+@pytest.fixture
+def article_with_keywords(article, keywords):
+    selected_keywords = keywords[:3]
+
+    for order, keyword in enumerate(selected_keywords, start=1):
+        submission_models.KeywordArticle.objects.create(keyword=keyword, article=article, order=order)
+    article.refresh_from_db()
+
+    return article
+
+
+@pytest.fixture
+def editors_with_keywords(create_jcom_user, journal, keywords):
+    editors_kws = [create_jcom_user(f"editor{i}") for i in range(0, 4)]
+    for editor_kws in editors_kws:
+        editor_kws.add_account_role("section-editor", journal)
+
+    keywords_list = list(keywords)
+
+    keyword_associations = {
+        editors_kws[0]: [keywords_list[0], keywords_list[1], keywords_list[2]],
+        editors_kws[1]: [keywords_list[0], keywords_list[1], keywords_list[2]],
+        editors_kws[2]: [keywords_list[0], keywords_list[1]],
+        editors_kws[3]: [keywords_list[3]],
+    }
+
+    for editor_kws, kws in keyword_associations.items():
+        editor_params = EditorAssignmentParameters.objects.create(editor=editor_kws, journal=journal)
+        for kw in kws:
+            EditorKeyword.objects.create(editor_parameters=editor_params, keyword=kw)
+
+    return editors_kws
 
 
 # Name the fixture a bit differently. This code, without the second

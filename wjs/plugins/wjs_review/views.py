@@ -40,6 +40,7 @@ from .filters import ArticleWorkflowFilter
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
+    EditorAssignsDifferentEditorForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
     EvaluateReviewForm,
@@ -71,7 +72,12 @@ from .models import (
     Reminder,
     WorkflowReviewAssignment,
 )
-from .permissions import is_article_editor
+from .permissions import (
+    is_admin,
+    is_article_editor,
+    is_director,
+    is_special_issue_supervisor,
+)
 from .prophy import Prophy
 from .views__production import (  # noqa F401
     TypesetterArchived,
@@ -1337,3 +1343,55 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
         else:
             context = {"object": self.object}
         return render(request, self.template_name, context)
+
+
+class EditorAssignsDifferentEditor(UpdateView):
+    """
+    If the user is an editor of a special issue, it will be able to assign the paper to a different editor
+    """
+
+    model = ArticleWorkflow
+    form_class = EditorAssignsDifferentEditorForm
+    template_name = "wjs_review/editor_assigns_different_editor.html"
+
+    def test_func(self):
+        """The user must be the article's editor or the director or a member of the EO."""
+        # This view can be used for the assignment of different editors in a Special Issue,
+        # but we don't check if the editor belongs to a S.I. (e.g. `permissions.can_assign_special_issue()`),
+        # because the process is common.
+        return is_special_issue_supervisor(self.object, self.request.user)
+
+    def get_success_url(self):
+        messages.add_message(
+            self.request,
+            messages.SUCCESS,
+            "Editor assigned successfully.",
+        )
+        if is_article_editor(self.object, self.request.user):
+            return reverse("wjs_review_list")
+        elif is_admin(self.object, self.request.user):
+            return reverse("wjs_review_eo_pending")
+        elif is_director(self.object, self.request.user):
+            return reverse("")  # FIXME: add main page for journal's Director
+
+    def _editors_with_keywords(self):
+        return Account.objects.get_editors_with_keywords(
+            # using first() to retrieve the current editor assuming that there is only one editorassignment for each
+            # article, to double-check there is a condition inside the logic class "exist_other_assignments".
+            # This is needed because the editor is not always the user.
+            self.object.article.editorassignment_set.first().editor,
+            self.object.article,
+        )
+
+    def get_context_data(self, **kwargs) -> Context:
+        context = super().get_context_data(**kwargs)
+        context["editors_with_keywords"] = self._editors_with_keywords()
+        return context
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        kwargs["instance"] = self.object
+        kwargs["selectable_editors"] = self._editors_with_keywords()
+        return kwargs

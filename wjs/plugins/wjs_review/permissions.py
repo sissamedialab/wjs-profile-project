@@ -98,6 +98,20 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     return is_correspondence_author | is_any_author
 
 
+def is_special_issue_supervisor(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True if the user is either the editor, the director or the EO."""
+    return is_article_editor(instance, user) or is_director(instance, user) or is_admin(instance, user)
+
+
+def can_assign_special_issue(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Return True if the user is the Editor of the article or is the director of the journal or is part of the EO and if
+    the article is assigned to a special issue.
+    """
+    is_article_special_issue = instance.article.issues.filter(issue_type__code="collection").exists()
+    return is_special_issue_supervisor(instance, user) and is_article_special_issue
+
+
 def is_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
     return user.check_role(instance.article.journal, "typesetter")
 

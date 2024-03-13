@@ -2,11 +2,11 @@ from typing import Iterable, Optional
 
 from core.models import AccountRole
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery, Value
+from django.db.models import Count, Exists, OuterRef, Q, QuerySet, Subquery, Value
 from django.http import QueryDict
 from journal.models import Journal
 from review.models import ReviewAssignment
-from submission.models import Article
+from submission.models import Article, Keyword
 from utils.logger import get_logger
 
 from .models import ArticleWorkflow, ProphyCandidate
@@ -251,3 +251,33 @@ def annotate_is_only_prophy(self):
     return self.annotate(
         wjs_is_only_prophy=Value(False),
     )
+
+
+def get_editors_with_keywords(self, current_editor: Account, article: Article):
+    """
+    Return the list of editors ordered by number of matching keywords they have with the article.
+    The list of matching keywords and the count are also returned.
+    """
+    article_keywords_ids = list(article.keywords.values_list("id", flat=True))
+
+    editors = self.filter(accountrole__role__slug="section-editor", accountrole__journal=article.journal).exclude(
+        id=current_editor.id,
+    )
+
+    editors = editors.annotate(
+        num_shared_kwds=Count(
+            "editorassignmentparameters__keywords",
+            filter=Q(editorassignmentparameters__keywords__id__in=article_keywords_ids),
+            distinct=True,
+        ),
+    ).order_by("-num_shared_kwds")
+
+    for editor in editors:
+        matching_keywords = (
+            Keyword.objects.filter(editorassignmentparameters__editor=editor, id__in=article_keywords_ids)
+            .distinct()
+            .values_list("word", flat=True)
+        )
+        editor.matching_keywords = list(matching_keywords)
+
+    return editors

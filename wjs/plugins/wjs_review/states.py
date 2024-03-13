@@ -189,10 +189,10 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             view_name="wjs_unassign_assignment",
         ),
         ArticleAction(
-            permission=permissions.is_article_editor,
+            permission=permissions.can_assign_special_issue,
             name="assigns different editor",
-            label="",
-            view_name="WRITEME!",
+            label="Assign different Editor",
+            view_name="wjs_assigns_different_editor",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,

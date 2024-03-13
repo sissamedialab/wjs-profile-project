@@ -282,7 +282,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.EDITOR_SELECTED,
         target=ReviewStates.EDITOR_SELECTED,
-        permission=permissions.is_article_editor,
+        permission=permissions.is_special_issue_supervisor,
         # TODO: conditions=[],
     )
     def editor_assign_different_editor(self):
