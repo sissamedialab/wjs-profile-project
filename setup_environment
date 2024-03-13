@@ -1,12 +1,55 @@
 #!/usr/bin/env bash
 
+# Die on errors
+set -e
+
+# echo in blue color
+export TERM=${TERM:-xterm-256color}
+info () {
+    >&2 echo $(tput setaf 4)"$@"$(tput sgr0)
+}
+export -f info
+
+info "Installing wjs..."
 # NB: need -e because of how we run pytest in ci/cd test job
 pip install --extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple -e ${CI_PROJECT_DIR}/[test]
+
+info "Linking plugins..."
 cd /janeway/src/plugins && for p in `ls -1d ${CI_PROJECT_DIR}/wjs/plugins/wjs*`; do ln -s $p; done
 cd /janeway/src
+
+info "Copying settings modules..."
 cp ${CI_PROJECT_DIR}/cicd_* core
+
+# Load an almost-ready DB to speed-up setup
+#
+# To regenerate:
+# docker-compose -f docker-compose-test-local.yml run janeway /bin/bash
+# then, from inside the container, run some of the steps of this script
+# - do _not_ pip install...
+# - do _not_ link plugins
+# - edit settings module:
+#   - cd /janeway/src
+#   - cp ${CI_PROJECT_DIR}/cicd_* core
+#   - sed -i 's/from/# from/' core/cicd_settings.py
+# - skip db dump/restore part
+# - do _not_ makemigrations
+# - migrate
+# - pg_dump -h db -U janeway -f /host-tmp/janeway-db-dump.sql janeway
+# You should now have a new dump in the host's /tmp.
+
+info "Loading prepared DB..."
+db_dump=janeway-db-dump.sql
+bunzip2 ${CI_PROJECT_DIR}/${db_dump}.bz2 | true
+python3 manage.py dbshell < ${CI_PROJECT_DIR}/${db_dump} > /dev/null
+
+info "Syncing languages translations..."
 # This is needed to sync extra janeway fields registered as translatable in wjs
 python3 manage.py makemigrations --no-input > /dev/null 2>&1
 python3 manage.py migrate --no-input --run-syncdb
+
+info "Installing plugins and themes..."
 python3 manage.py install_plugins
 python3 manage.py install_themes
+
+info "Environment ready for tests."
