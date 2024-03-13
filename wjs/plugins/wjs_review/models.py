@@ -293,7 +293,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.READY_FOR_TYPESETTER,
         target=ReviewStates.TYPESETTER_SELECTED,
-        # TODO: permission=,
+        permission=permissions.is_typesetter,
         # TODO: conditions=[],
     )
     def typesetter_takes_in_charge(self):
@@ -304,7 +304,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.READY_FOR_TYPESETTER,
         target=ReviewStates.TYPESETTER_SELECTED,
-        # TODO: permission=,
+        permission=permissions.is_system,
         # TODO: conditions=[],
     )
     def system_assigns_typesetter(self):
