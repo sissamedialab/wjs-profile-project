@@ -993,6 +993,54 @@ def set_default_plugin_settings(force: bool = False):
             editor_decline_assignment_setting["name"],
         )
 
+    def typesetter_is_assigned_message():
+        subject_typesetting_assignment: SettingParams = {
+            "name": "typesetting_assignment_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for typesetting assignment."),
+            "description": _(
+                "The subject of the notification that is sent to the typesetter when he is assigned to an article.",
+            ),
+            "is_translatable": False,
+        }
+        subject_typesetting_assignment_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Typesetter is assigned to an article"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_typesetting_assignment,
+            subject_typesetting_assignment_setting_value,
+            subject_typesetting_assignment["name"],
+        )
+        typesetter_is_assigned_setting: SettingParams = {
+            "name": "typesetting_assignment_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for assignment of a Typesetter."),
+            "description": _(
+                "The body of the notification that is sent to the typesetter when he is assigned to an article.",
+            ),
+            "is_translatable": False,
+        }
+        typesetter_is_assigned_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ typesetter.full_name }}, you have been assigned paper {{ article.id }}.
+
+            Please visit:
+            {% url "wjs_article_details" article.id %}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            typesetter_is_assigned_setting,
+            typesetter_is_assigned_setting_value,
+            typesetter_is_assigned_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1012,6 +1060,7 @@ def set_default_plugin_settings(force: bool = False):
     due_date_postpone_message()
     due_date_far_future_message()
     editor_decline_assignment_message()
+    typesetter_is_assigned_message()
 
 
 def ensure_workflow_elements():
