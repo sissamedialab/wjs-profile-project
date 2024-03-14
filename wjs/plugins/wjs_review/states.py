@@ -494,8 +494,9 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
         ArticleAction(
             permission=permissions.is_eo,
             name="requires resubmission",
-            label="",
-            view_name="WRITEME!",
+            label="Requires resubmission",
+            view_name="wjs_article_admin_decision",
+            querystring_params={"decision": ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION},
         ),
         ArticleAction(
             permission=permissions.is_eo,

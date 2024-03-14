@@ -74,6 +74,7 @@ class ArticleWorkflow(TimeStampedModel):
         MAJOR_REVISION = EditorialDecisions.MAJOR_REVISIONS.value, _("Major revision")
         TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
+        REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper

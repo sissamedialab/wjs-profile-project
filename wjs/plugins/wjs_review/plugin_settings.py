@@ -618,6 +618,50 @@ def set_default_plugin_settings(force: bool = False):
             requeue_article_message_setting["name"],
         )
 
+    def admin_requires_resubmission():
+        requires_resubmission_subject_setting: SettingParams = {
+            "name": "review_decision_requires_resubmission_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for article requires resubmission after issues verification"),
+            "description": _(
+                "The subject of the system message that is logged when EO verifies that an article requires resubmission.",
+            ),
+            "is_translatable": False,
+        }
+        requires_resubmission_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article issues requires resubmission"),
+            "translations": {},
+        }
+        create_customization_setting(
+            requires_resubmission_subject_setting,
+            requires_resubmission_subject_setting_value,
+            requires_resubmission_subject_setting["name"],
+        )
+        requires_resubmission_message_setting: SettingParams = {
+            "name": "review_decision_requires_resubmission_message",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Automatic message for article requires resubmission after issues verification"),
+            "description": _(
+                "The body of the system message that is logged when EO verifies that an article requires resubmission.",
+            ),
+            "is_translatable": False,
+        }
+        requires_resubmission_message_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("EO has deemed article requires resubmission."),
+            "translations": {},
+        }
+        create_customization_setting(
+            requires_resubmission_message_setting,
+            requires_resubmission_message_setting_value,
+            requires_resubmission_message_setting["name"],
+        )
+
     def hijack_notification_message():
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
@@ -1056,6 +1100,7 @@ def set_default_plugin_settings(force: bool = False):
     hijack_notification_message()
     author_submits_revision_message()
     admin_deems_unimportant()
+    admin_requires_resubmission()
     prophy_settings()
     due_date_postpone_message()
     due_date_far_future_message()
