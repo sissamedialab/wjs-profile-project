@@ -37,7 +37,7 @@ VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
 UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
 
 # The git branches where the code lives
-JANEWAY_BRANCH=jcom
+JANEWAY_BRANCH=wjs-develop
 
 # The user and password of the deploy token
 DEPLOY_TOKEN_USER=***
@@ -55,6 +55,7 @@ function set_derivable_variables() {
 
 function deploy_janeway() {
     set_derivable_variables
+    echo "Deploying branch $JANEWAY_BRANCH into $JANEWAY_ROOT"
     cd "$JANEWAY_ROOT"
     git pull --ff-only https://"${DEPLOY_TOKEN_USER}":"${DEPLOY_TOKEN_PASSWORD}"@gitlab.sissamedialab.it/wjs/janeway.git $JANEWAY_BRANCH
     cd "$MANAGE_DIR"
@@ -88,7 +89,7 @@ function deploy_wjs() {
     "$PYTHON" manage.py install_themes
     "$PYTHON" manage.py create_role Director
 
-    "$PYTHON" manage.py migrate jcom_profile
+    "$PYTHON" manage.py migrate
 
     "$PYTHON" manage.py build_assets
     "$PYTHON" manage.py collectstatic --noinput
@@ -100,14 +101,14 @@ function set_prod_variables() {
     JANEWAY_ROOT=/home/wjs/janeway
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
-    JANEWAY_BRANCH=wjs-production
+    JANEWAY_BRANCH=wjs-develop
 }
 
 function set_pp_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-pp
     VENV_BIN=/home/wjs/.virtualenvs/janeway-pp-1.5/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-pp.ini
-    JANEWAY_BRANCH=wjs-production
+    JANEWAY_BRANCH=wjs-develop
 }
 
 function set_dev_variables() {
