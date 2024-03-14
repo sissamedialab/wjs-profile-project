@@ -1227,6 +1227,11 @@ def test_handle_issues_to_selected_wrong_state(
             ArticleWorkflow.Decisions.NOT_SUITABLE,
             ArticleWorkflow.ReviewStates.NOT_SUITABLE,
         ),
+        (
+            ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION,
+            ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+        ),
     ),
 )
 @pytest.mark.django_db
@@ -1337,6 +1342,11 @@ def test_handle_admin_decision(
             ArticleWorkflow.Decisions.NOT_SUITABLE,
             ArticleWorkflow.ReviewStates.NOT_SUITABLE,
         ),
+        (
+            ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION,
+            ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+        ),
     ),
 )
 @pytest.mark.django_db
@@ -1378,6 +1388,9 @@ def test_handle_admin_decision_wrong_user(
     if decision == ArticleWorkflow.Decisions.NOT_SUITABLE:
         assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
         assert assigned_article.articleworkflow.state == initial_state
+    elif decision == ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION:
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+        assert assigned_article.articleworkflow.state == initial_state
 
 
 @pytest.mark.parametrize(
@@ -1392,6 +1405,16 @@ def test_handle_admin_decision_wrong_user(
             ArticleWorkflow.ReviewStates.SUBMITTED,
             ArticleWorkflow.Decisions.NOT_SUITABLE,
             ArticleWorkflow.ReviewStates.SUBMITTED,
+        ),
+        (
+            ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+            ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION,
+            ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+        ),
+        (
+            ArticleWorkflow.ReviewStates.SUBMITTED,
+            ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION,
+            ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
         ),
     ),
 )
@@ -1432,6 +1455,9 @@ def test_handle_admin_decision_wrong_state(
         handle.run()
     assigned_article.refresh_from_db()
     if decision == ArticleWorkflow.Decisions.NOT_SUITABLE:
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+        assert assigned_article.articleworkflow.state == initial_state
+    elif decision == ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION:
         assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
         assert assigned_article.articleworkflow.state == initial_state
 

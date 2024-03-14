@@ -1104,6 +1104,7 @@ class HandleDecision:
         ArticleWorkflow.Decisions.ACCEPT: "_accept_article",
         ArticleWorkflow.Decisions.REJECT: "_decline_article",
         ArticleWorkflow.Decisions.NOT_SUITABLE: "_not_suitable_article",
+        ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION: "_requires_resubmission",
         ArticleWorkflow.Decisions.MINOR_REVISION: "_revision_article",
         ArticleWorkflow.Decisions.MAJOR_REVISION: "_revision_article",
         ArticleWorkflow.Decisions.TECHNICAL_REVISION: "_technical_revision_article",
@@ -1264,6 +1265,32 @@ class HandleDecision:
             message_type=Message.MessageTypes.VERBOSE,
         )
 
+    def _log_requires_resubmission(self, context):
+        requires_resubmission_message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_requires_resubmission_subject",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        requires_resubmission_message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_decision_requires_resubmission_message",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=requires_resubmission_message_subject,
+            message_body=requires_resubmission_message_body,
+            actor=self.user,
+            recipients=[self.workflow.article.correspondence_author],
+            message_type=Message.MessageTypes.VERBOSE,
+        )
+
     def _log_revision_request(self, context, revision_type=None):
         revision_request_message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
@@ -1410,6 +1437,21 @@ class HandleDecision:
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._log_not_suitable(context)
+        return self.workflow.article
+
+    def _requires_resubmission(self) -> Article:
+        """
+        Mark article as requires resubmission.
+
+        - Change workflow state
+        - Trigger ON_ARTICLE_DECLINED event
+        """
+        self.workflow.admin_or_system_requires_revision()
+        self.workflow.save()
+
+        context = self._get_message_context()
+        self._withdraw_unfinished_review_requests(email_context=context)
+        self._log_requires_resubmission(context)
         return self.workflow.article
 
     def _technical_revision_article(self):
