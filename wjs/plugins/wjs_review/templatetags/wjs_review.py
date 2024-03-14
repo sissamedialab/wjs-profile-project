@@ -17,8 +17,6 @@ from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry
 
-from wjs.jcom_profile.permissions import is_eo
-
 from .. import communication_utils, states
 from ..models import ArticleWorkflow, ProphyAccount
 from ..permissions import (
@@ -239,12 +237,6 @@ def assignment_requires_attention_tt(assignment: ReviewAssignment, user: Account
 def role_for_article_tt(article: Article, user: Account) -> str:
     """Return a role slug that describes the role of the given user on the article."""
     return communication_utils.role_for_article(article, user)
-
-
-@register.filter
-def is_user_eo(user: Account, article: ArticleWorkflow = None) -> bool:
-    """Returns if user is part of the EO."""
-    return is_eo(user)
 
 
 @register.filter
