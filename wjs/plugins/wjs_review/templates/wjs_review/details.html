@@ -1,6 +1,5 @@
 {% extends "wjs_review/base.html" %}
-{% load django_bootstrap5 i18n %}
-{% load wjs_review %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
 {% block title %}
     {% translate "Paper status and details" %}
 {% endblock title %}
@@ -40,7 +39,7 @@
                                             data-bs-target="#paperAbstract"
                                             aria-expanded="false"
                                             aria-controls="paperAbstract">Abstract</button>
-                                    {% if request.user|is_user_eo:workflow or workflow|is_user_one_of_the_authors:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
+                                    {% if request.user|is_user_eo or workflow|is_user_one_of_the_authors:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
                                         {% include "wjs_review/elements/author_list_button.html" %}
                                     {% endif %}
                                     <button class="btn btn-primary"
@@ -96,7 +95,7 @@
                             {% include "wjs_review/elements/revision_request_list.html" %}
                         {% elif workflow|is_user_article_reviewer:request.user %}
                             {% include "wjs_review/elements/reviewer_review_assignment_list.html" %}
-                        {% elif request.user|is_user_eo:workflow or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
+                        {% elif request.user|is_user_eo or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
                             {% include "wjs_review/elements/editor_review_assignment_list.html" %}
                         {% endif %}
                     </div>

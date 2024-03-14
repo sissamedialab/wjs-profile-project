@@ -1,5 +1,6 @@
 """WJS tags."""
 import pycountry
+from core.models import Account
 from django import template
 from django.db.models import Count
 from django.utils import timezone
@@ -11,6 +12,7 @@ from journal.models import Issue
 from submission.models import STAGE_PUBLISHED, Article, Keyword
 
 from wjs.jcom_profile.models import SpecialIssue
+from wjs.jcom_profile.permissions import is_eo
 from wjs.jcom_profile.utils import citation_name
 
 register = template.Library()
@@ -198,3 +200,9 @@ def get_issue_meta_image_url(issue):
         return issue.large_image.url
     else:
         return ""
+
+
+@register.filter
+def is_user_eo(user: Account) -> bool:
+    """Returns if user is part of the EO."""
+    return is_eo(user)

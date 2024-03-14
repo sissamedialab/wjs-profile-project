@@ -1,9 +1,9 @@
-{% load wjs_review %}
+{% load wjs_review wjs_tags %}
 <div class="col-sm-12">
     <p class="h2">{{ workflow.article }}</p>
         <p>
             <span class="badge bg-secondary">{{ workflow.article.section.name }}</span>
-            {% if request.user|is_user_eo:workflow or workflow|is_user_article_author:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
+            {% if request.user|is_user_eo or workflow|is_user_article_author:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
                 by {{ workflow.article.correspondence_author }}
                 {% if workflow.article.authors.count > 1 %}
                     <a class="text-secondary"
