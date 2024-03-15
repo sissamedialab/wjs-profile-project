@@ -929,21 +929,25 @@ def test_register_to_newsletter_as_anonymous_user(
 
 
 @pytest.mark.django_db
-def test_anonymous_user_newsletter_edit_without_token_raises_error(journal):
+def test_anonymous_user_newsletter_edit_without_token_redirects_to_login(journal):
     client = Client()
     url = f"/{journal.code}/update/newsletters/"
     response = client.get(url)
-    assert response.status_code == 403
+    assert response.status_code == 302
+    # Use str() because settings.LOGIN_URL returns __proxy__ because it has to use reverse_lazy()
+    assert response.url.startswith(str(settings.LOGIN_URL))
 
 
 @pytest.mark.django_db
-def test_anonymous_user_newsletter_edit_with_nonexistent_token_raises_error(journal):
+def test_anonymous_user_newsletter_edit_with_nonexistent_token_redirects_to_login(journal):
     client = Client()
     anonymous_email = "anonymous@email.com"
     nonexistent_newsletter_token = generate_token(anonymous_email, journal.code)
     url = f"/{journal.code}/update/newsletters/?{urlencode({'token': nonexistent_newsletter_token})}"
     response = client.get(url)
-    assert response.status_code == 403
+    assert response.status_code == 302
+    # Use str() because settings.LOGIN_URL returns __proxy__ because it has to use reverse_lazy()
+    assert response.url.startswith(str(settings.LOGIN_URL))
 
 
 @pytest.mark.django_db

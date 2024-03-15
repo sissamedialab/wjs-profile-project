@@ -1102,7 +1102,6 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
     model = Recipient
     template_name = "elements/accounts/edit_newsletters_subscription.html"
     form_class = forms.NewsletterTopicForm
-    raise_exception = True
 
     def test_func(self):
         """
