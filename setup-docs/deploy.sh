@@ -90,6 +90,7 @@ function deploy_wjs() {
     "$PYTHON" manage.py create_role Director
 
     "$PYTHON" manage.py migrate
+    "$PYTHON" manage.py sync_translation_fields --noinput
 
     "$PYTHON" manage.py build_assets
     "$PYTHON" manage.py collectstatic --noinput
