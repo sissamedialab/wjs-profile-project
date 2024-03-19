@@ -8,7 +8,7 @@ from submission import models as submission_models
 from utils.logger import get_logger
 
 from ..communication_utils import log_operation
-from ..models import ArticleWorkflow, Message
+from ..models import ArticleWorkflow, Message, ProphyAccount, ProphyCandidate
 from ..plugin_settings import STAGE
 from ..prophy import Prophy
 from . import ReviewEvent
@@ -121,3 +121,17 @@ def perform_checks_at_acceptance(**kwargs):
     #   - for now, just bump the workflow state
     #   - add placeholder-variables (in django settings) and function (in events.check?) to do nothing
     # - review with US ID:NA row:243 order:218
+
+
+def clean_prophy_candidates(**kwargs) -> None:
+    """Clean Prophy candidates for article published, rejected or not suitable."""
+    article = kwargs["article"]
+    if article.articleworkflow.state in (
+        ArticleWorkflow.ReviewStates.PUBLISHED,
+        ArticleWorkflow.ReviewStates.REJECTED,
+        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ):
+        ProphyCandidate.objects.filter(
+            article=article.id,
+        ).delete()
+        ProphyAccount.objects.filter(prophycandidate__isnull=True).delete()
