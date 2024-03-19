@@ -35,7 +35,7 @@ from .views import (
     ToggleMessageReadView,
     TypesetterArchived,
     TypesetterPending,
-    UpdateReviewerReportDueDate,
+    UpdateReviewerDueDate,
     UpdateState,
     UploadRevisionAuthorCoverLetterFile,
     WriteMessage,
@@ -62,7 +62,7 @@ urlpatterns = [
         EditorAssignsDifferentEditor.as_view(),
         name="wjs_assigns_different_editor",
     ),
-    path("postpone_duedate/<int:pk>/", UpdateReviewerReportDueDate.as_view(), name="wjs_postpone_report_due_date"),
+    path("postpone_duedate/<int:pk>/", UpdateReviewerDueDate.as_view(), name="wjs_postpone_reviewer_due_date"),
     path(
         "invite_reviewer/<int:pk>/",
         InviteReviewer.as_view(),

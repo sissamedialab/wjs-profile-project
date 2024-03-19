@@ -34,7 +34,7 @@ from .logic import (
     HandleEditorDeclinesAssignment,
     HandleMessage,
     InviteReviewer,
-    PostponeReviewerReportDueDate,
+    PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
     render_template_from_setting,
@@ -725,7 +725,7 @@ class ToggleMessageReadByEOForm(forms.ModelForm):
         fields = ["read_by_eo"]
 
 
-class UpdateReviewerReportDueDateForm(forms.ModelForm):
+class UpdateReviewerDueDateForm(forms.ModelForm):
     class Meta:
         model = ReviewAssignment
         fields = ["date_due"]
@@ -742,12 +742,12 @@ class UpdateReviewerReportDueDateForm(forms.ModelForm):
         cleaned_data = super().clean()
         date_due = cleaned_data.get("date_due")
         if date_due and date_due <= now().date():
-            raise ValidationError(_("The report due date must be in the future."))
+            raise ValidationError(_("The due date must be in the future."))
         return cleaned_data
 
-    def get_logic_instance(self) -> PostponeReviewerReportDueDate:
+    def get_logic_instance(self) -> PostponeReviewerDueDate:
         """Instantiate :py:class:`PostponeReviewerReportDueDate` class."""
-        service = PostponeReviewerReportDueDate(
+        service = PostponeReviewerDueDate(
             assignment=self.instance,
             editor=self.instance.editor,
             form_data=self.cleaned_data,

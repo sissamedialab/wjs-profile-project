@@ -51,7 +51,7 @@ from .forms import (
     SelectReviewerForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
-    UpdateReviewerReportDueDateForm,
+    UpdateReviewerDueDateForm,
     UploadRevisionAuthorCoverLetterFileForm,
 )
 from .logic import (
@@ -1286,14 +1286,14 @@ class ArticleReminders(UserPassesTestMixin, ListView):
         return context
 
 
-class UpdateReviewerReportDueDate(UserPassesTestMixin, UpdateView):
+class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
     """
     View to allow the Editor to postpone Reviewer Report due date.
     """
 
     model = ReviewAssignment
-    form_class = UpdateReviewerReportDueDateForm
-    template_name = "wjs_review/elements/update_reviewer_report_due_date.html"
+    form_class = UpdateReviewerDueDateForm
+    template_name = "wjs_review/elements/update_reviewer_due_date.html"
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()

@@ -18,6 +18,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
+from .. import communication_utils
 from ..events.handlers import on_revision_complete
 from ..logic import (
     AdminActions,
@@ -26,6 +27,7 @@ from ..logic import (
     EvaluateReview,
     HandleDecision,
     InviteReviewer,
+    PostponeReviewerDueDate,
 )
 from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 from ..plugin_settings import STAGE
@@ -1953,3 +1955,74 @@ def test_handle_editor_decision_check_conditions(
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
     assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
     assert assigned_article.reviewassignment_set.filter(is_complete=True).count() == 0
+
+
+@pytest.mark.parametrize(
+    "postpone_date",
+    (
+        -5,  # in the past
+        0,  # today
+        1,  # tomorrow
+        10,  # in the future
+        settings.DAYS_CONSIDERED_FAR_FUTURE + 1,  # too far in the future
+    ),
+)
+@pytest.mark.django_db
+def test_postpone_due_date(
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    fake_request: HttpRequest,
+    postpone_date: int,
+):
+    """
+    PostponeReviewerDueDate service postpones the due date of a review assignment.
+
+    Different conditions are tested:
+
+     - date is in the past, the due date is not changed and an error is raised.
+     - date is today, the due date is not changed and an error is raised.
+     - date is tomorrow, the due date is changed and a message is created and sent.
+     - date is in the future, the due date is changed and a message is created and sent.
+     - date is too far in the future, the due date is changed and two messages are created and sent.
+    """
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    eo_user = communication_utils.get_eo_user(assigned_article)
+
+    fake_request.user = review_assignment.editor
+    initial_date_due = review_assignment.date_due
+    _now = now().date()
+    form_data = {
+        "date_due": _now + datetime.timedelta(days=postpone_date),
+    }
+    service = PostponeReviewerDueDate(
+        assignment=review_assignment,
+        editor=review_assignment.editor,
+        form_data=form_data,
+        request=fake_request,
+    )
+
+    if postpone_date < 1:
+        with pytest.raises(ValueError):
+            service.run()
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_due == initial_date_due
+        assert Message.objects.count() == 0
+        assert len(mail.outbox) == 0
+    elif postpone_date < settings.DAYS_CONSIDERED_FAR_FUTURE:
+        service.run()
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_due == _now + datetime.timedelta(days=postpone_date)
+        assert Message.objects.count() == 1
+        assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
+        assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 0
+        assert len(mail.outbox) == 1
+    else:
+        service.run()
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_due == _now + datetime.timedelta(days=postpone_date)
+        assert Message.objects.count() == 2
+        assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
+        assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
+        assert len(mail.outbox) == 2
