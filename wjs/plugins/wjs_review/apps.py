@@ -57,6 +57,7 @@ class WjsReviewConfig(AppConfig):
 
         from .events import ReviewEvent
         from .events.handlers import (
+            clean_prophy_candidates,
             log_author_uploads_revision,
             on_article_submitted,
             on_revision_complete,
@@ -152,4 +153,15 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_ARTICLE_UNASSIGNED,
             transactional_emails.send_editor_unassigned_notice,
+        )
+
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_PUBLISHED,
+            clean_prophy_candidates,
+        )
+        # both editor rejects and marks not_suitable call janeway decline_article
+        # and trigger ON_ARTICLE_DECLINED event
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_DECLINED,
+            clean_prophy_candidates,
         )
