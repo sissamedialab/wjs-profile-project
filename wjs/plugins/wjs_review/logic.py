@@ -1898,9 +1898,9 @@ class AdminActions:
 
 
 @dataclasses.dataclass
-class PostponeReviewerReportDueDate:
+class PostponeReviewerDueDate:
     """
-    Handle the decision of the editor to postpone the due date of the reviewer report.
+    Handle the decision of the editor to postpone the due date of the reviewer acceptance / report.
     """
 
     assignment: ReviewAssignment
@@ -1909,8 +1909,8 @@ class PostponeReviewerReportDueDate:
     request: HttpRequest
 
     def _report_postponed_far_future_date(self) -> bool:
-        """Check if the editor postponed report due date far in the future."""
-        if self.form_data["date_due"] > timezone.now().date() + datetime.timedelta(
+        """Check if the editor postponed due date far in the future."""
+        if self.form_data["date_due"] >= timezone.now().date() + datetime.timedelta(
             days=settings.DAYS_CONSIDERED_FAR_FUTURE,
         ):
             return True
@@ -1950,7 +1950,7 @@ class PostponeReviewerReportDueDate:
         )
 
     def _log_eo_far_future_date(self) -> None:
-        """Log a warning for the EO if the editor postponed report due date far in the future."""
+        """Log a warning for the EO if the editor postponed due date far in the future."""
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_far_future_subject",
@@ -1971,7 +1971,7 @@ class PostponeReviewerReportDueDate:
             recipients=[communication_utils.get_eo_user(self.assignment.article)],
         )
 
-    def _save_report_date_due(self):
+    def _save_reviewer_date_due(self):
         """
         Set and save the postponed date_due.
         """
@@ -1983,17 +1983,22 @@ class PostponeReviewerReportDueDate:
         """Editor must be assigned to the article."""
         return editor == assignment.editor
 
+    def check_date_conditions(self) -> bool:
+        """Check if the date is in the future."""
+        return self.form_data["date_due"] > timezone.now().date()
+
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
         editor_conditions = self.check_editor_conditions(self.assignment, self.editor)
-        return editor_conditions
+        date_conditions = self.check_date_conditions()
+        return editor_conditions and date_conditions
 
     def run(self):
         with transaction.atomic():
             conditions = self.check_conditions()
             if not conditions:
                 raise ValueError(_("Conditions not met"))
-            self._save_report_date_due()
+            self._save_reviewer_date_due()
             if self._report_postponed_far_future_date():
                 self._log_eo_far_future_date()
             self._log_reviewer_if_date_is_postponed()
