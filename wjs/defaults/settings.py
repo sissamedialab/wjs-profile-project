@@ -195,4 +195,12 @@ PROPHY_AUTH = "https://www.prophy.science/author/"
 REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD = 30
 DAYS_CONSIDERED_FAR_FUTURE = 30
 
+# refs #648
+# https://gitlab.sissamedialab.it/wjs/specs/-/issues/648
+# Default timedelta in days when the Editor sets the acceptance_due_date for the AssignToReviewer form
+DEFAULT_ACCEPTANCE_DUE_DATE_DAYS = 7
+# Min and max timedelta in days when the Editor sets the acceptance_due_date for the AssignToReviewer form
+DEFAULT_ACCEPTANCE_DUE_DATE_MIN = 1
+DEFAULT_ACCEPTANCE_DUE_DATE_MAX = 12
+
 TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS = 3

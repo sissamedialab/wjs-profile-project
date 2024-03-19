@@ -3,11 +3,13 @@ from typing import Iterable, List
 
 import pytest
 from core.models import Account
+from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
+from django.utils.timezone import now
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
 from submission.models import Article
@@ -95,6 +97,54 @@ def test_select_reviewer_status_code_200_for_assigned_editor(
     response = client.get(url)
     assert response.status_code == 200
     assert response.context["workflow"] == assigned_article.articleworkflow
+
+
+@pytest.mark.django_db
+def test_select_reviewer_acceptance_due_date_in_the_past(
+    client: Client,
+    section_editor: JCOMProfile,
+    reviewer: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
+    post_data = {
+        "reviewer": reviewer.pk,
+        "message": "test_select_reviewer_acceptance_due_date_in_the_past() test message",
+        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+        "state": "",
+        "author_note_visible": False,
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    assert dict(response.context["form"].errors) == {"acceptance_due_date": ["Date must be in the future"]}
+
+
+@pytest.mark.django_db
+def test_select_reviewer_acceptance_due_date_too_much_in_the_future(
+    client: Client,
+    section_editor: JCOMProfile,
+    reviewer: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """An editor cannot set the acceptance_due_date after settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt now().date()."""
+    url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
+    today = now().date()
+    date_min = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
+    date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
+    post_data = {
+        "reviewer": reviewer.pk,
+        "message": "test_select_reviewer_acceptance_due_date_in_the_past() test message",
+        "acceptance_due_date": date_max + datetime.timedelta(days=1),
+        "state": "",
+        "author_note_visible": False,
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    errors = {"acceptance_due_date": [f"Date must be between {date_min} and {date_max}"]}
+    assert dict(response.context["form"].errors) == errors
 
 
 @pytest.mark.django_db

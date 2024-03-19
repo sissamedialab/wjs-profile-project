@@ -1,11 +1,11 @@
-from datetime import timedelta
+import datetime
 from typing import Any, Dict, Iterable, Optional
 
 from core import files as core_files
 from core import models as core_models
 from core.forms import ConfirmableForm
-from dateutil.utils import today
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -91,7 +91,7 @@ class ArticleReviewStateForm(forms.ModelForm):
 class SelectReviewerForm(forms.ModelForm):
     reviewer = forms.ModelChoiceField(queryset=Account.objects.none(), widget=forms.HiddenInput, required=False)
     message = forms.CharField(widget=forms.Textarea(), required=False)
-    acceptance_due_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    acceptance_due_date = forms.DateField(required=False)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
     author_note_visible = forms.BooleanField(required=False)
 
@@ -101,10 +101,24 @@ class SelectReviewerForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         """Take care of htmx and reviewer-not-selected."""
+        # Memoize the return value to call the function only once
+        _today = now().date()
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         htmx = kwargs.pop("htmx", False)
         super().__init__(*args, **kwargs)
+        # refs #648
+        # https://gitlab.sissamedialab.it/wjs/specs/-/issues/648
+        self.date_value = _today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_DAYS)
+        self.date_min = _today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
+        self.date_max = _today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
+        date_attrs = {
+            "type": "date",
+            "value": self.date_value,
+            "min": self.date_min,
+            "max": self.date_max,
+        }
+        self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
         c_data = self.data.copy()
         c_data["state"] = self.instance.state
         self.data = c_data
@@ -142,7 +156,7 @@ class SelectReviewerForm(forms.ModelForm):
                         "acceptance_due_date_days",
                         self.instance.article.journal,
                     )
-                    self.data["acceptance_due_date"] = today() + timedelta(days=interval_days.process_value())
+                    self.data["acceptance_due_date"] = _today + datetime.timedelta(days=interval_days.process_value())
                 if not self.data.get("author_note_visible", None):
                     self.data["author_note_visible"] = default_visibility
             else:
@@ -171,7 +185,7 @@ class SelectReviewerForm(forms.ModelForm):
         logic.assignment = WorkflowReviewAssignment(id=1, access_code="sample")
         return logic._get_message_context()
 
-    def clean_date(self):
+    def clean_acceptance_due_date(self):
         """Ensure that the due date is in the future.
 
         We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
@@ -179,6 +193,8 @@ class SelectReviewerForm(forms.ModelForm):
         acceptance_due_date = self.cleaned_data["acceptance_due_date"]
         if acceptance_due_date < now().date():
             raise forms.ValidationError(_("Date must be in the future"))
+        if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
+            raise forms.ValidationError(_(f"Date must be between {self.date_min} and {self.date_max}"))
         return acceptance_due_date
 
     def clean_reviewer(self):
