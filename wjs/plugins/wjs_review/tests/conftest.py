@@ -16,7 +16,12 @@ from utils import setting_handler
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
-from ..logic import AssignToEditor, HandleDecision
+from ..logic import (
+    AssignToEditor,
+    AssignTypesetter,
+    HandleDecision,
+    VerifyProductionRequirements,
+)
 from ..models import ArticleWorkflow, EditorRevisionRequest, Message, Reminder
 from ..plugin_settings import (
     HANDSHAKE_URL,
@@ -84,6 +89,86 @@ def assigned_article(fake_request, article, section_editor, review_settings):
     interferences and without knowing the side effects of the fixture or of AssignToEditor().
     """
     return _assign_article(fake_request, article, section_editor)
+
+
+def _accept_article(
+    fake_request: HttpRequest,
+    article: Article,
+) -> ArticleWorkflow:
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.ACCEPT,
+        "decision_editor_report": "Some editor report",
+        "decision_internal_note": "Some internal note",
+        "withdraw_notice": "Some withdraw notice",
+    }
+    assert fake_request.user is not None
+    editor_decision = HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=fake_request.user,
+        request=fake_request,
+    ).run()
+    workflow = editor_decision.workflow
+    assert workflow.state == ArticleWorkflow.ReviewStates.ACCEPTED
+    cleanup_notifications_side_effects()
+    return workflow.article
+
+
+@pytest.fixture
+def accepted_article(fake_request, assigned_article) -> ArticleWorkflow:
+    """Create and return an accepted article.
+
+    See notes about notifications in `assigned_article`.
+
+    Remember that accepted != ready-for-typesetter
+    """
+    if fake_request.user is None:
+        # This can happen when this fixture is called by other fixtures
+        # In this case it should be safe to assume that the editor assigned to the article is performing the acceptance
+        # (which is the most common case)
+        fake_request.user = assigned_article.editorassignment_set.last().editor
+    return _accept_article(fake_request, assigned_article)
+
+
+def _ready_for_typesetter_article(article) -> ArticleWorkflow:
+    workflow = VerifyProductionRequirements(articleworkflow=article.articleworkflow).run()
+    assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    cleanup_notifications_side_effects()
+    return workflow.article
+
+
+@pytest.fixture
+def ready_for_typesetter_article(accepted_article) -> ArticleWorkflow:
+    """Create and return an ready_for_typed article.
+
+    See notes about notifications in `assigned_article`.
+    """
+    return _ready_for_typesetter_article(accepted_article)
+
+
+def _assigned_to_typesetter_article(
+    article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> Article:
+    typesetting_assignment = AssignTypesetter(article, typesetter, fake_request).run()
+    workflow = typesetting_assignment.round.article.articleworkflow
+    assert workflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    cleanup_notifications_side_effects()
+    return workflow.article
+
+
+@pytest.fixture
+def assigned_to_typesetter_article(
+    ready_for_typesetter_article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> ArticleWorkflow:
+    """Create and return an article assigned to a typesetter.
+
+    See notes about notifications in `assigned_article`.
+    """
+    return _assigned_to_typesetter_article(ready_for_typesetter_article, typesetter, fake_request)
 
 
 @pytest.fixture

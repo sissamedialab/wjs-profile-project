@@ -24,13 +24,26 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils
-from .models import Message
+from .models import ArticleWorkflow, Message
 from .permissions import is_typesetter
 
 logger = get_logger(__name__)
 Account = get_user_model()
 
 
+@dataclasses.dataclass
+class VerifyProductionRequirements:
+    """The system (generally), verifies that the article is ready for tyepsetter."""
+
+    articleworkflow: ArticleWorkflow
+
+    def run(self) -> ArticleWorkflow:
+        self.articleworkflow.system_verifies_production_requirements()
+        self.articleworkflow.save()
+        return self.articleworkflow
+
+
+# https://gitlab.sissamedialab.it/wjs/specs/-/issues/667
 @dataclasses.dataclass
 class AssignTypesetter:
     """Assign a typesetter to an article.
@@ -51,27 +64,38 @@ class AssignTypesetter:
     @staticmethod
     def check_article_conditions(article: Article) -> bool:
         """Check that the article has no pending typesetting assignments."""
-        pending_assignments = article.typesettingassignment_set.filter(
-            completed__isnull=True,
-            cancelled__isnull=True,
+        if not article.typesettinground_set.exists():
+            return True
+
+        pending_assignments = article.typesettinground_set.filter(
+            typesettingassignment__completed__isnull=True,
+            typesettingassignment__cancelled__isnull=True,
         ).exists()
         return not pending_assignments
 
     def _check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
         if self.request.user is None:
-            state_conditions = can_proceed(self.workflow.system_assigns_typesetter)
+            state_conditions = can_proceed(self.article.articleworkflow.system_assigns_typesetter)
         elif self.is_user_typesetter():
-            state_conditions = can_proceed(self.workflow.typesetter_takes_in_charge)
+            state_conditions = can_proceed(self.article.articleworkflow.typesetter_takes_in_charge)
+        else:
+            state_conditions = can_proceed(self.article.articleworkflow.typesetter_takes_in_charge)
+            logger.error(
+                f"Unexpected user {self.request.user}"
+                f" attempting to assign typesetter {self.typesetter}"
+                f" onto article {self.article.pk}."
+                " Checking anyway...",
+            )
 
-        typesetter_is_typesetter = is_typesetter(self.article, self.typesetter)
+        typesetter_is_typesetter = is_typesetter(self.article.articleworkflow, self.typesetter)
         article_conditions = self.check_article_conditions(self.article)
         return state_conditions and typesetter_is_typesetter and article_conditions
 
     def _create_typesetting_round(self):
         self.article.stage = STAGE_TYPESETTING
         self.article.save()
-        typesetting_round = TypesettingRound.objects.get_or_create(
+        typesetting_round, _ = TypesettingRound.objects.get_or_create(
             article=self.article,
         )
         return typesetting_round
@@ -79,10 +103,18 @@ class AssignTypesetter:
     def _update_state(self):
         """Run FSM transition."""
         if self.request.user is None:
-            self.workflow.system_assigns_typesetter()
+            self.article.articleworkflow.system_assigns_typesetter()
         elif self.is_user_typesetter():
-            self.workflow.typesetter_takes_in_charge()
-        self.workflow.save()
+            self.article.articleworkflow.typesetter_takes_in_charge()
+        else:
+            self.article.articleworkflow.typesetter_takes_in_charge()
+            logger.error(
+                f"Unexpected user {self.request.user}"
+                f" assigning typesetter {self.typesetter}"
+                f" onto article {self.article.pk}."
+                " Proceeding anyway...",
+            )
+        self.article.articleworkflow.save()
 
     def _assign_typesetter(self) -> TypesettingAssignment:
         assignment = TypesettingAssignment.objects.create(
@@ -90,8 +122,8 @@ class AssignTypesetter:
             typesetter=self.typesetter,
             # at the moment we assume that the typesetter automatically accepts the assignment
             # both when he takes in charge (naturally), but also when the system assigns him
-            accepted=timezone.now,
-            due=timezone.now + timezone.timedelta(days=settings.TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS),
+            accepted=timezone.now(),
+            due=timezone.now() + timezone.timedelta(days=settings.TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS),
         )
         return assignment
 
@@ -105,12 +137,12 @@ class AssignTypesetter:
     def _log_operation(self, context) -> Message:
         """Log the operation."""
         message_subject = get_setting(
-            setting_group_name="email_subject",
+            setting_group_name="wjs_review",
             setting_name="typesetting_assignment_subject",
             journal=self.article.journal,
         ).processed_value
         message_body = render_template_from_setting(
-            setting_group_name="email",
+            setting_group_name="wjs_review",
             setting_name="typesetting_assignment_body",
             journal=self.article.journal,
             request=self.request,
