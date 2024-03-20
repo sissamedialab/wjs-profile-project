@@ -87,6 +87,9 @@ class ArticleWorkflow(TimeStampedModel):
         on_delete=models.SET_NULL,
     )
 
+    # date_last_transition = ... WRITEME
+    # set the date on post-transition signal
+
     objects = ArticleWorkflowQuerySet.as_manager()
 
     class Meta:

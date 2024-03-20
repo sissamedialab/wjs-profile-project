@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from core.models import AccountRole
 from django.contrib.auth import get_user_model
 from review.models import ReviewAssignment
 
@@ -113,7 +114,20 @@ def can_assign_special_issue(instance: "ArticleWorkflow", user: Account) -> bool
 
 
 def is_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
+    """Return True only if the user has the typesetter role for the journal of the given article.
+
+    Since the pile of papers to take in charge is cross-journal, see also `is_typesetter_of_any_journal`.
+    """
     return user.check_role(instance.article.journal, "typesetter")
+
+
+def is_typesetter_of_any_journal(user: Account) -> bool:
+    """Return True if the user has the typesetters role in any journal."""
+    role = "typesetter"
+    return AccountRole.objects.filter(
+        user=user,
+        role__slug=role,
+    ).exists()
 
 
 def is_article_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:

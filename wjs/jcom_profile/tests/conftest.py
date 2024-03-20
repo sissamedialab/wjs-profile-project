@@ -298,6 +298,14 @@ def invited_user(journal):
     )
 
 
+@pytest.fixture()
+def typesetter(create_jcom_user, journal, roles) -> JCOMProfile:
+    """Create typesetter user."""
+    typesetter = create_jcom_user("typesetter")
+    typesetter.add_account_role("typesetter", journal)
+    return typesetter
+
+
 @pytest.fixture
 def press(install_jcom_theme):
     """Prepare a press."""

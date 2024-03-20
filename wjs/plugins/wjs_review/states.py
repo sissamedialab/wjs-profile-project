@@ -10,6 +10,8 @@ from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
 
+from wjs.jcom_profile import permissions as jcom_profile__permissions
+
 from . import communication_utils, conditions, permissions
 from .models import ArticleWorkflow
 
@@ -492,21 +494,21 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
     "Paper might have issues"
     article_actions = (
         ArticleAction(
-            permission=permissions.is_eo,
+            permission=jcom_profile__permissions.is_eo,
             name="requires resubmission",
             label="Requires resubmission",
             view_name="wjs_article_admin_decision",
             querystring_params={"decision": ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION},
         ),
         ArticleAction(
-            permission=permissions.is_eo,
+            permission=jcom_profile__permissions.is_eo,
             name="deems not suitable",
             label="Mark as not suitable",
             view_name="wjs_article_admin_decision",
             querystring_params={"decision": ArticleWorkflow.Decisions.NOT_SUITABLE},
         ),
         ArticleAction(
-            permission=permissions.is_eo,
+            permission=jcom_profile__permissions.is_eo,
             name="deems issue unimportant",
             label="Queue for review",
             view_name="wjs_article_dispatch_assignment",

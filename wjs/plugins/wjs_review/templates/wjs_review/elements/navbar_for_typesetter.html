@@ -1,0 +1,41 @@
+<div class="container">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    {% comment %} TODO: use attribute aria-current="page" {% endcomment %}
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           title="Papers in charge. My papers."
+                           href="{% url 'wjs_review_typesetter_workingon' %}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           title="Papers ready for typestter. Not yet taken in charge."
+                           href="{% url 'wjs_review_typesetter_pending' %}">Pending</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           title="Published papers."
+                           href="{% url 'wjs_review_typesetter_archived' %}">Archive</a>
+                    </li>
+                    {% if workflow %}
+                        <li class="nav-item">
+                            <!-- just a separator -->|
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link"
+                               title="Paper's details"
+                               href="{% url 'wjs_article_details' workflow.id %}">WARNING: Editor's 'Status page!</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link"
+                               title="Paper's communication: contact author, reviewer, etc."
+                               href="{% url 'wjs_article_messages' article_id=workflow.article.id %}">WARNING: non functional! Communications</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+</div>

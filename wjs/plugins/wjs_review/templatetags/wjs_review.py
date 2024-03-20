@@ -3,6 +3,7 @@
 For tags and filters that relate specifically to Articles, see module wjs_articles.
 
 """
+import datetime
 import json
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
@@ -10,6 +11,7 @@ from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
+from django.utils import timezone
 from django_fsm import Transition
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
@@ -289,3 +291,9 @@ def has_prophy_candidates(article: Article) -> bool:
     """True if article has prophy candidates"""
     p = Prophy(article)
     return p.article_has_prophycandidates()
+
+
+@register.filter
+def days_since(date: Union[datetime.datetime, datetime.date]) -> int:
+    """Return the number of days elapsed since the given date."""
+    return (timezone.now() - date).days

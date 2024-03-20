@@ -1,7 +1,7 @@
-<!-- FIXME!!! -->
-
+{# AKA Codone #}
 {% extends "wjs_review/base.html" %}
 {% load static %}
+{% load wjs_review %}
 {% block bootstrap5_extra_head %}
     {{ block.super }}
     <link rel="stylesheet"
@@ -12,65 +12,46 @@
 {% block title %}
     {{ title|default:"Pending papers" }}
 {% endblock title %}
-{% load wjs_review %}
+{% block navbarblock %}
+    {% include "wjs_review/elements/navbar_for_typesetter.html" %}
+{% endblock navbarblock %}
 {% block content_wrapper %}
     <div class="container">
         <div class="row">
-            <div class="column sm-12">
-                <div class="card border border-2">
-                    <div class="card-body">
-                        TODO: <strong>Filters</strong> (click or type to filter paper)
-                        Title, reviewer or author:
-                        <input type="text" />
-                        ;
-                        <button type="button" class="btn btn-secondary">only requiring attention</button>
-                        ;
-                        <span class="dropdown">
-                            <button class="btn btn-secondary dropdown-toggle"
-                                    type="button"
-                                    id="dropdownMenuButton1"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false">Special issue</button>
-                            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
-                                <li>
-                                    <a class="dropdown-item" href="#">SI-1</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="#">...</a>
-                                </li>
-                            </ul>
-                        </span>; ...
-                    </div>
-                </div>
+            <div class="col">TODO: Filters?
             </div>
         </div>
     </div>
     <div class="container">
-        <table class="table table-hover" id="author-papers">
+        <table class="table table-hover" id="papers">
             <thead class="sticky-top top-0 bg-white text-center">
                 <tr>
-                    <th scope="col">Article ID</th>
-                    <th scope="col">Corresponding Author</th>
-                    <th scope="col">Title</th>
-                    <th scope="col">Article Type</th>
-                    <th scope="col">SI</th>
+                    <th scope="col" title="Journal">Journal</th>
+                    <th scope="col" title="Article type / section">Type</th>
+                    <th scope="col">ID</th>
+                    <th scope="col" title="Number of days elapsed since latest state transition">Waiting days</th>
                     <th scope="col">Status</th>
-                    <td>TAKE IN CHARGE</td>
-                    <!-- <a href="{% url "wjs_review_typesetter_pending"  %}">tic</a> -->
+                    <th scope="col" title="Last note / message">Note</th>
+                    <th scope="col">Special issue</th>
+                    <th scope="col"></th>
+                    <th scope="col" title="Download main PDF">Download</th>
                 </tr>
             </thead>
             <tbody>
                 {% for workflow in workflows %}
-                    {% include "wjs_review/elements/article_listing_for_authors.html" %}
+                    {% include "wjs_review/elements/article_listing_for_typesetter.html" %}
                 {% endfor %}
             </tbody>
         </table>
         <script>
-            new DataTable('#author-papers', {
+            new DataTable('#papers', {
                 info: false,
                 searching: false,
                 ordering: true,
-                paging: false
+                paging: false,
+                columnDefs: [
+                    { orderable: false, targets: [7, 8] },
+                ]
             });
         </script>
     </div>
