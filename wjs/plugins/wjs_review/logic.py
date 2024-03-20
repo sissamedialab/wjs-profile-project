@@ -1520,6 +1520,9 @@ class HandleDecision:
         revision.data_figure_files.set(self.workflow.article.data_figure_files.all())
         revision.supplementary_files.set(self.workflow.article.supplementary_files.all())
         revision.source_files.set(self.workflow.article.source_files.all())
+
+        # We store the old Keywords' "word" instead of their ids. Doing so allows us to maintain a memory of the
+        # original kwds even if they have been modified or deleted.
         revision.article_history = {
             "title": self.workflow.article.title,
             "abstract": self.workflow.article.abstract,
