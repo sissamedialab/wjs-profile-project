@@ -1,0 +1,8 @@
+{% load i18n wjs_review %}
+{% with round=typesettingassignment.round %}
+    <p class="h3">Typesetting Round (round {{ round.round_number }})</p>
+{% endwith %}
+{% for file in typesettingassignment.files_to_typeset.all %}
+    File: {{ file.original_filename }}
+    <!-- TODO: See what other additional information we need, about files and in general -->
+{% endfor %}

@@ -3,8 +3,8 @@
     <p class="h2">{{ workflow.article }}</p>
         <p>
             <span class="badge bg-secondary">{{ workflow.article.section.name }}</span>
-            {% if request.user|is_user_eo or workflow|is_user_article_author:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
-                by {{ workflow.article.correspondence_author }}
+            {% if request.user|is_user_eo or workflow|is_user_article_author:request.user or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user or workflow|is_user_typesetter:request.user %}
+                by {{ workflow.article.correspondence_author }}(*) <!-- look for a better graphic solution? -->
                 {% if workflow.article.authors.count > 1 %}
                     <a class="text-secondary"
                        data-bs-toggle="collapse"

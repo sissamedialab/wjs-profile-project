@@ -7,13 +7,16 @@
         aria-expanded="false"
         aria-controls="paperAuthorsDetails">Authors details</button>
 <div class="collapse" id="paperAuthorsDetails">
-                                        {% for author in article.authors.all %}
-                                            <div>
-                                                {{ author }} (from {{ author.country }}) <a href="{% url "wjs_message_write" article_id=article.id recipient_id=author.id %}"
-    title="Click to contact / communicate">📧</a>
-                                                <p>
-                                                    <strong>Bio:</strong> {{ author.biography }}
-                                                </p>
-                                            </div>
-                                        {% endfor %}
-                                    </div>
+    {% for author in article.authors.all %}
+        <div>
+            {% if author == article.correspondence_author %}
+            (*)
+            {% endif %}
+            {{ author }} (from {{ author.country }}) <a href="{% url "wjs_message_write" article_id=article.id recipient_id=author.id %}"
+                title="Click to contact / communicate">📧</a>
+            <p>
+                <strong>Bio:</strong> {{ author.biography }}
+            </p>
+        </div>
+    {% endfor %}
+</div>

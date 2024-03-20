@@ -597,6 +597,30 @@ class TypesetterSelected(BaseState):
             label="asks non-standard messages for author to EO",
             view_name="WRITEME!",
         ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="Insert notes",
+            label="Insert notes",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="Send to Author",
+            label="Send to Author",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="Contact Author",
+            label="Contact Author",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="Open Gitlab issue",
+            label="Open Gitlab issue",
+            view_name="WRITEME!",
+        ),
     )
 
 

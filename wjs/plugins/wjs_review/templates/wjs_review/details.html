@@ -70,25 +70,37 @@
     title="Click to contact / communicate">📧</a>
                                         </li>
                                     </ol>
+                                    {% if workflow|is_user_typesetter:request.user %}
+                                        <li>
+                                            Submission date: {{ article.date_submitted }}
+                                        </li>
+                                        <li>
+                                            Acceptance date: {{ article.date_accepted }}
+                                        </li>
+                                        <li>
+                                            {% last_major_revision workflow as last_major_revision %}
+                                            Last Major revision submitted: {{ last_major_revision.created }}
+                                        </li>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-                                    {# Files #}
-                                    <div class="row">
-                                        <div class="col">
-                                            {% for manuscript_file in article.manuscript_files.all %}<li>{{ manuscript_file.original_filename }}</li>{% endfor %}
-                                        </div>
-                                        <div class="col">
-                                            {% for supplementary_file in article.supplementary_files.all %}<li>{{ supplementary_file.original_filename }}</li>{% endfor %}
-                                        </div>
-                                        <div class="col">
-                                            {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
-                                        </div>
-                                    </div>
-                                </div>
+        {# Files #} <!-- FIXME: don't we show files' list too many times? Should everyone see this? -->
+        <div class="row">
+            <div class="col">
+                {% for manuscript_file in article.manuscript_files.all %}<li>{{ manuscript_file.original_filename }}</li>{% endfor %}
+            </div>
+            <div class="col">
+                {% for supplementary_file in article.supplementary_files.all %}<li>{{ supplementary_file.original_filename }}</li>{% endfor %}
+            </div>
+            <div class="col">
+                {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
+            </div>
+        </div>
+    </div>
                 <div class="row">
                     <div class="col">
                         {% if workflow|is_user_one_of_the_authors:request.user %}
@@ -97,6 +109,9 @@
                             {% include "wjs_review/elements/reviewer_review_assignment_list.html" %}
                         {% elif request.user|is_user_eo or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
                             {% include "wjs_review/elements/editor_review_assignment_list.html" %}
+                        {% elif workflow|is_user_typesetter:request.user %}
+                            {% include "wjs_review/elements/revision_request_list.html" %}
+                            {% include "wjs_review/elements/typesetting_assignment_list.html" %}
                         {% endif %}
                     </div>
                 </div>
