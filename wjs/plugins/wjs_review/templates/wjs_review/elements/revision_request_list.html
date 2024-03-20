@@ -1,5 +1,11 @@
+{% load wjs_review %}
 {% for revision in workflow.article.revisionrequest_set.all %}
     {% if revision.type != "Technical Revisions" %}{# To be verified we may decide to keep also technical revisions #}
-        {% include "wjs_review/elements/revision_request.html" with round=revision.editorrevisionrequest.review_round %}
+        {% if workflow|is_user_typesetter:request.user %}
+            <p class="h3">Round (round {{ revision.editorrevisionrequest.review_round.round_number }})</p>
+            {% include "wjs_review/elements/editor_revision_request_files.html" with round=revision.editorrevisionrequest.review_round %}
+        {% else %}
+            {% include "wjs_review/elements/revision_request.html" with round=revision.editorrevisionrequest.review_round %}
+        {% endif %}
     {% endif %}
 {% endfor %}

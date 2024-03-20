@@ -1,0 +1,4 @@
+{% load wjs_review %}
+{% for assignment in workflow.article|typesetting_assignments:request.user %}
+    {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=assignment %}
+{% endfor %}

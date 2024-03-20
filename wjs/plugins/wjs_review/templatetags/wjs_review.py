@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
+from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 from utils import models as janeway_utils_models
@@ -20,13 +21,15 @@ from utils.logger import get_logger
 from utils.models import LogEntry
 
 from .. import communication_utils, states
-from ..models import ArticleWorkflow, ProphyAccount
+from ..models import ArticleWorkflow, EditorDecision, ProphyAccount
 from ..permissions import (
     is_article_author,
     is_article_editor,
     is_article_reviewer,
+    is_article_typesetter,
     is_director,
     is_one_of_the_authors,
+    is_typesetter,
 )
 from ..prophy import Prophy
 from ..types import BootstrapButtonProps
@@ -272,6 +275,18 @@ def is_user_one_of_the_authors(article: ArticleWorkflow, user: Account) -> bool:
 
 
 @register.filter
+def is_user_typesetter(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is a Typesetter for the article."""
+    return is_typesetter(article, user)
+
+
+@register.filter
+def is_user_article_typesetter(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is a Typesetter for the article."""
+    return is_article_typesetter(article, user)
+
+
+@register.filter
 def reviewer_review_assignments(article: ArticleWorkflow, user: Account):
     """
     Returns the list of Review Assignments assigned to the current user.
@@ -297,3 +312,17 @@ def has_prophy_candidates(article: Article) -> bool:
 def days_since(date: Union[datetime.datetime, datetime.date]) -> int:
     """Return the number of days elapsed since the given date."""
     return (timezone.now() - date).days
+
+
+@register.filter
+def typesetting_assignments(article: Article, user: Account):
+    """
+    Returns the list of Typesetting Assignments assigned to the current user.
+    """
+    return TypesettingAssignment.objects.filter(round__article=article, typesetter=user)
+
+
+@register.simple_tag
+def last_major_revision(article: ArticleWorkflow):
+    """Returns Article's last major revision"""
+    return EditorDecision.objects.filter(workflow=article, decision=ArticleWorkflow.Decisions.MINOR_REVISION).last()

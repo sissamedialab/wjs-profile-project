@@ -26,20 +26,7 @@
                 aria-expanded="false"
                 aria-controls="rr{{ round.pk }}Files">Article files</button>
         <div class="collapse" id="rr{{ round.pk }}Files">
-            <ul>
-                {% for file in round.editorrevisionrequest.manuscript_files.all %}
-                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                {% endfor %}
-                {% for file in round.editorrevisionrequest.data_figure_files.all %}
-                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                {% endfor %}
-                {% for file in round.editorrevisionrequest.supplementary_files.all %}
-                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                {% endfor %}
-                {% for file in round.editorrevisionrequest.source_files.all %}
-                    <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
-                {% endfor %}
-            </ul>
+            {% include "wjs_review/elements/editor_revision_request_files.html" %}
         </div>
     </div>
     {% if round.editorrevisionrequest.cover_letter_file or round.editorrevisionrequest.cover_letter or round.editorrevisionrequest.author_note %}

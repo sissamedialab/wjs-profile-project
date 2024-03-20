@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from core.models import AccountRole
 from django.contrib.auth import get_user_model
+from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
 
 from wjs.jcom_profile.permissions import is_eo as base_is_eo
@@ -131,5 +132,9 @@ def is_typesetter_of_any_journal(user: Account) -> bool:
 
 
 def is_article_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
-    # TODO: writeme!!!
-    return True
+    """
+    Return True if the user is the typesetter of the article.
+
+    At the moment, like in the reviewer's method, I'm not checking for the article state.
+    """
+    return TypesettingAssignment.objects.filter(round__article=instance.article, typesetter=user).exists()
