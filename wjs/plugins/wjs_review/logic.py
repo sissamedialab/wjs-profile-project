@@ -36,7 +36,7 @@ from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.permissions import is_eo
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from . import communication_utils, permissions
@@ -1120,7 +1120,7 @@ class HandleDecision:
     def check_editor_conditions(workflow: ArticleWorkflow, editor: Account, admin_mode: bool) -> bool:
         """Editor must be assigned to the article."""
         if admin_mode:
-            return is_eo(editor)
+            return has_eo_role(editor)
         else:
             editor_selected = workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
             editor_has_permissions = permissions.is_article_editor(workflow, editor)
@@ -1839,7 +1839,7 @@ class AdminActions:
 
     def _check_user_condition(self, user: Account) -> bool:
         """Check if the user is an EO."""
-        return is_eo(user)
+        return has_eo_role(user)
 
     def check_conditions(self) -> bool:
         """Check if the conditions for the decision are met."""

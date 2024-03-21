@@ -263,7 +263,7 @@ def test_update_editor_assignment_parameters(editor, roles, keywords, journal):
 
 @pytest.mark.django_db
 @pytest.mark.skip(reason="We have to further investigate how to deal with director role.")
-def test_assignment_parameter_button_is_present_in_editors_interface_if_the_user_is_director(
+def test_assignment_parameter_button_is_present_in_editors_interface_if_the_user_has_director_role(
     director,
     editor,
     journal,

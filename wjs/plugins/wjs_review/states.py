@@ -10,7 +10,7 @@ from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
 
-from wjs.jcom_profile import permissions as jcom_profile__permissions
+from wjs.jcom_profile import permissions as base_permissions
 
 from . import communication_utils, conditions, permissions
 from .models import ArticleWorkflow
@@ -168,7 +168,7 @@ class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
     "Editor to be selected"
     article_actions = (
         ArticleAction(
-            permission=permissions.is_director,
+            permission=permissions.has_director_role_by_article,
             name="selects editor",
             label="",
             view_name="WRITEME!",
@@ -191,7 +191,7 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             view_name="wjs_unassign_assignment",
         ),
         ArticleAction(
-            permission=permissions.can_assign_special_issue,
+            permission=permissions.can_assign_special_issue_by_article,
             name="assigns different editor",
             label="Assign different Editor",
             view_name="wjs_assigns_different_editor",
@@ -261,26 +261,26 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         # TODO: drop these? Not currently used in reviewer's templates.
         # :START
         ArticleAction(
-            permission=permissions.is_reviewer,
+            permission=permissions.has_reviewer_role_by_article,
             name="decline",
             label="",
             view_name="WRITEME!",
         ),
         ArticleAction(
-            permission=permissions.is_reviewer,
+            permission=permissions.has_reviewer_role_by_article,
             name="write report",
             label="",
             view_name="WRITEME!",
         ),
         ArticleAction(
-            permission=permissions.is_reviewer,
+            permission=permissions.has_reviewer_role_by_article,
             name="postpones rev.report deadline",
             label="",
             view_name="WRITEME!",
         ),
         # :END
         ArticleAction(
-            permission=permissions.is_director,
+            permission=permissions.has_director_role_by_article,
             name="reminds editor",
             label="",
             view_name="WRITEME!",
@@ -489,7 +489,7 @@ class Rejected(BaseState):  # noqa N801 CapWords convention
     "Rejected"
     article_actions = (
         ArticleAction(
-            permission=permissions.is_admin,
+            permission=permissions.has_admin_role_by_article,
             name="opens appeal",
             label="",
             view_name="WRITEME!",
@@ -501,21 +501,21 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
     "Paper might have issues"
     article_actions = (
         ArticleAction(
-            permission=jcom_profile__permissions.is_eo,
+            permission=base_permissions.has_eo_role,
             name="requires resubmission",
             label="Requires resubmission",
             view_name="wjs_article_admin_decision",
             querystring_params={"decision": ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION},
         ),
         ArticleAction(
-            permission=jcom_profile__permissions.is_eo,
+            permission=base_permissions.has_eo_role,
             name="deems not suitable",
             label="Mark as not suitable",
             view_name="wjs_article_admin_decision",
             querystring_params={"decision": ArticleWorkflow.Decisions.NOT_SUITABLE},
         ),
         ArticleAction(
-            permission=jcom_profile__permissions.is_eo,
+            permission=base_permissions.has_eo_role,
             name="deems issue unimportant",
             label="Queue for review",
             view_name="wjs_article_dispatch_assignment",
@@ -528,13 +528,13 @@ class ReadyForTypesetter(BaseState):
 
     article_actions = (
         ArticleAction(
-            permission=permissions.is_typesetter,
+            permission=permissions.has_typesetter_role_by_article,
             name="typ takes in charge",
             label="Take in charge",
             view_name="WRITEME!",
         ),
         ArticleAction(
-            permission=permissions.is_admin,
+            permission=permissions.has_admin_role_by_article,
             name="admin assigns typesetter",
             label="Assign typesetter",
             view_name="WRITEME!",

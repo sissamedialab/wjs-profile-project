@@ -5,10 +5,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView
 from journal.models import Journal
 
-from wjs.jcom_profile.permissions import is_eo
+from wjs.jcom_profile import permissions as base_permissions
 
 from .models import ArticleWorkflow
-from .permissions import is_typesetter_of_any_journal
 
 Account = get_user_model()
 
@@ -25,7 +24,9 @@ class TypesetterPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         """Allow access to typesetters and EO."""
-        return is_typesetter_of_any_journal(self.request.user) or is_eo(self.request.user)
+        return base_permissions.has_typesetter_role_on_any_journal(self.request.user) or base_permissions.has_eo_role(
+            self.request.user,
+        )
 
     def get_queryset(self):
         """List articles ready for typesetter for each journal that the user is typesetter of.
@@ -36,7 +37,7 @@ class TypesetterPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
             state__in=[ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER],
         ).order_by("-article__date_accepted")
 
-        if is_eo(self.request.user):
+        if base_permissions.has_eo_role(self.request.user):
             return base_qs
         else:
             typesetter_role_slug = "typesetter"
@@ -56,7 +57,7 @@ class TypesetterWorkingOn(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         """Allow access to typesetters and EO."""
-        return is_typesetter_of_any_journal(self.request.user)
+        return base_permissions.has_typesetter_role_on_any_journal(self.request.user)
 
     def get_queryset(self):
         """List articles assigned to the user and still open."""

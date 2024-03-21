@@ -12,7 +12,7 @@ from journal.models import Issue
 from submission.models import STAGE_PUBLISHED, Article, Keyword
 
 from wjs.jcom_profile.models import SpecialIssue
-from wjs.jcom_profile.permissions import is_eo
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
 register = template.Library()
@@ -205,4 +205,4 @@ def get_issue_meta_image_url(issue):
 @register.filter
 def is_user_eo(user: Account) -> bool:
     """Returns if user is part of the EO."""
-    return is_eo(user)
+    return has_eo_role(user)

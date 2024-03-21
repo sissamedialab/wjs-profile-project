@@ -23,13 +23,13 @@ from utils.models import LogEntry
 from .. import communication_utils, states
 from ..models import ArticleWorkflow, EditorDecision, ProphyAccount
 from ..permissions import (
+    has_director_role_by_article,
+    has_typesetter_role_by_article,
     is_article_author,
     is_article_editor,
     is_article_reviewer,
     is_article_typesetter,
-    is_director,
     is_one_of_the_authors,
-    is_typesetter,
 )
 from ..prophy import Prophy
 from ..types import BootstrapButtonProps
@@ -253,7 +253,7 @@ def is_user_article_editor(article: ArticleWorkflow, user: Account) -> bool:
 @register.filter
 def is_user_director(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Director."""
-    return is_director(article, user)
+    return has_director_role_by_article(article, user)
 
 
 @register.filter
@@ -277,7 +277,7 @@ def is_user_one_of_the_authors(article: ArticleWorkflow, user: Account) -> bool:
 @register.filter
 def is_user_typesetter(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Typesetter for the article."""
-    return is_typesetter(article, user)
+    return has_typesetter_role_by_article(article, user)
 
 
 @register.filter
