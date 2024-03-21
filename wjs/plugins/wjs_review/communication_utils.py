@@ -16,7 +16,7 @@ from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile.apps import GROUP_EO
-from wjs.jcom_profile.permissions import is_eo
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from .models import Message, MessageRecipients, Reminder
@@ -47,7 +47,7 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
 
     # Get messages for this article...
     by_article = Q(Q(content_type=content_type) & Q(object_id=object_id))
-    if is_eo(user) or user.is_superuser:
+    if has_eo_role(user) or user.is_superuser:
         # if I am an EO/staff, in that case I see all messages, using a dummy filter
         by_current_user = Q(pk__gt=0)
     else:

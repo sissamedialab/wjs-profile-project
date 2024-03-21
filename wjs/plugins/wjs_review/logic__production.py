@@ -25,7 +25,7 @@ from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils
 from .models import ArticleWorkflow, Message
-from .permissions import is_typesetter
+from .permissions import has_typesetter_role_by_article
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -88,7 +88,7 @@ class AssignTypesetter:
                 " Checking anyway...",
             )
 
-        typesetter_is_typesetter = is_typesetter(self.article.articleworkflow, self.typesetter)
+        typesetter_is_typesetter = has_typesetter_role_by_article(self.article.articleworkflow, self.typesetter)
         article_conditions = self.check_article_conditions(self.article)
         return state_conditions and typesetter_is_typesetter and article_conditions
 

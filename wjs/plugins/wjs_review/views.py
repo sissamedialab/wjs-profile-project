@@ -32,9 +32,10 @@ from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
+from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
-from wjs.jcom_profile.permissions import is_eo
 
+from . import permissions
 from .communication_utils import get_messages_related_to_me
 from .filters import BaseArticleWorkflowFilter, EOArticleWorkflowFilter
 from .forms import (
@@ -72,12 +73,6 @@ from .models import (
     Reminder,
     WorkflowReviewAssignment,
 )
-from .permissions import (
-    is_admin,
-    is_article_editor,
-    is_director,
-    is_special_issue_supervisor,
-)
 from .prophy import Prophy
 from .views__production import (  # noqa F401
     TypesetterArchived,
@@ -96,7 +91,7 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
     def test_func(self):
         """Verify that only staff can access."""
-        return self.request.user.is_staff
+        return base_permissions.has_eo_role(self.request.user)
 
 
 class ListArticles(LoginRequiredMixin, ListView):
@@ -144,7 +139,7 @@ class EOPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
-        return self.request.user.is_staff or is_eo(self.request.user)
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
 
     def setup(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
@@ -239,7 +234,7 @@ class DirectorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
         a = A()
         a.article = A()
         a.article.journal = self.request.journal
-        return is_director(a, self.request.user)
+        return permissions.has_director_role_by_article(a, self.request.user)
 
     def setup(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
@@ -297,7 +292,7 @@ class AuthorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
-        return self.request.user.is_author(self.request)
+        return base_permissions.has_author_role(self.request.journal, self.request.user)
 
     def get_queryset(self):
         """Keep only pending (no final decision) articles."""
@@ -332,7 +327,7 @@ class ReviewerPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         """Allow access only for Reviewers of this Journal"""
-        return self.request.user.is_reviewer(self.request)
+        return base_permissions.has_reviewer_role(self.request.journal, self.request.user)
 
     def get_queryset(self):
         """Keep only pending (no final decision) articles."""
@@ -650,7 +645,7 @@ class PostponeRevisionRequestDueDate(UserPassesTestMixin, UpdateView):
         Check that the user is the article's editor
         """
         self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).article.articleworkflow
-        return is_article_editor(self.article, self.request.user)
+        return permissions.is_article_editor(self.article, self.request.user)
 
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.article.articleworkflow.id,))
@@ -786,7 +781,7 @@ class ArticleAdminDispatchAssignment(LoginRequiredMixin, UserPassesTestMixin, Vi
 
     def test_func(self):
         """Verify that only staff can access."""
-        return is_eo(self.request.user)
+        return base_permissions.has_eo_role(self.request.user)
 
     def setup(self, request, *args, **kwargs):
         """Set current article on object for convenience."""
@@ -812,7 +807,7 @@ class ArticleAdminDecision(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         """Verify that only EO can access."""
-        return is_eo(self.request.user)
+        return base_permissions.has_eo_role(self.request.user)
 
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.id,))
@@ -982,7 +977,11 @@ class MessageAttachmentDownloadView(UserPassesTestMixin, DetailView):
         """The recipients and the actor of the message can download the file."""
         user = self.request.user
         message = self.get_object()
-        return user == message.actor or user in message.recipients.all() or user.is_staff or is_eo(self.request.user)
+        return (
+            user == message.actor
+            or user in message.recipients.all()
+            or base_permissions.has_admin_role(self.request.journal, user)
+        )
 
     def get(self, request, *args, **kwargs):
         """Serve the attachment file."""
@@ -1125,7 +1124,7 @@ class ToggleMessageReadByEOView(UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         """User must be part of the EO."""
-        return is_eo(self.request.user)
+        return base_permissions.has_eo_role(self.request.user)
 
     def get_object(self, queryset=None):
         return get_object_or_404(
@@ -1178,6 +1177,11 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
     template_name = "admin/review/revision/do_revision.html"
     context_object_name = "revision_request"
     meta_data_fields = ["title", "abstract"]
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, id=self.kwargs[self.pk_url_kwarg])
 
     def test_func(self):
         """User must be corresponding author of the article."""
@@ -1320,14 +1324,14 @@ class ArticleReminders(UserPassesTestMixin, ListView):
     model = Message
     template_name = "wjs_review/article_reminders.html"
 
-    def test_func(self):
-        """Let's show reminders only to EO or staff."""
-        return self.request.user.is_staff or is_eo(self.request.user)
-
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
         super().setup(request, *args, **kwargs)
         self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
+
+    def test_func(self):
+        """Let's show reminders only to EO or staff."""
+        return base_permissions.has_admin_role(self.request.journalm, self.request.user)
 
     def get_queryset(self):
         """Get reminders related to an article via ReviewAssignment or EditorAssignment or similar."""
@@ -1362,16 +1366,21 @@ class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
     form_class = UpdateReviewerDueDateForm
     template_name = "wjs_review/elements/update_reviewer_due_date.html"
 
+    def setup(self, request, *args, **kwargs):
+        """Fetch the ReviewAssignment instance for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, id=self.kwargs[self.pk_url_kwarg])
+
+    def test_func(self):
+        """User must be the article's editor"""
+        articleworkflow = self.object.article.articleworkflow
+        return permissions.is_article_editor(articleworkflow, self.request.user)
+
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         return kwargs
-
-    def test_func(self):
-        """User must be the article's editor"""
-        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).article.articleworkflow
-        return is_article_editor(self.article, self.request.user)
 
     def get_success_url(self):
         """Point back to the article's detail page."""
@@ -1383,9 +1392,9 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
     template_name = "wjs_review/elements/editor_rejects_assignment.html"
 
     def setup(self, request, *args, **kwargs):
-        """Store a reference to the article for easier processing."""
+        """Fetch the ArticleWorkflow instance for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
+        self.object = get_object_or_404(self.model, id=self.kwargs[self.pk_url_kwarg])
 
     def test_func(self):
         """User must be the article's Editor and must be assigned to the article."""
@@ -1422,11 +1431,14 @@ class EditorAssignsDifferentEditor(UpdateView):
     template_name = "wjs_review/editor_assigns_different_editor.html"
 
     def test_func(self):
-        """The user must be the article's editor or the director or a member of the EO."""
-        # This view can be used for the assignment of different editors in a Special Issue,
-        # but we don't check if the editor belongs to a S.I. (e.g. `permissions.can_assign_special_issue()`),
-        # because the process is common.
-        return is_special_issue_supervisor(self.object, self.request.user)
+        """
+        The user must be the article's editor or the director or a member of the EO.
+
+        This view can be used for the assignment of different editors in a Special Issue,
+        but we don't check if the editor belongs to a S.I.(e.g. `permissions.can_assign_special_issue_by_article()`),
+        because the process is common.
+        """
+        return permissions.is_special_issue_supervisor(self.object, self.request.user)
 
     def get_success_url(self):
         messages.add_message(
@@ -1434,12 +1446,12 @@ class EditorAssignsDifferentEditor(UpdateView):
             messages.SUCCESS,
             "Editor assigned successfully.",
         )
-        if is_article_editor(self.object, self.request.user):
+        if permissions.is_article_editor(self.object, self.request.user):
             return reverse("wjs_review_list")
-        elif is_admin(self.object, self.request.user):
+        elif permissions.has_admin_role_by_article(self.object, self.request.user):
             return reverse("wjs_review_eo_pending")
-        elif is_director(self.object, self.request.user):
-            return reverse("")  # FIXME: add main page for journal's Director
+        elif permissions.has_director_role_by_article(self.object, self.request.user):
+            return reverse("wjs_review_director_pending")
 
     def _editors_with_keywords(self):
         return Account.objects.get_editors_with_keywords(

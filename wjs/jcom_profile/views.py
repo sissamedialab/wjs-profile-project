@@ -56,6 +56,7 @@ from submission.models import Article, Keyword, Section
 from utils import setting_handler
 from utils.logger import get_logger
 
+from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.models import (
     EditorAssignmentParameters,
     JCOMProfile,
@@ -72,7 +73,6 @@ from .drupal_redirect_views import (  # noqa F401
     JcomIssueRedirect,
 )
 from .newsletter.service import NewsletterMailerService
-from .permissions import is_eo
 from .utils import PATH_PARTS, generate_token, save_file_to_special_issue
 
 logger = get_logger(__name__)
@@ -313,7 +313,7 @@ def start(request, type=None):  # NOQA
     #  add article main author automatically.
     form = submission_forms.ArticleStart(journal=request.journal)
 
-    if not request.user.is_author(request):
+    if not base_permissions.has_author_role(request.journal, request.user):
         request.user.add_account_role("author", request.journal)
 
     if request.POST:
@@ -406,7 +406,7 @@ def submit_info(request, article_id):
 
         # Determine the form to use depending on whether the user is an editor.
         article_info_form = submission_forms.ArticleInfoSubmit
-        if request.user.is_editor(request):
+        if base_permissions.has_editor_role(request.journal, request.user):
             article_info_form = submission_forms.EditorArticleInfoSubmit
 
         form = article_info_form(
@@ -1431,7 +1431,7 @@ def search(request):
     return render(request, template, context)
 
 
-@user_passes_test(lambda u: is_eo(u))
+@user_passes_test(lambda u: base_permissions.has_eo_role(u))
 def eo_home(request):
     """Redirect to the list of articles."""
     return render(request, "eo/home.html")

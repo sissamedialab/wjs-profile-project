@@ -120,7 +120,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.EDITOR_TO_BE_SELECTED,
         target=ReviewStates.EDITOR_SELECTED,
-        permission=permissions.is_editor,
+        permission=permissions.has_editor_role_by_article,
         # TODO: conditions=[],
     )
     def director_selects_editor(self):
@@ -142,7 +142,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.INCOMPLETE_SUBMISSION,
         target=ReviewStates.SUBMITTED,
-        permission=permissions.is_author,
+        permission=permissions.has_author_role_by_article,
         # TODO: conditions=[],
     )
     def author_submits_paper(self):
@@ -176,7 +176,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
         target=ReviewStates.EDITOR_TO_BE_SELECTED,
-        permission=permissions.is_admin,
+        permission=permissions.has_admin_role_by_article,
         # TODO: conditions=[],
     )
     def admin_deems_issues_not_important(self):
@@ -242,7 +242,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.REJECTED,
         target=ReviewStates.TO_BE_REVISED,
-        permission=permissions.is_admin,
+        permission=permissions.has_admin_role_by_article,
         # TODO: conditions=[],
     )
     def admin_opens_an_appeal(self):
@@ -253,7 +253,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.TO_BE_REVISED,
         target=ReviewStates.EDITOR_SELECTED,
-        permission=permissions.is_author,
+        permission=permissions.has_author_role_by_article,
         # TODO: conditions=[],
     )
     def author_submits_again(self):
@@ -264,7 +264,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
         target=ReviewStates.NOT_SUITABLE,
-        permission=permissions.is_admin,
+        permission=permissions.has_admin_role_by_article,
         # TODO: conditions=[],
     )
     def admin_deems_paper_not_suitable(self):
@@ -275,7 +275,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
         target=ReviewStates.INCOMPLETE_SUBMISSION,
-        permission=permissions.is_admin,
+        permission=permissions.has_admin_role_by_article,
         # TODO: conditions=[],
     )
     def admin_or_system_requires_revision(self):
@@ -297,7 +297,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.READY_FOR_TYPESETTER,
         target=ReviewStates.TYPESETTER_SELECTED,
-        permission=permissions.is_typesetter,
+        permission=permissions.has_typesetter_role_by_article,
         # TODO: conditions=[],
     )
     def typesetter_takes_in_charge(self):

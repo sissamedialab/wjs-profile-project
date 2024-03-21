@@ -5,7 +5,7 @@ from django.db.models import F, OuterRef, Q, QuerySet, Subquery
 from review.models import ReviewAssignment
 from submission.models import Article
 
-from wjs.jcom_profile.permissions import is_eo
+from wjs.jcom_profile.permissions import has_eo_role
 
 
 class ArticleWorkflowQuerySet(models.QuerySet):
@@ -55,7 +55,7 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         )
         if user:
             filters = Q(recipients__in=[user])
-            if is_eo(user):
+            if has_eo_role(user):
                 filters |= Q(read_by_eo=False)
             messages = messages.filter(filters)
         return self.filter(article_id__in=Subquery(messages.values_list("object_id", flat=True)))
