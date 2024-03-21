@@ -26,6 +26,7 @@ Bonus:
 {% url 'wjs_review_reviewer_pending' as wjs_review_reviewer_pending %}
 {% url 'wjs_review_list' as wjs_review_list %}
 {% url 'wjs_review_eo_pending' as wjs_review_eo_pending %}
+{% url 'wjs_review_director_pending' as wjs_review_director_pending %}
 {% url 'core_edit_settings_group' 'submission' as core_edit_settings_group_submission %}
 {% url 'core_edit_settings_group' 'journal' as core_edit_settings_group_journal %}
 {% url 'cms_page_edit' page.pk as cms_page_edit %}
@@ -93,10 +94,9 @@ Bonus:
             <a class="dropdown-item" href="{{ wjs_review_list }}">{% trans "My Editor Pages" %}</a>
         </li>
     {% endif %}
-    {# FIXME: Update in !341 to set the proper view #}
-    {% if user_is_director and wjs_review_eo_pending %}
+    {% if user_is_director and wjs_review_director_pending %}
         <li>
-            <a class="dropdown-item" href="{{ wjs_review_eo_pending }}">{% trans "My Director Pages" %}</a>
+            <a class="dropdown-item" href="{{ wjs_review_director_pending }}">{% trans "My Director Pages" %}</a>
         </li>
     {% endif %}
     {% if request.user|is_user_eo and wjs_review_eo_pending %}

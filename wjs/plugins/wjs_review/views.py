@@ -36,7 +36,7 @@ from wjs.jcom_profile.mixins import HtmxMixin
 from wjs.jcom_profile.permissions import is_eo
 
 from .communication_utils import get_messages_related_to_me
-from .filters import ArticleWorkflowFilter
+from .filters import BaseArticleWorkflowFilter, EOArticleWorkflowFilter
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
@@ -139,8 +139,8 @@ class EOPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
     ordering = "id"
     template_name = "wjs_review/eo_pending.html"
     context_object_name = "workflows"
-    filterset_class = ArticleWorkflowFilter
-    filterset: ArticleWorkflowFilter
+    filterset_class = EOArticleWorkflowFilter
+    filterset: EOArticleWorkflowFilter
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -217,6 +217,73 @@ class EOMissingEditor(EOPending):
         """Add a "title" to the context for the header."""
         context = super().get_context_data(**kwargs)
         context["title"] = "Papers without an editor"
+        return context
+
+
+class DirectorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Director's main page."""
+
+    model = ArticleWorkflow
+    ordering = "id"
+    template_name = "wjs_review/director_pending.html"
+    context_object_name = "workflows"
+    filterset_class = EOArticleWorkflowFilter
+    filterset: BaseArticleWorkflowFilter
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+
+        class A:
+            pass
+
+        a = A()
+        a.article = A()
+        a.article.journal = self.request.journal
+        return is_director(a, self.request.user)
+
+    def setup(self, request, *args, **kwargs):
+        """Setup and validate filterset data."""
+        super().setup(request, *args, **kwargs)
+        self.filterset = self.filterset_class(
+            self.request.GET,
+            queryset=self._apply_base_filters(self.model.objects.all()),
+            request=self.request,
+            journal=self.request.journal,
+        )
+        self.filterset.is_valid()
+
+    def _apply_base_filters(self, qs):
+        return qs.filter(
+            article__journal=self.request.journal,
+            state__in=states_when_article_is_considered_in_review,
+        ).exclude(
+            article__authors=self.request.user,
+        )
+
+    def get_queryset(self):
+        """Filter article by state and filterset values."""
+        base_qs = self._apply_base_filters(super().get_queryset())
+        return self.filterset.filter_queryset(base_qs)
+
+    def get_context_data(self, **kwargs):
+        """Add the filterset."""
+        context = super().get_context_data(**kwargs)
+        context["filter"] = self.filterset
+        return context
+
+
+class DirectorArchived(DirectorPending):
+    def get_queryset(self):
+        """Get all published / withdrawn / rejected / not suitable articles."""
+        return ArticleWorkflow.objects.filter(
+            article__journal=self.request.journal,
+            state__in=states_when_article_is_considered_archived,
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add a "title" to the context for the header."""
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Archived papers"
         return context
 
 

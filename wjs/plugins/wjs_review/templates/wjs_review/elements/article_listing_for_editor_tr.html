@@ -25,7 +25,7 @@
             {% endif %}
         </td>
         <td title="latest personal note">
-            {% last_editor_note article=workflow.article user=user as note %}
+            {% last_user_note article=workflow.article user=user as note %}
             {% if note %}
                 <div>
                     <a class="text-decoration-none"
