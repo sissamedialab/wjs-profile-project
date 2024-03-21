@@ -164,6 +164,26 @@ WJS_NEWSLETTER_TOKEN_SALT = "CHANGEME"
 # Http auth to access munin graphs (specs#486)
 WJS_MUNIN_AUTH = ("username", "password")
 
+
+# MariaDB connection to check new user registrations in wjapp
+# (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
+WJAPP_JCOM_CONNECTION_PARAMS = {
+    "user": "",
+    "password": "",
+    "host": "",
+    "database": "",
+}
+
+# MariaDB connection to import data from wjapp
+# (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
+WJAPP_JCOM_IMPORT_CONNECTION_PARAMS = {
+    "user": "",
+    "password": "",
+    "host": "",
+    "database": "",
+}
+
+
 ENABLE_FULL_TEXT_SEARCH = True
 CORE_FILETEXT_MODEL = "core.PGFileText"
 SUMMERNOTE_THEME = "bs5"
