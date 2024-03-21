@@ -75,6 +75,7 @@ states_when_article_is_considered_archived = [
     ArticleWorkflow.ReviewStates.WITHDRAWN,
     ArticleWorkflow.ReviewStates.REJECTED,
     ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ArticleWorkflow.ReviewStates.PUBLISHED,
 ]
 
 # "In review" means articles that are

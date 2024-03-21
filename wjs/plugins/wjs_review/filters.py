@@ -28,10 +28,9 @@ def status_choices() -> list[tuple[str, str]]:
     ] + ArticleWorkflow.ReviewStates.choices
 
 
-class ArticleWorkflowFilter(django_filters.FilterSet):
+class BaseArticleWorkflowFilter(django_filters.FilterSet):
     article = django_filters.CharFilter(field_name="article", method="filter_article")
     author = django_filters.CharFilter(field_name="article__authors", method="filter_user")
-    eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user")
     editor = django_filters.CharFilter(
         field_name="article__editorassignment__editor",
         method="filter_user",
@@ -153,3 +152,7 @@ class ArticleWorkflowFilter(django_filters.FilterSet):
             | Q(**{f"{name}__last_name__icontains": value})
         )
         return queryset.filter(filters)
+
+
+class EOArticleWorkflowFilter(BaseArticleWorkflowFilter):
+    eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user")

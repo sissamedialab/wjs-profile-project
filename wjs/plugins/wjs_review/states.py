@@ -374,6 +374,13 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         return ""
 
     @classmethod
+    def article_requires_director_attention(cls, article: Article, **kwargs) -> str:
+        """Tell if the article requires attention by the directors."""
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        return ""
+
+    @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
         """Rifle through the situations that require attention."""
         if attention_flag := conditions.author_revision_is_late(article):

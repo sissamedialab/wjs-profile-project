@@ -39,17 +39,17 @@ def review_assignments_of_current_round(article):
 
 
 @register.simple_tag()
-def last_editor_note(article, user):
-    """Return the last note that an editor wrote for himself.
+def last_user_note(article, user):
+    """Return the last note that a user wrote for himself.
 
-    Useful in the editor (and other) main page.
+    Useful in the pending eo listing main page.
     """
     personal_notes = (
         Message.objects.filter(
             content_type=ContentType.objects.get_for_model(article),
-            object_id=article.id,
+            object_id=article.pk,
             actor=user,
-            recipients=user.id,  # do not use `__in=[user]`: we want a note written _only_ to the editor
+            recipients=user,  # do not use `__in=[user]`: we want a note written _only_ to the user themselves
         )
         .exclude(message_type=Message.MessageTypes.SYSTEM)
         .order_by("-created")

@@ -5,7 +5,7 @@ from core.models import Account
 from django.http import HttpRequest
 from journal import models as journal_models
 
-from ..filters import ArticleWorkflowFilter
+from ..filters import EOArticleWorkflowFilter
 from ..models import ArticleWorkflow
 
 
@@ -19,28 +19,28 @@ def test_articleworkflowfilter(journal: journal_models.Journal, create_set_of_ar
     workflows = ArticleWorkflow.objects.all()
 
     # filter by article title
-    article_filterer = ArticleWorkflowFilter(data={"article": "reviewer"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(data={"article": "reviewer"}, queryset=workflows, journal=journal)
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__title__icontains="reviewer"))
 
     # filter by article id
     existing_id = workflows.first().article.id
-    article_filterer = ArticleWorkflowFilter(data={"article": existing_id}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(data={"article": existing_id}, queryset=workflows, journal=journal)
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__id=existing_id))
 
     # filter by editor email
-    article_filterer = ArticleWorkflowFilter(data={"editor": "eee@a.it"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(data={"editor": "eee@a.it"}, queryset=workflows, journal=journal)
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__editorassignment__editor__email="eee@a.it"))
 
     # filter by author email
-    article_filterer = ArticleWorkflowFilter(data={"author": "aaa@a.it"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(data={"author": "aaa@a.it"}, queryset=workflows, journal=journal)
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__authors__email="aaa@a.it"))
 
     # filter by reviewer email
-    article_filterer = ArticleWorkflowFilter(data={"reviewer": "rrr@a.it"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(data={"reviewer": "rrr@a.it"}, queryset=workflows, journal=journal)
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__reviewassignment__reviewer__email="rrr@a.it"))
 
@@ -71,7 +71,7 @@ def test_articleworkflowfilter_filter_status(
 
     for status_filter, qs_method in filters.items():
         with patch(f"plugins.wjs_review.models.ArticleWorkflowQuerySet.{qs_method}") as mock_queryset:
-            article_filterer = ArticleWorkflowFilter(
+            article_filterer = EOArticleWorkflowFilter(
                 data={"status": status_filter},
                 queryset=workflows,
                 request=fake_request,
