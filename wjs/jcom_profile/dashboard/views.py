@@ -5,7 +5,7 @@ from ..mixins import HasJournalRoleMixin
 from .logic import user_primary_role_page
 
 
-class RedirectDashboard(HasJournalRoleMixin, RedirectView):
+class RedirectDashboard(RedirectView):
     """Redirect janeway's dashboard to the public home page."""
 
     def get_redirect_url(self, *args, **kwargs):
