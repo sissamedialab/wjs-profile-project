@@ -1394,7 +1394,7 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
     def setup(self, request, *args, **kwargs):
         """Fetch the ArticleWorkflow instance for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = get_object_or_404(self.model, id=self.kwargs[self.pk_url_kwarg])
+        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
 
     def test_func(self):
         """User must be the article's Editor and must be assigned to the article."""
