@@ -176,7 +176,7 @@ def test_submitting_user_is_main_author_when_setting_is_on(
         assert not article.correspondence_author
 
 
-@pytest.mark.parametrize("user_role", ("staff", "editor", "other"))
+@pytest.mark.parametrize("user_role", ("staff", "editor", "section-editor", "other"))
 @pytest.mark.django_db
 def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_staff_or_editor(
     user,
@@ -190,9 +190,8 @@ def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_st
     # User are staff or editor
     if user_role == "staff":
         jcom_user.is_staff = True
-
-    elif user_role == "editor":
-        user.add_account_role("editor", journal)
+    elif user_role != "other":
+        user.add_account_role(user_role, journal)
     jcom_user.save()
 
     jcom_user.refresh_from_db()
@@ -201,7 +200,7 @@ def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_st
     url = f"/{journal.code}/profile/"
     response = client.get(url)
     assert response.status_code == 200
-    if user_role in ["staff", "editor"]:
+    if user_role in ["staff", "section-editor"]:
         assert ASSIGNMENT_PARAMETERS_SPAN in response.content.decode()
 
 
@@ -219,42 +218,42 @@ def test_assignment_parameters_button_is_not_present_without_journal(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("user_role", ("other", "editor"))
+@pytest.mark.parametrize("user_role", ("other", "editor", "section-editor"))
 def test_editor_can_change_his_parameters(journal, roles, user_role, user):
     client = Client()
-    jcom_user = JCOMProfile.objects.get(janeway_account=user)
-    jcom_user.gdpr_checkbox = True
-    jcom_user.is_active = True
+    current_user = JCOMProfile.objects.get(janeway_account=user)
+    current_user.gdpr_checkbox = True
+    current_user.is_active = True
     # User are staff or editor
 
-    if user_role == "editor":
-        user.add_account_role("editor", journal)
-    jcom_user.save()
+    if user_role != "other":
+        user.add_account_role(user_role, journal)
+    current_user.save()
 
-    client.force_login(jcom_user)
+    client.force_login(current_user)
 
     url = f"/{journal.code}/update/parameters/"
     response = client.get(url)
 
-    if user_role == "editor":
+    if user_role == "section-editor":
         assert response.status_code == 200
     else:
         assert response.status_code == 403
 
 
 @pytest.mark.django_db
-def test_update_editor_assignment_parameters(editor, roles, keywords, journal):
+def test_update_editor_assignment_parameters(section_editor, roles, keywords, journal):
     keywords_id = Keyword.objects.all().values_list("id", flat=True)
     workload = 10
 
     client = Client()
-    client.force_login(editor)
+    client.force_login(section_editor)
     url = f"/{journal.code}/update/parameters/"
     data = {"keywords": list(keywords_id), "workload": workload}
     response = client.post(url, data)
     assert response.status_code == 302
 
-    assignment_parameters = EditorAssignmentParameters.objects.get(editor=editor, journal=journal)
+    assignment_parameters = EditorAssignmentParameters.objects.get(editor=section_editor, journal=journal)
     editor_keywords = assignment_parameters.editorkeyword_set.all()
     assert assignment_parameters.workload == workload
     for keyword in keywords:

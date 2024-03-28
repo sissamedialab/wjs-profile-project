@@ -16,7 +16,7 @@ def extra_edit_profile_parameters_hook(request_context):
     user = request_context.request.user
     journal = request_context.request.journal
     rendered = ""
-    if user and journal and user.check_role(journal, "editor"):
+    if user and journal and user.check_role(journal, "section-editor"):
         template_name = "extra_edit_profile_card_block.html"
         rendered = render_to_string(
             template_name,
