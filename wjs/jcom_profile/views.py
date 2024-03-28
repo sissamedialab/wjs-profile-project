@@ -528,7 +528,7 @@ class EditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
         journal = self.request.journal
         return user.check_role(
             journal,
-            "editor",
+            "section-editor",
         )
 
     def get_object(self, queryset=None):  # noqa
