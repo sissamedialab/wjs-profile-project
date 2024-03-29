@@ -16,6 +16,7 @@ INSTALLED_APPS = [
     "django_bootstrap5",
     "hijack.contrib.admin",
     "django_filters",
+    "django_q",
 ]
 
 # This is the default redirect if no other sites are found.
@@ -224,3 +225,14 @@ DEFAULT_ACCEPTANCE_DUE_DATE_MIN = 1
 DEFAULT_ACCEPTANCE_DUE_DATE_MAX = 12
 
 TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS = 3
+
+Q_CLUSTER = {
+    "name": "wjs-janeway",
+    "label": "Task WJS",
+    "workers": 1,
+    "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "db": 10,
+    },
+}
