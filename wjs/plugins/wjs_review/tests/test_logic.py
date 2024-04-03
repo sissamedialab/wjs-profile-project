@@ -5,6 +5,7 @@ import pytest
 from django.conf import settings
 from django.core import mail
 from django.core.exceptions import ValidationError
+from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.timezone import now
@@ -20,10 +21,12 @@ from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from .. import communication_utils
 from ..events.handlers import on_revision_complete
+from ..forms import EditorRevisionRequestEditForm
 from ..logic import (
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
+    AuthorHandleRevision,
     EvaluateReview,
     HandleDecision,
     InviteReviewer,
@@ -31,6 +34,7 @@ from ..logic import (
 )
 from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 from ..plugin_settings import STAGE
+from ..views import ArticleRevisionUpdate
 from .test_helpers import _create_review_assignment, _submit_review
 
 fake_factory = Faker()
@@ -378,7 +382,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
         (ArticleWorkflow.Decisions.MINOR_REVISION, True),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, True),
-        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
     ),
 )
 def test_assign_to_reviewer_after_revision(
@@ -391,7 +395,12 @@ def test_assign_to_reviewer_after_revision(
     revision_type: str,
     previous_assignment: bool,
 ):
-    """Context after completed revision request is marked with revision status flags."""
+    """
+    Context after completed revision request is marked with revision status flags.
+
+    For technical revision we don't issue a new review round / review assignment, so the generated context is going
+    to be for the same review round.
+    """
     fake_request.user = section_editor.janeway_account
     form_data = {
         "decision": revision_type,
@@ -1799,6 +1808,246 @@ def test_handle_editor_decision(
     assert editor_decision.decision == decision
     assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
     assert editor_decision.decision_internal_note == form_data["decision_internal_note"]
+
+
+@pytest.mark.parametrize(
+    "decision",
+    (
+        ArticleWorkflow.Decisions.MINOR_REVISION,
+        ArticleWorkflow.Decisions.MAJOR_REVISION,
+        ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        "something",
+    ),
+)
+@pytest.mark.django_db
+def test_author_handle_revision(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+    decision: str,
+):
+    """
+    Author submitting a revision change the article state.
+
+    If it's a technical revision, the author submits the updated article title and abstract as a first step and then
+    submits the revision (which is handled by the AuthorHandleRevision service): we are actually testing the latter.
+
+    In this case the revision round is not updated.
+
+    If it's a minor or major revision, the author uploads updated files using an existing Janeway's view which does not
+    trigger our logic and then submits the revision (which is handled by the AuthorHandleRevision service).
+    """
+    editor = assigned_article.editorassignment_set.first().editor
+    author = assigned_article.correspondence_author
+    fake_request.user = editor
+    original_review_round = assigned_article.current_review_round()
+    form_data = {
+        "decision": decision,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=assigned_article.editorassignment_set.first().editor,
+        request=fake_request,
+    )
+    if decision not in HandleDecision._decision_handlers:
+        with pytest.raises(ValidationError):
+            handle.run()
+    else:
+        handle.run()
+        assigned_article.refresh_from_db()
+        revision = EditorRevisionRequest.objects.get(article=assigned_article)
+
+        if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            form_class = model_forms.modelform_factory(
+                submission_models.Article,
+                fields=ArticleRevisionUpdate.meta_data_fields,
+            )
+            form_data = {
+                "title": "title",
+                "abstract": "abstract",
+            }
+            form = form_class(data=form_data, instance=assigned_article)
+            assert form.is_valid()
+            form.save()
+
+        form_data = {
+            "author_note": "author_note",
+        }
+        form = EditorRevisionRequestEditForm(data=form_data, instance=revision)
+        assert form.is_valid()
+        form.save()
+
+        fake_request.user = author
+        author = assigned_article.correspondence_author
+        handler = AuthorHandleRevision(revision=revision, form_data=form_data, user=author, request=fake_request)
+        handler.run()
+        assigned_article.refresh_from_db()
+        assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+        if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            assert assigned_article.title == "title"
+            assert assigned_article.abstract == "abstract"
+            assert assigned_article.current_review_round() == original_review_round
+        else:
+            assert assigned_article.current_review_round() == original_review_round + 1
+        assert revision.author_note == "author_note"
+
+
+@pytest.mark.parametrize(
+    "decision1,decision2",
+    (
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.TECHNICAL_REVISION),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.TECHNICAL_REVISION),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_multiple_revision_request_with_author_submission(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+    decision1: str,
+    decision2: str,
+):
+    """
+    A second editor revision can be created after the author has submitted the first revision.
+    """
+    editor_user = assigned_article.editorassignment_set.first().editor
+    fake_request.user = editor_user
+
+    form_data = {
+        "decision": decision1,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=editor_user,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+
+    if decision1 == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+        # submit technical revision
+        form_class = model_forms.modelform_factory(
+            submission_models.Article,
+            fields=ArticleRevisionUpdate.meta_data_fields,
+        )
+        form_data = {
+            "title": "title",
+            "abstract": "abstract",
+        }
+        form = form_class(data=form_data, instance=assigned_article)
+        assert form.is_valid()
+        form.save()
+
+    form_data = {
+        "author_note": "author_note",
+    }
+    form = EditorRevisionRequestEditForm(data=form_data, instance=revision)
+    assert form.is_valid()
+    form.save()
+
+    author = assigned_article.correspondence_author
+    handler = AuthorHandleRevision(revision=revision, form_data=form_data, user=author, request=fake_request)
+    handler.run()
+    assigned_article.refresh_from_db()
+
+    form_data = {
+        "decision": decision2,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=editor_user,
+        request=fake_request,
+    )
+    handle.run()
+    new_revision = EditorRevisionRequest.objects.filter(article=assigned_article).last()
+    assigned_article.refresh_from_db()
+    assigned_article.articleworkflow.refresh_from_db()
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+    assert new_revision.type == decision2
+
+
+@pytest.mark.parametrize(
+    "decision1,decision2",
+    (
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.TECHNICAL_REVISION),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.TECHNICAL_REVISION),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION),
+    ),
+)
+@pytest.mark.django_db
+def test_handle_multiple_revision_request_no_author_submission(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: ReviewForm,
+    decision1: str,
+    decision2: str,
+):
+    """
+    A second editor revision can never be created.
+
+    I.e., when the paper is under revision by the author, the editor cannot ask another revision,
+    no matter what kind of revision (major, minor, technical).
+    """
+    editor_user = assigned_article.editorassignment_set.first().editor
+    fake_request.user = editor_user
+
+    form_data = {
+        "decision": decision1,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=editor_user,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+
+    form_data = {
+        "decision": decision2,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=editor_user,
+        request=fake_request,
+    )
+    with pytest.raises(ValidationError):
+        handle.run()
 
 
 @pytest.mark.django_db

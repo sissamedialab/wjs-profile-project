@@ -4,6 +4,7 @@ Most logic is encapsulated into dataclasses that take the necessary data structu
 action in a method named "run()".
 
 """
+
 import dataclasses
 import datetime
 from copy import copy
@@ -1122,9 +1123,8 @@ class HandleDecision:
         if admin_mode:
             return has_eo_role(editor)
         else:
-            editor_selected = workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
             editor_has_permissions = permissions.is_article_editor(workflow, editor)
-            return editor_selected and editor_has_permissions
+            return editor_has_permissions
 
     @staticmethod
     def check_article_conditions(workflow: ArticleWorkflow, admin_mode: bool) -> bool:
@@ -1145,7 +1145,8 @@ class HandleDecision:
         """Check if the conditions for the decision are met."""
         editor_has_permissions = self.check_editor_conditions(self.workflow, self.user, self.admin_form)
         article_state = self.check_article_conditions(self.workflow, self.admin_form)
-        return editor_has_permissions and article_state
+        handler_exists = self.form_data["decision"] in self._decision_handlers
+        return editor_has_permissions and article_state and handler_exists
 
     def _trigger_article_event(self, event: str, context: Dict[str, Any]):
         """Trigger the given event."""
@@ -1488,9 +1489,11 @@ class HandleDecision:
         revision = EditorRevisionRequest.objects.create(
             article=self.workflow.article,
             editor=self.user,
-            type=ArticleWorkflow.Decisions.MINOR_REVISION
-            if self.form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
-            else ArticleWorkflow.Decisions.MAJOR_REVISION,
+            type=(
+                ArticleWorkflow.Decisions.MINOR_REVISION
+                if self.form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
+                else ArticleWorkflow.Decisions.MAJOR_REVISION
+            ),
             date_requested=timezone.now(),
             date_due=self.form_data["date_due"],
             editor_note=self.form_data["decision_editor_report"],
@@ -1532,14 +1535,12 @@ class HandleDecision:
 
     def _store_decision(self) -> EditorDecision:
         """Store decision information."""
-        decision, __ = EditorDecision.objects.get_or_create(
+        decision = EditorDecision.objects.create(
             workflow=self.workflow,
             review_round=self.workflow.article.current_review_round_object(),
-            defaults={
-                "decision": self.form_data["decision"],
-                "decision_editor_report": self.form_data["decision_editor_report"],
-                "decision_internal_note": self.form_data["decision_internal_note"],
-            },
+            decision=self.form_data["decision"],
+            decision_editor_report=self.form_data["decision_editor_report"],
+            decision_internal_note=self.form_data["decision_internal_note"],
         )
         return decision
 

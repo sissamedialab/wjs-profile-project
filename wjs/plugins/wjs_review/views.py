@@ -1247,7 +1247,7 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
         """
         Executed when either EditorRevisionRequestEditForm or MetadataForm is valid.
 
-        Depending on the form and the submit button, differenct actions are taken:
+        Depending on the form and the submit button, different actions are taken:
         - if the submit button is "confirmed", it means the user has confirmed the revision, the control is passed to
           ```AuthorHandleRevision``` logic class to complete the revision submission process and redirect to article
           status page;
