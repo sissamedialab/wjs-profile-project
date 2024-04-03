@@ -63,14 +63,19 @@ def dispatch_checks(article: submission_models.Article) -> Optional[bool]:
 
 
 def on_revision_complete(**kwargs) -> None:
-    """When a new article revision is submitted, start the revision process again."""
+    """
+    When a new article revision is submitted, start the revision process again.
+
+    State is reset to EDITOR_SELECTED and a new review round is created unless the revision is a technical revision.
+    """
     article = kwargs["revision"].article
     article.articleworkflow.author_submits_again()
-    new_round_number = article.current_review_round() + 1
-    review_models.ReviewRound.objects.create(article=article, round_number=new_round_number)
+    if kwargs["revision"].type != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+        new_round_number = article.current_review_round() + 1
+        review_models.ReviewRound.objects.create(article=article, round_number=new_round_number)
     article.articleworkflow.save()
     article.stage = submission_models.STAGE_ASSIGNED
-    # NB: STAGE_ASSIGNED is the correct stage here, becase the other candidate STAGE_UNDER_REVIEW is set by
+    # NB: STAGE_ASSIGNED is the correct stage here, because the other candidate STAGE_UNDER_REVIEW is set by
     # review.logic.quick_assign() only when a review assigment is created.
     article.save()
 

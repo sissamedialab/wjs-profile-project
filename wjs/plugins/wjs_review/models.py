@@ -1,4 +1,5 @@
 """WJS Review and related models."""
+
 from typing import Optional
 
 from core import models as core_models
@@ -418,7 +419,7 @@ class EditorDecision(TimeStampedModel):
     class Meta:
         verbose_name = _("Editor decision")
         verbose_name_plural = _("Editor decisions")
-        unique_together = ("workflow", "review_round")
+        unique_together = ("workflow", "review_round", "decision")
 
     def __str__(self):
         return f"{self.decision} (Article {self.workflow.article.id}-{self.review_round.round_number})"
