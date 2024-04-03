@@ -62,6 +62,7 @@ class WjsReviewConfig(AppConfig):
             on_article_submitted,
             on_revision_complete,
             on_workflow_submitted,
+            perform_checks_at_acceptance,
             send_to_prophy,
         )
 
@@ -139,6 +140,12 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_ARTICLE_UNDECLINED,
             transactional_emails.send_article_decision,
+        )
+
+        # When an article is accepted, verify if it is ready for typesetters
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_ACCEPTED,
+            perform_checks_at_acceptance,
         )
 
         # Disable these three functions

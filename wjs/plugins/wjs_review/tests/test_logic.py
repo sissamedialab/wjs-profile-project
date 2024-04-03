@@ -31,7 +31,7 @@ from ..logic import (
 )
 from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
 from ..plugin_settings import STAGE
-from .test_helpers import _create_review_assignment, _submit_review, get_next_workflow
+from .test_helpers import _create_review_assignment, _submit_review
 
 fake_factory = Faker()
 
@@ -1467,7 +1467,7 @@ def test_handle_admin_decision_wrong_state(
 @pytest.mark.parametrize(
     "decision,final_state",
     (
-        (ArticleWorkflow.Decisions.ACCEPT, ArticleWorkflow.ReviewStates.ACCEPTED),
+        (ArticleWorkflow.Decisions.ACCEPT, ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER),
         (ArticleWorkflow.Decisions.REJECT, ArticleWorkflow.ReviewStates.REJECTED),
         (ArticleWorkflow.Decisions.NOT_SUITABLE, ArticleWorkflow.ReviewStates.NOT_SUITABLE),
         (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
@@ -1626,9 +1626,7 @@ def test_handle_editor_decision(
         assert revision_request_message_subject in revision_request_mail.subject
         assert revision_request_message_body in revision_request_mail.body
     elif decision == ArticleWorkflow.Decisions.ACCEPT:
-        # article is moved to the next stage by ON_WORKFLOW_ELEMENT_COMPLETE event triggered by HandleDecision
-        next_stage = get_next_workflow(assigned_article.journal)
-        assert assigned_article.stage == next_stage.stage
+        assert assigned_article.stage == submission_models.STAGE_ACCEPTED
         assert assigned_article.articleworkflow.state == final_state
         # Prepare subject and body
         accept_message_subject = get_setting(

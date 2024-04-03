@@ -9,6 +9,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from ..events import ReviewEvent
 from ..models import ArticleWorkflow
 from ..plugin_settings import STAGE
+from .conftest import _accept_article
 
 
 @pytest.mark.django_db
@@ -83,6 +84,40 @@ def test_submitted_workflow_issues(
     )
     submitted_workflow.refresh_from_db()
     assert submitted_workflow.state == ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
+
+
+@pytest.mark.parametrize(
+    "function_name, expected_state",
+    (
+        ("wjs_review.events.checks.always_reject", ArticleWorkflow.ReviewStates.ACCEPTED),
+        ("wjs_review.events.checks_after_acceptance.always_pass", ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER),
+    ),
+)
+@pytest.mark.django_db
+def test_accepted_workflow_issues(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    settings,
+    function_name,
+    expected_state,
+):
+    """When an article is accepted, checks are run.
+
+    - if they pass, article state is bumped from accepted to ready-for-typ
+    - if they don't pass, article state is not changed
+    """
+    settings.WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
+        assigned_article.journal.code: [function_name],
+    }
+    fake_request.user = assigned_article.editorassignment_set.first().editor
+    # Signal is emitted on acceptance and check functions should run.
+    # Even if the checks fail, the logic class should not raise any exception.
+    _accept_article(fake_request, assigned_article)
+    # TODO: check for a message to the EO after approach is validated
+
+    assigned_article.refresh_from_db()
+    assert assigned_article.articleworkflow.state == expected_state
 
 
 @pytest.mark.django_db

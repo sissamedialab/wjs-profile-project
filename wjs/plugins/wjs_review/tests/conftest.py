@@ -109,7 +109,12 @@ def _accept_article(
         request=fake_request,
     ).run()
     workflow = editor_decision.workflow
-    assert workflow.state == ArticleWorkflow.ReviewStates.ACCEPTED
+    # An accepted article can be moved to READY_FOR_TYPESETTER (most common case) or be left in ACCEPTED state if there
+    # are issues that must be resolved before the paper is ready for tyepsetters.
+    assert workflow.state in (
+        ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+        ArticleWorkflow.ReviewStates.ACCEPTED,
+    )
     cleanup_notifications_side_effects()
     return workflow.article
 
@@ -131,7 +136,9 @@ def accepted_article(fake_request, assigned_article) -> ArticleWorkflow:
 
 
 def _ready_for_typesetter_article(article) -> ArticleWorkflow:
-    workflow = VerifyProductionRequirements(articleworkflow=article.articleworkflow).run()
+    workflow = article.articleworkflow
+    if workflow.state == ArticleWorkflow.ReviewStates.ACCEPTED:
+        workflow = VerifyProductionRequirements(articleworkflow=workflow).run()
     assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
     cleanup_notifications_side_effects()
     return workflow.article
