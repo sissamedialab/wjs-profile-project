@@ -19,6 +19,7 @@ from django.urls.base import clear_script_prefix, clear_url_caches, set_script_p
 from django.utils import timezone, translation
 from django.utils.timezone import now
 from django.utils.translation import activate
+from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
@@ -55,6 +56,7 @@ from wjs.jcom_profile.factories import (
     SectionFactory,
     SpecialIssueFactory,
     UserFactory,
+    yesterday,
 )
 from wjs.jcom_profile.models import (
     ArticleWrapper,
@@ -70,7 +72,6 @@ random.seed(42)
 
 USERNAME = "user"
 JOURNAL_CODE = "JCOM"
-yesterday = timezone.now() - timezone.timedelta(1)
 
 EXTRAFIELDS_FRAGMENTS = [
     # Profession - a <select>
@@ -386,6 +387,13 @@ def journal_factory(press):
         return _journal_factory(code, press)
 
     return create_journal
+
+
+@pytest.fixture(autouse=True, scope="session")
+def set_fixed_time():
+    """Set a fixed time for all tests."""
+    with freeze_time("2024-01-14 23:34:45 +00:00", tick=True):
+        yield
 
 
 @pytest.fixture
@@ -761,7 +769,7 @@ pytest_factoryboy.register(SpecialIssueFactory, "fb_special_issue")
 pytest_factoryboy.register(
     SpecialIssueFactory,
     "open_special_issue",
-    open_date=yesterday,
+    open_date=factory.LazyFunction(yesterday),
     close_date=None,
 )
 pytest_factoryboy.register(IssueFactory, "fb_issue")

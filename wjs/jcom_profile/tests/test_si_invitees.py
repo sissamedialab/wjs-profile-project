@@ -3,9 +3,8 @@ import lxml.html
 import pytest
 from django.test import Client
 from django.urls import reverse
-from django.utils import timezone
 
-from wjs.jcom_profile.factories import SpecialIssueFactory
+from wjs.jcom_profile.factories import SpecialIssueFactory, yesterday
 
 # generic lxml regexp namespace used in tests
 regexpNS = "http://exslt.org/regular-expressions"  # noqa: N816
@@ -138,16 +137,15 @@ class TestSIInvitees:
         client.force_login(admin)
         client.get(f"/{journal.code}/")
 
-        yesterday = timezone.now() - timezone.timedelta(1)
-        si_no_invitees = SpecialIssueFactory(open_date=yesterday, journal=journal)
+        si_no_invitees = SpecialIssueFactory(open_date=yesterday(), journal=journal)
         si_no_invitees.invitees.clear()
 
         # Korpiklaani
-        si_vodka = SpecialIssueFactory(open_date=yesterday, journal=journal)
+        si_vodka = SpecialIssueFactory(open_date=yesterday(), journal=journal)
         si_vodka.invitees.set([admin])
 
         # Elio e le storie tese
-        si_lafestadellemedie = SpecialIssueFactory(open_date=yesterday, journal=journal)
+        si_lafestadellemedie = SpecialIssueFactory(open_date=yesterday(), journal=journal)
         si_lafestadellemedie.invitees.set([existing_user])
 
         assert admin.janeway_account in si_vodka.invitees.all()

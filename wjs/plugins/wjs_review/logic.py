@@ -1587,7 +1587,7 @@ class PostponeRevisionRequestDueDate:
 
     def _check_postponed_date_due_too_far_future(self) -> bool:
         max_threshold = settings.REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD
-        max_date = timezone.now().date() + datetime.timedelta(days=max_threshold)
+        max_date = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=max_threshold)
         return self.form_data["date_due"] >= max_date
 
     def _get_message_context(self) -> Dict[str, Any]:
@@ -1908,7 +1908,7 @@ class PostponeReviewerDueDate:
 
     def _report_postponed_far_future_date(self) -> bool:
         """Check if the editor postponed due date far in the future."""
-        if self.form_data["date_due"] >= timezone.now().date() + datetime.timedelta(
+        if self.form_data["date_due"] >= timezone.localtime(timezone.now()).date() + datetime.timedelta(
             days=settings.DAYS_CONSIDERED_FAR_FUTURE,
         ):
             return True
@@ -1983,7 +1983,7 @@ class PostponeReviewerDueDate:
 
     def check_date_conditions(self) -> bool:
         """Check if the date is in the future."""
-        return self.form_data["date_due"] > timezone.now().date()
+        return self.form_data["date_due"] > timezone.localtime(timezone.now()).date()
 
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""

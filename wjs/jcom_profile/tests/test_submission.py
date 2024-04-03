@@ -12,6 +12,7 @@ from submission.models import Article, Section
 from utils import setting_handler
 
 from wjs.jcom_profile import views
+from wjs.jcom_profile.factories import yesterday
 from wjs.jcom_profile.models import SpecialIssue
 
 # generic lxml regexp namespace used in tests
@@ -129,8 +130,7 @@ class TestSIStage:
         with open date in the past and no close date."""
         client = Client()
         client.force_login(admin)
-        yesterday = timezone.now() - timezone.timedelta(1)
-        SpecialIssue.objects.create(name="Test SI", journal=article.journal, open_date=yesterday)
+        SpecialIssue.objects.create(name="Test SI", journal=article.journal, open_date=yesterday())
         assert SpecialIssue.objects.open_for_submission().exists()
         # visit the correct page
         url = f"/{article.journal.code}/submit/{article.pk}/info/"
@@ -151,9 +151,13 @@ class TestSIStage:
         with open date in the past and close date in the future."""
         client = Client()
         client.force_login(admin)
-        yesterday = timezone.now() - timezone.timedelta(1)
         tomorrow = timezone.now() + timezone.timedelta(1)
-        SpecialIssue.objects.create(name="Test SI", journal=article.journal, open_date=yesterday, close_date=tomorrow)
+        SpecialIssue.objects.create(
+            name="Test SI",
+            journal=article.journal,
+            open_date=yesterday(),
+            close_date=tomorrow,
+        )
         assert SpecialIssue.objects.open_for_submission().exists()
         # visit the correct page
         url = f"/{article.journal.code}/submit/{article.pk}/info/"
@@ -187,13 +191,12 @@ def journal_with_three_sections(journal):
 def special_issue_with_all_sections(journal_with_three_sections):
     """Make a special issue that allows all journal's "section"s."""
     sections = journal_with_three_sections.section_set.all()
-    yesterday = timezone.now() - timezone.timedelta(1)
     special_issue = SpecialIssue.objects.create(
         journal=journal_with_three_sections,
         name="Special Issue One Section",
         description="SIONE description",
         short_name="SIONE",
-        open_date=yesterday,
+        open_date=yesterday(),
     )
     special_issue.allowed_sections.set(sections)
     special_issue.save()
@@ -209,13 +212,12 @@ def special_issue_with_two_sections(journal_with_three_sections):
         Section.objects.get(name="Article", journal=journal_with_three_sections, public_submissions=True),
         Section.objects.get(name="Editorial", journal=journal_with_three_sections, public_submissions=False),
     )
-    yesterday = timezone.now() - timezone.timedelta(1)
     special_issue = SpecialIssue.objects.create(
         journal=journal_with_three_sections,
         name="Special Issue Two Sections",
         description="SITWO description",
         short_name="SITWO",
-        open_date=yesterday,
+        open_date=yesterday(),
     )
     special_issue.allowed_sections.set(sections)
     special_issue.save()

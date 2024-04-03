@@ -8,8 +8,8 @@ introductory one.
 import pytest
 from submission import models as submission_models
 
+from wjs.jcom_profile.factories import yesterday
 from wjs.jcom_profile.models import Genealogy
-from wjs.jcom_profile.tests.conftest import yesterday
 
 
 class TestGenealogyModel:
@@ -54,7 +54,7 @@ def related_and_not_related_articles(
         title="Lone wolf",
         abstract="Lonewolfabstract",
         journal=journal,
-        date_published=yesterday,
+        date_published=yesterday(),
         stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=author_a,
         section=section_factory(),
@@ -67,7 +67,7 @@ def related_and_not_related_articles(
         title="Parent",
         abstract="Parentabstract",
         journal=journal,
-        date_published=yesterday,
+        date_published=yesterday(),
         stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=author_p,
         section=section_factory(),
@@ -80,7 +80,7 @@ def related_and_not_related_articles(
         title="Children",
         abstract="Childrenabstract",
         journal=journal,
-        date_published=yesterday,
+        date_published=yesterday(),
         stage=submission_models.STAGE_PUBLISHED,
         correspondence_author=author_c,
         section=section_factory(),
