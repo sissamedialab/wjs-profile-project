@@ -119,14 +119,25 @@ RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}
 """
 
+# Functions that check if a just-submitted article might have issues
+# that would require EO attention before editor assigment
+WJS_REVIEW_CHECK_FUNCTIONS = {
+    None: ("wjs_review.events.checks.always_accept",),
+    "JCOM": ("wjs_review.events.checks.always_accept",),
+}
+
+# Functions that determine which editor is assigned to an article
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     None: "wjs_review.events.assignment.default_assign_editors_to_articles",
     "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
-WJS_REVIEW_CHECK_FUNCTIONS = {
-    None: ("wjs_review.events.checks.always_accept",),
-    "JCOM": ("wjs_review.events.checks.always_accept",),
+# Functions that check if a just-accepted article might have issues
+# that would prevent a typesetter from taking it in charge
+WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
+    None: ("wjs_review.events.checks_after_acceptance.always_pass",),
+    "JCOM": ("wjs_review.events.checks_after_acceptance.always_pass",),
+    "JCOMAL": ("wjs_review.events.checks_after_acceptance.always_pass",),
 }
 
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")

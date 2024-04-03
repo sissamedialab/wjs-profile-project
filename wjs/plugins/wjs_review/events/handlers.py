@@ -5,9 +5,11 @@ from django.utils.module_loading import import_string
 from events import logic as events_logic
 from review import models as review_models
 from submission import models as submission_models
+from submission.models import Article
 from utils.logger import get_logger
 
 from ..communication_utils import log_operation
+from ..logic import VerifyProductionRequirements
 from ..models import ArticleWorkflow, Message, ProphyAccount, ProphyCandidate
 from ..plugin_settings import STAGE
 from ..prophy import Prophy
@@ -109,18 +111,19 @@ def send_to_prophy(**kwargs) -> None:
     return
 
 
-# https://gitlab.sissamedialab.it/wjs/specs/-/issues/684 (drop this comment)
 def perform_checks_at_acceptance(**kwargs):
     """Check if a paper can go to the workflow state READY_FOR_TYPESETTER.
 
     This function should be called just after the paper has been accepted.
     """
-    # TODO:
-    # - register for even ON_ARTICLE_ACCEPTED
-    # - write logic class PerformPostAcceptanceCheck
-    #   - for now, just bump the workflow state
-    #   - add placeholder-variables (in django settings) and function (in events.check?) to do nothing
-    # - review with US ID:NA row:243 order:218
+    article: Article = kwargs["article"]
+    if article.articleworkflow.state == ArticleWorkflow.ReviewStates.ACCEPTED:
+        VerifyProductionRequirements(article.articleworkflow).run()
+    else:
+        logger.error(
+            f"Wrong signal call: attempting to perform acceptance checks on article {article.pk}"
+            " in state {article.articleworkflow.state}. Please check your signal registrations.",
+        )
 
 
 def clean_prophy_candidates(**kwargs) -> None:

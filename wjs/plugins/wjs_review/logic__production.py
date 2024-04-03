@@ -2,16 +2,18 @@
 
 This module should be *-imported into logic.py
 """
-
 import dataclasses
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import HttpRequest
+from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.module_loading import import_string
 from django_fsm import can_proceed
+from events import logic as events_logic
 from plugins.typesetting.models import (
     GalleyProofing,
     TypesettingAssignment,
@@ -37,10 +39,56 @@ class VerifyProductionRequirements:
 
     articleworkflow: ArticleWorkflow
 
+    def _check_conditions(self) -> bool:
+        # TODO: do we have any other conditions to check?
+        return self._perform_checks()
+
+    def _perform_checks(self) -> bool:
+        """Apply functions that verify if an accepted article is ready for typs."""
+        journal = self.articleworkflow.article.journal.code
+        checks_functions = settings.WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS.get(
+            journal,
+            settings.WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS.get(None, []),
+        )
+        # TODO: how do we report issues?
+        for check_function in checks_functions:
+            if not import_string(check_function)(self.articleworkflow.article):
+                return False
+        return True
+
+    def _log_acceptance_issues(self):
+        """Log that something prevented an accepted article to be ready for tyepsetters."""
+        message_subject = (
+            f"Issues after acceptance - article {self.articleworkflow.article.pk} not ready for typesetters."
+        )
+        message_body = f"""Some issues prevented {self.articleworkflow} from being set ready for typesetter.
+
+        Please check {reverse_lazy("wjs_article_details", kwargs={"pk": self.articleworkflow.article.pk})}
+
+        """
+
+        message = communication_utils.log_operation(
+            article=self.articleworkflow.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[
+                communication_utils.get_eo_user(self.articleworkflow.article),
+            ],
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+        return message
+
     def run(self) -> ArticleWorkflow:
-        self.articleworkflow.system_verifies_production_requirements()
-        self.articleworkflow.save()
-        return self.articleworkflow
+        with transaction.atomic():
+            if not self._check_conditions():
+                # Here we do not raise an exception, because doing so would prevent an editor from accepting an
+                # article. Instead we send a message to EO.
+                self._log_acceptance_issues()
+            else:
+                self.articleworkflow.system_verifies_production_requirements()
+                self.articleworkflow.save()
+            return self.articleworkflow
 
 
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/667
@@ -237,3 +285,33 @@ class SendProofs:
     #     - when proofs are in, typ can ask for another round
     # The choosen solution must allow us to keep track of changes that the typ makes to the typeset files in each round
     # (similar to versioning the files)
+
+
+@dataclasses.dataclass
+class PublishArticle:
+    """Manage an article's publication."""
+
+    # Placeholder!
+
+    workflow: ArticleWorkflow
+    request: HttpRequest
+
+    def _trigger_workflow_event(self):
+        # TODO: review me!
+        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
+        workflow_kwargs = {
+            "handshake_url": "wjs_review_list",
+            "request": self.request,
+            "article": self.workflow.article,
+            "switch_stage": True,
+        }
+        self._trigger_article_event(events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
+
+    def _trigger_article_event(self, event: str, context: Dict[str, Any]):
+        # TODO: refactor with Handledecision._trigger_article_event
+        """Trigger the given event."""
+        return events_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
+
+    def run(self):
+        # TODO: writeme!
+        self._trigger_workflow_event()

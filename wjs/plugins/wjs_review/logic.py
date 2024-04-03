@@ -1148,19 +1148,8 @@ class HandleDecision:
         return editor_has_permissions and article_state
 
     def _trigger_article_event(self, event: str, context: Dict[str, Any]):
-        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
-
+        """Trigger the given event."""
         return events_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
-
-    def _trigger_workflow_event(self):
-        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
-        workflow_kwargs = {
-            "handshake_url": "wjs_review_list",
-            "request": self.request,
-            "article": self.workflow.article,
-            "switch_stage": True,
-        }
-        self._trigger_article_event(events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
 
     def _get_message_context(
         self,
@@ -1395,7 +1384,6 @@ class HandleDecision:
         self._trigger_article_event(events_logic.Events.ON_ARTICLE_ACCEPTED, context)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._log_accept(context)
-        self._trigger_workflow_event()
         return self.workflow.article
 
     def _decline_article(self) -> Article:
