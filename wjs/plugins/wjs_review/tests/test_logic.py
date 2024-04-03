@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from faker import Faker
 from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm
@@ -407,7 +407,7 @@ def test_assign_to_reviewer_after_revision(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     if previous_assignment:
         _create_review_assignment(
@@ -429,7 +429,7 @@ def test_assign_to_reviewer_after_revision(
     revision_request.save()
     on_revision_complete(revision=revision_request)
 
-    acceptance_due_date = now().date() + datetime.timedelta(days=7)
+    acceptance_due_date = localtime(now()).date() + datetime.timedelta(days=7)
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         reviewer=normal_user.janeway_account,
@@ -729,7 +729,8 @@ def test_handle_accept_invite_reviewer(
 
     assert not assignment.date_declined
     assert not assignment.is_complete
-    assert assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+    calculated_date = localtime(now()).date() + datetime.timedelta(default_review_days)
+    assert assignment.date_due == calculated_date
 
     if accept_gdpr:
         assert invited_user.is_active
@@ -811,7 +812,7 @@ def test_handle_decline_invite_reviewer(
     assert not assignment.date_accepted
     assert assignment.date_declined
     assert assignment.is_complete
-    assert assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+    assert assignment.date_due == localtime(now()).date() + datetime.timedelta(default_review_days)
 
 
 @pytest.mark.django_db
@@ -827,7 +828,7 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    assert review_assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+    assert review_assignment.date_due == localtime(now()).date() + datetime.timedelta(default_review_days)
     new_date_due = review_assignment.date_due + datetime.timedelta(days=1)
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
@@ -868,7 +869,7 @@ def test_handle_update_due_date_in_evaluate_review_in_the_past(
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    assert review_assignment.date_due == now().date() + datetime.timedelta(default_review_days)
+    assert review_assignment.date_due == localtime(now()).date() + datetime.timedelta(default_review_days)
     new_date_due = review_assignment.date_due - datetime.timedelta(days=1)
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
@@ -1845,7 +1846,7 @@ def test_author_handle_revision(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -1928,7 +1929,7 @@ def test_handle_multiple_revision_request_with_author_submission(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -1971,7 +1972,7 @@ def test_handle_multiple_revision_request_with_author_submission(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -2022,7 +2023,7 @@ def test_handle_multiple_revision_request_no_author_submission(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -2038,7 +2039,7 @@ def test_handle_multiple_revision_request_no_author_submission(
         "decision_editor_report": "random message",
         "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -2239,7 +2240,7 @@ def test_postpone_due_date(
 
     fake_request.user = review_assignment.editor
     initial_date_due = review_assignment.date_due
-    _now = now().date()
+    _now = localtime(now()).date()
     form_data = {
         "date_due": _now + datetime.timedelta(days=postpone_date),
     }

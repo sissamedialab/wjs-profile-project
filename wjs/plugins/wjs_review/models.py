@@ -230,7 +230,7 @@ class ArticleWorkflow(TimeStampedModel):
     # editor writes editor report
     @transition(
         field=state,
-        source=ReviewStates.EDITOR_SELECTED,
+        source=[ReviewStates.TO_BE_REVISED, ReviewStates.EDITOR_SELECTED],
         target=ReviewStates.PAPER_HAS_EDITOR_REPORT,
         permission=permissions.is_article_editor,
         # TODO: conditions=[],
