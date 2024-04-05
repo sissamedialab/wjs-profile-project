@@ -1,6 +1,9 @@
 {% load i18n wjs_review %}
+
 {% with round=typesettingassignment.round %}
     <p class="h3">Typesetting Round (round {{ round.round_number }})</p>
+{# FIXME: showing all articles files until specs#746 , specs#73 and specs#670 are completed #}
+{% include "wjs_review/elements/article_files_listing.html" with round=round %}
 {% endwith %}
 {% for file in typesettingassignment.files_to_typeset.all %}
     File: {{ file.original_filename }}

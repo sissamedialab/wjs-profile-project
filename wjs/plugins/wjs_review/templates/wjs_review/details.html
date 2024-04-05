@@ -105,12 +105,17 @@
                     <div class="col">
                         {% if workflow|is_user_one_of_the_authors:request.user %}
                             {% include "wjs_review/elements/revision_request_list.html" %}
+                            {% include "wjs_review/elements/typesetting_assignment_list.html" %}
                         {% elif workflow|is_user_article_reviewer:request.user %}
                             {% include "wjs_review/elements/reviewer_review_assignment_list.html" %}
-                        {% elif request.user|is_user_eo or workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
+                        {% elif workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
                             {% include "wjs_review/elements/editor_review_assignment_list.html" %}
+                        <!-- FIXME: Need better specifications regarding what other roles can see about Trypesetting -->
                         {% elif workflow|is_user_typesetter:request.user %}
                             {% include "wjs_review/elements/revision_request_list.html" %}
+                            {% include "wjs_review/elements/typesetting_assignment_list.html" %}
+                        {% elif request.user|is_user_eo %}
+                            {% include "wjs_review/elements/editor_review_assignment_list.html" %}
                             {% include "wjs_review/elements/typesetting_assignment_list.html" %}
                         {% endif %}
                     </div>

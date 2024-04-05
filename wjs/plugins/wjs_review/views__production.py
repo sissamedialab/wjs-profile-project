@@ -2,12 +2,20 @@
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.views.generic import ListView
+from django.core.exceptions import ValidationError
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
+from django.views.generic import ListView, UpdateView, View
 from journal.models import Journal
+from plugins.typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import permissions as base_permissions
 
+from .forms__production import TypesetterUploadFilesForm
+from .logic__production import HandleDownloadRevisionFiles
 from .models import ArticleWorkflow
+from .permissions import is_article_typesetter
 
 Account = get_user_model()
 
@@ -76,3 +84,62 @@ class TypesetterWorkingOn(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 class TypesetterArchived(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """A view showing all past papers of a typesetter."""
+
+
+class TypesetterUploadFiles(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+    """View allowing the typesetter to upload files."""
+
+    model = TypesettingAssignment
+    form_class = TypesetterUploadFilesForm
+    template_name = "wjs_review/typesetter_upload_files.html"
+
+    def test_func(self):
+        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).round.article.articleworkflow
+        return is_article_typesetter(self.article, self.request.user)
+
+    def get_success_url(self):
+        """Point back to the article's detail page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.article.pk})
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        return kwargs
+
+
+class DownloadRevisionFiles(UserPassesTestMixin, LoginRequiredMixin, View):
+    """
+    View to allow the Typesetter to download the last-revision files for an article.
+    """
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
+
+    def test_func(self):
+        """User must be the article's typesetter"""
+        return is_article_typesetter(self.object, self.request.user) or base_permissions.has_eo_role(self.request.user)
+
+    def get_logic_instance(self):
+        """Instantiate :py:class:`HandleDownloadRevisionFiles` class."""
+        service = HandleDownloadRevisionFiles(
+            workflow=self.object,
+            request=self.request,
+        )
+        return service
+
+    def get(self, *args, **kwargs):
+        """Serve the archive for download using HttpResponse."""
+        service = self.get_logic_instance()
+        try:
+            archive_bytes = service.run()
+            response = HttpResponse(archive_bytes, content_type="application/zip")
+            response["Content-Disposition"] = 'attachment; filename="revision_files.zip"'
+            return response
+        except ValidationError:
+            # FIXME: how do we want to handle this error?
+            return Http404
