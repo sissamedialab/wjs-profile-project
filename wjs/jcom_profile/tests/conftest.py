@@ -1,4 +1,5 @@
 """pytest common stuff and fixtures."""
+
 import os
 import random
 from datetime import timedelta
@@ -19,7 +20,6 @@ from django.urls.base import clear_script_prefix, clear_url_caches, set_script_p
 from django.utils import timezone, translation
 from django.utils.timezone import now
 from django.utils.translation import activate
-from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
@@ -387,13 +387,6 @@ def journal_factory(press):
         return _journal_factory(code, press)
 
     return create_journal
-
-
-@pytest.fixture(autouse=True, scope="session")
-def set_fixed_time():
-    """Set a fixed time for all tests."""
-    with freeze_time("2024-01-14 23:34:45 +00:00", tick=True):
-        yield
 
 
 @pytest.fixture

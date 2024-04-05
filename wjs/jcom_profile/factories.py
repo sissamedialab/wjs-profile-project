@@ -2,6 +2,7 @@
 
 Used in management commands and tests.
 """
+
 import factory
 from comms.models import NewsItem
 from core.models import Account
