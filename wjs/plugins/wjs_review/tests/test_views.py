@@ -166,6 +166,7 @@ def test_invite_function_creates_inactive_user(
     client: Client,
     assigned_article: submission_models.Article,
     review_form: ReviewForm,
+    fake_request: HttpRequest,
 ):
     section_editor = assigned_article.editorassignment_set.first().editor
     url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
@@ -199,17 +200,21 @@ def test_invite_function_creates_inactive_user(
             assert getattr(invited_user, field) == data[field]
     assert invited_user.invitation_token == invitation_token
 
-    subject_review_assignment = get_setting(
-        "email_subject",
-        "subject_review_assignment",
-        assigned_article.journal,
-    ).processed_value
+    review_assignment_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
     acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
     assert len(mail.outbox) == 1
     # Check messages
     assert Message.objects.count() == 1
     message_to_reviewer = Message.objects.first()
-    assert subject_review_assignment == message_to_reviewer.subject
+    assert review_assignment_subject == message_to_reviewer.subject
+    assert assigned_article.title in message_to_reviewer.subject
     assert "random message" in message_to_reviewer.body
     assert acceptance_url in message_to_reviewer.body
     assert message_to_reviewer.message_type == "Verbose"

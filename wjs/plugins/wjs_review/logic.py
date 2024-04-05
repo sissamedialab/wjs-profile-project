@@ -378,11 +378,14 @@ class AssignToReviewer:
         else:
             message_type = Message.MessageTypes.VERBOSE
 
-        review_assignment_subject = get_setting(
+        review_assignment_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_assignment",
             journal=self.workflow.article.journal,
-        ).processed_value
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_assignment",
@@ -894,11 +897,14 @@ class SubmitReview:
         - To the editor(s): (settings: {subject_,}review_complete_acknowledgement)
         """
         # Message to the reviewer
-        reviewer_message_subject = get_setting(
+        reviewer_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_complete_reviewer_acknowledgement",
             journal=self.assignment.article.journal,
-        ).processed_value
+            request=self.request,
+            context=self._get_reviewer_message_context(),
+            template_is_setting=True,
+        )
         reviewer_message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_complete_reviewer_acknowledgement",
@@ -920,11 +926,14 @@ class SubmitReview:
             message_type=message_type,
         )
         # Message to the editor
-        editor_message_subject = get_setting(
+        editor_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_complete_acknowledgement",
             journal=self.assignment.article.journal,
-        ).processed_value
+            request=self.request,
+            context=self._get_reviewer_message_context(),
+            template_is_setting=True,
+        )
         editor_message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_complete_acknowledgement",
