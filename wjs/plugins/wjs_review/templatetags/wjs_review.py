@@ -315,11 +315,15 @@ def days_since(date: Union[datetime.datetime, datetime.date]) -> int:
 
 
 @register.filter
-def typesetting_assignments(article: Article, user: Account):
+def typesetting_assignments(article: Article, user: Account = None):
     """
-    Returns the list of Typesetting Assignments assigned to the current user.
+    Returns the list of Typesetting Assignments assigned to the current user, if specified.
+    If no user is specified, returns all Typesetting Assignments for the given article.
     """
-    return TypesettingAssignment.objects.filter(round__article=article, typesetter=user)
+    query = TypesettingAssignment.objects.filter(round__article=article)
+    if user is not None:
+        query = query.filter(typesetter=user)
+    return query
 
 
 @register.simple_tag

@@ -1,0 +1,14 @@
+<ul>
+    {% for file in round.article.manuscript_files.all %}
+        <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+    {% endfor %}
+    {% for file in round.article.data_figure_files.all %}
+        <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+    {% endfor %}
+    {% for file in round.article.supplementary_files.all %}
+        <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file.file }}</a></li>
+    {% endfor %}
+    {% for file in round.article.source_files.all %}
+        <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
+    {% endfor %}
+</ul>

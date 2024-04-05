@@ -3,8 +3,12 @@
 This module should be *-imported into logic.py
 """
 import dataclasses
+from io import BytesIO
 from typing import Any, Dict, Optional
+from zipfile import ZipFile
 
+from core.files import save_file_to_article
+from core.models import File
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -315,3 +319,74 @@ class PublishArticle:
     def run(self):
         # TODO: writeme!
         self._trigger_workflow_event()
+
+
+@dataclasses.dataclass
+class UploadFile:
+    """Allow the typesetter to upload typesetting files."""
+
+    typesetter: Account
+    request: HttpRequest
+    assignment: TypesettingAssignment
+    file_to_upload: File
+
+    def _remove_file_from_assignment(self):
+        """Empties the files_to_typeset field of TypesettingAssignment."""
+        self.assignment.files_to_typeset.clear()
+
+    def _delete_core_files_record(self):
+        file_record = self.assignment.files_to_typeset.get()
+        file_record.delete()
+
+    def _update_typesetting_assignment(self, uploaded_file):
+        """Create the relation in files_to_typeset field of TypesettingAssignment"""
+        self.assignment.files_to_typeset.add(uploaded_file)
+
+    def run(self):
+        """Main method to execute the file upload logic."""
+        with transaction.atomic():
+            # Check if there are any files already associated
+            if self.assignment.files_to_typeset.exists():
+                self._delete_core_files_record()
+                self._remove_file_from_assignment()
+
+            uploaded_file = save_file_to_article(self.file_to_upload, self.assignment.round.article, self.typesetter)
+            self._update_typesetting_assignment(uploaded_file)
+
+
+@dataclasses.dataclass
+class HandleDownloadRevisionFiles:
+    """Handle download of revision files."""
+
+    workflow: ArticleWorkflow
+    request: HttpRequest
+
+    def _gather_files(self):
+        """Gather all files to download."""
+        self.workflow.rename_manuscript_files()
+        self.workflow.rename_source_files()
+        manuscript_files = list(self.workflow.article.manuscript_files.all())
+        data_figure_files = list(self.workflow.article.data_figure_files.all())
+        supplementary_files = [supp.file for supp in self.workflow.article.supplementary_files.all()]
+        source_files = list(self.workflow.article.source_files.all())
+
+        all_files = manuscript_files + data_figure_files + supplementary_files + source_files
+        return all_files
+
+    def _create_archive(self, files):
+        """Create a ZIP archive from the given files."""
+        in_memory = BytesIO()
+        with ZipFile(in_memory, "w") as archive:
+            for file in files:
+                file_path = file.self_article_path()
+                archive.write(file_path, arcname=file.original_filename)
+
+        in_memory.seek(0)
+        return in_memory
+
+    def run(self):
+        """Serve the archive for download."""
+        files = self._gather_files()
+        archive = self._create_archive(files)
+
+        return archive.getvalue()

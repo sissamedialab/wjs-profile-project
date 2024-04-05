@@ -1,4 +1,15 @@
 {% load wjs_review %}
-{% for assignment in workflow.article|typesetting_assignments:request.user %}
-    {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=assignment %}
-{% endfor %}
+<!-- FIXME: see if this is ok for other roles -->
+{% if workflow|is_user_one_of_the_authors:request.user %}
+    {% for assignment in workflow.article|typesetting_assignments %}
+        {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=assignment %}
+    {% endfor %}
+{% endif %}
+
+{% if workflow|is_user_typesetter:request.user %}
+    {% for assignment in workflow.article|typesetting_assignments:request.user %}
+        {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=assignment %}
+    {% endfor %}
+{% endif %}
+
+<a href="{% url 'download_revision_files' pk=workflow.pk %}" class="button">Download All Files</a>

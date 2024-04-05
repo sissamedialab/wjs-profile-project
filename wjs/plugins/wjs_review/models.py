@@ -392,6 +392,14 @@ class ArticleWorkflow(TimeStampedModel):
     def system_verifies_production_requirements(self):
         pass
 
+    def rename_manuscript_files(self):
+        # TODO: WRITEME!
+        pass
+
+    def rename_source_files(self):
+        # TODO: WRITEME!
+        pass
+
     # TODO: manage special transition from * to WITHDRAWN # NOQA E800
     # TBV # @transition(                                  # NOQA E800
     # TBV #     field=state,                              # NOQA E800
