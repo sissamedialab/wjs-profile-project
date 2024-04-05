@@ -92,6 +92,45 @@ def test_user_sees_recipientee_messages(
 
 
 @pytest.mark.django_db
+def test_director_sees_all_journal_messages(
+    article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    director: JCOMProfile,
+):
+    """Test that a director sees all messages related to the journal they are director of."""
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    assert Message.objects.count() == 0
+    msg1 = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body="CIAOOONE",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.id,
+    )
+    msg1.recipients.add(tuvok)
+    msg2 = Message.objects.create(
+        actor=tuvok,
+        subject="",
+        body="EHILAAAAA",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.id,
+    )
+    msg2.recipients.add(chakotay)
+    assert msg1.recipients.count() == 1
+    assert msg1.recipients.first() != chakotay
+    assert msg1.actor != director
+    assert msg1.recipients.first() != director
+
+    assert msg2.recipients.count() == 1
+    assert msg2.recipients.first() != tuvok
+    assert msg2.actor != director
+    assert msg2.recipients.first() != director
+    messages = get_messages_related_to_me(director, article)
+    assert messages.count() == 2
+
+
+@pytest.mark.django_db
 def test_post_message_form_with_attachment_creates_file(
     review_settings,
     article: submission_models.Article,

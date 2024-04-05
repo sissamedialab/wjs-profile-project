@@ -668,8 +668,7 @@ def test_registration_as_logged_user_via_post_in_homepage_plugin(
     assert Recipient.objects.filter(user=jcom_user, journal=journal).count() == 0
     # Add some keywords to the journal
     kwd_count = 3
-    keywords = [keyword_factory() for _ in range(kwd_count)]
-    journal.keywords.set(keywords)
+    journal.keywords.set(keyword_factory.create_batch(kwd_count))
     assert submission_models.Keyword.objects.count() == kwd_count
     # Force language in Django test client https://docs.djangoproject.com/en/4.1/topics/testing/tools/#setting-the-language   # noqa: E501
     client.cookies.load({settings.LANGUAGE_COOKIE_NAME: language})
