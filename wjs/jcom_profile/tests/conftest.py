@@ -457,7 +457,7 @@ def submitted_articles(journal) -> List[submission_models.Article]:
     return _create_submitted_articles(journal)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def create_submitted_articles() -> Callable[[journal_models.Journal, int], List[submission_models.Article]]:
     """Yield a function to create generic articles with random date_published."""
 

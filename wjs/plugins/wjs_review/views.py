@@ -1,6 +1,7 @@
 from itertools import chain
 from typing import Any, Dict, List, Optional, Type, Union
 
+import django_filters
 from core import files as core_files
 from core import models as core_models
 from django import forms
@@ -37,7 +38,12 @@ from wjs.jcom_profile.mixins import HtmxMixin
 
 from . import permissions
 from .communication_utils import get_messages_related_to_me
-from .filters import BaseArticleWorkflowFilter, EOArticleWorkflowFilter
+from .filters import (
+    AuthorArticleWorkflowFilter,
+    EOArticleWorkflowFilter,
+    ReviewerArticleWorkflowFilter,
+    StaffArticleWorkflowFilter,
+)
 from .forms import (
     ArticleReviewStateForm,
     DecisionForm,
@@ -94,40 +100,90 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return base_permissions.has_eo_role(self.request.user)
 
 
-class ListArticles(LoginRequiredMixin, ListView):
+class FilterSetMixin:
+    filterset_class = EOArticleWorkflowFilter
+    filterset: django_filters.FilterSet
+
+    def setup(self, request, *args, **kwargs):
+        """Setup and validate filterset data."""
+        super().setup(request, *args, **kwargs)
+        self.filterset = self.filterset_class(
+            self.request.GET,
+            queryset=self._apply_base_filters(self.model.objects.all()),
+            request=self.request,
+            journal=self.request.journal,
+        )
+        self.filterset.is_valid()
+
+    def _apply_base_filters(self, qs):
+        """Apply some base filters before the filterset's "dynamic" ones.
+
+        This function should be overridden by classes that use this mixin if they have particular needs,
+        such a filtering on specific users (editor, reviewer,...) or states (pending, production,...) etc.
+        """
+        return qs.filter(
+            article__journal=self.request.journal,
+        )
+
+    def get_queryset(self):
+        """Filter article by state and filterset values."""
+        qs = super().get_queryset()
+        base_qs = self._apply_base_filters(qs)
+        return self.filterset.filter_queryset(base_qs)
+
+    def get_context_data(self, **kwargs):
+        """Add the filterset."""
+        context = super().get_context_data(**kwargs)
+        context["filter"] = self.filterset
+        return context
+
+
+class EditorPending(FilterSetMixin, LoginRequiredMixin, ListView):
     """Editor's main page."""
 
     model = ArticleWorkflow
     ordering = "id"
     template_name = "wjs_review/reviews.html"
     context_object_name = "workflows"
+    filterset_class = StaffArticleWorkflowFilter
+    filterset: StaffArticleWorkflowFilter
 
-    def get_queryset(self):
-        """Keep only articles (workflows) for which the user is editor."""
+    def _apply_base_filters(self, qs):
+        """
+        Keep only articles (workflows) for which the user is editor.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
         # TODO: what happens to EditorAssignments when the editor is changed?
         #       - we want to track the info about past assignments
         #       - we want to have only one "live" editor an any given moment
-        return ArticleWorkflow.objects.filter(
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             article__editorassignment__editor__in=[self.request.user],
             state__in=states_when_article_is_considered_in_review,
         )
 
 
-class ListArchivedArticles(LoginRequiredMixin, ListView):
+class EditorArchived(EditorPending):
     model = ArticleWorkflow
     ordering = "id"
     template_name = "wjs_review/reviews.html"
     context_object_name = "workflows"
 
-    def get_queryset(self):
-        """Keep only articles (workflows) for which the user is editor and a "final" decision has been made."""
-        return ArticleWorkflow.objects.filter(
+    def _apply_base_filters(self, qs):
+        """
+        Keep only articles (workflows) for which the user is editor and a "final" decision has been made.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             article__editorassignment__editor__in=[self.request.user],
             state__in=states_when_article_is_considered_archived,
         )
 
 
-class EOPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class EOPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """EO's main page."""
 
     model = ArticleWorkflow
@@ -141,40 +197,27 @@ class EOPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
         """Allow access only to EO (or staff)."""
         return base_permissions.has_admin_role(self.request.journal, self.request.user)
 
-    def setup(self, request, *args, **kwargs):
-        """Setup and validate filterset data."""
-        super().setup(request, *args, **kwargs)
-        self.filterset = self.filterset_class(
-            self.request.GET,
-            queryset=self._apply_base_filters(self.model.objects.all()),
-            request=self.request,
-            journal=self.request.journal,
-        )
-        self.filterset.is_valid()
-
     def _apply_base_filters(self, qs):
-        return qs.filter(
-            article__journal=self.request.journal,
+        """
+        Get all the articles in pending state.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_in_review,
         )
 
-    def get_queryset(self):
-        """Filter article by state and filterset values."""
-        base_qs = self._apply_base_filters(super().get_queryset())
-        return self.filterset.filter_queryset(base_qs)
-
-    def get_context_data(self, **kwargs):
-        """Add the filterset."""
-        context = super().get_context_data(**kwargs)
-        context["filter"] = self.filterset
-        return context
-
 
 class EOArchived(EOPending):
-    def get_queryset(self):
-        """Get all published / withdrawn / rejected / not suitable articles."""
-        return ArticleWorkflow.objects.filter(
-            article__journal=self.request.journal,
+    def _apply_base_filters(self, qs):
+        """
+        Keep only articles (workflows) for which a "final" decision has been made.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_archived,
         )
 
@@ -186,10 +229,14 @@ class EOArchived(EOPending):
 
 
 class EOProduction(EOPending):
-    def get_queryset(self):
-        """Get all articles in production."""
-        return ArticleWorkflow.objects.filter(
-            article__journal=self.request.journal,
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles in production.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_in_production,
         )
 
@@ -201,10 +248,14 @@ class EOProduction(EOPending):
 
 
 class EOMissingEditor(EOPending):
-    def get_queryset(self):
-        """Get all articles that should be assigned to some editor to be reviewed."""
-        return ArticleWorkflow.objects.filter(
-            article__journal=self.request.journal,
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles that should be assigned to some editor to be reviewed.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_missing_editor,
         )
 
@@ -215,15 +266,15 @@ class EOMissingEditor(EOPending):
         return context
 
 
-class DirectorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class DirectorPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Director's main page."""
 
     model = ArticleWorkflow
     ordering = "id"
     template_name = "wjs_review/director_pending.html"
     context_object_name = "workflows"
-    filterset_class = EOArticleWorkflowFilter
-    filterset: BaseArticleWorkflowFilter
+    filterset_class = StaffArticleWorkflowFilter
+    filterset: StaffArticleWorkflowFilter
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -236,43 +287,32 @@ class DirectorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
         a.article.journal = self.request.journal
         return permissions.has_director_role_by_article(a, self.request.user)
 
-    def setup(self, request, *args, **kwargs):
-        """Setup and validate filterset data."""
-        super().setup(request, *args, **kwargs)
-        self.filterset = self.filterset_class(
-            self.request.GET,
-            queryset=self._apply_base_filters(self.model.objects.all()),
-            request=self.request,
-            journal=self.request.journal,
-        )
-        self.filterset.is_valid()
-
     def _apply_base_filters(self, qs):
-        return qs.filter(
-            article__journal=self.request.journal,
-            state__in=states_when_article_is_considered_in_review,
-        ).exclude(
-            article__authors=self.request.user,
+        """
+        Get all articles in review state except the ones where the director is also the author.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return (
+            FilterSetMixin._apply_base_filters(self, qs)
+            .filter(state__in=states_when_article_is_considered_in_review)
+            .exclude(article__authors=self.request.user)
         )
-
-    def get_queryset(self):
-        """Filter article by state and filterset values."""
-        base_qs = self._apply_base_filters(super().get_queryset())
-        return self.filterset.filter_queryset(base_qs)
-
-    def get_context_data(self, **kwargs):
-        """Add the filterset."""
-        context = super().get_context_data(**kwargs)
-        context["filter"] = self.filterset
-        return context
 
 
 class DirectorArchived(DirectorPending):
-    def get_queryset(self):
-        """Get all published / withdrawn / rejected / not suitable articles."""
-        return ArticleWorkflow.objects.filter(
-            article__journal=self.request.journal,
-            state__in=states_when_article_is_considered_archived,
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles in final states except the ones where the director is also the author.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return (
+            FilterSetMixin._apply_base_filters(self, qs)
+            .filter(state__in=states_when_article_is_considered_archived)
+            .exclude(article__authors=self.request.user)
         )
 
     def get_context_data(self, **kwargs):
@@ -282,31 +322,43 @@ class DirectorArchived(DirectorPending):
         return context
 
 
-class AuthorPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class AuthorPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Author's main page."""
 
     model = ArticleWorkflow
     ordering = "id"
     template_name = "wjs_review/author_pending.html"
     context_object_name = "workflows"
+    filterset_class = AuthorArticleWorkflowFilter
+    filterset: AuthorArticleWorkflowFilter
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
         return base_permissions.has_author_role(self.request.journal, self.request.user)
 
-    def get_queryset(self):
-        """Keep only pending (no final decision) articles."""
-        return ArticleWorkflow.objects.filter(
-            Q(article__journal=self.request.journal, state__in=states_when_article_is_considered_in_review)
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles in pending states where the user is the author.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
+            Q(state__in=states_when_article_is_considered_in_review)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
 
 
 class AuthorArchived(AuthorPending):
-    def get_queryset(self):
-        """Get all published / withdrawn / rejected / not suitable articles."""
-        return ArticleWorkflow.objects.filter(
-            Q(article__journal=self.request.journal, state__in=states_when_article_is_considered_archived)
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles in final states where the user is the author.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
+            Q(state__in=states_when_article_is_considered_archived)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
 
@@ -317,34 +369,44 @@ class AuthorArchived(AuthorPending):
         return context
 
 
-class ReviewerPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class ReviewerPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Reviewer's main page."""
 
     model = ArticleWorkflow
     ordering = "id"
     template_name = "wjs_review/reviewer_pending.html"
     context_object_name = "workflows"
+    filterset_class = ReviewerArticleWorkflowFilter
+    filterset: ReviewerArticleWorkflowFilter
 
     def test_func(self):
         """Allow access only for Reviewers of this Journal"""
         return base_permissions.has_reviewer_role(self.request.journal, self.request.user)
 
-    def get_queryset(self):
-        """Keep only pending (no final decision) articles."""
-        return ArticleWorkflow.objects.filter(
-            article__journal=self.request.journal,
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles with pending reviews from the current user.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             article__reviewassignment__reviewer=self.request.user,
             article__reviewassignment__is_complete=False,
         )
 
 
-class ReviewerArchived(AuthorPending):
-    def get_queryset(self):
-        """Get all published / withdrawn / rejected / not suitable articles."""
-        return ArticleWorkflow.objects.filter(
-            article__journal=self.request.journal,
-            article__reviewassignment__is_complete=True,
+class ReviewerArchived(ReviewerPending):
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles with completed reviews from the current user.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return FilterSetMixin._apply_base_filters(self, qs).filter(
             article__reviewassignment__reviewer=self.request.user,
+            article__reviewassignment__is_complete=True,
         )
 
     def get_context_data(self, **kwargs):
