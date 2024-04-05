@@ -169,15 +169,19 @@ def test_assign_to_reviewer_hijacked(
     user_emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
     editor_emails = [m for m in mail.outbox if m.to[0] == section_editor.email]
 
-    subject_review_assignment = get_setting(
-        "email_subject",
-        "subject_review_assignment",
-        assigned_article.journal,
-    ).processed_value
+    review_assignment_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
 
     assert len(user_emails) == 1
     assert len(editor_emails) == 1
-    assert subject_review_assignment in user_emails[0].subject
+    assert review_assignment_subject in user_emails[0].subject
+    assert assigned_article.title in user_emails[0].subject
     assert f"User {eo_user} executed Request to review" in editor_emails[0].subject
 
 
@@ -239,11 +243,14 @@ def test_assign_to_reviewer(
     assert assignment.editor == section_editor.janeway_account
     assert not assignment.author_note_visible
 
-    subject_review_assignment = get_setting(
-        "email_subject",
-        "subject_review_assignment",
-        assigned_article.journal,
-    ).processed_value
+    review_assignment_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
     url = reverse(
         "wjs_evaluate_review",
         kwargs={"assignment_id": assignment.pk},
@@ -254,14 +261,15 @@ def test_assign_to_reviewer(
     assert len(mail.outbox) == 1
     emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
     assert len(emails) == 1
-    assert subject_review_assignment in emails[0].subject
+    assert review_assignment_subject in emails[0].subject
+    assert assigned_article.title in emails[0].subject
     assert "You have been invited" not in emails[0].body
     assert acceptance_url in emails[0].body
     assert "random message" in emails[0].body
     # Check messages
     assert Message.objects.count() == 1
     message_to_invited_user = Message.objects.first()
-    assert message_to_invited_user.subject == subject_review_assignment
+    assert message_to_invited_user.subject == review_assignment_subject
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
     assert "You have been invited" not in message_to_invited_user.body
@@ -627,11 +635,14 @@ def test_invite_reviewer(
     assert assignment.editor == section_editor.janeway_account
     assert assignment.workflowreviewassignment.author_note_visible
 
-    subject_review_assignment = get_setting(
-        "email_subject",
-        "subject_review_assignment",
-        assigned_article.journal,
-    ).processed_value
+    review_assignment_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
     url = reverse(
         "wjs_evaluate_review",
         kwargs={"token": invitation_token, "assignment_id": assigned_article.reviewassignment_set.first().pk},
@@ -643,14 +654,15 @@ def test_invite_reviewer(
     assert len(mail.outbox) == 1
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
     assert len(emails) == 1
-    assert subject_review_assignment in emails[0].subject
+    assert review_assignment_subject in emails[0].subject
+    assert assigned_article.title in emails[0].subject
     assert "is a diamond open access" in emails[0].body
     assert acceptance_url in emails[0].body
     assert "random message" in emails[0].body
     # Check messages
     assert Message.objects.count() == 1
     message_to_invited_user = Message.objects.first()
-    assert message_to_invited_user.subject == subject_review_assignment
+    assert message_to_invited_user.subject == review_assignment_subject
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
     assert "is a diamond open access" in message_to_invited_user.body
@@ -1019,12 +1031,17 @@ def test_submit_review_messages(
     message_to_the_reviewer = (
         Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).order_by("created").last()
     )
-    reviewer_message_subject = get_setting(
+    reviewer_message_subject = render_template_from_setting(
         setting_group_name="email_subject",
         setting_name="subject_review_complete_reviewer_acknowledgement",
         journal=assigned_article.journal,
-    ).processed_value
-    assert message_to_the_reviewer.subject == reviewer_message_subject
+        request=fake_request,
+        context={
+            "review_assignment": review_assignment,
+            "article": assigned_article,
+        },
+        template_is_setting=True,
+    )
     reviewer_message_body = render_template_from_setting(
         setting_group_name="email",
         setting_name="review_complete_reviewer_acknowledgement",
@@ -1036,6 +1053,7 @@ def test_submit_review_messages(
         },
         template_is_setting=True,
     )
+    assert message_to_the_reviewer.subject == reviewer_message_subject
     assert message_to_the_reviewer.body == reviewer_message_body
     assert message_to_the_reviewer.message_type == Message.MessageTypes.VERBOSE
     message_to_the_editor = Message.objects.get(recipients__pk=review_assignment.editor.pk)
