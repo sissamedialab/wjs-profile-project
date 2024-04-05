@@ -16,7 +16,8 @@ def status_choices() -> list[tuple[str, str]]:
     """
     Return the list of status choices for the ArticleWorkflowFilter.
 
-    It includes the symbolic status cases, and the choices from the ArticleWorkflow.ReviewStates.choices.
+    It includes the symbolic status cases, ArticleWorkflow.ReviewStates.choices must be loaded during filterset
+    initialization.
     """
     return [
         ("with_unread_messages", _("With any unread messages")),
@@ -25,11 +26,56 @@ def status_choices() -> list[tuple[str, str]]:
         ("with_reviews", _("With assigned reviews for current review round")),
         ("with_pending_reviews", _("With pending reviews for current review round")),
         ("with_all_completed_reviews", _("With all reviews completed for current review round")),
-    ] + ArticleWorkflow.ReviewStates.choices
+    ]
 
 
 class BaseArticleWorkflowFilter(django_filters.FilterSet):
     article = django_filters.CharFilter(field_name="article", method="filter_article")
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = ["article__language", "article__keywords", "article__section"]
+
+    def __init__(self, *args, **kwargs):
+        self._journal = kwargs.pop("journal", None)
+        super().__init__(*args, **kwargs)
+
+    def filter_article(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
+        """
+        Filter by article's title, identifier by substring, and id by exact match.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: target article foreign key field name
+        :type name: str
+        :param value: the value to filter
+        :type value: Union[str, int]
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value:
+            filters = Q(**{f"{name}__title__icontains": value})
+            filters |= Q(**{f"{name}__identifier__identifier__icontains": value})
+            try:
+                filters |= Q(**{f"{name}__id": int(value)})
+            except ValueError:
+                pass
+            return queryset.filter(filters)
+        return queryset
+
+
+class AuthorArticleWorkflowFilter(BaseArticleWorkflowFilter):
+    # Empty to ease further customization
+    pass
+
+
+class ReviewerArticleWorkflowFilter(BaseArticleWorkflowFilter):
+    # Empty to ease further customization
+    pass
+
+
+class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
     author = django_filters.CharFilter(field_name="article__authors", method="filter_user")
     editor = django_filters.CharFilter(
         field_name="article__editorassignment__editor",
@@ -46,7 +92,7 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         queryset=Issue.objects.filter(issue_type__code="collection"),
     )
     status = django_filters.ChoiceFilter(
-        choices=status_choices,
+        choices=[],
         field_name="state",
         method="filter_status",
     )
@@ -56,7 +102,6 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         fields = ["article__language", "article__keywords", "article__section"]
 
     def __init__(self, *args, **kwargs):
-        self._journal = kwargs.pop("journal", None)
         super().__init__(*args, **kwargs)
         self.filters = self.select_filters()
 
@@ -77,6 +122,10 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         filters["article__section"].queryset = (
             self.filters["article__section"].queryset.filter(journal=self._journal).order_by("name")
         )
+        available_states = self.queryset.values_list("state", flat=True).distinct()
+        filters["status"].field.choices = status_choices() + [
+            state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
+        ]
         return filters
 
     def filter_status(self, queryset: ArticleWorkflowQuerySet, name: str, value: str) -> QuerySet:
@@ -108,29 +157,9 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
             return queryset.with_pending_reviews()
         if value == "with_all_completed_reviews":
             return queryset.with_all_completed_reviews()
-        return queryset.filter(**{name: value})
-
-    def filter_article(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
-        """
-        Filter by article's title, identifier by substring, and id by exact match.
-
-        :param queryset: the queryset to filter
-        :type queryset: QuerySet
-        :param name: target article foreign key field name
-        :type name: str
-        :param value: the value to filter
-        :type value: Union[str, int]
-
-        :return: the filtered queryset
-        :rtype: QuerySet
-        """
-        filters = Q(**{f"{name}__title__icontains": value})
-        filters |= Q(**{f"{name}__identifier__identifier__icontains": value})
-        try:
-            filters |= Q(**{f"{name}__id": int(value)})
-        except ValueError:
-            pass
-        return queryset.filter(filters)
+        if value:
+            return queryset.filter(**{name: value})
+        return queryset
 
     def filter_user(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
         """
@@ -146,13 +175,15 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         :return: the filtered queryset
         :rtype: QuerySet
         """
-        filters = (
-            Q(**{f"{name}__email__icontains": value})
-            | Q(**{f"{name}__first_name__icontains": value})
-            | Q(**{f"{name}__last_name__icontains": value})
-        )
-        return queryset.filter(filters)
+        if value:
+            filters = (
+                Q(**{f"{name}__email__icontains": value})
+                | Q(**{f"{name}__first_name__icontains": value})
+                | Q(**{f"{name}__last_name__icontains": value})
+            )
+            return queryset.filter(filters)
+        return queryset
 
 
-class EOArticleWorkflowFilter(BaseArticleWorkflowFilter):
+class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
     eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user")

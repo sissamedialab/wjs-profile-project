@@ -1,5 +1,5 @@
 {% extends "wjs_review/base.html" %}
-{% load static %}
+{% load django_bootstrap5 static %}
 {% block bootstrap5_extra_head %}
     {{ block.super }}
     <link rel="stylesheet"
@@ -17,27 +17,10 @@
             <div class="column sm-12">
                 <div class="card border border-2">
                     <div class="card-body">
-                        TODO: <strong>Filters</strong> (click or type to filter paper)
-                        Title, reviewer or author:
-                        <input type="text" />
-                        ;
-                        <button type="button" class="btn btn-secondary">only requiring attention</button>
-                        ;
-                        <span class="dropdown">
-                            <button class="btn btn-secondary dropdown-toggle"
-                                    type="button"
-                                    id="dropdownMenuButton1"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false">Special issue</button>
-                            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
-                                <li>
-                                    <a class="dropdown-item" href="#">SI-1</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="#">...</a>
-                                </li>
-                            </ul>
-                        </span>; ...
+                        <form method="get">
+                            {% bootstrap_form filter.form layout='inline' %}
+                            {% bootstrap_button button_type="submit" name="search" value=1 content="Search" %}
+                        </form>
                     </div>
                 </div>
             </div>
