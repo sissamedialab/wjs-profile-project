@@ -105,6 +105,8 @@ states_when_article_is_considered_missing_editor = [
 class AssignToEditor:
     """
     Assigns an editor to an article and creates a review round to replicate the behaviour of janeway's move_to_review.
+
+    request attribute **must** have user attribute set to the current user.
     """
 
     editor: Account
@@ -166,10 +168,10 @@ class AssignToEditor:
         }
 
     def _log_operation(self, context: Dict[str, Any]):
-        # TODO: should we use signal/events to log the operations?
-        # TODO: should I record the name here also? Probably not...
-        # TODO: this message does not read well in the automatic notification,
-        #       but something like "{article.id} assigned..." won't read well in timeline.
+        if self.request.user and self.request.user.is_authenticated:
+            actor = self.request.user
+        else:
+            actor = None
         editor_assignment_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_editor_assignment",
@@ -192,7 +194,7 @@ class AssignToEditor:
             article=self.workflow.article,
             message_subject=editor_assignment_subject,
             message_body=message_body,
-            # TODO: actor=???,
+            actor=actor,
             recipients=[self.editor],
             message_type=Message.MessageTypes.VERBOSE,
         )
@@ -910,7 +912,7 @@ class SubmitReview:
         else:
             message_type = Message.MessageTypes.VERBOSE
         communication_utils.log_operation(
-            # TODO: actor
+            # no actor as it's a system message
             article=self.assignment.article,
             message_subject=reviewer_message_subject,
             message_body=reviewer_message_body,
@@ -932,7 +934,7 @@ class SubmitReview:
             template_is_setting=True,
         )
         communication_utils.log_operation(
-            # TODO: actor
+            actor=self.assignment.reviewer,
             article=self.assignment.article,
             message_subject=editor_message_subject,
             message_body=editor_message_body,
@@ -1963,6 +1965,7 @@ class PostponeReviewerDueDate:
             template_is_setting=True,
         )
         communication_utils.log_operation(
+            # no actor as it's a system message
             article=self.assignment.article,
             message_subject=message_subject,
             message_body=message_body,
