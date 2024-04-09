@@ -102,6 +102,9 @@ services:
       - DJANGO_SETTINGS_MODULE=core.cicd_test_settings
       - CI_PROJECT_DIR=/build/wjs/wjs-profile-project
       - PYTHONPATH=/build/wjs/wjs-profile-project
+      - POSTGRES_USER=janeway
+      - POSTGRES_PASSWORD=janeway
+      - POSTGRES_DB=janeway
     working_dir: /janeway/src
     depends_on:
       db:
