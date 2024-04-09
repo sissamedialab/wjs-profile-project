@@ -10,11 +10,14 @@ info () {
 }
 export -f info
 
+export PGPASSWORD=${POSTGRES_PASSWORD}
+
 info "Installing wjs..."
 # NB: need -e because of how we run pytest in ci/cd test job
 pip install --extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple -e ${CI_PROJECT_DIR}/[test]
 
 info "Linking plugins..."
+cd /janeway/src/plugins && rm -f wjs*  # cleanup plugins directory
 cd /janeway/src/plugins && for p in `ls -1d ${CI_PROJECT_DIR}/wjs/plugins/wjs*`; do ln -s $p; done
 cd /janeway/src
 
@@ -40,8 +43,9 @@ cp ${CI_PROJECT_DIR}/cicd_* core
 
 info "Loading prepared DB..."
 db_dump=janeway-db-dump.sql
-bunzip2 ${CI_PROJECT_DIR}/${db_dump}.bz2 | true
-python3 manage.py dbshell < ${CI_PROJECT_DIR}/${db_dump} > /dev/null
+dropdb -h db -U janeway --if-exists janeway
+createdb -h db -U janeway janeway
+bunzip2 -c ${CI_PROJECT_DIR}/${db_dump}.bz2 | python3 manage.py dbshell > /dev/null
 
 info "Syncing languages translations..."
 # This is needed to sync extra janeway fields registered as translatable in wjs
