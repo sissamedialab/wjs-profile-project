@@ -24,7 +24,6 @@ NEWSLETTER_URL = "https://jcom.sissa.it"
 WJS_MIDDLEWARE = ("wjs.jcom_profile.middleware.PrivacyAcknowledgedMiddleware",)
 
 INSTALLED_APPS.extend(CUSTOM_APPS)
-INSTALLED_APPS.append("wjs_mgmt_cmds")
 MIDDLEWARE = DEFAULT_MIDDLEWARE + CUSTOM_MIDDLEWARE + WJS_MIDDLEWARE  # noqa
 
 # NEWSLETTER_URL = "http://testserver.com"  # noqa
