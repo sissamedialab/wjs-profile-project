@@ -19,6 +19,15 @@ INSTALLED_APPS = [
     "django_q",
 ]
 
+try:
+    import wjs_mgmt_cmds
+
+    INSTALLED_APPS.append(
+        "wjs_mgmt_cmds",
+    )
+except ImportError:
+    pass
+
 # This is the default redirect if no other sites are found.
 DEFAULT_HOST = "https://www.example.org"
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
