@@ -191,6 +191,8 @@ class SelectReviewerForm(forms.ModelForm):
         We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
         """
         acceptance_due_date = self.cleaned_data["acceptance_due_date"]
+        if not acceptance_due_date:
+            return acceptance_due_date
         if acceptance_due_date < now().date():
             raise forms.ValidationError(_("Date must be in the future"))
         if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
