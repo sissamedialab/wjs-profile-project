@@ -1,8 +1,13 @@
-{% load wjs_review wjs_articles %}
+{% load wjs_review wjs_articles wjs_tags %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
     <tr {% if attention_flag %}class="table-warning"{% endif %}>
         <td>
             <p>
+                {% with preprintid=article|preprintid %}
+                {% if preprintid %}
+                   {{ preprintid }}
+                {% endif %}
+                {% endwith %}
                 <a title="{{ article.title }}"
                    href="{% url 'wjs_article_details' workflow.id %}"
                    class="fw-bold">{{ article.id }}</a>
