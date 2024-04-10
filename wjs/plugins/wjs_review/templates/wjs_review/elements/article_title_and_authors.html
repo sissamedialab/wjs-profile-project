@@ -21,4 +21,9 @@
                 {% endif %}
             {% endif %}
         </p>
+        {% with preprintid=workflow.article|preprintid %}
+        {% if preprintid %}
+        <p>{{ preprintid }}</p>
+        {% endif %}
+    {% endwith %}
 </div>

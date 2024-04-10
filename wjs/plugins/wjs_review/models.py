@@ -3,6 +3,7 @@
 from typing import Optional
 
 from core import models as core_models
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -617,6 +618,10 @@ class Message(TimeStampedModel):
         # TODO: add to the create function of a custom manager? overkill?
         # TODO: use src/utils/notify.py::notification ?
         # (see also notify_hook loaded per-plugin in src/core/include_urls.py)
+
+        if getattr(settings, "NO_NOTIFICATION", None):
+            return
+
         if self.message_type == Message.MessageTypes.SILENT:
             return
 

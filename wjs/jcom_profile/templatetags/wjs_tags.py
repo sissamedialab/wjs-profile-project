@@ -206,3 +206,13 @@ def get_issue_meta_image_url(issue):
 def is_user_eo(user: Account) -> bool:
     """Returns if user is part of the EO."""
     return has_eo_role(user)
+
+
+@register.filter
+def preprintid(article):
+    """Given an Article, returns the preprintid or empty string"""
+    if preprintid := article.get_identifier("preprintid"):
+        return preprintid
+    else:
+        # to replace with return ""
+        return "No wjapp preprintid"
