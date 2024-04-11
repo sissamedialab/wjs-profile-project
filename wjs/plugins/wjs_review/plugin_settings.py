@@ -80,6 +80,7 @@ def set_default_plugin_settings(force: bool = False):
         wjs_prophy_settings_group = SettingGroup.objects.create(name="wjs_prophy", enabled=True)
     email_settings_group = get_group("email")
     email_subject_settings_group = get_group("email_subject")
+    general_group = get_group("general")
 
     def acceptance_due_date():
         acceptance_days_setting: SettingParams = {
@@ -708,7 +709,7 @@ def set_default_plugin_settings(force: bool = False):
             force=force,
         )
 
-    def patch_review_messages():
+    def patch_review_settings():
         editor_assignment_subject_setting: SettingParams = {
             "name": "subject_editor_assignment",
             "group": email_subject_settings_group,
@@ -817,6 +818,24 @@ def set_default_plugin_settings(force: bool = False):
             "translations": {},
         }
         patch_setting(review_message_email_setting, review_message_setting_value)
+        default_review_days_setting: SettingParams = {
+            "name": "default_review_days",
+            "group": general_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for review"),
+            "description": _(
+                "The default number of days before a review assignment is due.",
+            ),
+            "is_translatable": False,
+        }
+        default_review_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 5,
+            "translations": {},
+        }
+        if force:
+            patch_setting(default_review_days_setting, default_review_days_setting_value)
 
     def author_can_contact_director():
         author_can_contact_director_setting: SettingParams = {
@@ -1090,7 +1109,7 @@ def set_default_plugin_settings(force: bool = False):
     review_invitation_message()
     declined_review_message()
     do_review_message()
-    patch_review_messages()
+    patch_review_settings()
     review_decision_revision_request_message()
     review_decision_not_suitable_message()
     revision_request_postpone_date_due_messages()

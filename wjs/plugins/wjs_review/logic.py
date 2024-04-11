@@ -500,6 +500,15 @@ class EvaluateReview:
         """Editor must be assigned to the article."""
         return editor == assignment.editor
 
+    def check_postpone_due_date_too_far_in_the_future(self) -> bool:
+        """Check if the review is postponed far in the future"""
+        date_due = self.form_data.get("date_due", None)
+        if date_due:
+            return date_due > timezone.now().date() + datetime.timedelta(
+                days=settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD,
+            )
+        return False
+
     @staticmethod
     def check_article_conditions(assignment: ReviewAssignment) -> bool:
         """
@@ -524,6 +533,9 @@ class EvaluateReview:
         )
         article_state = self.check_article_conditions(self.assignment)
         return reviewer_conditions and editor_conditions and date_due_set and gdpr_compliant and article_state
+
+    def _handle_postpone_too_far_in_the_future(self):
+        self._log_postpone_too_far_in_the_future()
 
     def _janeway_logic_handle_accept(self):
         """Accept an assignment.
@@ -658,6 +670,17 @@ class EvaluateReview:
             self.assignment.date_due = date_due
             self.assignment.save()
 
+    def _get_postpone_too_far_in_the_future_message_context(self) -> Dict[str, Any]:
+        return {
+            "article": self.assignment.article,
+            "request": self.request,
+            "review_assignment": self.assignment,
+            "reviewer": self.assignment.reviewer,
+            "EO": communication_utils.get_eo_user(self.assignment.article),
+            "editor": self.editor,
+            "date_due": self.form_data["date_due"],
+        }
+
     def _get_accept_message_context(self) -> Dict[str, Any]:
         return {
             "article": self.assignment.article,
@@ -672,6 +695,29 @@ class EvaluateReview:
             "request": self.request,
             "review_assignment": self.assignment,
         }
+
+    def _log_postpone_too_far_in_the_future(self):
+        article = self.assignment.article
+        journal = article.journal
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_far_future_subject",
+            journal=journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_far_future_body",
+            journal=journal,
+            request=self.request,
+            context=self._get_postpone_too_far_in_the_future_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[communication_utils.get_eo_user(article)],
+        )
 
     def _log_accept(self):
         # TODO: exceptions here just disappear
@@ -727,6 +773,8 @@ class EvaluateReview:
             if self.token:
                 self._activate_invitation(self.token)
             self._save_date_due()
+            if self.check_postpone_due_date_too_far_in_the_future():
+                self._handle_postpone_too_far_in_the_future()
             if self.form_data.get("reviewer_decision") == "1":
                 return self._handle_accept()
             if self.form_data.get("reviewer_decision") == "0":
@@ -1919,8 +1967,8 @@ class PostponeReviewerDueDate:
 
     def _report_postponed_far_future_date(self) -> bool:
         """Check if the editor postponed due date far in the future."""
-        if self.form_data["date_due"] >= timezone.localtime(timezone.now()).date() + datetime.timedelta(
-            days=settings.DAYS_CONSIDERED_FAR_FUTURE,
+        if self.form_data["date_due"] > timezone.localtime(timezone.now()).date() + datetime.timedelta(
+            days=settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD,
         ):
             return True
 
