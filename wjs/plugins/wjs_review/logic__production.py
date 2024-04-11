@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from zipfile import ZipFile
 
 from core.files import save_file_to_article
-from core.models import File
+from core.models import File, SupplementaryFile
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -32,7 +32,7 @@ from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils
 from .models import ArticleWorkflow, Message
-from .permissions import has_typesetter_role_by_article
+from .permissions import has_typesetter_role_by_article, is_article_typesetter
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -218,6 +218,10 @@ class AssignTypesetter:
         message.messagerecipients_set.filter(recipient=self.typesetter).update(read=True)
         message.save()
 
+    def save_supplementary_files_at_acceptance(self):
+        """We have an archival model in ArticleWorkflow to save supplementary files at Typesetter acceptance."""
+        self.article.articleworkflow.supplementary_files_at_acceptance.set(self.article.supplementary_files.all())
+
     def run(self) -> TypesettingAssignment:
         with transaction.atomic():
             if not self._check_conditions():
@@ -228,6 +232,7 @@ class AssignTypesetter:
             message = self._log_operation(context=context)
             if self.is_user_typesetter():
                 self._mark_message_read(message)
+            self.save_supplementary_files_at_acceptance()
             return self.assignment
         #  - TBD: create production.models.TypesettingTask
         #  - ✗ TBD: create TypesettingClaim
@@ -396,6 +401,9 @@ class UploadFile:
     assignment: TypesettingAssignment
     file_to_upload: File
 
+    def _check_typesetter_condition(self):
+        return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
+
     def _remove_file_from_assignment(self):
         """Empties the files_to_typeset field of TypesettingAssignment."""
         self.assignment.files_to_typeset.clear()
@@ -411,6 +419,8 @@ class UploadFile:
     def run(self):
         """Main method to execute the file upload logic."""
         with transaction.atomic():
+            if not self._check_typesetter_condition():
+                raise ValueError("Invalid state transition")
             # Check if there are any files already associated
             if self.assignment.files_to_typeset.exists():
                 self._delete_core_files_record()
@@ -456,3 +466,55 @@ class HandleDownloadRevisionFiles:
         archive = self._create_archive(files)
 
         return archive.getvalue()
+
+
+@dataclasses.dataclass
+class HandleCreateSupplementaryFile:
+    """Handle the creation and upload of supplementary files."""
+
+    request: HttpRequest
+    article: Article
+
+    def _create_file_instance(self):
+        file_instance = save_file_to_article(self.request.FILES["file"], self.article, self.request.user)
+        return file_instance
+
+    def _check_typesetter_condition(self):
+        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+
+    def run(self):
+        with transaction.atomic():
+            if not self._check_typesetter_condition():
+                raise ValueError("Invalid state transition")
+
+            file_instance = self._create_file_instance()
+            file_instance.save()
+
+            supplementary_file = SupplementaryFile(file=file_instance)
+            supplementary_file.save()
+
+            self.article.supplementary_files.add(supplementary_file)
+
+        return self.article
+
+
+@dataclasses.dataclass
+class HandleDeleteSupplementaryFile:
+    """Handle the deletion of supplementary files."""
+
+    request: HttpRequest
+    supplementary_file: SupplementaryFile
+    article: Article
+
+    def _check_typesetter_condition(self):
+        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+
+    # We don't check for archival model references, we disassociate the file from the article. In the article's status
+    # page we still show a list of supplementary files at acceptance.
+    def run(self):
+        with transaction.atomic():
+            if not self._check_typesetter_condition():
+                raise ValueError("Invalid state transition")
+            self.supplementary_file.file.unlink_file()
+            self.article.supplementary_files.remove(self.supplementary_file)
+        return

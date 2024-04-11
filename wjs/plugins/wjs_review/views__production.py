@@ -1,19 +1,26 @@
 """Views related to typesetting/production."""
 
+from core.models import File, SupplementaryFile
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from django.views.generic import ListView, UpdateView, View
+from django.views.generic import FormView, ListView, UpdateView, View
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import permissions as base_permissions
+from wjs.jcom_profile.mixins import HtmxMixin
 
-from .forms__production import TypesetterUploadFilesForm
-from .logic__production import HandleDownloadRevisionFiles, RequestProofs
+from .forms__production import FileForm, TypesetterUploadFilesForm
+from .logic__production import (
+    HandleCreateSupplementaryFile,
+    HandleDeleteSupplementaryFile,
+    HandleDownloadRevisionFiles,
+    RequestProofs,
+)
 from .models import ArticleWorkflow
 from .permissions import is_article_typesetter
 
@@ -173,6 +180,76 @@ class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, UpdateVi
 
     def get(self, request, *args, **kwargs):
         """Make the article's state as Ready for Typesetting."""
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            context = {"error": str(e)}
+        else:
+            context = {"article": self.article}
+        return render(request, self.template_name, context)
+
+
+class CreateSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, FormView):
+    """View to allow the typesetter to upload supplementary files."""
+
+    model = File
+    form_class = FileForm
+    template_name = "wjs_review/elements/article_files_listing.html"
+
+    def setup(self, request, *args, **kwargs):
+        """Fetch the Article instance for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.articleworkflow = get_object_or_404(ArticleWorkflow, article_id=self.kwargs["article_id"])
+
+    def test_func(self):
+        """Typesetter can upload files."""
+        return is_article_typesetter(self.articleworkflow, self.request.user)
+
+    def get_logic_instance(self) -> HandleCreateSupplementaryFile:
+        """Instantiate :py:class:`HandleCreateSupplementaryFile` class."""
+        return HandleCreateSupplementaryFile(
+            request=self.request,
+            article=self.articleworkflow.article,
+        )
+
+    def post(self, request, *args, **kwargs):
+        try:
+            service = self.get_logic_instance()
+            self.article = service.run()
+        except ValidationError as e:
+            context = {"error": str(e)}
+        else:
+            self.article.refresh_from_db()
+            context = {"article": self.article}
+        return render(request, self.template_name, context)
+
+
+class DeleteSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, View):
+    """View to allow the typesetter to delete supplementary files."""
+
+    model = SupplementaryFile
+    template_name = "wjs_review/elements/article_files_listing.html"
+
+    def setup(self, request, *args, **kwargs):
+        """Fetch the Article instance for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.supplementary_file = get_object_or_404(self.model, pk=self.kwargs["file_id"])
+        self.article = self.supplementary_file.file.article
+
+    def test_func(self):
+        """Ensure only typesetters can delete files."""
+        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+
+    def get_logic_instance(self) -> HandleDeleteSupplementaryFile:
+        """Instantiate :py:class:`HandleDeleteSupplementaryFile` class."""
+        return HandleDeleteSupplementaryFile(
+            request=self.request,
+            supplementary_file=self.supplementary_file,
+            article=self.article,
+        )
+
+    def post(self, request, *args, **kwargs):
         try:
             service = self.get_logic_instance()
             service.run()

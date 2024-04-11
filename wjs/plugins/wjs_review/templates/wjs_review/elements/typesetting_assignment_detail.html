@@ -2,6 +2,19 @@
 
 {% with round=typesettingassignment.round %}
     <p class="h3">Typesetting Round (round {{ round.round_number }})</p>
+    {% if round.round_number == 1 %}
+    <button class="btn btn-primary"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#rr{{ round.pk }}Files"
+                aria-expanded="false"
+                aria-controls="rr{{ round.pk }}Files">Files at acceptance</button>
+        <div class="collapse" id="rr{{ round.pk }}Files">
+                {% for file in round.article.articleworkflow.supplementary_files_at_acceptance.all %}
+                    <li><a target="_blank" href="{% url 'article_file_download' 'id' round.article.pk file.pk %}">{{ file.file }}</a></li>
+                {% endfor %}
+        </div>
+    {% endif %}
 {# FIXME: showing all articles files until specs#746 , specs#73 and specs#670 are completed #}
 {% include "wjs_review/elements/article_files_listing.html" with round=round %}
 {% endwith %}

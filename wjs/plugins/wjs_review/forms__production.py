@@ -43,3 +43,7 @@ class TypesetterUploadFilesForm(forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class FileForm(forms.Form):
+    file = forms.FileField()
