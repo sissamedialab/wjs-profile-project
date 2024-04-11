@@ -28,6 +28,7 @@ from .views import (
     Manager,
     MessageAttachmentDownloadView,
     PostponeRevisionRequestDueDate,
+    ReadyForProofreadingView,
     ReviewDeclined,
     ReviewEnd,
     ReviewerArchived,
@@ -137,4 +138,5 @@ urlpatterns = [
     path("article/<int:article_id>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
     path("upload_files/<int:pk>/", TypesetterUploadFiles.as_view(), name="wjs_typesetter_upload_files"),
     path("download_revision_files/<int:pk>/", DownloadRevisionFiles.as_view(), name="download_revision_files"),
+    path("ready_for_proofreading/<int:pk>/", ReadyForProofreadingView.as_view(), name="wjs_ready_for_proofreading"),
 ]

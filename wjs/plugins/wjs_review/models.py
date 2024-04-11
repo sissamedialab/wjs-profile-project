@@ -321,7 +321,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.TYPESETTER_SELECTED,
         target=ReviewStates.PROOFREADING,
-        # TODO: permission=,
+        permission=permissions.has_typesetter_role_by_article,
         # TODO: conditions=[],
     )
     def typesetter_submits(self):

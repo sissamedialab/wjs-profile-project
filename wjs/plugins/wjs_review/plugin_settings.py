@@ -1104,6 +1104,58 @@ def set_default_plugin_settings(force: bool = False):
             typesetter_is_assigned_setting["name"],
         )
 
+    # FIXME: Please correct subject and body contents
+    def article_requires_proofreading_message():
+        subject_proofreading_request: SettingParams = {
+            "name": "proofreading_request_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for Proofreading request."),
+            "description": _(
+                "The subject of the notification that is sent to the Author when the paper has been typesetted and is "
+                "ready for proofreading.",
+            ),
+            "is_translatable": False,
+        }
+        subject_proofreading_request_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article {{ article.pk }} ready for proofreading."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_proofreading_request,
+            subject_proofreading_request_setting_value,
+            subject_proofreading_request["name"],
+        )
+        proofreading_request_setting: SettingParams = {
+            "name": "proofreading_request_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for request of Author's proofreading."),
+            "description": _(
+                "The body of the notification that is sent to to the Author when the paper has been typesetted and is "
+                "ready for proofreading.",
+            ),
+            "is_translatable": False,
+        }
+        proofreading_request_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ author.full_name }}, your article {article.title} has been typesetted and is ready
+            for your check.
+
+            Please visit:
+            {% url "wjs_article_details" article.id %}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            proofreading_request_setting,
+            proofreading_request_setting_value,
+            proofreading_request_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1125,6 +1177,7 @@ def set_default_plugin_settings(force: bool = False):
     due_date_far_future_message()
     editor_decline_assignment_message()
     typesetter_is_assigned_message()
+    article_requires_proofreading_message()
 
 
 def ensure_workflow_elements():
