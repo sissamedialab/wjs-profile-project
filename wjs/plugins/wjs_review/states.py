@@ -629,7 +629,8 @@ class TypesetterSelected(BaseState):
             permission=permissions.is_article_typesetter,
             name="Send to Author",
             label="Send to Author",
-            view_name="WRITEME!",
+            view_name="wjs_ready_for_proofreading",
+            custom_get_url=get_url_with_typesetting_assignment_pk,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,

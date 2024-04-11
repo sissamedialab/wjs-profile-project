@@ -1,0 +1,12 @@
+{% extends "wjs_review/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-sm-12">
+            <h2>The article with ID {{ article.pk }} has been successfully dispatched to the author.</h2>
+            <a href="{% url 'wjs_review_list' %}" class="btn btn-primary">Torna alla Home</a>
+        </div>
+    </div>
+</div>
+{% endblock content %}

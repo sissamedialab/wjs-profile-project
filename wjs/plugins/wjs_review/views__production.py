@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.generic import ListView, UpdateView, View
 from journal.models import Journal
@@ -13,7 +13,7 @@ from plugins.typesetting.models import TypesettingAssignment
 from wjs.jcom_profile import permissions as base_permissions
 
 from .forms__production import TypesetterUploadFilesForm
-from .logic__production import HandleDownloadRevisionFiles
+from .logic__production import HandleDownloadRevisionFiles, RequestProofs
 from .models import ArticleWorkflow
 from .permissions import is_article_typesetter
 
@@ -143,3 +143,41 @@ class DownloadRevisionFiles(UserPassesTestMixin, LoginRequiredMixin, View):
         except ValidationError:
             # FIXME: how do we want to handle this error?
             return Http404
+
+
+class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+    """View to allow the Typesetter to mark an article as ready for proofreading."""
+
+    model = TypesettingAssignment
+    template_name = "wjs_review/elements/typesetter_marks_ready_to_proofread.html"
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article and object for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg])
+        self.article = self.object.round.article
+
+    def test_func(self):
+        """User must be the article's typesetter"""
+        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+
+    def get_logic_instance(self):
+        """Instantiate :py:class:`RequestProofs` class."""
+        service = RequestProofs(
+            workflow=self.article.articleworkflow,
+            request=self.request,
+            assignment=self.object,
+            typesetter=self.request.user,
+        )
+        return service
+
+    def get(self, request, *args, **kwargs):
+        """Make the article's state as Ready for Typesetting."""
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            context = {"error": str(e)}
+        else:
+            context = {"article": self.article}
+        return render(request, self.template_name, context)

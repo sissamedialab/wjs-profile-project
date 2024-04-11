@@ -3,6 +3,7 @@
 This module should be *-imported into logic.py
 """
 import dataclasses
+import datetime
 from io import BytesIO
 from typing import Any, Dict, Optional
 from zipfile import ZipFile
@@ -23,7 +24,7 @@ from plugins.typesetting.models import (
     TypesettingAssignment,
     TypesettingRound,
 )
-from submission.models import STAGE_TYPESETTING, Article
+from submission.models import STAGE_PROOFING, STAGE_TYPESETTING, Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -233,7 +234,6 @@ class AssignTypesetter:
         #  - ✗ TBD: create TypesettingAssignment.corrections
 
 
-# https://gitlab.sissamedialab.it/wjs/specs/-/issues/671 (drop this comment)
 @dataclasses.dataclass
 class RequestProofs:
     """The typesetter completes a typesetting round and requires proofreading from the author."""
@@ -241,25 +241,91 @@ class RequestProofs:
     # Roughly equivalent Janeway's "Typesetting task completed"
     # (do not confuse with "typesetting complete", that moves the article to pre-publication)
 
-    typesetting_assignment: TypesettingAssignment
-    request: HttpRequest  # ???
-    assignment: Optional[TypesettingAssignment] = None
+    workflow: ArticleWorkflow
+    request: HttpRequest
+    assignment: TypesettingAssignment
+    typesetter: Account
+
+    def _check_conditions(self):
+        """Check if the conditions for the assignment are met."""
+        self.article = self.workflow.article
+        typesetter_is_typesetter = has_typesetter_role_by_article(self.workflow, self.typesetter)
+        state_conditions = can_proceed(self.workflow.typesetter_submits)
+        # TODO: Write a condition for Galleys.
+        return typesetter_is_typesetter and state_conditions
+
+    def _update_state(self):
+        """Run FSM transition."""
+        self.workflow.typesetter_submits()
+        self.workflow.save()
+        self.article.stage = STAGE_PROOFING
+        self.article.save()
+
+    def _create_proofing_assignment(self):
+        self.proofreader = self.article.correspondence_author
+        if self.assignment.round.round_number == 1:
+            due = timezone.now().date() + datetime.timedelta(
+                days=settings.PROOFING_ASSIGNMENT_MAX_DUE_DAYS,
+            )
+        else:
+            due = timezone.now().date() + datetime.timedelta(
+                days=settings.PROOFING_ASSIGNMENT_MIN_DUE_DAYS,
+            )
+        proofing_assignment = GalleyProofing.objects.create(
+            round=self.assignment.round,
+            proofreader=self.proofreader,
+            accepted=timezone.now(),
+            due=due,
+            manager=self.typesetter,
+        )
+        return proofing_assignment
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "article": self.article,
+            "author": self.proofreader,
+        }
+
+    def _log_operation(self, context) -> Message:
+        """Log the operation."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="proofreading_request_subject",
+            journal=self.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="proofreading_request_body",
+            journal=self.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        message = communication_utils.log_operation(
+            article=self.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[
+                self.proofreader,
+            ],
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+        return message
+
+    #   - with multi-template message? (see US ID:NA row:260 order:235)
+    #     - similar to editor-selects-reviewer but with more template messages to choose from
 
     def run(self) -> GalleyProofing:
         """Move the article state to PROOFREADING and notify the author."""
-        pass
-
-    # _check_conditions
-    #   - ...
-    #   - galleys are present (? TBV: AFAICT an article's galleys are
-    #                          all typeset_files from all typesetting assignments)
-    #   - ...
-
-    # _create_proofing_assignment
-    #   - prooreader = article.correspondence_author
-    #   - with due date (different defaults if typ-round==1 or typ-rount>1)
-    #   - with multi-template message? (see US ID:NA row:260 order:235)
-    #     - similar to editor-selects-reviewer but with more template messages to choose from
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("Invalid state transition")
+            self._update_state()
+            proofing_assignment = self._create_proofing_assignment()
+            self._log_operation(context=self._get_message_context())
+            return proofing_assignment
 
 
 @dataclasses.dataclass

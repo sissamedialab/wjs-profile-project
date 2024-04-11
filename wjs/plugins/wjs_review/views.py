@@ -82,6 +82,7 @@ from .models import (
 from .prophy import Prophy
 from .views__production import (  # noqa F401
     DownloadRevisionFiles,
+    ReadyForProofreadingView,
     TypesetterArchived,
     TypesetterPending,
     TypesetterUploadFiles,
