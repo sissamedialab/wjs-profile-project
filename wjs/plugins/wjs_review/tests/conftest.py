@@ -47,7 +47,7 @@ def review_settings(journal, eo_user):
 
     It must be declared as first fixture in the test function to ensure it's called before the other fixtures.
     """
-    set_default_plugin_settings()
+    set_default_plugin_settings(force=True)
     # TODO: use plugin_settings.ensure_workflow_elements ?
     workflow = Workflow.objects.get(journal=journal)
     workflow.elements.filter(element_name="review").delete()

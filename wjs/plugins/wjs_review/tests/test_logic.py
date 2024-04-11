@@ -828,20 +828,28 @@ def test_handle_decline_invite_reviewer(
 
 
 @pytest.mark.django_db
-def test_handle_update_due_date_in_evaluate_review_in_the_future(
+def test_handle_update_due_date_in_evaluate_review_one_day_in_the_future(
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     review_assignment: ReviewAssignment,
 ):
-    """If the user decides to postpone the due date, and it's in the future with respect to the current due date."""
+    """
+    Test what happens if the user decides to postpone the due date, and it's just one day in the future with respect
+    to the current due date.
+    """
 
     invited_user = review_assignment.reviewer
     fake_request.GET = {"access_code": review_assignment.access_code}
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
-    # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    assert review_assignment.date_due == localtime(now()).date() + datetime.timedelta(default_review_days)
-    new_date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    default_review_days_plus_one = default_review_days + 1
+    default_date_due = now().date() + datetime.timedelta(days=default_review_days)
+    new_date_due = now().date() + datetime.timedelta(days=default_review_days_plus_one)
+    # Check that the new date due is not too far in the future (i.e. it does not trigger an EO message/notification)
+    assert default_review_days_plus_one < settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD
+    # Please note that Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a
+    # datetime.datetime object
+    assert review_assignment.date_due == default_date_due
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
 
@@ -862,6 +870,62 @@ def test_handle_update_due_date_in_evaluate_review_in_the_future(
 
     # No new message created
     assert Message.objects.count() == 1
+
+    # check that the due date is updated
+    # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object
+    assert review_assignment.date_due == new_date_due
+
+
+@pytest.mark.django_db
+def test_handle_update_due_date_in_evaluate_review_far_in_the_future_triggers_a_message_to_eo(
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+    review_assignment: ReviewAssignment,
+):
+    """
+    Test what happens if the user decides to postpone the due date, and it's "far" in the future, so to trigger an EO
+    message/notification.
+    """
+
+    invited_user = review_assignment.reviewer
+    fake_request.GET = {"access_code": review_assignment.access_code}
+
+    default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
+    days_far_in_the_future = default_review_days + settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD + 1
+    default_date_due = now().date() + datetime.timedelta(days=default_review_days)
+    new_date_due = now().date() + datetime.timedelta(days=days_far_in_the_future)
+    # Please note that Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a
+    # datetime.datetime object
+    assert review_assignment.date_due == default_date_due
+
+    evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
+
+    eo_message_subject = get_setting(
+        setting_group_name="wjs_review",
+        setting_name="due_date_far_future_subject",
+        journal=fake_request.journal,
+    ).processed_value
+
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+    assert Message.objects.first().subject != eo_message_subject
+
+    fake_request.user = invited_user
+    evaluate = EvaluateReview(
+        assignment=review_assignment,
+        reviewer=invited_user,
+        editor=review_assignment.editor,
+        form_data=evaluate_data,
+        request=fake_request,
+        token=invited_user.jcomprofile.invitation_token,
+    )
+    evaluate.run()
+    review_assignment.refresh_from_db()
+
+    # One new message created
+    assert Message.objects.count() == 2
+    eo_message = Message.objects.get(subject=eo_message_subject)
+    assert list(eo_message.recipients.all()) == [communication_utils.get_eo_user(review_assignment.article)]
 
     # check that the due date is updated
     # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object
@@ -2230,7 +2294,7 @@ def test_handle_editor_decision_check_conditions(
         0,  # today
         1,  # tomorrow
         10,  # in the future
-        settings.DAYS_CONSIDERED_FAR_FUTURE + 1,  # too far in the future
+        settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD + 1,  # too far in the future
     ),
 )
 @pytest.mark.django_db
@@ -2276,7 +2340,7 @@ def test_postpone_due_date(
         assert review_assignment.date_due == initial_date_due
         assert Message.objects.count() == 0
         assert len(mail.outbox) == 0
-    elif postpone_date < settings.DAYS_CONSIDERED_FAR_FUTURE:
+    elif postpone_date < settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD:
         service.run()
         review_assignment.refresh_from_db()
         assert review_assignment.date_due == _now + datetime.timedelta(days=postpone_date)
