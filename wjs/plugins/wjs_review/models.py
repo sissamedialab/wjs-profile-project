@@ -88,6 +88,14 @@ class ArticleWorkflow(TimeStampedModel):
         null=True,
         on_delete=models.SET_NULL,
     )
+    # Here we store ESM files when then first typesetting assignment is created
+    # This allows us to keep an history of the ESM between acceptance and production
+    supplementary_files_at_acceptance = models.ManyToManyField(
+        "core.SupplementaryFile",
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     # date_last_transition = ... WRITEME
     # set the date on post-transition signal

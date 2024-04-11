@@ -12,6 +12,8 @@ from .views import (
     ArticleRevisionUpdate,
     AuthorArchived,
     AuthorPending,
+    CreateSupplementaryFileView,
+    DeleteSupplementaryFileView,
     DirectorArchived,
     DirectorPending,
     DownloadRevisionFiles,
@@ -139,4 +141,14 @@ urlpatterns = [
     path("upload_files/<int:pk>/", TypesetterUploadFiles.as_view(), name="wjs_typesetter_upload_files"),
     path("download_revision_files/<int:pk>/", DownloadRevisionFiles.as_view(), name="download_revision_files"),
     path("ready_for_proofreading/<int:pk>/", ReadyForProofreadingView.as_view(), name="wjs_ready_for_proofreading"),
+    path(
+        "create_supplementary_file/<int:article_id>/",
+        CreateSupplementaryFileView.as_view(),
+        name="create_supplementary_file",
+    ),
+    path(
+        "delete_supplementary_file/<int:file_id>/",
+        DeleteSupplementaryFileView.as_view(),
+        name="delete_supplementary_file",
+    ),
 ]
