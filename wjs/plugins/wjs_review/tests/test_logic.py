@@ -605,6 +605,7 @@ def test_invite_reviewer(
     user_data = {
         "first_name": fake_factory.first_name(),
         "last_name": fake_factory.last_name(),
+        "suffix": fake_factory.suffix(),
         "email": fake_factory.email(),
         "message": "random message",
         "author_note_visible": True,

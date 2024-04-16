@@ -174,6 +174,7 @@ def test_invite_function_creates_inactive_user(
     data = {
         "first_name": "Name",
         "last_name": "Surname",
+        "suffix": "Suffix",
         "email": "email@email.it",
         "message": "random message",
     }

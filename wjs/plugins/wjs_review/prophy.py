@@ -182,6 +182,10 @@ class Prophy:
                 prophy_account.email = c["email"]
                 prophy_account.h_index = c["hIndex"]
                 prophy_account.name = c["name"]
+                prophy_account.first_name = c["first_name"]
+                prophy_account.middle_name = c["middle_name"]
+                prophy_account.last_name = c["last_name"]
+                prophy_account.suffix = c["suffix"]
                 prophy_account.orcid = c["orcid"]
                 prophy_account.url = c["url"]
                 prophy_account.save()

@@ -742,6 +742,15 @@ class ProphyAccount(models.Model):
         blank=False,
         verbose_name=_("Full name"),
     )
+    first_name = models.CharField(max_length=300, null=True, blank=False, verbose_name=_("First name"))
+    middle_name = models.CharField(max_length=300, null=True, blank=True, verbose_name=_("Middle name"))
+    last_name = models.CharField(max_length=300, null=True, blank=False, verbose_name=_("Last name"))
+    suffix = models.CharField(
+        max_length=300,
+        null=True,
+        blank=True,
+        help_text=_("Name suffix eg. jr"),
+    )
     orcid = models.CharField(max_length=40, null=True, blank=True, verbose_name=_("ORCiD"))
     url = models.CharField(max_length=300, null=True, blank=True, verbose_name="Prophy author url")
     correspondence = models.ForeignKey(Correspondence, null=True, blank=True, on_delete=models.CASCADE)
