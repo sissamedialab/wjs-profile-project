@@ -266,6 +266,7 @@ class InviteUserForm(forms.Form):
 
     first_name = forms.CharField()
     last_name = forms.CharField()
+    suffix = forms.CharField()
     email = forms.EmailField()
     message = forms.CharField(widget=forms.Textarea)
     author_note_visible = forms.BooleanField(required=False)
@@ -279,9 +280,10 @@ class InviteUserForm(forms.Form):
             prophy_account = ProphyAccount.objects.filter(author_id=kwargs.pop("prophy_account_id"))[0]
         super().__init__(*args, **kwargs)
         if prophy_account:
-            self.fields["first_name"].label = "TO BE INSERTED"
             self.initial = {
-                "last_name": prophy_account.name,
+                "first_name": f"{prophy_account.first_name} {prophy_account.middle_name}",
+                "last_name": prophy_account.last_name,
+                "suffix": prophy_account.suffix,
                 "email": prophy_account.email,
             }
 

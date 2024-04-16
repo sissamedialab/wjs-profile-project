@@ -815,6 +815,7 @@ class InviteReviewer:
             email=self.form_data["email"],
             first_name=self.form_data["first_name"],
             last_name=self.form_data["last_name"],
+            suffix=self.form_data["suffix"],
             is_active=False,
             invitation_token=token,
         )
