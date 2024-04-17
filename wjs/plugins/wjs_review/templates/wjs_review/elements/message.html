@@ -23,7 +23,7 @@
                     <div class="badge bg-primary">
                         to
                         {% for recipient in message.recipients.all %}
-                            {# djlint:off #}{{ recipient }}{% if not forloop.last %},{% endif %}{# djlint:on #}
+                            {# djlint:off #}{% display_recipient recipient to=user on=article %}{% if not forloop.last %},{% endif %}{# djlint:on #}
                         {% endfor %}
                     </div>
                 {% else %}

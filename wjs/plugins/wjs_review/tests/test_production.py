@@ -1,6 +1,7 @@
 from typing import Callable
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
@@ -13,8 +14,8 @@ from submission.models import Article
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 
-from ..views import TypesetterPending
-from ..views__production import TypesetterWorkingOn
+from ..models import Message
+from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
     _accept_article,
     _assign_article,
@@ -198,3 +199,34 @@ def test_typesetter_workingon_lists_active_papers(
     assert article_1.id in article_ids_of_views_qs
     assert article_2.id not in article_ids_of_views_qs
     assert article_3.id not in article_ids_of_views_qs
+
+
+@pytest.mark.django_db
+def test_au_writes_to_typ(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    client: Client,
+):
+    """Author can write to typesetter without explicitly setting the recipient."""
+    content_type = ContentType.objects.get_for_model(assigned_to_typesetter_article)
+    object_id = assigned_to_typesetter_article.pk
+    assert not Message.objects.filter(
+        content_type=content_type,
+        object_id=object_id,
+    ).exists()
+
+    url = reverse("wjs_message_write_to_typ", kwargs={"pk": assigned_to_typesetter_article.pk})
+    data = {
+        "subject": "A subject",
+        "body": "A body",
+    }
+    author = assigned_to_typesetter_article.correspondence_author
+    client.force_login(author)
+    response = client.post(url, data=data)
+    assert response.status_code == 302  # POST redirects to "details" page
+
+    messages = Message.objects.filter(content_type=content_type, object_id=object_id)
+    assert messages.count() == 1
+
+    typesetter = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment.typesetter
+    assert messages.filter(recipients__in=[typesetter]).count() == 1
