@@ -50,10 +50,13 @@ def get_url_with_last_editor_revision_request_pk(
 
 def get_url_with_typesetting_assignment_pk(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     """From ArticleAction and ArticleWorkflow retrieve the action url with typesetting assignment pk."""
-    typesetting_assignment = TypesettingAssignment.objects.filter(
-        round__article=workflow.article,
-        typesetter=user,
-    ).last()
+    typesetting_assignment = (
+        TypesettingAssignment.objects.filter(
+            round__article=workflow.article,
+        )
+        .order_by("round__number")
+        .last()
+    )
     url = reverse(action.view_name, kwargs={"pk": typesetting_assignment.pk})
     if action.querystring_params is not None:
         url += "?"
@@ -644,11 +647,21 @@ class TypesetterSelected(BaseState):
             label="Open Gitlab issue",
             view_name="WRITEME!",
         ),
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="write_to_typesetter",
+            label="Write to typesetter",
+            view_name="wjs_message_write_to_typ",
+        ),
     )
 
 
 class Proofreading(BaseState):
-    """Proofreading"""
+    """Proofreading.
+
+    In this state, the author to review the typesetted galleys and
+    send corrections back to the typesetter.
+    """
 
     article_actions = (
         ArticleAction(
@@ -656,6 +669,12 @@ class Proofreading(BaseState):
             name="author_sends_corrections",
             label="Send corrections",
             view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="write_to_typesetter",
+            label="Write to typesetter",
+            view_name="wjs_message_write_to_typ",
         ),
     )
 

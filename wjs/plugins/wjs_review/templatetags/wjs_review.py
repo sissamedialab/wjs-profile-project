@@ -3,6 +3,7 @@
 For tags and filters that relate specifically to Articles, see module wjs_articles.
 
 """
+# custom_tags.py in the templatetags directory
 import datetime
 import json
 from typing import Any, Dict, List, Optional, TypedDict, Union
@@ -330,3 +331,19 @@ def typesetting_assignments(article: Article, user: Account = None):
 def last_major_revision(article: ArticleWorkflow):
     """Returns Article's last major revision"""
     return EditorDecision.objects.filter(workflow=article, decision=ArticleWorkflow.Decisions.MINOR_REVISION).last()
+
+
+@register.simple_tag(takes_context=True)
+def display_recipient(context, recipient: Account, to: Account, on: Article) -> str:
+    """Display a message recipient's name, or replace it with someting else."""
+    # The arguments names "to" and "on" allow for a readable template tag, e.g.:
+    # {% display_recipient recipient to=user on=article %}
+    # but here we are aliasing "to" and "on" onto something easier to understand in the code
+    user = to
+    article = on
+
+    if is_article_author(instance=article.articleworkflow, user=user):
+        if is_article_typesetter(instance=article.articleworkflow, user=recipient):
+            return "typesetter"
+    else:
+        return str(recipient)

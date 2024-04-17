@@ -47,6 +47,7 @@ from .views import (
     UpdateState,
     UploadRevisionAuthorCoverLetterFile,
     WriteMessage,
+    WriteToTyp,
 )
 
 urlpatterns = [
@@ -134,6 +135,11 @@ urlpatterns = [
         "messages/attachment/<int:message_id>/<int:attachment_id>",
         MessageAttachmentDownloadView.as_view(),
         name="wjs_message_download_attachment",
+    ),
+    path(
+        "messages/writetotyp/<int:pk>/",
+        WriteToTyp.as_view(),
+        name="wjs_message_write_to_typ",
     ),
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders

@@ -89,6 +89,7 @@ from .views__production import (  # noqa F401
     TypesetterPending,
     TypesetterUploadFiles,
     TypesetterWorkingOn,
+    WriteToTyp,
 )
 
 logger = get_logger(__name__)

@@ -92,6 +92,10 @@ states_when_article_is_considered_in_review = [
 # TODO: write me!
 states_when_article_is_considered_in_production = [
     ArticleWorkflow.ReviewStates.ACCEPTED,
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
 ]
 
 states_when_article_is_considered_missing_editor = [
