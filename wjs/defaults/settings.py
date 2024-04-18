@@ -256,6 +256,8 @@ Q_CLUSTER = {
         "port": 6379,
         "db": 10,
     },
+    "retry": 90,
+    "timeout": 60,
 }
 
 PROOFING_ASSIGNMENT_MIN_DUE_DAYS = 3
