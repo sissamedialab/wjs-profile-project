@@ -844,8 +844,8 @@ def test_handle_update_due_date_in_evaluate_review_one_day_in_the_future(
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
     default_review_days_plus_one = default_review_days + 1
-    default_date_due = now().date() + datetime.timedelta(days=default_review_days)
-    new_date_due = now().date() + datetime.timedelta(days=default_review_days_plus_one)
+    default_date_due = localtime(now()).date() + datetime.timedelta(days=default_review_days)
+    new_date_due = localtime(now()).date() + datetime.timedelta(days=default_review_days_plus_one)
     # Check that the new date due is not too far in the future (i.e. it does not trigger an EO message/notification)
     assert default_review_days_plus_one < settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD
     # Please note that Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a
