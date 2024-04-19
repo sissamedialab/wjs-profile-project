@@ -48,6 +48,8 @@ def has_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> 
     """
     Check if the given user has the director role for the article's journal.
 
+    If the director is the author of the article, he can't be considered as a director for the article.
+
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow
 
@@ -57,6 +59,8 @@ def has_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> 
     :return: True if the user has the director role for the journal, False otherwise.
     :rtype: bool
     """
+    if is_one_of_the_authors(instance, user):
+        return False
     return base_permissions.has_director_role(instance.article.journal, user)
 
 
