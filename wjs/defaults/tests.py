@@ -3,6 +3,7 @@ Merge janeway_global_settings and custom settings for pytest.
 
 isort:skip_file
 """
+
 from collections.abc import Mapping  # noqa
 
 from core.janeway_global_settings import *  # noqa
@@ -67,3 +68,9 @@ class SkipMigrations(Mapping):
 
 MIGRATION_MODULES = SkipMigrations()
 HIJACK_USERS_ENABLED = True
+
+# As long as the production functions are replaced in default settings we must use these in tests
+WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
+    None: "wjs_review.events.assignment.default_assign_editors_to_articles",
+    "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
+}

@@ -3,6 +3,7 @@
 For details on how to use this, see
 https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 """
+
 from core.janeway_global_settings import TEMPLATES
 from django.urls import reverse_lazy
 
@@ -137,8 +138,14 @@ WJS_REVIEW_CHECK_FUNCTIONS = {
 
 # Functions that determine which editor is assigned to an article
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-    None: "wjs_review.events.assignment.default_assign_editors_to_articles",
-    "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
+    # Currently we must use these assignment functions because editors are not fully setup in test environment
+    # and assignment by the EO is not active yet (to be completed with
+    # https://gitlab.sissamedialab.it/wjs/specs/-/issues/659)
+    None: "wjs_review.events.assignment.assign_editor_random",
+    "JCOM": "wjs_review.events.assignment.assign_editor_random",
+    # Commented to let always pick a random editor
+    # None: "wjs_review.events.assignment.default_assign_editors_to_articles",
+    # "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
 # Functions that check if a just-accepted article might have issues
