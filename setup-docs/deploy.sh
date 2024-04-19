@@ -39,7 +39,9 @@ UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
 # The git branches where the code lives
 JANEWAY_BRANCH=wjs-develop
 
-# The user and password of the deploy token
+# The token name and value used to "pull" git repos.
+# When it expires, create a new token at the WJS group level, with scope "read-repo"
+# (and role "Reporter", probably useless...)
 DEPLOY_TOKEN_USER=***
 DEPLOY_TOKEN_PASSWORD=***
 
@@ -69,14 +71,19 @@ function deploy_janeway() {
 function deploy_wjs() {
     set_derivable_variables
 
-    # Install from a pkg registry by default, but use the first
-    # argument givent to this function if defined
-    WJS_APP=${1:-"wjs.jcom-profile"}
-    if [[ -z "$PIP_PRE" ]]
-    then
-        "$PIP" install -U "$WJS_APP"
+    # If given, the first argument to this function will be used to pip install the pacakge.
+    # It should be in the form such as
+    # "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
+    if [[ -n "$1" ]]; then
+        "$PIP" uninstall --yes wjs.jcom_profile
+        "$PIP" install --no-cache-dir "$1"
     else
-        "$PIP" install --pre -U "$WJS_APP"
+        if [[ -z "$PIP_PRE" ]]
+        then
+            "$PIP" install -U wjs.jcom_profile
+        else
+            "$PIP" install --pre -U wjs.jcom_profile
+        fi
     fi
 
     "$PIP" install -U "jcomassistant"
@@ -120,6 +127,14 @@ function set_dev_variables() {
     PIP_PRE="yes please"
 }
 
+function set_test_variables() {
+    JANEWAY_ROOT=/home/wjs/janeway-test
+    VENV_BIN=/home/wjs/.virtualenvs/janeway-test/bin
+    UWSGI_VASSAL=/home/wjs/uwsgi/janeway-test.ini
+    JANEWAY_BRANCH=wjs-develop
+    PIP_PRE="yes please"
+}
+
 shopt -s extglob
 case "$SSH_ORIGINAL_COMMAND" in
     # Production
@@ -157,12 +172,12 @@ case "$SSH_ORIGINAL_COMMAND" in
         ;;
     # Don't be too generous with the pattern here: watch out for sh injections!
     # Remember Bobby Tables https://xkcd.com/327/
-    "deploy-test-wjs:[:word:]")
-        echo "Not implemented!"
-        exit 1
-        # Example on how to install a given tag:
+    "deploy-test-wjs:"+([[:word:]]))
+        set_test_variables
+        # Install a given tag:
         TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs://')
-        deploy_wjs "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-jcom-profile@$TAGNAME"
+        echo "Installing wjs.jcom_profile at ${TAGNAME}"
+        deploy_wjs "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
         ;;
     *)
         echo "Unknown command $SSH_ORIGINAL_COMMAND"

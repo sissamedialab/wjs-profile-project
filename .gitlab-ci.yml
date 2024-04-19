@@ -88,3 +88,15 @@ deploy-to-production:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
     DEPLOY_CMD: "deploy-prod-wjs"
+
+
+deploy-to-test:
+  extends:
+    - .deploy
+  # environment: test
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    SERVER_IP: "$TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+    DEPLOY_CMD: "deploy-test-wjs:${CI_COMMIT_SHA}"
