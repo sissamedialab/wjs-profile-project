@@ -116,6 +116,24 @@ def has_author_role_by_article(instance: "ArticleWorkflow", user: Account) -> bo
     return base_permissions.has_author_role(instance.article.journal, user)
 
 
+def has_eo_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user has the eo role for the article's journal.
+
+    Article is actually ignored, but we need it for API compatibility.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has the eo role, False otherwise.
+    :rtype: bool
+    """
+    return base_permissions.has_eo_role(user)
+
+
 def is_system(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Fake permission for system-managed transitions.

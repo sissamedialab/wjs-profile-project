@@ -1,8 +1,10 @@
 """Workflow states for the review process and their actions."""
+
 # TODO: verify if these state classes can be used as choices for django-fsm workflow
 
 import dataclasses
 import urllib
+from typing import Callable, Optional
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -76,7 +78,7 @@ class ArticleAction:
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
-    custom_get_url: str = None
+    custom_get_url: Optional[Callable] = None
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
@@ -145,8 +147,15 @@ class ReviewAssignmentAction:
 
 # Actions organized by states
 class BaseState:
-    article_actions = None
-    review_assignment_actions = None
+    article_actions = (
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="assign eo",
+            label="Assign / Reassign EO in charge",
+            view_name="wjs_assign_eo",
+        ),
+    )
+    review_assignment_actions = ()
 
     @classmethod
     def article_requires_attention(cls, article: Article, user: Account) -> str:
@@ -182,8 +191,9 @@ class BaseState:
 
 
 class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
-    "Editor to be selected"
-    article_actions = (
+    """Editor to be selected."""
+
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.has_director_role_by_article,
             name="selects editor",
@@ -199,8 +209,9 @@ class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
 
 
 class EditorSelected(BaseState):  # noqa N801 CapWords convention
-    "Editor selected"
-    article_actions = (
+    """Editor selected"""
+
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_editor,
             name="declines assignment",
@@ -303,7 +314,7 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             view_name="WRITEME!",
         ),
     )
-    review_assignment_actions = (
+    review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
@@ -348,7 +359,8 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
-        """Rifle through the situations that require attention.
+        """
+        Rifle through the situations that require attention.
 
         Return True as soon as one is found.
         This can be use to highlight a paper that requires some action.
@@ -383,7 +395,9 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        """Tell if the article requires attention by the EO."""
+        """
+        Tell if the article requires attention by the EO.
+        """
         if attention_flag := conditions.eo_has_unread_messages(article):
             return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):
@@ -392,14 +406,18 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_director_attention(cls, article: Article, **kwargs) -> str:
-        """Tell if the article requires attention by the directors."""
+        """
+        Tell if the article requires attention by the directors.
+        """
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
 
     @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        """Rifle through the situations that require attention."""
+        """
+        Rifle through the situations that require attention.
+        """
         if attention_flag := conditions.author_revision_is_late(article):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
@@ -417,36 +435,37 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
 
 
 class Submitted(BaseState):  # noqa N801 CapWords convention
-    "Submitted"
+    """Submitted"""
 
 
 class Withdrawn(BaseState):  # noqa N801 CapWords convention
-    "Withdrawn"
+    """Withdrawn"""
 
 
 class IncompleteSubmission(BaseState):  # noqa N801 CapWords convention
-    "Incomplete submission"
+    """Incomplete submission"""
 
 
 class NotSuitable(BaseState):  # noqa N801 CapWords convention
-    "Not suitable"
+    """Not suitable"""
 
 
 class PaperHasEditorReport(BaseState):  # noqa N801 CapWords convention
-    "Paper has editor report"
+    """Paper has editor report"""
 
 
 class Accepted(BaseState):  # noqa N801 CapWords convention
-    "Accepted"
+    """Accepted"""
 
 
 class WritemeProduction(BaseState):  # noqa N801 CapWords convention
-    "Writeme production"
+    """Writeme production"""
 
 
 class ToBeRevised(BaseState):  # noqa N801 CapWords convention
-    "To be revised"
-    article_actions = (
+    """To be revised"""
+
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_editor,
             name="reminds author",
@@ -476,7 +495,9 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
-        """Rifle through the situations that require attention."""
+        """
+        Rifle through the situations that require attention.
+        """
         if attention_flag := conditions.author_revision_is_late(article):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
@@ -485,7 +506,9 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        """Rifle through the situations that require attention."""
+        """
+        Rifle through the situations that require attention.
+        """
         if attention_flag := conditions.author_revision_is_late(article):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
@@ -494,7 +517,9 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
 
     @classmethod
     def article_requires_reviewer_attention(cls, article: Article, **kwargs) -> str:
-        """Rifle through the situations that require attention."""
+        """
+        Rifle through the situations that require attention.
+        """
         if attention_flag := conditions.reviewer_report_is_late(article):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
@@ -503,8 +528,9 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
 
 
 class Rejected(BaseState):  # noqa N801 CapWords convention
-    "Rejected"
-    article_actions = (
+    """Rejected"""
+
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.has_admin_role_by_article,
             name="opens appeal",
@@ -515,8 +541,9 @@ class Rejected(BaseState):  # noqa N801 CapWords convention
 
 
 class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
-    "Paper might have issues"
-    article_actions = (
+    """Paper might have issues"""
+
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=base_permissions.has_eo_role,
             name="requires resubmission",
@@ -541,9 +568,11 @@ class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
 
 
 class ReadyForTypesetter(BaseState):
-    """Ready for typesetter"""
+    """
+    Ready for typesetter
+    """
 
-    article_actions = (
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.has_typesetter_role_by_article,
             name="typ takes in charge",
@@ -560,9 +589,11 @@ class ReadyForTypesetter(BaseState):
 
 
 class TypesetterSelected(BaseState):
-    """Typesetter selected"""
+    """
+    Typesetter selected
+    """
 
-    article_actions = (
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_typesetter,
             name="delete / replace source for galley generation",  # one action? 4 actions?
@@ -657,13 +688,14 @@ class TypesetterSelected(BaseState):
 
 
 class Proofreading(BaseState):
-    """Proofreading.
+    """
+    Proofreading.
 
     In this state, the author to review the typesetted galleys and
     send corrections back to the typesetter.
     """
 
-    article_actions = (
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_author,
             name="author_sends_corrections",
@@ -680,9 +712,11 @@ class Proofreading(BaseState):
 
 
 class ReadyForPublication(BaseState):
-    """Ready for publication"""
+    """
+    Ready for publication
+    """
 
-    article_actions = (
+    article_actions = BaseState.article_actions + (
         ArticleAction(
             # TBV: very similar to what typs does in TypesetterSelected!
             #      Double-check might be good.
@@ -701,10 +735,9 @@ class ReadyForPublication(BaseState):
 
 
 class SendToEditorForCheck(BaseState):
-    """Send to editor for check"""
-
-    # TBD!
-    article_actions = ()
+    """
+    Send to editor for check
+    """
 
 
 class Published(BaseState):

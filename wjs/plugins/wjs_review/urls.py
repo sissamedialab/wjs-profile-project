@@ -10,6 +10,7 @@ from .views import (
     ArticleReminders,
     ArticleRevisionFileUpdate,
     ArticleRevisionUpdate,
+    AssignEoToArticle,
     AuthorArchived,
     AuthorPending,
     CreateSupplementaryFileView,
@@ -68,6 +69,7 @@ urlpatterns = [
     path("typesetter_workingon/", TypesetterWorkingOn.as_view(), name="wjs_review_typesetter_workingon"),
     path("typesetter_archived/", TypesetterArchived.as_view(), name="wjs_review_typesetter_archived"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
+    path("assign_eo/<int:pk>/", AssignEoToArticle.as_view(), name="wjs_assign_eo"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path(
         "assigns_different_editor/<int:pk>/",

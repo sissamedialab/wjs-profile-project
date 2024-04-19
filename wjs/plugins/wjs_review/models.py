@@ -20,6 +20,7 @@ from review.models import ReviewAssignment, ReviewRound, RevisionRequest
 from submission.models import Article
 from utils.logger import get_logger
 
+from wjs.jcom_profile.apps import GROUP_EO
 from wjs.jcom_profile.models import Correspondence
 
 from . import permissions
@@ -87,6 +88,7 @@ class ArticleWorkflow(TimeStampedModel):
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
+        limit_choices_to={"groups__name": GROUP_EO},
     )
     # Here we store ESM files when then first typesetting assignment is created
     # This allows us to keep an history of the ESM between acceptance and production

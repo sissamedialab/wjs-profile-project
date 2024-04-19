@@ -266,6 +266,7 @@ def eo_user(create_jcom_user, journal, eo_group) -> JCOMProfile:
     """Create EO user."""
     eo = create_jcom_user("eo_user")
     eo.groups.add(eo_group)
+    EditorAssignmentParameters.objects.create(editor=eo.janeway_account, journal=journal, workload=10)
     return eo
 
 

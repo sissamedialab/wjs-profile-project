@@ -1,0 +1,12 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% block content %}
+<div class="container">
+    <h2>{% translate "Assign EO" %}</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% bootstrap_form form %}
+        <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+</div>
+{% endblock content %}

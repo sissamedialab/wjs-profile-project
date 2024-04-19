@@ -46,6 +46,7 @@ from .filters import (
 )
 from .forms import (
     ArticleReviewStateForm,
+    AssignEoForm,
     DecisionForm,
     EditorAssignsDifferentEditorForm,
     EditorRevisionRequestDueDateForm,
@@ -842,6 +843,26 @@ class ReviewSubmit(EvaluateReviewRequest):
             return self._process_report()
         else:
             return super().form_valid(form)
+
+
+class AssignEoToArticle(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = ArticleWorkflow
+    form = AssignEoForm
+    template_name = "wjs_review/elements/eo_assign_eo.html"
+    fields = ["eo_in_charge"]
+
+    def test_func(self):
+        """Verify that only staff can access."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def get_success_url(self):
+        return reverse("wjs_article_details", args=(self.object.id,))
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        return kwargs
 
 
 class ArticleAdminDispatchAssignment(LoginRequiredMixin, UserPassesTestMixin, View):

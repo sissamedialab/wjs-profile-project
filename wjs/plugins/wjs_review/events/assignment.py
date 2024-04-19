@@ -3,7 +3,6 @@
 Journal level configuration is made using the 'WJS_ARTICLE_ASSIGNMENT_FUNCTIONS' setting
 """
 
-import random
 from typing import Optional
 
 from core.models import AccountRole, Role
@@ -12,8 +11,10 @@ from django.contrib.auth import get_user_model
 from django.utils.module_loading import import_string
 from review import models as review_models
 from review.logic import assign_editor
+from submission.models import Article
 from utils.logic import get_current_request
 
+from wjs.jcom_profile.apps import GROUP_EO
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
 Account = get_user_model()
@@ -85,11 +86,34 @@ def assign_editor_random(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign a random editor, for test purposes."""
     article = kwargs["article"]
 
-    editors = AccountRole.objects.filter(
-        journal=article.journal,
-        role=Role.objects.get(slug="section-editor"),
-    ).values_list("user")
-    return random.choice(editors)
+    return (
+        AccountRole.objects.filter(
+            journal=article.journal,
+            role=Role.objects.get(slug="section-editor"),
+        )
+        .values_list("user")
+        .order_by("?")
+        .first()
+    )
+
+
+def assign_eo_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
+    """Assign EO to article based on their workload."""
+    article = kwargs["article"]
+
+    eo_users = Account.objects.filter(groups__name=GROUP_EO)
+    parameter = (
+        EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=eo_users)
+        .order_by("workload", "id")
+        .first()
+    )
+    if parameter:
+        return parameter.editor
+
+
+def assign_eo_random(**kwargs) -> Optional[review_models.EditorAssignment]:
+    """Assign a random EO member, for test purposes."""
+    return Account.objects.filter(groups__name=GROUP_EO).order_by("?").first()
 
 
 def dispatch_assignment(**kwargs) -> Optional[review_models.EditorAssignment]:
@@ -102,8 +126,21 @@ def dispatch_assignment(**kwargs) -> Optional[review_models.EditorAssignment]:
 
 
 def dispatch_eo_assignment(**kwargs) -> Optional[Account]:
-    """Dispatch EO assignment."""
-    # TODO: writeme in #608
-    from wjs.jcom_profile.apps import GROUP_EO
+    """
+    Dispatch EO assignment.
 
-    return Account.objects.filter(groups__name=GROUP_EO).order_by("?").first()
+    Contrary to :py:function:`wjs_review.events.handlers.dispatch_assignment`, this function directly assigns the EO
+    to the article as we don't have a workflow for EO assignment.
+    """
+    article: Article = kwargs["article"]
+    journal = article.journal.code
+    assignment_function = import_string(
+        settings.WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS.get(
+            journal,
+            settings.WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS.get(None),
+        ),
+    )
+    eo_user = assignment_function(**kwargs)
+    if eo_user:
+        article.articleworkflow.eo_in_charge = eo_user
+        article.articleworkflow.save()
