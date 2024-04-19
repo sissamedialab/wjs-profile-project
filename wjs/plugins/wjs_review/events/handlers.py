@@ -14,7 +14,7 @@ from ..models import ArticleWorkflow, Message, ProphyAccount, ProphyCandidate
 from ..plugin_settings import STAGE
 from ..prophy import Prophy
 from . import ReviewEvent
-from .assignment import dispatch_assignment
+from .assignment import dispatch_assignment, dispatch_eo_assignment
 
 logger = get_logger(__name__)
 
@@ -59,6 +59,7 @@ def dispatch_checks(article: submission_models.Article) -> Optional[bool]:
             return None
 
     assignment = dispatch_assignment(article=article)
+    dispatch_eo_assignment(article=article)
     return bool(assignment)
 
 

@@ -1,8 +1,10 @@
 import datetime
+from typing import Callable
 from unittest.mock import patch
 
 import pytest
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.forms import models as model_forms
@@ -11,7 +13,6 @@ from django.urls import reverse
 from django.utils.timezone import localtime, now
 from faker import Faker
 from review import models as review_models
-from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
 from submission.models import Keyword
 from utils.setting_handler import get_setting
@@ -20,8 +21,12 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from .. import communication_utils
-from ..events.handlers import on_revision_complete
-from ..forms import EditorRevisionRequestEditForm
+from ..events.handlers import (
+    dispatch_eo_assignment,
+    on_article_submitted,
+    on_revision_complete,
+)
+from ..forms import AssignEoForm, EditorRevisionRequestEditForm
 from ..logic import (
     AdminActions,
     AssignToEditor,
@@ -38,6 +43,65 @@ from ..views import ArticleRevisionUpdate
 from .test_helpers import _create_review_assignment, _submit_review
 
 fake_factory = Faker()
+
+
+@pytest.mark.django_db
+def test_low_level_dispatch_eo_assign(article: submission_models.Article, eo_user: JCOMProfile) -> None:
+    """Dispatch assignment to EO."""
+    assert not article.articleworkflow.eo_in_charge
+    dispatch_eo_assignment(article=article)
+    article.articleworkflow.refresh_from_db()
+    assert article.articleworkflow.eo_in_charge
+
+
+@pytest.mark.django_db
+def test_assign_to_eo(article: submission_models.Article, eo_user: JCOMProfile) -> None:
+    """Rung post-submission event handler to assign to EO."""
+    article.stage = STAGE
+    article.save()
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+    article.articleworkflow.save()
+    assert not article.articleworkflow.eo_in_charge
+    on_article_submitted(article=article)
+    article.articleworkflow.refresh_from_db()
+    assert article.articleworkflow.eo_in_charge
+
+
+@pytest.mark.django_db
+def test_manual_assign_eo_form(
+    assigned_article: submission_models.Article,
+    eo_user: JCOMProfile,
+    fake_request: HttpRequest,
+    eo_group: Group,
+    create_jcom_user: Callable,
+):
+    """
+    Test the form to manually assign an EO to an article.
+
+        :param assigned_article: Article to assign EO to
+        :param eo_user: Executing EO User
+        :param fake_request: Fake request object
+        :param eo_group: EO Group object
+        :param create_jcom_user: function to create users
+    """
+    second_eo = create_jcom_user("second_eo")
+    second_eo.groups.add(eo_group)
+    Message.objects.first()
+    assert not assigned_article.articleworkflow.eo_in_charge
+    fake_request.user = eo_user.janeway_account
+    form_data = {
+        "eo_in_charge": second_eo.janeway_account,
+    }
+    form = AssignEoForm(data=form_data, instance=assigned_article.articleworkflow, user=eo_user, request=fake_request)
+    assert form.is_valid()
+    workflow = form.save()
+    assert workflow.eo_in_charge == second_eo.janeway_account
+    assigned_article.articleworkflow.refresh_from_db()
+    assert assigned_article.articleworkflow.eo_in_charge == second_eo.janeway_account
+    assert Message.objects.count() == 1
+    msg = Message.objects.first()
+    assert msg.actor == eo_user.janeway_account
+    assert msg.recipients.filter(pk=second_eo.janeway_account.pk).exists()
 
 
 @pytest.mark.django_db
@@ -679,7 +743,7 @@ def test_handle_accept_invite_reviewer(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     accept_gdpr: bool,
 ):
     """If the user accepts the invitation, assignment is accepted and user is confirmed if they accept GDPR."""
@@ -764,7 +828,7 @@ def test_handle_decline_invite_reviewer(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     accept_gdpr: bool,
 ):
     """If the user declines the invitation, assignment is declined and user is confirmed if they accept GDPR."""
@@ -832,7 +896,7 @@ def test_handle_decline_invite_reviewer(
 def test_handle_update_due_date_in_evaluate_review_one_day_in_the_future(
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
 ):
     """
     Test what happens if the user decides to postpone the due date, and it's just one day in the future with respect
@@ -881,7 +945,7 @@ def test_handle_update_due_date_in_evaluate_review_one_day_in_the_future(
 def test_handle_update_due_date_in_evaluate_review_far_in_the_future_triggers_a_message_to_eo(
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
 ):
     """
     Test what happens if the user decides to postpone the due date, and it's "far" in the future, so to trigger an EO
@@ -893,8 +957,8 @@ def test_handle_update_due_date_in_evaluate_review_far_in_the_future_triggers_a_
 
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
     days_far_in_the_future = default_review_days + settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD + 1
-    default_date_due = now().date() + datetime.timedelta(days=default_review_days)
-    new_date_due = now().date() + datetime.timedelta(days=days_far_in_the_future)
+    default_date_due = localtime(now()).date() + datetime.timedelta(days=default_review_days)
+    new_date_due = localtime(now()).date() + datetime.timedelta(days=days_far_in_the_future)
     # Please note that Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a
     # datetime.datetime object
     assert review_assignment.date_due == default_date_due
@@ -937,7 +1001,7 @@ def test_handle_update_due_date_in_evaluate_review_far_in_the_future_triggers_a_
 def test_handle_update_due_date_in_evaluate_review_in_the_past(
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
 ):
     """If the user decides to postpone the due date, and it's in the past with respect to the current due date."""
 
@@ -1037,8 +1101,8 @@ def test_submit_review(
     raise_event,
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
-    review_form: ReviewForm,
+    review_assignment: review_models.ReviewAssignment,
+    review_form: review_models.ReviewForm,
     submit_final: bool,
 ):
     """
@@ -1080,8 +1144,8 @@ def test_submit_review_messages(
     raise_event,
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
-    review_form: ReviewForm,
+    review_assignment: review_models.ReviewAssignment,
+    review_form: review_models.ReviewForm,
     submit_final: bool,
 ):
     """
@@ -1159,7 +1223,7 @@ def test_handle_issues_to_selected(
     fake_request: HttpRequest,
     article: submission_models.Article,
     eo_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     initial_state: str,
     decision: str,
     final_state: str,
@@ -1233,7 +1297,7 @@ def test_handle_issues_to_selected_wrong_user(
     fake_request: HttpRequest,
     article: submission_models.Article,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     initial_state: str,
     decision: str,
     final_state: str,
@@ -1283,7 +1347,7 @@ def test_handle_issues_to_selected_wrong_state(
     fake_request: HttpRequest,
     article: submission_models.Article,
     eo_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     initial_state: str,
     decision: str,
 ):
@@ -1333,10 +1397,10 @@ def test_handle_issues_to_selected_wrong_state(
 def test_handle_admin_decision(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
     eo_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     initial_state: str,
     decision: str,
     final_state: str,
@@ -1448,9 +1512,9 @@ def test_handle_admin_decision(
 def test_handle_admin_decision_wrong_user(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     initial_state: str,
     decision: str,
     final_state: str,
@@ -1517,9 +1581,9 @@ def test_handle_admin_decision_wrong_user(
 def test_handle_admin_decision_wrong_state(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     eo_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     initial_state: str,
     decision: str,
     final_state: str,
@@ -1572,9 +1636,9 @@ def test_handle_admin_decision_wrong_state(
 def test_handle_editor_decision(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     decision: str,
     final_state: str,
 ):
@@ -1995,9 +2059,9 @@ def test_author_handle_revision(
 def test_handle_multiple_revision_request_with_author_submission(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     decision1: str,
     decision2: str,
 ):
@@ -2086,9 +2150,9 @@ def test_handle_multiple_revision_request_with_author_submission(
 def test_handle_multiple_revision_request_no_author_submission(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
     decision1: str,
     decision2: str,
 ):
@@ -2138,9 +2202,9 @@ def test_handle_multiple_revision_request_no_author_submission(
 def test_handle_withdraw_review_assignment(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
 ):
     """
     If the editor request a revision, pending review assignment are marked as withdrawn.
@@ -2214,7 +2278,7 @@ def test_article_snapshot_on_revision_request(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
 ):
     """
     If the editor requests a revision, title, abstract and kwds are "saved" into article_history.
@@ -2250,9 +2314,9 @@ def test_article_snapshot_on_revision_request(
 def test_handle_editor_decision_check_conditions(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     jcom_user: JCOMProfile,
-    review_form: ReviewForm,
+    review_form: review_models.ReviewForm,
 ):
     """
     If the HandleDecision is triggered by a non editor, an exception is raised and article is not updated.
@@ -2301,7 +2365,7 @@ def test_handle_editor_decision_check_conditions(
 @pytest.mark.django_db
 def test_postpone_due_date(
     assigned_article: submission_models.Article,
-    review_assignment: ReviewAssignment,
+    review_assignment: review_models.ReviewAssignment,
     fake_request: HttpRequest,
     postpone_date: int,
 ):

@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
+from plugins.wjs_review import communication_utils
 from review.forms import GeneratedForm
 from review.models import (
     ReviewAssignment,
@@ -24,6 +25,9 @@ from review.models import (
 )
 from submission.models import Article
 from utils.setting_handler import get_setting
+
+from wjs.jcom_profile import permissions as base_permissions
+from wjs.jcom_profile.apps import GROUP_EO
 
 from .logic import (
     AssignToEditor,
@@ -805,6 +809,57 @@ class EditorRevisionRequestDueDateForm(forms.ModelForm):
             self.add_error(None, e)
             raise
         self.instance.refresh_from_db()
+        return self.instance
+
+
+class AssignEoForm(forms.ModelForm):
+    eo_in_charge = forms.ModelChoiceField(queryset=Account.objects.filter(groups__name=GROUP_EO), required=True)
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = ["eo_in_charge"]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def _log_eo_if_eo_assigned(self):
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="eo_assignment_subject",
+            journal=self.instance.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="eo_assignment_body",
+            journal=self.instance.article.journal,
+            request=self.request,
+            context={
+                "article": self.instance.article,
+                "eo_in_charge": self.instance.eo_in_charge,
+            },
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.instance.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[self.instance.eo_in_charge],
+        )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not base_permissions.has_eo_role(cleaned_data["eo_in_charge"]):
+            raise forms.ValidationError(_("Selected user must be part of EO."))
+        if not base_permissions.has_eo_role(self.user):
+            raise forms.ValidationError(_("Executing users must be part of EO."))
+        return cleaned_data
+
+    def save(self, commit=True):
+        super().save(commit)
+        self._log_eo_if_eo_assigned()
         return self.instance
 
 

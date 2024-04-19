@@ -1104,6 +1104,54 @@ def set_default_plugin_settings(force: bool = False):
             typesetter_is_assigned_setting["name"],
         )
 
+    def eo_is_assigned_message():
+        subject_eo_assignment: SettingParams = {
+            "name": "eo_assignment_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for eo assignment."),
+            "description": _(
+                "The subject of the notification that is sent to the eo when he is assigned to an article.",
+            ),
+            "is_translatable": False,
+        }
+        subject_eo_assignment_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("eo is assigned to an article"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_eo_assignment,
+            subject_eo_assignment_setting_value,
+            subject_eo_assignment["name"],
+        )
+        eo_is_assigned_setting: SettingParams = {
+            "name": "eo_assignment_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for assignment of a eo."),
+            "description": _(
+                "The body of the notification that is sent to the eo when he is assigned to an article.",
+            ),
+            "is_translatable": False,
+        }
+        eo_is_assigned_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ eo.full_name }}, you have been assigned paper {{ article.id }}.
+
+            Please visit:
+            {% url "wjs_article_details" article.id %}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            eo_is_assigned_setting,
+            eo_is_assigned_setting_value,
+            eo_is_assigned_setting["name"],
+        )
+
     # FIXME: Please correct subject and body contents
     def article_requires_proofreading_message():
         subject_proofreading_request: SettingParams = {
@@ -1178,6 +1226,7 @@ def set_default_plugin_settings(force: bool = False):
     editor_decline_assignment_message()
     typesetter_is_assigned_message()
     article_requires_proofreading_message()
+    eo_is_assigned_message()
 
 
 def ensure_workflow_elements():

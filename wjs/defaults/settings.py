@@ -148,6 +148,10 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     # "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
+WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS = {
+    None: "wjs_review.events.assignment.assign_eo_random",
+}
+
 # Functions that check if a just-accepted article might have issues
 # that would prevent a typesetter from taking it in charge
 WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
