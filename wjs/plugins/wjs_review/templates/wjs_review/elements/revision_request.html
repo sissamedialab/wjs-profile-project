@@ -26,7 +26,7 @@
                 aria-expanded="false"
                 aria-controls="rr{{ round.pk }}Files">Article files</button>
         <div class="collapse" id="rr{{ round.pk }}Files">
-            {% include "wjs_review/elements/editor_revision_request_files.html" %}
+            {% include "wjs_review/elements/editor_revision_request_files.html" with round=round %}
         </div>
     </div>
     {% if round.editorrevisionrequest.cover_letter_file or round.editorrevisionrequest.cover_letter or round.editorrevisionrequest.author_note %}
