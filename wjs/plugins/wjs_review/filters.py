@@ -25,7 +25,7 @@ def status_choices() -> list[tuple[str, str]]:
         ("eo_unread_messages", _("With any unread messages by EO")),
         ("with_reviews", _("With assigned reviews for current review round")),
         ("with_pending_reviews", _("With pending reviews for current review round")),
-        ("with_all_completed_reviews", _("With all reviews completed for current review round")),
+        ("with_all_completed_reviews", _("No pending review request")),
     ]
 
 
