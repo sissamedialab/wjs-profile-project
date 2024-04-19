@@ -99,6 +99,7 @@ states_when_article_is_considered_in_production = [
 ]
 
 states_when_article_is_considered_missing_editor = [
+    ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
     ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
     ArticleWorkflow.ReviewStates.SUBMITTED,
     ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,

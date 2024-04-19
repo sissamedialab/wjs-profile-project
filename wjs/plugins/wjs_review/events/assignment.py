@@ -2,6 +2,8 @@
 
 Journal level configuration is made using the 'WJS_ARTICLE_ASSIGNMENT_FUNCTIONS' setting
 """
+
+import random
 from typing import Optional
 
 from core.models import AccountRole, Role
@@ -79,13 +81,24 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional[review_models.EditorAs
             return assignment
 
 
+def assign_editor_random(**kwargs) -> Optional[review_models.EditorAssignment]:
+    """Assign a random editor, for test purposes."""
+    article = kwargs["article"]
+
+    editors = AccountRole.objects.filter(
+        journal=article.journal,
+        role=Role.objects.get(slug="section-editor"),
+    ).values_list("user")
+    return random.choice(editors)
+
+
 def dispatch_assignment(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Dispatch editors assignment on journal basis, selecting the requested assignment algorithm."""
     journal = kwargs["article"].journal.code
-    if journal in settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS:
-        return import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(journal))(**kwargs)
-    else:
-        return import_string(settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None))(**kwargs)
+    assignment_function = import_string(
+        settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(journal, settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None)),
+    )
+    return assignment_function(**kwargs)
 
 
 def dispatch_eo_assignment(**kwargs) -> Optional[Account]:
