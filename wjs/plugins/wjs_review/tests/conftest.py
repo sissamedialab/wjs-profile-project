@@ -1,12 +1,17 @@
 import glob
 import os
+from io import BytesIO
 
 import pytest
+from core import files
+from core import models as core_models
 from core.models import Account, File, SupplementaryFile, Workflow, WorkflowElement
 from django.core import mail
+from django.core.files import File as DjangoFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
+from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.reminders.settings import reminders_configuration
 from review import models as review_models
 from review.models import ReviewAssignment
@@ -347,3 +352,82 @@ def editor_revision(assigned_article: Article, fake_request: HttpRequest) -> Edi
     file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{assigned_article.pk}_new.txt")
     assigned_article.supplementary_files.set([SupplementaryFile.objects.create(file=file_obj)])
     return revision_request
+
+
+def _create_supplementary_files(
+    article: Article,
+    author: Account,
+    n: int = 1,
+):
+    """Nomen Omen."""
+    for i in range(n):
+        # TODO: conftest fixture
+        supplementary_dj = DjangoFile(BytesIO(b"ciao"), f"ESM_file_{i}.txt")
+        supplementary_file = files.save_file_to_article(
+            supplementary_dj,
+            article,
+            author,
+        )
+        supplementary_file.label = "ESM LABEL"
+        supplementary_file.description = "Supplementary file description"
+        supplementary_file.save()
+        supp_file = core_models.SupplementaryFile.objects.create(file=supplementary_file)
+        article.supplementary_files.add(supp_file)
+    return supp_file
+
+
+# Could have added this in the method above but supplementary files are handled slightly different. Could RFC this.
+def _create_article_files(
+    article: Article,
+    author: Account,
+    n: int = 1,
+):
+    """Nomen Omen."""
+    file_types = {
+        "manuscript_files": b"manuscript content",
+        "data_figure_files": b"data figure content",
+        "source_files": b"source content",
+    }
+
+    for file_category, file_content_bytes in file_types.items():
+        for i in range(n):
+            file_name = f"{file_category[:-1]}_{i}.txt"
+            file_data = BytesIO(file_content_bytes)
+            django_file = DjangoFile(file_data, file_name)
+
+            file_instance = files.save_file_to_article(
+                django_file,
+                article,
+                author,
+            )
+            getattr(article, file_category).add(file_instance)
+
+
+def _create_galleyproofing_proofed_files(
+    article: Article,
+    author: Account,
+    proofing_assignment: GalleyProofing,
+    n: int = 1,
+):
+    """Nomen Omen."""
+
+    for i in range(n):
+        for file_type in ["PDF", "epub", "html"]:
+            galley_dj = DjangoFile(BytesIO(b"ciao"), f"Galley_{i}.{file_type}")
+            galley_file = files.save_file_to_article(
+                galley_dj,
+                article,
+                author,
+            )
+            galley_file.label = f"{file_type}"
+            galley_file.description = f"{file_type} galley description"
+            galley_file.save()
+            galley = core_models.Galley.objects.create(
+                file=galley_file,
+                article=article,
+            )
+            proofing_assignment.proofed_files.add(galley)
+
+            if file_type == "html":
+                article.render_galley = galley
+                article.save()

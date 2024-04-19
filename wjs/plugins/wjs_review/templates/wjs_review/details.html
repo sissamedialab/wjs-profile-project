@@ -94,7 +94,7 @@
                 {% for manuscript_file in article.manuscript_files.all %}<li>{{ manuscript_file.original_filename }}</li>{% endfor %}
             </div>
             <div class="col">
-                {% for supplementary_file in article.supplementary_files.all %}<li>{{ supplementary_file.original_filename }}</li>{% endfor %}
+                {% for supplementary_file in article.supplementary_files.all %}<li>{{ supplementary_file.file.original_filename }}</li>{% endfor %}
             </div>
             <div class="col">
                 {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}

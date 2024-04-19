@@ -1152,9 +1152,14 @@ class AuthorHandleRevision:
         self._notify_reviewers()
         self._notify_editor()
 
+    def _save_author_note(self):
+        self.revision.author_note = self.form_data.get("author_note", "")
+        self.revision.save()
+
     def run(self):
         with transaction.atomic():
             self._confirm_revision()
+            self._save_author_note()
             self._trigger_complete_event(self.revision, self.request)
             self._log_operation()
             return self.revision

@@ -1,14 +1,18 @@
 <ul>
-    {% for file in round.editorrevisionrequest.manuscript_files.all %}
+    <h6>Manuscript Files</h6>
+    {% for file in round.editorrevisionrequest_set.first.manuscript_files.all %}
         <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
     {% endfor %}
-    {% for file in round.editorrevisionrequest.data_figure_files.all %}
+    <h6>Data Figure Files</h6>
+    {% for file in round.editorrevisionrequest_set.first.data_figure_files.all %}
         <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
     {% endfor %}
-    {% for file in round.editorrevisionrequest.supplementary_files.all %}
+    <h6>Supplementary Files</h6>
+    {% for file in round.editorrevisionrequest_set.first.supplementary_files.all %}
         <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
     {% endfor %}
-    {% for file in round.editorrevisionrequest.source_files.all %}
+    <h6>Source Files</h6>
+    {% for file in round.editorrevisionrequest_set.first.source_files.all %}
         <li><a target="_blank" href="{% url 'article_file_download' 'id' workflow.article.pk file.pk %}">{{ file }}</a></li>
     {% endfor %}
 </ul>
