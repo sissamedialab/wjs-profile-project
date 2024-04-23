@@ -1,6 +1,7 @@
 """Import article from wjapp."""
 import datetime
 
+import freezegun
 import mariadb
 from core.models import Account
 from django.conf import settings
@@ -78,6 +79,7 @@ u1.lastname AS author_lastname,
 u1.firstname AS author_firstname,
 u1.email AS author_email,
 d.editorCod,
+d.editorAssignDate,
 u2.lastname AS editor_lastname,
 u2.firstname AS editor_firstname,
 u2.email AS editor_email,
@@ -105,6 +107,7 @@ AND d.preprintId='{preprintid}'
             author_first_name = row["author_firstname"]
             author_email = row["author_email"]
             editor_cod = row["editorCod"]
+            editor_assign_date = row["editorAssignDate"]
             editor_last_name = row["editor_lastname"]
             editor_first_name = row["editor_firstname"]
             editor_email = row["editor_email"]
@@ -119,6 +122,7 @@ submission_date: {submission_date}
 title: {title}
 author: {author_cod} {author_last_name} {author_first_name} {author_email}
 editor: {editor_cod} {editor_last_name} {editor_first_name} {editor_email}
+editor_assign_date: {editor_assign_date}
 abstract: {abstract}
 section: {section}
 """,
@@ -167,11 +171,20 @@ WHERE
             # This is not the default situation: if we are here it
             # means that the article has been already imported and
             # that we are re-importing.
-            logger.warning(f"Re-importing existing article {preprintid} at {article.id}")
-        else:
-            article = submission_models.Article.objects.create(
-                journal=journal,
+            logger.warning(
+                f"""Re-importing existing article {preprintid} at {article.id} \
+The {article.id} here will disappear because of the delete() below""",
             )
+            article.manuscript_files.all().delete()
+            article.data_figure_files.all().delete()
+            article.supplementary_files.all().delete()
+            article.source_files.all().delete()
+            article.galley_set.all().delete()
+            article.delete()
+
+        article = submission_models.Article.objects.create(
+            journal=journal,
+        )
         article.title = row["versionTitle"]
         article.abstract = row["versionAbstract"]
         article.imported = True
@@ -221,12 +234,15 @@ WHERE
 
         logger.debug(f"NO NOTIFICATION: {getattr(settings, 'NO_NOTIFICATION', None)}")
 
-        AssignToEditor(
-            article=article,
-            editor=editor,
-            request=request,
-        ).run()
-        article.save()
+        with freezegun.freeze_time(
+            rome_timezone.localize(datetime.datetime.fromisoformat(str(row["editorAssignDate"]))),
+        ):
+            AssignToEditor(
+                article=article,
+                editor=editor,
+                request=request,
+            ).run()
+            article.save()
         article.refresh_from_db()
         return (article, preprintid)
 
