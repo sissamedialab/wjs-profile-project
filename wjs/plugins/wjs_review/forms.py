@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, Optional
 from core import files as core_files
 from core import models as core_models
 from core.forms import ConfirmableForm
+from core.models import File
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -48,6 +49,7 @@ from .models import (
     EditorRevisionRequest,
     Message,
     MessageRecipients,
+    MessageThread,
     ProphyAccount,
     WorkflowReviewAssignment,
 )
@@ -908,3 +910,70 @@ class EditorAssignsDifferentEditorForm(forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class ForwardMessageForm(forms.ModelForm):
+    """Form used by the EO who wants to forward an existing message.
+
+    Usually a message that the typesetter would like to send to the author.
+    """
+
+    class Meta:
+        model = Message
+        fields = ["subject", "body", "attachment"]
+        widgets = {"body": SummernoteWidget()}
+
+    attachment = forms.FileField(required=False, label=_("Optional attachment"))
+
+    def __init__(self, *args, **kwargs):
+        """Store away data needed for the new message."""
+        self.user = kwargs.pop("user")
+        self.original_message = kwargs.pop("original_message")
+        self.article = self.original_message.target
+        self.recipients = [self.original_message.to_be_forwarded_to.pk]
+        # Let the view decide who the actor of the new message should be:
+        self.actor = kwargs.pop("actor")
+        super().__init__(*args, **kwargs)
+
+    def save(self, commit=True):
+        """Create and send the "moderated" message.
+
+        Create a new message (m2) which is a forward of an original message (m1).
+
+        Use m1.to_be_forwarded_to as recipient for m2.
+        Use m1.subject and body as base for m2 (and let the operator edit them).
+        """
+        with transaction.atomic():
+            message = Message.objects.create(
+                actor=self.actor,
+                message_type=Message.MessageTypes.VERBOSE,
+                content_type=ContentType.objects.get_for_model(self.article),
+                object_id=self.article.pk,
+                subject=self.cleaned_data["subject"],
+                body=self.cleaned_data["body"],
+            )
+            message.recipients.set(self.recipients)
+
+            if self.cleaned_data["attachment"]:
+                attachment: File = core_files.save_file_to_article(
+                    file_to_handle=self.cleaned_data["attachment"],
+                    article=self.article,
+                    owner=self.actor,
+                    label=None,
+                    description=None,
+                )
+                message.attachments.add(attachment)
+
+            message.emit_notification()
+
+            if base_permissions.has_eo_role(self.user):
+                message.read_by_eo = True
+                message.save()
+
+            MessageThread.objects.create(
+                parent_message=self.original_message,
+                child_message=message,
+                relation_type=MessageThread.MessageRelation.FORWARD,
+            )
+
+            return message
