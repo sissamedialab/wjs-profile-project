@@ -52,6 +52,7 @@ from .forms import (
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
     EvaluateReviewForm,
+    ForwardMessageForm,
     InviteUserForm,
     MessageForm,
     ReportForm,
@@ -90,6 +91,7 @@ from .views__production import (  # noqa F401
     TypesetterPending,
     TypesetterUploadFiles,
     TypesetterWorkingOn,
+    WriteToAuWithModeration,
     WriteToTyp,
 )
 
@@ -1563,3 +1565,52 @@ class EditorAssignsDifferentEditor(UpdateView):
         kwargs["instance"] = self.object
         kwargs["selectable_editors"] = self._editors_with_keywords()
         return kwargs
+
+
+class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    """Forward a Message.
+
+    See ForwardMessageForm for details on the forwarded message.
+    """
+
+    model = Message
+    # The template "write_message_to_typ.html" is very generic:
+    # if has title + optional intro + form
+    # so that we use it here also
+    template_name = "wjs_review/write_message_to_typ.html"
+    form_class = ForwardMessageForm
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+    def setup(self, request, *args, **kwargs):
+        """Fetch the original message that we are going to forward."""
+        super().setup(request, *args, **kwargs)
+        self.original_message = get_object_or_404(self.model, id=self.kwargs["original_message_pk"])
+        self.workflow = self.original_message.target.articleworkflow
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["original_message"] = self.original_message
+        kwargs["actor"] = self.original_message.actor
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_initial(self):
+        return {
+            "subject": self.original_message.subject,
+            "body": self.original_message.body,
+        }
+
+    def get_context_data(self, **kwargs):
+        """Add the workflow."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.workflow
+        context["title"] = _("Forward a message")
+        context["introduction"] = _("Please check this message before forwarding it.")
+        return context
+
+    def get_success_url(self):
+        """Point back to the paper's status page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})

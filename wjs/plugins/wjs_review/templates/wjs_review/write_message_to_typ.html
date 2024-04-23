@@ -2,13 +2,24 @@
 {% extends "wjs_review/base.html" %}
 {% load django_bootstrap5 i18n static wjs_review %}
 {% block title %}
-    {% translate "Write a message to the typesetter" %}
+    {% if title %}
+        {{ title }}
+    {% else %}
+        {% translate "Write a message to the typesetter" %}
+    {% endif %}
 {% endblock title %}
 {% block content_header %}
     {% include "wjs_review/elements/article_title_and_authors.html" %}
 {% endblock content_header %}
 {% block center_column %}
     <div class="container">
+        {% if introduction %}
+            <dic class="row">
+            <div class="col">
+                <p>{{ introduction }}</p>
+            </div>
+            </dic>
+        {% endif %}
         <div class="row">
             {% comment %} TBV: `bootstrap_form_errors form` does not render anything!! Same for formset errors, but unteste. {% endcomment %}
             <div>{{ form.errors }}</div>

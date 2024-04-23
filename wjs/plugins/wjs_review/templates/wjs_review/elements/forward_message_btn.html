@@ -1,0 +1,7 @@
+{% load wjs_review %}
+{% if message|should_message_be_forwarded %}
+    <div class="col-1">
+        <a href="{% url "wjs_message_forward" original_message_pk=message.pk %}"
+           class="btn btn-primary">forward...</a>
+    </div>
+{% endif %}

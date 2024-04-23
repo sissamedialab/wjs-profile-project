@@ -14,7 +14,8 @@ from submission.models import Article
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 
-from ..models import Message
+from ..communication_utils import get_eo_user
+from ..models import Message, MessageThread
 from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
     _accept_article,
@@ -204,7 +205,6 @@ def test_typesetter_workingon_lists_active_papers(
 @pytest.mark.django_db
 def test_au_writes_to_typ(
     assigned_to_typesetter_article: Article,
-    fake_request: HttpRequest,
     client: Client,
 ):
     """Author can write to typesetter without explicitly setting the recipient."""
@@ -230,3 +230,84 @@ def test_au_writes_to_typ(
 
     typesetter = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment.typesetter
     assert messages.filter(recipients__in=[typesetter]).count() == 1
+
+
+@pytest.mark.django_db
+def test_typ_writes_to_au(
+    assigned_to_typesetter_article: Article,
+    client: Client,
+):
+    """When typ writes to author, a message is created that goes to EO and that should be forwarded to the author."""
+    content_type = ContentType.objects.get_for_model(assigned_to_typesetter_article)
+    object_id = assigned_to_typesetter_article.pk
+    assert not Message.objects.filter(
+        content_type=content_type,
+        object_id=object_id,
+    ).exists()
+
+    url = reverse("wjs_message_write_to_auwm", kwargs={"pk": assigned_to_typesetter_article.pk})
+    data = {
+        "subject": "A subject",
+        "body": "A body",
+    }
+    typesetter = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment.typesetter
+    client.force_login(typesetter)
+    response = client.post(url, data=data)
+    assert response.status_code == 302  # POST redirects to "details" page
+
+    messages = Message.objects.filter(content_type=content_type, object_id=object_id)
+    assert messages.count() == 1
+    message = messages.first()
+
+    assert set(message.recipients.all()) == {get_eo_user(assigned_to_typesetter_article)}
+    author = assigned_to_typesetter_article.correspondence_author
+    assert message.to_be_forwarded_to == author
+
+
+@pytest.mark.django_db
+def test_eo_forwards_msg(
+    assigned_to_typesetter_article: Article,
+    client: Client,
+    eo_user: JCOMProfile,
+):
+    """When EO forwards a message, the original message is not changed and a new message is created."""
+    content_type = ContentType.objects.get_for_model(assigned_to_typesetter_article)
+    object_id = assigned_to_typesetter_article.pk
+    assert not Message.objects.filter(
+        content_type=content_type,
+        object_id=object_id,
+    ).exists()
+
+    # Simulate a message that should be forwarded.
+    typesetter = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment.typesetter
+    author = assigned_to_typesetter_article.correspondence_author
+    m1 = Message.objects.create(
+        content_type=content_type,
+        object_id=object_id,
+        subject="A subject",
+        body="A body",
+        actor=typesetter,
+        to_be_forwarded_to=author,
+    )
+    m1.recipients.add(eo_user.janeway_account)
+
+    url = reverse("wjs_message_forward", kwargs={"original_message_pk": m1.pk})
+    data = {
+        "subject": "A subject EDITED",
+        "body": "A body EDITED",
+    }
+    client.force_login(eo_user.janeway_account)
+    response = client.post(url, data=data)
+    assert response.status_code == 302  # POST redirects to "details" page
+    assert "/login" not in response.url
+
+    messages = Message.objects.filter(content_type=content_type, object_id=object_id).order_by("created")
+    assert messages.count() == 2
+    assert m1 == messages.first()
+    m2 = messages.last()
+
+    assert set(m2.recipients.all()) == {author}
+    assert m2.to_be_forwarded_to is None
+
+    m1m2_relation = MessageThread.objects.get(parent_message=m1, child_message=m2)
+    assert m1m2_relation.relation_type == MessageThread.MessageRelation.FORWARD

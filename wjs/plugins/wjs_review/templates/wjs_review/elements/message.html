@@ -1,6 +1,6 @@
 {% load wjs_review wjs_tags %}
 <div class="row" id="msg-{{ message.id }}">
-    <div class="col-11 p-2">
+    <div class="col-10 p-2">
         <div class="d-flex align-items-center {% if message.actor != user %} text-right justify-content-end {% endif %}">
             {% comment %} TODO: find a way to set max-width=60% (I don't want mw-100 or w-75){% endcomment %}
             <div class="card w-75">
@@ -23,11 +23,11 @@
                     <div class="badge bg-primary">
                         to
                         {% for recipient in message.recipients.all %}
-                            {# djlint:off #}{% display_recipient recipient to=user on=article %}{% if not forloop.last %},{% endif %}{# djlint:on #}
+                            {# djlint:off #}{% hide_real_name recipient to=user on=article %}{% if not forloop.last %},{% endif %}{# djlint:on #}
                         {% endfor %}
                     </div>
                 {% else %}
-                    <div class="badge bg-secondary">by {{ message.actor }}</div>
+                    <div class="badge bg-secondary">by {% hide_real_name message.actor to=user on=article %}</div>
                 {% endif %}
             </div>
         </div>
@@ -40,5 +40,6 @@
     {% endif %}
     {% if request.user|is_user_eo and message.message_type in human_message_types %}
         {% include "wjs_review/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.id %}
+        {% include "wjs_review/elements/forward_message_btn.html" %}
     {% endif %}
 </div>

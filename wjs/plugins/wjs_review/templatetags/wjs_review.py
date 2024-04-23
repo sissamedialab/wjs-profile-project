@@ -22,7 +22,7 @@ from utils.logger import get_logger
 from utils.models import LogEntry
 
 from .. import communication_utils, states
-from ..models import ArticleWorkflow, EditorDecision, ProphyAccount
+from ..models import ArticleWorkflow, EditorDecision, MessageThread, ProphyAccount
 from ..permissions import (
     has_director_role_by_article,
     has_typesetter_role_by_article,
@@ -334,16 +334,30 @@ def last_major_revision(article: ArticleWorkflow):
 
 
 @register.simple_tag(takes_context=True)
-def display_recipient(context, recipient: Account, to: Account, on: Article) -> str:
-    """Display a message recipient's name, or replace it with someting else."""
+def hide_real_name(context, actor_or_recipient: Account, to: Account, on: Article) -> str:
+    """Hide/show a message recipient/actor's name."""
     # The arguments names "to" and "on" allow for a readable template tag, e.g.:
     # {% display_recipient recipient to=user on=article %}
     # but here we are aliasing "to" and "on" onto something easier to understand in the code
     user = to
     article = on
 
+    real_name = str(actor_or_recipient)
     if is_article_author(instance=article.articleworkflow, user=user):
-        if is_article_typesetter(instance=article.articleworkflow, user=recipient):
+        if is_article_typesetter(instance=article.articleworkflow, user=actor_or_recipient):
             return "typesetter"
+        elif is_article_editor(instance=article.articleworkflow, user=actor_or_recipient):
+            return "editor"
+        else:
+            return real_name
     else:
-        return str(recipient)
+        return real_name
+
+
+@register.filter
+def should_message_be_forwarded(message):
+    """Return True if a message should be forwarded."""
+    return (
+        message.to_be_forwarded_to
+        and not message.children.filter(relation_type=MessageThread.MessageRelation.FORWARD).exists()
+    )

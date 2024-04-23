@@ -56,7 +56,7 @@ class FileForm(forms.Form):
 
 
 class WriteToTypMessageForm(forms.Form):
-    """Simple for used by an author who want to contact the typesetter.
+    """Simple form used by an author who want to contact the typesetter.
 
     The author cannot choose the recipient of the message,
     and the name of the typesetter should be hidden from him.
@@ -73,7 +73,7 @@ class WriteToTypMessageForm(forms.Form):
         self.recipients = kwargs.pop("recipients")
         super().__init__(*args, **kwargs)
 
-    def create_message(self):
+    def create_message(self, to_be_forwarded_to=None):
         """Create and send the message for the typesetter."""
         message = Message.objects.create(
             actor=self.actor,
@@ -82,6 +82,7 @@ class WriteToTypMessageForm(forms.Form):
             object_id=self.article.pk,
             subject=self.cleaned_data["subject"],
             body=self.cleaned_data["body"],
+            to_be_forwarded_to=to_be_forwarded_to,
         )
         message.recipients.add(self.recipients)
 

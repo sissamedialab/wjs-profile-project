@@ -27,6 +27,7 @@ from .views import (
     EOPending,
     EOProduction,
     EvaluateReviewRequest,
+    ForwardMessage,
     InviteReviewer,
     Manager,
     MessageAttachmentDownloadView,
@@ -48,6 +49,7 @@ from .views import (
     UpdateState,
     UploadRevisionAuthorCoverLetterFile,
     WriteMessage,
+    WriteToAuWithModeration,
     WriteToTyp,
 )
 
@@ -142,6 +144,16 @@ urlpatterns = [
         "messages/writetotyp/<int:pk>/",
         WriteToTyp.as_view(),
         name="wjs_message_write_to_typ",
+    ),
+    path(
+        "messages/writetoau/<int:pk>/",
+        WriteToAuWithModeration.as_view(),
+        name="wjs_message_write_to_auwm",
+    ),
+    path(
+        "messages/forward/<int:original_message_pk>/",
+        ForwardMessage.as_view(),
+        name="wjs_message_forward",
     ),
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders

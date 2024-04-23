@@ -14,6 +14,7 @@ from plugins.typesetting.models import TypesettingAssignment
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 
+from .communication_utils import get_eo_user
 from .forms__production import (
     FileForm,
     TypesetterUploadFilesForm,
@@ -322,4 +323,74 @@ class WriteToTyp(UserPassesTestMixin, LoginRequiredMixin, FormView):
     def form_valid(self, form):
         """Add a Message for the typesetter and send the notification."""
         form.create_message()
+        return super().form_valid(form)
+
+
+# TODO: refactor with WriteToTyp
+# (derive from it and override test func and get_recipient and form_valid)
+class WriteToAuWithModeration(UserPassesTestMixin, LoginRequiredMixin, FormView):
+    """Let the typesetter write to the author of a certain article.
+
+    The typesetter message will not go directly to the author, but it will go to the EO, who can then forward it.
+
+    """
+
+    model = ArticleWorkflow
+    template_name = "wjs_review/write_message_to_typ.html"
+    context_object_name = "workflow"
+    form_class = WriteToTypMessageForm
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.workflow = get_object_or_404(self.model, id=self.kwargs["pk"])
+
+    def test_func(self):
+        """User must be the article's author."""
+        return is_article_typesetter(
+            self.workflow,
+            self.request.user,
+        ) or base_permissions.has_eo_role(
+            self.request.user,
+        )
+
+    def get_recipient(self):
+        """Get the EO user.
+
+        He will be the recipient of the message.
+        """
+        return get_eo_user(self.workflow.article)
+
+    def get_to_be_forwarded_to(self):
+        """Get the author.
+
+        He will be added as the person to which EO should forward this message.
+        """
+        return self.workflow.article.correspondence_author
+
+    def get_success_url(self):
+        """Point back to the article's detail page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
+
+    def get_context_data(self, **kwargs):
+        """Add the workflow."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.workflow
+        return context
+
+    def get_form_kwargs(self):
+        """Pass along recipient, user and article."""
+        kwargs = super().get_form_kwargs()
+        kwargs.update(
+            {
+                "actor": self.request.user,
+                "article": self.workflow.article,
+                "recipients": self.get_recipient(),
+            },
+        )
+        return kwargs
+
+    def form_valid(self, form):
+        """Add a Message for the typesetter and send the notification."""
+        form.create_message(to_be_forwarded_to=self.get_to_be_forwarded_to())
         return super().form_valid(form)

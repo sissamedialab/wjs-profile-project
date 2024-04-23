@@ -503,6 +503,15 @@ class Message(TimeStampedModel):
         through="MessageRecipients",
         related_name="received_messages",
     )
+    to_be_forwarded_to = models.ForeignKey(
+        Account,
+        on_delete=models.DO_NOTHING,
+        related_name="pre_moderation_messages",
+        verbose_name="final recipient",
+        help_text="The final recipient that this message was intended for",
+        null=True,
+        blank=True,
+    )
     subject = models.TextField(
         blank=True,
         default="",
@@ -551,6 +560,15 @@ class Message(TimeStampedModel):
         "content_type",
         "object_id",
     )
+
+    # A message could be related to other messages
+    # (mainly used for forwarded messages - e.g. typ-to-au)
+    related_messages = models.ManyToManyField(
+        to="Message",
+        through="MessageThread",
+        related_name="children_messages",
+    )
+
     # Attachments
     attachments = models.ManyToManyField(
         to=core_models.File,
@@ -677,6 +695,20 @@ class MessageRecipients(models.Model):
         default=False,
         help_text="When True, the name of this recipient will not be shown.",
     )
+
+
+class MessageThread(models.Model):
+    """Relate two messages."""
+
+    class MessageRelation(models.TextChoices):
+        """Describe the relation between two messages."""
+
+        FORWARD = "Forward", _("The child message is a forward of the parent message.")
+        REPLY = "Reply", _("The child message is a reply to the parent message.")
+
+    parent_message = models.ForeignKey(Message, related_name="children", on_delete=models.CASCADE)
+    child_message = models.ForeignKey(Message, related_name="parents", on_delete=models.CASCADE)
+    relation_type = models.CharField(max_length=101, choices=MessageRelation.choices)
 
 
 class EditorRevisionRequest(RevisionRequest):

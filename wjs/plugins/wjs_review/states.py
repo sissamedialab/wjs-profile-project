@@ -670,7 +670,7 @@ class TypesetterSelected(BaseState):
             permission=permissions.is_article_typesetter,
             name="Contact Author",
             label="Contact Author",
-            view_name="WRITEME!",
+            view_name="wjs_message_write_to_auwm",
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -707,6 +707,12 @@ class Proofreading(BaseState):
             name="write_to_typesetter",
             label="Write to typesetter",
             view_name="wjs_message_write_to_typ",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="Contact Author",
+            label="Contact Author",
+            view_name="wjs_message_write_to_auwm",
         ),
     )
 
