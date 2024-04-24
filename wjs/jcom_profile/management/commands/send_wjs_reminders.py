@@ -3,6 +3,7 @@
 NB: Janeway also have a command called "send_reminders". It deals with Janeway's original reminders implementation.
 
 """
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.utils import timezone

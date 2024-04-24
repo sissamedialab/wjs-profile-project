@@ -258,6 +258,10 @@ DEFAULT_ACCEPTANCE_DUE_DATE_MAX = 12
 
 TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS = 3
 
+# When the last reminder has been sent (e.g. REVIEWER_SHOULD_WRITE_REVIEW_2) and the following number of days
+# have passed, a reviewer (for instance) is considered "late". This can effect the "attention conditions".
+WJS_REMINDER_LATE_AFTER = 3
+
 Q_CLUSTER = {
     "name": "wjs-janeway",
     "label": "Task WJS",

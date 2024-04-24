@@ -12,7 +12,6 @@ from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
 from plugins.typesetting.models import GalleyProofing
-from plugins.wjs_review.reminders.settings import reminders_configuration
 from review import models as review_models
 from review.models import ReviewAssignment
 from submission.models import Article
@@ -27,7 +26,7 @@ from ..logic import (
     HandleDecision,
     VerifyProductionRequirements,
 )
-from ..models import ArticleWorkflow, EditorRevisionRequest, Message, Reminder
+from ..models import ArticleWorkflow, EditorRevisionRequest, Message
 from ..plugin_settings import (
     HANDSHAKE_URL,
     SHORT_NAME,
@@ -70,11 +69,13 @@ def review_settings(journal, eo_user):
 def _assign_article(fake_request, article, section_editor):
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     article.articleworkflow.save()
-    workflow = AssignToEditor(
+    assignment = AssignToEditor(
         article=article,
         editor=section_editor,
         request=fake_request,
     ).run()
+    workflow = assignment.article.articleworkflow
+    workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     cleanup_notifications_side_effects()
     return workflow.article
@@ -258,53 +259,6 @@ def cleanup_test_files_from_folder_files(settings):
     yield
     for f in glob.glob(f"{settings.BASE_DIR}/files/**/*{TEST_FILES_EXTENSION}", recursive=True):
         os.unlink(f)
-
-
-@pytest.fixture
-def known_reminders_configuration():
-    """A fixture that sets the reminders configuration to known values."""
-    # Using a fixture instead than mocking the dictionary for easier reuse
-    # (and also because I'm not very confortable with mock ;)
-    configuration = reminders_configuration["DEFAULT"]
-
-    # Store old config in a dictionary using the reminder code as a key that points to a tuple of (old, mine) values
-    tmp_config = {
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: (
-            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1].days_after,
-            4,
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: (
-            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2].days_after,
-            7,
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3: (
-            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3].days_after,
-            9,
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1: (
-            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1].days_after,
-            7,
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2: (
-            configuration[Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2].days_after,
-            14,
-        ),
-    }
-    # At the time of writing I also had:
-    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1].days_after = 5
-    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2].days_after = 8
-    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3].days_after = 10
-    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1].days_after = 5
-    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2].days_after = 8
-    # - configuration[Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3].days_after = 10
-
-    for reminder_code, values in tmp_config.items():
-        my_value = values[1]
-        configuration[reminder_code].days_after = my_value
-    yield
-    for reminder_code, values in tmp_config.items():
-        old_value = values[0]
-        configuration[reminder_code].days_after = old_value
 
 
 @pytest.fixture

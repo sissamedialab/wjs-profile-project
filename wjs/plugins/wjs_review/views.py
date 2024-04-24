@@ -167,10 +167,14 @@ class EditorPending(FilterSetMixin, LoginRequiredMixin, ListView):
         # TODO: what happens to EditorAssignments when the editor is changed?
         #       - we want to track the info about past assignments
         #       - we want to have only one "live" editor an any given moment
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
-            article__editorassignment__editor__in=[self.request.user],
-            state__in=states_when_article_is_considered_in_review,
-        )
+        # Check on user authentication is required because this is run before LoginRequiredMixin as it's called in the
+        # setup method of the view.
+        if self.request.user.is_authenticated:
+            return FilterSetMixin._apply_base_filters(self, qs).filter(
+                article__editorassignment__editor__in=[self.request.user],
+                state__in=states_when_article_is_considered_in_review,
+            )
+        return qs.none()
 
 
 class EditorArchived(EditorPending):
@@ -614,7 +618,7 @@ class OpenReviewMixin(DetailView):
     by either using the access code or the current user.
     """
 
-    model = ReviewAssignment
+    model = WorkflowReviewAssignment
     pk_url_kwarg = "assignment_id"
     context_object_name = "assignment"
     incomplete_review_only = True

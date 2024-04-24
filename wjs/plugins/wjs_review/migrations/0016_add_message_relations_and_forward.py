@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("wjs_review", "0015_modify_prophy_account"),
+        ("wjs_review", "0015_alter_reminder_code"),
     ]
 
     operations = [

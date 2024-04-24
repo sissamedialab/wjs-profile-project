@@ -375,6 +375,8 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             return attention_flag
         if attention_flag := conditions.editor_as_reviewer_is_late(article):
             return attention_flag
+        if attention_flag := conditions.any_reviewer_is_late_after_reminder(article):
+            return attention_flag
         # The `conditions.one_review_assignment_late(article)` is more invasive: it reports all late assignments, not
         # just the editors'
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):

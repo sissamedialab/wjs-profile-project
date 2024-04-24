@@ -836,6 +836,116 @@ def set_default_plugin_settings(force: bool = False):
         }
         if force:
             patch_setting(default_review_days_setting, default_review_days_setting_value)
+        default_editor_assign_reviewer_days_setting: SettingParams = {
+            "name": "default_editor_assign_reviewer_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for assign review"),
+            "description": _(
+                "The default number of days before editor should assign reviewer.",
+            ),
+            "is_translatable": False,
+        }
+        default_editor_assign_review_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 5,
+            "translations": {},
+        }
+        create_customization_setting(
+            default_editor_assign_reviewer_days_setting,
+            default_editor_assign_review_days_setting_value,
+            default_editor_assign_reviewer_days_setting["name"],
+            force=force,
+        )
+        default_editor_make_decision_days_setting: SettingParams = {
+            "name": "default_editor_make_decision_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for making a decision"),
+            "description": _(
+                "The default number of days before editor should make a decision.",
+            ),
+            "is_translatable": False,
+        }
+        default_editor_make_decision_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 5,
+            "translations": {},
+        }
+        create_customization_setting(
+            default_editor_make_decision_days_setting,
+            default_editor_make_decision_days_setting_value,
+            default_editor_make_decision_days_setting["name"],
+            force=force,
+        )
+        default_author_major_revision_days_setting: SettingParams = {
+            "name": "default_author_major_revision_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for major revision"),
+            "description": _(
+                "The default number of days for author to submit a major revision.",
+            ),
+            "is_translatable": False,
+        }
+        default_author_major_revision_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 60,
+            "translations": {},
+        }
+        create_customization_setting(
+            default_author_major_revision_days_setting,
+            default_author_major_revision_days_setting_value,
+            default_author_major_revision_days_setting["name"],
+            force=force,
+        )
+        default_author_minor_revision_days_setting: SettingParams = {
+            "name": "default_author_minor_revision_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for minor revision"),
+            "description": _(
+                "The default number of days for author to submit a minor revision.",
+            ),
+            "is_translatable": False,
+        }
+        default_author_minor_revision_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 30,
+            "translations": {},
+        }
+        create_customization_setting(
+            default_author_minor_revision_days_setting,
+            default_author_minor_revision_days_setting_value,
+            default_author_minor_revision_days_setting["name"],
+            force=force,
+        )
+        default_author_technical_revision_days_setting: SettingParams = {
+            "name": "default_author_technical_revision_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for technical revision"),
+            "description": _(
+                "The default number of days for author to submit a technical revision.",
+            ),
+            "is_translatable": False,
+        }
+        default_author_technical_revision_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 2,
+            "translations": {},
+        }
+        create_customization_setting(
+            default_author_technical_revision_days_setting,
+            default_author_technical_revision_days_setting_value,
+            default_author_technical_revision_days_setting["name"],
+            force=force,
+        )
 
     def author_can_contact_director():
         author_can_contact_director_setting: SettingParams = {

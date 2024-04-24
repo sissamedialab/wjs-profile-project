@@ -1,17 +1,20 @@
 import datetime
 import logging
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional, Type
 from unittest import mock
 
 import freezegun
 import pytest
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
+from django.db import models
 from django.http import HttpRequest
 from django.utils import timezone
 from journal import models as journal_models
+from plugins.wjs_review.conditions import any_reviewer_is_late_after_reminder
+from plugins.wjs_review.forms import ReportForm
 from review import models as review_models
-from review.models import ReviewAssignment
 from submission import models as submission_models
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -23,9 +26,26 @@ from ..logic import (
     AssignToReviewer,
     EvaluateReview,
     HandleDecision,
-    create_reminder,
+    HandleEditorDeclinesAssignment,
+    SubmitReview,
 )
-from ..models import ArticleWorkflow, Reminder, WorkflowReviewAssignment
+from ..models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    Message,
+    Reminder,
+    WorkflowReviewAssignment,
+)
+from ..reminders.settings import (
+    AuthorShouldSubmitMajorRevisionReminderManager,
+    AuthorShouldSubmitMinorRevisionReminderManager,
+    AuthorShouldSubmitTechnicalRevisionReminderManager,
+    DirectorShouldAssignEditorReminderManager,
+    EditorShouldSelectReviewerReminderManager,
+    ReminderManager,
+    ReviewerShouldEvaluateAssignmentReminderManager,
+    ReviewerShouldWriteReviewReminderManager,
+)
 from . import test_helpers
 
 
@@ -33,6 +53,42 @@ def test_render_template():
     """Test the simple render_template() function."""
     result = render_template("-{{ aaa }}-", {"aaa": "AAA"})
     assert result == "-AAA-"
+
+
+def check_reminder_date(
+    target_object: models.Model,
+    manager: Type[ReminderManager],
+    codes: Iterable[str],
+    base_date: datetime.date,
+    journal: journal_models.Journal,
+    overall_count_matches: bool = True,
+):
+    """
+    Generic function to test the date of reminders.
+
+    Asserts that the expected reminders are created and that their due date is correct.
+
+    :param target_object: the object for which the reminders are created
+    :param manager: the review settings manager to test
+    :param codes: the list of codes of the reminders to check
+    :param base_date: the date from which to calculate the due date
+    :param journal: current journal
+    :param overall_count_matches: if True, the total number of reminders must match the length of `codes`
+    """
+    reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(target_object),
+        object_id=target_object.pk,
+    )
+    if overall_count_matches:
+        assert reminders.count() == len(codes)
+        assert reminders.filter(code__in=codes).count() == len(codes)
+    for code in codes:
+        offset_date = manager.reminders[code].days_after
+        date_by_settings = manager.reminders[code]._get_date_base_setting(journal)
+        if date_by_settings:
+            offset_date += date_by_settings
+        if reminder := reminders.get(code=code):
+            assert reminder.date_due == base_date + datetime.timedelta(days=offset_date)
 
 
 @pytest.mark.django_db
@@ -56,15 +112,15 @@ def test_create_a_reminder(
         request=fake_request,
     )
     # Ugly hack: create_reminder needs a service already "half-run", because the target is one of the results of the
-    # processing (e.g. a ReviewAssignment). However, the `run()` method will call create_reminder itself.
+    # processing (e.g. a WorkflowReviewAssignment). However, the `run()` method will call create_reminder itself.
     service._ensure_reviewer()
     service.assignment = service._assign_reviewer()
 
-    reminder_obj = create_reminder(
-        assigned_article.journal,
-        service.assignment,
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
-    )
+    ReviewerShouldEvaluateAssignmentReminderManager(
+        assignment=service.assignment,
+    ).create()
+
+    reminder_obj = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
 
     # Remember that the fixture `assigned_article` creates the EDITOR_SHOULD_SELECT_REVIEWER reminders
     reminders = Reminder.objects.filter(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
@@ -75,7 +131,7 @@ def test_create_a_reminder(
     assert assigned_article.journal.code in reminder_obj.message_subject
 
     assert reminder_obj.recipient == service.reviewer
-    assert reminder_obj.actor == get_eo_user(assigned_article.journal)
+    assert reminder_obj.actor == section_editor.janeway_account
 
 
 @pytest.mark.django_db
@@ -86,42 +142,64 @@ def test_assign_reviewer_creates_reminders(
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
 ):
-    """Test that when a reviewers is assigned, reminders are created."""
+    """Test that when a reviewer is assigned, reviwer reminders are created and editor reminders are deleted."""
     fake_request.user = section_editor.janeway_account
 
-    # Let's delete all reminders (e.g. those for the editor created by the `assigned_article` fixture), so that we can
-    # test what comes next easily.
-    Reminder.objects.all().delete()
+    acceptance_due_date = timezone.now().date() + datetime.timedelta(days=7)
 
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": acceptance_due_date,
             "message": "random message",
             "author_note_visible": False,
         },
         request=fake_request,
     )
 
-    assert not Reminder.objects.exists()
-    service.run()
     assert Reminder.objects.count() == 3
+    editor_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assigned_article.editorassignment_set.first()),
+        object_id=assigned_article.editorassignment_set.first().id,
+    )
+    assert editor_reminders.count() == 3
+    assert all("EDSR" in code for code in editor_reminders.values_list("code", flat=True))
 
+    reviewer_assignment = service.run()
+    assert Reminder.objects.count() == 3
+    reviewer_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(reviewer_assignment),
+        object_id=reviewer_assignment.id,
+    )
+    assert reviewer_reminders.count() == 3
+    assert all("REEA" in code for code in reviewer_reminders.values_list("code", flat=True))
+
+    r_1_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1
+    ].days_after
+    r_2_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2
+    ].days_after
+    r_3_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3
+    ].days_after
     r_1 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
-    assert r_1.actor == get_eo_user(assigned_article.journal)
+    assert r_1.actor == service.editor
     assert r_1.recipient == service.reviewer
-    # TODO: do we really want to test the date computation? This promises a lot ot test-maintenance
-    # assert r1.date_due == ???
+    assert r_1_date == 0
+    assert r_1.date_due == acceptance_due_date
 
     r_2 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2)
     assert r_2.actor == service.editor
     assert r_2.recipient == service.reviewer
+    assert r_2.date_due == acceptance_due_date + datetime.timedelta(days=r_2_date)
 
     r_3 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3)
     assert r_3.actor == get_eo_user(assigned_article.journal)
     assert r_3.recipient == service.editor
+    assert r_3.date_due == acceptance_due_date + datetime.timedelta(days=r_3_date)
 
 
 @pytest.mark.django_db
@@ -237,12 +315,14 @@ def test_reviewer_accepts__deletes_some_reminders(
     # test what comes next easily.
     Reminder.objects.all().delete()
 
+    acceptance_due_date = timezone.now().date() + datetime.timedelta(days=7)
+
     service__assign_reviewer = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": acceptance_due_date,
             "message": "random message",
             "author_note_visible": False,
         },
@@ -261,14 +341,24 @@ def test_reviewer_accepts__deletes_some_reminders(
         request=fake_request,
         token="",
     )
+
+    r_1_date = ReviewerShouldWriteReviewReminderManager.reminders[
+        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1
+    ].days_after
+    r_2_date = ReviewerShouldWriteReviewReminderManager.reminders[
+        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2
+    ].days_after
+
     service__evaluate_review.run()
     assert Reminder.objects.count() == 2
     r_1 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1)
     assert r_1.actor == service__evaluate_review.editor
     assert r_1.recipient == service__evaluate_review.reviewer
+    assert r_1.date_due == acceptance_due_date + datetime.timedelta(days=r_1_date)
     r_2 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2)
     assert r_2.actor == get_eo_user(assigned_article.journal)
     assert r_2.recipient == service__evaluate_review.editor
+    assert r_2.date_due == acceptance_due_date + datetime.timedelta(days=r_2_date)
 
 
 class TestReviewerDeclines:
@@ -312,21 +402,17 @@ class TestReviewerDeclines:
         assert editor_reminders.count() == 3
 
         fake_request.user = section_editor.janeway_account
-        review_assignment: review_models.ReviewAssignment = (
-            AssignToReviewer(
-                workflow=assigned_article.articleworkflow,
-                reviewer=normal_user.janeway_account,
-                editor=section_editor.janeway_account,
-                form_data={
-                    "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
-                    "message": "random message",
-                    "author_note_visible": False,
-                },
-                request=fake_request,
-            )
-            .run()
-            .reviewassignment_ptr
-        )
+        review_assignment = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=normal_user.janeway_account,
+            editor=section_editor.janeway_account,
+            form_data={
+                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
 
         # Sanity check: we should now have no reminders for the editor and three for the reviewer
         assert (
@@ -413,21 +499,17 @@ class TestReviewerDeclines:
         assert editor_reminders.count() == 3
 
         fake_request.user = section_editor.janeway_account
-        review_assignment: review_models.ReviewAssignment = (
-            AssignToReviewer(
-                workflow=assigned_article.articleworkflow,
-                reviewer=normal_user.janeway_account,
-                editor=section_editor.janeway_account,
-                form_data={
-                    "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
-                    "message": "random message",
-                    "author_note_visible": False,
-                },
-                request=fake_request,
-            )
-            .run()
-            .reviewassignment_ptr
-        )
+        review_assignment = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=normal_user.janeway_account,
+            editor=section_editor.janeway_account,
+            form_data={
+                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
 
         # Sanity check: we should now have no reminders for the editor and three for the reviewer
         assert (
@@ -508,21 +590,17 @@ class TestReviewerDeclines:
         assert editor_reminders.count() == 3
 
         fake_request.user = section_editor.janeway_account
-        review_assignment: review_models.ReviewAssignment = (
-            AssignToReviewer(
-                workflow=assigned_article.articleworkflow,
-                reviewer=normal_user.janeway_account,
-                editor=section_editor.janeway_account,
-                form_data={
-                    "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
-                    "message": "random message",
-                    "author_note_visible": False,
-                },
-                request=fake_request,
-            )
-            .run()
-            .reviewassignment_ptr
-        )
+        review_assignment = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=normal_user.janeway_account,
+            editor=section_editor.janeway_account,
+            form_data={
+                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+                "author_note_visible": False,
+            },
+            request=fake_request,
+        ).run()
 
         # Sanity check: we should now have no reminders for the editor and three for the reviewer
         assert (
@@ -589,7 +667,7 @@ class TestReviewerSubmits:
         director: JCOMProfile,
         normal_user: JCOMProfile,
         create_jcom_user: Callable[[Optional[str]], JCOMProfile],
-        review_assignment: ReviewAssignment,
+        review_assignment: WorkflowReviewAssignment,
         review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
     ):
         """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
@@ -605,8 +683,6 @@ class TestReviewerSubmits:
         )
         assert not editor_reminders.exists()
 
-        # NB: review_assignment is really a WorkflowReviewAssignment!
-        review_assignment = review_assignment.reviewassignment_ptr
         reviewer_reminders = Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(review_assignment),
             object_id=review_assignment.id,
@@ -764,6 +840,7 @@ class TestReviewerSubmits:
 def test_paper_assignment_create_reminders_for_editor(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
+    director: JCOMProfile,
     normal_user: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
@@ -774,8 +851,38 @@ def test_paper_assignment_create_reminders_for_editor(
         content_type=ContentType.objects.get_for_model(editor_assignment),
         object_id=editor_assignment.id,
     )
+    create_date = timezone.now().date()
     assert reminders.count() == 3
-    # TODO: expand me!
+    reminder_1 = EditorShouldSelectReviewerReminderManager.reminders[
+        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1
+    ]
+    reminder_2 = EditorShouldSelectReviewerReminderManager.reminders[
+        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2
+    ]
+    reminder_3 = EditorShouldSelectReviewerReminderManager.reminders[
+        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3
+    ]
+    r_1_days_after = reminder_1.days_after
+    r_1_base_days = reminder_1._get_date_base_setting(assigned_article.journal)
+    r_2_days_after = reminder_2.days_after
+    r_2_base_days = reminder_2._get_date_base_setting(assigned_article.journal)
+    r_3_days_after = reminder_3.days_after
+    r_3_base_days = reminder_3._get_date_base_setting(assigned_article.journal)
+
+    r_1 = Reminder.objects.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1)
+    assert r_1.actor == get_eo_user(assigned_article.journal)
+    assert r_1.recipient == section_editor.janeway_account
+    assert r_1.date_due == create_date + datetime.timedelta(days=(r_1_days_after + r_1_base_days))
+
+    r_2 = Reminder.objects.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2)
+    assert r_2.actor == get_eo_user(assigned_article.journal)
+    assert r_2.recipient == section_editor.janeway_account
+    assert r_2.date_due == create_date + datetime.timedelta(days=(r_2_days_after + r_2_base_days))
+
+    r_3 = Reminder.objects.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3)
+    assert r_3.actor == get_eo_user(assigned_article.journal)
+    assert r_3.recipient == director.janeway_account
+    assert r_3.date_due == create_date + datetime.timedelta(days=(r_3_days_after + r_3_base_days))
 
 
 @pytest.mark.django_db
@@ -808,11 +915,7 @@ def test_reminders_handling_for_reviewer_cycle(
     assert not Reminder.objects.exists()
     service__assign_reviewer.run()
     assert Reminder.objects.count() == 3
-    if isinstance(service__assign_reviewer.assignment, WorkflowReviewAssignment):
-        assignment = service__assign_reviewer.assignment.reviewassignment_ptr
-    else:
-        # if we are here, self.assigment is a ReviewAssigment
-        assignment = service__assign_reviewer.assignment
+    assignment = service__assign_reviewer.assignment
     assert Reminder.objects.get(
         code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
         content_type=ContentType.objects.get_for_model(assignment),
@@ -878,9 +981,8 @@ def test_reminders_handling_for_reviewer_cycle(
 
 
 @pytest.mark.django_db
-def test_two_papers_three_reviewers(
+def test_three_papers_three_reviewers(
     review_settings,
-    known_reminders_configuration,
     review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
     journal: journal_models.Journal,
     create_submitted_articles: Callable,
@@ -888,54 +990,89 @@ def test_two_papers_three_reviewers(
     fake_request: HttpRequest,
     caplog,
 ):
-    """Test somewhat complex scenario.
+    """
+    Integration test that reminder works with each other
 
-    Let's have two papers.
+    Let's have four papers.
     Paper A has 2 reviewers.
-    - A_r1 is late: ESR1 has been sent, we are going to send ESR2, and ESR3 is not yet due.
-    - A_r2 has accepted the review request on time, but is late with the report, so we send RAA1
+    - A_r1 is late: REEA1 has been sent, we are going to send REEA2, and REEA3 is not yet due.
+    - A_r2 has accepted the review request on time, but is late with the report, so we send REWR1
     Paper B has 1 reviewer.
-    - B_r1 is late, so we send ESR1.
+    - B_r1 is late, so we send REEA1.
+    Paper C has no reviewer.
+    - Editor is late so we send EDSR1.
+    Paper D has 1 reviewer.
+    - D_r1 accepts and send report immediately
+    - Editor is late 1 time for make a decision
+    - Author is late 1 time for revision
 
     To achieve this, let's say
-    - The review assignment date_due is t0 (makes things easier)
-    - A has been assigned to A_r1 on t0
-    - A has been assigned to A_r2 on t0, and A_r2 accepted right away
-    - B has been assigned to B_r1 on t1, 3 days after A
+    - The review assignment date_due is t1 (makes things easier)
+    - A has been assigned to A_r1 due date t1
+    - A has been assigned to A_r2 due date t1, and A_r2 accepted right away, report due date is t2
+    - B has been assigned to B_r1 due date t2, 3 days after A
+    - C has been assigned to the editor on t0
+    - D has been assigned to D_r1 accepted / report sent at t0, editor decision due at t3, author revision due at t3
 
-    The reminders due date are thus as follow:
-    (eX stands for esr1, esr2,... and rX stands for raa1,...)
+    Due dates for reminders:
 
-            t0    t1  t2  t3
-            A     B
-    (days)  . . . . ' . . . . | . . . . ' . . . . |
-    A_r1          e1    e2  e3
-    A_r2                r1      r2
-    B_r1                e1
+    - t0: now
+    - t1: t0 + 1
+    - t2: t0 + 3
+    - t3: t0 + 5
 
-    This works only if esr2 and raa1 have the same `days_after` value (7)
-    (might want to do `reminders.settings.reminders["DEFAULT"][ESR1].days_after = 7` etc.)
+    - A_r1
+      - REEA1: t1 + 0 (t0 + 1)
+      - REEA2: t1 + 3 (t0 + 4)
+      - REEA3: t1 + 5 (t0 + 6)
+    - A_r2
+      - REWR1: t2 + 0 (t0 + 3)
+      - REWR2: t2 + 5 (t0 + 8)
+    - B_r1
+      - REEA1: t2 + 0 (t0 + 3)
+      - REEA2: t2 + 3 (t0 + 6)
+      - REEA3: t2 + 5 (t0 + 8)
+    - C_e1
+      - EDSR1: t0 + 5
+      - EDSR2: t0 + 8
+      - EDSR3: t0 + 10
+
+    The reminders due date are thus as follows:
+    (eX stands for edsr1, edsr2,..., rX stands for reaa1,...,..., wX stands for rewr1,...)
+
+            t0t1  t2  t3
+    (days)  . . . . . ' . . . . |
+    A_r1      r1    r2  r3
+    A_r2          w1        w2
+    B_r1          r1    r2  r3
+    C_e1              e1    e2
+    D_e1              m1    m2
+    D_a1
 
     So:
     - on t0
       - assign A to A_r1
       - assign A to A_r2
       - A_r2 accepts assignment
-    - on t1 (t0 + 3) assign B to B_r1
-    - on t2 (t0 + 5) call send_wjs_reminders (expect only esr1 for A_r1)
-    - on t3 (t0 + 8) call send_wjs_reminders (expect esr2 for A_r1, raa1 for A_r2 and esr1 for B_r1)
+      - C is created
+    - on t2 (t0 + 3)
+      - assign B to B_r1
 
+    on each day tick send_wjs_reminders is sent and we check:
+    - logs
+    - actual messages
     """
     caplog.set_level(logging.DEBUG)
 
     # Setup
     # =====
-    t0 = timezone.now().date()
-    t1 = t0 + timezone.timedelta(days=3)
-    t2 = t0 + timezone.timedelta(days=5)
-    t3 = t0 + timezone.timedelta(days=8)
+    t0 = timezone.localtime(timezone.now()).date()
+    t1 = t0 + timezone.timedelta(days=1)
+    t2 = t0 + timezone.timedelta(days=3)
+    t3 = t0 + timezone.timedelta(days=5)
+    t4 = t0 + timezone.timedelta(days=9)
 
-    (a1, a2) = create_submitted_articles(journal, 2)
+    (a, b, c, d) = create_submitted_articles(journal, 4)
     e1 = create_jcom_user("Edone").janeway_account
     e1.add_account_role("section-editor", journal)
     e2 = create_jcom_user("Edtwo").janeway_account
@@ -943,124 +1080,452 @@ def test_two_papers_three_reviewers(
     ra1 = create_jcom_user("Rev Aone").janeway_account
     ra2 = create_jcom_user("Rev Atwo").janeway_account
     rb1 = create_jcom_user("Rev Bone").janeway_account
+    rd1 = create_jcom_user("Rev Done").janeway_account
 
-    a1.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
-    a1.articleworkflow.save()
-    AssignToEditor(
-        article=a1,
-        editor=e1,
-        request=fake_request,
-    ).run()
-    a1.refresh_from_db()
-    assert a1.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    a.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    a.articleworkflow.save()
+    AssignToEditor(article=a, editor=e1, request=fake_request).run()
+    a.refresh_from_db()
+    assert a.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    ea_a = a.editorassignment_set.first()
 
-    a2.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
-    a2.articleworkflow.save()
-    AssignToEditor(
-        article=a2,
-        editor=e2,
-        request=fake_request,
-    ).run()
-    a2.refresh_from_db()
-    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    # Do I want to `cleanup_notifications_side_effects()`?
+    b.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    b.articleworkflow.save()
+    AssignToEditor(article=b, editor=e2, request=fake_request).run()
+    b.refresh_from_db()
+    assert b.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    ea_b = b.editorassignment_set.first()
 
-    # t0: assign A to A_r1
-    # --------------------
+    c.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    c.articleworkflow.save()
+    AssignToEditor(article=c, editor=e2, request=fake_request).run()
+    c.refresh_from_db()
+    assert c.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    ea_c = c.editorassignment_set.first()
+
+    d.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    d.articleworkflow.save()
+    AssignToEditor(article=d, editor=e2, request=fake_request).run()
+    d.refresh_from_db()
+    assert d.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    ea_d = d.editorassignment_set.first()
+
+    assert (
+        Reminder.objects.filter(
+            code__startswith="EDSR",
+            content_type=ContentType.objects.get_for_model(ea_a),
+            object_id=ea_a.pk,
+        ).count()
+        == 3
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="EDSR",
+            content_type=ContentType.objects.get_for_model(ea_b),
+            object_id=ea_b.pk,
+        ).count()
+        == 3
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="EDSR",
+            content_type=ContentType.objects.get_for_model(ea_c),
+            object_id=ea_c.pk,
+        ).count()
+        == 3
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="EDSR",
+            content_type=ContentType.objects.get_for_model(ea_d),
+            object_id=ea_d.pk,
+        ).count()
+        == 3
+    )
+    assert Reminder.objects.all().count() == 12
+    assert Message.objects.all().count() == 4
+    # Resetting messages, we are going to count new message each day
+    Message.objects.all().delete()
+
+    # assign A to A_r1 - due date t1
+    # ------------------------------
     fake_request.user = e1
-    assignment_A_r1: WorkflowReviewAssignment = AssignToReviewer(  # noqa N806
-        workflow=a1.articleworkflow,
+    assignment_A_r1 = AssignToReviewer(  # noqa N806
+        workflow=a.articleworkflow,
         reviewer=ra1,
         editor=e1,
         form_data={
-            "acceptance_due_date": timezone.now().date(),
+            "acceptance_due_date": t1,
             "message": "random message",
             "author_note_visible": False,
         },
         request=fake_request,
     ).run()
-    # t0: assign A to A_r2
-    # --------------------
-    assignment_A_r2: WorkflowReviewAssignment = AssignToReviewer(  # noqa N806
-        workflow=a1.articleworkflow,
+    # assign A to A_r2 - due date t1
+    # ------------------------------
+    assignment_A_r2 = AssignToReviewer(  # noqa N806
+        workflow=a.articleworkflow,
         reviewer=ra2,
         editor=e1,
         form_data={
-            "acceptance_due_date": timezone.now().date(),
+            "acceptance_due_date": t1,
             "message": "random message",
             "author_note_visible": False,
         },
         request=fake_request,
     ).run()
-    # t0: A_r2 accepts assignment
-    # ---------------------------
+    # A_r2 accepts assignment - report due date t2
+    # --------------------------------------------
     EvaluateReview(
         assignment=assignment_A_r2,
         reviewer=ra2,
         editor=e1,
-        form_data={"reviewer_decision": "1"},
+        form_data={"reviewer_decision": "1", "date_due": t2},
         request=fake_request,
         token="",
     ).run()
 
-    # t1: assign B to B_r1
-    # --------------------
-    with freezegun.freeze_time(t1):
-        fake_request.user = e2
-        assignment_B_r1: WorkflowReviewAssignment = AssignToReviewer(  # noqa N806
-            workflow=a2.articleworkflow,
-            reviewer=rb1,
-            editor=e2,
-            form_data={
-                "acceptance_due_date": timezone.now().date(),
-                "message": "random message",
-                "author_note_visible": False,
-            },
-            request=fake_request,
-        ).run()
+    # assign B to B_r1 - due date t2
+    # ------------------------------
+    fake_request.user = e2
+    assignment_B_r1 = AssignToReviewer(  # noqa N806
+        workflow=b.articleworkflow,
+        reviewer=rb1,
+        editor=e2,
+        form_data={
+            "acceptance_due_date": t2,
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    ).run()
 
-    # t2: send_wjs_reminders (expect only esr1 for A_r1)
-    # ----------------------
-    with freezegun.freeze_time(t2):
+    # assign D to D_r1 - due date t0
+    # ------------------------------
+    assignment_D_r1 = AssignToReviewer(  # noqa N806
+        workflow=d.articleworkflow,
+        reviewer=rd1,
+        editor=e2,
+        form_data={
+            "acceptance_due_date": t0,
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    ).run()
+    # D_r1 accepts assignment - report due date t1
+    # --------------------------------------------
+    EvaluateReview(
+        assignment=assignment_D_r1,
+        reviewer=rd1,
+        editor=e2,
+        form_data={"reviewer_decision": "1", "date_due": t1},
+        request=fake_request,
+        token="",
+    ).run()
+    # D_r1 sends report
+    # --------------------------------------------
+    rf = ReportForm(data={str(review_form.pk): "random report"}, review_assignment=assignment_D_r1)
+    assert rf.is_valid()
+    SubmitReview(
+        assignment=assignment_D_r1,
+        form=rf,
+        request=fake_request,
+        submit_final=True,
+    ).run()
+
+    assert (
+        Reminder.objects.filter(
+            code__startswith="REE",
+            content_type=ContentType.objects.get_for_model(assignment_A_r1),
+            object_id=assignment_A_r1.pk,
+        ).count()
+        == 3
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="REW",
+            content_type=ContentType.objects.get_for_model(assignment_A_r2),
+            object_id=assignment_A_r2.pk,
+        ).count()
+        == 2
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="REE",
+            content_type=ContentType.objects.get_for_model(assignment_B_r1),
+            object_id=assignment_B_r1.pk,
+        ).count()
+        == 3
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="EDSR",
+            content_type=ContentType.objects.get_for_model(ea_c),
+            object_id=ea_c.pk,
+        ).count()
+        == 3
+    )
+    assert (
+        Reminder.objects.filter(
+            code__startswith="EDMD",
+            content_type=ContentType.objects.get_for_model(ea_d),
+            object_id=ea_d.pk,
+        ).count()
+        == 3
+    )
+    assert Reminder.objects.all().count() == 14
+    # 4 assignments notifications
+    # 2 acceptance notifications
+    # 2 report notifications
+    assert Message.objects.all().count() == 8
+    # Resetting messages, we are going to count new message each day
+    Message.objects.all().delete()
+    caplog.clear()
+
+    # t0 + 1 : send_wjs_reminders (expect no message)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=1)):
+        call_command("send_wjs_reminders")
+        assert "Sent 0/0 reminders." in caplog.text
+        # No new reminder, same as above
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 0
+        assert Message.objects.all().count() == 0
+        Message.objects.all().delete()
+        caplog.clear()
+
+    # t1 - t0 + 2: send_wjs_reminders (expect REEA1 for A_r1)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=2)):
         call_command("send_wjs_reminders")
         assert "Sent 1/1 reminders." in caplog.text
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 1
-
-        esr1_for_ra1 = Reminder.objects.get(
+        assert Reminder.objects.get(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
-            content_type=ContentType.objects.get_for_model(assignment_A_r1.reviewassignment_ptr),
-            object_id=assignment_A_r1.id,
-        )
-        assert esr1_for_ra1.date_sent.date() == t2
+            content_type=ContentType.objects.get_for_model(assignment_A_r1),
+            object_id=assignment_A_r1.pk,
+        ).date_sent.date() == t1 + datetime.timedelta(days=1)
+        assert Message.objects.all().count() == 1
+        Message.objects.all().delete()
+        caplog.clear()
 
-    # t3: send_wjs_reminders (expect esr2 for A_r1, raa1 for A_r2 and esr1 for B_r1)
-    # ----------------------
-    with freezegun.freeze_time(t3):
+    # t0 + 3 : send_wjs_reminders (expect no message)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=3)):
+        call_command("send_wjs_reminders")
+        assert "Sent 0/0 reminders." in caplog.text
+        # No new reminder, same as above
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 1
+        assert Message.objects.all().count() == 0
+        Message.objects.all().delete()
+        caplog.clear()
+
+    # t2 - t0 + 4 : send_wjs_reminders (expect REWR1 for A_r2, REEA1 for B_r1)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=4)):
+        call_command("send_wjs_reminders")
+        assert "Sent 2/2 reminders." in caplog.text
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 3
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
+            content_type=ContentType.objects.get_for_model(assignment_A_r2),
+            object_id=assignment_A_r2.pk,
+        ).date_sent.date() == t2 + datetime.timedelta(days=1)
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+            content_type=ContentType.objects.get_for_model(assignment_B_r1),
+            object_id=assignment_B_r1.pk,
+        ).date_sent.date() == t2 + datetime.timedelta(days=1)
+        assert Message.objects.all().count() == 2
+        Message.objects.all().delete()
+        caplog.clear()
+
+    # t0 + 5 : send_wjs_reminders (expect REEA2 for A_r1)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=5)):
         call_command("send_wjs_reminders")
         assert "Sent 1/1 reminders." in caplog.text
-        # We should have sent 3 reminders now and one on t2: 4 total
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 4
-
-        esr2_for_ra1 = Reminder.objects.get(
+        assert Reminder.objects.get(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
-            content_type=ContentType.objects.get_for_model(assignment_A_r1.reviewassignment_ptr),
-            object_id=assignment_A_r1.id,
-        )
-        assert esr2_for_ra1.date_sent.date() == t3
+            content_type=ContentType.objects.get_for_model(assignment_A_r1),
+            object_id=assignment_A_r1.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=5)
+        assert Message.objects.all().count() == 1
+        Message.objects.all().delete()
+        caplog.clear()
 
-        raa1_for_ra2 = Reminder.objects.get(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
-            content_type=ContentType.objects.get_for_model(assignment_A_r2.reviewassignment_ptr),
-            object_id=assignment_A_r2.id,
-        )
-        assert raa1_for_ra2.date_sent.date() == t3
+    # t3 - t0 + 6 : send_wjs_reminders (expect EDSR1 for ea_c, EDMD1 for ea_d)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=6)):
+        call_command("send_wjs_reminders")
+        assert "Sent 2/2 reminders." in caplog.text
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 6
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+            content_type=ContentType.objects.get_for_model(ea_c),
+            object_id=ea_c.pk,
+        ).date_sent.date() == t3 + datetime.timedelta(days=1)
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
+            content_type=ContentType.objects.get_for_model(ea_d),
+            object_id=ea_d.pk,
+        ).date_sent.date() == t3 + datetime.timedelta(days=1)
+        assert Message.objects.all().count() == 2
+        Message.objects.all().delete()
+        caplog.clear()
 
-        esr1_for_rb1 = Reminder.objects.get(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
-            content_type=ContentType.objects.get_for_model(assignment_B_r1.reviewassignment_ptr),
-            object_id=assignment_B_r1.id,
-        )
-        assert esr1_for_rb1.date_sent.date() == t3
+    # t0 + 7 : send_wjs_reminders (expect REEA3 for A_r1, REEA2 for B_r1)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=7)):
+        call_command("send_wjs_reminders")
+        assert "Sent 2/2 reminders." in caplog.text
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 8
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+            content_type=ContentType.objects.get_for_model(assignment_A_r1),
+            object_id=assignment_A_r1.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=7)
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+            content_type=ContentType.objects.get_for_model(assignment_B_r1),
+            object_id=assignment_B_r1.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=7)
+        assert Message.objects.all().count() == 2
+        Message.objects.all().delete()
+        caplog.clear()
+
+    # t0 + 8 : send_wjs_reminders (no remainder)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=8)):
+        call_command("send_wjs_reminders")
+        assert "Sent 0/0 reminders." in caplog.text
+        assert Message.objects.all().count() == 0
+        caplog.clear()
+
+    fake_request.user = e2
+    decision_d_a = HandleDecision(
+        workflow=d.articleworkflow,
+        form_data={
+            "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
+            "decision_editor_report": "report",
+            "decision_internal_note": "",
+            "Notice": "",
+            "date_due": t4,
+        },
+        user=e2,
+        request=fake_request,
+    ).run()
+    rr_d_a = decision_d_a.get_revision_request()
+    Message.objects.all().delete()
+    caplog.clear()
+
+    # t0 + 9 : send_wjs_reminders (expect REWR2 for A_r2, REEA3 for B_r1, EDSR2 for ea_c)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=9)):
+        call_command("send_wjs_reminders")
+        assert "Sent 3/3 reminders." in caplog.text
+        # 11 because EDITOR_SHOULD_MAKE_DECISION_1 at t3 has been deleted because the
+        # editor has made a decision
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 10
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
+            content_type=ContentType.objects.get_for_model(assignment_A_r2),
+            object_id=assignment_A_r2.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=9)
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+            content_type=ContentType.objects.get_for_model(assignment_B_r1),
+            object_id=assignment_B_r1.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=9)
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+            content_type=ContentType.objects.get_for_model(ea_c),
+            object_id=ea_c.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=9)
+        assert Message.objects.all().count() == 3
+        Message.objects.all().delete()
+        caplog.clear()
+
+    # t0 + 10 : send_wjs_reminders (expect AUTCR1 for rr_d_a)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=10)):
+        call_command("send_wjs_reminders")
+        assert "Sent 1/1 reminders." in caplog.text
+        # 11 because EDITOR_SHOULD_MAKE_DECISION_1 at t3 has been deleted because the
+        # editor has made a decision
+        assert Reminder.objects.filter(date_sent__isnull=False).count() == 11
+        assert Reminder.objects.get(
+            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
+            content_type=ContentType.objects.get_for_model(rr_d_a),
+            object_id=rr_d_a.pk,
+        ).date_sent.date() == t0 + datetime.timedelta(days=10)
+        assert Message.objects.all().count() == 1
+        Message.objects.all().delete()
+        caplog.clear()
+
+
+@pytest.mark.django_db
+def test_editor_declines(
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+):
+    """Reminders for the editor are deleted and reminders for the director are created."""
+    t0 = timezone.localtime(timezone.now()).date()
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
+    editor_assignment = review_models.EditorAssignment.objects.get(article=assigned_article)
+    HandleEditorDeclinesAssignment(
+        assignment=editor_assignment,
+        editor=editor_assignment.editor,
+        request=fake_request,
+        director=director,
+    ).run()
+    assert Reminder.objects.all().count() == 2
+    assert Reminder.objects.filter(code__startswith="DIRAS").count() == 2
+    check_reminder_date(
+        assigned_article,
+        DirectorShouldAssignEditorReminderManager,
+        (
+            Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1,
+            Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2,
+        ),
+        t0,
+        journal=assigned_article.journal,
+    )
+
+
+@pytest.mark.django_db
+def test_director_assigns(
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Reminders for the director are deleted and reminders for the editor are created if director selects an editor.
+    """
+    t0 = timezone.localtime(timezone.now()).date()
+    editor_assignment = review_models.EditorAssignment.objects.get(article=assigned_article)
+    HandleEditorDeclinesAssignment(
+        assignment=editor_assignment,
+        editor=editor_assignment.editor,
+        request=fake_request,
+        director=director,
+    ).run()
+    assert not Reminder.objects.filter(recipient=editor_assignment.editor).exists()
+    new_assignment = AssignToEditor(
+        editor=editor_assignment.editor,
+        article=assigned_article,
+        request=fake_request,
+        workflow=assigned_article.articleworkflow,
+        first_assignment=False,
+    ).run()
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
+    check_reminder_date(
+        new_assignment,
+        EditorShouldSelectReviewerReminderManager,
+        (
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+        ),
+        t0,
+        journal=assigned_article.journal,
+    )
 
 
 class TestEditorDecides:
@@ -1075,8 +1540,10 @@ class TestEditorDecides:
       - minor
       - technical  <-- even here we don't keep reminders for the editor, because the author should act!
 
-    Existing ReviewAssignments in any state (open, declined or completed) do not play a role here, so I'm not testing
-    any combination of decision x ReviewAssignment-state.
+    In case a revision is requested, author's reminders are created.
+
+    Existing WorkflowReviewAssignments in any state (open, declined or completed) do not play a role here,
+    so I'm not testing any combination of decision x WorkflowReviewAssignments-state.
 
     """
 
@@ -1101,7 +1568,8 @@ class TestEditorDecides:
         review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
         decision: str,
     ):
-        """Test that reminders for the editor are deleted."""
+        """Test that reminders for the editor are deleted and author's are created if revision is requested."""
+
         editor_assignment = assigned_article.editorassignment_set.first()
         section_editor = editor_assignment.editor
         fake_request.user = section_editor
@@ -1111,12 +1579,13 @@ class TestEditorDecides:
             "decision_internal_note": "random internal message",
             "withdraw_notice": "notice",
         }
+        date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7)
         if decision not in (
             ArticleWorkflow.Decisions.ACCEPT,
             ArticleWorkflow.Decisions.REJECT,
             ArticleWorkflow.Decisions.NOT_SUITABLE,
         ):
-            form_data["date_due"] = timezone.now().date() + datetime.timedelta(days=7)
+            form_data["date_due"] = date_due
         handle = HandleDecision(
             workflow=assigned_article.articleworkflow,
             form_data=form_data,
@@ -1130,9 +1599,46 @@ class TestEditorDecides:
             object_id=editor_assignment.id,
         ).exists()
 
+        if decision == ArticleWorkflow.Decisions.MAJOR_REVISION:
+            revision_request = EditorRevisionRequest.objects.get(article=assigned_article)
+            check_reminder_date(
+                revision_request,
+                AuthorShouldSubmitMajorRevisionReminderManager,
+                (
+                    Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1,
+                    Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
+                ),
+                date_due,
+                journal=assigned_article.journal,
+            )
+        if decision == ArticleWorkflow.Decisions.MINOR_REVISION:
+            revision_request = EditorRevisionRequest.objects.get(article=assigned_article)
+            check_reminder_date(
+                revision_request,
+                AuthorShouldSubmitMinorRevisionReminderManager,
+                (
+                    Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1,
+                    Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
+                ),
+                date_due,
+                journal=assigned_article.journal,
+            )
+        if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            revision_request = EditorRevisionRequest.objects.get(article=assigned_article)
+            check_reminder_date(
+                revision_request,
+                AuthorShouldSubmitTechnicalRevisionReminderManager,
+                (
+                    Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
+                    Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
+                ),
+                date_due,
+                journal=assigned_article.journal,
+            )
+
 
 class TestResetDate:
-    """Tests relative to the resetting of ReviewAssignments' date_due.
+    """Tests relative to the resetting of WorkflowReviewAssignmentss' date_due.
 
     When a reviewer modifies an assignment's due date, all relative reminders should be checked.
 
@@ -1166,13 +1672,7 @@ class TestResetDate:
         reminder_is_sent,
     ):
         """Test the function `update_date_send_reminders`."""
-        review_assignment: ReviewAssignment = review_assignment.reviewassignment_ptr
-
-        reminder = create_reminder(
-            journal=review_assignment.article.journal,
-            target=review_assignment,
-            reminder_code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
-        )
+        reminder = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
 
         # Force a known clemency_days for testing
         reminder.clemency_days = clemency_days
@@ -1251,7 +1751,6 @@ class TestResetDate:
     ):
         """Verify that all REEA reminders are "touched"."""
         # Sanity check: we should have the three REEA reminders on this review assignment
-        review_assignment: ReviewAssignment = review_assignment.reviewassignment_ptr
         reea_reminders = Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(review_assignment),
             object_id=review_assignment.id,
@@ -1280,7 +1779,82 @@ class TestResetDate:
         review_assignment.refresh_from_db()
         reea_reminders.all()
 
-        # REEA reminders have clemeny_days = 0, and no reminder has been sent, so here I simply test that the due date
+        # no REEA reminder has been sent, so here I simply test that the due date
         # has been bumped.
         updated_dates = reea_reminders.order_by("id").values_list("date_due", flat=True)
         assert all(initial < updated for initial, updated in zip(initial_dates, updated_dates))
+
+    @pytest.mark.django_db
+    def test_reset_REWR1_reminders_send_date(  # noqa N802 lowercase
+        self,
+        fake_request: HttpRequest,
+        review_form: review_models.ReviewForm,
+        review_assignment: WorkflowReviewAssignment,
+    ):
+        """Verify that all REWR1 reminders are "touched"."""
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            form_data={"reviewer_decision": "1", "accept_gdpr": 1},
+            request=fake_request,
+            token="",
+        ).run()
+
+        # Sanity check: we should have the two REWR reminders on this review assignment
+        rewr_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.id,
+        )
+        assert rewr_reminders.count() == 2
+        assert all("REWR" in code for code in rewr_reminders.values_list("code", flat=True))
+
+        # Save the initial dates for later comparison.
+        # NB: remember that values_list() returns a queryset, which is lazy, so we need list() to fixate it!
+        initial_dates = list(rewr_reminders.order_by("id").values_list("date_due", flat=True))
+
+        # Let the reviewer update the date
+        fake_request.user = review_assignment.reviewer
+        new_date_due = review_assignment.date_due + datetime.timedelta(days=3)
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            form_data={
+                "reviewer_decision": "1",
+                "accept_gdpr": 1,
+                "date_due": new_date_due,
+            },
+            request=fake_request,
+            token="",
+        ).run()
+        review_assignment.refresh_from_db()
+        rewr_reminders.all()
+
+        # no REWR reminder has been sent, so here I simply test that the due date
+        # has been bumped.
+        updated_dates = rewr_reminders.order_by("id").values_list("date_due", flat=True)
+        assert all(initial < updated for initial, updated in zip(initial_dates, updated_dates))
+
+    @pytest.mark.django_db
+    def test_any_reviewer_is_late_after_reminder(
+        self,
+        review_form: review_models.ReviewForm,
+        review_assignment: WorkflowReviewAssignment,
+    ):
+        """Verify that reminders trigger the attention condition."""
+        # Sanity check: we should have the three REEA reminders on this review assignment
+        reea_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.id,
+        )
+        assert reea_reminders.count() == 3
+        reea_reminders.update(date_sent=timezone.now())
+        assert not any_reviewer_is_late_after_reminder(review_assignment.article)
+        reea_reminders.update(date_sent=timezone.now() - datetime.timedelta(days=1))
+        assert not any_reviewer_is_late_after_reminder(review_assignment.article)
+        reea_reminders.update(date_sent=timezone.now() - datetime.timedelta(days=settings.WJS_REMINDER_LATE_AFTER + 1))
+        assert (
+            f"Reviewer's reminder sent past {settings.WJS_REMINDER_LATE_AFTER} days."
+            == any_reviewer_is_late_after_reminder(review_assignment.article)
+        )

@@ -20,6 +20,7 @@ from django.urls.base import clear_script_prefix, clear_url_caches, set_script_p
 from django.utils import timezone, translation
 from django.utils.timezone import now
 from django.utils.translation import activate
+from faker import Faker
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
@@ -66,6 +67,8 @@ from wjs.jcom_profile.models import (
     SpecialIssue,
 )
 from wjs.jcom_profile.utils import generate_token
+
+fake = Faker()
 
 # Sorry, https://xkcd.com/221/, "the answer" is 42!
 random.seed(42)
@@ -144,6 +147,20 @@ def user(create_jcom_user, roles, journal, keywords):
     return create_jcom_user("user").janeway_account
 
 
+def _create_jcom_user(username: str = USERNAME) -> JCOMProfile:
+    user = JCOMProfile.objects.create(
+        username=username,
+        first_name="User",
+        last_name=username,
+        institution="Sissa",
+        department="Media",
+        email=f"{username}@sissa.it",
+        gdpr_checkbox=True,
+        is_active=True,
+    )
+    return user
+
+
 @pytest.fixture
 def create_jcom_user() -> Callable[[Optional[str]], JCOMProfile]:
     """
@@ -154,21 +171,7 @@ def create_jcom_user() -> Callable[[Optional[str]], JCOMProfile]:
         user = create_jcom_user("myuser")
         ...
     """
-
-    def inner(username: str = USERNAME) -> JCOMProfile:
-        user = JCOMProfile.objects.create(
-            username=username,
-            first_name="User",
-            last_name=username,
-            institution="Sissa",
-            department="Media",
-            email=f"{username}@sissa.it",
-            gdpr_checkbox=True,
-            is_active=True,
-        )
-        return user
-
-    return inner
+    return _create_jcom_user
 
 
 @pytest.fixture
@@ -434,14 +437,20 @@ def article(admin, coauthor, journal, sections):
 def _create_submitted_articles(journal: journal_models.Journal, count: int = 10) -> List[submission_models.Article]:
     """Create articles in submitted stage - Function version."""
     _now = now()
-    return ArticleFactory.create_batch(
+    owner = _create_jcom_user(fake.first_name())
+    articles = ArticleFactory.create_batch(
         count,
         stage=submission_models.STAGE_UNASSIGNED,
         journal=journal,
+        correspondence_author=owner,
+        owner=owner,
         date_published=factory.Sequence(
             lambda n: _now + timedelta(days=n) if n % 3 == 0 else _now - timedelta(days=n),
         ),
     )
+    for article in articles:
+        article.authors.add(owner)
+    return articles
 
 
 @pytest.fixture

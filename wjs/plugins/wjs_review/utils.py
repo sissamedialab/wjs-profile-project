@@ -1,11 +1,10 @@
 from django.db.models import QuerySet
-from review.models import ReviewAssignment
 
 from .models import WorkflowReviewAssignment
 
 
 def get_other_review_assignments_for_this_round(
-    review_assignment: ReviewAssignment,
+    review_assignment: WorkflowReviewAssignment,
 ) -> QuerySet[WorkflowReviewAssignment]:
     """Return a queryset of ReviewAssigments for the same article/round of the given review_assigment.
 
@@ -21,8 +20,8 @@ def get_other_review_assignments_for_this_round(
     # dealt with), we should look only at the review assignments of the current round.
 
     # Not using `article.current_review_round_object()` should hit the db once less.
-    review_round = review_assignment.workflowreviewassignment.review_round
-    my_id = review_assignment.workflowreviewassignment.id
+    review_round = review_assignment.review_round
+    my_id = review_assignment.pk
     other_assignments_for_this_round = (
         WorkflowReviewAssignment.objects.filter(
             article=review_assignment.article,
