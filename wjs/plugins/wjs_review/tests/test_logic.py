@@ -128,7 +128,8 @@ def test_assign_to_editor(
     assert article.editorassignment_set.count() == 0
     assert article.reviewround_set.count() == 0
 
-    workflow = service.run()
+    assignment = service.run()
+    workflow = assignment.article.articleworkflow
     assert workflow.article == article
     article.refresh_from_db()
     assert article.stage == "Assigned"

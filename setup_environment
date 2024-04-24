@@ -49,7 +49,7 @@ bunzip2 -c ${CI_PROJECT_DIR}/${db_dump}.bz2 | python3 manage.py dbshell > /dev/n
 
 info "Syncing languages translations..."
 # This is needed to sync extra janeway fields registered as translatable in wjs
-python3 manage.py makemigrations --no-input > /dev/null 2>&1
+python3 manage.py makemigrations --no-input # > /dev/null 2>&1
 python3 manage.py migrate --no-input --run-syncdb
 
 info "Installing plugins and themes..."

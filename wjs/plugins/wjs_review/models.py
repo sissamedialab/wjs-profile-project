@@ -32,6 +32,15 @@ logger = get_logger(__name__)
 Account = get_user_model()
 
 
+def create_director_reminders(workflow):
+    """Create reminders for the director."""
+    from .reminders.settings import DirectorShouldAssignEditorReminderManager
+
+    DirectorShouldAssignEditorReminderManager(
+        article=workflow.article,
+    ).create()
+
+
 def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
     """
     Verify and assign a submitted article to an editor.
@@ -43,6 +52,7 @@ def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
     if success is True:
         return workflow.ReviewStates.EDITOR_SELECTED
     elif success is False:
+        create_director_reminders(workflow)
         return workflow.ReviewStates.EDITOR_TO_BE_SELECTED
     else:
         return workflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
@@ -442,6 +452,12 @@ class EditorDecision(TimeStampedModel):
 
     def __str__(self):
         return f"{self.decision} (Article {self.workflow.article.id}-{self.review_round.round_number})"
+
+    def get_revision_request(self):
+        return EditorRevisionRequest.objects.get(
+            article=self.workflow.article,
+            review_round=self.review_round,
+        )
 
 
 class Message(TimeStampedModel):

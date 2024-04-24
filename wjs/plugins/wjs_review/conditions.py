@@ -5,6 +5,7 @@ to the user and should describe the situation. The idea here is to tell the user
 attention.
 
 """
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -14,7 +15,8 @@ from review.models import ReviewAssignment, RevisionRequest
 from submission.models import Article
 
 from .communication_utils import get_eo_user
-from .models import ArticleWorkflow, Message
+from .models import ArticleWorkflow, Message, WorkflowReviewAssignment
+from .reminders.models import Reminder
 
 Account = get_user_model()
 
@@ -195,6 +197,32 @@ def editor_as_reviewer_is_late(article: Article) -> str:
     )
     if late_assignments.exists():
         return "The editor's review is late."
+    else:
+        return ""
+
+
+def any_reviewer_is_late_after_reminder(article: Article) -> str:
+    """Tell if the all reviewer's reminder for a specific condition has expired for more than a set number of days."""
+    # new review round is started.
+    watched_reminders = (
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3.value,
+        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2.value,
+    )
+    cut_off_date = timezone.now().date() - timezone.timedelta(days=settings.WJS_REMINDER_LATE_AFTER)
+    pending_review_assignments = WorkflowReviewAssignment.objects.filter(
+        article=article,
+        is_complete=False,
+    )
+    expired_reminders = Reminder.objects.filter(
+        code__in=watched_reminders,
+        date_sent__date__lt=cut_off_date,
+        disabled=False,
+        object_id__in=pending_review_assignments.values_list("pk", flat=True),
+        content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
+    )
+
+    if expired_reminders.exists():
+        return f"Reviewer's reminder sent past {settings.WJS_REMINDER_LATE_AFTER} days."
     else:
         return ""
 

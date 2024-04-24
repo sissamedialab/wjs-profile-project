@@ -1,4 +1,5 @@
 """WJS Review and related models."""
+
 from typing import Optional
 
 from django.conf import settings
@@ -7,7 +8,6 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
 
@@ -33,9 +33,18 @@ class Reminder(models.Model):
         EDITOR_SHOULD_MAKE_DECISION_1 = "EDMD1", _("Editor should make decision")
         EDITOR_SHOULD_MAKE_DECISION_2 = "EDMD2", _("Editor should make decision")
         EDITOR_SHOULD_MAKE_DECISION_3 = "EDMD3", _("Editor should make decision")
+        # specs#635
+        AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1 = "AUMJR1", _("Author should submit major revision")
+        AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2 = "AUMJR2", _("Author should submit major revision")
+        AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1 = "AUMIR1", _("Author should submit minor revision")
+        AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2 = "AUMIR2", _("Author should submit minor revision")
+        AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1 = "AUTCR1", _("Author should submit technical revision")
+        AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2 = "AUTCR2", _("Author should submit technical revision")
+        DIRECTOR_SHOULD_ASSIGN_EDITOR_1 = "DIRASED1", _("Director should assign editor")
+        DIRECTOR_SHOULD_ASSIGN_EDITOR_2 = "DIRASED2", _("Director should assign editor")
 
     code = models.CharField(
-        max_length=5,
+        max_length=10,
         choices=ReminderCodes.choices,
     )
     date_created = models.DateTimeField(auto_now_add=True)
@@ -95,8 +104,7 @@ class Reminder(models.Model):
 
     def get_related_article(self) -> Optional[Article]:
         """Try to find the article that this reminder is related to."""
-        if isinstance(self.target, ReviewAssignment):
-            return self.target.article
-        # TODO: elif EditorAssignment etc.
+        if article := getattr(self.target, "article", None):
+            return article
         else:
             return None
