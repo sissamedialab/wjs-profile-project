@@ -28,7 +28,7 @@ from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
-from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile.constants import EO_GROUP
 
 from .logic import (
     AssignToEditor,
@@ -815,7 +815,7 @@ class EditorRevisionRequestDueDateForm(forms.ModelForm):
 
 
 class AssignEoForm(forms.ModelForm):
-    eo_in_charge = forms.ModelChoiceField(queryset=Account.objects.filter(groups__name=GROUP_EO), required=True)
+    eo_in_charge = forms.ModelChoiceField(queryset=Account.objects.filter(groups__name=EO_GROUP), required=True)
 
     class Meta:
         model = ArticleWorkflow

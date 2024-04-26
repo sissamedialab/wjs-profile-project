@@ -2,7 +2,7 @@ from core.models import AccountRole
 from django.contrib.auth import get_user_model
 from journal.models import Journal
 
-from .apps import GROUP_EO
+from . import constants
 
 Account = get_user_model()
 
@@ -17,7 +17,7 @@ def has_eo_role(user: Account) -> bool:
     :return: True if the user belongs to the EO group, False otherwise.
     :rtype: bool
     """
-    return user.groups.filter(name=GROUP_EO).exists()
+    return user.groups.filter(name=constants.EO_GROUP).exists()
 
 
 def has_any_journal_role(journal: Journal, user: Account) -> bool:
@@ -62,7 +62,7 @@ def has_section_editor_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has section editor role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, "section-editor")
+    return user.check_role(journal, constants.SECTION_EDITOR_ROLE)
 
 
 def has_editor_role(journal: Journal, user: Account) -> bool:
@@ -78,7 +78,7 @@ def has_editor_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has editor role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, "editor")
+    return user.check_role(journal, constants.EDITOR_ROLE)
 
 
 def has_any_editor_role(journal: Journal, user: Account) -> bool:
@@ -110,7 +110,7 @@ def has_author_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has author role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, "author")
+    return user.check_role(journal, constants.AUTHOR_ROLE)
 
 
 def has_director_role(journal: Journal, user: Account) -> bool:
@@ -126,7 +126,7 @@ def has_director_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has director role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, "director")
+    return user.check_role(journal, constants.DIRECTOR_ROLE)
 
 
 def has_reviewer_role(journal: Journal, user: Account) -> bool:
@@ -144,7 +144,7 @@ def has_reviewer_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has reviewer role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, "reviewer")
+    return user.check_role(journal, constants.REVIEWER_ROLE)
 
 
 def has_admin_role(journal: Journal, user: Account) -> bool:

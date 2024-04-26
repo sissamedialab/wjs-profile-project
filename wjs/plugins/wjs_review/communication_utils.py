@@ -2,6 +2,7 @@
 
 Keeping here also anything that we might want to test easily 🙂.
 """
+
 import datetime
 from typing import Optional, Union
 
@@ -15,7 +16,7 @@ from submission.models import Article
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 
-from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
 from wjs.jcom_profile.utils import render_template_from_setting
 
@@ -98,32 +99,41 @@ def get_eo_user(obj: Union[Article, Journal]) -> Account:
     if created:
         from django.contrib.auth.models import Group
 
-        account.groups.add(Group.objects.get(name=GROUP_EO))
+        account.groups.add(Group.objects.get(name=constants.EO_GROUP))
         logger.warning(f"Create system EO account {email}")
     return account
 
 
 def get_director_user(obj: Union[Article, Journal]) -> Account:
     """Return the director of the journal."""
-    if isinstance(obj, Article):
-        journal = obj.journal
-    else:
-        journal = obj
-    # TODO: should we set this somewhere more centralized?
-    director_slug = "director"
+    journal = getattr(obj, "journal", obj)
     directors = Account.objects.filter(
-        accountrole__role__slug=director_slug,
+        accountrole__role__slug=constants.DIRECTOR_ROLE,
         accountrole__journal=journal,
     )
-    if len(directors) == 1:
+    main_directors = directors.filter(
+        accountrole__role__slug=constants.DIRECTOR_MAIN_ROLE,
+    )
+    if directors.count() == 1:
         return directors.first()
-    elif len(directors) > 1:
-        logger.error(
-            f"Journal {journal.code} has {len(directors)} directors!"
-            " Using the first one and hoping for the best..."
-            " Please enroll only one director (manager -> roles -> director -> view enrolled users)",
-        )
-        return directors.first()
+    elif directors.count() > 1:
+        if main_directors.count() > 1:
+            logger.error(
+                f"Journal {journal.code} has {directors.count()} main directors!"
+                " Picking a random one, this can have unintended consequences..."
+                " Please enroll only one director (manager -> roles -> director-main -> view enrolled users)",
+            )
+            return main_directors.first()
+        elif main_directors.count() == 1:
+            return main_directors.first()
+        else:
+            logger.error(
+                f"Journal {journal.code} has no main director, but multiple directors!"
+                " Picking a random one, this can have unintended consequences..."
+                " With multiple directors, please enroll at most one main director "
+                " (manager -> roles -> director-main -> view enrolled users)",
+            )
+            return directors.first()
     else:
         logger.error(
             f"Journal {journal.code} has no directors!"
@@ -219,7 +229,7 @@ def get_hijacker(request: HttpRequest) -> Optional[Account]:
 def role_for_article(article: Article, user: Account) -> str:
     """Return a role slug that describes the role of the given user on the article."""
     # TODO: is it possible for a user to have more than one role on one article?
-    if user.groups.filter(name=GROUP_EO).exists():
+    if user.groups.filter(name=constants.EO_GROUP).exists():
         return "eo"
 
     if review_models.EditorAssignment.objects.filter(editor=user, article=article).exists():

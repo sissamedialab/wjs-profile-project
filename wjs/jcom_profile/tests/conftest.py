@@ -37,7 +37,7 @@ from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.testing.helpers import create_galley
 
-from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.custom_settings_utils import (
     add_coauthors_submission_email_settings,
     add_generic_analytics_code_setting,
@@ -186,6 +186,7 @@ def jcom_user(create_jcom_user: Callable[[Optional[str]], JCOMProfile]) -> JCOMP
 def roles():
     roles_path = os.path.join(django_settings.BASE_DIR, ROLES_RELATIVE_PATH)
     management.call_command("loaddata", roles_path)
+    Role.objects.create(name="Main Director", slug=constants.DIRECTOR_MAIN_ROLE)
 
 
 @pytest.fixture
@@ -240,28 +241,28 @@ def coauthor():
 @pytest.fixture()
 def editor(create_jcom_user, roles, journal, keywords):
     jcom_user = create_jcom_user("editor")
-    jcom_user.add_account_role("editor", journal)
+    jcom_user.add_account_role(constants.EDITOR_ROLE, journal)
     return jcom_user
 
 
 @pytest.fixture()
 def section_editor(create_jcom_user, roles, journal, keywords):
     jcom_user = create_jcom_user("section_editor")
-    jcom_user.add_account_role("section-editor", journal)
+    jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
     return jcom_user
 
 
 @pytest.fixture()
 def reviewer(create_jcom_user, roles, journal, keywords):
     jcom_user = create_jcom_user("reviewer")
-    jcom_user.add_account_role("reviewer", journal)
+    jcom_user.add_account_role(constants.REVIEWER_ROLE, journal)
     return jcom_user
 
 
 @pytest.fixture()
 def eo_group() -> Group:
     """Create EO group."""
-    return Group.objects.get_or_create(name=GROUP_EO)[0]
+    return Group.objects.get_or_create(name=constants.EO_GROUP)[0]
 
 
 @pytest.fixture()
@@ -281,9 +282,7 @@ def normal_user(create_jcom_user, roles, journal, keywords) -> JCOMProfile:
 @pytest.fixture()
 def director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("director")
-    jcom_user.add_account_role("editor", journal)
-    jcom_user.add_account_role("section-editor", journal)
-    jcom_user.add_account_role("director", journal)
+    jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
     return jcom_user
 
 
@@ -307,7 +306,7 @@ def invited_user(journal):
 def typesetter(create_jcom_user, journal, roles) -> JCOMProfile:
     """Create typesetter user."""
     typesetter = create_jcom_user("typesetter")
-    typesetter.add_account_role("typesetter", journal)
+    typesetter.add_account_role(constants.TYPESETTER_ROLE, journal)
     return typesetter
 
 
@@ -568,7 +567,7 @@ def published_article_with_standard_galleys(journal, article_factory):
 @pytest.fixture
 def director_role(roles):
     """Create Director Role."""
-    Role.objects.get_or_create(name="Director", slug="director")
+    Role.objects.get_or_create(name="Director", slug=constants.DIRECTOR_ROLE)
 
 
 @pytest.fixture
@@ -654,7 +653,7 @@ def directors(director_role, journal):
             journal=journal,
             workload=random.randint(1, 10),
         )
-        user_director.janeway_account.add_account_role("director", journal)
+        user_director.janeway_account.add_account_role(constants.DIRECTOR_ROLE, journal)
         directors.append(user_director.janeway_account)
     return directors
 
@@ -670,7 +669,7 @@ def editors(roles, journal):
             last_name=f"Editor{i}",
             is_active=True,
         )
-        user_editor.janeway_account.add_account_role("section-editor", journal)
+        user_editor.janeway_account.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
 
         EditorAssignmentParameters.objects.create(
             editor=user_editor.janeway_account,
@@ -733,7 +732,7 @@ def article_with_keywords(article, keywords):
 def editors_with_keywords(create_jcom_user, journal, keywords):
     editors_kws = [create_jcom_user(f"editor{i}") for i in range(0, 4)]
     for editor_kws in editors_kws:
-        editor_kws.add_account_role("section-editor", journal)
+        editor_kws.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
 
     keywords_list = list(keywords)
 

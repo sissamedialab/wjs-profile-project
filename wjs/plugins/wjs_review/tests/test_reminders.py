@@ -17,6 +17,7 @@ from plugins.wjs_review.forms import ReportForm
 from review import models as review_models
 from submission import models as submission_models
 
+from wjs.jcom_profile.constants import DIRECTOR_MAIN_ROLE, DIRECTOR_ROLE
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import render_template
 
@@ -132,6 +133,38 @@ def test_create_a_reminder(
 
     assert reminder_obj.recipient == service.reviewer
     assert reminder_obj.actor == section_editor.janeway_account
+
+
+@pytest.mark.parametrize("set_main_director", (True, False))
+@pytest.mark.django_db
+def test_reminder_to_single_director(
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    create_jcom_user: Callable,
+    set_main_director,
+):
+    """Assignment to director only assign to the main director even if other are available."""
+    new_director = create_jcom_user("New Director")
+    new_director.add_account_role(DIRECTOR_ROLE, assigned_article.journal)
+    if set_main_director:
+        new_director.add_account_role(DIRECTOR_MAIN_ROLE, assigned_article.journal)
+    assignment = assigned_article.editorassignment_set.first()
+    fake_request.user = assignment.editor
+    HandleEditorDeclinesAssignment(
+        assignment=assignment,
+        editor=assignment.editor,
+        request=fake_request,
+    ).run()
+    assert Reminder.objects.all().count() == 2
+    assert Reminder.objects.filter(code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1).count() == 1
+    assert Reminder.objects.filter(code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2).count() == 1
+    for reminder in Reminder.objects.all():
+        if set_main_director:
+            assert reminder.recipient == new_director.janeway_account
+        else:
+            assert reminder.recipient == director.janeway_account
 
 
 @pytest.mark.django_db

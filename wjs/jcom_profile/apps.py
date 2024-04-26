@@ -2,8 +2,6 @@
 # https://docs.djangoproject.com/en/4.0/ref/applications/
 from django.apps import AppConfig
 
-GROUP_EO = "EO"
-
 
 class JCOMProfileConfig(AppConfig):
     """Configuration for this django app."""
