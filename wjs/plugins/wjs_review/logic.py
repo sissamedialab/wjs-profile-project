@@ -2027,7 +2027,6 @@ class HandleEditorDeclinesAssignment:
 
     def _log_director(self):
         """Logs a message to the Director containing information about the motivation of the declination."""
-        self.director = communication_utils.get_director_user(self.assignment.article)
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="editor_decline_assignment_subject",
@@ -2081,6 +2080,7 @@ class HandleEditorDeclinesAssignment:
             conditions = self.check_conditions()
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
-            if self.request.user == self.editor:
+            self.director = communication_utils.get_director_user(self.assignment.article)
+            if self.request.user == self.editor and self.director:
                 self._log_director()
             self.delete_assignment()

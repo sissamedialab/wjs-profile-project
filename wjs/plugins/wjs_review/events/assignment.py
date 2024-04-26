@@ -14,7 +14,7 @@ from review.logic import assign_editor
 from submission.models import Article
 from utils.logic import get_current_request
 
-from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
 Account = get_user_model()
@@ -101,7 +101,7 @@ def assign_eo_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign EO to article based on their workload."""
     article = kwargs["article"]
 
-    eo_users = Account.objects.filter(groups__name=GROUP_EO)
+    eo_users = Account.objects.filter(groups__name=EO_GROUP)
     parameter = (
         EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=eo_users)
         .order_by("workload", "id")
@@ -113,7 +113,7 @@ def assign_eo_to_articles(**kwargs) -> Optional[review_models.EditorAssignment]:
 
 def assign_eo_random(**kwargs) -> Optional[review_models.EditorAssignment]:
     """Assign a random EO member, for test purposes."""
-    return Account.objects.filter(groups__name=GROUP_EO).order_by("?").first()
+    return Account.objects.filter(groups__name=EO_GROUP).order_by("?").first()
 
 
 def dispatch_assignment(**kwargs) -> Optional[review_models.EditorAssignment]:

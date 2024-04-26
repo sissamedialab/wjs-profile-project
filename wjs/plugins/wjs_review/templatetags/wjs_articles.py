@@ -11,7 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from submission.models import Article
 
-from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile.constants import EO_GROUP
 
 from ..models import Message
 
@@ -67,7 +67,7 @@ def last_eo_note(article):
         Message.objects.filter(
             content_type=ContentType.objects.get_for_model(article),
             object_id=article.id,
-            actor__groups__name=GROUP_EO,
+            actor__groups__name=EO_GROUP,
         )
         .exclude(message_type=Message.MessageTypes.SYSTEM)
         .order_by("-created")

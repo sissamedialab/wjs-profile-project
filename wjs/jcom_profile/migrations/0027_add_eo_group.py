@@ -2,7 +2,7 @@
 
 from django.db import migrations
 
-from wjs.jcom_profile.apps import GROUP_EO
+from wjs.jcom_profile.constants import EO_GROUP
 
 
 def create_eo_group(apps, schema_editor):
@@ -10,9 +10,9 @@ def create_eo_group(apps, schema_editor):
     Group = apps.get_model("auth", "Group")
     try:
         # we can't use get_or_create because it's a migration
-        Group.objects.get(name=GROUP_EO)
+        Group.objects.get(name=EO_GROUP)
     except Group.DoesNotExist:
-        Group.objects.create(name=GROUP_EO)
+        Group.objects.create(name=EO_GROUP)
 
 
 class Migration(migrations.Migration):
