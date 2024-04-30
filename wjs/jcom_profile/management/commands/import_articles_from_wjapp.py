@@ -7,13 +7,21 @@ from core.models import Account
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models import Q
+from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
-from plugins.wjs_review.logic import AssignToEditor
+from plugins.wjs_review.logic import (
+    AssignToEditor,
+    AssignToReviewer,
+    EvaluateReview,
+    render_template_from_setting,
+)
 from plugins.wjs_review.models import ArticleWorkflow
+from review.models import ReviewRound
 from submission import models as submission_models
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.management.commands.import_from_drupal import (
@@ -84,6 +92,7 @@ u2.lastname AS editor_lastname,
 u2.firstname AS editor_firstname,
 u2.email AS editor_email,
 v.versionCod,
+v.versionNumber,
 v.versionTitle,
 v.versionAbstract
 FROM Document d
@@ -114,10 +123,12 @@ AND d.preprintId='{preprintid}'
             title = row["versionTitle"]
             abstract = row["versionAbstract"]
             version_cod = row["versionCod"]
+            version_number = row["versionNumber"]
             if row:
                 logger.debug(
                     f"""
 preprint: {preprintid}
+version number: {version_number}
 submission_date: {submission_date}
 title: {title}
 author: {author_cod} {author_last_name} {author_first_name} {author_email}
@@ -128,13 +139,14 @@ section: {section}
 """,
                 )
 
-                article, preprintid = self.create_article(journal, row)
+                article, preprintid, editor = self.create_article(journal, row)
                 self.set_section(article, section)
                 logger.debug(article.id)
                 logger.debug(preprintid)
                 logger.debug(article)
             cursor.close()
 
+            # keywords
             cursor_keywords = connection.cursor(dictionary=True)
             query_keywords = f"""
 SELECT
@@ -144,7 +156,7 @@ LEFT JOIN Keyword USING (keywordCod)
 WHERE
     versioncod={version_cod}
 """
-            logger.debug(query)
+            logger.debug(query_keywords)
             cursor_keywords.execute(
                 query_keywords,
             )
@@ -154,8 +166,40 @@ WHERE
             logger.debug(f"Keywords: {keywords}")
             self.set_keywords(article, keywords)
             cursor_keywords.close()
-            connection.close()
 
+            # Create the review round until current version
+            for i in range(1, version_number + 1):
+                review_round = ReviewRound.objects.get_or_create(article=article, round_number=i)
+                logger.debug(f"Review Round: {review_round}")
+
+            # use current review round
+            # reviewers
+            cursor_reviewers = connection.cursor(dictionary=True)
+            query_reviewers = f"""
+SELECT
+refereeCod,
+u.lastName  AS refereeLastName,
+u.firstName AS refereeFirstName,
+u.email     AS refereeEmail,
+assignDate  AS refereeAssignDate,
+refereeReportDeadlineDate AS report_due_date,
+IF(YEAR(acceptDate)!=1970, acceptDate, "") AS refereeAcceptDate
+FROM Current_Referees c
+LEFT JOIN User u ON (u.userCod=c.refereeCod)
+WHERE
+    versioncod={version_cod}
+ORDER BY assignDate
+"""
+            logger.debug(query_reviewers)
+            cursor_reviewers.execute(
+                query_reviewers,
+            )
+            for reviewer_data in cursor_reviewers:
+                logger.debug(f"Reviewer: {reviewer_data}")
+                self.set_reviewer(article, editor, reviewer_data)
+            cursor_reviewers.close()
+
+            connection.close()
         return
 
     def create_article(self, journal, row):
@@ -244,7 +288,7 @@ The {article.id} here will disappear because of the delete() below""",
             ).run()
             article.save()
         article.refresh_from_db()
-        return (article, preprintid)
+        return (article, preprintid, editor)
 
     def account_get_or_create_check_correspondence(self, user_cod, last_name, first_name, imported_email, journal):
         """get a user account - check Correspondence and eventually create new account"""
@@ -347,3 +391,83 @@ The {article.id} here will disappear because of the delete() below""",
             logger.debug(f"Keyword {kwd_word} set at order {order}")
             article.keywords.add(keyword)
         article.save()
+
+    def set_reviewer(self, article, editor, reviewer_data):
+        """Set a reviewer."""
+        reviewer = self.account_get_or_create_check_correspondence(
+            reviewer_data["refereeCod"],
+            reviewer_data["refereeLastName"],
+            reviewer_data["refereeFirstName"],
+            reviewer_data["refereeEmail"],
+            article.journal,
+        )
+
+        request = create_fake_request(user=None, journal=article.journal)
+        request.user = editor
+
+        logger.debug(f"article workflow: {article.articleworkflow}")
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(datetime.datetime.fromisoformat(str(reviewer_data["refereeAssignDate"]))),
+        ):
+            # default message from settings
+            # TO CHECK: add mail subject
+            # TO CHECK: missing signature in the final message request.user.signature
+            default_message_rendered = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="review_invitation_message",
+                journal=article.journal,
+                request=request,
+                context={
+                    "article": article,
+                    "request": request,
+                },
+                template_is_setting=True,
+            )
+            logger.debug(f"invitation review message: {default_message_rendered}")
+            logger.debug(f"editor in charge: {request.user.signature}")
+            interval_days = get_setting(
+                "wjs_review",
+                "acceptance_due_date_days",
+                article.journal,
+            )
+            date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
+            form_data = {
+                "acceptance_due_date": date_due,
+                "message": default_message_rendered,
+            }
+            review_assignment = AssignToReviewer(
+                reviewer=reviewer,
+                workflow=article.articleworkflow,
+                editor=editor,
+                form_data=form_data,
+                request=request,
+            ).run()
+
+            if reviewer_data["refereeAcceptDate"]:
+                request = create_fake_request(user=None, journal=article.journal)
+                request.user = reviewer
+
+                with freezegun.freeze_time(
+                    rome_timezone.localize(datetime.datetime.fromisoformat(str(reviewer_data["refereeAcceptDate"]))),
+                ):
+                    logger.debug(f"review assignment: {review_assignment}")
+                    EvaluateReview(
+                        assignment=review_assignment,
+                        reviewer=reviewer,
+                        editor=editor,
+                        form_data={"reviewer_decision": "1", "accept_gdpr": True},
+                        request=request,
+                        token=None,
+                    ).run()
+                    if reviewer_data["report_due_date"]:
+                        datetime_due = rome_timezone.localize(
+                            datetime.datetime.fromisoformat(str(reviewer_data["report_due_date"])),
+                        )
+                        # note: review_assignment date_due is datetime.date not datetime.datetime
+                        review_assignment.date_due = datetime_due.date()
+                        review_assignment.save()
+                    logger.debug(f"Review Assignment date_due: {review_assignment.date_due}")
+            logger.debug(f"Review Round: {review_assignment.review_round}")
+
+        return review_assignment
