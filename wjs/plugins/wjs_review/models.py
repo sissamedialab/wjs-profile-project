@@ -352,7 +352,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.PROOFREADING,
         target=ReviewStates.TYPESETTER_SELECTED,
-        # TODO: permission=,
+        permission=permissions.has_author_role_by_article,
         # TODO: conditions=[],
     )
     def author_sends_corrections(self):

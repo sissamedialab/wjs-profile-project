@@ -8,7 +8,7 @@ from typing import Callable, Optional
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
@@ -52,14 +52,31 @@ def get_url_with_last_editor_revision_request_pk(
 
 def get_url_with_typesetting_assignment_pk(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     """From ArticleAction and ArticleWorkflow retrieve the action url with typesetting assignment pk."""
+    # Ordering is misleading but from the models' class Meta we have: "ordering = ('-round_number', 'date_created')"
     typesetting_assignment = (
         TypesettingAssignment.objects.filter(
             round__article=workflow.article,
         )
-        .order_by("round__number")
+        .order_by("round__round_number")
         .last()
     )
     url = reverse(action.view_name, kwargs={"pk": typesetting_assignment.pk})
+    if action.querystring_params is not None:
+        url += "?"
+        url = f"{url}?{urllib.parse.urlencode(action.querystring_params)}"
+    return url
+
+
+def get_url_with_galleyproofing_pk(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    """From ArticleAction and ArticleWorkflow retrieve the action url with galleyproofing pk."""
+    galleyproofing = (
+        GalleyProofing.objects.filter(
+            round__article=workflow.article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    url = reverse(action.view_name, kwargs={"pk": galleyproofing.pk})
     if action.querystring_params is not None:
         url += "?"
         url = f"{url}?{urllib.parse.urlencode(action.querystring_params)}"
@@ -702,7 +719,8 @@ class Proofreading(BaseState):
             permission=permissions.is_article_author,
             name="author_sends_corrections",
             label="Send corrections",
-            view_name="WRITEME!",
+            view_name="wjs_list_annotated_files",
+            custom_get_url=get_url_with_galleyproofing_pk,
         ),
         ArticleAction(
             permission=permissions.is_article_author,

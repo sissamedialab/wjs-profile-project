@@ -1,0 +1,27 @@
+<ul class="list-group mb-3">
+    <li class="list-group-item fw-bold">Annotated Files</li>
+    {% for file in galleyproofing.annotated_files.all %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a target="_blank" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}">{{ file }}</a>
+            <button hx-post="{% url 'wjs_list_annotated_files' pk=object.pk %}"
+                    hx-confirm="Are you sure you want to delete this file?" hx-target="#proofing-notes" hx-vals='{"file_to_delete": {{ file.pk }} }'
+                    class="btn btn-danger btn-sm" name="action" value="delete_file">Delete</button>
+        </li>
+    {% endfor %}
+</ul>
+<form method="post" enctype="multipart/form-data" hx-post="{% url 'wjs_list_annotated_files' pk=object.pk %}" hx-target="#proofing-notes">
+    {% csrf_token %}
+    {{ form.errors }}
+    <div class="mb-3">
+        {{ form.file }}
+        <button type="submit" class="btn btn-primary mt-2" name="action" value="upload_file">Upload File</button>
+    </div>
+    {{ galleyproofing.notes }}
+    <div class="mb-3">
+        {{ form.notes }}
+        <button type="submit" class="btn btn-primary mt-2" name="action" value="add_notes">Add Notes</button>
+    </div>
+        <a href="{% url 'wjs_author_sends_corrections' galleyproofing.round.typesettingassignment.pk %}" class="btn btn-primary">
+        Send Corrections
+    </a>
+</form>

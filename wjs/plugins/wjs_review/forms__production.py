@@ -6,9 +6,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 
-from .logic__production import UploadFile
+from .logic__production import (
+    HandleCreateAnnotatedFile,
+    HandleDeleteAnnotatedFile,
+    UploadFile,
+)
 from .models import Message
 
 Account = get_user_model()
@@ -99,3 +103,50 @@ class WriteToTypMessageForm(forms.Form):
         message.emit_notification()
 
         return message
+
+
+class UploadAnnotatedFilesForm(forms.ModelForm):
+    file = forms.FileField(required=False)
+    notes = forms.CharField(widget=forms.Textarea, required=False)
+    action = forms.ChoiceField(
+        required=False,
+        choices=(("upload_file", "Upload file"), ("add_notes", "Add notes"), ("delete_file", "Delete file")),
+    )
+
+    class Meta:
+        model = GalleyProofing
+        fields = ["notes"]
+
+    def __init__(self, *args, **kwargs):
+        self.article = kwargs.pop("article")
+        self.galleyproofing = kwargs.pop("galleyproofing")
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> HandleCreateAnnotatedFile:
+        """Instantiate :py:class:`HandleCreateAnnotatedFile` class."""
+        return HandleCreateAnnotatedFile(
+            galleyproofing=self.galleyproofing,
+            file=self.cleaned_data["file"],
+            user=self.request.user,
+        )
+
+    def get_delete_logic_instance(self) -> HandleDeleteAnnotatedFile:
+        """Instantiate :py:class:`HandleDeleteAnnotatedFile` class."""
+        return HandleDeleteAnnotatedFile(
+            file_id=self.request.POST.get("file_to_delete"),
+            galleyproofing=self.galleyproofing,
+            user=self.request.user,
+        )
+
+    def save(self, commit=True) -> GalleyProofing:
+        if self.cleaned_data["action"] == "upload_file":
+            service = self.get_logic_instance()
+            return service.run()
+        elif self.cleaned_data["action"] == "delete_file":
+            service = self.get_delete_logic_instance()
+            return service.run()
+        else:
+            self.galleyproofing.notes = self.cleaned_data["notes"]
+            self.galleyproofing.save()
+            return self.galleyproofing

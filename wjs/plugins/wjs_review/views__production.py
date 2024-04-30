@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.generic import FormView, ListView, UpdateView, View
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
@@ -18,9 +18,11 @@ from .communication_utils import get_eo_user
 from .forms__production import (
     FileForm,
     TypesetterUploadFilesForm,
+    UploadAnnotatedFilesForm,
     WriteToTypMessageForm,
 )
 from .logic__production import (
+    AuthorSendsCorrections,
     HandleCreateSupplementaryFile,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
@@ -394,3 +396,75 @@ class WriteToAuWithModeration(UserPassesTestMixin, LoginRequiredMixin, FormView)
         """Add a Message for the typesetter and send the notification."""
         form.create_message(to_be_forwarded_to=self.get_to_be_forwarded_to())
         return super().form_valid(form)
+
+
+class ListAnnotatedFilesView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+    """View to allow the author to list, upload and delete annotated files."""
+
+    model = GalleyProofing
+    form_class = UploadAnnotatedFilesForm
+    context_object_name = "galleyproofing"
+
+    def get_template_names(self):
+        if self.htmx:
+            return ["wjs_review/elements/typesetting_annotate_files.html"]
+        return ["wjs_review/annotated_files_listing.html"]
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(GalleyProofing, pk=kwargs["pk"])
+        self.article = self.object.round.article
+
+    def test_func(self):
+        """Author can make actions on annotated files."""
+        return is_article_author(self.article.articleworkflow, self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["article"] = self.article
+        kwargs["galleyproofing"] = self.object
+        kwargs["request"] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        """If the form is valid, save the associate model (the flag on the MessageRecipient).
+
+        Then, just return a response with the flag template rendered. I.e. do not redirect anywhere.
+
+        """
+        form.save()
+        return self.render_to_response(self.get_context_data(form=form, pk=self.object.pk))
+
+
+class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+    """Author sends corrections to Typesetter."""
+
+    model = TypesettingAssignment
+    template_name = "wjs_review/author_sends_to_typesetter.html"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg])
+        self.article = self.object.round.article
+
+    def test_func(self):
+        """Author can upload files."""
+        return is_article_author(self.article.articleworkflow, self.request.user)
+
+    def get_logic_instance(self) -> AuthorSendsCorrections:
+        """Instantiate :py:class:`AuthorSendsCorrections` class."""
+        return AuthorSendsCorrections(
+            user=self.request.user,
+            old_assignment=self.object,
+            request=self.request,
+        )
+
+    def get(self, request, *args, **kwargs):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValueError as e:
+            context = {"error": str(e)}
+        else:
+            context = {"article": self.article}
+        return render(request, self.template_name, context)

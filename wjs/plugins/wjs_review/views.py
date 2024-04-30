@@ -83,9 +83,11 @@ from .models import (
 )
 from .prophy import Prophy
 from .views__production import (  # noqa F401
+    AuthorSendsCorrectionsView,
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DownloadRevisionFiles,
+    ListAnnotatedFilesView,
     ReadyForProofreadingView,
     TypesetterArchived,
     TypesetterPending,

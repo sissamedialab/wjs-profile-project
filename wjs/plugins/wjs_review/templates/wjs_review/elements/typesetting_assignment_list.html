@@ -1,15 +1,22 @@
 {% load wjs_review %}
+<div>
+<a href="{% url 'download_revision_files' pk=workflow.pk %}" class="button">Download revision files</a>
+</div>
 <!-- FIXME: see if this is ok for other roles -->
 {% if workflow|is_user_one_of_the_authors:request.user %}
-    {% for assignment in workflow.article|typesetting_assignments %}
-        {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=assignment %}
+    {% for round in workflow.article|typesetting_rounds %}
+        {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=round.typesettingassignment %}
+        {% if round.galleyproofing_set.exists %}
+            {% include "wjs_review/elements/galleyproofing_detail.html" with round=round %}
+        {% endif %}
     {% endfor %}
 {% endif %}
 
 {% if workflow|is_user_typesetter:request.user %}
-    {% for assignment in workflow.article|typesetting_assignments:request.user %}
-        {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=assignment %}
+    {% for round in workflow.article|typesetting_rounds:request.user %}
+        {% include "wjs_review/elements/typesetting_assignment_detail.html" with typesettingassignment=round.typesettingassignment %}
+        {% if round.galleyproofing_set.exists %}
+            {% include "wjs_review/elements/galleyproofing_detail.html" with round=round %}
+        {% endif %}
     {% endfor %}
 {% endif %}
-
-<a href="{% url 'download_revision_files' pk=workflow.pk %}" class="button">Download All Files</a>

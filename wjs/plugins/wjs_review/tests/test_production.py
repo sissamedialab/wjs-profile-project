@@ -7,6 +7,7 @@ from django.test.client import Client
 from django.urls import reverse
 from django.utils import timezone
 from journal.models import Journal
+from plugins.typesetting.models import GalleyProofing
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Article
@@ -15,7 +16,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 
 from ..communication_utils import get_eo_user
-from ..models import Message, MessageThread
+from ..models import ArticleWorkflow, Message, MessageThread
 from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
     _accept_article,
@@ -311,3 +312,32 @@ def test_eo_forwards_msg(
 
     m1m2_relation = MessageThread.objects.get(parent_message=m1, child_message=m2)
     assert m1m2_relation.relation_type == MessageThread.MessageRelation.FORWARD
+
+
+@pytest.mark.django_db
+def test_author_sends_corrections(
+    stage_proofing_article: Article,
+    client: Client,
+):
+    typesetting_assignment = stage_proofing_article.typesettinground_set.first().typesettingassignment
+    url = reverse("wjs_author_sends_corrections", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(stage_proofing_article.correspondence_author)
+    galleyproofing = (
+        GalleyProofing.objects.filter(
+            round__article=stage_proofing_article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    assert "Data not provided" in response.context["error"]
+    assert "Data not provided" in response.content.decode()
+
+    galleyproofing.notes = "Some notes"
+    galleyproofing.save()
+    galleyproofing.refresh_from_db()
+    response = client.get(url)
+    assert response.status_code == 200
+    stage_proofing_article.refresh_from_db()
+    assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED

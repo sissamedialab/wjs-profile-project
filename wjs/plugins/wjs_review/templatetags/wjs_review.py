@@ -14,7 +14,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import TypesettingRound
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 from utils import models as janeway_utils_models
@@ -316,14 +316,14 @@ def days_since(date: Union[datetime.datetime, datetime.date]) -> int:
 
 
 @register.filter
-def typesetting_assignments(article: Article, user: Account = None):
+def typesetting_rounds(article: Article, user: Account = None):
     """
-    Returns the list of Typesetting Assignments assigned to the current user, if specified.
-    If no user is specified, returns all Typesetting Assignments for the given article.
+    Returns the list of Typesetting Rounds linked to Typesetting Assignments assigned to the current user, if specified
+    If no user is specified, returns all Typesetting Rounds for the given article.
     """
-    query = TypesettingAssignment.objects.filter(round__article=article)
+    query = TypesettingRound.objects.filter(article=article)
     if user is not None:
-        query = query.filter(typesetter=user)
+        query = query.filter(typesettingassignment__typesetter=user)
     return query
 
 
