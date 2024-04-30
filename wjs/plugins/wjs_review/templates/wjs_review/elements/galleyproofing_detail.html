@@ -1,0 +1,30 @@
+{% with proofing_assignment=round.galleyproofing_set.first %}
+<p class="h3">Galleyproofing Round (round {{ round.round_number }})</p>
+    <button class="btn btn-primary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#rr{{ proofing_assignment.pk }}Files"
+            aria-expanded="false"
+            aria-controls="rr{{ proofing_assignment.pk }}Files">Galleys</button>
+    <div class="collapse" id="rr{{ proofing_assignment.pk }}Files">
+            {% for galley in proofing_assignment.proofed_files.all %}
+                {% if galley.file.label == "PDF" %}
+                    <li><a target="_blank" href="{% url 'article_file_download' 'id' galley.article.pk galley.file.pk %}">{{ galley.file }}</a></li>
+                {% endif %}
+            {% endfor %}
+    </div>
+    <button class="btn btn-primary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#rr{{ proofing_assignment.pk }}AnnotatedFiles"
+            aria-expanded="false"
+            aria-controls="rr{{ proofing_assignment.pk }}AnnotatedFiles">Annotated Files</button>
+    <div class="collapse" id="rr{{ proofing_assignment.pk }}AnnotatedFiles">
+        <ul>
+            {% for file in proofing_assignment.annotated_files.all %}
+                <li><a target="_blank" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}">{{ file }}</a></li>
+            {% endfor %}
+            {{ proofing_assignment.notes }}
+        </ul>
+    </div>
+{% endwith %}

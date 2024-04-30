@@ -45,7 +45,6 @@ from .events.assignment import dispatch_assignment
 from .logic__production import (  # noqa F401
     AssignTypesetter,
     RequestProofs,
-    SendProofs,
     VerifyProductionRequirements,
 )
 from .reminders.models import Reminder

@@ -11,7 +11,7 @@ from django.core.files import File as DjangoFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
-from plugins.typesetting.models import GalleyProofing
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
 from review.models import ReviewAssignment
 from submission.models import Article
@@ -24,6 +24,7 @@ from ..logic import (
     AssignToEditor,
     AssignTypesetter,
     HandleDecision,
+    RequestProofs,
     VerifyProductionRequirements,
 )
 from ..models import ArticleWorkflow, EditorRevisionRequest, Message
@@ -182,6 +183,37 @@ def assigned_to_typesetter_article(
     See notes about notifications in `assigned_article`.
     """
     return _assigned_to_typesetter_article(ready_for_typesetter_article, typesetter, fake_request)
+
+
+def _stage_proofing_article(
+    article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> Article:
+    typesetting_assignment = TypesettingAssignment.objects.get(
+        round=article.typesettinground_set.first(),
+        typesetter=typesetter,
+    )
+    RequestProofs(
+        assignment=typesetting_assignment,
+        typesetter=typesetter,
+        request=fake_request,
+        workflow=article.articleworkflow,
+    ).run()
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
+    cleanup_notifications_side_effects()
+    return article
+
+
+@pytest.fixture
+def stage_proofing_article(
+    assigned_to_typesetter_article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> ArticleWorkflow:
+    """Create and return an article in proofreading."""
+    return _stage_proofing_article(assigned_to_typesetter_article, typesetter, fake_request)
 
 
 @pytest.fixture

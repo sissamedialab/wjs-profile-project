@@ -1314,6 +1314,54 @@ def set_default_plugin_settings(force: bool = False):
             proofreading_request_setting["name"],
         )
 
+    def author_sends_corrections_message():
+        subject_author_sends_corrections: SettingParams = {
+            "name": "author_sends_corrections_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author sending corrections."),
+            "description": _(
+                "The subject of the notification that is sent to the typesetter when the author sends corrections.",
+            ),
+            "is_translatable": False,
+        }
+        subject_author_sends_corrections_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Corrections for article {{ article.id }} are ready."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_author_sends_corrections,
+            subject_author_sends_corrections_setting_value,
+            subject_author_sends_corrections["name"],
+        )
+        author_sends_corrections_setting: SettingParams = {
+            "name": "author_sends_corrections_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author sending corrections."),
+            "description": _(
+                "The body of the notification that is sent to the typesetter when the author sends corrections.",
+            ),
+            "is_translatable": False,
+        }
+        author_sends_correction_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ typesetter.full_name }}, author has sent corrections for the paper {{ article.id }} and you have been assigned.
+
+            Please visit:
+            {% url "wjs_article_details" article.id %}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            author_sends_corrections_setting,
+            author_sends_correction_setting_value,
+            author_sends_corrections_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1337,6 +1385,7 @@ def set_default_plugin_settings(force: bool = False):
     typesetter_is_assigned_message()
     article_requires_proofreading_message()
     eo_is_assigned_message()
+    author_sends_corrections_message()
 
 
 def ensure_workflow_elements():

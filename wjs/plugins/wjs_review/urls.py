@@ -13,6 +13,7 @@ from .views import (
     AssignEoToArticle,
     AuthorArchived,
     AuthorPending,
+    AuthorSendsCorrectionsView,
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DirectorArchived,
@@ -29,6 +30,7 @@ from .views import (
     EvaluateReviewRequest,
     ForwardMessage,
     InviteReviewer,
+    ListAnnotatedFilesView,
     Manager,
     MessageAttachmentDownloadView,
     PostponeRevisionRequestDueDate,
@@ -171,4 +173,6 @@ urlpatterns = [
         DeleteSupplementaryFileView.as_view(),
         name="delete_supplementary_file",
     ),
+    path("annotated_files/<int:pk>/", ListAnnotatedFilesView.as_view(), name="wjs_list_annotated_files"),
+    path("send_corrections/<int:pk>", AuthorSendsCorrectionsView.as_view(), name="wjs_author_sends_corrections"),
 ]
