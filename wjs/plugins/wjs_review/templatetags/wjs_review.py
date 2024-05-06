@@ -3,6 +3,7 @@
 For tags and filters that relate specifically to Articles, see module wjs_articles.
 
 """
+
 # custom_tags.py in the templatetags directory
 import datetime
 import json
@@ -22,6 +23,7 @@ from utils.logger import get_logger
 from utils.models import LogEntry
 
 from .. import communication_utils, states
+from ..custom_types import BootstrapButtonProps
 from ..models import ArticleWorkflow, EditorDecision, MessageThread, ProphyAccount
 from ..permissions import (
     has_director_role_by_article,
@@ -33,7 +35,6 @@ from ..permissions import (
     is_one_of_the_authors,
 )
 from ..prophy import Prophy
-from ..types import BootstrapButtonProps
 
 register = template.Library()
 
