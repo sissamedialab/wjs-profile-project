@@ -86,8 +86,6 @@ function deploy_wjs() {
         fi
     fi
 
-    "$PIP" install -U "jcomassistant"
-
     cd "$MANAGE_DIR"
 
     "$PYTHON" manage.py create_custom_settings

@@ -427,7 +427,7 @@ def process_body(body: str, style=None, lang="eng") -> bytes:
     return lxml.html.tostring(html)
 
 
-def evince_language_from_filename_and_article(filename, article):
+def evince_language_from_filename_and_article(filename: str, article):
     """Evince the galley's language from its filename.
 
     NB: in JCOMAL, the main galley (which is never English) does not

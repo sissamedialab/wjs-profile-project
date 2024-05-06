@@ -3,28 +3,24 @@ import datetime
 import os
 import re
 import shutil
+import tarfile
 import tempfile
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from typing import Union
 
+import lxml.etree
 import lxml.html
+import requests
 from core.models import Account
 from core.models import File as JanewayFile
+from django.conf import settings
 from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Q, QuerySet
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
-from jcomassistant import make_epub, make_xhtml
-from jcomassistant.utils import (
-    correct_translation,
-    find_and_rename_main_galley,
-    preprocess_xmlfile,
-    read_tex,
-    rebuild_translation_galley,
-    tex_filename_from_wjs_ini,
-)
 from journal import models as journal_models
 from lxml.html import HtmlElement
 from production.logic import save_galley, save_galley_image, save_supp_file
@@ -70,13 +66,19 @@ SECTIONS_MAPPING = {
 
 
 class UnknownSection(Exception):
-    pass
+    """The section (aka article type) found in the XML file is unknown."""
+
+
+class JCOMAssitantException(Exception):
+    """The processing of the galleys by JCOMAssistant failed."""
 
 
 logger = get_logger(__name__)
 
 
 class Command(BaseCommand):
+    """Import an article from wjapp."""
+
     help = "Import an article from wjapp."  # NOQA
 
     def handle(self, *args, **options):
@@ -145,50 +147,31 @@ class Command(BaseCommand):
             logger.error(f"Found {len(workdir)} files in the root of the zip file. Trying the first: {workdir[0]}")
         workdir = tmpdir / Path(workdir[0])
 
-        # Expect to find one XML (and some PDF files)
-        xml_files = list(workdir.glob("*.xml"))
-        if len(xml_files) == 0:
-            logger.critical(f"No XML file found in {zip_file}. Quitting and leaving a mess...")
-            raise FileNotFoundError(f"No XML file found in {zip_file}")
-        if len(xml_files) > 1:
-            logger.warning(f"Found {len(xml_files)} XML files in {zip_file}. Using the first one {xml_files[0]}")
-        xml_file = xml_files[0]
+        try:
+            folder_with_unpacked_files = ask_jcomassistant_to_process(zip_file, workdir=workdir)
+        except JCOMAssitantException as ja_exception:
+            logger.critical(f"Galley generation failed. Aborting process! {ja_exception}")
+            logger.warning(f"Please cleanup tmpfolder {tmpdir}")
+            return
+        else:
+            folder_with_unpacked_files = Path(folder_with_unpacked_files)
 
-        # Need to read the TeX source in order to correct the XML
-        # (mainly authors names and authors order)
-        src_folder = workdir / "src"
-        if not os.path.exists(src_folder):
-            raise FileNotFoundError(f"Missing src folder {src_folder}")
-        tex_filenames = list(src_folder.glob("JCOM*.tex"))
-        multilingual = False
-        if len(tex_filenames) > 1:
-            # Assuming multilingual paper.
+        ja_files = os.listdir(folder_with_unpacked_files)
+
+        wjapp_xml_filename = [f for f in ja_files if f.endswith(".xml")][0]
+        xml_obj = lxml.etree.parse(folder_with_unpacked_files / wjapp_xml_filename)
+
+        # Assume that if there is a PDF file, it is the translated and proceessed galley
+        pdf_files = [f for f in ja_files if f.endswith(".pdf")]
+        if len(pdf_files) > 0:
             multilingual = True
-
-            # Find the tex source with the shortest name, because
-            # usually we have the English version named <pubid>.tex
-            # and the "translations" as <pubid>_<lang>.tex
-            tex_filenames.sort()
-            logger.warning(f"Found {len(tex_filenames)} tex files. Using {tex_filenames[0]}")
-
-        tex_filename = tex_filenames[0]
-
-        alternative_tex_filename = None
-        wjs_ini = src_folder / "wjs.ini"
-        if wjs_ini.exists():
-            alternative_tex_filename = tex_filename_from_wjs_ini(wjs_ini)
-            alternative_tex_filename = os.path.join(src_folder, alternative_tex_filename)
-            if alternative_tex_filename != "":
-                logger.warning(f"Found wjs.ini. Using {alternative_tex_filename}. Untested with multilingual papers.")
-            else:
-                alternative_tex_filename = None
-
-        tex_data = read_tex(tex_filename)
-
-        xml_obj = preprocess_xmlfile(xml_file, tex_data)
+        else:
+            multilingual = False
 
         if self.options["only_regenerate_html_galley"]:
-            self.regen_html_galley(xml_obj, tex_filename, alternative_tex_filename)
+            logger.error("Not yet implemented")
+            return
+            self.regen_html_galley(xml_obj)
             # Cleanup
             shutil.rmtree(tmpdir)
             return
@@ -203,46 +186,49 @@ class Command(BaseCommand):
         self.set_pdf_galleys(article, xml_obj, pubid, workdir)
         self.set_supplementary_material(article, pubid, workdir)
 
+        # TODO: drop option "skip-galley-generation"? We need to contact jcomassistant anyway...
         if not self.options["skip_galley_generation"]:
             try:
-                # Generate the full-text html from the TeX sources
-                html_galley_filename = make_xhtml.make(tex_filename, alternative_tex_filename=alternative_tex_filename)
-                self.set_html_galley(article, html_galley_filename)
+                self.set_html_galley(article, folder_with_unpacked_files)
 
-                # Generate the EPUB from the TeX sources
-                epub_galley_filename = make_epub.make(html_galley_filename, tex_data=tex_data)
+                epub_galley_filename = [f for f in ja_files if f.endswith(".epub")][0]
+                epub_galley_filename = folder_with_unpacked_files / Path(epub_galley_filename)
                 self.set_epub_galley(article, epub_galley_filename, pubid)
 
             except Exception as exception:
                 logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
 
             if multilingual:
-                try:
-                    for translation_tex_filename in tex_filenames[1:]:
-                        correct_translation(translation_tex_filename, tex_filename)
+                logger.critical("Multilingual not implemented. See specs#774")
+                # specs#774 try:
+                # specs#774     for translation_tex_filename in tex_filenames[1:]:
+                # specs#774         correct_translation(translation_tex_filename, tex_filename)
 
-                        translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
-                        # TODO: verify if Janeway can manage tranlastions of HTML galley
+                # specs#774         translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
+                # specs#774         # TODO: verify if Janeway can manage tranlastions of HTML galley
 
-                        translation_tex_data = read_tex(translation_tex_filename)
-                        translation_epub_galley_filename = make_epub.make(
-                            translation_html_galley_filename,
-                            tex_data=translation_tex_data,
-                        )
-                        self.set_epub_galley(article, translation_epub_galley_filename, pubid)
+                # specs#774         translation_tex_data = read_tex(translation_tex_filename)
+                # specs#774         translation_epub_galley_filename = make_epub.make(
+                # specs#774             translation_html_galley_filename,
+                # specs#774             tex_data=translation_tex_data,
+                # specs#774         )
+                # specs#774         self.set_epub_galley(article, translation_epub_galley_filename, pubid)
 
-                except Exception as exception:
-                    logger.error(
-                        f"Generation of HTML and EPUB galley failed for {translation_tex_filename}: {exception}",
-                    )
+                # specs#774 except Exception as exception:
+                # specs#774     logger.error(
+                # specs#774         f"Generation of HTML and EPUB failed for {translation_tex_filename}: {exception}",
+                # specs#774     )
 
         self.set_doi(article)
         publish_article(article)
         # Cleanup
         shutil.rmtree(tmpdir)
 
-    def regen_html_galley(self, xml_obj, tex_filename, alternative_tex_filename):
+    def regen_html_galley(self, xml_obj):
         """Regenerate only the render-galley."""
+        logger.critical("Not implemented!")
+        return
+
         # extract pubid, get article
         pubid = xml_obj.find("//document/articleid").text
         journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
@@ -253,14 +239,14 @@ class Command(BaseCommand):
             identifier=pubid,
         )
         drop_render_galley(article)
-        # Generate the full-text html from the TeX sources
-        html_galley_filename = make_xhtml.make(tex_filename, alternative_tex_filename=alternative_tex_filename)
-        self.set_html_galley(article, html_galley_filename)
 
-    def set_html_galley(self, article, html_galley_filename):
+    def set_html_galley(self, article, folder_with_unpacked_files: Path):
         """Set the give file as HTML galley."""
+        html_galley_filename = [f for f in folder_with_unpacked_files.iterdir() if f.suffix == ".html"][0]
+        html_galley_filename = folder_with_unpacked_files / Path(html_galley_filename)
+
         html_galley_text = open(html_galley_filename).read()
-        galley_language = evince_language_from_filename_and_article(html_galley_filename, article)
+        galley_language = evince_language_from_filename_and_article(str(html_galley_filename), article)
         processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
         name = "body.html"
         html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)
@@ -286,7 +272,7 @@ class Command(BaseCommand):
             new_galley.file.save()
         article.render_galley = new_galley
         article.save()
-        mangle_images(article)
+        mangle_images(article, folder_with_unpacked_files)
 
     def set_epub_galley(self, article, epub_galley_filename, pubid):
         """Set the give file as EPUB galley."""
@@ -296,7 +282,7 @@ class Command(BaseCommand):
         epub_galley_file = File(open(epub_galley_filename, "rb"), name=epub_galley_filename)
         label = "EPUB"
         file_mimetype = "application/epub+zip"
-        label, language = decide_galley_label(pubid, file_name=epub_galley_filename, file_mimetype=file_mimetype)
+        label, language = decide_galley_label(pubid, file_name=str(epub_galley_filename), file_mimetype=file_mimetype)
         # language is set when we process the PDF galleys
         save_galley(
             article,
@@ -605,8 +591,7 @@ class Command(BaseCommand):
             set_pdf_galley(article, pdf_files[0], pubid)
 
         elif len(pdf_files) == 2:
-            logger.debug(f"Found {len(pdf_files)} PDF galleys.")
-            drop_existing_galleys(article)
+            logger.critical("Found 2 PDF galleys. Might be multilingual. Not implemented! See specs#774")
 
             # I'm working under these assumptions:
             #
@@ -622,14 +607,15 @@ class Command(BaseCommand):
             #   found, but only _after_ the tex source has been corrected
             #   to include the missing content.
 
-            main_pdf_filename, translation_pdf_filename = find_and_rename_main_galley(pdf_files)
-            set_pdf_galley(article, main_pdf_filename, pubid)
+            # specs#774 drop_existing_galleys(article)
+            # specs#774 main_pdf_filename, translation_pdf_filename = find_and_rename_main_galley(pdf_files)
+            # specs#774 set_pdf_galley(article, main_pdf_filename, pubid)
 
-            translation_pdf_file, translation_label, translation_language = rebuild_translation_galley(
-                translation_pdf_filename,
-                main_pdf_filename,
-            )
-            set_translation_galley(translation_pdf_file, translation_label, article)
+            # specs#774 translation_pdf_file, translation_label, translation_language = rebuild_translation_galley(
+            # specs#774     translation_pdf_filename,
+            # specs#774     main_pdf_filename,
+            # specs#774 )
+            # specs#774 set_translation_galley(translation_pdf_file, translation_label, article)
         else:
             logger.critical(f"Found {len(pdf_files)} PDF galleys. Doing nothing.")
 
@@ -733,11 +719,11 @@ class Command(BaseCommand):
 
 
 # TODO: consider refactoring with import_from_drupal
-def download_and_store_article_file(image_source_url, article):
+def download_and_store_article_file(image_source_url: Path, article):
     """Downaload a media file and link it to the article."""
-    if not os.path.exists(image_source_url):
-        logger.error(f"Img {image_source_url} does not exist in {os.getcwd()}")
-    image_name = image_source_url.split("/")[-1]
+    if not image_source_url.exists():
+        logger.error(f"Img {image_source_url.resolve()} does not exist. {os.getcwd()=}")
+    image_name = image_source_url.name
     image_file = File(open(image_source_url, "rb"), name=image_name)
     new_file: JanewayFile = save_galley_image(
         article.get_render_galley,
@@ -746,14 +732,14 @@ def download_and_store_article_file(image_source_url, article):
         label=image_name,  # [*]
     )
     # [*] I tryed to look for some IPTC metadata in the image
-    # itself (Exif would probably useless as it is mostly related
+    # itself (Exif would probably be useless as it is mostly related
     # to the picture technical details) with `exiv2 -P I ...`, but
     # found 3 maybe-useful metadata on ~1600 files and abandoned
     # this idea.
     return new_file
 
 
-def mangle_images(article):
+def mangle_images(article, folder_with_unpacked_files: Path):
     """Download all <img>s in the article's galley and adapt the "src" attribute."""
     render_galley = article.get_render_galley
     galley_file: JanewayFile = render_galley.file
@@ -762,6 +748,7 @@ def mangle_images(article):
     images = html.findall(".//img")
     for image in images:
         img_src = image.attrib["src"].split("?")[0]
+        img_src = folder_with_unpacked_files / img_src
         img_obj: JanewayFile = download_and_store_article_file(img_src, article)
         # TBV: the `src` attribute is relative to the article's URL
         image.attrib["src"] = img_obj.label
@@ -937,3 +924,77 @@ def link_to_existing_newsletter_recipient_maybe(author: Account, journal: journa
         logger.info(f"We could link author {author} to a pre-existing newsletter recipient via email {author.email}")
     elif number_of_matches > 1:
         logger.error(f"Found {number_of_matches} recipients for author {author} on journal {journal}. This is bad!")
+
+
+def ask_jcomassistant_to_process(
+    source_archive: Union[str, Path],
+    workdir: Union[str, Path] = None,
+) -> Path:
+    """Send the given zip file to jcomassistant for processing.
+
+    Return the path to a folder with the unpacked response.
+    """
+    url = settings.JCOMASSISTANT_URL
+    logger.debug(f"Contacting jcomassistant service at {url}...")
+    files = {"file": open(source_archive, "rb")}
+    response = requests.post(url=url, files=files)
+    if response.status_code != 200:
+        logger.error("Unexpected status code {response.status_code} processing {source_archive}. Trying to proceed...")
+    return unpack_targz_from_jcomassistant(response.content, workdir)
+
+
+def unpack_targz_from_jcomassistant(
+    galleys_archive: bytes,
+    workdir: Union[str, Path] = None,
+):
+    """Unpack an archive received from jcomassistant.
+
+    Accept the archive in the form of a bytes string.
+
+    If a workdir is provided, unpack it in a new folder there,
+    otherwise create and use a temporary folder.
+    The caller should clean up if necessary.
+    """
+    unpack_dir = tempfile.mkdtemp(dir=workdir)
+    # Use BytesIO to treat bytes data as a file
+    with BytesIO(galleys_archive) as file_obj:
+        # Open the tar.gz archive
+        with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+            # Extract all contents into the unpack directory
+            tar.extractall(path=unpack_dir)
+
+    reemit_info_and_up(unpack_dir=Path(unpack_dir))
+
+    logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
+    return unpack_dir
+
+
+def reemit_info_and_up(unpack_dir: Path) -> None:
+    """Emit as log messages lines read from the given log file.
+
+    Expect the logfile to contain log-formatted lines suchs as:
+    DEBUG From: ...
+
+    Re-emit only info, wraning, error and critical.
+    """
+    # log files are called something like
+    # - galley-xxx.epub_log
+    # - galley-xxx.html_log
+    # - galley-xxx.srvc_log
+    # We are going to use only the service log (*.srvc_log)
+    srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
+    if len(srvc_log_files) != 1:
+        logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
+    srvc_log_file = srvc_log_files[0]
+    with open(srvc_log_file) as log_file:
+        for line in log_file:
+            if line.startswith("INFO"):
+                logger.info(f"JA {line[11:-1]}")
+            elif line.startswith("WARNING"):
+                logger.warning(f"JA {line[14:-1]}")
+            elif line.startswith("ERROR"):
+                logger.error(f"JA {line[12:-1]}")
+            elif line.startswith("CRITICAL"):
+                logger.critical(f"JA {line[15:-1]}")
+            elif line.startswith("DEBUG"):
+                logger.debug(f"JA {line[12:-1]}")
