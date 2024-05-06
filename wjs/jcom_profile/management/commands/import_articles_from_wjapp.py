@@ -1,4 +1,5 @@
 """Import article from wjapp."""
+
 import datetime
 
 import freezegun
@@ -216,8 +217,8 @@ ORDER BY assignDate
             # means that the article has been already imported and
             # that we are re-importing.
             logger.warning(
-                f"""Re-importing existing article {preprintid} at {article.id} \
-The {article.id} here will disappear because of the delete() below""",
+                f"Re-importing existing article {preprintid} at {article.id} "
+                f"The {article.id} here will disappear because of the delete() below"
             )
             article.manuscript_files.all().delete()
             article.data_figure_files.all().delete()

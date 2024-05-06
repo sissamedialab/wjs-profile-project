@@ -1,4 +1,5 @@
 """Experimental views."""
+
 import dataclasses
 from datetime import date
 from itertools import combinations
@@ -83,7 +84,7 @@ class AuthorNode:
             country = COUNTRIES.get(country.code, "Others")
         else:
             country = "NA"
-        return f"{self.author.full_name().replace(',','')},{country:.<15},{self.num_papers**2}"
+        return f"{self.author.full_name().replace(',', '')},{country:.<15},{self.num_papers**2}"
 
     @property
     def url(self):
