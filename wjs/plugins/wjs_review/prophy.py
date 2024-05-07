@@ -126,6 +126,12 @@ class Prophy:
         # `iat` is the time at which the JWT token was issued (UNIX timestamp). Token expires in 1 hour.
         iat = round(time.time())
 
+        # Time-limited access to the individual manuscript.
+        # When this field is present in the payload, two things happen:
+        # - the user has access only to the manuscript (i.e. he does not have access to the Prophy folder)
+        # - this access is time-limited
+        temp_access_until = round(iat + 60 * 60)
+
         # `name` and `email` are credentials of a journal editor/panel member, who looks at the system.
         #
         # Prophy will automatically create a user, give them access to this journal/panel and log them in.
@@ -140,6 +146,7 @@ class Prophy:
                 "journal": self.prophy_journal_value,
                 "name": f"{user.first_name} {user.last_name}",
                 "email": user.email,
+                "temp-access-until": temp_access_until,
                 "manuscript_id": prophy_manuscript_id,
             },
             key=settings.PROPHY_JWT_KEY,
