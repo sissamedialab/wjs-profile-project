@@ -1,0 +1,48 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n wjs_review %}
+{% block title %}
+    {% translate "Journal editors" %}
+{% endblock title %}
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Affiliation</th>
+                            <th>Max workload</th>
+                            <th>Current workload</th>
+                            <th>Keywords</th>
+                            <th>Manage parameters</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for editor in editor_list %}
+                        <tr>
+                            <td>{{ editor.full_name }}</td>
+                            <td>{{ editor.affiliation }}</td>
+                            <td>{% get_max_workload editor=editor journal=journal %}</td>
+                            <td>{% get_current_workload editor=editor journal=journal %}</td>
+                            <td>
+                                {% get_editor_keywords editor=editor journal=journal as keywords %}
+                                {% if keywords %}
+                                    {% for keyword in keywords %}
+                                        {{ keyword }}{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td><a href="{% url "assignment_parameters" editor_pk=editor.pk %}">manage</a></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block content_footer %}
+{% endblock content_footer %}

@@ -214,6 +214,9 @@ class EditorAssignmentParameters(models.Model):
     workload = models.PositiveSmallIntegerField(default=0)
     brake_on = models.PositiveSmallIntegerField(default=0)
 
+    class Meta:
+        unique_together = ("editor", "journal")
+
     def __str__(self):  #
         return f"{self.editor} - Assignment parameters"
 

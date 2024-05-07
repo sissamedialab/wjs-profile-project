@@ -558,13 +558,15 @@ class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
     raise_exception = True
 
     def test_func(self):  # noqa
+        """Give access to EO and directors."""
         user = self.request.user
-        return user.is_staff
+        journal = self.request.journal
+        return base_permissions.has_eo_or_director_role(journal=journal, user=user)
 
     def get_object(self, queryset=None):  # noqa
         editor_pk, journal = self.kwargs.get("editor_pk"), self.request.journal
         editor = JCOMProfile.objects.get(pk=editor_pk)
-        if not editor.check_role(journal, "editor"):
+        if not (editor.check_role(journal, "editor") or editor.check_role(journal, "section-editor")):
             raise Http404()
         parameters, _ = EditorAssignmentParameters.objects.get_or_create(editor=editor, journal=journal)
         return parameters

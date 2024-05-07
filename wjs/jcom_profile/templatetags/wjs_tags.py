@@ -12,7 +12,7 @@ from journal.models import Issue
 from submission.models import STAGE_PUBLISHED, Article, Keyword
 
 from wjs.jcom_profile.models import SpecialIssue
-from wjs.jcom_profile.permissions import has_eo_role
+from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
 register = template.Library()
@@ -216,3 +216,9 @@ def preprintid(article):
     else:
         # to replace with return ""
         return "No wjapp preprintid"
+
+
+@register.simple_tag(takes_context=True)
+def is_user_eo_or_director(context, user: Account) -> bool:
+    """Returns if user is part of the EO or has director role for the journal."""
+    return has_eo_or_director_role(context["journal"], user)

@@ -3,6 +3,7 @@
 {% user_has_role request 'author' as user_is_author %}
 {% user_has_role request 'reviewer' as user_is_reviewer %}
 {% user_has_role request 'director' as user_is_director %}
+{% is_user_eo_or_director request.user as user_is_eo_or_director %}
 
 {% comment %}
 urls are defined here avoid error if for any reason the url is not defined in
@@ -34,6 +35,7 @@ Bonus:
 {% url 'manage_archive_article' article.pk as manage_archive_article %}
 {% url 'manage_issues_id' issue.pk as manage_issues_id %}
 {% url 'core_manager_edit_news' news_item.pk as core_manager_edit_news %}
+{% url 'wjs_journal_editors' as wjs_journal_editors %}
 
 <ul id="dropdown1" class="dropdown-content">
     {% if not journal_settings.general.disable_journal_submission and submission_start %}
@@ -102,6 +104,11 @@ Bonus:
     {% if request.user|is_user_eo and wjs_review_eo_pending %}
         <li>
             <a class="dropdown-item" href="{{ wjs_review_eo_pending }}">{% trans "My EO Pages" %}</a>
+        </li>
+    {% endif %}
+    {% if user_is_eo_or_director and wjs_journal_editors %}
+        <li>
+            <a class="dropdown-item" href="{{ wjs_journal_editors }}">{% trans "Journal Editors' parameters management" %}</a>
         </li>
     {% endif %}
     {% if request.user.is_staff or request.user|is_user_eo %}

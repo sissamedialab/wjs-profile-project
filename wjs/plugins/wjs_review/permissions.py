@@ -134,6 +134,25 @@ def has_eo_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
     return base_permissions.has_eo_role(user)
 
 
+def has_eo_or_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the given user is part of the EO or has director role for the given journal.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has the EO or the director role for the journal, False otherwise.
+    :rtype: bool
+    """
+    return base_permissions.has_eo_role(user=user) or base_permissions.has_director_role(
+        journal=instance.article.journal,
+        user=user,
+    )
+
+
 def is_system(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Fake permission for system-managed transitions.

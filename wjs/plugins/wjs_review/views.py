@@ -1573,6 +1573,25 @@ class EditorAssignsDifferentEditor(UpdateView):
         return kwargs
 
 
+class JournalEditorsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Account
+    template_name = "wjs_review/journal_editors.html"
+    context_object_name = "editor_list"
+
+    def test_func(self):
+        """Allow access only to EO and directors."""
+        user = self.request.user
+        journal = self.request.journal
+        return base_permissions.has_eo_or_director_role(journal=journal, user=user)
+
+    def get_queryset(self):
+        qs = Account.objects.filter(
+            accountrole__journal=self.request.journal,
+            accountrole__role__slug__in=("editor", "section-editor"),
+        )
+        return qs
+
+
 class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     """Forward a Message.
 
