@@ -20,6 +20,22 @@ def has_eo_role(user: Account) -> bool:
     return user.groups.filter(name=constants.EO_GROUP).exists()
 
 
+def has_eo_or_director_role(journal: Journal, user: Account) -> bool:
+    """
+    Check if the given user is part of the EO or has director role for the given journal.
+
+    :param journal: An instance of the Journal class.
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user belongs to the EO or director group, False otherwise.
+    :rtype: bool
+    """
+    return has_eo_role(user=user) or has_director_role(journal=journal, user=user)
+
+
 def has_any_journal_role(journal: Journal, user: Account) -> bool:
     """
     Check if the given user has any role for the given journal.

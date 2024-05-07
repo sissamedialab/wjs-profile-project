@@ -15,15 +15,19 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
+from journal.models import Journal
 from plugins.typesetting.models import TypesettingRound
-from review.models import ReviewAssignment, ReviewRound
+from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from submission.models import Article
 from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry
 
+from wjs.jcom_profile.models import EditorAssignmentParameters
+
 from .. import communication_utils, states
 from ..custom_types import BootstrapButtonProps
+from ..logic import states_when_article_is_considered_in_review
 from ..models import ArticleWorkflow, EditorDecision, MessageThread, ProphyAccount
 from ..permissions import (
     has_director_role_by_article,
@@ -362,3 +366,45 @@ def should_message_be_forwarded(message):
         message.to_be_forwarded_to
         and not message.children.filter(relation_type=MessageThread.MessageRelation.FORWARD).exists()
     )
+
+
+@register.simple_tag()
+def get_max_workload(editor: Account, journal: Journal) -> int:
+    """Get the maximum workload for the given editor and journal."""
+    # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
+    try:
+        eap = EditorAssignmentParameters.objects.get(editor=editor, journal=journal)
+    except EditorAssignmentParameters.DoesNotExist:
+        logger.error(f"Editor {editor} is not correctly setup on {journal.code}")
+        return 0
+    except EditorAssignmentParameters.MultipleObjectsReturned:
+        logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
+        eap = EditorAssignmentParameters.objects.filter(editor=editor, journal=journal).first()
+    return eap.workload
+
+
+@register.simple_tag()
+def get_current_workload(editor: Account, journal: Journal) -> int:
+    """Get the current workload (the number of pending editor assignments) for the given editor and journal."""
+    editor_assignments = EditorAssignment.objects.filter(
+        editor=editor,
+        article__journal=journal,
+        # To filter pending EditorAssignment objects, filter the ones with the Articleworkflow in these states
+        article__articleworkflow__state__in=states_when_article_is_considered_in_review,
+    )
+    return editor_assignments.count()
+
+
+@register.simple_tag()
+def get_editor_keywords(editor: Account, journal: Journal) -> List[str]:
+    """Get the keywords for the given editor and journal."""
+    # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
+    try:
+        eap = EditorAssignmentParameters.objects.get(editor=editor, journal=journal)
+    except EditorAssignmentParameters.DoesNotExist:
+        logger.error(f"Editor {editor} is not correctly setup on {journal.code}")
+        return []
+    except EditorAssignmentParameters.MultipleObjectsReturned:
+        logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
+        eap = EditorAssignmentParameters.objects.filter(editor=editor, journal=journal).first()
+    return [k.word for k in eap.keywords.all()]
