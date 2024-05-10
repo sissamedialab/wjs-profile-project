@@ -21,6 +21,7 @@ from django.utils import timezone, translation
 from django.utils.timezone import now
 from django.utils.translation import activate
 from faker import Faker
+from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
@@ -124,6 +125,19 @@ def mock_premailer_load_url(mocker):
     """Provide a empty response for css when fetched by premailer."""
     mock = mocker.patch("premailer.premailer.Premailer._load_external_url", return_value="")
     return mock
+
+
+@pytest.fixture(autouse=os.environ.get("FIXED_TIME_TEST", False), scope="session")
+def set_fixed_time():
+    """
+    Set a fixed time for all tests.
+
+    If the environment variable FIXED_TIME_TEST is set, the time is fixed to 2024-01-14 23:34:45 +00:00 for all tests.
+
+    This is useful to to run tests locally on a fixed time to avoid flaky tests that depend on the current time.
+    """
+    with freeze_time("2024-01-14 23:34:45 +00:00", tick=True):
+        yield
 
 
 @pytest.fixture
