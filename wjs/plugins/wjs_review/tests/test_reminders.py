@@ -884,7 +884,7 @@ def test_paper_assignment_create_reminders_for_editor(
         content_type=ContentType.objects.get_for_model(editor_assignment),
         object_id=editor_assignment.id,
     )
-    create_date = timezone.now().date()
+    create_date = timezone.localtime(timezone.now()).date()
     assert reminders.count() == 3
     reminder_1 = EditorShouldSelectReviewerReminderManager.reminders[
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1
@@ -1881,12 +1881,13 @@ class TestResetDate:
             content_type=ContentType.objects.get_for_model(review_assignment),
             object_id=review_assignment.id,
         )
+        base_date = timezone.localtime(timezone.now())
         assert reea_reminders.count() == 3
-        reea_reminders.update(date_sent=timezone.now())
+        reea_reminders.update(date_sent=base_date)
         assert not any_reviewer_is_late_after_reminder(review_assignment.article)
-        reea_reminders.update(date_sent=timezone.now() - datetime.timedelta(days=1))
+        reea_reminders.update(date_sent=base_date - datetime.timedelta(days=1))
         assert not any_reviewer_is_late_after_reminder(review_assignment.article)
-        reea_reminders.update(date_sent=timezone.now() - datetime.timedelta(days=settings.WJS_REMINDER_LATE_AFTER + 1))
+        reea_reminders.update(date_sent=base_date - datetime.timedelta(days=settings.WJS_REMINDER_LATE_AFTER + 1))
         assert (
             f"Reviewer's reminder sent past {settings.WJS_REMINDER_LATE_AFTER} days."
             == any_reviewer_is_late_after_reminder(review_assignment.article)

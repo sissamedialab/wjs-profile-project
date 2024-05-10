@@ -208,7 +208,9 @@ def any_reviewer_is_late_after_reminder(article: Article) -> str:
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3.value,
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2.value,
     )
-    cut_off_date = timezone.now().date() - timezone.timedelta(days=settings.WJS_REMINDER_LATE_AFTER)
+    cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(
+        days=settings.WJS_REMINDER_LATE_AFTER,
+    )
     pending_review_assignments = WorkflowReviewAssignment.objects.filter(
         article=article,
         is_complete=False,
