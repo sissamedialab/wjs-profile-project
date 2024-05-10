@@ -17,6 +17,11 @@
                 <br />
                 <span title="Needs attention"><strong>{{ attention_flag }}</strong></span>
             {% endif %}
+            {% if workflow.production_flag_no_checks_needed %}
+                <span title="publishable">🟢</span>
+            {% else %}
+                <span title="unpublishable">🔴</span>
+            {% endif %}
         </td>
         <td>TODO: last message</td>
         <td>{{ article.articlewrapper.special_issue|default_if_none:"" }}</td>

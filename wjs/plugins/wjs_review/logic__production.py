@@ -655,3 +655,24 @@ class AuthorSendsCorrections:
             context = self._get_message_context()
             self._log_operation(context=context)
             return assignment
+
+
+@dataclasses.dataclass
+class TogglePublishableFlag:
+    workflow: ArticleWorkflow
+
+    def _check_conditions(self):
+        return self.workflow.state in [
+            ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+        ]
+
+    def _toggle_publishable_flag(self):
+        self.workflow.production_flag_no_checks_needed = not self.workflow.production_flag_no_checks_needed
+        self.workflow.save()
+
+    def run(self):
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("Invalid state transition")
+            self._toggle_publishable_flag()
+        return self.workflow

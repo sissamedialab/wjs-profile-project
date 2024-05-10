@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.views.generic import FormView, ListView, UpdateView, View
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from plugins.wjs_review.states import BaseState
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
@@ -27,6 +28,7 @@ from .logic__production import (
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
     RequestProofs,
+    TogglePublishableFlag,
 )
 from .models import ArticleWorkflow
 from .permissions import is_article_author, is_article_typesetter
@@ -467,4 +469,34 @@ class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, Update
             context = {"error": str(e)}
         else:
             context = {"article": self.article}
+        return render(request, self.template_name, context)
+
+
+class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, View):
+    """Typesetter toggles `production_flag_no_checks_needed` flag."""
+
+    model = ArticleWorkflow
+    template_name = "wjs_review/elements/article_actions_button.html"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Only typesetter can mark publishable/unpublishable."""
+        return is_article_typesetter(self.object, self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = {"request": self.request, "article": self.object.article, **kwargs}
+        state_class = BaseState.get_state_class(self.object)
+        action = state_class.get_action_by_name("toggle paper non-publishable flag")
+        context["action"] = action.as_dict(self.object, self.request.user)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        try:
+            self.object = TogglePublishableFlag(workflow=self.object).run()
+        except ValueError as e:
+            kwargs["error"] = str(e)
+        context = self.get_context_data(**kwargs)
         return render(request, self.template_name, context)

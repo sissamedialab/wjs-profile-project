@@ -44,6 +44,7 @@ from .views import (
     SelectReviewer,
     ToggleMessageReadByEOView,
     ToggleMessageReadView,
+    TogglePublishableFlagView,
     TypesetterArchived,
     TypesetterPending,
     TypesetterUploadFiles,
@@ -177,4 +178,5 @@ urlpatterns = [
     ),
     path("annotated_files/<int:pk>/", ListAnnotatedFilesView.as_view(), name="wjs_list_annotated_files"),
     path("send_corrections/<int:pk>", AuthorSendsCorrectionsView.as_view(), name="wjs_author_sends_corrections"),
+    path("paper_publishable/<int:pk>/", TogglePublishableFlagView.as_view(), name="wjs_toggle_publishable"),
 ]

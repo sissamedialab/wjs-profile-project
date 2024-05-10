@@ -108,6 +108,16 @@ class ArticleWorkflow(TimeStampedModel):
         blank=True,
         related_name="+",
     )
+    # production flags
+    production_flag_no_queries = models.BooleanField(
+        default=False, verbose_name=_("The latest typesetted files contain no queries for the author")
+    )
+    production_flag_galleys_ok = models.BooleanField(
+        default=False, verbose_name=_("The latest galley generation was successful")
+    )
+    production_flag_no_checks_needed = models.BooleanField(
+        default=True, verbose_name=_("No special check is required on the latest typesetted files")
+    )
 
     # date_last_transition = ... WRITEME
     # set the date on post-transition signal

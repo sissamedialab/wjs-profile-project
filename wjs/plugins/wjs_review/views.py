@@ -89,6 +89,7 @@ from .views__production import (  # noqa F401
     DownloadRevisionFiles,
     ListAnnotatedFilesView,
     ReadyForProofreadingView,
+    TogglePublishableFlagView,
     TypesetterArchived,
     TypesetterPending,
     TypesetterUploadFiles,

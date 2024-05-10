@@ -341,3 +341,20 @@ def test_author_sends_corrections(
     assert response.status_code == 200
     stage_proofing_article.refresh_from_db()
     assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+
+@pytest.mark.django_db
+def test_typ_marks_unpublishable(
+    assigned_to_typesetter_article: Article,
+    client: Client,
+):
+    url = reverse("wjs_toggle_publishable", kwargs={"pk": assigned_to_typesetter_article.articleworkflow.pk})
+    typesetter = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment.typesetter
+    client.force_login(typesetter)
+    assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
+    client.post(url)
+    assigned_to_typesetter_article.refresh_from_db()
+    assert not assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
+    client.post(url)
+    assigned_to_typesetter_article.refresh_from_db()
+    assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed

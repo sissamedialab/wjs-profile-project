@@ -17,6 +17,7 @@ from django.utils import timezone
 from django_fsm import Transition
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingRound
+from plugins.wjs_review.states import BaseState
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from submission.models import Article
 from utils import models as janeway_utils_models
@@ -65,7 +66,7 @@ def get_available_transitions(context: Dict[str, Any], workflow: ArticleWorkflow
 def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag: Union[str, None] = None) -> List[str]:
     """Get the available actions on an article in the given state."""
     user = context["request"].user
-    state_class = getattr(states, workflow.state)
+    state_class = BaseState.get_state_class(workflow)
     if state_class is not None and state_class.article_actions is not None:
         return [
             action.as_dict(workflow, user)
@@ -90,7 +91,7 @@ def get_review_assignment_actions(
     article = assignment.article
     workflow = article.articleworkflow
     user = context["request"].user
-    state_class = getattr(states, workflow.state)
+    state_class = BaseState.get_state_class(workflow)
     if state_class is not None and state_class.review_assignment_actions is not None:
         return [
             action.as_dict(workflow, user)
