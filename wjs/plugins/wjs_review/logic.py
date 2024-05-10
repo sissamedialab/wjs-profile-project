@@ -36,6 +36,7 @@ from review.views import upload_review_file
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
 from utils.setting_handler import get_setting
 
+import wjs.jcom_profile.permissions
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
@@ -206,6 +207,8 @@ class AssignToEditor:
             actor=actor,
             recipients=[self.editor],
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _create_editor_should_select_reviewer_reminders(self):
@@ -406,8 +409,8 @@ class AssignToReviewer:
             actor=self.editor,
             recipients=[self.reviewer],
             message_type=message_type,
-            hijacking_actor=communication_utils.get_hijacker(self.request),
-            notify_actor=True,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _create_reviewevaluate_reminders(self) -> None:
@@ -648,6 +651,7 @@ class EvaluateReview:
             template_is_setting=True,
         )
         communication_utils.log_operation(
+            # No actor, system message
             article=article,
             message_subject=message_subject,
             message_body=message_body,
@@ -676,6 +680,8 @@ class EvaluateReview:
             message_body=message_body,
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_decline(self):
@@ -698,6 +704,8 @@ class EvaluateReview:
             message_body=message_body,
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def run(self) -> Optional[bool]:
@@ -933,6 +941,8 @@ class SubmitReview:
             message_body=editor_message_body,
             recipients=[self.assignment.editor],
             message_type=message_type,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _delete_reviewreport_reminders(self):
@@ -1042,6 +1052,8 @@ class AuthorHandleRevision:
                 message_body=reviewer_message_body,
                 recipients=[assignment.reviewer],
                 message_type=message_type,
+                hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+                notify_actor=communication_utils.should_notify_actor(),
             )
 
     def _notify_editor(self):
@@ -1067,6 +1079,8 @@ class AuthorHandleRevision:
             message_body=reviewer_message_body,
             recipients=[self.revision.editor],
             message_type=message_type,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_operation(self):
@@ -1199,6 +1213,8 @@ class HandleDecision:
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_decline(self, context):
@@ -1225,6 +1241,8 @@ class HandleDecision:
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_not_suitable(self, context):
@@ -1251,6 +1269,8 @@ class HandleDecision:
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_requires_resubmission(self, context):
@@ -1277,6 +1297,8 @@ class HandleDecision:
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_revision_request(self, context, revision_type=None):
@@ -1303,6 +1325,8 @@ class HandleDecision:
             recipients=[self.workflow.article.correspondence_author],
             message_body=revision_request_message_body,
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_technical_revision_request(self, context: Dict[str, str]):
@@ -1329,6 +1353,8 @@ class HandleDecision:
             recipients=[self.workflow.article.correspondence_author],
             message_body=technical_revision_body,
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_review_withdraw(self, context: Dict[str, str], reviewer: Account):
@@ -1355,6 +1381,8 @@ class HandleDecision:
             recipients=[reviewer],
             message_body=review_withdraw_message,
             message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _accept_article(self) -> Article:
@@ -1618,7 +1646,6 @@ class PostponeRevisionRequestDueDate:
             template_is_setting=True,
         )
         communication_utils.log_operation(
-            # TODO: actor?
             article=self.revision_request.article,
             message_subject=message_subject,
             message_body=message_body,
@@ -1645,6 +1672,8 @@ class PostponeRevisionRequestDueDate:
             message_subject=message_subject,
             message_body=message_body,
             recipients=[self.revision_request.article.correspondence_author],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _save_date_due(self):
@@ -1871,6 +1900,8 @@ class AdminActions:
             message_subject=requeue_article_subject,
             message_body=requeue_article_message,
             message_type=Message.MessageTypes.SYSTEM,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _queue_for_assignment(self) -> ArticleWorkflow:
@@ -1947,6 +1978,8 @@ class PostponeReviewerDueDate:
             message_body=message_body,
             actor=self.assignment.editor,
             recipients=[self.assignment.reviewer],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     def _log_eo_far_future_date(self) -> None:
@@ -2045,6 +2078,8 @@ class HandleEditorDeclinesAssignment:
             message_body=message_body,
             actor=self.editor,
             recipients=[self.director],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
         )
 
     @staticmethod

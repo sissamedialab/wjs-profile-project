@@ -1,4 +1,5 @@
 """My views. Looking for a way to "enrich" Janeway's `edit_profile`."""
+
 import re
 from collections import namedtuple
 from dataclasses import dataclass
@@ -56,15 +57,8 @@ from submission.models import Article, Keyword, Section
 from utils import setting_handler
 from utils.logger import get_logger
 
-from wjs.jcom_profile import permissions as base_permissions
-from wjs.jcom_profile.models import (
-    EditorAssignmentParameters,
-    JCOMProfile,
-    Recipient,
-    SpecialIssue,
-)
-
 from . import forms
+from . import permissions as base_permissions
 from .drupal_redirect_views import (  # noqa F401
     DrupalAuthorsRedirect,
     DrupalKeywordsRedirect,
@@ -72,7 +66,9 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
+from .models import EditorAssignmentParameters, JCOMProfile, Recipient, SpecialIssue
 from .newsletter.service import NewsletterMailerService
+from .permissions import get_hijacker
 from .utils import PATH_PARTS, generate_token, save_file_to_special_issue
 
 logger = get_logger(__name__)
@@ -1433,7 +1429,15 @@ def search(request):
     return render(request, template, context)
 
 
-@user_passes_test(lambda u: base_permissions.has_eo_role(u))
+@user_passes_test(lambda user: base_permissions.has_eo_role(user))
 def eo_home(request):
     """Redirect to the list of articles."""
     return render(request, "eo/home.html")
+
+
+@user_passes_test(lambda user: base_permissions.can_hijack_user_role(get_hijacker()))
+def set_notify_hijack(request):
+    """Toggle silent hijacking."""
+    if request.method == "POST":
+        request.session["silent_hijack"] = not request.session.get("silent_hijack", False)
+    return redirect(request.GET.get("next", "/"))

@@ -212,7 +212,6 @@ class AssignTypesetter:
             article=self.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=None,
             recipients=[
                 self.typesetter,
             ],
@@ -319,7 +318,6 @@ class RequestProofs:
             article=self.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=None,
             recipients=[
                 self.proofreader,
             ],

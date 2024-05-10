@@ -3,6 +3,7 @@
 import os
 import random
 from datetime import timedelta
+from importlib import import_module
 from typing import Callable, List, Optional
 from unittest.mock import Mock
 
@@ -144,6 +145,8 @@ def set_fixed_time():
 def fake_request(journal, settings):
     """Create a fake_factory request suitable for rendering templates."""
     # - cron/management/commands/send_publication_notifications.py
+    engine = import_module(settings.SESSION_ENGINE)
+
     fake_request = create_fake_request(user=None, journal=journal)
     # Workaround for possible override in DEBUG mode
     # (please read utils.template_override_middleware:60)
@@ -153,6 +156,7 @@ def fake_request(journal, settings):
     settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
     fake_request._messages = default_storage(fake_request)
     fake_request.COOKIES = {}
+    fake_request.session = engine.SessionStore()
     return fake_request
 
 

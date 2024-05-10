@@ -1,4 +1,5 @@
 """My URLs. Looking for a way to "enrich" Janeway's `edit_profile`."""
+
 from core import include_urls
 from django.conf import settings
 from django.urls import include, path, re_path
@@ -173,6 +174,12 @@ urlpatterns = [
         "dashboard/eo/",
         views.eo_home,
         name="dashboard_eo",
+    ),
+    # Set notify flag
+    path(
+        "set_notify/",
+        views.set_notify_hijack,
+        name="set_notify_hijack",
     ),
 ]
 
