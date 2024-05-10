@@ -1,24 +1,33 @@
 """Tests related to the communication system."""
+
 import datetime
 from io import BytesIO, StringIO
 from typing import Callable, Optional
 
 import pytest
 from core import files as core_files
+from core.middleware import GlobalRequestMiddleware
 from core.models import Account
+from django.contrib.auth import login
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File as DjangoFile
 from django.http import HttpRequest
 from django.test import Client
 from django.urls import reverse
 from django.utils.timezone import now
+from hijack.middleware import HijackUserMiddleware
 from review import models as review_models
 from submission import models as submission_models
 from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.permissions import get_hijacker
 
-from ..communication_utils import get_eo_user, get_messages_related_to_me
+from ..communication_utils import (
+    get_eo_user,
+    get_messages_related_to_me,
+    should_notify_actor,
+)
 from ..logic import AssignToReviewer, HandleMessage
 from ..models import Message
 from . import conftest
@@ -489,3 +498,43 @@ def test_message_attachment_access(
     client.force_login(reviewer_2)
     response = client.get(url)
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "hijacked, notify_flag, is_notified",
+    ((True, False, False), (True, True, True), (False, False, False), (False, True, False)),
+)
+@pytest.mark.django_db
+def test_hijack_notifications(
+    eo_user: Account,
+    normal_user: Account,
+    fake_request: HttpRequest,
+    hijacked: bool,
+    notify_flag: bool,
+    is_notified: bool,
+):
+    """
+    hijack notifications are sent only if user is hijacked and notify flag is set to True.
+    """
+    fake_request.user = eo_user
+    if hijacked:
+        hijack_history = fake_request.session.get("hijack_history", [])
+        hijack_history.append(fake_request.user._meta.pk.value_to_string(eo_user))
+        login(fake_request, normal_user)
+
+        fake_request.session["silent_hijack"] = not notify_flag
+        fake_request.session["hijack_history"] = hijack_history
+    GlobalRequestMiddleware.process_request(fake_request)
+    HijackUserMiddleware().process_request(fake_request)
+
+    hijacker = get_hijacker()
+    notify = should_notify_actor()
+    if hijacked:
+        assert fake_request.user == normal_user
+    else:
+        assert fake_request.user == eo_user
+    send_notification = hijacker and notify
+    if notify_flag and hijacked:
+        assert send_notification
+    else:
+        assert not send_notification

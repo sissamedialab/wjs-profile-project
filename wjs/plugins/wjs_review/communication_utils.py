@@ -4,12 +4,11 @@ Keeping here also anything that we might want to test easily 🙂.
 """
 
 import datetime
-from typing import Optional, Union
+from typing import Union
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, OuterRef, Q, QuerySet
-from django.http import HttpRequest
 from journal.models import Journal
 from review import models as review_models
 from submission.models import Article
@@ -164,14 +163,30 @@ def log_silent_operation(article: Article, message_body: str) -> Message:
 def log_operation(
     article: Article,
     message_subject: str,
-    message_body="",
-    actor=None,
-    hijacking_actor=None,
-    notify_actor=False,
-    recipients=None,
-    message_type=Message.MessageTypes.STD,
+    message_body: str = "",
+    actor: Account = None,
+    hijacking_actor: Account = None,
+    notify_actor: bool = False,
+    recipients: list[Account] = None,
+    message_type: Message.MessageTypes = Message.MessageTypes.STD,
+    flag_as_read: bool = False,
 ) -> Message:
-    """Create a Message to log something. Send out notifications as needed."""
+    """
+    Create a Message to log something. Send out notifications as needed.
+
+    :param article: the article to which the message refers
+    :param message_subject: the subject of the message
+    :param message_body: the body of the message
+    :param actor: the actor of the message
+    :param hijacking_actor: the hijacker of the message
+    :param notify_actor: whether to notify the actor
+    :param recipients: the recipients of the message
+    :param message_type: the type of the message
+    :param flag_as_read: whether to flag the message as read
+
+    :return: the created message
+    :rtype: Message
+    """
     if not actor:
         actor = get_system_user()
         notify_actor = False
@@ -186,9 +201,12 @@ def log_operation(
         content_type=content_type,
         object_id=object_id,
         hijacking_actor=hijacking_actor,
+        read_by_eo=flag_as_read,
     )
     if recipients:
         message.recipients.set(recipients)
+    if flag_as_read:
+        MessageRecipients.objects.filter(message=message).update(read=True)
     message.emit_notification()
     if notify_actor and hijacking_actor:
         fake_request = create_fake_request(user=None, journal=article.journal)
@@ -208,22 +226,8 @@ def log_operation(
             context={"original_subject": message_subject, "original_body": message_body, "hijacker": hijacking_actor},
             template_is_setting=True,
         )
-        log_operation(article, hijack_subject, hijack_body, recipients=[actor])
+        log_operation(article, hijack_subject, hijack_body, recipients=[actor], flag_as_read=True)
     return message
-
-
-def get_hijacker(request: HttpRequest) -> Optional[Account]:
-    """Return the hijacker of the given message."""
-    try:
-        # user.is_hijacked is only set if middlewre is activated. during the tests it might not be
-        # and in general it's safer to handle the case where it's not set
-        if request.user.is_hijacked:
-            hijack_history = request.session["hijack_history"]
-            if hijack_history:
-                hijacker_id = hijack_history[-1]
-                return Account.objects.get(pk=hijacker_id)
-    except AttributeError:
-        pass
 
 
 def role_for_article(article: Article, user: Account) -> str:
@@ -279,3 +283,15 @@ def update_date_send_reminders(assignment: review_models.ReviewAssignment, new_a
             else:
                 reminder.date_due += delta
                 reminder.save()
+
+
+def should_notify_actor():
+    """Tell if we should notify the actor of the message."""
+    from core.middleware import GlobalRequestMiddleware
+
+    request = GlobalRequestMiddleware.get_current_request()
+    try:
+        return not request.session.get("silent_hijack", False)
+    except AttributeError:
+        # session might not be available in tests / non sync code, in this case we don't want notifications anyway
+        return False

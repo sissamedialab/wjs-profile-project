@@ -1,3 +1,5 @@
+from typing import Optional
+
 from core.models import AccountRole
 from django.contrib.auth import get_user_model
 from journal.models import Journal
@@ -52,6 +54,18 @@ def has_any_journal_role(journal: Journal, user: Account) -> bool:
     return len(user.roles_for_journal(journal=journal)) > 0
 
 
+def can_hijack_user_role(hijacker: Account) -> bool:
+    """
+    Check if the given user can hijack another user's role.
+
+    Hijacking is allowed for superusers, EO members, and directors.
+    """
+    from core.middleware import GlobalRequestMiddleware
+
+    request = GlobalRequestMiddleware.get_current_request()
+    return hijacker.is_superuser or has_eo_role(hijacker) or has_director_role(request.journal, hijacker)
+
+
 def hijack_eo_and_admins_only(*, hijacker: Account, hijacked: Account) -> bool:
     """
     Check hijack permissions: Superusers and EO members may hijack other staff and regular users, but not superusers.
@@ -59,10 +73,7 @@ def hijack_eo_and_admins_only(*, hijacker: Account, hijacked: Account) -> bool:
     if not hijacked.is_active or hijacked.is_superuser:
         return False
 
-    if hijacker.is_superuser or has_eo_role(hijacker):
-        return True
-
-    return False
+    return can_hijack_user_role(hijacker)
 
 
 def has_section_editor_role(journal: Journal, user: Account) -> bool:
@@ -184,3 +195,24 @@ def has_typesetter_role_on_any_journal(user: Account) -> bool:
         user=user,
         role__slug=role,
     ).exists()
+
+
+def get_hijacker() -> Optional[Account]:
+    """
+    Return the hijacker of the given message.
+
+    Request object is fetch using :py:class:`core.middleware.GlobalRequestMiddleware`.
+    """
+    from core.middleware import GlobalRequestMiddleware
+
+    request = GlobalRequestMiddleware.get_current_request()
+    try:
+        # user.is_hijacked is only set if middleware is activated. during the tests it might not be
+        # and in general it's safer to handle the case where it's not set
+        if request.user.is_hijacked:
+            hijack_history = request.session["hijack_history"]
+            if hijack_history:
+                hijacker_id = hijack_history[-1]
+                return Account.objects.get(pk=hijacker_id)
+    except AttributeError:
+        pass

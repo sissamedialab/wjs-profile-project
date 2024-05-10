@@ -1,0 +1,20 @@
+{% load i18n %}
+{% if request.user.is_hijacked %}
+    {% with request.user as user %}
+        <div id="hijacked-warning-wrapper">
+            <div id="hijacked-warning" class="hijacked-warning hijacked-warning-default">
+                <span><b>{% blocktrans %}You are currently working on behalf of {{ user }}.{% endblocktrans %}</b></span>
+                <div class="hijacked-warning-controls hijacked-warning-controls-pull-right">
+                    <form action="{% url "set_notify_hijack" %}?next={{ request.path }}" method="post">
+                        <button class="btn {% if request.session.silent_hijack %}btn-danger{% else %}btn-primary{% endif %}">{{ user }} will {% if request.session.silent_hijack %}<strong>not</strong> {% endif %}be notified</button>
+                        {% csrf_token %}
+                    </form>
+                    <form action="{% url 'hijack:release' %}?next={{ request.path }}" method="post">
+                        {% csrf_token %}
+                        <button class="django-hijack-button-default">{% blocktrans with user=request.user %}release {{ user }}{% endblocktrans %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endwith %}
+{% endif %}

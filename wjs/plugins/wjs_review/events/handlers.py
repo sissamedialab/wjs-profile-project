@@ -8,7 +8,9 @@ from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
 
-from ..communication_utils import log_operation
+import wjs.jcom_profile.permissions
+
+from .. import communication_utils
 from ..logic import VerifyProductionRequirements
 from ..models import ArticleWorkflow, Message, ProphyAccount, ProphyCandidate
 from ..plugin_settings import STAGE
@@ -90,13 +92,15 @@ def log_author_uploads_revision(**kwargs) -> Message:
     article = revision_request.article
     actor = article.correspondence_author
     editor = revision_request.editor
-    message = log_operation(
+    message = communication_utils.log_operation(
         article=article,
         message_subject="Author submits revision.",
         message_body=revision_request.author_note,
         actor=actor,
         recipients=[editor],
         message_type=Message.MessageTypes.STD,
+        hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+        notify_actor=communication_utils.should_notify_actor(),
     )
     return message
 
