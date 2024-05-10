@@ -9,15 +9,7 @@
             {% csrf_token %}
             <p>
                 {% for action in actions %}
-                    <a class="btn {% if action.url == '#' %}btn-secondary{% else %}btn-primary{% endif %}"
-                       href="{{ action.url }}"
-                       {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %}>
-                        {% if action.label %}
-                            {{ action.label }}
-                        {% else %}
-                            {{ action.name }}
-                        {% endif %}
-                    </a>
+                    {% include "wjs_review/elements/article_actions_button.html" %}
                 {% endfor %}
             </p>
         </form>

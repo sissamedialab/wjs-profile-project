@@ -4,7 +4,7 @@
 
 import dataclasses
 import urllib
-from typing import Callable, Optional
+from typing import Callable, Optional, Type
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -83,6 +83,27 @@ def get_url_with_galleyproofing_pk(action: "ArticleAction", workflow: "ArticleWo
     return url
 
 
+def get_unpulishable_css_class(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return the css class for a button that would change the flag.
+
+    The class is related to the action that would be done, not the state of the article.
+    """
+    if not workflow.production_flag_no_checks_needed:
+        return "btn-success"
+    else:
+        return "btn-danger"
+
+
+def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return the label for a button that would change the flag.
+
+    The label describes the action that would be done, not the state of the article.
+    """
+    if workflow.production_flag_no_checks_needed:
+        return "Mark as Unpublishable"
+    return "Mark as publishable"
+
+
 @dataclasses.dataclass
 class ArticleAction:
     """An action that can be done on an Article."""
@@ -92,26 +113,28 @@ class ArticleAction:
     label: str
     view_name: str
     tag: str = None
+    is_htmx: bool = False
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
     custom_get_url: Optional[Callable] = None
+    custom_get_css_class: Optional[Callable] = None
+    custom_get_label: Optional[Callable] = None
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
 
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
-        if self.custom_get_url:
-            url = self.custom_get_url(self, workflow, user)
-        else:
-            url = self.get_url(workflow, user)
 
         return {
             "name": self.name,
-            "label": self.label,
+            "label": self.custom_get_label(self, workflow, user) if self.custom_get_label else self.label,
             "tooltip": self.tooltip,
-            "url": url,
+            "url": self.custom_get_url(self, workflow, user) if self.custom_get_url else self.get_url(workflow, user),
+            "tag": self.tag,
+            "css_class": self.custom_get_css_class(self, workflow, user) if self.custom_get_css_class else None,
+            "is_htmx": self.is_htmx,
         }
 
     def get_url(self, workflow: "ArticleWorkflow", user: Account) -> str:
@@ -205,6 +228,17 @@ class BaseState:
                 f"In {cls}. Assignment {assignment.id} does not require attention by {role} {user.full_name()}",
             )
             return ""
+
+    @classmethod
+    def get_state_class(cls, workflow: ArticleWorkflow) -> Type["BaseState"]:
+        return globals()[workflow.state]
+
+    @classmethod
+    def get_action_by_name(cls, name: str) -> Optional[ArticleAction]:
+        for action in cls.article_actions:
+            if action.name == name:
+                return action
+        return None
 
 
 class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
@@ -650,9 +684,12 @@ class TypesetterSelected(BaseState):
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
-            name="toggle paper non-publishable flag",  # is this the same as one of the checks below? ⮷
-            label="toggle paper non-publishable flag",
-            view_name="WRITEME!",
+            name="toggle paper non-publishable flag",
+            label="Mark Unpublishable",
+            view_name="wjs_toggle_publishable",
+            is_htmx=True,
+            custom_get_css_class=get_unpulishable_css_class,
+            custom_get_label=get_publishable_label,
         ),
         ArticleAction(
             # typ marks checks such as:

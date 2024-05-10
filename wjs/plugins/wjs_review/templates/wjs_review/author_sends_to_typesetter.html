@@ -1,6 +1,7 @@
 {% extends "wjs_review/base.html" %}
 
 {% block content %}
+{% if error %}<div>{{ error }}</div>{% endif %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-sm-12">
