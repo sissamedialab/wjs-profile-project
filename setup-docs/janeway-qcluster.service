@@ -1,0 +1,11 @@
+[Unit]
+Description=Janeway qcluster runner
+After=network.target
+
+[Service]
+User=wjs
+WorkingDirectory=/home/wjs/janeway/src
+ExecStart=/home/wjs/.virtualenvs/janeway-venv/bin/python manage.py qcluster
+
+[Install]
+WantedBy=multi-user.target
