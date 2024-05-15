@@ -1,0 +1,7 @@
+{{ workflow.article.correspondence_author }}
+{% if workflow.article.authors.count > 1 %}
+  <a href="#" class="{% if attention_flag %}fw-bolder{% endif %}" data-bs-toggle="modal" data-bs-target="#author_modal">et al.</a>
+{% endif %}
+{% if workflow.article.authors.count > 1 %}
+  {% include "wjs_review/base/elements/modal.html" with modal_id="author_modal" modal_title="Authors" include_path="wjs_review/lists/elements/corresponding_author_list.html" %}
+{% endif %}

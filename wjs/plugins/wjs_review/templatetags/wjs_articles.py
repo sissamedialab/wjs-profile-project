@@ -3,17 +3,19 @@
 For generic tags and filters, see module wjs_review.
 
 """
+
 from typing import Optional
 
 from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+from django.utils.text import slugify
 from submission.models import Article
 
 from wjs.jcom_profile.constants import EO_GROUP
 
-from ..models import Message
+from ..models import ArticleWorkflow, Message
 
 register = template.Library()
 
@@ -38,12 +40,15 @@ def review_assignments_of_current_round(article):
     ).order_by("-date_requested")
 
 
-@register.simple_tag()
-def last_user_note(article, user):
+@register.simple_tag(takes_context=True)
+def last_user_note(context, article, user=None):
     """Return the last note that a user wrote for himself.
 
     Useful in the pending eo listing main page.
     """
+    if not user:
+        user = context["request"].user
+
     personal_notes = (
         Message.objects.filter(
             content_type=ContentType.objects.get_for_model(article),
@@ -140,3 +145,14 @@ def user_is_corresponding_author(article: Article, user: Account) -> Optional[bo
     if user.is_authenticated:
         return article.user_is_author(user) and article.correspondence_author == user
     return None
+
+
+@register.simple_tag()
+def get_article_classes(workflow: ArticleWorkflow) -> dict[str, str]:
+    """Return a string of classes for an article div."""
+    state = f"color-state-{slugify(workflow.state)}"
+    section = f"color-section-{workflow.article.section.pk}"
+    return {
+        "state": state,
+        "section": section,
+    }

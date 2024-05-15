@@ -1,0 +1,6 @@
+{
+  "name": "wjs-jcom-profile",
+  "devDependencies": {
+    "prettier": "^3.2.5"
+  }
+}

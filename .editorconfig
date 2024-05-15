@@ -19,11 +19,11 @@ max_line_length = 80
 [*.py]
 max_line_length = 120
 
-[*.{html}]
+[*.html]
 indent_size = 2
-max_line_length = 120
+max_line_length = 240
 
-[*.{scss}]
+[*.scss]
 indent_size = 2
 max_line_length = 120
 

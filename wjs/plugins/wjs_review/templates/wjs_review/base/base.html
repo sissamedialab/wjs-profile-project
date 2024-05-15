@@ -1,0 +1,28 @@
+{% extends "wjs_review/bootstrap.html" %}
+{% load django_bootstrap5 static %}
+{% block bootstrap5_extra_head %}
+  <script src="{% static "js/htmx.min.js" %}"></script>
+  <link rel="stylesheet" href="{% static "admin/css/admin.css" %}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+{% endblock bootstrap5_extra_head %}
+{% block bootstrap5_content %}
+  <div class="bg-body" hx-headers='{" X-CSRFToken": "{{ csrf_token }}"}'>
+    {% block header %}
+      {% include "wjs_review/base/elements/header.html" %}
+    {% endblock header %}
+    {% autoescape off %}
+      {% bootstrap_messages %}
+    {% endautoescape %}
+    {% block content_wrapper %}
+      <div class="container">
+        {% block content %}
+        {% endblock content %}
+      </div>
+    {% endblock content_wrapper %}
+    {% block footer %}
+      {% include "wjs_review/base/elements/footer.html" %}
+    {% endblock footer %}
+    {% block js %}
+    {% endblock js %}
+  </div>
+{% endblock bootstrap5_content %}

@@ -5,6 +5,7 @@ import django_filters
 from core import files as core_files
 from core import models as core_models
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -16,7 +17,8 @@ from django.forms import models as model_forms
 from django.http import HttpResponse, HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.template import Context
-from django.urls import reverse, reverse_lazy
+from django.urls import resolve, reverse, reverse_lazy
+from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import (
     CreateView,
@@ -26,6 +28,7 @@ from django.views.generic import (
     UpdateView,
     View,
 )
+from journal.models import Journal
 from review import logic as review_logic
 from review.models import EditorAssignment, ReviewAssignment
 from submission import models as submission_models
@@ -112,20 +115,46 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return base_permissions.has_eo_role(self.request.user)
 
 
-class FilterSetMixin:
+class ArticleWorkflowBaseMixin:
+    model = ArticleWorkflow
     filterset_class = EOArticleWorkflowFilter
     filterset: django_filters.FilterSet
+    context_object_name = "workflows"
+    ordering = ["-modified"]
+    title: str
+    related_views: Dict[str, str] = {}
+    extra_links: Dict[str, str]
 
     def setup(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
         super().setup(request, *args, **kwargs)
         self.filterset = self.filterset_class(
-            self.request.GET,
+            data=self.request.GET if self.request.GET.get("search") else None,
             queryset=self._apply_base_filters(self.model.objects.all()),
             request=self.request,
             journal=self.request.journal,
         )
         self.filterset.is_valid()
+        self.extra_links = {
+            reverse(view_name): title
+            for view_name, title in self.related_views.items()
+            if not self._check_current_view(self.request.journal, view_name)
+        }
+
+    def _check_current_view(self, journal: Journal, view_name: str) -> bool:
+        """
+        Check if the current view is the one passed as argument.
+
+        We don't use request.resolver_match to make tests easier
+        """
+        url = reverse(view_name)
+        if settings.URL_CONFIG == "path":
+            url = url.replace(f"/{journal.code}", "")
+        resolved = resolve(url)
+        view_class = import_string(resolved._func_path)
+        # Using __class__ instead of isinstance because derived views are always instances of the base (pending) view
+        # and we want to check the exact class.
+        return self.__class__ == view_class
 
     def _apply_base_filters(self, qs):
         """Apply some base filters before the filterset's "dynamic" ones.
@@ -141,7 +170,12 @@ class FilterSetMixin:
         """Filter article by state and filterset values."""
         qs = super().get_queryset()
         base_qs = self._apply_base_filters(qs)
-        return self.filterset.filter_queryset(base_qs)
+        try:
+            if self.filterset.is_valid():
+                return self.filterset.filter_queryset(base_qs)
+        except AttributeError:
+            pass
+        return base_qs
 
     def get_context_data(self, **kwargs):
         """Add the filterset."""
@@ -150,15 +184,19 @@ class FilterSetMixin:
         return context
 
 
-class EditorPending(FilterSetMixin, LoginRequiredMixin, ListView):
+class EditorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, ListView):
     """Editor's main page."""
 
-    model = ArticleWorkflow
-    ordering = "id"
-    template_name = "wjs_review/reviews.html"
-    context_object_name = "workflows"
+    title = _("Pending papers")
+    role = _("Editor")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/editor/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
+    related_views = {
+        "wjs_review_list": _("Pending"),
+        "wjs_review_archived_papers": _("Archived"),
+    }
 
     def _apply_base_filters(self, qs):
         """
@@ -173,7 +211,7 @@ class EditorPending(FilterSetMixin, LoginRequiredMixin, ListView):
         # Check on user authentication is required because this is run before LoginRequiredMixin as it's called in the
         # setup method of the view.
         if self.request.user.is_authenticated:
-            return FilterSetMixin._apply_base_filters(self, qs).filter(
+            return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
                 article__editorassignment__editor__in=[self.request.user],
                 state__in=states_when_article_is_considered_in_review,
             )
@@ -181,10 +219,7 @@ class EditorPending(FilterSetMixin, LoginRequiredMixin, ListView):
 
 
 class EditorArchived(EditorPending):
-    model = ArticleWorkflow
-    ordering = "id"
-    template_name = "wjs_review/reviews.html"
-    context_object_name = "workflows"
+    title = _("Archived papers")
 
     def _apply_base_filters(self, qs):
         """
@@ -193,21 +228,28 @@ class EditorArchived(EditorPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        state_past = Q(state__in=states_when_article_is_considered_archived) & Q(
             article__editorassignment__editor__in=[self.request.user],
-            state__in=states_when_article_is_considered_archived,
         )
+        # TODO: add PastEditorAssignment model to track past assignments in the related MR
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(state_past)
 
 
-class EOPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """EO's main page."""
 
-    model = ArticleWorkflow
-    ordering = "id"
-    template_name = "wjs_review/eo_pending.html"
-    context_object_name = "workflows"
+    title = _("Pending papers")
+    role = _("EO")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/eo/table.html"
     filterset_class = EOArticleWorkflowFilter
     filterset: EOArticleWorkflowFilter
+    related_views = {
+        "wjs_review_eo_pending": _("Pending"),
+        "wjs_review_eo_archived": _("Archived"),
+        "wjs_review_eo_production": _("Production"),
+        "wjs_review_eo_missing_editor": _("Missing editor"),
+    }
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -220,12 +262,14 @@ class EOPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListVie
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_in_review,
         )
 
 
 class EOArchived(EOPending):
+    title = _("Archived papers")
+
     def _apply_base_filters(self, qs):
         """
         Keep only articles (workflows) for which a "final" decision has been made.
@@ -233,7 +277,7 @@ class EOArchived(EOPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_archived,
         )
 
@@ -245,6 +289,8 @@ class EOArchived(EOPending):
 
 
 class EOProduction(EOPending):
+    title = _("Production papers")
+
     def _apply_base_filters(self, qs):
         """
         Get all articles in production.
@@ -252,7 +298,7 @@ class EOProduction(EOPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_in_production,
         )
 
@@ -264,6 +310,8 @@ class EOProduction(EOPending):
 
 
 class EOMissingEditor(EOPending):
+    title = _("Missing editor papers")
+
     def _apply_base_filters(self, qs):
         """
         Get all articles that should be assigned to some editor to be reviewed.
@@ -271,7 +319,7 @@ class EOMissingEditor(EOPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_missing_editor,
         )
 
@@ -282,26 +330,23 @@ class EOMissingEditor(EOPending):
         return context
 
 
-class DirectorPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Director's main page."""
 
-    model = ArticleWorkflow
-    ordering = "id"
-    template_name = "wjs_review/director_pending.html"
-    context_object_name = "workflows"
+    title = _("Pending papers")
+    role = _("Director")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/director/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
+    related_views = {
+        "wjs_review_director_pending": _("Pending"),
+        "wjs_review_director_archived": _("Archived"),
+    }
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
-
-        class A:
-            pass
-
-        a = A()
-        a.article = A()
-        a.article.journal = self.request.journal
-        return permissions.has_director_role_by_article(a, self.request.user)
+        return base_permissions.has_director_role(self.request.journal, self.request.user)
 
     def _apply_base_filters(self, qs):
         """
@@ -311,7 +356,7 @@ class DirectorPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, L
         sure to use the original method.
         """
         return (
-            FilterSetMixin._apply_base_filters(self, qs)
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_in_review)
             .exclude(article__authors=self.request.user)
         )
@@ -326,7 +371,7 @@ class DirectorArchived(DirectorPending):
         sure to use the original method.
         """
         return (
-            FilterSetMixin._apply_base_filters(self, qs)
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_archived)
             .exclude(article__authors=self.request.user)
         )
@@ -338,15 +383,19 @@ class DirectorArchived(DirectorPending):
         return context
 
 
-class AuthorPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Author's main page."""
 
-    model = ArticleWorkflow
-    ordering = "id"
-    template_name = "wjs_review/author_pending.html"
-    context_object_name = "workflows"
+    title = _("Pending papers")
+    role = _("Author")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/author/table.html"
     filterset_class = AuthorArticleWorkflowFilter
     filterset: AuthorArticleWorkflowFilter
+    related_views = {
+        "wjs_review_author_pending": _("Pending"),
+        "wjs_review_author_archived": _("Archived"),
+    }
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
@@ -359,7 +408,7 @@ class AuthorPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, Lis
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             Q(state__in=states_when_article_is_considered_in_review)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
@@ -373,7 +422,7 @@ class AuthorArchived(AuthorPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             Q(state__in=states_when_article_is_considered_archived)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
@@ -385,15 +434,19 @@ class AuthorArchived(AuthorPending):
         return context
 
 
-class ReviewerPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class ReviewerPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Reviewer's main page."""
 
-    model = ArticleWorkflow
-    ordering = "id"
-    template_name = "wjs_review/reviewer_pending.html"
-    context_object_name = "workflows"
+    title = _("Pending papers")
+    role = _("Reviewer")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/author/table.html"
     filterset_class = ReviewerArticleWorkflowFilter
     filterset: ReviewerArticleWorkflowFilter
+    related_views = {
+        "wjs_review_reviewer_pending": _("Pending"),
+        "wjs_review_reviewer_archived": _("Archived"),
+    }
 
     def test_func(self):
         """Allow access only for Reviewers of this Journal"""
@@ -406,13 +459,17 @@ class ReviewerPending(FilterSetMixin, LoginRequiredMixin, UserPassesTestMixin, L
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             article__reviewassignment__reviewer=self.request.user,
             article__reviewassignment__is_complete=False,
         )
 
 
 class ReviewerArchived(ReviewerPending):
+    """A reviewer's old papers."""
+
+    title = _("Archived papers")
+
     def _apply_base_filters(self, qs):
         """
         Get all articles with completed reviews from the current user.
@@ -420,7 +477,7 @@ class ReviewerArchived(ReviewerPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return FilterSetMixin._apply_base_filters(self, qs).filter(
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             article__reviewassignment__reviewer=self.request.user,
             article__reviewassignment__is_complete=True,
         )
@@ -611,6 +668,7 @@ class ArticleDetails(LoginRequiredMixin, DetailView):
     model = ArticleWorkflow
     template_name = "wjs_review/details.html"
     context_object_name = "workflow"
+    model = ArticleWorkflow
 
 
 class OpenReviewMixin(DetailView):
@@ -1486,7 +1544,6 @@ class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
 
 
 class EditorDeclineAssignmentView(UserPassesTestMixin, View):
-    model = ArticleWorkflow
     template_name = "wjs_review/elements/editor_rejects_assignment.html"
 
     def setup(self, request, *args, **kwargs):
@@ -1524,7 +1581,6 @@ class EditorAssignsDifferentEditor(UpdateView):
     If the user is an editor of a special issue, it will be able to assign the paper to a different editor
     """
 
-    model = ArticleWorkflow
     form_class = EditorAssignsDifferentEditorForm
     template_name = "wjs_review/editor_assigns_different_editor.html"
 
