@@ -15,6 +15,7 @@ from submission.models import Article
 
 from wjs.jcom_profile.constants import EO_GROUP
 
+from ..logic import states_when_article_is_considered_in_production
 from ..models import ArticleWorkflow, Message
 
 register = template.Library()
@@ -82,6 +83,9 @@ def last_eo_note(article):
 
 @register.simple_tag()
 def article_state_details(article):
+    if article.articleworkflow.state in states_when_article_is_considered_in_production:
+        return article.articleworkflow.get_state_display()
+
     waiting_for_revision = article.active_revision_requests().filter(
         editorrevisionrequest__review_round=article.current_review_round_object(),
     )
