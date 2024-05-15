@@ -1,0 +1,30 @@
+{% load django_bootstrap5 %}
+
+<div class="row">
+  <div class="col-sm-12">
+    <div class="btn-group" role="group" aria-label="Select visibility">
+      {% bootstrap_button button_type="button" id="selectAll" button_class="btn-primary" layout="floating" content="View All" size="sm" %}
+      {% bootstrap_button button_type="button" id="selectAction" button_class="btn-outline-primary" layout="floating" content="View only with Action Required" size="sm" %}
+    </div>
+  </div>
+</div>
+<script>
+  document.getElementById("selectAll").addEventListener("click", function() {
+    document.querySelectorAll('tr.visually-hidden').forEach((item) => {
+      console.log(item)
+      item.classList.remove('visually-hidden');
+      document.getElementById("selectAction").classList.replace('btn-primary', 'btn-outline-primary');
+      document.getElementById("selectAll").classList.replace('btn-outline-primary', 'btn-primary');
+    });
+  });
+  document.getElementById("selectAction").addEventListener("click", function() {
+    document.querySelectorAll('#papers > tbody > tr').forEach((item) => {
+      console.log(item)
+      if(!item.classList.contains('table-warning')) {
+        item.classList.add('visually-hidden');
+      }
+      document.getElementById("selectAll").classList.replace('btn-primary', 'btn-outline-primary');
+      document.getElementById("selectAction").classList.replace('btn-outline-primary', 'btn-primary');
+    });
+  });
+</script>

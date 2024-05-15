@@ -4,6 +4,7 @@ import django_filters
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from journal.models import Issue
+from submission.models import Keyword, Section
 
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
@@ -30,15 +31,47 @@ def status_choices() -> list[tuple[str, str]]:
 
 
 class BaseArticleWorkflowFilter(django_filters.FilterSet):
+    template_name = "wjs_review/lists/elements/filters_base.html"
+
     article = django_filters.CharFilter(field_name="article", method="filter_article")
+    language = django_filters.ChoiceFilter(
+        field_name="article__language",
+        label=_("Language"),
+        empty_label=_("Languages: All"),
+    )
+    keywords = django_filters.ModelChoiceFilter(
+        field_name="article__keywords",
+        queryset=Keyword.objects.all(),
+        label=_("Keywords"),
+        empty_label=_("Keywords: All"),
+    )
+    section = django_filters.ModelChoiceFilter(
+        field_name="article__section",
+        queryset=Section.objects.all(),
+        label=_("Section"),
+        empty_label=_("Sections: All"),
+    )
 
     class Meta:
         model = ArticleWorkflow
-        fields = ["article__language", "article__keywords", "article__section"]
+        fields = ["article", "language", "keywords", "section"]
 
     def __init__(self, *args, **kwargs):
         self._journal = kwargs.pop("journal", None)
         super().__init__(*args, **kwargs)
+        self.filters = self.select_filters()
+
+    def select_filters(self):
+        """Customize filters by journal."""
+        filters = self.filters
+        available_languages = get_journal_language_choices(self._journal)
+        if len(available_languages) == 1:
+            filters.pop("language")
+        else:
+            filters["language"].extra["choices"] = available_languages
+        filters["keywords"].queryset = self.filters["keywords"].queryset.filter(journal=self._journal).order_by("word")
+        filters["section"].queryset = self.filters["section"].queryset.filter(journal=self._journal).order_by("name")
+        return filters
 
     def filter_article(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
         """
@@ -76,51 +109,41 @@ class ReviewerArticleWorkflowFilter(BaseArticleWorkflowFilter):
 
 
 class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
+    template_name = "wjs_review/lists/elements/filters_staff.html"
+
     author = django_filters.CharFilter(field_name="article__authors", method="filter_user")
     editor = django_filters.CharFilter(
         field_name="article__editorassignment__editor",
         method="filter_user",
-        label="Editor",
+        label=_("Editor"),
     )
     reviewer = django_filters.CharFilter(
         field_name="article__reviewassignment__reviewer",
         method="filter_user",
-        label="Reviewer",
+        label=_("Reviewer"),
     )
     special_issue = django_filters.ModelChoiceFilter(
         field_name="article__primary_issue",
         queryset=Issue.objects.filter(issue_type__code="collection"),
+        label=_("Special Issue"),
+        empty_label=_("Special Issue: All"),
     )
     status = django_filters.ChoiceFilter(
         choices=[],
         field_name="state",
         method="filter_status",
+        label=_("Status"),
+        empty_label=_("Status: All"),
     )
 
-    class Meta:
+    class Meta(BaseArticleWorkflowFilter.Meta):
         model = ArticleWorkflow
-        fields = ["article__language", "article__keywords", "article__section"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filters = self.select_filters()
 
     def select_filters(self):
         """Customize filters by journal."""
-        filters = self.filters
-        available_languages = get_journal_language_choices(self._journal)
-        if len(available_languages) == 1:
-            filters.pop("article__language")
-        else:
-            filters["article__language"].extra["choices"] = available_languages
+        filters = super().select_filters()
         filters["special_issue"].queryset = (
             self.filters["special_issue"].queryset.filter(journal=self._journal).order_by("issue_title")
-        )
-        filters["article__keywords"].queryset = (
-            self.filters["article__keywords"].queryset.filter(journal=self._journal).order_by("word")
-        )
-        filters["article__section"].queryset = (
-            self.filters["article__section"].queryset.filter(journal=self._journal).order_by("name")
         )
         available_states = self.queryset.values_list("state", flat=True).distinct()
         filters["status"].field.choices = status_choices() + [
@@ -186,4 +209,5 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
 
 
 class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
-    eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user")
+    template_name = "wjs_review/lists/elements/filters_eo.html"
+    eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user", label=_("EO in charge"))

@@ -1,0 +1,41 @@
+{% load wjs_articles wjs_review wjs_tags %}
+{% get_article_classes workflow as article_classes %}
+{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
+  <tr {% if attention_flag %}class="table-warning"{% endif %}>
+    <td>
+      {{ article.id }}
+      <br />
+      <a title="{{ article.title }}" href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article.title|truncatewords:6 }}</a>
+      <br />
+      {{ article.date_submitted|date:"d-M" }}
+      <br />
+      {{ article.section.name }}
+    </td>
+    <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
+      {% include "wjs_review/lists/elements/table_item_status.html" %}
+    </td>
+    <td>
+      {% include "wjs_review/lists/elements/corresponding_author.html" %}
+    </td>
+    <td>
+      {% with editor_assignment_data=article|article_current_editor %}
+        {{ editor_assignment_data.editor }}
+        <br />
+        <span title="assigned">{{ editor_assignment_data.days_elapsed }} days</span>
+      {% endwith %}
+    </td>
+    <td>
+      {% if workflow.get_state_display == "Editor selected" %}
+        {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
+      {% endif %}
+    </td>
+    <td title="Issue (if available)">{{ article.primary_issue|default:"—" }}</td>
+    <td title="latest EO note">
+      {% last_user_note article=workflow.article as note %}
+      {% if note %}
+        <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#note_modal">{{ note.body|truncatechars_html:7|striptags }} <i class="bi bi-card-text"></i></button>
+        {% include "wjs_review/base/elements/modal.html" with modal_id="note_modal" modal_title="Notes" modal_body_title=note.subject modal_body=note.body %}
+      {% endif %}
+    </td>
+  </tr>
+{% endwith %}

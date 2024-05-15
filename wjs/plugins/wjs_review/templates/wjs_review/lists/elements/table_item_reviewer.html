@@ -1,0 +1,33 @@
+{% load wjs_articles wjs_review %}
+{% comment %} Taken from src/templates/admin/review/home.html {% endcomment %}
+{% if journal_settings.general.enable_expanded_review_details %}
+    {% review_assignments_of_current_round article as review_assignments %}
+    {% comment %}
+Janeway uses `article.reviews_not_withdrawn`, but this QS
+- includes review assignments for all review rounds, not just from the last one
+- the semantics is unclear/hacky:
+  - ReviewAssignments have a field called "decision" whose verbose_name is "Recommendation"
+  - ReviewAssignments with decicision="withdrawn" are excluded
+  It seems that Janeway is "overloading" the semantic of the decision field.
+    {% endcomment %}
+    {% if review_assignments %}
+        <table class="table table-sm table-borderless">
+            {% for review in review_assignments %}
+                <tr class="border-bottom">
+                    <td class="border-end bg-transparent">{{ review.reviewer.full_name }}</td>
+                    {% if review.date_complete %}
+                        <td class="bg-transparent">
+                            <a href="#" title="TODO: link to a page showing the report">report sent</a> {{ review.date_complete|date:"d-M" }}
+                        </td>
+                    {% elif review.date_accepted %}
+                        <td class="bg-transparent">report due {{ review.date_due|date:"d-M" }}</td>
+                    {% else %}
+                        <td class="bg-transparent">waiting for accept/decline by {{ review.date_due|date:"d-M" }}</td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+{% else %}
+    {{ article.completed_reviews|length }} Complete
+{% endif %}

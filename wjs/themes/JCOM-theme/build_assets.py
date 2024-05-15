@@ -15,28 +15,33 @@ from django.conf import settings
 from django.core.management import call_command
 
 BASE_THEME_DIR = os.path.join(settings.BASE_DIR, "static", "JCOM-theme")
+SRC_THEME_DIR = os.path.dirname(__file__)
 THEME_CSS_FILES = [
     os.path.join(BASE_THEME_DIR, "css", "jcom.css"),
     os.path.join(BASE_THEME_DIR, "css", "jcomal.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_jcom.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_jcomal.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_mobile.css"),
+    os.path.join(BASE_THEME_DIR, "css", "wjs_review.css"),
 ]
 
 
 def process_scss():
     """Compiles SCSS into CSS in the Static Assets folder."""
-    print("PATH", os.path.dirname(__file__), __file__)
     include_path_materialize = os.path.join(
-        os.path.dirname(__file__),
+        SRC_THEME_DIR,
         "assets",
         "materialize-src",
         "sass",
     )
+    include_path_bootstrap = os.path.join(
+        SRC_THEME_DIR,
+        "assets",
+    )
 
     for css_file in THEME_CSS_FILES:
         app_scss_file = os.path.join(
-            os.path.dirname(__file__),
+            SRC_THEME_DIR,
             "assets",
             "sass",
             f"{os.path.splitext(os.path.basename(css_file))[0]}.scss",
@@ -45,7 +50,7 @@ def process_scss():
         include_path_jcom = os.path.dirname(app_scss_file)
         compiled_css_from_file = sass.compile(
             filename=app_scss_file,
-            include_paths=[include_path_jcom, include_path_materialize],
+            include_paths=[include_path_jcom, include_path_materialize, include_path_bootstrap],
         )
 
         # Open the CSS file and write into it

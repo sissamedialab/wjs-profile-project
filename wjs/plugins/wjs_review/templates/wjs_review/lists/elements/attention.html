@@ -1,0 +1,8 @@
+{% if attention_flag %}
+  <div title="Needs attention" class="align-self-end flex-grow-1">
+    <br />
+    <span class="badge rounded-circle bg-warning text-dark p-2 fs-6"><i class="bi bi-exclamation-triangle"></i></span>
+    <br />
+    {{ attention_flag }}
+  </div>
+{% endif %}

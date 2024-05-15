@@ -1,0 +1,26 @@
+<table class="table table-hover table-striped table-bordered" id="papers">
+  <thead class="sticky-top bg-light">
+  <tr>
+    <th scope="col">Article ID</th>
+    <th scope="col">Corresponding Author</th>
+    <th scope="col">Title</th>
+    <th scope="col">Article Type</th>
+    <th scope="col">SI</th>
+    <th scope="col">Status</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for workflow in workflows %}
+    {% include "wjs_review/lists/elements/author/table_item.html" %}
+  {% endfor %}
+  </tbody>
+</table>
+{% include "wjs_review/base/elements/pagination.html" %}
+<script>
+  new DataTable("#papers", {
+    info: false,
+    searching: false,
+    ordering: true,
+    paging: false,
+  });
+</script>

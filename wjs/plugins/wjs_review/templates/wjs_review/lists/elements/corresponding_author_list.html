@@ -1,0 +1,3 @@
+{% for author in workflow.article.authors.all %}
+  {% if author != workflow.article.correspondence_author %}{{ author }},{% endif %}
+{% endfor %}

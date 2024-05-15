@@ -1,0 +1,25 @@
+{% load django_bootstrap5 %}
+
+<div class="row mb-3">
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.keywords size="sm" wrapper_class="" show_label=False %}
+  </div>
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.section layout="floating" size="sm" wrapper_class="" show_label=False %}
+  </div>
+  {% if filter.form.language %}
+    <div class="col-sm-2">
+      {% bootstrap_field filter.form.language size="sm" wrapper_class="" show_label=False %}
+    </div>
+  {% endif %}
+  <div class="col-sm-4">
+  </div>
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.article size="sm" wrapper_class="" show_label=False %}
+  </div>
+  <div class="col-sm-2 d-flex justify-content-between">
+    {% bootstrap_button button_type="submit" button_class="btn-outline-primary" name="search" layout="floating" value=1 content="Search" size="sm" %}
+    <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+  </div>
+</div>
+{% include "wjs_review/lists/elements/filters_visibility.html" %}

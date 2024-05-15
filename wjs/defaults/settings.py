@@ -279,3 +279,9 @@ PROOFING_ASSIGNMENT_MIN_DUE_DAYS = 3
 PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
 
 JCOMASSISTANT_URL = "http://janeway-services.ud.sissamedialab.it:1234/jcomassistant/"
+
+# Override the default bootstrap5 css as we customize it, and the css below will include all the bootstrap5 css plus
+# our own customizations
+# We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact
+# for now as it's just the dashboard css
+BOOTSTRAP5 = {"css_url": "/static/JCOM-theme/css/wjs_review.css"}

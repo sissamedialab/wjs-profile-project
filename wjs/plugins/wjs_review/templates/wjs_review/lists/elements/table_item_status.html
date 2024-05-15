@@ -1,0 +1,15 @@
+{% load wjs_articles %}
+{% if brief %}
+  {% article_state_details article=workflow.article %}
+  {% include "wjs_review/lists/elements/attention.html" %}
+{% else %}
+  <div class="top-0 {% if attention_flag %}position-absolute{% endif %} py-2">
+    <span class="badge {{ article_classes.state }}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}<br><span title="Last transition: {{ workflow.modified|date:"d-M" }}">({{ workflow.modified|date:"d M" }})</span></span>
+  </div>
+  <div class="mt-4">
+    {% if details %}
+      <div title="Current version: {{ workflow.article.current_review_round }}">Version {{ workflow.article.current_review_round }}</div>
+    {% endif %}
+    {% include "wjs_review/lists/elements/attention.html" %}
+  </div>
+{% endif %}

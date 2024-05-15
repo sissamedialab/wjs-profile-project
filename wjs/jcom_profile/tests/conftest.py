@@ -116,6 +116,17 @@ def clear_cache():
 
 
 @pytest.fixture(autouse=True)
+def journal_config(settings):
+    """
+    Tests currently use the "path" URL_CONFIG variant without explicitly updating the settings.
+
+    This fixture ensures that setting is coherent with the current test configuration.
+    """
+    settings.URL_CONFIG = "path"
+    yield
+
+
+@pytest.fixture(autouse=True)
 def set_language():
     """Reset base language at the start of every test."""
     activate("en")
