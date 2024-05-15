@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import ReviewAssignment, RevisionRequest
 from submission.models import Article
 
@@ -265,5 +266,22 @@ def reviewer_report_is_late(article: Article) -> str:
     )
     if late_assignments.exists():
         return "The review is late."
+    else:
+        return ""
+
+
+def is_typesetter_late(assignment: TypesettingAssignment) -> str:
+    """Tell if the typesetter is late with the assignment."""
+    if timezone.now().date() >= assignment.due:
+        return "Typesetting is late"
+    else:
+        return ""
+
+
+# For some reason TypesettingAssignment.due is datetime.date, while GalleyProofing.due is datetime.datetime.
+def is_author_proofing_late(assignment: GalleyProofing) -> str:
+    """Tell if the author is late with the proofing assignment."""
+    if assignment and timezone.now() >= assignment.due:
+        return "Proofing is late"
     else:
         return ""

@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, OuterRef, Q, QuerySet
 from journal.models import Journal
+from plugins.typesetting.models import TypesettingAssignment
 from review import models as review_models
 from submission.models import Article
 from utils.logger import get_logger
@@ -247,6 +248,9 @@ def role_for_article(article: Article, user: Account) -> str:
 
     if user in article.authors.all():
         return "co-author"
+
+    if TypesettingAssignment.objects.filter(round__article=article, typesetter=user).exists():
+        return "typesetter"
 
     return ""
 
