@@ -23,6 +23,7 @@ from ..events import ReviewEvent
 from ..logic import (
     AssignToEditor,
     AssignTypesetter,
+    AuthorSendsCorrections,
     HandleDecision,
     RequestProofs,
     VerifyProductionRequirements,
@@ -214,6 +215,46 @@ def stage_proofing_article(
 ) -> ArticleWorkflow:
     """Create and return an article in proofreading."""
     return _stage_proofing_article(assigned_to_typesetter_article, typesetter, fake_request)
+
+
+def _assigned_to_typesetter_proofs_done_article(
+    article: Article,
+    fake_request: HttpRequest,
+) -> Article:
+    """Let the author proof-read an article.
+
+    Assume the given article is in the PROOFREADING state.
+    """
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
+    old_typesetting_assignment = article.typesettinground_set.last().typesettingassignment
+    author = article.correspondence_author
+    # A GalleyProofing object is created when the paper is sent from the typ to the author.
+    # The author can upload files and add notes.
+    # Then he sends the paper back to the typ.
+    author_proofs: GalleyProofing = old_typesetting_assignment.round.galleyproofing_set.first()
+    author_proofs.notes = "Dear typ, please correct this and that... 🙂"
+    author_proofs.save()
+    AuthorSendsCorrections(
+        user=author,
+        old_assignment=old_typesetting_assignment,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    cleanup_notifications_side_effects()
+    return article
+
+
+@pytest.fixture
+def assigned_to_typesetter_proofs_done_article(
+    stage_proofing_article: Article,
+    fake_request: HttpRequest,
+) -> ArticleWorkflow:
+    """Create and return an article assigned to a typesetter after the author has done some proofs.
+
+    See notes about notifications in `assigned_article`.
+    """
+    return _assigned_to_typesetter_proofs_done_article(ready_for_typesetter_article, fake_request)
 
 
 @pytest.fixture

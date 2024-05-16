@@ -92,7 +92,6 @@ class TypesetterWorkingOn(LoginRequiredMixin, UserPassesTestMixin, ListView):
             ],
             article__typesettinground__isnull=False,
             article__typesettinground__typesettingassignment__typesetter__pk=self.request.user.pk,
-            article__typesettinground__typesettingassignment__completed__isnull=True,
         ).order_by("-article__date_accepted")
 
         return qs
