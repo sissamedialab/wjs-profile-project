@@ -1,6 +1,7 @@
 from typing import Callable
 
 import pytest
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 from django.test.client import Client
@@ -374,3 +375,28 @@ def test_typ_marks_unpublishable(
     client.post(url)
     assigned_to_typesetter_article.refresh_from_db()
     assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
+
+
+@pytest.mark.django_db
+def test_typesetter_galley_generation(
+    assigned_to_typesetter_article_with_files_to_typeset: Article,
+    client: Client,
+    mock_jcomassistant_post,
+):
+    """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
+    typesetting_assignment = (
+        assigned_to_typesetter_article_with_files_to_typeset.typesettinground_set.first().typesettingassignment
+    )
+    url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    response = client.get(url)
+
+    assert mock_jcomassistant_post.call_args.kwargs["url"] == settings.JCOMASSISTANT_URL
+    assert response.status_code == 200
+    assert "article" in response.context
+    assert response.context["article"] == assigned_to_typesetter_article_with_files_to_typeset
+
+    galleys_created = typesetting_assignment.galleys_created.all()
+    assert galleys_created.count() == 2
+    assert any(galley.file.original_filename.endswith(".html") for galley in galleys_created)
+    assert any(galley.file.original_filename.endswith(".epub") for galley in galleys_created)

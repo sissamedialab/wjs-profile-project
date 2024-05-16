@@ -74,3 +74,17 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     None: "wjs_review.events.assignment.default_assign_editors_to_articles",
     "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
+
+Q_CLUSTER = {
+    "name": "wjs-janeway",
+    "label": "Task WJS",
+    "workers": 1,
+    "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "db": 10,
+    },
+    "retry": 90,
+    "timeout": 60,
+    "sync": True,
+}

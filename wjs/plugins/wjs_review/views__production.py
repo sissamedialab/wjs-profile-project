@@ -1,5 +1,4 @@
 """Views related to typesetting/production."""
-
 from core.models import File, SupplementaryFile
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -8,6 +7,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.generic import FormView, ListView, UpdateView, View
+from django_q.tasks import async_task
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.states import BaseState
@@ -29,6 +29,7 @@ from .logic__production import (
     HandleDownloadRevisionFiles,
     RequestProofs,
     TogglePublishableFlag,
+    TypesetterTestsGalleyGeneration,
 )
 from .models import ArticleWorkflow
 from .permissions import is_article_author, is_article_typesetter
@@ -499,3 +500,42 @@ class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMix
             kwargs["error"] = str(e)
         context = self.get_context_data(**kwargs)
         return render(request, self.template_name, context)
+
+
+def execute_galley_generation(
+    assignment_id: int,
+):
+    """Execute :py:class:`GalleyGeneration`."""
+    # TODO: review me wrt
+    # - wjs.jcom_profile.tests.conftest.fake_request and
+    # - utils.management.commands.test_fire_event.create_fake_request
+    from utils.management.commands.test_fire_event import create_fake_request
+
+    assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
+    request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
+
+    logic_instance = TypesetterTestsGalleyGeneration(
+        assignment=assignment,
+        request=request,
+    )
+
+    logic_instance.run()
+
+
+class GalleyGenerationView(UserPassesTestMixin, LoginRequiredMixin, View):
+    """View to allow the typsetter to generate Galleys."""
+
+    model = TypesettingAssignment
+    template_name = "wjs_review/typesetter_generated_galleys.html"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+        self.article = self.object.round.article
+
+    def test_func(self):
+        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        async_task(execute_galley_generation, self.kwargs["pk"])
+        return render(request, self.template_name, {"article": self.article})

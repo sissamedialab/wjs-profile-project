@@ -40,20 +40,22 @@ FUNNY_LANGUAGE_CODES = {
 }
 
 
-FakeRequest = namedtuple("FakeRequest", ["user"])
-# Use a "technical account" (that is created if not already present)
-admin, _ = Account.objects.get_or_create(
-    email="wjs-support@medialab.sissa.it",
-    defaults={
-        "first_name": "WJS",
-        "last_name": "Support",
-        "is_staff": True,
-        "is_admin": True,
-        "is_active": True,
-        "is_superuser": True,
-    },
-)
-fake_request = FakeRequest(user=admin)
+def admin_fake_request():
+    FakeRequest = namedtuple("FakeRequest", ["user"])
+    # Use a "technical account" (that is created if not already present)
+    admin, _ = Account.objects.get_or_create(
+        email="wjs-support@medialab.sissa.it",
+        defaults={
+            "first_name": "WJS",
+            "last_name": "Support",
+            "is_staff": True,
+            "is_admin": True,
+            "is_active": True,
+            "is_superuser": True,
+        },
+    )
+    fake_request = FakeRequest(user=admin)
+    return fake_request
 
 
 def query_wjapp_by_pubid(pubid, url="https://jcom.sissa.it/jcom/services/jsonpublished", api_key="WJAPP_JCOM_APIKEY"):
@@ -122,7 +124,7 @@ def drop_existing_galleys(article):
     article.save()
 
 
-def decide_galley_label(pubid, file_name: str, file_mimetype: str):
+def decide_galley_label(file_name: str, file_mimetype: str):
     """Decide the galley's label."""
     # Remember that we can have ( PDF + EPUB galley ) x languages (usually two),
     # so a label of just "PDF" might not be sufficient.
@@ -133,7 +135,7 @@ def decide_galley_label(pubid, file_name: str, file_mimetype: str):
     }
     label = mime_to_extension.get(file_mimetype, None)
     if label is None:
-        logger.error("""Unknown mime type "%s" for %s""", file_mimetype, pubid)
+        logger.error("""Unknown mime type "%s" for %s""", file_mimetype, file_name)
         label = "Other"
     language = None
     if lang_match is not None:

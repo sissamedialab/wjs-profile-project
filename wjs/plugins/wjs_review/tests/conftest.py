@@ -1,6 +1,8 @@
 import glob
 import os
+import tarfile
 from io import BytesIO
+from unittest import mock
 
 import pytest
 from core import files
@@ -26,6 +28,7 @@ from ..logic import (
     AuthorSendsCorrections,
     HandleDecision,
     RequestProofs,
+    UploadFile,
     VerifyProductionRequirements,
 )
 from ..models import ArticleWorkflow, EditorRevisionRequest, Message
@@ -184,6 +187,37 @@ def assigned_to_typesetter_article(
     See notes about notifications in `assigned_article`.
     """
     return _assigned_to_typesetter_article(ready_for_typesetter_article, typesetter, fake_request)
+
+
+def _assigned_to_typesetter_article_with_files_to_typeset(
+    assigned_to_typesetter_article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> Article:
+    file_name = "file_to_typeset.zip"
+    file_data = BytesIO(b"file content")
+    django_file = DjangoFile(file_data, file_name)
+    assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
+    fake_request.user = typesetter
+    article_with_file = UploadFile(
+        typesetter=typesetter,
+        request=fake_request,
+        assignment=assignment,
+        file_to_upload=django_file,
+    ).run()
+    return article_with_file
+
+
+@pytest.fixture
+def assigned_to_typesetter_article_with_files_to_typeset(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    typesetter: Account,
+) -> ArticleWorkflow:
+    """Return an assigned to typesetter article with files to typeset."""
+    return _assigned_to_typesetter_article_with_files_to_typeset(
+        assigned_to_typesetter_article, typesetter, fake_request
+    )
 
 
 def _stage_proofing_article(
@@ -458,3 +492,40 @@ def _create_galleyproofing_proofed_files(
             if file_type == "html":
                 article.render_galley = galley
                 article.save()
+
+
+def create_mock_tar_gz():
+    """Create a tar.gz archive containing a dummy .html and .epub file."""
+    file_obj = BytesIO()
+    with tarfile.open(fileobj=file_obj, mode="w:gz") as tar:
+        html_content = b"<html><body><h1>Dummy HTML</h1></body></html>"
+        html_info = tarfile.TarInfo(name="dummy.html")
+        html_info.size = len(html_content)
+        tar.addfile(html_info, BytesIO(html_content))
+
+        epub_content = b"Dummy EPUB content"
+        epub_info = tarfile.TarInfo(name="dummy.epub")
+        epub_info.size = len(epub_content)
+        tar.addfile(epub_info, BytesIO(epub_content))
+
+        srvc_log_content = b"INFO This is a mock service log"
+        srvc_log_info = tarfile.TarInfo(name="galley-dummy.srvc_log")
+        srvc_log_info.size = len(srvc_log_content)
+        tar.addfile(srvc_log_info, BytesIO(srvc_log_content))
+
+    file_obj.seek(0)
+    return file_obj.getvalue()
+
+
+@pytest.fixture
+def mock_jcomassistant_post():
+    """Fixture to mock requests.post for JcomAssistantClient."""
+
+    import requests
+
+    response = requests.models.Response()
+    response.status_code = 200
+    response._content = create_mock_tar_gz()
+
+    with mock.patch.object(requests, "post", return_value=response) as mocked_requests__post:
+        yield mocked_requests__post

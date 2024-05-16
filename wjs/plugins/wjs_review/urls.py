@@ -29,6 +29,7 @@ from .views import (
     EOProduction,
     EvaluateReviewRequest,
     ForwardMessage,
+    GalleyGenerationView,
     InviteReviewer,
     JournalEditorsView,
     ListAnnotatedFilesView,
@@ -179,4 +180,5 @@ urlpatterns = [
     path("annotated_files/<int:pk>/", ListAnnotatedFilesView.as_view(), name="wjs_list_annotated_files"),
     path("send_corrections/<int:pk>", AuthorSendsCorrectionsView.as_view(), name="wjs_author_sends_corrections"),
     path("paper_publishable/<int:pk>/", TogglePublishableFlagView.as_view(), name="wjs_toggle_publishable"),
+    path("galley_generation/<int:pk>", GalleyGenerationView.as_view(), name="wjs_typesetter_galley_generation"),
 ]

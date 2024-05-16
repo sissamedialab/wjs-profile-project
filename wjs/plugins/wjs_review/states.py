@@ -661,20 +661,11 @@ class TypesetterSelected(BaseState):
             custom_get_url=get_url_with_typesetting_assignment_pk,
         ),
         ArticleAction(
-            # - generate galleys:
-            #   - PDF - common case
-            #   - HTML - JCOM
-            #   - EPUB - JCOM
-            #   - XML - JHEP, JCAP
-            #   - ~~PDF translations~~  # TBV: why not?
-            # - used but are not  stepped / bumped:
-            #   - DOI
-            #   - pubilcation date
-            #   - pubid
             permission=permissions.is_article_typesetter,
             name="tests galley generation",
-            label="Test galley generation",  # TBD: name "Test publication?"
-            view_name="WRITEME!",
+            label="Test galley generation",
+            view_name="wjs_typesetter_galley_generation",
+            custom_get_url=get_url_with_typesetting_assignment_pk,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,

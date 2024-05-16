@@ -27,9 +27,9 @@ from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
+    admin_fake_request,
     decide_galley_label,
     drop_existing_galleys,
-    fake_request,
     process_body,
     publish_article,
     query_wjapp_by_pubid,
@@ -40,6 +40,9 @@ from wjs.jcom_profile.import_utils import (
 from wjs.jcom_profile.utils import from_pubid_to_eid
 
 logger = get_logger(__name__)
+
+fake_request = admin_fake_request()
+
 rome_timezone = pytz.timezone("Europe/Rome")
 # Expect a "body" to be available since last issue of 2016 (Issue 06,
 # 2016); the first document of that issue has been published
