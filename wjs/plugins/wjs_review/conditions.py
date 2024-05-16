@@ -273,7 +273,10 @@ def reviewer_report_is_late(article: Article) -> str:
 def is_typesetter_late(assignment: TypesettingAssignment) -> str:
     """Tell if the typesetter is late with the assignment."""
     if timezone.now().date() >= assignment.due:
-        return "Typesetting is late"
+        return (
+            f"Typesetting is late by {(timezone.now().date() - assignment.due).days} days."
+            f" Was expected by {assignment.due}."
+        )
     else:
         return ""
 
@@ -282,6 +285,10 @@ def is_typesetter_late(assignment: TypesettingAssignment) -> str:
 def is_author_proofing_late(assignment: GalleyProofing) -> str:
     """Tell if the author is late with the proofing assignment."""
     if assignment and timezone.now() >= assignment.due:
-        return "Proofing is late"
+        return (
+            f"Proofing is late by {(timezone.now() - assignment.due).days} days."
+            f" Was expected by {assignment.due.strftime('%F')}."
+            " Please contact the author."
+        )
     else:
         return ""

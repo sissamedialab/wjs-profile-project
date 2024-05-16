@@ -5,7 +5,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
-from django.utils import timezone
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing
 from press.models import Press
@@ -23,6 +22,7 @@ from .conftest import (
     _assign_article,
     _assigned_to_typesetter_article,
     _ready_for_typesetter_article,
+    _stage_proofing_article,
 )
 
 
@@ -143,64 +143,80 @@ def test_typesetter_workingon_lists_active_papers(
     eo_user: JCOMProfile,
     typesetter: JCOMProfile,
     create_jcom_user: Callable,
-    assigned_to_typesetter_article: Article,
+    ready_for_typesetter_article: Article,
     article_factory: Callable,
     fake_request: HttpRequest,
 ):
     """Test that the main page for a typesetter is showing active papers of the typesetter.
 
-    In this simple scenario, we have one typesetter with one active paper, one done and one not assigned. The view
-    should list only the assigned paper.
+    In this simple scenario, we have one typesetter with
+    - one active paper in typesetting
+    - one active paper to the author for proofs
+    - TODO: one done (in ready for publication); TODO after specs#692 or specs#778
+    - one not assigned
+    The view should list only the two active papers.
 
     """
-    # By using the fixtures, we have a paper assigned to the typesetter.
-    # The other two, we manually create.
-    article_1 = assigned_to_typesetter_article  # just an alias
+    # NB: do _not_ use the fixtures
+    # - ready_for_typesetter_article
+    # - assigned_to_typesetter_article
+    # - stage_proofing_article
+    # as if they are different articles in different stages:
+    # they all work on the _same_ article!
 
-    # Use the same author and editor for all articles (we don't care here)
-    # article_2 is the one ready_for_typesetter
-    article_2 = article_factory(
-        journal=journal,
-        correspondence_author=article_1.correspondence_author,
-    )
-    editor = article_1.editorassignment_set.last().editor
-    _assign_article(fake_request, article_2, editor)
-    article_2.refresh_from_db()
+    author = ready_for_typesetter_article.correspondence_author
+    editor = ready_for_typesetter_article.editorassignment_set.last().editor
+
     fake_request.user = editor
-    _accept_article(fake_request, article_2)
-    article_2.refresh_from_db()
-    _ready_for_typesetter_article(article_2)
-    article_2.refresh_from_db()
 
-    # article_3 is the one assigned to the typesetter and completed
-    article_3 = article_factory(
-        journal=journal,
-        correspondence_author=article_1.correspondence_author,
+    assigned_to_typesetter_article = _assigned_to_typesetter_article(
+        typesetter=typesetter,
+        fake_request=fake_request,
+        article=_ready_for_typesetter_article(
+            article=_accept_article(
+                fake_request=fake_request,
+                article=_assign_article(
+                    fake_request=fake_request,
+                    section_editor=editor,
+                    article=article_factory(
+                        journal=journal,
+                        correspondence_author=author,
+                    ),
+                ),
+            ),
+        ),
     )
-    editor = article_1.editorassignment_set.last().editor
-    _assign_article(fake_request, article_3, editor)
-    article_3.refresh_from_db()
-    fake_request.user = editor
-    _accept_article(fake_request, article_3)
-    article_3.refresh_from_db()
-    _ready_for_typesetter_article(article_3)
-    article_3.refresh_from_db()
-    _assigned_to_typesetter_article(article_3, typesetter, fake_request)
-    article_3.refresh_from_db()
-    typesetting_assignment = article_3.typesettinground_set.first().typesettingassignment
-    typesetting_assignment.completed = timezone.now()
-    typesetting_assignment.save()
 
-    # Let's test:
-    # the user that is typesetter in all journals sees all papers
+    stage_proofing_article = _stage_proofing_article(
+        typesetter=typesetter,
+        fake_request=fake_request,
+        article=_assigned_to_typesetter_article(
+            typesetter=typesetter,
+            fake_request=fake_request,
+            article=_ready_for_typesetter_article(
+                article=_accept_article(
+                    fake_request=fake_request,
+                    article=_assign_article(
+                        fake_request=fake_request,
+                        section_editor=editor,
+                        article=article_factory(
+                            journal=journal,
+                            correspondence_author=author,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
     view = TypesetterWorkingOn()
     fake_request.user = typesetter.janeway_account
     view.request = fake_request
     view.kwargs = {}
     article_ids_of_views_qs = view.get_queryset().values_list("id", flat=True)
-    assert article_1.id in article_ids_of_views_qs
-    assert article_2.id not in article_ids_of_views_qs
-    assert article_3.id not in article_ids_of_views_qs
+    assert ready_for_typesetter_article.id not in article_ids_of_views_qs
+    assert assigned_to_typesetter_article.id in article_ids_of_views_qs
+    assert stage_proofing_article.id in article_ids_of_views_qs
 
 
 @pytest.mark.django_db
