@@ -90,6 +90,7 @@ from .views__production import (  # noqa F401
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DownloadRevisionFiles,
+    GalleyGenerationView,
     ListAnnotatedFilesView,
     ReadyForProofreadingView,
     TogglePublishableFlagView,

@@ -1,0 +1,17 @@
+{% extends "wjs_review/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-sm-12">
+            {% if error %}
+            <h2>{{ error }}</h2>
+            {% else %}
+            <h2>Galley generation for article {{ article.pk }} started successfully.</h2>
+            {% endif %}
+            <a href="{% url 'wjs_article_details' pk=article.articleworkflow.pk %}" class="btn btn-primary">Torna al paper</a>
+            <a href="{% url 'wjs_review_typesetter_workingon' %}" class="btn btn-primary">Torna alla lista</a>
+        </div>
+    </div>
+</div>
+{% endblock content %}

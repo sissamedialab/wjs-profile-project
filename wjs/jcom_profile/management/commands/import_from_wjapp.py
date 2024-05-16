@@ -3,38 +3,30 @@ import datetime
 import os
 import re
 import shutil
-import tarfile
 import tempfile
 import zipfile
-from io import BytesIO
 from pathlib import Path
-from typing import Union
 
 import lxml.etree
 import lxml.html
-import requests
 from core.models import Account
-from core.models import File as JanewayFile
-from django.conf import settings
 from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Q, QuerySet
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
 from journal import models as journal_models
-from lxml.html import HtmlElement
-from production.logic import save_galley, save_galley_image, save_supp_file
+from plugins.wjs_review.logic__production import AttachGalleys, JcomAssistantClient
+from production.logic import save_galley, save_supp_file
 from submission import models as submission_models
 from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
+    admin_fake_request,
     decide_galley_label,
     drop_existing_galleys,
     drop_render_galley,
-    evince_language_from_filename_and_article,
-    fake_request,
-    process_body,
     publish_article,
     query_wjapp_by_pubid,
     set_author_country,
@@ -74,6 +66,8 @@ class JCOMAssitantException(Exception):
 
 
 logger = get_logger(__name__)
+
+fake_request = admin_fake_request()
 
 
 class Command(BaseCommand):
@@ -148,7 +142,8 @@ class Command(BaseCommand):
         workdir = tmpdir / Path(workdir[0])
 
         try:
-            folder_with_unpacked_files = ask_jcomassistant_to_process(zip_file, workdir=workdir)
+            jcomassistant_client = JcomAssistantClient(zip_file, workdir=workdir)
+            folder_with_unpacked_files = jcomassistant_client.ask_jcomassistant_to_process()
         except JCOMAssitantException as ja_exception:
             logger.critical(f"Galley generation failed. Aborting process! {ja_exception}")
             logger.warning(f"Please cleanup tmpfolder {tmpdir}")
@@ -189,11 +184,7 @@ class Command(BaseCommand):
         # TODO: drop option "skip-galley-generation"? We need to contact jcomassistant anyway...
         if not self.options["skip_galley_generation"]:
             try:
-                self.set_html_galley(article, folder_with_unpacked_files)
-
-                epub_galley_filename = [f for f in ja_files if f.endswith(".epub")][0]
-                epub_galley_filename = folder_with_unpacked_files / Path(epub_galley_filename)
-                self.set_epub_galley(article, epub_galley_filename, pubid)
+                AttachGalleys(folder_with_unpacked_files, article, fake_request).run()
 
             except Exception as exception:
                 logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
@@ -239,61 +230,6 @@ class Command(BaseCommand):
             identifier=pubid,
         )
         drop_render_galley(article)
-
-    def set_html_galley(self, article, folder_with_unpacked_files: Path):
-        """Set the give file as HTML galley."""
-        html_galley_filename = [f for f in folder_with_unpacked_files.iterdir() if f.suffix == ".html"][0]
-        html_galley_filename = folder_with_unpacked_files / Path(html_galley_filename)
-
-        html_galley_text = open(html_galley_filename).read()
-        galley_language = evince_language_from_filename_and_article(str(html_galley_filename), article)
-        processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
-        name = "body.html"
-        html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)
-        label = "HTML"
-        new_galley = save_galley(
-            article,
-            request=fake_request,
-            uploaded_file=html_galley_file,
-            is_galley=True,
-            label=label,
-            save_to_disk=True,
-            public=True,
-            html_prettify=False,
-        )
-        expected_mimetype = "text/html"
-        acceptable_mimetypes = [
-            "text/plain",
-        ]
-        if new_galley.file.mime_type != expected_mimetype:
-            if new_galley.file.mime_type not in acceptable_mimetypes:
-                logger.warning(f"Wrong mime type {new_galley.file.mime_type} for {html_galley_filename}")
-            new_galley.file.mime_type = expected_mimetype
-            new_galley.file.save()
-        article.render_galley = new_galley
-        article.save()
-        mangle_images(article, folder_with_unpacked_files)
-
-    def set_epub_galley(self, article, epub_galley_filename, pubid):
-        """Set the give file as EPUB galley."""
-        # We should be working in the folder where
-        # `epub_galley_filename` resides, so the file name and the
-        # file path are the same.
-        epub_galley_file = File(open(epub_galley_filename, "rb"), name=epub_galley_filename)
-        label = "EPUB"
-        file_mimetype = "application/epub+zip"
-        label, language = decide_galley_label(pubid, file_name=str(epub_galley_filename), file_mimetype=file_mimetype)
-        # language is set when we process the PDF galleys
-        save_galley(
-            article,
-            request=fake_request,
-            uploaded_file=epub_galley_file,
-            is_galley=True,
-            label=label,
-            save_to_disk=True,
-            public=True,
-        )
-        logger.debug(f"EPUB galley {label} set onto {pubid}")
 
     def set_authors(self, article, xml_obj):
         """Find and set the article's authors, creating them if necessary."""
@@ -718,45 +654,6 @@ class Command(BaseCommand):
             )
 
 
-# TODO: consider refactoring with import_from_drupal
-def download_and_store_article_file(image_source_url: Path, article):
-    """Downaload a media file and link it to the article."""
-    if not image_source_url.exists():
-        logger.error(f"Img {image_source_url.resolve()} does not exist. {os.getcwd()=}")
-    image_name = image_source_url.name
-    image_file = File(open(image_source_url, "rb"), name=image_name)
-    new_file: JanewayFile = save_galley_image(
-        article.get_render_galley,
-        request=fake_request,
-        uploaded_file=image_file,
-        label=image_name,  # [*]
-    )
-    # [*] I tryed to look for some IPTC metadata in the image
-    # itself (Exif would probably be useless as it is mostly related
-    # to the picture technical details) with `exiv2 -P I ...`, but
-    # found 3 maybe-useful metadata on ~1600 files and abandoned
-    # this idea.
-    return new_file
-
-
-def mangle_images(article, folder_with_unpacked_files: Path):
-    """Download all <img>s in the article's galley and adapt the "src" attribute."""
-    render_galley = article.get_render_galley
-    galley_file: JanewayFile = render_galley.file
-    galley_string: str = galley_file.get_file(article)
-    html: HtmlElement = lxml.html.fromstring(galley_string)
-    images = html.findall(".//img")
-    for image in images:
-        img_src = image.attrib["src"].split("?")[0]
-        img_src = folder_with_unpacked_files / img_src
-        img_obj: JanewayFile = download_and_store_article_file(img_src, article)
-        # TBV: the `src` attribute is relative to the article's URL
-        image.attrib["src"] = img_obj.label
-
-    with open(galley_file.self_article_path(), "wb") as out_file:
-        out_file.write(lxml.html.tostring(html, pretty_print=False))
-
-
 def set_pdf_galley(article, file_path, pubid):
     """Set a pdf galley onto the given article.
 
@@ -766,7 +663,7 @@ def set_pdf_galley(article, file_path, pubid):
     file_name = os.path.basename(file_path)
     file_mimetype = "application/pdf"  # I just know it! (sry :)
     uploaded_file = File(open(file_path, "rb"), file_name)
-    label, language = decide_galley_label(pubid, file_name=file_name, file_mimetype=file_mimetype)
+    label, language = decide_galley_label(file_name=file_name, file_mimetype=file_mimetype)
     # We can have 2 non-English galleys (PDF and EPUB),
     # they are supposed to be of the same language. Not checking.
     #
@@ -924,77 +821,3 @@ def link_to_existing_newsletter_recipient_maybe(author: Account, journal: journa
         logger.info(f"We could link author {author} to a pre-existing newsletter recipient via email {author.email}")
     elif number_of_matches > 1:
         logger.error(f"Found {number_of_matches} recipients for author {author} on journal {journal}. This is bad!")
-
-
-def ask_jcomassistant_to_process(
-    source_archive: Union[str, Path],
-    workdir: Union[str, Path] = None,
-) -> Path:
-    """Send the given zip file to jcomassistant for processing.
-
-    Return the path to a folder with the unpacked response.
-    """
-    url = settings.JCOMASSISTANT_URL
-    logger.debug(f"Contacting jcomassistant service at {url}...")
-    files = {"file": open(source_archive, "rb")}
-    response = requests.post(url=url, files=files)
-    if response.status_code != 200:
-        logger.error("Unexpected status code {response.status_code} processing {source_archive}. Trying to proceed...")
-    return unpack_targz_from_jcomassistant(response.content, workdir)
-
-
-def unpack_targz_from_jcomassistant(
-    galleys_archive: bytes,
-    workdir: Union[str, Path] = None,
-):
-    """Unpack an archive received from jcomassistant.
-
-    Accept the archive in the form of a bytes string.
-
-    If a workdir is provided, unpack it in a new folder there,
-    otherwise create and use a temporary folder.
-    The caller should clean up if necessary.
-    """
-    unpack_dir = tempfile.mkdtemp(dir=workdir)
-    # Use BytesIO to treat bytes data as a file
-    with BytesIO(galleys_archive) as file_obj:
-        # Open the tar.gz archive
-        with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-            # Extract all contents into the unpack directory
-            tar.extractall(path=unpack_dir)
-
-    reemit_info_and_up(unpack_dir=Path(unpack_dir))
-
-    logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
-    return unpack_dir
-
-
-def reemit_info_and_up(unpack_dir: Path) -> None:
-    """Emit as log messages lines read from the given log file.
-
-    Expect the logfile to contain log-formatted lines suchs as:
-    DEBUG From: ...
-
-    Re-emit only info, wraning, error and critical.
-    """
-    # log files are called something like
-    # - galley-xxx.epub_log
-    # - galley-xxx.html_log
-    # - galley-xxx.srvc_log
-    # We are going to use only the service log (*.srvc_log)
-    srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
-    if len(srvc_log_files) != 1:
-        logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
-    srvc_log_file = srvc_log_files[0]
-    with open(srvc_log_file) as log_file:
-        for line in log_file:
-            if line.startswith("INFO"):
-                logger.info(f"JA {line[11:-1]}")
-            elif line.startswith("WARNING"):
-                logger.warning(f"JA {line[14:-1]}")
-            elif line.startswith("ERROR"):
-                logger.error(f"JA {line[12:-1]}")
-            elif line.startswith("CRITICAL"):
-                logger.critical(f"JA {line[15:-1]}")
-            elif line.startswith("DEBUG"):
-                logger.debug(f"JA {line[12:-1]}")

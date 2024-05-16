@@ -47,6 +47,7 @@ from .logic__production import (  # noqa F401
     AssignTypesetter,
     AuthorSendsCorrections,
     RequestProofs,
+    UploadFile,
     VerifyProductionRequirements,
 )
 from .reminders.models import Reminder

@@ -99,6 +99,9 @@
             <div class="col">
                 {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
             </div>
+            <div class="col">
+                {% for galley in article.galley_set.all %}<li>{{ galley.file.original_filename }} {{ galley.label }}</li>{% endfor %}
+            </div>
         </div>
     </div>
                 <div class="row">
