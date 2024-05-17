@@ -3,6 +3,7 @@
 {% user_has_role request 'author' as user_is_author %}
 {% user_has_role request 'reviewer' as user_is_reviewer %}
 {% user_has_role request 'director' as user_is_director %}
+{% user_has_role request 'typesetter' as user_is_typesetter %}
 
 {% url 'submission_start' as submission_start %}
 {% url 'core_manager_index' as core_manager_index %}
@@ -22,6 +23,9 @@
 {% url 'manage_archive_article' article.pk as manage_archive_article %}
 {% url 'manage_issues_id' issue.pk as manage_issues_id %}
 {% url 'core_manager_edit_news' news_item.pk as core_manager_edit_news %}
+{% url 'wjs_review_typesetter_pending' as wjs_review_typesetter_pending %}
+{% url 'wjs_review_typesetter_workingon' as wjs_review_typesetter_workingon %}
+
 <div class="dropdown">
   <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" id="user-menu" data-bs-toggle="dropdown" aria-expanded="false">
     {% if view.role %}
@@ -60,6 +64,13 @@
       <li>
         <a class="dropdown-item" href="{{ wjs_review_eo_pending }}">{% trans "My EO Pages" %}</a>
       </li>
+    {% endif %}
+    {% if user_is_typesetter %}
+        {% if wjs_review_typesetter_workingon %}
+        <li>
+            <a class="dropdown-item" href="{{ wjs_review_typesetter_workingon }}">{% trans "My Typesetter Pages" %}</a>
+        </li>
+        {% endif %}
     {% endif %}
     {% if request.user.is_staff or request.user|is_user_eo %}
       <li>
