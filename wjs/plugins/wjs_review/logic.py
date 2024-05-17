@@ -110,7 +110,17 @@ states_when_article_is_considered_in_production = [
     ArticleWorkflow.ReviewStates.PROOFREADING,
     ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
 ]
-
+states_when_article_is_considered_typesetter_pending = [
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+]
+states_when_article_is_considered_typesetter_working_on = [
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+]
+states_when_article_is_considered_production_archived = [
+    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+    ArticleWorkflow.ReviewStates.PUBLISHED,
+]
 states_when_article_is_considered_missing_editor = [
     ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
     ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,

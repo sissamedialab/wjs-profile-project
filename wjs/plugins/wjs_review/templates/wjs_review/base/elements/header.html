@@ -11,7 +11,7 @@
               <img src="{% static "common/img/sample/janeway.png" %}" alt="{% trans "Logo Janeway" %}">
             {% endif %}
             <div class="d-flex flex-column justify-content-around">
-              <div class="d-flex justify-content-between">
+              <nav>
                 <ul class="pre-header__social-links nav">
                   {% if journal_settings.general.twitter_handle %}
                     <li class="nav-item"><a class="nav-link pt-0" href="{{ journal_settings.general.twitter_handle }}" target="_blank" title="Twitter"><i class="bi bi-twitter-x"></i></a></li>
@@ -23,8 +23,8 @@
                     <li class="nav-item"><a class="nav-link pt-0" href="{% journal_url 'rss_articles' %}" target="_blank" title="RSS"><i class="bi bi-rss"></i></a></li>
                   {% endif %}
                 </ul>
-              </div>
-              <nav class="d-flex align-items-end">
+              </nav>
+              <nav>
                 <ul class="nav">
                   {% block top_menu %}
                   {% endblock top_menu %}
