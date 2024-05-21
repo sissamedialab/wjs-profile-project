@@ -16,7 +16,12 @@ from django_fsm import GET_STATE, FSMField, transition
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
 from review.const import EditorialDecisions
-from review.models import ReviewAssignment, ReviewRound, RevisionRequest
+from review.models import (
+    EditorAssignment,
+    ReviewAssignment,
+    ReviewRound,
+    RevisionRequest,
+)
 from submission.models import Article
 from utils.logger import get_logger
 
@@ -24,7 +29,7 @@ from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.models import Correspondence
 
 from . import permissions
-from .managers import ArticleWorkflowQuerySet
+from .managers import ArticleWorkflowQuerySet, WjsEditorAssignmentQuerySet
 from .reminders.models import Reminder  # noqa F401
 
 logger = get_logger(__name__)
@@ -137,6 +142,9 @@ class ArticleWorkflow(TimeStampedModel):
 
     def __str__(self):
         return f"{self.article.id}-{self.state}"
+
+    def get_absolute_url(self):
+        return reverse("wjs_article_details", args=[self.pk])
 
     def pending_revision_request(self):
         try:
@@ -737,6 +745,36 @@ class MessageThread(models.Model):
     relation_type = models.CharField(max_length=101, choices=MessageRelation.choices)
 
 
+class WjsEditorAssignment(EditorAssignment):
+    review_rounds = models.ManyToManyField("review.ReviewRound", verbose_name=_("Managed review rounds"), blank=True)
+
+    objects = WjsEditorAssignmentQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = _("Editor assignment")
+        verbose_name_plural = _("Editor assignments")
+        get_latest_by = "assigned"
+
+
+class PastEditorAssignment(models.Model):
+    """A record of past editor assignments."""
+
+    article = models.ForeignKey(
+        Article,
+        verbose_name=_("Article"),
+        on_delete=models.CASCADE,
+        related_name="past_editor_assignments",
+    )
+    editor = models.ForeignKey(Account, verbose_name=_("Editor"), on_delete=models.CASCADE)
+    date_assigned = models.DateTimeField(_("Date assigned"))
+    date_unassigned = models.DateTimeField(_("Date unassigned"))
+    review_rounds = models.ManyToManyField("review.ReviewRound", verbose_name=_("Managed review rounds"), blank=True)
+
+    class Meta:
+        verbose_name = _("Past editor assignment")
+        verbose_name_plural = _("Past editor assignments")
+
+
 class EditorRevisionRequest(RevisionRequest):
     """Extend Janeway's RevisionRequest model to add review round reference."""
 
@@ -825,3 +863,61 @@ class ProphyCandidate(models.Model):
         verbose_name=_("Prophy score"),
     )
     prophy_manuscript_id = models.IntegerField(blank=True, null=True)
+
+
+class PermissionAssignment(TimeStampedModel):
+    class PermissionType(models.TextChoices):
+        ALL = "all", _("All")
+        NO_NAMES = "no_names", _("Hide names")
+        DENY = "deny", _("Deny permission")
+
+    user = models.ForeignKey(Account, verbose_name=_("User"), on_delete=models.CASCADE)
+    content_type = models.ForeignKey(
+        ContentType,
+        verbose_name=_("Content type"),
+        on_delete=models.CASCADE,
+        null=False,
+    )
+    object_id = models.PositiveIntegerField(
+        verbose_name=_("Object ID"),
+        blank=False,
+        null=False,
+    )
+    target = GenericForeignKey(
+        "content_type",
+        "object_id",
+    )
+    permission = models.CharField(
+        _("Permission set"),
+        max_length=255,
+        blank=False,
+        default=PermissionType.NO_NAMES,
+        choices=PermissionType.choices,
+    )
+
+    class Meta:
+        unique_together = ("user", "content_type", "object_id")
+        verbose_name = _("Permission assignment")
+        verbose_name_plural = _("Permission assignments")
+
+    def match_permission(self, permission_type: PermissionType) -> bool:
+        """
+        Check if the current permission matches the requested permission type.
+
+        If the current permission is set to deny, the function will return False bypassing the check of the
+        requested permission because the user has no permission anyway.
+        If the current permission is set to all, the function will return True bypassing the check of the
+        requested permission because the user has all permission.
+        If requested permission is empty, the function will return True for any value of the current permission except
+        for deny.
+
+        :param permission_type:
+        :type permission_type: PermissionAssignment.PermissionType
+        :return: requested permission matches the current permission
+        :rtype: bool
+        """
+        if self.permission == PermissionAssignment.PermissionType.DENY.value:
+            return False
+        if self.permission == PermissionAssignment.PermissionType.ALL.value:
+            return True
+        return self.permission == permission_type.value or permission_type.value == ""

@@ -5,7 +5,6 @@ import random
 from datetime import timedelta
 from importlib import import_module
 from typing import Callable, List, Optional
-from unittest.mock import Mock
 
 import factory
 import pytest
@@ -17,6 +16,7 @@ from django.contrib.auth.models import Group
 from django.contrib.messages.storage import default_storage
 from django.core import management
 from django.core.cache import cache
+from django.http import QueryDict
 from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
 from django.utils.timezone import now
@@ -159,9 +159,8 @@ def fake_request(journal, settings):
     engine = import_module(settings.SESSION_ENGINE)
 
     fake_request = create_fake_request(user=None, journal=journal)
-    # Workaround for possible override in DEBUG mode
-    # (please read utils.template_override_middleware:60)
-    fake_request.GET.get = Mock(return_value=False)
+    fake_request.GET = QueryDict("", mutable=True)
+    fake_request.POST = QueryDict("", mutable=True)
     GlobalRequestMiddleware.process_request(fake_request)
     # messages are required by review functions
     settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"

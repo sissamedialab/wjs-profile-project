@@ -12,8 +12,6 @@ from django.db import models
 from django.http import HttpRequest
 from django.utils import timezone
 from journal import models as journal_models
-from plugins.wjs_review.conditions import any_reviewer_is_late_after_reminder
-from plugins.wjs_review.forms import ReportForm
 from review import models as review_models
 from submission import models as submission_models
 
@@ -22,6 +20,8 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_eo_user, update_date_send_reminders
+from ..conditions import any_reviewer_is_late_after_reminder
+from ..forms import ReportForm
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -35,6 +35,7 @@ from ..models import (
     EditorRevisionRequest,
     Message,
     Reminder,
+    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 from ..reminders.settings import (
@@ -150,7 +151,7 @@ def test_reminder_to_single_director(
     new_director.add_account_role(DIRECTOR_ROLE, assigned_article.journal)
     if set_main_director:
         new_director.add_account_role(DIRECTOR_MAIN_ROLE, assigned_article.journal)
-    assignment = assigned_article.editorassignment_set.first()
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article)
     fake_request.user = assignment.editor
     HandleEditorDeclinesAssignment(
         assignment=assignment,
@@ -194,8 +195,8 @@ def test_assign_reviewer_creates_reminders(
 
     assert Reminder.objects.count() == 3
     editor_reminders = Reminder.objects.filter(
-        content_type=ContentType.objects.get_for_model(assigned_article.editorassignment_set.first()),
-        object_id=assigned_article.editorassignment_set.first().id,
+        content_type=ContentType.objects.get_for_model(WjsEditorAssignment.objects.get_current(assigned_article)),
+        object_id=WjsEditorAssignment.objects.get_current(assigned_article).id,
     )
     assert editor_reminders.count() == 3
     assert all("EDSR" in code for code in editor_reminders.values_list("code", flat=True))
@@ -419,7 +420,7 @@ class TestReviewerDeclines:
     ):
         """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
         # TODO: remove me! Sanity check: (twin with test_paper_assignment_create_reminders_for_editor)
-        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+        editor_assignment: WjsEditorAssignment = WjsEditorAssignment.objects.get(
             article=assigned_article,
             editor=section_editor,
         )
@@ -516,7 +517,7 @@ class TestReviewerDeclines:
     ):
         """Test that reminders for the reviewer are deleted and reminders for the editor are _not_ created."""
         # TODO: remove me! Sanity check: (twin with test_paper_assignment_create_reminders_for_editor)
-        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+        editor_assignment: WjsEditorAssignment = WjsEditorAssignment.objects.get(
             article=assigned_article,
             editor=section_editor,
         )
@@ -607,7 +608,7 @@ class TestReviewerDeclines:
     ):
         """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
         # Sanity check: (twin with test_paper_assignment_create_reminders_for_editor)
-        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+        editor_assignment: WjsEditorAssignment = WjsEditorAssignment.objects.get(
             article=assigned_article,
             editor=section_editor,
         )
@@ -706,7 +707,7 @@ class TestReviewerSubmits:
         """Test that reminders for the reviewer are deleted and reminders for the editor are created."""
         assigned_article = review_assignment.article
         # Sanity check:
-        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+        editor_assignment: WjsEditorAssignment = WjsEditorAssignment.objects.get(
             article=assigned_article,
             editor=section_editor,
         )
@@ -759,7 +760,7 @@ class TestReviewerSubmits:
         fake_request: HttpRequest,
     ):
         """Test that editor-should-make-decision reminder are created only after the last review is submitted."""
-        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+        editor_assignment: WjsEditorAssignment = WjsEditorAssignment.objects.get(
             article=assigned_article,
         )
         editor = editor_assignment.editor
@@ -829,7 +830,7 @@ class TestReviewerSubmits:
         fake_request: HttpRequest,
     ):
         """Test editor-should-make-decision reminders are not created if there is a pending assignment."""
-        editor_assignment: review_models.EditorAssignment = review_models.EditorAssignment.objects.get(
+        editor_assignment: WjsEditorAssignment = WjsEditorAssignment.objects.get(
             article=assigned_article,
         )
         editor = editor_assignment.editor
@@ -879,7 +880,7 @@ def test_paper_assignment_create_reminders_for_editor(
 ):
     """Test that when a paper is assigned to an editor, reminders are created for the editor to select reviewers."""
     # The `assigned_article` fixture already performed the assignment, so we just check the reminders
-    editor_assignment = review_models.EditorAssignment.objects.get(article=assigned_article, editor=section_editor)
+    editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article, editor=section_editor)
     reminders = Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(editor_assignment),
         object_id=editor_assignment.id,
@@ -1120,28 +1121,28 @@ def test_three_papers_three_reviewers(
     AssignToEditor(article=a, editor=e1, request=fake_request).run()
     a.refresh_from_db()
     assert a.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    ea_a = a.editorassignment_set.first()
+    ea_a = WjsEditorAssignment.objects.get_current(a)
 
     b.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     b.articleworkflow.save()
     AssignToEditor(article=b, editor=e2, request=fake_request).run()
     b.refresh_from_db()
     assert b.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    ea_b = b.editorassignment_set.first()
+    ea_b = WjsEditorAssignment.objects.get_current(b)
 
     c.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     c.articleworkflow.save()
     AssignToEditor(article=c, editor=e2, request=fake_request).run()
     c.refresh_from_db()
     assert c.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    ea_c = c.editorassignment_set.first()
+    ea_c = WjsEditorAssignment.objects.get_current(c)
 
     d.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     d.articleworkflow.save()
     AssignToEditor(article=d, editor=e2, request=fake_request).run()
     d.refresh_from_db()
     assert d.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    ea_d = d.editorassignment_set.first()
+    ea_d = WjsEditorAssignment.objects.get_current(d)
 
     assert (
         Reminder.objects.filter(
@@ -1499,7 +1500,7 @@ def test_editor_declines(
     t0 = timezone.localtime(timezone.now()).date()
     assert Reminder.objects.all().count() == 3
     assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
-    editor_assignment = review_models.EditorAssignment.objects.get(article=assigned_article)
+    editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article)
     HandleEditorDeclinesAssignment(
         assignment=editor_assignment,
         editor=editor_assignment.editor,
@@ -1531,7 +1532,7 @@ def test_director_assigns(
     Reminders for the director are deleted and reminders for the editor are created if director selects an editor.
     """
     t0 = timezone.localtime(timezone.now()).date()
-    editor_assignment = review_models.EditorAssignment.objects.get(article=assigned_article)
+    editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article)
     HandleEditorDeclinesAssignment(
         assignment=editor_assignment,
         editor=editor_assignment.editor,
@@ -1544,7 +1545,6 @@ def test_director_assigns(
         article=assigned_article,
         request=fake_request,
         workflow=assigned_article.articleworkflow,
-        first_assignment=False,
     ).run()
     assert Reminder.objects.all().count() == 3
     assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
@@ -1603,7 +1603,7 @@ class TestEditorDecides:
     ):
         """Test that reminders for the editor are deleted and author's are created if revision is requested."""
 
-        editor_assignment = assigned_article.editorassignment_set.first()
+        editor_assignment = WjsEditorAssignment.objects.get_current(assigned_article)
         section_editor = editor_assignment.editor
         fake_request.user = section_editor
         form_data = {

@@ -9,17 +9,16 @@ from django.http import HttpRequest
 from django.utils import timezone
 from django.views.generic.list import MultipleObjectMixin
 from journal import models as journal_models
-from plugins.wjs_review.logic import (
-    states_when_article_is_considered_archived,
-    states_when_article_is_considered_in_review,
-)
-from review.models import EditorAssignment
 
 from wjs.jcom_profile.models import JCOMProfile
 
 from .. import views
 from ..filters import EOArticleWorkflowFilter, status_choices
-from ..models import ArticleWorkflow, WorkflowReviewAssignment
+from ..logic import (
+    states_when_article_is_considered_archived_for_review,
+    states_when_article_is_considered_in_review,
+)
+from ..models import ArticleWorkflow, WjsEditorAssignment, WorkflowReviewAssignment
 
 
 @pytest.mark.django_db
@@ -148,7 +147,7 @@ class TestListViews:
         articles = create_submitted_articles(journal, count=30)
         for article in articles:
             article.articleworkflow.state = random.choice(
-                states_when_article_is_considered_in_review + states_when_article_is_considered_archived,
+                states_when_article_is_considered_in_review + states_when_article_is_considered_archived_for_review,
             )
             article.articleworkflow.save()
 
@@ -158,9 +157,12 @@ class TestListViews:
             users[role] = cls._create_user(create_jcom_user, journal, role)
 
         article_qs = ArticleWorkflow.objects.all()
-        for state_list in (states_when_article_is_considered_in_review, states_when_article_is_considered_archived):
+        for state_list in (
+            states_when_article_is_considered_in_review,
+            states_when_article_is_considered_archived_for_review,
+        ):
             for workflow in random.sample(list(article_qs.filter(state__in=state_list)), k=3):
-                EditorAssignment.objects.create(
+                WjsEditorAssignment.objects.create(
                     article=workflow.article,
                     editor=users["section-editor"],
                     editor_type="section-editor",
@@ -270,7 +272,9 @@ class TestListViews:
                 article__reviewassignment__is_complete=True,
             ).exists()
         else:
-            assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_archived)
+            assert set(qs.values_list("state", flat=True)).issubset(
+                states_when_article_is_considered_archived_for_review
+            )
             if role == "author":
                 assert qs.filter(article__authors=user).exists()
             elif role == "section-editor":

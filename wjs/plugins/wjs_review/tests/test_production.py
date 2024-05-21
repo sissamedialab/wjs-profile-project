@@ -16,7 +16,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 
 from ..communication_utils import get_eo_user
-from ..models import ArticleWorkflow, Message, MessageThread
+from ..models import ArticleWorkflow, Message, MessageThread, WjsEditorAssignment
 from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
     _accept_article,
@@ -94,7 +94,7 @@ def test_codone_lists_papers_from_all_journals(
 
     # Use the same editor for both articles
     # NB: the user must have editor or section-editor role in both journals!
-    editor = article_1.editorassignment_set.last().editor
+    editor = WjsEditorAssignment.objects.get_current(article_1).editor
     editor_role_slug = "section-editor"
     editor.add_account_role(editor_role_slug, journal_2)
     fake_request.user = editor

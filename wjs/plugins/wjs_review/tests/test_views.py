@@ -18,9 +18,15 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
-from ..models import EditorRevisionRequest, Message
+from ..logic import AssignToEditor, HandleDecision, HandleEditorDeclinesAssignment
+from ..models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    Message,
+    WjsEditorAssignment,
+)
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..views import SelectReviewer
+from ..views import EditorArchived, SelectReviewer
 
 
 @pytest.mark.django_db
@@ -152,7 +158,7 @@ def test_invite_button_is_in_select_reviewer_interface(
     client: Client,
     assigned_article: submission_models.Article,
 ):
-    section_editor = assigned_article.editorassignment_set.first().editor
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     url = reverse("wjs_select_reviewer", args=(assigned_article.articleworkflow.pk,))
     client.force_login(section_editor)
     response = client.get(url)
@@ -168,7 +174,7 @@ def test_invite_function_creates_inactive_user(
     review_form: ReviewForm,
     fake_request: HttpRequest,
 ):
-    section_editor = assigned_article.editorassignment_set.first().editor
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
     client.force_login(section_editor)
     data = {
@@ -615,3 +621,63 @@ def test_editor_with_kdws_list_retrieval(article_with_keywords, editors_with_key
 
     assert editors_list[0] == editors_with_keywords[0].janeway_account
     assert editors_list[2] == editors_with_keywords[3].janeway_account
+
+
+@pytest.mark.django_db
+def test_editor_archived(
+    assigned_article: Article,
+    section_editor: JCOMProfile,
+    submitted_articles: list[Article],
+    fake_request: HttpRequest,
+):
+    """
+    Archived articles for an editor are either past review still assigned to them, and article with past assignment.
+    """
+    fake_request.user = section_editor.janeway_account
+
+    past_assigned = submitted_articles[0]
+    accepted = submitted_articles[1]
+
+    past_assigned.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    past_assigned.articleworkflow.save()
+    accepted.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    accepted.articleworkflow.save()
+    past_assignment = AssignToEditor(
+        editor=section_editor.janeway_account,
+        article=past_assigned,
+        request=fake_request,
+        first_assignment=True,
+    ).run()
+    past_assigned.articleworkflow.refresh_from_db()
+    HandleEditorDeclinesAssignment(
+        editor=section_editor.janeway_account,
+        assignment=past_assignment,
+        request=fake_request,
+    ).run()
+
+    AssignToEditor(
+        editor=section_editor.janeway_account,
+        article=accepted,
+        request=fake_request,
+        first_assignment=True,
+    ).run()
+    accepted.articleworkflow.refresh_from_db()
+    HandleDecision(
+        workflow=accepted.articleworkflow,
+        form_data={
+            "decision": ArticleWorkflow.Decisions.ACCEPT,
+            "decision_editor_report": "test",
+            "decision_internal_note": "test",
+        },
+        user=section_editor.janeway_account,
+        request=fake_request,
+    ).run()
+    accepted.articleworkflow.refresh_from_db()
+
+    view = EditorArchived()
+    view.request = fake_request
+    view.setup(fake_request)
+    qs = view.get_queryset()
+    assert qs.count() == 2
+    assert accepted.articleworkflow in qs
+    assert past_assigned.articleworkflow in qs

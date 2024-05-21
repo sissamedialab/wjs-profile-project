@@ -16,8 +16,13 @@ from review.models import ReviewAssignment, RevisionRequest
 from submission.models import Article
 
 from .communication_utils import get_eo_user
-from .models import ArticleWorkflow, Message, WorkflowReviewAssignment
-from .reminders.models import Reminder
+from .models import (
+    ArticleWorkflow,
+    Message,
+    Reminder,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 
 Account = get_user_model()
 
@@ -186,7 +191,7 @@ def one_review_assignment_late(article: Article) -> str:
 
 def editor_as_reviewer_is_late(article: Article) -> str:
     """Tell if the article has the editor as reviewer and the editor is "late" with the review."""
-    if editor_assignment := article.editorassignment_set.order_by("assigned").last():
+    if editor_assignment := WjsEditorAssignment.objects.get_current(article):
         editor = editor_assignment.editor
     else:
         return ""

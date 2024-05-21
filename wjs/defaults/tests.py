@@ -71,8 +71,8 @@ HIJACK_USERS_ENABLED = True
 
 # As long as the production functions are replaced in default settings we must use these in tests
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-    None: "wjs_review.events.assignment.default_assign_editors_to_articles",
-    "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
+    None: "plugins.wjs_review.events.assignment.default_assign_editors_to_articles",
+    "JCOM": "plugins.wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
 Q_CLUSTER = {

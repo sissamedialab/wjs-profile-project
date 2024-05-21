@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Union
+
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -6,6 +8,9 @@ from review.models import ReviewAssignment
 from submission.models import Article
 
 from wjs.jcom_profile.permissions import has_eo_role
+
+if TYPE_CHECKING:
+    from .models import ArticleWorkflow, WjsEditorAssignment
 
 
 class ArticleWorkflowQuerySet(models.QuerySet):
@@ -90,3 +95,33 @@ class ArticleWorkflowQuerySet(models.QuerySet):
     def with_all_completed_reviews(self) -> QuerySet:
         """Return ArticleWorkflow with no pending reviewassignment for the latest review round."""
         return self.with_reviews().exclude(article__reviewassignment__is_complete=False)
+
+
+class WjsEditorAssignmentQuerySet(models.QuerySet):
+    def get_current(self, article: Union[Article, "ArticleWorkflow"]) -> "WjsEditorAssignment":
+        """
+        Get the current editor assignment for the given article.
+
+        :param article: the article to get the current editor assignment for
+        :type article: Article or ArticleWorkflow
+
+        :return: the current editor assignment
+        :rtype: WjsEditorAssignment
+        """
+        return self.get_all(article=article).latest()
+
+    def get_all(self, article: Union[Article, "ArticleWorkflow"]) -> QuerySet:
+        """
+        Get all the editor assignments for the given article.
+
+        :param article: the article to get the editor assignments for
+        :type article: Article or ArticleWorkflow
+
+        :return: the editor assignments for the given article
+        :rtype: QuerySet
+        """
+        from .models import ArticleWorkflow
+
+        if isinstance(article, ArticleWorkflow):
+            article = article.article
+        return self.filter(article=article)

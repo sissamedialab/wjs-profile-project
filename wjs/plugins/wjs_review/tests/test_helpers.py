@@ -8,6 +8,7 @@ from wjs.jcom_profile.models import JCOMProfile
 
 from ..forms import ReportForm
 from ..logic import AssignToReviewer, SubmitReview
+from ..models import WjsEditorAssignment
 from ..plugin_settings import SHORT_NAME
 
 
@@ -28,7 +29,7 @@ def _create_review_assignment(
     assigned_article: submission_models.Article,  # noqa: F405
 ) -> ReviewAssignment:
     """Create a review assignment."""
-    editor = assigned_article.editorassignment_set.first().editor
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = editor
     assign_service = AssignToReviewer(
         reviewer=reviewer_user.janeway_account,

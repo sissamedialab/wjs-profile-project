@@ -30,7 +30,7 @@ from django.views.generic import (
 )
 from journal.models import Journal
 from review import logic as review_logic
-from review.models import EditorAssignment, ReviewAssignment
+from review.models import ReviewAssignment
 from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
@@ -70,18 +70,21 @@ from .logic import (
     AdminActions,
     HandleEditorDeclinesAssignment,
     render_template_from_setting,
-    states_when_article_is_considered_archived,
+    states_when_article_is_considered_archived_for_review,
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
     states_when_article_is_considered_missing_editor,
 )
+from .logic__visibility import PermissionChecker
 from .mixins import EditorRequiredMixin
 from .models import (
     ArticleWorkflow,
     EditorRevisionRequest,
     Message,
     MessageRecipients,
+    PermissionAssignment,
     Reminder,
+    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 from .prophy import Prophy
@@ -206,9 +209,6 @@ class EditorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, ListView):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        # TODO: what happens to EditorAssignments when the editor is changed?
-        #       - we want to track the info about past assignments
-        #       - we want to have only one "live" editor an any given moment
         # Check on user authentication is required because this is run before LoginRequiredMixin as it's called in the
         # setup method of the view.
         if self.request.user.is_authenticated:
@@ -229,11 +229,11 @@ class EditorArchived(EditorPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        state_past = Q(state__in=states_when_article_is_considered_archived) & Q(
+        state_past = Q(state__in=states_when_article_is_considered_archived_for_review) & Q(
             article__editorassignment__editor__in=[self.request.user],
         )
-        # TODO: add PastEditorAssignment model to track past assignments in the related MR
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(state_past)
+        past_assignment = Q(article__past_editor_assignments__editor__in=[self.request.user])
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(state_past | past_assignment)
 
 
 class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -279,7 +279,7 @@ class EOArchived(EOPending):
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_archived,
+            state__in=states_when_article_is_considered_archived_for_review,
         )
 
     def get_context_data(self, **kwargs):
@@ -373,7 +373,7 @@ class DirectorArchived(DirectorPending):
         """
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_archived)
+            .filter(state__in=states_when_article_is_considered_archived_for_review)
             .exclude(article__authors=self.request.user)
         )
 
@@ -424,7 +424,7 @@ class AuthorArchived(AuthorPending):
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            Q(state__in=states_when_article_is_considered_archived)
+            Q(state__in=states_when_article_is_considered_archived_for_review)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
 
@@ -514,7 +514,7 @@ class ArticleAssignedEditorMixin:
 class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """
     View only checks the login status at view level because the permissions are checked by the queryset by using
-    :py:class:`EditorAssignment` relation with the current user.
+    :py:class:`WjsEditorAssignment` relation with the current user.
     """
 
     model = ArticleWorkflow
@@ -665,11 +665,25 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
             return super().form_invalid(form)
 
 
-class ArticleDetails(LoginRequiredMixin, DetailView):
+class ArticleDetails(UserPassesTestMixin, DetailView):
     model = ArticleWorkflow
     template_name = "wjs_review/details.html"
     context_object_name = "workflow"
     model = ArticleWorkflow
+
+    def test_func(self):
+        """Allow access only one has permission on the article."""
+
+        if not self.request.user or not self.request.user.is_authenticated:
+            return False
+
+        self.object = self.get_object()
+        return PermissionChecker()(
+            self.object,
+            self.request.user,
+            self.object.article,
+            permission_type=PermissionAssignment.PermissionType.ALL,
+        )
 
 
 class OpenReviewMixin(DetailView):
@@ -1491,16 +1505,16 @@ class ArticleReminders(UserPassesTestMixin, ListView):
         return base_permissions.has_admin_role(self.request.journalm, self.request.user)
 
     def get_queryset(self):
-        """Get reminders related to an article via ReviewAssignment or EditorAssignment or similar."""
+        """Get reminders related to an article via ReviewAssignment or WjsEditorAssignment or similar."""
         # TODO: optimize
         review_assignments = ReviewAssignment.objects.filter(article=self.article).values_list("id")
         reviewer_reminders = Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(ReviewAssignment),
             object_id__in=review_assignments,
         )
-        editor_assignments = EditorAssignment.objects.filter(article=self.article).values_list("id")
+        editor_assignments = WjsEditorAssignment.objects.filter(article=self.article).values_list("id")
         editor_reminders = Reminder.objects.filter(
-            content_type=ContentType.objects.get_for_model(EditorAssignment),
+            content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
             object_id__in=editor_assignments,
         )
         result = reviewer_reminders.union(editor_reminders)
@@ -1554,19 +1568,19 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
 
     def test_func(self):
         """User must be the article's Editor and must be assigned to the article."""
-        return self.object.article.editorassignment_set.filter(editor=self.request.user).exists()
+        return WjsEditorAssignment.objects.get_all(self.object).filter(editor=self.request.user).exists()
 
     def get_logic_instance(self):
         """Instantiate :py:class:`HandleEditorDeclinesAssignment` class."""
         service = HandleEditorDeclinesAssignment(
-            assignment=self.object.article.editorassignment_set.get(editor=self.request.user),
+            assignment=WjsEditorAssignment.objects.get_all(self.object).get(editor=self.request.user),
             editor=self.request.user,
             request=self.request,
         )
         return service
 
     def get(self, request, *args, **kwargs):
-        """Delete declined EditorAssignment using :py:class:`HandleEditorDeclinesAssignment`."""
+        """Delete declined WjsEditorAssignment using :py:class:`HandleEditorDeclinesAssignment`."""
         try:
             service = self.get_logic_instance()
             service.run()
@@ -1613,7 +1627,7 @@ class EditorAssignsDifferentEditor(UpdateView):
             # using first() to retrieve the current editor assuming that there is only one editorassignment for each
             # article, to double-check there is a condition inside the logic class "exist_other_assignments".
             # This is needed because the editor is not always the user.
-            self.object.article.editorassignment_set.first().editor,
+            WjsEditorAssignment.objects.get_current(self.object).editor,
             self.object.article,
         )
 

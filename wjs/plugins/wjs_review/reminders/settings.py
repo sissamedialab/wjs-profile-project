@@ -11,14 +11,13 @@ We decided not to use journal settings because
 import abc
 import dataclasses
 import inspect
-from typing import Any, List, Optional, Tuple
+from typing import Optional
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from journal.models import Journal
-from review.models import EditorAssignment, ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -26,8 +25,13 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_director_user, get_eo_user
-from ..models import Account, EditorRevisionRequest, WorkflowReviewAssignment
-from .models import Reminder
+from ..models import (
+    Account,
+    EditorRevisionRequest,
+    Reminder,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 
 logger = get_logger(__name__)
 
@@ -245,7 +249,7 @@ class EditorShouldSelectReviewerReminderManager(ReminderManager):
     }
 
     def __init__(self, article: Article, editor: Account):
-        self.target = EditorAssignment.objects.get(
+        self.target = WjsEditorAssignment.objects.get(
             article=article,
             editor=editor,
         )
@@ -297,7 +301,7 @@ class EditorShouldMakeDecisionReminderManager(ReminderManager):
     }
 
     def __init__(self, article: Article, editor: Account):
-        self.target = EditorAssignment.objects.get(
+        self.target = WjsEditorAssignment.objects.get(
             article=article,
             editor=editor,
         )

@@ -7,7 +7,7 @@ from submission import models as submission_models
 from wjs.jcom_profile.models import JCOMProfile
 
 from ..events import ReviewEvent
-from ..models import ArticleWorkflow
+from ..models import ArticleWorkflow, WjsEditorAssignment
 from ..plugin_settings import STAGE
 from .conftest import _accept_article
 
@@ -110,7 +110,7 @@ def test_accepted_workflow_issues(
     settings.WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
         assigned_article.journal.code: [function_name],
     }
-    fake_request.user = assigned_article.editorassignment_set.first().editor
+    fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
     # Signal is emitted on acceptance and check functions should run.
     # Even if the checks fail, the logic class should not raise any exception.
     _accept_article(fake_request, assigned_article)

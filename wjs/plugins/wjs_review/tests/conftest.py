@@ -31,7 +31,12 @@ from ..logic import (
     UploadFile,
     VerifyProductionRequirements,
 )
-from ..models import ArticleWorkflow, EditorRevisionRequest, Message
+from ..models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    Message,
+    WjsEditorAssignment,
+)
 from ..plugin_settings import (
     HANDSHAKE_URL,
     SHORT_NAME,
@@ -71,13 +76,11 @@ def review_settings(journal, eo_user):
     )
 
 
-def _assign_article(fake_request, article, section_editor):
+def _assign_article(fake_request, article, section_editor) -> Article:
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     article.articleworkflow.save()
     assignment = AssignToEditor(
-        article=article,
-        editor=section_editor,
-        request=fake_request,
+        article=article, editor=section_editor, request=fake_request, first_assignment=True
     ).run()
     workflow = assignment.article.articleworkflow
     workflow.refresh_from_db()
@@ -87,7 +90,7 @@ def _assign_article(fake_request, article, section_editor):
 
 
 @pytest.fixture
-def assigned_article(fake_request, article, section_editor, review_settings):
+def assigned_article(fake_request, article, section_editor, review_settings) -> Article:
     """
     Assign an editor to an article.
 
@@ -105,7 +108,7 @@ def assigned_article(fake_request, article, section_editor, review_settings):
 def _accept_article(
     fake_request: HttpRequest,
     article: Article,
-) -> ArticleWorkflow:
+) -> Article:
     form_data = {
         "decision": ArticleWorkflow.Decisions.ACCEPT,
         "decision_editor_report": "Some editor report",
@@ -131,7 +134,7 @@ def _accept_article(
 
 
 @pytest.fixture
-def accepted_article(fake_request, assigned_article) -> ArticleWorkflow:
+def accepted_article(fake_request, assigned_article) -> Article:
     """Create and return an accepted article.
 
     See notes about notifications in `assigned_article`.
@@ -142,11 +145,11 @@ def accepted_article(fake_request, assigned_article) -> ArticleWorkflow:
         # This can happen when this fixture is called by other fixtures
         # In this case it should be safe to assume that the editor assigned to the article is performing the acceptance
         # (which is the most common case)
-        fake_request.user = assigned_article.editorassignment_set.last().editor
+        fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
     return _accept_article(fake_request, assigned_article)
 
 
-def _ready_for_typesetter_article(article) -> ArticleWorkflow:
+def _ready_for_typesetter_article(article: Article) -> Article:
     workflow = article.articleworkflow
     if workflow.state == ArticleWorkflow.ReviewStates.ACCEPTED:
         workflow = VerifyProductionRequirements(articleworkflow=workflow).run()
@@ -156,7 +159,7 @@ def _ready_for_typesetter_article(article) -> ArticleWorkflow:
 
 
 @pytest.fixture
-def ready_for_typesetter_article(accepted_article) -> ArticleWorkflow:
+def ready_for_typesetter_article(accepted_article: Article) -> Article:
     """Create and return an ready_for_typed article.
 
     See notes about notifications in `assigned_article`.
@@ -181,7 +184,7 @@ def assigned_to_typesetter_article(
     ready_for_typesetter_article: Article,
     typesetter: Account,
     fake_request: HttpRequest,
-) -> ArticleWorkflow:
+) -> Article:
     """Create and return an article assigned to a typesetter.
 
     See notes about notifications in `assigned_article`.
@@ -213,7 +216,7 @@ def assigned_to_typesetter_article_with_files_to_typeset(
     assigned_to_typesetter_article: Article,
     fake_request: HttpRequest,
     typesetter: Account,
-) -> ArticleWorkflow:
+) -> Article:
     """Return an assigned to typesetter article with files to typeset."""
     return _assigned_to_typesetter_article_with_files_to_typeset(
         assigned_to_typesetter_article, typesetter, fake_request
@@ -246,7 +249,7 @@ def stage_proofing_article(
     assigned_to_typesetter_article: Article,
     typesetter: Account,
     fake_request: HttpRequest,
-) -> ArticleWorkflow:
+) -> Article:
     """Create and return an article in proofreading."""
     return _stage_proofing_article(assigned_to_typesetter_article, typesetter, fake_request)
 
@@ -283,7 +286,7 @@ def _assigned_to_typesetter_proofs_done_article(
 def assigned_to_typesetter_proofs_done_article(
     stage_proofing_article: Article,
     fake_request: HttpRequest,
-) -> ArticleWorkflow:
+) -> Article:
     """Create and return an article assigned to a typesetter after the author has done some proofs.
 
     See notes about notifications in `assigned_article`.
@@ -402,7 +405,7 @@ def editor_revision(assigned_article: Article, fake_request: HttpRequest) -> Edi
             "date_due": "2024-01-01",
             "withdraw_notice": "automatic",
         },
-        user=assigned_article.editorassignment_set.first().editor,
+        user=WjsEditorAssignment.objects.get_current(assigned_article).editor,
         request=fake_request,
     ).run()
     revision_request = decision.review_round.editorrevisionrequest_set.first()

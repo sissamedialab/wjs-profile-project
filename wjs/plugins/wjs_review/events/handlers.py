@@ -8,11 +8,17 @@ from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
 
-import wjs.jcom_profile.permissions
+from wjs.jcom_profile import permissions as base_permissions
 
 from .. import communication_utils
-from ..logic import VerifyProductionRequirements
-from ..models import ArticleWorkflow, Message, ProphyAccount, ProphyCandidate
+from ..logic import CreateReviewRound, VerifyProductionRequirements
+from ..models import (
+    ArticleWorkflow,
+    Message,
+    ProphyAccount,
+    ProphyCandidate,
+    WjsEditorAssignment,
+)
 from ..plugin_settings import STAGE
 from ..prophy import Prophy
 from . import ReviewEvent
@@ -74,8 +80,8 @@ def on_revision_complete(**kwargs) -> None:
     article = kwargs["revision"].article
     article.articleworkflow.author_submits_again()
     if kwargs["revision"].type != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-        new_round_number = article.current_review_round() + 1
-        review_models.ReviewRound.objects.create(article=article, round_number=new_round_number)
+        assignment = WjsEditorAssignment.objects.get_current(article)
+        CreateReviewRound(assignment=assignment).run()
     article.articleworkflow.save()
     article.stage = submission_models.STAGE_ASSIGNED
     # NB: STAGE_ASSIGNED is the correct stage here, because the other candidate STAGE_UNDER_REVIEW is set by
@@ -99,7 +105,7 @@ def log_author_uploads_revision(**kwargs) -> Message:
         actor=actor,
         recipients=[editor],
         message_type=Message.MessageTypes.STD,
-        hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+        hijacking_actor=base_permissions.get_hijacker(),
         notify_actor=communication_utils.should_notify_actor(),
     )
     return message
