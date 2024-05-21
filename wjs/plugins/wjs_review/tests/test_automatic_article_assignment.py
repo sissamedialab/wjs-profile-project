@@ -1,13 +1,15 @@
 """Tests related to the automatic assignment of articles after submission."""
+
 import pytest
 from django.test import Client, override_settings
 from django.urls import reverse
-from review.models import EditorAssignment
 
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
-DEFAULT_ASSIGN_EDITORS_TO_ARTICLES = "wjs_review.events.assignment.default_assign_editors_to_articles"
-JCOM_ASSIGN_EDITORS_TO_ARTICLES = "wjs_review.events.assignment.jcom_assign_editors_to_articles"
+from ..models import WjsEditorAssignment
+
+DEFAULT_ASSIGN_EDITORS_TO_ARTICLES = "plugins.wjs_review.events.assignment.default_assign_editors_to_articles"
+JCOM_ASSIGN_EDITORS_TO_ARTICLES = "plugins.wjs_review.events.assignment.jcom_assign_editors_to_articles"
 
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     None: DEFAULT_ASSIGN_EDITORS_TO_ARTICLES,
@@ -71,7 +73,7 @@ def test_default_normal_issue_articles_automatic_assignment(
 
         article.refresh_from_db()
         if has_editors:
-            editor_assignment = EditorAssignment.objects.get(article=article)
+            editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor
 
 
@@ -109,7 +111,7 @@ def test_default_special_issue_articles_automatic_assignment(
 
         article.refresh_from_db()
         if has_editors:
-            editor_assignment = EditorAssignment.objects.get(article=article)
+            editor_assignment = WjsEditorAssignment.objects.get_current(article=article)
             assert editor_assignment.editor == expected_editor
 
 
@@ -146,7 +148,7 @@ def test_jcom_normal_issue_articles_automatic_assignment(
 
         article.refresh_from_db()
         if has_editors:
-            editor_assignment = EditorAssignment.objects.get(article=article)
+            editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor
 
 
@@ -184,5 +186,5 @@ def test_jcom_special_issue_articles_automatic_assignment(
 
         article.refresh_from_db()
         if has_editors:
-            editor_assignment = EditorAssignment.objects.get(article=article)
+            editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor

@@ -74,5 +74,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
+            options={"verbose_name": "Reminder", "verbose_name_plural": "Reminders"},
         ),
     ]

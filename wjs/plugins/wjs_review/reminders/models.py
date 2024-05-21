@@ -54,7 +54,7 @@ class Reminder(models.Model):
     clemency_days = models.IntegerField()
 
     # The "target" of a reminder can be something like a ReviewAssigment (for reminders to reviewers), an
-    # EditorAssignment (for reminders to editors), but also just an Article (e.g. for reminders to EO related to
+    # WjsEditorAssignment (for reminders to editors), but also just an Article (e.g. for reminders to EO related to
     # articles with no editor assigned).
     content_type = models.ForeignKey(
         ContentType,
@@ -85,6 +85,11 @@ class Reminder(models.Model):
     message_subject = models.TextField()
     message_body = models.TextField()
     # TODO: add message_from_header ?
+
+    class Meta:
+        verbose_name = _("Reminder")
+        verbose_name_plural = _("Reminders")
+        app_label = "wjs_review"
 
     def __str__(self):
         return self.code

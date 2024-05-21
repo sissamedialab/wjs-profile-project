@@ -16,7 +16,7 @@ from submission.models import Article
 from wjs.jcom_profile.constants import EO_GROUP
 
 from ..logic import states_when_article_is_considered_in_production
-from ..models import ArticleWorkflow, Message
+from ..models import ArticleWorkflow, Message, WjsEditorAssignment
 
 register = template.Library()
 
@@ -109,9 +109,7 @@ def article_current_editor(article):
     # TODO: registering as a `filter` because I don't know how to use it with with otherwise
     # e.g.: {% with editor_assignment_data=article|article_current_editor %}
 
-    # The latest assigned editor is the current editor (I think...)
-    # TODO: review when we handle the editor-declines-assignment scenario
-    editor_assignment = article.editorassignment_set.order_by("assigned").first()
+    editor_assignment = WjsEditorAssignment.objects.get_current(article)
     if editor_assignment:
         return {
             "editor": editor_assignment.editor,

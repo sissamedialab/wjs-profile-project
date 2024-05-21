@@ -337,6 +337,12 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             label="Select a reviewer",
             view_name="wjs_select_reviewer",
         ),
+        ArticleAction(
+            permission=permissions.is_special_issue_supervisor,
+            name="assign permissions",
+            label="Assign permissions",
+            view_name="wjs_assign_permission",
+        ),
         # TODO: drop these? Not currently used in reviewer's templates.
         # :START
         ArticleAction(

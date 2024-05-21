@@ -16,7 +16,6 @@ from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
-from plugins.wjs_review import communication_utils
 from review.forms import GeneratedForm
 from review.models import (
     ReviewAssignment,
@@ -30,6 +29,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import EO_GROUP
 
+from . import communication_utils
 from .logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -51,6 +51,7 @@ from .models import (
     MessageRecipients,
     MessageThread,
     ProphyAccount,
+    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 
@@ -886,16 +887,16 @@ class EditorAssignsDifferentEditorForm(forms.ModelForm):
             editor=self.cleaned_data["editor"],
             article=self.instance.article,
             request=self.request,
-            first_assignment=False,
         )
 
     def get_deassignment_logic_instance(self) -> HandleEditorDeclinesAssignment:
         """Instantiate :py:class:`DeassignFromEditor` class."""
+        assignment = WjsEditorAssignment.objects.get_current(self.instance)
         return HandleEditorDeclinesAssignment(
             # Like in the view, assume that there is only one editorassignment for each article, the condition in the
             # logic will double-check it.
-            assignment=self.instance.article.editorassignment_set.first(),
-            editor=self.instance.article.editorassignment_set.first().editor,
+            assignment=assignment,
+            editor=assignment.editor,
             request=self.request,
         )
 

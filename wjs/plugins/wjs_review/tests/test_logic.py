@@ -2,6 +2,7 @@ import datetime
 from typing import Callable
 from unittest.mock import patch
 
+import freezegun
 import pytest
 from django.conf import settings
 from django.contrib.auth.models import Group
@@ -14,7 +15,7 @@ from django.utils.timezone import localtime, now
 from faker import Faker
 from review import models as review_models
 from submission import models as submission_models
-from submission.models import Keyword
+from submission.models import Article, Keyword
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -32,12 +33,23 @@ from ..logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
+    CreateReviewRound,
     EvaluateReview,
     HandleDecision,
+    HandleEditorDeclinesAssignment,
     InviteReviewer,
     PostponeReviewerDueDate,
 )
-from ..models import ArticleWorkflow, EditorDecision, EditorRevisionRequest, Message
+from ..logic__visibility import PermissionChecker
+from ..models import (
+    ArticleWorkflow,
+    EditorDecision,
+    EditorRevisionRequest,
+    Message,
+    PastEditorAssignment,
+    PermissionAssignment,
+    WjsEditorAssignment,
+)
 from ..plugin_settings import STAGE
 from ..views import ArticleRevisionUpdate
 from .test_helpers import _create_review_assignment, _submit_review
@@ -121,11 +133,9 @@ def test_assign_to_editor(
     article.articleworkflow.save()
 
     service = AssignToEditor(
-        article=article,
-        editor=section_editor.janeway_account,
-        request=fake_request,
+        article=article, editor=section_editor.janeway_account, request=fake_request, first_assignment=True
     )
-    assert article.editorassignment_set.count() == 0
+    assert WjsEditorAssignment.objects.get_all(article).count() == 0
     assert article.reviewround_set.count() == 0
 
     assignment = service.run()
@@ -133,8 +143,8 @@ def test_assign_to_editor(
     assert workflow.article == article
     article.refresh_from_db()
     assert article.stage == "Assigned"
-    assert article.editorassignment_set.count() == 1
-    assert article.editorassignment_set.first().editor == section_editor.janeway_account
+    assert WjsEditorAssignment.objects.get_all(article).count() == 1
+    assert WjsEditorAssignment.objects.get_current(article).editor == section_editor.janeway_account
     assert article.reviewround_set.count() == 1
     assert article.reviewround_set.filter(round_number=1).count() == 1
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
@@ -185,12 +195,12 @@ def test_assign_to_non_editor(
         editor=reviewer.janeway_account,
         request=fake_request,
     )
-    assert article.editorassignment_set.count() == 0
+    assert WjsEditorAssignment.objects.get_all(article).count() == 0
 
     with pytest.raises(ValueError, match="Invalid state transition"):
         service.run()
     article.refresh_from_db()
-    assert article.editorassignment_set.count() == 0
+    assert WjsEditorAssignment.objects.get_all(article).count() == 0
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     # Check messages
     assert Message.objects.count() == 0
@@ -1647,7 +1657,7 @@ def test_handle_editor_decision(
     If the editor makes a decision, article.stage is set to the next workflow stage if decision is final
     and articleworkflow.state is updated according to the decision.
     """
-    editor_user = assigned_article.editorassignment_set.first().editor
+    editor_user = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = jcom_user
     review_2 = _create_review_assignment(
         fake_request=fake_request,
@@ -1985,7 +1995,7 @@ def test_author_handle_revision(
     If it's a minor or major revision, the author uploads updated files using an existing Janeway's view which does not
     trigger our logic and then submits the revision (which is handled by the AuthorHandleRevision service).
     """
-    editor = assigned_article.editorassignment_set.first().editor
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     author = assigned_article.correspondence_author
     fake_request.user = editor
     original_review_round = assigned_article.current_review_round()
@@ -1999,7 +2009,7 @@ def test_author_handle_revision(
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
         form_data=form_data,
-        user=assigned_article.editorassignment_set.first().editor,
+        user=WjsEditorAssignment.objects.get_current(assigned_article).editor,
         request=fake_request,
     )
     if decision not in HandleDecision._decision_handlers:
@@ -2069,7 +2079,7 @@ def test_handle_multiple_revision_request_with_author_submission(
     """
     A second editor revision can be created after the author has submitted the first revision.
     """
-    editor_user = assigned_article.editorassignment_set.first().editor
+    editor_user = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = editor_user
 
     form_data = {
@@ -2163,7 +2173,7 @@ def test_handle_multiple_revision_request_no_author_submission(
     I.e., when the paper is under revision by the author, the editor cannot ask another revision,
     no matter what kind of revision (major, minor, technical).
     """
-    editor_user = assigned_article.editorassignment_set.first().editor
+    editor_user = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = editor_user
 
     form_data = {
@@ -2210,7 +2220,7 @@ def test_handle_withdraw_review_assignment(
     """
     If the editor request a revision, pending review assignment are marked as withdrawn.
     """
-    section_editor = assigned_article.editorassignment_set.first().editor
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = jcom_user
     submitted_review = _create_review_assignment(
         fake_request=fake_request,
@@ -2286,7 +2296,7 @@ def test_article_snapshot_on_revision_request(
     """
     for __ in range(3):
         assigned_article.keywords.add(Keyword.objects.create(word=fake_factory.word()))
-    section_editor = assigned_article.editorassignment_set.first().editor
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
 
     fake_request.user = section_editor
     form_data = {
@@ -2422,3 +2432,155 @@ def test_postpone_due_date(
         assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
         assert len(mail.outbox) == 2
+
+
+@pytest.mark.django_db
+def test_past_assignment(
+    assigned_article: Article,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    fake_request: HttpRequest,
+):
+    """
+    Past assignment is created when editor declines and assignment and the review round are migrated.
+
+    Test timeline:
+
+    - fixture: article is submitted and assigned to section_editor
+    - t1: review round 2 is created
+    - t2: review round 3 is created
+    - t3: section editor declines assignment
+      - state is changed to EDITOR_TO_BE_SELECTED
+      - past assignment is created
+      - r 1..3 assigned to past assignment
+    - t4: editor_2 is assigned to the article
+      - state is changed to EDITOR_SELECTED
+    - t5: review round 4 is created
+    - t6: editor_2 declines assignment
+      - state is changed to EDITOR_TO_BE_SELECTED
+      - past assignment is created
+      - r 3,4 assigned to past assignment
+        - r3 is the last round of the past assignment and so the first the new editor is allowed to see
+    - t7: editor_3 is assigned to the article
+
+    """
+    fake_request.user = section_editor.janeway_account
+    editor_2 = create_jcom_user("editor_2")
+    editor_2.add_account_role("section-editor", assigned_article.journal)
+    editor_3 = create_jcom_user("editor_3")
+    editor_3.add_account_role("section-editor", assigned_article.journal)
+    assignment_1 = WjsEditorAssignment.objects.get_current(assigned_article)
+
+    t1 = now() + datetime.timedelta(days=1)
+    t2 = t1 + datetime.timedelta(days=2)
+    t3 = t2 + datetime.timedelta(days=2)
+    t4 = t3 + datetime.timedelta(days=2)
+    t5 = t4 + datetime.timedelta(days=2)
+    t6 = t5 + datetime.timedelta(days=2)
+    t7 = t6 + datetime.timedelta(days=2)
+
+    # Preparing the history for section_editor
+    r1 = review_models.ReviewRound.objects.get(article=assigned_article, round_number=1)
+    with freezegun.freeze_time(t1):
+        r2 = CreateReviewRound(assignment=assignment_1).run()
+    with freezegun.freeze_time(t2):
+        r3 = CreateReviewRound(assignment=assignment_1).run()
+
+    with freezegun.freeze_time(t3):
+        service = HandleEditorDeclinesAssignment(
+            editor=section_editor.janeway_account,
+            assignment=assignment_1,
+            request=fake_request,
+        )
+        service.run()
+        assigned_article.refresh_from_db()
+        assigned_article.articleworkflow.refresh_from_db()
+        assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+        assert PastEditorAssignment.objects.filter(editor=section_editor.janeway_account).count() == 1
+        past_assignment_1 = PastEditorAssignment.objects.get(editor=section_editor.janeway_account)
+        assert r1 in past_assignment_1.review_rounds.all()
+        assert r2 in past_assignment_1.review_rounds.all()
+        assert r3 in past_assignment_1.review_rounds.all()
+
+    fake_request.user = editor_2.janeway_account
+    with freezegun.freeze_time(t4):
+        assignment_2 = AssignToEditor(
+            editor=editor_2.janeway_account,
+            article=assigned_article,
+            request=fake_request,
+        ).run()
+        assigned_article.articleworkflow.refresh_from_db()
+        assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    with freezegun.freeze_time(t5):
+        r4 = CreateReviewRound(assignment=assignment_2).run()
+
+    with freezegun.freeze_time(t6):
+        service = HandleEditorDeclinesAssignment(
+            editor=editor_2.janeway_account,
+            assignment=assignment_2,
+            request=fake_request,
+        )
+        service.run()
+        assigned_article.articleworkflow.refresh_from_db()
+        assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+        assert PastEditorAssignment.objects.filter(editor=editor_2.janeway_account).count() == 1
+        past_assignment_2 = PastEditorAssignment.objects.get(editor=editor_2.janeway_account)
+        assert r3 in past_assignment_2.review_rounds.all()
+        assert r4 in past_assignment_2.review_rounds.all()
+
+    fake_request.user = editor_3.janeway_account
+    with freezegun.freeze_time(t7):
+        assignment_3 = AssignToEditor(
+            editor=editor_3.janeway_account,
+            article=assigned_article,
+            request=fake_request,
+        ).run()
+        assigned_article.articleworkflow.refresh_from_db()
+        assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    # All editors that saw this article, should be able
+    # - to access the article itself
+    # - to access their own assignments
+
+    # Editor 1
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        section_editor.janeway_account,
+        assigned_article,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        section_editor.janeway_account,
+        past_assignment_1,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+
+    # Editor 2
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        editor_2.janeway_account,
+        assigned_article,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        editor_2.janeway_account,
+        past_assignment_2,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+
+    # Editor 3
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        editor_3.janeway_account,
+        assigned_article,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        editor_3.janeway_account,
+        assignment_3,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )

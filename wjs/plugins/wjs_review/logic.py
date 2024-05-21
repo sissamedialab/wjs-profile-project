@@ -31,7 +31,7 @@ from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
 from review.logic import assign_editor, quick_assign
-from review.models import EditorAssignment, ReviewRound
+from review.models import ReviewRound
 from review.views import upload_review_file
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
 from utils.setting_handler import get_setting
@@ -50,7 +50,6 @@ from .logic__production import (  # noqa F401
     UploadFile,
     VerifyProductionRequirements,
 )
-from .reminders.models import Reminder
 from .reminders.settings import (
     AuthorShouldSubmitMajorRevisionReminderManager,
     AuthorShouldSubmitMinorRevisionReminderManager,
@@ -73,16 +72,23 @@ from .models import (
     EditorDecision,
     EditorRevisionRequest,
     Message,
+    PastEditorAssignment,
+    Reminder,
+    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 
 logger = get_logger(__name__)
 Account = get_user_model()
 
-states_when_article_is_considered_archived = [
+states_when_article_is_considered_archived_for_review = [
     ArticleWorkflow.ReviewStates.WITHDRAWN,
     ArticleWorkflow.ReviewStates.REJECTED,
     ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
     ArticleWorkflow.ReviewStates.PUBLISHED,
 ]
 
@@ -114,6 +120,70 @@ states_when_article_is_considered_missing_editor = [
 
 
 @dataclasses.dataclass
+class CreateReviewRound:
+    assignment: WjsEditorAssignment
+    first: bool = False
+
+    def _get_review_round(self) -> ReviewRound:
+        if self.first:
+            review_round, __ = ReviewRound.objects.get_or_create(article=self.assignment.article, round_number=1)
+        else:
+            new_round_number = self.assignment.article.current_review_round() + 1
+            review_round = ReviewRound.objects.create(article=self.assignment.article, round_number=new_round_number)
+        return review_round
+
+    def run(self) -> ReviewRound:
+        with transaction.atomic():
+            review_round = self._get_review_round()
+            self.assignment.review_rounds.add(review_round)
+            return review_round
+
+
+@dataclasses.dataclass
+class BaseAssignToEditor:
+    """
+    Assigns an editor to an article and creates a review round to replicate the behaviour of janeway's move_to_review.
+
+    Low level service that skips checks and does not trigger a state transition: it's used by AssignToEditor and
+    automatic assigment logic functions.
+
+    request attribute **must** have user attribute set to the current user.
+    """
+
+    editor: Account
+    article: Article
+    request: HttpRequest
+    first_assignment: bool = False
+
+    def _assign_editor(self) -> WjsEditorAssignment:
+        assignment, _ = assign_editor(self.article, self.editor, "section-editor", request=self.request)
+        # This converts EditorAssignment created by assign_editor to WjsEditorAssignment, by swapping the underlying
+        # class and setting the id of the pointer field to the id of the original model.
+        assignment_id = assignment.pk
+        assignment.__class__ = WjsEditorAssignment
+        assignment.editorassignment_ptr_id = assignment_id
+        assignment.save()
+        current_review_round_object = self.article.current_review_round_object()
+        first_review_round = self.first_assignment or not current_review_round_object
+        if first_review_round:
+            self._create_review_round(assignment, first_review_round=first_review_round)
+        else:
+            assignment.review_rounds.add(current_review_round_object)
+        return assignment
+
+    def _create_review_round(self, assignment: WjsEditorAssignment, first_review_round: bool) -> ReviewRound:
+        self.article.stage = STAGE_ASSIGNED
+        self.article.save()
+        review_round = CreateReviewRound(assignment=assignment, first=first_review_round).run()
+        return review_round
+
+    def run(self) -> WjsEditorAssignment:
+        with transaction.atomic():
+            assignment = self._assign_editor()
+            return assignment
+
+
+@dataclasses.dataclass
 class AssignToEditor:
     """
     Assigns an editor to an article and creates a review round to replicate the behaviour of janeway's move_to_review.
@@ -125,29 +195,17 @@ class AssignToEditor:
     article: Article
     request: HttpRequest
     workflow: Optional[ArticleWorkflow] = None
-    assignment: Optional[EditorAssignment] = None
-    first_assignment: bool = True
+    assignment: Optional[WjsEditorAssignment] = None
+    first_assignment: bool = False
 
     def _create_workflow(self):
         self.workflow, __ = ArticleWorkflow.objects.get_or_create(
             article=self.article,
         )
 
-    def _assign_editor(self) -> EditorAssignment:
-        assignment, _ = assign_editor(self.article, self.editor, "section-editor", request=self.request)
-        if self.first_assignment:
-            self._create_review_round()
-        return assignment
-
-    def _create_review_round(self) -> ReviewRound:
-        self.article.stage = STAGE_ASSIGNED
-        self.article.save()
-        review_round, __ = ReviewRound.objects.get_or_create(article=self.article, round_number=1)
-        return review_round
-
     def _update_state(self):
         """Run FSM transition."""
-        if self.first_assignment:
+        if can_proceed(self.workflow.director_selects_editor):
             self.workflow.director_selects_editor()
         else:
             self.workflow.editor_assign_different_editor()
@@ -155,12 +213,14 @@ class AssignToEditor:
 
     def _check_conditions(self) -> bool:
         is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
-        state_conditions_director = can_proceed(self.workflow.director_selects_editor)
-        state_conditions_editor = can_proceed(self.workflow.editor_assign_different_editor)
-        exist_other_assignments = self.article.editorassignment_set.exclude(editor=self.editor).exists()
+        state_condition_to_be_selected = can_proceed(self.workflow.director_selects_editor)
+        state_condition_assign_different_editor = can_proceed(self.workflow.editor_assign_different_editor)
+        exist_other_assignments = (
+            WjsEditorAssignment.objects.get_all(self.article).exclude(editor=self.editor).count() > 1
+        )
         return (
             is_section_editor
-            and (state_conditions_director or state_conditions_editor)
+            and (state_condition_to_be_selected or state_condition_assign_different_editor)
             and not exist_other_assignments
         )
 
@@ -223,14 +283,19 @@ class AssignToEditor:
             article=self.assignment.article,
         ).delete()
 
-    def run(self) -> EditorAssignment:
+    def run(self) -> WjsEditorAssignment:
         with transaction.atomic():
             self._create_workflow()
             if not self._check_conditions():
                 raise ValueError("Invalid state transition")
             # We save the assignment here because it's used by _get_message_context() to create the context
             # to be passed to _log_operation(), and other places
-            self.assignment = self._assign_editor()
+            self.assignment = BaseAssignToEditor(
+                editor=self.editor,
+                article=self.article,
+                request=self.request,
+                first_assignment=self.first_assignment,
+            ).run()
             self._update_state()
             context = self._get_message_context()
             self._log_operation(context=context)
@@ -262,7 +327,7 @@ class AssignToReviewer:
     @staticmethod
     def check_editor_conditions(workflow: ArticleWorkflow, editor: Account) -> bool:
         """Editor must be assigned to the article."""
-        return EditorAssignment.objects.filter(article=workflow.article, editor=editor).exists()
+        return WjsEditorAssignment.objects.get_all(article=workflow).filter(editor=editor).exists()
 
     @staticmethod
     def check_article_conditions(workflow: ArticleWorkflow) -> bool:
@@ -1583,11 +1648,14 @@ class HandleDecision:
 
         When the editor makes a decision, he is done.
         """
-        # When in admin mode, there probably is no EditorAssignment.
-        editor_assignment: EditorAssignment = EditorAssignment.objects.filter(
-            editor=self.user,
-            article=self.workflow.article,
-        ).first()
+        # When in admin mode, there probably is no WjsEditorAssignment.
+        editor_assignment: WjsEditorAssignment = (
+            WjsEditorAssignment.objects.get_all(article=self.workflow)
+            .filter(
+                editor=self.user,
+            )
+            .first()
+        )
         if editor_assignment:
             Reminder.objects.filter(
                 content_type=ContentType.objects.get_for_model(editor_assignment),
@@ -1756,7 +1824,7 @@ class HandleMessage:
             )
             # "His" editor(s): only the editor that created the ReviewAssigment for this reviewer
             # I.e. not _all_ paper's editor. Other alternatives:
-            # - all editors, e.g.: article.editorassignment_set.all()
+            # - all editors, e.g.: article.articleworkflow.get_editor_assignments()
             # - only the current/last editor
             others.append(
                 Account.objects.filter(
@@ -1767,7 +1835,7 @@ class HandleMessage:
         elif permissions.is_article_author(instance=articleworkflow, user=actor):
             # (Only) the current/last editor
             # Other alternatives:
-            # - all editors, e.g. article.editorassignment_set.all()
+            # - all editors, e.g. article.articleworkflow.get_editor_assignments()
             #
             # NB: editor assignments do not have a direct reference to a review_round (this is a wjs concept). But we
             # can use review assignments, that have a direct reference to both editor and review_round.
@@ -2043,10 +2111,10 @@ class PostponeReviewerDueDate:
 @dataclasses.dataclass
 class HandleEditorDeclinesAssignment:
     """
-    Handle the decision of the editor to decline an assignment.
+    Handle disassociation of an editor from an article.
     """
 
-    assignment: EditorAssignment
+    assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
     director: Optional[Account] = None
@@ -2085,7 +2153,7 @@ class HandleEditorDeclinesAssignment:
         )
 
     @staticmethod
-    def _check_editor_conditions(assignment: EditorAssignment, editor: Account) -> bool:
+    def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
         """Editor must be assigned to the article."""
         return editor == assignment.editor
 
@@ -2094,11 +2162,31 @@ class HandleEditorDeclinesAssignment:
         editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
         return editor_conditions
 
-    def delete_assignment(self):
-        """Delete the assignment."""
+    def _update_state(self):
+        self.assignment.article.articleworkflow.ed_declines_assignment()
+        self.assignment.article.articleworkflow.save()
+
+    def _delete_assignment(self) -> PastEditorAssignment:
+        """
+        Delete the assignment and backup data to custom model.
+
+        All existing review rounds are link to PastEditorAssignment as the editor keeps visibility of the review
+        rounds.
+        """
         self._delete_editor_reminders()
         self._create_director_reminder()
+        past = PastEditorAssignment.objects.create(
+            editor=self.assignment.editor,
+            article=self.assignment.article,
+            date_assigned=self.assignment.assigned,
+            date_unassigned=timezone.now(),
+        )
+        migrated_review_rounds = self.assignment.review_rounds.all()
+
+        past.review_rounds.add(*migrated_review_rounds)
         self.assignment.delete()
+        self._update_state()
+        return past
 
     def _delete_editor_reminders(self):
         """Delete all reminders for the editor."""
@@ -2111,7 +2199,7 @@ class HandleEditorDeclinesAssignment:
             article=self.assignment.article,
         ).create()
 
-    def run(self):
+    def run(self) -> PastEditorAssignment:
         with transaction.atomic():
             conditions = self.check_conditions()
             if not conditions:
@@ -2119,4 +2207,5 @@ class HandleEditorDeclinesAssignment:
             self.director = communication_utils.get_director_user(self.assignment.article)
             if self.request.user == self.editor and self.director:
                 self._log_director()
-            self.delete_assignment()
+            past_assignment = self._delete_assignment()
+            return past_assignment

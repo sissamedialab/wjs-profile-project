@@ -222,7 +222,7 @@ def is_article_reviewer(instance: "ArticleWorkflow", user: Account) -> bool:
 
 def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     """
-    Check if the user is an editor and has a valid :py:class:`EditorAssignment` to the given article.
+    Check if the user is an editor and has a valid :py:class:`WjsEditorAssignment` to the given article.
 
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow
@@ -233,9 +233,11 @@ def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     :return: True if the user has section editor or reviewer role on the journal, False otherwise.
     :rtype: bool
     """
+    from .models import WjsEditorAssignment
+
     return (
         has_any_editor_role_by_article(instance, user)
-        and instance.article.editorassignment_set.filter(editor=user).exists()
+        and WjsEditorAssignment.objects.get_all(instance).filter(editor=user).exists()
     )
 
 

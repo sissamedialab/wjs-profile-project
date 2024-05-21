@@ -29,7 +29,7 @@ from ..communication_utils import (
     should_notify_actor,
 )
 from ..logic import AssignToReviewer, HandleMessage
-from ..models import Message
+from ..models import Message, WjsEditorAssignment
 from . import conftest
 
 
@@ -199,7 +199,7 @@ def test_message_addressing(
     # to use.
     reviewer: Account = reviewer.janeway_account
 
-    editor: Account = assigned_article.editorassignment_set.first().editor
+    editor: Account = WjsEditorAssignment.objects.get_current(assigned_article).editor
 
     director: Account = director.janeway_account
 
@@ -284,7 +284,7 @@ def test_allowed_recipients_for_actor(
 
     # Let's make all actors point directly to the Janeway's account (i.e. not to the JCOMProfile), because it's easier
     # to use.
-    editor: Account = assigned_article.editorassignment_set.first().editor
+    editor: Account = WjsEditorAssignment.objects.get_current(assigned_article).editor
 
     director: Account = director.janeway_account
 
@@ -423,7 +423,7 @@ def test_message_attachment_access(
 
     # Let's make all actors point directly to the Janeway's account (i.e. not to the JCOMProfile), because it's easier
     # to use.
-    editor: Account = assigned_article.editorassignment_set.first().editor
+    editor: Account = WjsEditorAssignment.objects.get_current(assigned_article).editor
 
     eo_user: Account = eo_user.janeway_account
 

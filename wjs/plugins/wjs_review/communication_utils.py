@@ -20,7 +20,7 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
 from wjs.jcom_profile.utils import render_template_from_setting
 
-from .models import Message, MessageRecipients, Reminder
+from .models import Message, MessageRecipients, Reminder, WjsEditorAssignment
 
 Account = get_user_model()
 logger = get_logger(__name__)
@@ -237,7 +237,7 @@ def role_for_article(article: Article, user: Account) -> str:
     if user.groups.filter(name=constants.EO_GROUP).exists():
         return "eo"
 
-    if review_models.EditorAssignment.objects.filter(editor=user, article=article).exists():
+    if WjsEditorAssignment.objects.filter(editor=user, article=article).exists():
         return "editor"
 
     if review_models.ReviewAssignment.objects.filter(reviewer=user, article=article).exists():

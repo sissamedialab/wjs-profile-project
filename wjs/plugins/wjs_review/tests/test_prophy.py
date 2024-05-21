@@ -1,11 +1,16 @@
 import pytest
 from django.http import HttpRequest
 from events import logic as events_logic
-from plugins.wjs_review.models import ArticleWorkflow, ProphyAccount, ProphyCandidate
-from plugins.wjs_review.prophy import Prophy
 
 from ..logic import HandleDecision
+from ..models import (
+    ArticleWorkflow,
+    ProphyAccount,
+    ProphyCandidate,
+    WjsEditorAssignment,
+)
 from ..plugin_settings import STAGE
+from ..prophy import Prophy
 
 
 @pytest.mark.parametrize(
@@ -35,7 +40,7 @@ def test_two_articles_one_declined(
 
     jcom = fake_request.journal
 
-    editor_user = assigned_article.editorassignment_set.first().editor
+    editor_user = WjsEditorAssignment.objects.get_current(assigned_article).editor
 
     second_article = article_factory(
         journal=jcom,
