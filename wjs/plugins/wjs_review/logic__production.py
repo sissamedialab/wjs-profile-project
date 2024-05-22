@@ -809,9 +809,17 @@ class TypesetterTestsGalleyGeneration:
     assignment: TypesettingAssignment
     request: HttpRequest  # Used only Janeway's save_galley, in log_operation and maybe in _check_conditions
 
-    def _check_conditions(self):
+    def _check_user_conditions(self):
         """Check if the user is article's typesetter."""
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
+
+    def _check_files_conditions(self):
+        """Check if there are files to typeset."""
+        return self.assignment.files_to_typeset.exists()
+
+    def _check_conditions(self):
+        """Check if the conditions for the galley generation are met."""
+        return self._check_user_conditions() and self._check_files_conditions()
 
     def _clean_galleys(self) -> None:
         """
@@ -873,6 +881,8 @@ class TypesetterTestsGalleyGeneration:
         return message
 
     def run(self) -> None:
+        if not self._check_conditions():
+            raise ValueError("Cannot generate Galleys. Please contact the editorial office.")
         self._clean_galleys()
         galleys_created = self._attach_galleys_service()
         self.assignment.galleys_created.set(galleys_created)
