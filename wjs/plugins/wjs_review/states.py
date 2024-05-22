@@ -104,6 +104,18 @@ def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", 
     return "Mark as publishable"
 
 
+def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return true if the files needed to generate the latest galleys are missing."""
+    typesetting_assignment = (
+        TypesettingAssignment.objects.filter(
+            round__article=workflow.article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    return not typesetting_assignment.files_to_typeset.exists()
+
+
 @dataclasses.dataclass
 class ArticleAction:
     """An action that can be done on an Article."""
@@ -117,6 +129,7 @@ class ArticleAction:
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
+    disabled: Optional[Callable] = None
     custom_get_url: Optional[Callable] = None
     custom_get_css_class: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
@@ -135,6 +148,7 @@ class ArticleAction:
             "tag": self.tag,
             "css_class": self.custom_get_css_class(self, workflow, user) if self.custom_get_css_class else None,
             "is_htmx": self.is_htmx,
+            "disabled": self.disabled(self, workflow, user) if self.disabled else None,
         }
 
     def get_url(self, workflow: "ArticleWorkflow", user: Account) -> str:
@@ -671,6 +685,7 @@ class TypesetterSelected(BaseState):
             name="tests galley generation",
             label="Test galley generation",
             view_name="wjs_typesetter_galley_generation",
+            disabled=galleys_cannot_be_tested,
             custom_get_url=get_url_with_typesetting_assignment_pk,
         ),
         ArticleAction(

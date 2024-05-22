@@ -1,7 +1,8 @@
 <a id="target-{{ action.name|slugify }}"
     {% if action.is_htmx %} hx-target="#target-{{ action.name|slugify }}"
    hx-post="{{ action.url }}" hx-swap="outerHTML" {% endif %}
-   class="btn {% if action.url == '#' %}btn-secondary{% else %}
+   class="btn {% if action.disabled %}disabled{% endif %}
+              {% if action.url == '#' %}btn-secondary{% else %}
               {{ action.css_class|default:'btn-primary' }}
               {% endif %}"
    href="{{ action.url }}"

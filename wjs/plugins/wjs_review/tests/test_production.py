@@ -16,6 +16,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 
 from ..communication_utils import get_eo_user
+from ..logic__production import TypesetterTestsGalleyGeneration
 from ..models import ArticleWorkflow, Message, MessageThread, WjsEditorAssignment
 from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
@@ -382,6 +383,7 @@ def test_typesetter_galley_generation(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
     client: Client,
     mock_jcomassistant_post,
+    fake_request: HttpRequest,
 ):
     """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
     typesetting_assignment = (
@@ -400,3 +402,8 @@ def test_typesetter_galley_generation(
     assert galleys_created.count() == 2
     assert any(galley.file.original_filename.endswith(".html") for galley in galleys_created)
     assert any(galley.file.original_filename.endswith(".epub") for galley in galleys_created)
+
+    typesetting_assignment.files_to_typeset.all().delete()
+    fake_request.user = typesetting_assignment.typesetter
+    with pytest.raises(ValueError, match="Cannot generate Galleys. Please contact the editorial office."):
+        TypesetterTestsGalleyGeneration(typesetting_assignment, fake_request).run()
