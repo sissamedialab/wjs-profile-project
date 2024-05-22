@@ -756,6 +756,22 @@ class TypesetterSelected(BaseState):
             return attention_flag
         return ""
 
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        """
+        Tell if the article requires attention by the EO.
+        """
+        assignment = (
+            TypesettingAssignment.objects.filter(
+                round__article=article,
+            )
+            .order_by("round__round_number")
+            .last()
+        )
+        if attention_flag := conditions.is_typesetter_late(assignment):
+            return attention_flag
+        return ""
+
 
 class Proofreading(BaseState):
     """
@@ -797,6 +813,23 @@ class Proofreading(BaseState):
                 round__article=article,
                 proofreader=article.correspondence_author,
                 round__typesettingassignment__typesetter=user,
+            )
+            .order_by("round__round_number")
+            .last()
+        )
+        if attention_flag := conditions.is_author_proofing_late(assignment):
+            return attention_flag
+        return ""
+
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        """
+        Tell if the article requires attention by the EO.
+        """
+        assignment = (
+            GalleyProofing.objects.filter(
+                round__article=article,
+                proofreader=article.correspondence_author,
             )
             .order_by("round__round_number")
             .last()
