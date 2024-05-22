@@ -133,7 +133,7 @@ def get_director_user(obj: Union[Article, Journal]) -> Account:
                 " With multiple directors, please enroll at most one main director "
                 " (manager -> roles -> director-main -> view enrolled users)",
             )
-            return directors.first()
+            return directors.order_by("id").first()
     else:
         logger.error(
             f"Journal {journal.code} has no directors!"
