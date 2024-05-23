@@ -4,6 +4,7 @@ import datetime
 
 import freezegun
 import mariadb
+from core.middleware import GlobalRequestMiddleware
 from core.models import Account
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -18,7 +19,7 @@ from plugins.wjs_review.logic import (
     render_template_from_setting,
 )
 from plugins.wjs_review.models import ArticleWorkflow
-from review.models import ReviewRound
+from review.models import EditorAssignment, ReviewRound
 from submission import models as submission_models
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
@@ -37,7 +38,7 @@ from wjs.jcom_profile.management.commands.import_from_wjapp import (
 
 
 class UnknownSection(Exception):
-    pass
+    """Unknown section / article-type."""
 
 
 logger = get_logger(__name__)
@@ -49,13 +50,16 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Command entry point."""
         if not getattr(settings, "NO_NOTIFICATION", None):
-            self.stderr.write("Notifications are enabled, not importing to avoid spamming")
+            self.stderr.write(
+                """Notifications are enabled, not importing to avoid spamming. Please set `NO_NOTIFICATION = True`
+                in your django settings to proceed.""",
+            )
             return
         self.options = options
         for journal_code in ("JCOM",):
-            journal = Journal.objects.get(code=journal_code)
+            self.journal = Journal.objects.get(code=journal_code)
             self.journal_data = JOURNALS_DATA[journal_code]
-            self.read_data_article(journal, **options)
+            self.import_data_article(**options)
 
     def add_arguments(self, parser):
         """Add arguments to command."""
@@ -66,20 +70,154 @@ class Command(BaseCommand):
             required=True,
         )
 
-    def read_data_article(self, journal, **options):
+    def import_data_article(self, **options):
         """Process one article."""
         preprintid = self.options["preprintid"]
         if not preprintid:
             return
-        setting = f"WJAPP_{journal.code.upper()}_IMPORT_CONNECTION_PARAMS"
+        setting = f"WJAPP_{self.journal.code.upper()}_IMPORT_CONNECTION_PARAMS"
         connection_parameters = getattr(settings, setting, None)
         if connection_parameters is None:
-            logger.debug(f'Unknown journal {journal.code}. Please ensure "{setting}" exists in settings.')
-        else:
-            connection = mariadb.connect(**connection_parameters)
-            cursor = connection.cursor(dictionary=True)
-            query = f"""
+            logger.error(
+                f'Missing connection parameters for {self.journal.code}. Please ensure "{setting}" exists in settings.'
+                f"Cannot connect, quitting.",
+            )
+            return
+        elif connection_parameters.get("user", "") == "":
+            logger.error(
+                f'Empty connection parameters for "{setting}". Please ensure `user`, `host`, etc. are correct.'
+                f"Cannot connect, quitting.",
+            )
+            return
+
+        connection = mariadb.connect(**connection_parameters)
+
+        row = self.read_article_data(connection, preprintid)
+
+        if not row:
+            connection.close()
+            logger.debug(f"Article not found {self.journal.code} {preprintid}.")
+            return
+
+        document_cod = row["documentCod"]
+        preprintid = row["preprintId"]
+        section = row["documentType"]
+        version_cod = row["versionCod"]
+
+        logger.debug(f"""Importing {preprintid}""")
+
+        # create article and section
+        article, preprintid = self.create_article(row)
+        self.set_section(article, section)
+
+        # article keywords
+        keywords = self.read_article_keywords(connection, version_cod)
+        self.set_keywords(article, keywords)
+
+        # read all version versionNum, versionCod
+        versions = self.read_versions_data(connection, document_cod)
+
+        # editor selection is done while reading the history
+        editor = None
+        editor_maxworkload = None
+
+        # In wjapp, the concept of version is paramount. All actions revolve around versions.
+        # Here we cycle through each version and manage the data that need.
+        for v in versions:
+            imported_version_cod = v["versionCod"]
+            imported_version_num = v["versionNumber"]
+            # create review round (we are mapping version to review-round)
+            review_round, _ = ReviewRound.objects.get_or_create(article=article, round_number=imported_version_num)
+            # TBD: in general, should we set review_round.date_started? can we do it?
+            # TODO: can we set review_round.date_started = a[actionDate] if review_round.number == 1 ?
+            logger.debug(f"Creating {review_round.round_number=} for {imported_version_num=}")
+
+            # read actions history from wjapp preprint
+            history = self.read_history_data(connection, imported_version_cod)
+
+            for action in history:
+                logger.debug(f"Looking at action {action['actionID']} ({action['actHistCod']})")
+
+                if action["actionID"] == "SYS_ASS_ED" or action["actionID"] == "ED_SEL_N_ED":
+                    # these map (roughly) to EditorAssignment
+                    editor_cod = action["userCod"]
+                    editor_lastname = action["lastname"]
+                    editor_firstname = action["firstname"]
+                    editor_email = action["email"]
+                    editor_assign_date = action["actionDate"]
+                    editor_maxworkload = action["editorWorkload"]
+
+                    # editor assignment
+                    editor = self.set_editor(
+                        article,
+                        editor_cod,
+                        editor_lastname,
+                        editor_firstname,
+                        editor_email,
+                        editor_assign_date,
+                    )
+
+                    # editor parameters
+                    editor_parameters = self.read_editor_parameters(connection, editor_cod)
+                    self.set_editor_parameters(article, editor, editor_maxworkload, editor_parameters)
+
+                if action["actionID"] == "ED_ASS_REF" or action["actionID"] == "ED_ADD_REF":
+                    # these map (roughly) to ReviewAssignment
+                    # (review assignments are created onto the current review round; see external loop on versions)
+
+                    # editor must already be set
+                    if not editor:
+                        logger.error(f"editor not set for {preprintid} {article.id}")
+                        connection.close()
+                        return
+
+                    # reviewer data from Current_Referees
+                    reviewer_data = self.read_reviewer_data(connection, imported_version_cod, action["userCod"])
+
+                    # Reviewer not in Current_Referees - for example a removed referee
+                    #
+                    # The Action_History contains some data of the referee-related actions:
+                    # - referee assignment
+                    # - referee acceptance
+                    # - referee removal
+                    # - ..
+                    #
+                    # Current_Referees contains all the data of the (current) referees assignments (it is the
+                    # closest thing to Janeway's ReviewAssignment). But, if a referee has been "removed", the
+                    # relative assignment data is lost (we have a note about it only in Action_History).
+                    #
+                    # In wjapp, only referees that have not done any report can be removed.
+                    #
+                    # The import process loops on the action_history and executes all the actions version by
+                    # version.  When a referee assignment data is found also in Current_Referees, it is checked to
+                    # extract data (the fact that the action exists, means that the referee has not been removed),
+                    # otherwise remain only the action data.
+
+                    if not reviewer_data:
+                        reviewer_data = {
+                            "refereeCod": action["userCod"],
+                            "refereeLastName": action["lastname"],
+                            "refereeFirstName": action["firstname"],
+                            "refereeEmail": action["email"],
+                            "refereeAssignDate": action["actionDate"],
+                            "report_due_date": None,
+                            "refereeAcceptDate": None,
+                        }
+
+                    self.set_reviewer(article, editor, reviewer_data)
+
+        connection.close()
+
+    #
+    # functions to read data from wjapp
+    #
+
+    def read_article_data(self, connection, preprintid):
+        """Read article main data."""
+        cursor_article = connection.cursor(dictionary=True)
+        query = """
 SELECT
+d.documentCod,
 d.preprintId,
 d.documentType,
 d.submissionDate,
@@ -87,96 +225,114 @@ d.authorCod,
 u1.lastname AS author_lastname,
 u1.firstname AS author_firstname,
 u1.email AS author_email,
-d.editorCod,
-d.editorAssignDate,
-u2.lastname AS editor_lastname,
-u2.firstname AS editor_firstname,
-u2.email AS editor_email,
 v.versionCod,
 v.versionNumber,
 v.versionTitle,
 v.versionAbstract
 FROM Document d
 LEFT JOIN User u1 ON (d.authorCod=u1.userCod)
-LEFT JOIN User u2 ON (d.editorCod=u2.userCod)
 LEFT JOIN Version v ON (v.documentCod=d.documentCod)
 WHERE
     v.isCurrentVersion=1
-AND d.preprintId='{preprintid}'
+AND d.preprintId = %(preprintid)s
 """
-            logger.debug(query)
-            cursor.execute(
-                query,
-            )
-            row = cursor.fetchone()
-            preprintid = row["preprintId"]
-            section = row["documentType"]
-            submission_date = row["submissionDate"]
-            author_cod = row["authorCod"]
-            author_last_name = row["author_lastname"]
-            author_first_name = row["author_firstname"]
-            author_email = row["author_email"]
-            editor_cod = row["editorCod"]
-            editor_assign_date = row["editorAssignDate"]
-            editor_last_name = row["editor_lastname"]
-            editor_first_name = row["editor_firstname"]
-            editor_email = row["editor_email"]
-            title = row["versionTitle"]
-            abstract = row["versionAbstract"]
-            version_cod = row["versionCod"]
-            version_number = row["versionNumber"]
-            if row:
-                logger.debug(
-                    f"""
-preprint: {preprintid}
-version number: {version_number}
-submission_date: {submission_date}
-title: {title}
-author: {author_cod} {author_last_name} {author_first_name} {author_email}
-editor: {editor_cod} {editor_last_name} {editor_first_name} {editor_email}
-editor_assign_date: {editor_assign_date}
-abstract: {abstract}
-section: {section}
-""",
-                )
+        cursor_article.execute(
+            query,
+            {
+                "preprintid": preprintid,
+            },
+        )
+        row = cursor_article.fetchone()
+        cursor_article.close()
+        return row
 
-                article, preprintid, editor = self.create_article(journal, row)
-                self.set_section(article, section)
-                logger.debug(article.id)
-                logger.debug(preprintid)
-                logger.debug(article)
-            cursor.close()
-
-            # keywords
-            cursor_keywords = connection.cursor(dictionary=True)
-            query_keywords = f"""
+    def read_article_keywords(self, connection, version_cod):
+        """Read article keywords."""
+        cursor_keywords = connection.cursor(dictionary=True)
+        query_keywords = """
 SELECT
 keywordName
 FROM Version_Keyword
 LEFT JOIN Keyword USING (keywordCod)
 WHERE
-    versioncod={version_cod}
+    versioncod=%(version_cod)s
 """
-            logger.debug(query_keywords)
-            cursor_keywords.execute(
-                query_keywords,
-            )
-            keywords = []
-            for rk in cursor_keywords:
-                keywords.append(rk["keywordName"])
-            logger.debug(f"Keywords: {keywords}")
-            self.set_keywords(article, keywords)
-            cursor_keywords.close()
+        cursor_keywords.execute(query_keywords, {"version_cod": version_cod})
+        keywords = []
+        for rk in cursor_keywords:
+            keywords.append(rk["keywordName"])
+        cursor_keywords.close()
+        return keywords
 
-            # Create the review round until current version
-            for i in range(1, version_number + 1):
-                review_round = ReviewRound.objects.get_or_create(article=article, round_number=i)
-                logger.debug(f"Review Round: {review_round}")
+    def read_versions_data(self, connection, document_cod):
+        """Read article versions data."""
+        cursor_versions = connection.cursor(dictionary=True)
+        query_versions = """
+SELECT
+versionCod,
+versionNumber
+FROM Version
+WHERE documentCod=%(document_cod)s
+ORDER BY versionNumber
+"""
+        cursor_versions.execute(query_versions, {"document_cod": document_cod})
+        versions = cursor_versions.fetchall()
+        cursor_versions.close()
+        return versions
 
-            # use current review round
-            # reviewers
-            cursor_reviewers = connection.cursor(dictionary=True)
-            query_reviewers = f"""
+    def read_history_data(self, connection, imported_version_cod):
+        """Read history data."""
+        cursor_history = connection.cursor(dictionary=True)
+        query_history = """
+SELECT
+ah.actHistCod,
+ah.versionCod,
+ah.actionCod,
+ah.agentCod,
+ah.userCod,
+u.lastname,
+u.firstname,
+u.email,
+u.editorWorkload,
+ah.realAgentCod,
+ah.actionDate,
+a.actionID
+FROM Action_History ah
+LEFT JOIN Action a USING (actionCod)
+LEFT JOIN User u ON (u.userCod=ah.userCod)
+WHERE versionCod=%(imported_version_cod)s
+ORDER BY ah.actionDate
+"""
+        query_history = cursor_history.execute(
+            query_history,
+            {"imported_version_cod": imported_version_cod},
+        )
+        history = cursor_history.fetchall()
+        cursor_history.close()
+        return history
+
+    def read_editor_parameters(self, connection, editor_cod):
+        """Read editor parameters."""
+        cursor_editor_parameters = connection.cursor(dictionary=True)
+        query_editor_parameters = """
+SELECT
+ek.editorCod,
+ek.keywordCod,
+ek.keywordWeight,
+kw.keywordName
+FROM Editor_Keyword ek
+LEFT JOIN Keyword kw USING (keywordCod)
+WHERE editorCod=%(editor_cod)s
+"""
+        editor_parameters = cursor_editor_parameters.execute(query_editor_parameters, {"editor_cod": editor_cod})
+        editor_parameters = cursor_editor_parameters.fetchall()
+        cursor_editor_parameters.close()
+        return editor_parameters
+
+    def read_reviewer_data(self, connection, imported_version_cod, user_cod):
+        """Read reviewer data."""
+        cursor_reviewer = connection.cursor(dictionary=True)
+        query_reviewer = """
 SELECT
 refereeCod,
 u.lastName  AS refereeLastName,
@@ -188,27 +344,30 @@ IF(YEAR(acceptDate)!=1970, acceptDate, "") AS refereeAcceptDate
 FROM Current_Referees c
 LEFT JOIN User u ON (u.userCod=c.refereeCod)
 WHERE
-    versioncod={version_cod}
+        versioncod=%(imported_version_cod)s
+    AND refereeCod=%(user_cod)s
 ORDER BY assignDate
 """
-            logger.debug(query_reviewers)
-            cursor_reviewers.execute(
-                query_reviewers,
-            )
-            for reviewer_data in cursor_reviewers:
-                logger.debug(f"Reviewer: {reviewer_data}")
-                self.set_reviewer(article, editor, reviewer_data)
-            cursor_reviewers.close()
+        cursor_reviewer.execute(
+            query_reviewer,
+            {
+                "imported_version_cod": imported_version_cod,
+                "user_cod": user_cod,
+            },
+        )
+        reviewer_data = cursor_reviewer.fetchone()
+        cursor_reviewer.close()
+        return reviewer_data
 
-            connection.close()
-        return
+    #
+    # functions to set data in wjs
+    #
 
-    def create_article(self, journal, row):
+    def create_article(self, row):
         """Create the article."""
         preprintid = row["preprintId"]
-        logger.debug(f"Creating {preprintid}")
         article = submission_models.Article.get_article(
-            journal=journal,
+            journal=self.journal,
             identifier_type="preprintid",
             identifier=preprintid,
         )
@@ -218,7 +377,7 @@ ORDER BY assignDate
             # that we are re-importing.
             logger.warning(
                 f"Re-importing existing article {preprintid} at {article.id} "
-                f"The {article.id} here will disappear because of the delete() below"
+                f"The {article.id} here will disappear because of the delete() below",
             )
             article.manuscript_files.all().delete()
             article.data_figure_files.all().delete()
@@ -228,7 +387,7 @@ ORDER BY assignDate
             article.delete()
 
         article = submission_models.Article.objects.create(
-            journal=journal,
+            journal=self.journal,
         )
         article.title = row["versionTitle"]
         article.abstract = row["versionAbstract"]
@@ -237,13 +396,11 @@ ORDER BY assignDate
         date_string = str(row["submissionDate"])
         article.date_submitted = rome_timezone.localize(datetime.datetime.fromisoformat(date_string))
         article.save()
-        logger.debug(f"article id: {article.id}")
         main_author = self.account_get_or_create_check_correspondence(
             row["authorCod"],
             row["author_lastname"],
             row["author_firstname"],
             row["author_email"],
-            journal,
         )
         article.correspondence_author = main_author
         article.save()
@@ -253,34 +410,44 @@ ORDER BY assignDate
             id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
             enabled=True,
         )
-
         logger.debug(f"Set preprintid {preprintid} onto {article.pk}")
+        article.refresh_from_db()
+        return (article, preprintid)
+
+    def set_editor(self, article, editor_cod, editor_lastname, editor_firstname, editor_email, editor_assign_date):
+        """Assign the editor.
+
+        Also create the editor's Account if necessary.
+        """
         editor = self.account_get_or_create_check_correspondence(
-            row["editorCod"],
-            row["editor_lastname"],
-            row["editor_firstname"],
-            row["editor_email"],
-            journal,
+            editor_cod,
+            editor_lastname,
+            editor_firstname,
+            editor_email,
         )
-        logger.debug(f"Editor {editor.last_name} {editor.first_name} onto {article.pk}")
-        request = create_fake_request(user=None, journal=journal)
-        request.user = editor
 
-        if not editor.check_role(request.journal, "section-editor"):
-            editor.add_account_role("section-editor", journal)
+        # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
+        # article.
+        if not editor.check_role(self.journal, "section-editor"):
+            editor.add_account_role("section-editor", self.journal)
 
-        logger.debug(f"Editor is section-editor: {editor.check_role(request.journal, 'section-editor')}")
+        logger.debug(f"Assigning {editor.last_name} {editor.first_name} onto {article.pk}")
+
+        # TODO: we need a function in the logic to reassign a new editor to the article.
+        #       As temporary replacement we delete the editor assignments for the article
+        EditorAssignment.objects.filter(article=article).delete()
 
         # Manually move into a state where editor assignment can take place
         # TODO: check if this is not the case already...
         article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
         article.articleworkflow.save()
-        logger.debug(f"workflow state  {article.articleworkflow.state} article stage {article.stage}")
 
-        logger.debug(f"NO NOTIFICATION: {getattr(settings, 'NO_NOTIFICATION', None)}")
+        request = create_fake_request(user=None, journal=self.journal)
+        GlobalRequestMiddleware.process_request(request)
+        request.user = editor
 
         with freezegun.freeze_time(
-            rome_timezone.localize(datetime.datetime.fromisoformat(str(row["editorAssignDate"]))),
+            rome_timezone.localize(datetime.datetime.fromisoformat(str(editor_assign_date))),
         ):
             AssignToEditor(
                 article=article,
@@ -289,12 +456,12 @@ ORDER BY assignDate
             ).run()
             article.save()
         article.refresh_from_db()
-        return (article, preprintid, editor)
+        return editor
 
-    def account_get_or_create_check_correspondence(self, user_cod, last_name, first_name, imported_email, journal):
-        """get a user account - check Correspondence and eventually create new account"""
+    def account_get_or_create_check_correspondence(self, user_cod, last_name, first_name, imported_email):
+        """Get a user account - check Correspondence and eventually create new account."""
         # Check if we know this person form some other journal or by email
-        source = journal.code.lower()
+        source = self.journal.code.lower()
         account_created = False
         mappings = wjs_models.Correspondence.objects.filter(
             Q(user_cod=user_cod, source=source) | Q(email=imported_email),
@@ -316,7 +483,10 @@ ORDER BY assignDate
             )
         elif mappings.count() >= 1:
             # We know this person from another journal
-            logger.debug(f"user exists: {imported_email}")
+            logger.debug(
+                f"WJS mapping exists ({mappings.count()} correspondences)"
+                f" for {user_cod}/{source} or {imported_email}",
+            )
             mapping = check_mappings(mappings, imported_email, user_cod, source)
 
         account = mapping.account
@@ -337,7 +507,7 @@ ORDER BY assignDate
         section_name = SECTIONS_MAPPING.get(section_name)
         section_order_tuple = self.journal_data["section_order"]
         section, created = submission_models.Section.objects.get_or_create(
-            journal=article.journal,
+            journal=self.journal,
             name=section_name,
             defaults={
                 "sequence": section_order_tuple[section_name][0],
@@ -355,6 +525,51 @@ ORDER BY assignDate
 
         article.save()
 
+    def set_editor_parameters(self, article: submission_models.Article, editor, editor_maxworkload, editor_parameters):
+        """Set the editor parameters.
+
+        - max-workload (EditorAssignmentParameters workload)
+        - keyword      (EditorKeyword into EditorAssignmentParameters keywords)
+        - kwd weight   (EditorKeyword weight)
+        """
+        if editor_parameters:
+            assignment_parameters, eap_created = wjs_models.EditorAssignmentParameters.objects.get_or_create(
+                editor=editor,
+                journal=self.journal,
+            )
+        else:
+            return
+
+        if not editor_maxworkload:
+            logger.error(f"Missing editor max workload: {editor_maxworkload}")
+
+        if editor_maxworkload == 9999:
+            logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
+
+        assignment_parameters.workload = editor_maxworkload
+        assignment_parameters.save()
+
+        # delete all existing editor kwds
+        wjs_models.EditorKeyword.objects.filter(editor_parameters=assignment_parameters).delete()
+
+        # create all new editor kwds
+        for ep in editor_parameters:
+            kwd_word = ep["keywordName"]
+            kwd_weight = ep["keywordWeight"]
+            logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
+            keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
+            if created:
+                logger.warning(
+                    f'Created keyword "{kwd_word}" for editor {editor}. Please check!',
+                )
+            wjs_models.EditorKeyword.objects.create(
+                editor_parameters=assignment_parameters,
+                keyword=keyword,
+                weight=kwd_weight,
+            )
+
+        return
+
     def set_keywords(self, article: submission_models.Article, keywords):
         """Set the keywords."""
         # Drop all article's kwds (and KeywordArticles, used for kwd ordering)
@@ -366,8 +581,7 @@ ORDER BY assignDate
             kwd_word = kwd.strip()
             # in wjapp-JCOMAL, the keyword string contains all three
             # languages separated by ";". The first is English.
-            logger.debug(f" {article.journal.code.upper()} ")
-            if article.journal.code.upper() == "JCOMAL":
+            if self.journal.code.upper() == "JCOMAL":
                 kwd_word = kwd_word.split(";")[0].strip()
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
             if created:
@@ -382,7 +596,7 @@ ORDER BY assignDate
             #
             # P.S. `add` won't duplicate an existing relation
             # https://docs.djangoproject.com/en/3.2/ref/models/relations/
-            article.journal.keywords.add(keyword)
+            self.journal.keywords.add(keyword)
 
             submission_models.KeywordArticle.objects.get_or_create(
                 article=article,
@@ -400,24 +614,22 @@ ORDER BY assignDate
             reviewer_data["refereeLastName"],
             reviewer_data["refereeFirstName"],
             reviewer_data["refereeEmail"],
-            article.journal,
         )
+        logger.debug(f"Creating review assignment of {article.id} to reviewer {reviewer}")
 
-        request = create_fake_request(user=None, journal=article.journal)
+        request = create_fake_request(user=None, journal=self.journal)
         request.user = editor
-
-        logger.debug(f"article workflow: {article.articleworkflow}")
 
         with freezegun.freeze_time(
             rome_timezone.localize(datetime.datetime.fromisoformat(str(reviewer_data["refereeAssignDate"]))),
         ):
             # default message from settings
-            # TO CHECK: add mail subject
-            # TO CHECK: missing signature in the final message request.user.signature
+            # TODO: verify mail subject exists
+            # TODO: verify signature in the final message request.user.signature is not missing
             default_message_rendered = render_template_from_setting(
                 setting_group_name="wjs_review",
                 setting_name="review_invitation_message",
-                journal=article.journal,
+                journal=self.journal,
                 request=request,
                 context={
                     "article": article,
@@ -425,12 +637,10 @@ ORDER BY assignDate
                 },
                 template_is_setting=True,
             )
-            logger.debug(f"invitation review message: {default_message_rendered}")
-            logger.debug(f"editor in charge: {request.user.signature}")
             interval_days = get_setting(
                 "wjs_review",
                 "acceptance_due_date_days",
-                article.journal,
+                self.journal,
             )
             date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
             form_data = {
@@ -446,13 +656,12 @@ ORDER BY assignDate
             ).run()
 
             if reviewer_data["refereeAcceptDate"]:
-                request = create_fake_request(user=None, journal=article.journal)
+                request = create_fake_request(user=None, journal=self.journal)
                 request.user = reviewer
 
                 with freezegun.freeze_time(
                     rome_timezone.localize(datetime.datetime.fromisoformat(str(reviewer_data["refereeAcceptDate"]))),
                 ):
-                    logger.debug(f"review assignment: {review_assignment}")
                     EvaluateReview(
                         assignment=review_assignment,
                         reviewer=reviewer,
@@ -468,7 +677,5 @@ ORDER BY assignDate
                         # note: review_assignment date_due is datetime.date not datetime.datetime
                         review_assignment.date_due = datetime_due.date()
                         review_assignment.save()
-                    logger.debug(f"Review Assignment date_due: {review_assignment.date_due}")
-            logger.debug(f"Review Round: {review_assignment.review_round}")
 
         return review_assignment
