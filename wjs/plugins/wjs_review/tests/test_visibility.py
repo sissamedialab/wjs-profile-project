@@ -6,8 +6,11 @@ from core.models import Account
 from django.http import HttpRequest
 from django.utils import timezone
 from faker import Faker
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
+
+from wjs.jcom_profile import constants
 
 from ..logic import AssignToReviewer
 from ..logic__visibility import (
@@ -471,3 +474,179 @@ def test_can_open_article_assigned_reviewer(
     view_obj.setup(fake_request, pk=assigned_article.pk)
     # Article reviewer has access to the page
     assert view_obj.test_func()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_author(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: Account,
+    expected: bool,
+):
+    """Access to article detail view is allowed only for authors of the article itself."""
+    view_obj = ArticleDetails()
+    if expected:
+        fake_request.user = assigned_article.authors.first()
+    else:
+        fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_editor(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: Account,
+    expected: bool,
+):
+    """Access to article detail view is allowed only for editors associated to the article itself."""
+    view_obj = ArticleDetails()
+    if expected:
+        fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    else:
+        normal_user.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+        fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_reviewer(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: Account,
+    expected: bool,
+):
+    """Access to article detail view is allowed only for reviewers associated to the article itself."""
+    view_obj = ArticleDetails()
+    normal_user.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
+    if expected:
+        ReviewAssignment.objects.create(
+            article=assigned_article,
+            reviewer=normal_user,
+            editor=WjsEditorAssignment.objects.get_current(assigned_article).editor,
+            review_round=assigned_article.reviewround_set.first(),
+            date_due=timezone.now() + timedelta(days=5),
+        )
+    fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_past_editors(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: Account,
+    expected: bool,
+):
+    """Access to article detail view is allowed only for reviewers associated to the article itself."""
+    view_obj = ArticleDetails()
+    normal_user.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+    if expected:
+        PastEditorAssignment.objects.create(
+            editor=normal_user.janeway_account,
+            article=assigned_article,
+            date_assigned=timezone.now() - timedelta(days=15),
+            date_unassigned=timezone.now() - timedelta(days=5),
+        )
+    fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+def test_article_detail_permission_eo(
+    assigned_article: Article, fake_request: HttpRequest, normal_user: Account, eo_user: Account
+):
+    """Access to article detail view is always allowed to EO."""
+    view_obj = ArticleDetails()
+    fake_request.user = eo_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_director(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    director: Account,
+    normal_user: Account,
+    journal_factory,
+    expected: bool,
+):
+    """Access to article detail view is allowed only for director of the article journal."""
+    view_obj = ArticleDetails()
+    if expected:
+        fake_request.user = director
+    else:
+        journal2 = journal_factory("J2")
+        normal_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal2)
+        fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_typesetter(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: Account,
+    expected: bool,
+):
+    """Access to article detail view is allowed only for typesetters of the current article."""
+    view_obj = ArticleDetails()
+    normal_user.add_account_role(constants.TYPESETTER_ROLE, assigned_article.journal)
+    if expected:
+        typsetting_round = TypesettingRound.objects.create(article=assigned_article)
+        TypesettingAssignment.objects.create(
+            round=typsetting_round,
+            typesetter=normal_user,
+            assigned=timezone.now() - timedelta(days=15),
+        )
+    fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
