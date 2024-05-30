@@ -5,6 +5,7 @@ from typing import Iterable, Optional
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import (
     EditorAssignment,
     ReviewAssignment,
@@ -384,6 +385,33 @@ class EditorPermissionChecker(BasePermissionChecker):
 
 
 @dataclasses.dataclass
+class TypeSetterPermissionChecker(BasePermissionChecker):
+    def check_default(self, permission_type: PermissionAssignment.PermissionType = "") -> bool:
+        """
+        Check if the user has the permission to access :py:attr:`instance` by default.
+
+        If the user is the typesetter assigned to the instance we grant permission.
+
+        :param permission_type: The permission set to check for.
+        :type permission_type: PermissionAssignment.PermissionType
+        :return: True if the user has the permission, False otherwise.
+        :rtype: bool
+        """
+        if isinstance(self.instance, ArticleWorkflow):
+            return self.instance.article.typesettinground_set.filter(
+                typesettingassignment__typesetter_id=self.user.pk
+            ).exists()
+        if isinstance(self.instance, Article):
+            return self.instance.typesettinground_set.filter(
+                typesettingassignment__typesetter_id=self.user.pk
+            ).exists()
+        if isinstance(self.instance, TypesettingAssignment):
+            return self.instance.typesetter == self.user
+        if isinstance(self.instance, GalleyProofing):
+            return self.instance.manager == self.user
+
+
+@dataclasses.dataclass
 class AuthorPermissionChecker(BasePermissionChecker):
     def check_default(self, permission_type: PermissionAssignment.PermissionType = "") -> bool:
         """
@@ -396,6 +424,8 @@ class AuthorPermissionChecker(BasePermissionChecker):
         :return: True if the user has the permission, False otherwise.
         :rtype: bool
         """
+        if isinstance(self.instance, GalleyProofing):
+            return self.instance.proofreader == self.user
         if isinstance(self.instance, ArticleWorkflow):
             return self.instance.article.authors.filter(pk=self.user.pk).exists()
         if isinstance(self.instance, Article):
@@ -410,7 +440,7 @@ class ReviewerPermissionChecker(BasePermissionChecker):
         """
         Check if the user has the permission to access :py:attr:`instance` by default.
 
-        If the user is one of the authors we grant permission.
+        If the user is one of the reviewers we grant permission.
 
         :param permission_type: The permission set to check for.
         :type permission_type: PermissionAssignment.PermissionType
@@ -434,7 +464,7 @@ class PermissionChecker:
         permissions.has_admin_role_by_article: SuperUserPermissionChecker,
         permissions.has_director_role_by_article: DirectorPermissionChecker,
         permissions.is_special_issue_supervisor: EditorPermissionChecker,  # TODO: TBD
-        permissions.has_typesetter_role_by_article: EditorPermissionChecker,  # TODO: TBD
+        permissions.has_typesetter_role_by_article: TypeSetterPermissionChecker,
         permissions.has_section_editor_role_by_article: EditorPermissionChecker,
         permissions.has_reviewer_role_by_article: ReviewerPermissionChecker,
         permissions.is_one_of_the_authors: AuthorPermissionChecker,
