@@ -407,3 +407,21 @@ def test_typesetter_galley_generation(
     fake_request.user = typesetting_assignment.typesetter
     with pytest.raises(ValueError, match="Cannot generate Galleys. Please contact the editorial office."):
         TypesetterTestsGalleyGeneration(typesetting_assignment, fake_request).run()
+
+
+@pytest.mark.django_db
+def test_record_of_state_change(
+    assigned_to_typesetter_article: Article,
+):
+    """On state change, the date of change is recorded."""
+    # We test this on a random state. Any would do.
+    workflow = assigned_to_typesetter_article.articleworkflow
+    record_me = workflow.latest_state_change
+
+    workflow.state = ArticleWorkflow.ReviewStates.PROOFREADING
+    workflow.refresh_from_db()
+    assert workflow.latest_state_change == record_me
+
+    workflow.typesetter_submits()
+    workflow.refresh_from_db()
+    assert workflow.latest_state_change > record_me

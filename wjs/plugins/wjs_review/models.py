@@ -11,6 +11,7 @@ from django.core.mail import send_mail
 from django.db import models
 from django.db.models import QuerySet
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from journal.models import Journal
@@ -124,8 +125,7 @@ class ArticleWorkflow(TimeStampedModel):
         default=True, verbose_name=_("No special check is required on the latest typesetted files")
     )
 
-    # date_last_transition = ... WRITEME
-    # set the date on post-transition signal
+    latest_state_change = models.DateTimeField(default=timezone.now, null=True, blank=True)
 
     objects = ArticleWorkflowQuerySet.as_manager()
 
