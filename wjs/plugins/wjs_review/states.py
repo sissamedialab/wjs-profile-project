@@ -371,33 +371,6 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             label="Assign permissions",
             view_name="wjs_assign_permission",
         ),
-        # TODO: drop these? Not currently used in reviewer's templates.
-        # :START
-        ArticleAction(
-            permission=permissions.has_reviewer_role_by_article,
-            name="decline",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_reviewer_role_by_article,
-            name="write report",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_reviewer_role_by_article,
-            name="postpones rev.report deadline",
-            label="",
-            view_name="WRITEME!",
-        ),
-        # :END
-        ArticleAction(
-            permission=permissions.has_director_role_by_article,
-            name="reminds editor",
-            label="",
-            view_name="WRITEME!",
-        ),
     )
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
@@ -408,37 +381,10 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             tooltip="Withdraw review assignment",
         ),
         ReviewAssignmentAction(
-            condition=conditions.is_late_invitation,
-            name="reminds reviewer assignment",
-            label="Remind reviewer",
-            tooltip="Solicit accept/decline answer from the reviewer",
-            view_name="WRITEME!",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.is_late,
-            name="reminds reviewer report",
-            label="Remind reviewer",
-            tooltip="Solicit a report from the reviewer",
-            view_name="WRITEME!",
-        ),
-        ReviewAssignmentAction(
             condition=conditions.review_not_done,
             name="postpone reviewer due date",
             label="Postpone Reviewer due date",
             view_name="wjs_postpone_reviewer_due_date",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.review_done,
-            name="ask report revision",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.review_done,
-            name="acknowledge report",
-            label="Acknowledge report",
-            view_name="WRITEME!",
-            tooltip="Say thanks to the reviewer",
         ),
     )
 
@@ -545,20 +491,10 @@ class Accepted(BaseState):  # noqa N801 CapWords convention
     """Accepted"""
 
 
-class WritemeProduction(BaseState):  # noqa N801 CapWords convention
-    """Writeme production"""
-
-
 class ToBeRevised(BaseState):  # noqa N801 CapWords convention
     """To be revised"""
 
     article_actions = BaseState.article_actions + (
-        ArticleAction(
-            permission=permissions.is_article_editor,
-            name="reminds author",
-            label="",
-            view_name="WRITEME!",
-        ),
         ArticleAction(
             permission=permissions.is_article_editor,
             name="postpone author revision deadline",
@@ -570,7 +506,7 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
             permission=permissions.is_article_author,
             name="submits new version",
             label="",
-            view_name="WRITEME!",
+            view_name="WRITEME!",  # point to wjs-review-articles/article/1375/revision/1/
         ),
         ArticleAction(
             permission=permissions.is_article_author,
@@ -664,13 +600,7 @@ class ReadyForTypesetter(BaseState):
             permission=permissions.has_typesetter_role_by_article,
             name="typ takes in charge",
             label="Take in charge",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_admin_role_by_article,
-            name="admin assigns typesetter",
-            label="Assign typesetter",
-            view_name="WRITEME!",
+            view_name="WRITEME!",  # TODO: point to existing view
         ),
     )
 
@@ -710,12 +640,6 @@ class TypesetterSelected(BaseState):
             is_htmx=True,
             custom_get_css_class=get_unpulishable_css_class,
             custom_get_label=get_publishable_label,
-        ),
-        ArticleAction(
-            permission=permissions.is_article_typesetter,
-            name="Insert notes",
-            label="Insert notes",
-            view_name="WRITEME!",
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -874,17 +798,15 @@ class ReadyForPublication(BaseState):
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
-            # TBV: very similar to what typs does in TypesetterSelected!
-            #      Double-check might be good.
-            #
-            # EO/admin marks checks such as:
-            # - TA ok
-            # - galleys OK",
-            # - supplementary material ok",
-            # - ...",
-            permission=permissions.is_article_typesetter,
-            name="marks pre-flight checks",
-            label="marks pre-flight checks",
+            permission=permissions.has_eo_role_by_article,
+            name="publish",
+            label="Publish",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="back to typ",
+            label="Back to typ",
             view_name="WRITEME!",
         ),
     )
