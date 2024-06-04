@@ -154,7 +154,9 @@ def get_article_classes(workflow: ArticleWorkflow) -> dict[str, str]:
     """Return a string of classes for an article div."""
     state = f"color-state-{slugify(workflow.state)}"
     section = f"color-section-{workflow.article.section.pk}"
+    publishable = "bg-success" if workflow.production_flag_no_checks_needed else "bg-danger"
     return {
         "state": state,
         "section": section,
+        "publishable": publishable,
     }

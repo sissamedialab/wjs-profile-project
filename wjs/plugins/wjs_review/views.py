@@ -88,22 +88,6 @@ from .models import (
     WorkflowReviewAssignment,
 )
 from .prophy import Prophy
-from .views__production import (  # noqa F401
-    AuthorSendsCorrectionsView,
-    CreateSupplementaryFileView,
-    DeleteSupplementaryFileView,
-    DownloadRevisionFiles,
-    GalleyGenerationView,
-    ListAnnotatedFilesView,
-    ReadyForProofreadingView,
-    TogglePublishableFlagView,
-    TypesetterArchived,
-    TypesetterPending,
-    TypesetterUploadFiles,
-    TypesetterWorkingOn,
-    WriteToAuWithModeration,
-    WriteToTyp,
-)
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -121,8 +105,8 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class ArticleWorkflowBaseMixin:
     model = ArticleWorkflow
-    filterset_class = EOArticleWorkflowFilter
-    filterset: django_filters.FilterSet
+    filterset_class = None
+    filterset: Optional[django_filters.FilterSet]
     context_object_name = "workflows"
     ordering = ["-modified"]
     title: str
@@ -132,13 +116,16 @@ class ArticleWorkflowBaseMixin:
     def setup(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
         super().setup(request, *args, **kwargs)
-        self.filterset = self.filterset_class(
-            data=self.request.GET if self.request.GET.get("search") else None,
-            queryset=self._apply_base_filters(self.model.objects.all()),
-            request=self.request,
-            journal=self.request.journal,
-        )
-        self.filterset.is_valid()
+        if getattr(self, "filterset_class", None):
+            self.filterset = self.filterset_class(
+                data=self.request.GET if self.request.GET.get("search") else None,
+                queryset=self._apply_base_filters(self.model.objects.all()),
+                request=self.request,
+                journal=self.request.journal,
+            )
+            self.filterset.is_valid()
+        else:
+            self.filterset = None
         self.extra_links = {
             reverse(view_name): title
             for view_name, title in self.related_views.items()
@@ -282,15 +269,9 @@ class EOArchived(EOPending):
             state__in=states_when_article_is_considered_archived_for_review,
         )
 
-    def get_context_data(self, **kwargs):
-        """Add a "title" to the context for the header."""
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Archived papers"
-        return context
-
 
 class EOProduction(EOPending):
-    title = _("Production papers")
+    title = _("Papers in production")
 
     def _apply_base_filters(self, qs):
         """
@@ -303,15 +284,9 @@ class EOProduction(EOPending):
             state__in=states_when_article_is_considered_in_production,
         )
 
-    def get_context_data(self, **kwargs):
-        """Add a "title" to the context for the header."""
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Papers in production"
-        return context
-
 
 class EOMissingEditor(EOPending):
-    title = _("Missing editor papers")
+    title = _("Papers without an editor")
 
     def _apply_base_filters(self, qs):
         """
@@ -323,12 +298,6 @@ class EOMissingEditor(EOPending):
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             state__in=states_when_article_is_considered_missing_editor,
         )
-
-    def get_context_data(self, **kwargs):
-        """Add a "title" to the context for the header."""
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Papers without an editor"
-        return context
 
 
 class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -364,6 +333,8 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
 
 
 class DirectorArchived(DirectorPending):
+    title = _("Archived papers")
+
     def _apply_base_filters(self, qs):
         """
         Get all articles in final states except the ones where the director is also the author.
@@ -376,12 +347,6 @@ class DirectorArchived(DirectorPending):
             .filter(state__in=states_when_article_is_considered_archived_for_review)
             .exclude(article__authors=self.request.user)
         )
-
-    def get_context_data(self, **kwargs):
-        """Add a "title" to the context for the header."""
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Archived papers"
-        return context
 
 
 class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -416,6 +381,8 @@ class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTest
 
 
 class AuthorArchived(AuthorPending):
+    title = _("Archived papers")
+
     def _apply_base_filters(self, qs):
         """
         Get all articles in final states where the user is the author.
@@ -427,12 +394,6 @@ class AuthorArchived(AuthorPending):
             Q(state__in=states_when_article_is_considered_archived_for_review)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
-
-    def get_context_data(self, **kwargs):
-        """Add a "title" to the context for the header."""
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Archived papers"
-        return context
 
 
 class ReviewerPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -482,12 +443,6 @@ class ReviewerArchived(ReviewerPending):
             article__reviewassignment__reviewer=self.request.user,
             article__reviewassignment__is_complete=True,
         )
-
-    def get_context_data(self, **kwargs):
-        """Add a "title" to the context for the header."""
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Archived papers"
-        return context
 
 
 class UpdateState(LoginRequiredMixin, UpdateView):

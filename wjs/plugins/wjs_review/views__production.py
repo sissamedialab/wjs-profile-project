@@ -1,4 +1,5 @@
 """Views related to typesetting/production."""
+
 from core.models import File, SupplementaryFile
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -6,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView, ListView, UpdateView, View
 from django_q.tasks import async_task
 from journal.models import Journal
@@ -22,6 +24,11 @@ from .forms__production import (
     UploadAnnotatedFilesForm,
     WriteToTypMessageForm,
 )
+from .logic import (
+    states_when_article_is_considered_production_archived,
+    states_when_article_is_considered_typesetter_pending,
+    states_when_article_is_considered_typesetter_working_on,
+)
 from .logic__production import (
     AuthorSendsCorrections,
     HandleCreateSupplementaryFile,
@@ -33,19 +40,27 @@ from .logic__production import (
 )
 from .models import ArticleWorkflow
 from .permissions import is_article_author, is_article_typesetter
+from .views import ArticleWorkflowBaseMixin
 
 Account = get_user_model()
 
 
-class TypesetterPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """A view showing all paper that a typesetter could take in charge.
 
     AKA "codone" :)
     """
 
+    title = _("Pending papers")
+    role = _("Typesetter")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/typesetter/table.html"
+    related_views = {
+        "wjs_review_typesetter_pending": _("Pending"),
+        "wjs_review_typesetter_workingon": _("Working on"),
+        "wjs_review_typesetter_archived": _("Archived"),
+    }
     model = ArticleWorkflow
-    template_name = "wjs_review/typesetter_pending.html"
-    context_object_name = "workflows"
 
     def test_func(self):
         """Allow access to typesetters and EO."""
@@ -53,53 +68,57 @@ class TypesetterPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
             self.request.user,
         )
 
-    def get_queryset(self):
+    def _get_typesetter_journals(self):
+        """Get journals for which the user is typesetter."""
+        typesetter_role_slug = "typesetter"
+        return Journal.objects.filter(
+            accountrole__role__slug=typesetter_role_slug,
+            accountrole__user__id=self.request.user.id,
+        ).values_list("id", flat=True)
+
+    def _filter_by_journal(self, base_qs):
+        """Get journals for which the user is typesetter."""
+        if base_permissions.has_eo_role(self.request.user):
+            return base_qs
+        else:
+            return base_qs.filter(article__journal__in=self._get_typesetter_journals())
+
+    def _apply_base_filters(self, qs):
         """List articles ready for typesetter for each journal that the user is typesetter of.
 
         List all articles ready for typesetter if the user is EO.
         """
-        base_qs = ArticleWorkflow.objects.filter(
-            state__in=[ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER],
+        base_qs = self._filter_by_journal(qs)
+        return base_qs.filter(
+            state__in=states_when_article_is_considered_typesetter_pending,
         ).order_by("-article__date_accepted")
 
-        if base_permissions.has_eo_role(self.request.user):
-            return base_qs
-        else:
-            typesetter_role_slug = "typesetter"
-            journals_for_which_user_is_typesetter = Journal.objects.filter(
-                accountrole__role__slug=typesetter_role_slug,
-                accountrole__user__id=self.request.user.id,
-            ).values_list("id", flat=True)
-            return base_qs.filter(article__journal__in=journals_for_which_user_is_typesetter)
 
-
-class TypesetterWorkingOn(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterWorkingOn(TypesetterPending):
     """A view showing all papers that a certain typesetter is working on."""
 
-    model = ArticleWorkflow
-    template_name = "wjs_review/typesetter_pending.html"
-    context_object_name = "workflows"
+    title = _("Papers Working on")
 
-    def test_func(self):
-        """Allow access to typesetters and EO."""
-        return base_permissions.has_typesetter_role_on_any_journal(self.request.user)
-
-    def get_queryset(self):
+    def _apply_base_filters(self, qs):
         """List articles assigned to the user and still open."""
-        qs = ArticleWorkflow.objects.filter(
-            state__in=[
-                ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
-                ArticleWorkflow.ReviewStates.PROOFREADING,
-            ],
+        return qs.filter(
+            state__in=states_when_article_is_considered_typesetter_working_on,
             article__typesettinground__isnull=False,
             article__typesettinground__typesettingassignment__typesetter__pk=self.request.user.pk,
         ).order_by("-article__date_accepted")
 
-        return qs
 
-
-class TypesetterArchived(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterArchived(TypesetterPending):
     """A view showing all past papers of a typesetter."""
+
+    title = _("Typesetter Papers")
+
+    def _apply_base_filters(self, qs):
+        """List articles assigned to the user and still open."""
+        base_qs = self._filter_by_journal(qs)
+        return base_qs.filter(
+            state__in=states_when_article_is_considered_production_archived,
+        ).order_by("-article__date_accepted")
 
 
 class TypesetterUploadFiles(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
