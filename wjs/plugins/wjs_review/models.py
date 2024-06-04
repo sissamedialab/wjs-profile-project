@@ -38,6 +38,11 @@ logger = get_logger(__name__)
 Account = get_user_model()
 
 
+def can_be_set_rfp_wrapper(workflow: "ArticleWorkflow", **kwargs) -> bool:
+    """Only wraps the method that tests if a article can transition to READY_FOR_PUBLICATION."""
+    return workflow.can_be_set_rfp()
+
+
 def create_director_reminders(workflow):
     """Create reminders for the director."""
     from .reminders.settings import DirectorShouldAssignEditorReminderManager
@@ -154,6 +159,14 @@ class ArticleWorkflow(TimeStampedModel):
             )
         except EditorRevisionRequest.DoesNotExist:
             return None
+
+    def can_be_set_rfp(self) -> bool:
+        """Tess if the article can transition to READY_FOR_PUBLICATION."""
+        return (
+            self.production_flag_galleys_ok
+            and self.production_flag_no_checks_needed
+            and self.production_flag_no_queries
+        )
 
     # director selects editor
     @transition(
@@ -404,9 +417,20 @@ class ArticleWorkflow(TimeStampedModel):
         source=ReviewStates.TYPESETTER_SELECTED,
         target=ReviewStates.READY_FOR_PUBLICATION,
         # TODO: permission=,
-        # TODO: conditions=[],
+        conditions=[can_be_set_rfp_wrapper],
     )
     def typesetter_deems_paper_ready_for_publication(self):
+        pass
+
+    # author deems paper ready for publication
+    @transition(
+        field=state,
+        source=ReviewStates.PROOFREADING,
+        target=ReviewStates.READY_FOR_PUBLICATION,
+        # TODO: permission=,
+        conditions=[can_be_set_rfp_wrapper],
+    )
+    def author_deems_paper_ready_for_publication(self):
         pass
 
     # typesetter sends to editor for check

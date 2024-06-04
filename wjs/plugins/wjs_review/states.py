@@ -16,7 +16,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import communication_utils, conditions, permissions
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, can_be_set_rfp_wrapper
 
 logger = get_logger(__name__)
 
@@ -133,13 +133,13 @@ class ArticleAction:
     custom_get_url: Optional[Callable] = None
     custom_get_css_class: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
+    condition: Optional[Callable] = None
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
 
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
-
         return {
             "name": self.name,
             "label": self.custom_get_label(self, workflow, user) if self.custom_get_label else self.label,
@@ -161,7 +161,21 @@ class ArticleAction:
             url += urllib.parse.urlencode(self.querystring_params)
         return url
 
-    def has_permission(self, workflow: "ArticleWorkflow", user: Account) -> bool:
+    def is_available(self, workflow: "ArticleWorkflow", user: Account) -> bool:
+        """Return true if permission and condition are both met."""
+        return self._has_permission(workflow, user) and self._condition_is_met(workflow, user)
+
+    def _condition_is_met(self, workflow: "ArticleWorkflow", user: Account) -> bool:
+        """Return true if the action has condition and it evauates to true.
+
+        If there is no condition, the action is considered available.
+        """
+        if self.condition is None:
+            return True
+        else:
+            return self.condition(workflow=workflow, user=user)
+
+    def _has_permission(self, workflow: "ArticleWorkflow", user: Account) -> bool:
         """Return true if the user has permission to run this action, given the current status of the article."""
         return self.permission(workflow, user)
 
@@ -669,12 +683,6 @@ class TypesetterSelected(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_typesetter,
-            name="delete / replace source for galley generation",  # one action? 4 actions?
-            label="Manage sources (for galley generation issues)",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.is_article_typesetter,
             name="uploads sources",  # this pairs with the one above ⮵
             label="Upload sources",
             view_name="wjs_typesetter_upload_files",
@@ -702,24 +710,6 @@ class TypesetterSelected(BaseState):
             is_htmx=True,
             custom_get_css_class=get_unpulishable_css_class,
             custom_get_label=get_publishable_label,
-        ),
-        ArticleAction(
-            # typ marks checks such as:
-            # - galleys OK",
-            # - supplementary material ok",
-            # - ...",
-            permission=permissions.is_article_typesetter,
-            name="marks pre-flight checks",
-            label="marks pre-flight checks",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            # No estemporary haikus from typ to au
-            # TBV: can probably be dropped (see US ID:NA row:260 order:235)
-            permission=permissions.is_article_typesetter,
-            name="asks non-standard messages for author to EO",
-            label="asks non-standard messages for author to EO",
-            view_name="WRITEME!",
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -751,6 +741,13 @@ class TypesetterSelected(BaseState):
             name="write_to_typesetter",
             label="Write to typesetter",
             view_name="wjs_message_write_to_typ",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter_and_paper_can_go_rfp,
+            name="typesetter_deems_paper_ready_for_publication",
+            label="Paper is ready for publication",
+            view_name="wjs_review_rfp",
+            condition=can_be_set_rfp_wrapper,
         ),
     )
 
@@ -811,10 +808,26 @@ class Proofreading(BaseState):
             view_name="wjs_message_write_to_typ",
         ),
         ArticleAction(
+            permission=permissions.is_article_author_and_paper_can_go_rfp,
+            name="author_deems_paper_ready_for_publication",
+            label="Paper is ready for publication",
+            view_name="wjs_review_rfp",
+            condition=can_be_set_rfp_wrapper,
+        ),
+        ArticleAction(
             permission=permissions.is_article_typesetter,
             name="Contact Author",
             label="Contact Author",
             view_name="wjs_message_write_to_auwm",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="toggle paper non-publishable flag",
+            label="Mark Unpublishable",
+            view_name="wjs_toggle_publishable",
+            is_htmx=True,
+            custom_get_css_class=get_unpulishable_css_class,
+            custom_get_label=get_publishable_label,
         ),
     )
 

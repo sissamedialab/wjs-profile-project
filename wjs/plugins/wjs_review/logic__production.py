@@ -35,6 +35,7 @@ from plugins.typesetting.models import (
     TypesettingRound,
 )
 from production.logic import save_galley, save_galley_image
+from submission import models as submission_models
 from submission.models import STAGE_PROOFING, STAGE_TYPESETTING, Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -680,6 +681,7 @@ class TogglePublishableFlag:
     def _check_conditions(self):
         return self.workflow.state in [
             ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+            ArticleWorkflow.ReviewStates.PROOFREADING,
         ]
 
     def _toggle_publishable_flag(self):
@@ -696,11 +698,18 @@ class TogglePublishableFlag:
 
 @dataclasses.dataclass
 class AttachGalleys:
+    """Attach some galley files to an Article.
+
+    Expect to find one HTML and one EPUB in `path`.
+
+    For HTML, scrape the source for <img> tags and look for the
+    src files (as in <img src=...>) inside `path`.
+    """
+
     path: Path
     article: Article
     request: HttpRequest
 
-    # TODO: consider refactoring with import_from_drupal
     def download_and_store_article_file(self, image_source_url: Path):
         """Downaload a media file and link it to the article."""
         if not image_source_url.exists():
@@ -837,13 +846,6 @@ class TypesetterTestsGalleyGeneration:
         galleys_directory = assistant.ask_jcomassistant_to_process()
         return galleys_directory
 
-    def _attach_galleys_service(self):
-        return AttachGalleys(
-            path=self._jcom_assistant_client(),
-            article=self.assignment.round.article,
-            request=self.request,
-        ).run()
-
     def _get_message_context(self):
         """Get the context for the message template."""
         return {
@@ -880,12 +882,49 @@ class TypesetterTestsGalleyGeneration:
         )
         return message
 
+    def _generate_and_attach_galleys(self):
+        """Generate galleys.
+
+        - send source files to jcomassistant
+        - attach generated galleys to TA (and article)
+        - record success/failure of the generation
+        """
+        galleys_created = AttachGalleys(
+            path=self._jcom_assistant_client(),
+            article=self.assignment.round.article,
+            request=self.request,
+        ).run()
+        self.assignment.galleys_created.set(galleys_created)
+        self._record_success_of_galley_generation()
+
+    def _record_success_of_galley_generation(self):
+        """Fixme.
+
+        This is a stub. ATM, blindly record the galley-generation as a succes.
+
+        TODO: fixme in wjs-profile-project#105
+        """
+        self.assignment.round.article.articleworkflow.production_flag_galleys_ok = True
+        self.assignment.round.article.articleworkflow.save()
+        logger.warning(f"{self.assignment.round.article.articleworkflow.production_flag_galleys_ok=}")
+
+    def _check_queries_in_tex_src(self):
+        """Fixme.
+
+        This is a stub. ATM, blindly record that there are not queries.
+
+        TODO: fixme in specs#718
+        """
+        self.assignment.round.article.articleworkflow.production_flag_no_queries = True
+        self.assignment.round.article.articleworkflow.save()
+        logger.warning(f"{self.assignment.round.article.articleworkflow.production_flag_no_queries=}")
+
     def run(self) -> None:
         if not self._check_conditions():
             raise ValueError("Cannot generate Galleys. Please contact the editorial office.")
         self._clean_galleys()
-        galleys_created = self._attach_galleys_service()
-        self.assignment.galleys_created.set(galleys_created)
+        self._generate_and_attach_galleys()
+        self._check_queries_in_tex_src()
         context = self._get_message_context()
         self._log_operation(context)
 
@@ -967,3 +1006,45 @@ class JcomAssistantClient:
                     logger.critical(f"JA {line[15:-1]}")
                 elif line.startswith("DEBUG"):
                     logger.debug(f"JA {line[12:-1]}")
+
+
+@dataclasses.dataclass
+class ReadyForPublication:
+    """Bring a paper in RFP state."""
+
+    workflow: ArticleWorkflow
+    user: Account
+
+    def _check_conditions(self) -> bool:
+        """Check that the FSM allows the transaction.
+
+        Take the operator into consideration
+        """
+        # TODO: might want to verify some of the checks of specs#791 here
+        if is_article_author(self.workflow, self.user):
+            return can_proceed(self.workflow.author_deems_paper_ready_for_publication)
+        elif is_article_typesetter(self.workflow, self.user):
+            return can_proceed(self.workflow.typesetter_deems_paper_ready_for_publication)
+        else:
+            raise ValueError(f"Unexpected user attempting the transaction ({self.user=}).")
+
+    def _update_state(self):
+        """Run FSM transition."""
+        if is_article_author(self.workflow, self.user):
+            self.workflow.author_deems_paper_ready_for_publication()
+        elif is_article_typesetter(self.workflow, self.user):
+            self.workflow.typesetter_deems_paper_ready_for_publication()
+        else:
+            # should never be able to get here because _check_conditions is run berfore
+            raise ValueError(f"Unexpected user attempting the transaction ({self.user=}). Possible programming error!")
+        self.workflow.save()
+
+        self.workflow.article.stage = submission_models.STAGE_READY_FOR_PUBLICATION
+        self.workflow.article.save()
+
+    def run(self):
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("Paper not yet ready for publication. For assitance, contact the EO.")
+            self._update_state()
+        return self.workflow

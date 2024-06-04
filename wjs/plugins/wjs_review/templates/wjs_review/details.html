@@ -100,8 +100,14 @@
                 {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
             </div>
             <div class="col">
-                {% for galley in article.galley_set.all %}<li>{{ galley.file.original_filename }} {{ galley.label }}</li>{% endfor %}
+                {% for galley in article.galley_set.all %}<li>{{ galley.file.original_filename }} {{ galley.label }}</li>{% empty %}no galleys yet{% endfor %}
             </div>
+        </div>
+        <div class="row">
+          <div class="col">Production flags:</div>
+          <div class="col">no queries (A): {{ article.articleworkflow.production_flag_no_queries }}</div>
+          <div class="col">galleys ok (A): {{ article.articleworkflow.production_flag_galleys_ok }}</div>
+          <div class="col">no checks needed (M): {{ article.articleworkflow.production_flag_no_checks_needed }}</div>
         </div>
     </div>
                 <div class="row">
