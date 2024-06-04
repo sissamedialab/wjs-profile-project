@@ -15,6 +15,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from .. import views
 from ..filters import EOArticleWorkflowFilter, status_choices
 from ..logic import (
+    states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_for_review,
     states_when_article_is_considered_in_review,
 )
@@ -226,12 +227,16 @@ class TestListViews:
                 article__reviewassignment__is_complete=False,
             ).exists()
         else:
-            assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_in_review)
             if role == "author":
+                # Author is special: his list view show all live articles: both in review and in production
+                assert set(qs.values_list("state", flat=True)).isdisjoint(states_when_article_is_considered_archived)
+
                 assert qs.filter(article__authors=user).exists()
             elif role == "section-editor":
+                assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_in_review)
                 assert qs.filter(article__editorassignment__editor=user).exists()
             elif role == "director":
+                assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_in_review)
                 assert not qs.filter(article__authors=user).exists()
 
     @pytest.mark.parametrize(

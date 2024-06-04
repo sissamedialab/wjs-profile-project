@@ -185,7 +185,7 @@ class KeywordFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Keyword
 
-    word = factory.Faker("sentence", nb_words=2)
+    word = factory.Faker("sentence", nb_words=4)
 
 
 class RecipientFactory(factory.django.DjangoModelFactory):

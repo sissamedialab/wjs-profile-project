@@ -1,14 +1,15 @@
 """Views related to typesetting/production."""
 
 from core.models import File, SupplementaryFile
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import FormView, ListView, UpdateView, View
+from django.views.generic import FormView, ListView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -34,6 +35,7 @@ from .logic__production import (
     HandleCreateSupplementaryFile,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
+    ReadyForPublication,
     RequestProofs,
     TogglePublishableFlag,
     TypesetterTestsGalleyGeneration,
@@ -180,42 +182,40 @@ class DownloadRevisionFiles(UserPassesTestMixin, LoginRequiredMixin, View):
             return Http404
 
 
-class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
-    """View to allow the Typesetter to mark an article as ready for proofreading."""
+class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
+    """Typesetter sends the paper to the author for proofreading."""
 
     model = TypesettingAssignment
-    template_name = "wjs_review/elements/typesetter_marks_ready_to_proofread.html"
 
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article and object for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg])
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.round.article
 
     def test_func(self):
         """User must be the article's typesetter"""
         return is_article_typesetter(self.article.articleworkflow, self.request.user)
 
-    def get_logic_instance(self):
-        """Instantiate :py:class:`RequestProofs` class."""
-        service = RequestProofs(
-            workflow=self.article.articleworkflow,
-            request=self.request,
-            assignment=self.object,
-            typesetter=self.request.user,
-        )
-        return service
-
     def get(self, request, *args, **kwargs):
         """Make the article's state as Ready for Typesetting."""
         try:
-            service = self.get_logic_instance()
-            service.run()
+            RequestProofs(
+                workflow=self.article.articleworkflow,
+                request=self.request,
+                assignment=self.object,
+                typesetter=self.request.user,
+            ).run()
         except ValidationError as e:
-            context = {"error": str(e)}
+            messages.error(request=self.request, message=e)
         else:
-            context = {"article": self.article}
-        return render(request, self.template_name, context)
+            messages.success(request=self.request, message="The paper has been sent to the author for proofs.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.round.article.articleworkflow.pk},
+            ),
+        )
 
 
 class CreateSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, FormView):
@@ -457,41 +457,46 @@ class ListAnnotatedFilesView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin,
         return self.render_to_response(self.get_context_data(form=form, pk=self.object.pk))
 
 
-class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
     """Author sends corrections to Typesetter."""
 
     model = TypesettingAssignment
-    template_name = "wjs_review/author_sends_to_typesetter.html"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
-        self.object = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg])
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.round.article
 
     def test_func(self):
-        """Author can upload files."""
+        """Only author can sent the paper back to the typ."""
         return is_article_author(self.article.articleworkflow, self.request.user)
-
-    def get_logic_instance(self) -> AuthorSendsCorrections:
-        """Instantiate :py:class:`AuthorSendsCorrections` class."""
-        return AuthorSendsCorrections(
-            user=self.request.user,
-            old_assignment=self.object,
-            request=self.request,
-        )
 
     def get(self, request, *args, **kwargs):
         try:
-            service = self.get_logic_instance()
-            service.run()
+            AuthorSendsCorrections(
+                user=self.request.user,
+                old_assignment=self.object,
+                request=self.request,
+            ).run()
         except ValueError as e:
-            context = {"error": str(e)}
-        else:
-            context = {"article": self.article}
-        return render(request, self.template_name, context)
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_list_annotated_files",
+                    kwargs={"pk": self.object.round.galleyproofing_set.first().pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Corrections have been dispatched to the typesetter.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.round.article.articleworkflow.pk},
+            ),
+        )
 
 
-class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, View):
+class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, TemplateView):
     """Typesetter toggles `production_flag_no_checks_needed` flag."""
 
     model = ArticleWorkflow
@@ -516,9 +521,57 @@ class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMix
         try:
             self.object = TogglePublishableFlag(workflow=self.object).run()
         except ValueError as e:
-            kwargs["error"] = str(e)
+            kwargs["message"] = str(e)
         context = self.get_context_data(**kwargs)
         return render(request, self.template_name, context)
+
+
+class ReadyForPublicationView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
+    """A view to move a paper to ready-for-publication.
+
+    This passage can be triggered either
+    - by the typesetter (most often)
+    - by the author
+    """
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Only typesetter and author can move the paper to ready-for-publication."""
+        return is_article_author(
+            self.object,
+            self.request.user,
+        ) or is_article_typesetter(
+            self.object,
+            self.request.user,
+        )
+
+    def get(self, request, *args, **kwargs):
+        try:
+            self.object = ReadyForPublication(
+                workflow=self.object,
+                user=self.request.user,
+            ).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_article_details",
+                    kwargs={"pk": self.object.pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Paper marked ready for publication.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.pk},
+            ),
+        )
 
 
 def execute_galley_generation(

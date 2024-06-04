@@ -3,11 +3,13 @@ from typing import Callable
 import pytest
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.messages import get_messages
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing
+from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Article
@@ -348,15 +350,18 @@ def test_author_sends_corrections(
         .last()
     )
     response = client.get(url)
-    assert response.status_code == 200
-    assert "Data not provided" in response.context["error"]
-    assert "Data not provided" in response.content.decode()
+    assert response.status_code == 302
+    messages = list(get_messages(response.wsgi_request))
+    assert any("Data not provided" in message.message for message in messages)
 
     galleyproofing.notes = "Some notes"
     galleyproofing.save()
     galleyproofing.refresh_from_db()
     response = client.get(url)
-    assert response.status_code == 200
+    assert response.status_code == 302
+    messages = list(get_messages(response.wsgi_request))
+    assert any("Corrections have been dispatched" in message.message for message in messages)
+
     stage_proofing_article.refresh_from_db()
     assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
 
@@ -425,3 +430,66 @@ def test_record_of_state_change(
     workflow.typesetter_submits()
     workflow.refresh_from_db()
     assert workflow.latest_state_change > record_me
+
+
+@pytest.mark.parametrize("user_is_author", (True, False))
+@pytest.mark.django_db
+def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is_author: bool):
+    """The author can deem rft only articles that have all production flags in the expected state."""
+    workflow = stage_proofing_article.articleworkflow
+
+    if user_is_author:
+        operator = stage_proofing_article.correspondence_author
+        # ugly hack (?) author and typ can do the same action with the same conditions,
+        # but from different states, so I have to force the state
+        initial_state = ArticleWorkflow.ReviewStates.PROOFREADING
+    else:
+        operator = stage_proofing_article.typesettinground_set.first().typesettingassignment.typesetter
+        initial_state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+    client.force_login(operator)
+    workflow.state = initial_state
+    workflow.save()
+
+    # article is not "ready"
+    assert workflow.production_flag_no_queries is False
+    assert workflow.production_flag_galleys_ok is False
+    assert workflow.production_flag_no_checks_needed is True
+    assert workflow.can_be_set_rfp() is False
+
+    # the rfp action should not be visible to the author in the status page
+    # TODO: do we have any preference for the typesetter?
+    if user_is_author:
+        url = reverse("wjs_article_details", kwargs={"pk": stage_proofing_article.articleworkflow.pk})
+        response = client.get(url)
+        assert response.status_code == 200
+        state_class = BaseState.get_state_class(workflow)
+        action = state_class.get_action_by_name("author_deems_paper_ready_for_publication")
+        assert action.label not in response.content.decode()
+
+        # TODO: drop che client.get + response.content stuff and just do
+        actions_available_to_the_user_in_this_state = [
+            action for action in state_class.article_actions if action.is_available(workflow, operator)
+        ]
+        assert action not in actions_available_to_the_user_in_this_state
+
+    # even if the author manages to run the action, the process ends in a well-behaved error
+    url = reverse("wjs_review_rfp", kwargs={"pk": stage_proofing_article.articleworkflow.pk})
+    response = client.get(url)
+    assert response.status_code == 302
+
+    messages = list(get_messages(response.wsgi_request))
+    assert any("Paper not yet ready for publication" in message.message for message in messages)
+    assert workflow.state == initial_state
+
+    # not, let's make the paper ready
+    workflow.production_flag_no_queries = True
+    workflow.production_flag_galleys_ok = True
+    workflow.save()
+    assert workflow.can_be_set_rfp() is True
+
+    response = client.get(url)
+    assert response.status_code == 302
+
+    workflow.refresh_from_db()
+    assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION

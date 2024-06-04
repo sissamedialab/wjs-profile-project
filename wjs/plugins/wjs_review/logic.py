@@ -46,6 +46,7 @@ from .events.assignment import dispatch_assignment
 from .logic__production import (  # noqa F401
     AssignTypesetter,
     AuthorSendsCorrections,
+    ReadyForPublication,
     RequestProofs,
     UploadFile,
     VerifyProductionRequirements,
@@ -89,6 +90,13 @@ states_when_article_is_considered_archived_for_review = [
     ArticleWorkflow.ReviewStates.PROOFREADING,
     ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
     ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+    ArticleWorkflow.ReviewStates.PUBLISHED,
+]
+
+states_when_article_is_considered_archived = [
+    ArticleWorkflow.ReviewStates.WITHDRAWN,
+    ArticleWorkflow.ReviewStates.REJECTED,
+    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
     ArticleWorkflow.ReviewStates.PUBLISHED,
 ]
 

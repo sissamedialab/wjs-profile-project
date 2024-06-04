@@ -71,7 +71,7 @@ def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag:
         return [
             action.as_dict(workflow, user)
             for action in state_class.article_actions
-            if action.has_permission(workflow, user)
+            if action.is_available(workflow, user)
             # if action.has_permission(workflow, user) and action.tag == tag
         ]
     else:
