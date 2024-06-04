@@ -10,6 +10,7 @@ register = template.Library()
 
 @register.simple_tag(takes_context=True)
 def user_has_access_to(
+    context,
     workflow: ArticleWorkflow,
     user: Account,
     target: models.Model,

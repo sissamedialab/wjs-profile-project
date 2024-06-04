@@ -1,0 +1,16 @@
+<a id="target-{{ action.name|slugify }}"
+  {% if action.is_htmx %}
+   hx-target="#target-{{ action.name|slugify }}"
+   hx-post="{{ action.url }}"
+   hx-swap="outerHTML"
+  {% endif %}
+   class="nav-link {% if action.disabled %}disabled{% endif %} {% if action.url == '#' %}disabled{% endif %}"
+   href="{{ action.url }}"
+   {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %}>
+  {% if action.label %}
+    {{ action.label }}
+  {% else %}
+    {{ action.name }}
+  {% endif %}
+  {{ error|default:'' }}
+</a>
