@@ -667,9 +667,18 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
 
 class ArticleDetails(UserPassesTestMixin, DetailView):
     model = ArticleWorkflow
-    template_name = "wjs_review/details.html"
+    template_name = "wjs_review/details/articleworkflow_detail.html"
     context_object_name = "workflow"
-    model = ArticleWorkflow
+
+    @property
+    def extra_links(self):
+        preprintid = self.object.article.get_identifier("preprintid")
+        if not preprintid:
+            preprintid = self.object.article_id
+        return {
+            "javascript:history.back()": _("Back to list"),
+            reverse("wjs_article_details", kwargs={"pk": self.kwargs["pk"]}): preprintid,
+        }
 
     def test_func(self):
         """Allow access only one has permission on the article."""

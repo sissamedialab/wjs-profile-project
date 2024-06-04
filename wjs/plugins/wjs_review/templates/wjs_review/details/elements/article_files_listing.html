@@ -1,0 +1,29 @@
+<ul class="list-group mb-3">
+  <li class="list-group-item fw-bold">{% translate "Manuscript Files" %}</li>
+  {% for file in article.manuscript_files.all %}
+    <li class="list-group-item">
+      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+    </li>
+  {% endfor %}
+
+  <li class="list-group-item fw-bold">{% translate "Data Figure Files" %}</li>
+  {% for file in article.data_figure_files.all %}
+    <li class="list-group-item">
+      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+    </li>
+  {% endfor %}
+
+  <li class="list-group-item fw-bold">{% translate "Supplementary Files" %}</li>
+  {% for file in article.supplementary_files.all %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file.file }}</a>
+    </li>
+  {% endfor %}
+
+  <li class="list-group-item fw-bold">{% translate "Source Files" %}</li>
+  {% for file in article.source_files.all %}
+    <li class="list-group-item">
+      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+    </li>
+  {% endfor %}
+</ul>
