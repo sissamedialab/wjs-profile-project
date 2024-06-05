@@ -21,7 +21,7 @@
       {{ article.date_submitted|date:"d-M" }}
     </td>
     <td>
-      {{ timesince|article.articleworkflow.latest_state_change }} ago
+      {{ article.articleworkflow.latest_state_change|timesince }} ago
     </td>
   </tr>
 {% endwith %}
