@@ -253,16 +253,19 @@ def annotate_is_only_prophy(self):
     )
 
 
-def get_editors_with_keywords(self, current_editor: Account, article: Article):
+def get_editors_with_keywords(self, article: Article, current_editor: Optional[Account] = None) -> QuerySet[Account]:
     """
     Return the list of editors ordered by number of matching keywords they have with the article.
     The list of matching keywords and the count are also returned.
     """
     article_keywords_ids = list(article.keywords.values_list("id", flat=True))
 
-    editors = self.filter(accountrole__role__slug="section-editor", accountrole__journal=article.journal).exclude(
-        id=current_editor.id,
-    )
+    editors = self.filter(accountrole__role__slug="section-editor", accountrole__journal=article.journal)
+
+    if current_editor:
+        editors = editors.exclude(
+            id=current_editor.id,
+        )
 
     editors = editors.annotate(
         num_shared_kwds=Count(

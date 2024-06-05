@@ -612,15 +612,31 @@ def test_revision_file_replace_no_perms(
 
 @pytest.mark.django_db
 def test_editor_with_kdws_list_retrieval(article_with_keywords, editors_with_keywords):
-    editors_list = Account.objects.get_editors_with_keywords(editors_with_keywords[0], article_with_keywords)
+    """Test the function get_editors_with_keywords().
+
+    Note that editors_with_keywords is a list of 4 editors such that
+    - e0: k0 k1 k2
+    - e1: k0 k1 k2
+    - e2: k0 k1
+    - e3:          k3
+    and article_with_keywords has k0 k1 k2
+    """
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords, editors_with_keywords[0])
 
     assert editors_list[0] == editors_with_keywords[1].janeway_account
     assert editors_list[2] == editors_with_keywords[3].janeway_account
 
-    editors_list = Account.objects.get_editors_with_keywords(editors_with_keywords[1], article_with_keywords)
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords, editors_with_keywords[1])
 
     assert editors_list[0] == editors_with_keywords[0].janeway_account
     assert editors_list[2] == editors_with_keywords[3].janeway_account
+
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords)
+
+    assert editors_list[0] == editors_with_keywords[0].janeway_account
+    assert editors_list[1] == editors_with_keywords[1].janeway_account
+    assert editors_list[2] == editors_with_keywords[2].janeway_account
+    assert editors_list[3] == editors_with_keywords[3].janeway_account
 
 
 @pytest.mark.django_db

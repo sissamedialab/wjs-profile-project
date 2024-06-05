@@ -463,7 +463,7 @@ class PermissionChecker:
     _permission_classes = {
         permissions.has_admin_role_by_article: SuperUserPermissionChecker,
         permissions.has_director_role_by_article: DirectorPermissionChecker,
-        permissions.is_special_issue_supervisor: EditorPermissionChecker,  # TODO: TBD
+        permissions.is_special_issue_editor: EditorPermissionChecker,  # TODO: TBD
         permissions.has_typesetter_role_by_article: TypeSetterPermissionChecker,
         permissions.has_section_editor_role_by_article: EditorPermissionChecker,
         permissions.has_reviewer_role_by_article: ReviewerPermissionChecker,

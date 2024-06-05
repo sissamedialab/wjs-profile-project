@@ -274,10 +274,10 @@ class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
-            permission=permissions.has_director_role_by_article,
-            name="selects editor",
-            label="",
-            view_name="WRITEME!",
+            permission=permissions.is_article_supervisor,
+            name="assigns editor",
+            label="Assign Editor",
+            view_name="wjs_assigns_editor",
         ),
     )
 
@@ -298,10 +298,10 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             view_name="wjs_unassign_assignment",
         ),
         ArticleAction(
-            permission=permissions.can_assign_special_issue_by_article,
+            permission=permissions.is_article_supervisor,
             name="assigns different editor",
             label="Assign different Editor",
-            view_name="wjs_assigns_different_editor",
+            view_name="wjs_assigns_editor",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -366,7 +366,7 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             view_name="wjs_select_reviewer",
         ),
         ArticleAction(
-            permission=permissions.is_special_issue_supervisor,
+            permission=permissions.is_article_supervisor,
             name="assign permissions",
             label="Assign permissions",
             view_name="wjs_assign_permission",

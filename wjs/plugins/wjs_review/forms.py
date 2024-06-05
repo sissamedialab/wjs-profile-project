@@ -866,7 +866,7 @@ class AssignEoForm(forms.ModelForm):
         return self.instance
 
 
-class EditorAssignsDifferentEditorForm(forms.ModelForm):
+class SupervisorAssignEditorForm(forms.ModelForm):
     editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
 
@@ -889,22 +889,29 @@ class EditorAssignsDifferentEditorForm(forms.ModelForm):
             request=self.request,
         )
 
-    def get_deassignment_logic_instance(self) -> HandleEditorDeclinesAssignment:
-        """Instantiate :py:class:`DeassignFromEditor` class."""
-        assignment = WjsEditorAssignment.objects.get_current(self.instance)
-        return HandleEditorDeclinesAssignment(
-            # Like in the view, assume that there is only one editorassignment for each article, the condition in the
-            # logic will double-check it.
-            assignment=assignment,
-            editor=assignment.editor,
-            request=self.request,
-        )
+    def get_deassignment_logic_instance(self) -> Optional[HandleEditorDeclinesAssignment]:
+        """
+        Instantiate :py:class:`DeassignFromEditor` class.
 
-    def save(self):
+        If no existing assignment is found, return None (ie: no deassignment is needed).
+        """
+        try:
+            assignment = WjsEditorAssignment.objects.get_current(self.instance)
+            return HandleEditorDeclinesAssignment(
+                # Like in the view, assume that there is only one editorassignment for each article,
+                # the condition in the logic will double-check it.
+                assignment=assignment,
+                editor=assignment.editor,
+                request=self.request,
+            )
+        except WjsEditorAssignment.DoesNotExist:
+            return None
+
+    def save(self, commit=True):
         try:
             service = self.get_logic_instance()
-            service_deassignment = self.get_deassignment_logic_instance()
-            service_deassignment.run()
+            if service_deassignment := self.get_deassignment_logic_instance():
+                service_deassignment.run()
             service.run()
         except ValidationError as e:
             self.add_error(None, e)

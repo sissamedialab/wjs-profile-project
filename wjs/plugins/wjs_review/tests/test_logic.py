@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import freezegun
 import pytest
+from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core import mail
@@ -27,7 +28,11 @@ from ..events.handlers import (
     on_article_submitted,
     on_revision_complete,
 )
-from ..forms import AssignEoForm, EditorRevisionRequestEditForm
+from ..forms import (
+    AssignEoForm,
+    EditorRevisionRequestEditForm,
+    SupervisorAssignEditorForm,
+)
 from ..logic import (
     AdminActions,
     AssignToEditor,
@@ -2584,3 +2589,59 @@ def test_past_assignment(
         assignment_3,
         permission_type=PermissionAssignment.PermissionType.ALL,
     )
+
+
+@pytest.mark.django_db
+def test_assign_different_editor(
+    assigned_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest
+):
+    """Assigned editor can be changed by EO."""
+    normal_user.add_account_role("section-editor", assigned_article.journal)
+    current_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    form_data = {
+        "editor": normal_user.pk,
+        "state": assigned_article.articleworkflow.state,
+    }
+    editors = Account.objects.get_editors_with_keywords(assigned_article, current_editor)
+    assert current_editor not in editors
+    assert normal_user.janeway_account in editors
+    form = SupervisorAssignEditorForm(
+        data=form_data,
+        user=eo_user,
+        request=fake_request,
+        instance=assigned_article.articleworkflow,
+        selectable_editors=editors,
+    )
+    form.is_valid()
+    form.save()
+    assigned_article.refresh_from_db()
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article.articleworkflow)
+    assert assignment.editor == normal_user.janeway_account
+
+
+@pytest.mark.django_db
+def test_assign_new_editor(
+    article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest, review_settings
+):
+    """Editor can be assigned by EO to an article without prior assignees."""
+    normal_user.add_account_role("section-editor", article.journal)
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    article.articleworkflow.save()
+    form_data = {
+        "editor": normal_user.pk,
+        "state": article.articleworkflow.state,
+    }
+    editors = Account.objects.get_editors_with_keywords(article)
+    assert normal_user.janeway_account in editors
+    form = SupervisorAssignEditorForm(
+        data=form_data,
+        user=eo_user,
+        request=fake_request,
+        instance=article.articleworkflow,
+        selectable_editors=editors,
+    )
+    form.is_valid()
+    form.save()
+    article.refresh_from_db()
+    assignment = WjsEditorAssignment.objects.get_current(article.articleworkflow)
+    assert assignment.editor == normal_user.janeway_account
