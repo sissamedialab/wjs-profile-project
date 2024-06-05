@@ -51,7 +51,6 @@ from .forms import (
     ArticleReviewStateForm,
     AssignEoForm,
     DecisionForm,
-    EditorAssignsDifferentEditorForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
     EvaluateReviewForm,
@@ -61,6 +60,7 @@ from .forms import (
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
+    SupervisorAssignEditorForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
@@ -1551,13 +1551,14 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
         return render(request, self.template_name, context)
 
 
-class EditorAssignsDifferentEditor(UpdateView):
+class SupervisorAssignEditor(UpdateView):
     """
-    If the user is an editor of a special issue, it will be able to assign the paper to a different editor
+    If the user is an editor of a special issue, they will be able to assign the paper to a different editor
     """
 
-    form_class = EditorAssignsDifferentEditorForm
-    template_name = "wjs_review/editor_assigns_different_editor.html"
+    model = ArticleWorkflow
+    form_class = SupervisorAssignEditorForm
+    template_name = "wjs_review/supervisor_assign_editor.html"
 
     def test_func(self):
         """
@@ -1567,7 +1568,7 @@ class EditorAssignsDifferentEditor(UpdateView):
         but we don't check if the editor belongs to a S.I.(e.g. `permissions.can_assign_special_issue_by_article()`),
         because the process is common.
         """
-        return permissions.is_special_issue_supervisor(self.object, self.request.user)
+        return permissions.is_article_supervisor(self.object, self.request.user)
 
     def get_success_url(self):
         messages.add_message(
@@ -1582,14 +1583,17 @@ class EditorAssignsDifferentEditor(UpdateView):
         elif permissions.has_director_role_by_article(self.object, self.request.user):
             return reverse("wjs_review_director_pending")
 
-    def _editors_with_keywords(self):
-        return Account.objects.get_editors_with_keywords(
-            # using first() to retrieve the current editor assuming that there is only one editorassignment for each
-            # article, to double-check there is a condition inside the logic class "exist_other_assignments".
-            # This is needed because the editor is not always the user.
-            WjsEditorAssignment.objects.get_current(self.object).editor,
-            self.object.article,
-        )
+    def _editors_with_keywords(self) -> QuerySet[Account]:
+        """
+        Provides a list of available editors annotated with related keywords.
+
+        The list is filtered by removing current editor, if any.
+        """
+        try:
+            current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
+        except WjsEditorAssignment.DoesNotExist:
+            current_editor = None
+        return Account.objects.get_editors_with_keywords(self.object.article, current_editor)
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)

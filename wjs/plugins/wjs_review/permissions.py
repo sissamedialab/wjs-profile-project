@@ -310,30 +310,15 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     return is_correspondence_author | is_any_author
 
 
-def is_special_issue_supervisor(instance: "ArticleWorkflow", user: Account) -> bool:
+def is_article_supervisor(instance: "ArticleWorkflow", user: Account) -> bool:
     """
-    Return True if the user is either the editor, the director or the EO.
+    Check if the user can manage article permissions and assignments (article supervisor).
 
-    :param instance: An instance of the ArticleWorkflow class.
-    :type instance: ArticleWorkflow
+    This is available to:
 
-    :param user: The user to check for role.
-    :type user: Account
-
-    :return: True if the user is included in the article authors list or is the correspondence author, False otherwise.
-    :rtype: bool
-    """
-    return (
-        is_article_editor(instance, user)
-        or has_director_role_by_article(instance, user)
-        or has_admin_role_by_article(instance, user)
-    )
-
-
-def can_assign_special_issue_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
-    """
-    Check if the user is the Editor of the article or is the director of the journal or is part of the EO and if
-    the article is assigned to a special issue.
+    - the EO
+    - the director
+    - the editor if the article is part of a special issue
 
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow
@@ -344,8 +329,30 @@ def can_assign_special_issue_by_article(instance: "ArticleWorkflow", user: Accou
     :return: True if the user has the supervisor role on the special issue.
     :rtype: bool
     """
+    return (
+        is_special_issue_editor(instance, user)
+        or has_director_role_by_article(instance, user)
+        or has_admin_role_by_article(instance, user)
+    )
+
+
+def is_special_issue_editor(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is the editor of the special issue associated with the article.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is the editor of the special issue.
+    :rtype: bool
+    """
     is_article_special_issue = instance.article.issues.filter(issue_type__code="collection").exists()
-    return is_special_issue_supervisor(instance, user) and is_article_special_issue
+    # FIXME: This is wrong, but first we must set up the special issues properly
+    is_special_issue_editor = is_article_editor(instance, user)
+    return is_article_special_issue and is_special_issue_editor
 
 
 def has_typesetter_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:

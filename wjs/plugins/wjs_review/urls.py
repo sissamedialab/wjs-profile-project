@@ -16,7 +16,6 @@ from .views import (
     DirectorArchived,
     DirectorPending,
     EditorArchived,
-    EditorAssignsDifferentEditor,
     EditorDeclineAssignmentView,
     EditorPending,
     EOArchived,
@@ -36,6 +35,7 @@ from .views import (
     ReviewerPending,
     ReviewSubmit,
     SelectReviewer,
+    SupervisorAssignEditor,
     ToggleMessageReadByEOView,
     ToggleMessageReadView,
     UpdateReviewerDueDate,
@@ -87,9 +87,9 @@ urlpatterns = [
     path("assign_eo/<int:pk>/", AssignEoToArticle.as_view(), name="wjs_assign_eo"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path(
-        "assigns_different_editor/<int:pk>/",
-        EditorAssignsDifferentEditor.as_view(),
-        name="wjs_assigns_different_editor",
+        "assigns_editor/<int:pk>/",
+        SupervisorAssignEditor.as_view(),
+        name="wjs_assigns_editor",
     ),
     path("postpone_duedate/<int:pk>/", UpdateReviewerDueDate.as_view(), name="wjs_postpone_reviewer_due_date"),
     path(

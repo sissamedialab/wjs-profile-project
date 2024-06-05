@@ -109,13 +109,13 @@ def article_current_editor(article):
     # TODO: registering as a `filter` because I don't know how to use it with with otherwise
     # e.g.: {% with editor_assignment_data=article|article_current_editor %}
 
-    editor_assignment = WjsEditorAssignment.objects.get_current(article)
-    if editor_assignment:
+    try:
+        editor_assignment = WjsEditorAssignment.objects.get_current(article)
         return {
             "editor": editor_assignment.editor,
             "days_elapsed": (timezone.now() - editor_assignment.assigned).days,
         }
-    else:
+    except WjsEditorAssignment.DoesNotExist:
         return {
             "editor": "Not assigned",
             # NB: this might not be accurate if there was a previous assignment that has been rejected, but the
