@@ -9,14 +9,6 @@
       <a title="{{ article.title }}" href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article.title|truncatewords:6 }}</a>
     </td>
     <td>
-      {% with editor_assignment_data=article|article_current_editor %}
-        {{ editor_assignment_data.editor }}
-      {% endwith %}
-    </td>
-    <td>
-      {% get_requested_date user=user article=workflow.article %}
-    </td>
-    <td>
       {{ article.section.name }}
     </td>
     <td>
@@ -24,6 +16,12 @@
     </td>
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" with brief=True %}
+    </td>
+    <td>
+      {{ article.date_submitted|date:"d-M" }}
+    </td>
+    <td>
+      {{ timesince|article.articleworkflow.latest_state_change }} ago
     </td>
   </tr>
 {% endwith %}

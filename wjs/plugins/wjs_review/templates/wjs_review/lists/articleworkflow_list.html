@@ -15,12 +15,14 @@
       </div>
     </div>
   </div>
-  {% if filter %}
-    <div class="container mb-3">
-      <form method="get">
-        {% include filter.template_name %}
-      </form>
-    </div>
+  {% if view.show_filters %}
+    {% if filter %}
+      <div class="container mb-3">
+        <form method="get">
+          {% include filter.template_name %}
+        </form>
+      </div>
+    {% endif %}
   {% endif %}
   <div class="container mb-3">
     {% include view.template_table %}
