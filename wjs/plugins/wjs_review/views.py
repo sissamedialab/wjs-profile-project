@@ -112,6 +112,7 @@ class ArticleWorkflowBaseMixin:
     title: str
     related_views: Dict[str, str] = {}
     extra_links: Dict[str, str]
+    show_filters = True
 
     def setup(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
@@ -362,6 +363,7 @@ class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTest
         "wjs_review_author_pending": _("Pending"),
         "wjs_review_author_archived": _("Archived"),
     }
+    show_filters = False
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
@@ -375,7 +377,10 @@ class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTest
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            Q(state__in=states_when_article_is_considered_in_review)
+            (
+                Q(state__in=states_when_article_is_considered_in_review)
+                | Q(state__in=states_when_article_is_considered_in_production)
+            )
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
 
