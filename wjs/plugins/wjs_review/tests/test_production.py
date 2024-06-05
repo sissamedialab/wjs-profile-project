@@ -493,3 +493,23 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
 
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+
+
+@pytest.mark.django_db
+def test_eo_sends_back_to_typesetter(
+    stage_proofing_article: Article,
+    client: Client,
+    eo_user: JCOMProfile,
+):
+    url = reverse("wjs_send_back_to_typ", kwargs={"pk": stage_proofing_article.articleworkflow.pk})
+    client.force_login(eo_user.janeway_account)
+    stage_proofing_article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+    stage_proofing_article.articleworkflow.save()
+    form_data = {
+        "subject": f"Article {stage_proofing_article.articleworkflow.article.id} back to typesetter",
+        "body": "This is a test message body.",
+    }
+    response = client.post(url, data=form_data)
+    stage_proofing_article.articleworkflow.refresh_from_db()
+    assert response.status_code == 302
+    assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED

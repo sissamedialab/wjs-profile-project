@@ -19,6 +19,7 @@ from core.models import File as JanewayFile
 from core.models import Galley, SupplementaryFile
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.files import File
 from django.db import transaction
 from django.http import HttpRequest
@@ -45,6 +46,7 @@ from wjs.jcom_profile.import_utils import (
     evince_language_from_filename_and_article,
     process_body,
 )
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils
@@ -1048,3 +1050,70 @@ class ReadyForPublication:
                 raise ValueError("Paper not yet ready for publication. For assitance, contact the EO.")
             self._update_state()
         return self.workflow
+
+
+@dataclasses.dataclass
+class HandleEOSendBackToTypesetter:
+    articleworkflow: ArticleWorkflow
+    user: Account
+    body: str
+    subject: str
+
+    def _check_conditions(self) -> bool:
+        is_user_eo = has_eo_role(self.user)
+        check_state = self.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+        return is_user_eo and check_state
+
+    def _update_state(self):
+        """Run FSM transition."""
+        self.articleworkflow.admin_sends_back_to_typ()
+        self.articleworkflow.save()
+        self.articleworkflow.article.stage = STAGE_TYPESETTING
+        self.articleworkflow.article.save()
+
+    def _create_typesetting_round(self):
+        """Create a new typesetting round."""
+        self.old_assignment = (
+            TypesettingAssignment.objects.filter(
+                round__article=self.articleworkflow.article,
+            )
+            .order_by("round__round_number")
+            .last()
+        )
+
+        typesetting_round, _ = TypesettingRound.objects.get_or_create(
+            article=self.articleworkflow.article,
+            round_number=self.old_assignment.round.round_number + 1,
+        )
+        return typesetting_round
+
+    def _create_typesetting_assignment(self):
+        """Create a new typesetting assignment."""
+        TypesettingAssignment.objects.create(
+            round=self._create_typesetting_round(),
+            typesetter=self.old_assignment.typesetter,
+            accepted=timezone.now(),
+            due=timezone.now() + timezone.timedelta(days=settings.TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS),
+        )
+
+    def _create_message(self):
+        """Create and send the message for the typesetter."""
+        message = Message.objects.create(
+            actor=self.user,
+            message_type=Message.MessageTypes.VERBOSE,
+            content_type=ContentType.objects.get_for_model(self.articleworkflow.article),
+            object_id=self.articleworkflow.article.pk,
+            subject=self.subject,
+            body=self.body,
+        )
+        message.recipients.add(self.old_assignment.typesetter)
+        message.emit_notification()
+
+    def run(self):
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("Invalid state transition")
+            self._update_state()
+            self._create_typesetting_assignment()
+            self._create_message()
+            return self.articleworkflow

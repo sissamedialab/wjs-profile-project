@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView, ListView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
@@ -20,6 +20,7 @@ from wjs.jcom_profile.mixins import HtmxMixin
 
 from .communication_utils import get_eo_user
 from .forms__production import (
+    EOSendBackToTypesetterForm,
     FileForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
@@ -611,3 +612,40 @@ class GalleyGenerationView(UserPassesTestMixin, LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         async_task(execute_galley_generation, self.kwargs["pk"])
         return render(request, self.template_name, {"article": self.article})
+
+
+class EOSendBackToTypesetterView(UserPassesTestMixin, LoginRequiredMixin, FormView):
+    """View to allow the EO to send a paper back to typesetter."""
+
+    form_class = EOSendBackToTypesetterForm
+    template_name = "wjs_review/write_message_to_typ.html"
+    success_url = reverse_lazy("wjs_review_eo_pending")
+
+    def setup(self, request, *args, **kwargs):
+        """Fetch the Article instance for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.articleworkflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
+
+    def test_func(self):
+        """Typesetter can upload files."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["articleworkflow"] = self.articleworkflow
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.articleworkflow
+        return context
+
+    def form_valid(self, form):
+        try:
+            # NB: we are not using a ModelForm, so form.save() is not "special" and we must call it explicilty
+            form.save()
+            return super().form_valid(form)
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            return super().form_invalid(form)

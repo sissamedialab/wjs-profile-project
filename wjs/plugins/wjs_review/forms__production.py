@@ -11,6 +11,7 @@ from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from .logic__production import (
     HandleCreateAnnotatedFile,
     HandleDeleteAnnotatedFile,
+    HandleEOSendBackToTypesetter,
     UploadFile,
 )
 from .models import Message
@@ -150,3 +151,56 @@ class UploadAnnotatedFilesForm(forms.ModelForm):
             self.galleyproofing.notes = self.cleaned_data["notes"]
             self.galleyproofing.save()
             return self.galleyproofing
+
+
+class EOSendBackToTypesetterForm(forms.Form):
+    """Form used by the EO to send a paper back to typesetter."""
+
+    subject = forms.CharField(required=True, label="Subject")
+    body = forms.CharField(required=True, label="Body", widget=SummernoteWidget())
+
+    def __init__(self, *args, **kwargs):
+        """Store away user and article."""
+        self.user = kwargs.pop("user")
+        self.instance = kwargs.pop("articleworkflow")
+        # TBD: need to retrieve last typ assignment here AND in the logic class because I need the typesetter here.
+        # Still prefer not to pass It to the logic class to keep it slim.
+        typesetter = (
+            TypesettingAssignment.objects.filter(
+                round__article=self.instance.article,
+            )
+            .order_by("round__round_number")
+            .last()
+            .typesetter
+        )
+
+        initial = kwargs.get("initial", {})
+        initial["subject"] = f"Article {self.instance.article.id} back to typesetter"
+        initial["body"] = (
+            f"Dear {typesetter.full_name()},<br>"
+            "please ...<br>"
+            f'<a href="{self.instance.article.url}">{self.instance.article.url}</a><br><br>'
+            "Thank you,<br>"
+            f"{self.user.full_name()}<br>"
+        )
+
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> HandleEOSendBackToTypesetter:
+        """Instantiate :py:class:`HandleEOSendBackToTypesetter` class."""
+        return HandleEOSendBackToTypesetter(
+            articleworkflow=self.instance,
+            user=self.user,
+            body=self.cleaned_data["body"],
+            subject=self.cleaned_data["subject"],
+        )
+
+    def save(self):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance

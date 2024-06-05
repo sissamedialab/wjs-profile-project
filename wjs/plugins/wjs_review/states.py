@@ -809,6 +809,13 @@ class ReadyForPublication(BaseState):
             label="Back to typ",
             view_name="WRITEME!",
         ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="Send paper back to Typesetter",
+            label="Send paper back to Typesetter",
+            tooltip="Ask the typesetter for some changes...",
+            view_name="wjs_send_back_to_typ",
+        ),
     )
 
 
