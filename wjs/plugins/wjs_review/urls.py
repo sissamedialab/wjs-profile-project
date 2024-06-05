@@ -48,6 +48,7 @@ from .views__production import (  # noqa F401
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DownloadRevisionFiles,
+    EOSendBackToTypesetterView,
     GalleyGenerationView,
     ListAnnotatedFilesView,
     ReadyForProofreadingView,
@@ -197,5 +198,10 @@ urlpatterns = [
         "article/<int:article_id>/permissions/<str:object_type>/<int:object_id>/",
         AssignPermission.as_view(),
         name="wjs_assign_permission",
+    ),
+    path(
+        "send_back_to_typesetter/<int:pk>/",
+        EOSendBackToTypesetterView.as_view(),
+        name="wjs_send_back_to_typ",
     ),
 ]

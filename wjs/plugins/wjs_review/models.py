@@ -405,7 +405,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.READY_FOR_PUBLICATION,
         target=ReviewStates.TYPESETTER_SELECTED,
-        # TODO: permission=,
+        permission=permissions.has_eo_role_by_article,
         # TODO: conditions=[],
     )
     def admin_sends_back_to_typ(self):
