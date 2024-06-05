@@ -9,7 +9,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import BLANK_CHOICE_DASH, QuerySet
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -96,6 +96,8 @@ class ArticleWorkflow(TimeStampedModel):
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
 
+        __empty__ = BLANK_CHOICE_DASH[0][0]
+
         ACCEPT = "accept", _("Accept")
         REJECT = "reject", _("Reject")
         MINOR_REVISION = EditorialDecisions.MINOR_REVISIONS.value, _("Minor revision")
@@ -103,6 +105,15 @@ class ArticleWorkflow(TimeStampedModel):
         TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
         REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
+
+        @classmethod
+        @property
+        def decision_choices(cls):
+            return [
+                choice
+                for choice in cls.choices
+                if choice[0] not in [cls.REQUIRES_RESUBMISSION.value, cls.TECHNICAL_REVISION.value]
+            ]
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
