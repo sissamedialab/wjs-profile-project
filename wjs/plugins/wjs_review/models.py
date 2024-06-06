@@ -30,7 +30,11 @@ from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.models import Correspondence
 
 from . import permissions
-from .managers import ArticleWorkflowQuerySet, WjsEditorAssignmentQuerySet
+from .managers import (
+    ArticleWorkflowQuerySet,
+    WjsEditorAssignmentQuerySet,
+    WorkflowReviewAssignmentQuerySet,
+)
 from .reminders.models import Reminder  # noqa F401
 
 logger = get_logger(__name__)
@@ -835,6 +839,8 @@ class WorkflowReviewAssignment(ReviewAssignment):
     #  Quando si aggiungono nuovi campi modificare il metodo AssignToReviewer._assign_reviewer per evitare di ottenere
     #  errori nel salvataggio.
     author_note_visible = models.BooleanField(_("Author note visible"), default=True)
+
+    objects = WorkflowReviewAssignmentQuerySet.as_manager()
 
     @property
     def previous_review_round(self) -> Optional[ReviewRound]:

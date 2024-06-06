@@ -51,6 +51,7 @@ from .logic__production import (  # noqa F401
     UploadFile,
     VerifyProductionRequirements,
 )
+from .permissions import is_article_editor
 from .reminders.settings import (
     AuthorShouldSubmitMajorRevisionReminderManager,
     AuthorShouldSubmitMinorRevisionReminderManager,
@@ -1644,10 +1645,7 @@ class HandleDecision:
         Mark unfinished review requests as withdrawn.
         """
         for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
-            assignment.decision = "withdrawn"
-            assignment.is_complete = True
-            assignment.date_complete = timezone.now()
-            assignment.save()
+            assignment.withdraw()
             self._log_review_withdraw(context=email_context, reviewer=assignment.reviewer)
 
     def _store_decision(self) -> EditorDecision:
@@ -2227,3 +2225,107 @@ class HandleEditorDeclinesAssignment:
                 self._log_director()
             past_assignment = self._delete_assignment()
             return past_assignment
+
+
+@dataclasses.dataclass
+class DeselectReviewer:
+    """
+    Remove reviewer assignment
+    """
+
+    assignment: WorkflowReviewAssignment
+    editor: Account
+    request: HttpRequest
+    send_reviewer_notification: bool
+    form_data: Dict[str, Any]
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "editor": self.editor,
+            "assignment": self.assignment,
+        }
+
+    def _log_reviewer(self):
+        """Logs a message to the reviewer containing information about the motivation of the deassignment."""
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=self.form_data.get("notification_subject"),
+            message_body=self.form_data.get("notification_body"),
+            actor=self.editor,
+            recipients=[self.assignment.reviewer],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+    def _log_system(self):
+        """Logs a system message notifying for deassignment."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_deassign_reviewer_system_subject",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_deassign_reviewer_system_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.editor,
+            message_type=Message.MessageTypes.SYSTEM,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+    @staticmethod
+    def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
+        """Current editor must be article editor."""
+        return is_article_editor(assignment.article.articleworkflow, editor)
+
+    def check_conditions(self):
+        """Check if the conditions for the deassignment are met."""
+        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
+        return editor_conditions
+
+    def _withdraw_assignment(self) -> bool:
+        """
+        Withdraw the assignment
+        """
+        self._delete_reviewer_reminders()
+        self._create_editor_reminder()
+        if self.send_reviewer_notification:
+            self._log_reviewer()
+        self._log_system()
+        self.assignment.withdraw()
+        return True
+
+    def _delete_reviewer_reminders(self):
+        """Delete all reminders for the deassigned reviewer."""
+        ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).delete()
+        ReviewerShouldWriteReviewReminderManager(self.assignment).delete()
+
+    def _must_create_reminders(self) -> bool:
+        """Check if there are no more reviewers for the article."""
+        assignments = WorkflowReviewAssignment.objects.valid(
+            self.assignment.article, self.assignment.review_round
+        ).exclude(pk=self.assignment.pk)
+        return not assignments.exists()
+
+    def _create_editor_reminder(self):
+        """Create reminders for the editor, is there is no more  for the director."""
+        if self._must_create_reminders():
+            EditorShouldSelectReviewerReminderManager(article=self.assignment.article, editor=self.editor).create()
+
+    def run(self) -> bool:
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            success = self._withdraw_assignment()
+            return success

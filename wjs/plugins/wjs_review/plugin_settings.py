@@ -1410,6 +1410,96 @@ def set_default_plugin_settings(force: bool = False):
             typesetting_generated_galleys_setting["name"],
         )
 
+    def editor_deassign_reviewer_messages():
+        subject_editor_deassign_reviewer: SettingParams = {
+            "name": "editor_deassign_reviewer_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for reviewer deassign notification."),
+            "description": _(
+                "The subject of the notification that is sent to the reviewer when deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        subject_editor_deassign_reviewer_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Review assignment has been deassigned"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_editor_deassign_reviewer,
+            subject_editor_deassign_reviewer_setting_value,
+            subject_editor_deassign_reviewer["name"],
+        )
+        editor_deassign_reviewer_setting: SettingParams = {
+            "name": "editor_deassign_reviewer_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for reviewer deassign notification."),
+            "description": _(
+                "The body of the notification that is sent to the reviewer when deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        editor_deassign_reviewer_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ assignment.reviewer.full_name }}, thanks for your involvements.
+
+            Your review is no longer needed
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            editor_deassign_reviewer_setting,
+            editor_deassign_reviewer_setting_value,
+            editor_deassign_reviewer_setting["name"],
+        )
+        subject_editor_deassign_reviewer_system: SettingParams = {
+            "name": "editor_deassign_reviewer_system_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for system message when a reviewer is deassigned."),
+            "description": _(
+                "The subject of the system message that is logged when the reviewer is deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        subject_editor_deassign_reviewer_system_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Review assignment has been deassigned"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_editor_deassign_reviewer_system,
+            subject_editor_deassign_reviewer_system_setting_value,
+            subject_editor_deassign_reviewer_system["name"],
+        )
+        editor_deassign_reviewer_system_setting: SettingParams = {
+            "name": "editor_deassign_reviewer_system_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for system message when a reviewer is deassigned."),
+            "description": _(
+                "The body of the system message that is logged when the reviewer is deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        editor_deassign_reviewer_system_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Reviewer {{ assignment.reviewer.full_name }} has been deassigned from {{ assignment.article }}.
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            editor_deassign_reviewer_system_setting,
+            editor_deassign_reviewer_system_setting_value,
+            editor_deassign_reviewer_system_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1435,6 +1525,7 @@ def set_default_plugin_settings(force: bool = False):
     eo_is_assigned_message()
     author_sends_corrections_message()
     typesetting_generated_galleys_message()
+    editor_deassign_reviewer_messages()
 
 
 def ensure_workflow_elements():

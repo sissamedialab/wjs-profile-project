@@ -105,13 +105,7 @@ def needs_assignment(article: Article) -> str:
     # only the current one.
     # TODO: might be able to optimize (include the review_round in the where clause below)
     review_round = article.current_review_round_object()
-    assignments = ReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(
-            Q(is_complete=False, date_declined__isnull=True)  # active reviews
-            | Q(is_complete=True, date_declined__isnull=True),  # completed reviews
-        ),
-    )
+    assignments = WorkflowReviewAssignment.objects.valid(article, review_round)
     if not assignments.exists():
         return "The paper should be be assigned to some reviewer."
     else:

@@ -13,6 +13,7 @@ from .views import (
     AssignEoToArticle,
     AuthorArchived,
     AuthorPending,
+    DeselectReviewer,
     DirectorArchived,
     DirectorPending,
     EditorArchived,
@@ -86,6 +87,11 @@ urlpatterns = [
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("assign_eo/<int:pk>/", AssignEoToArticle.as_view(), name="wjs_assign_eo"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
+    path(
+        "deselect_reviewer/<int:pk>/",
+        DeselectReviewer.as_view(),
+        name="wjs_deselect_reviewer",
+    ),
     path(
         "assigns_editor/<int:pk>/",
         SupervisorAssignEditor.as_view(),

@@ -377,7 +377,7 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
             label="Deselect reviewer",
-            view_name="WRITEME!",
+            view_name="wjs_deselect_reviewer",
             tooltip="Withdraw review assignment",
         ),
         ReviewAssignmentAction(
