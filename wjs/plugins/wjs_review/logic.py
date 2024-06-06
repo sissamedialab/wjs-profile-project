@@ -259,7 +259,7 @@ class AssignToEditor:
         }
 
     def _log_operation(self, context: Dict[str, Any]):
-        if self.request.user and self.request.user.is_authenticated:
+        if self.request.user and self.request.user.is_authenticated and self.request.user != self.editor:
             actor = self.request.user
         else:
             actor = None

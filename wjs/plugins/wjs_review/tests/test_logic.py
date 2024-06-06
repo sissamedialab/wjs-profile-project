@@ -24,6 +24,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from .. import communication_utils
+from ..communication_utils import get_system_user
 from ..events.handlers import (
     dispatch_eo_assignment,
     on_article_submitted,
@@ -132,6 +133,7 @@ def test_manual_assign_eo_form(
     assert msg.recipients.filter(pk=second_eo.janeway_account.pk).exists()
 
 
+@pytest.mark.parametrize("current_user_editor", (True, False))
 @pytest.mark.django_db
 def test_assign_to_editor(
     review_settings,
@@ -139,9 +141,13 @@ def test_assign_to_editor(
     director: JCOMProfile,
     section_editor: JCOMProfile,
     article: submission_models.Article,
+    current_user_editor: bool,
 ):
     """An editor can be assigned to an article and objects states are updated."""
-    fake_request.user = director.janeway_account
+    if current_user_editor:
+        fake_request.user = section_editor.janeway_account
+    else:
+        fake_request.user = director.janeway_account
     article.stage = "Unsubmitted"
     article.save()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
@@ -190,6 +196,10 @@ def test_assign_to_editor(
     assert review_in_review_url in message_to_editor.body
     assert message_to_editor.message_type == "Verbose"
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
+    if current_user_editor:
+        assert message_to_editor.actor == get_system_user()
+    else:
+        assert message_to_editor.actor == director.janeway_account
 
 
 @pytest.mark.django_db
