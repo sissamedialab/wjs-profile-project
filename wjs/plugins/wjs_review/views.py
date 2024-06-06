@@ -51,6 +51,7 @@ from .forms import (
     ArticleReviewStateForm,
     AssignEoForm,
     DecisionForm,
+    DeselectReviewerForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
     EvaluateReviewForm,
@@ -1551,7 +1552,63 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
         return render(request, self.template_name, context)
 
 
-class SupervisorAssignEditor(UpdateView):
+class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """
+    The editor can withdraw a pending review assignment
+    """
+
+    model = WorkflowReviewAssignment
+    form_class = DeselectReviewerForm
+    template_name = "wjs_review/deselect_reviewer.html"
+
+    def test_func(self):
+        """
+        The user must be the article's editor.
+        """
+        return permissions.is_article_editor(self.object, self.request.user)
+
+    def get_success_url(self):
+        messages.add_message(
+            self.request,
+            messages.SUCCESS,
+            "Reviewer deassigned successfully.",
+        )
+        return reverse("wjs_article_details", args=(self.object.id,))
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "editor": self.object.editor,
+            "assignment": self.object,
+        }
+
+    def get_initial(self):
+        initial = super().get_initial()
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_deassign_reviewer_subject",
+            journal=self.object.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_deassign_reviewer_body",
+            journal=self.object.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        initial["notification_subject"] = message_subject
+        initial["notification_body"] = message_body
+        return initial
+
+
+class SupervisorAssignEditor(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """
     If the user is an editor of a special issue, they will be able to assign the paper to a different editor
     """

@@ -34,6 +34,7 @@ from .logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
+    DeselectReviewer,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
@@ -863,6 +864,38 @@ class AssignEoForm(forms.ModelForm):
     def save(self, commit=True):
         super().save(commit)
         self._log_eo_if_eo_assigned()
+        return self.instance
+
+
+class DeselectReviewerForm(forms.Form):
+    send_notification = forms.BooleanField(label=_("Send notification to the reviewer"), required=False, initial=True)
+    notification_subject = forms.CharField(label=_("Subject"))
+    notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        self.user = kwargs.pop("user")
+        self.instance = kwargs.pop("instance")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> DeselectReviewer:
+        """Instantiate :py:class:`DeselectReviewer` class."""
+        return DeselectReviewer(
+            assignment=self.instance,
+            editor=self.user,
+            send_reviewer_notification=self.cleaned_data["send_notification"],
+            request=self.request,
+            form_data=self.data,
+        )
+
+    def save(self, commit=True):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
         return self.instance
 
 

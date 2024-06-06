@@ -1,5 +1,5 @@
 import datetime
-from typing import Callable
+from typing import Callable, List
 from unittest.mock import patch
 
 import freezegun
@@ -7,6 +7,7 @@ import pytest
 from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.forms import models as model_forms
@@ -31,6 +32,7 @@ from ..events.handlers import (
 from ..forms import (
     AssignEoForm,
     EditorRevisionRequestEditForm,
+    ReportForm,
     SupervisorAssignEditorForm,
 )
 from ..logic import (
@@ -39,11 +41,13 @@ from ..logic import (
     AssignToReviewer,
     AuthorHandleRevision,
     CreateReviewRound,
+    DeselectReviewer,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
     InviteReviewer,
     PostponeReviewerDueDate,
+    SubmitReview,
 )
 from ..logic__visibility import PermissionChecker
 from ..models import (
@@ -54,8 +58,15 @@ from ..models import (
     PastEditorAssignment,
     PermissionAssignment,
     WjsEditorAssignment,
+    WorkflowReviewAssignment,
 )
 from ..plugin_settings import STAGE
+from ..reminders.models import Reminder
+from ..reminders.settings import (
+    EditorShouldSelectReviewerReminderManager,
+    ReviewerShouldEvaluateAssignmentReminderManager,
+    ReviewerShouldWriteReviewReminderManager,
+)
 from ..views import ArticleRevisionUpdate
 from .test_helpers import _create_review_assignment, _submit_review
 
@@ -2589,6 +2600,206 @@ def test_past_assignment(
         assignment_3,
         permission_type=PermissionAssignment.PermissionType.ALL,
     )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "send_reviewer_notification,approved_assignment", [(True, True), (False, True), (True, False), (False, False)]
+)
+def test_deassign_reviewer(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: WorkflowReviewAssignment,
+    send_reviewer_notification: bool,
+    approved_assignment: bool,
+):
+    """
+    When reviewer is deassigned, the assignment is deleted and messages are created.
+
+    If send_reviewer_notification is True, the reviewer is notified.
+    For any value of approved_assignment, reviewer reminders are deleted. The flag is not really used to assert clauses
+    as we want to check any review reminder, but we want to use it to prepare data differently.
+    """
+    if approved_assignment:
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            token="",
+        ).run()
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    run = DeselectReviewer(
+        assignment=review_assignment,
+        editor=review_assignment.editor,
+        request=fake_request,
+        send_reviewer_notification=send_reviewer_notification,
+        form_data={"notification_subject": "subject", "notification_body": "body"},
+    ).run()
+    reviewer = review_assignment.reviewer
+    assert run
+    assert review_assignment.is_complete
+    assert review_assignment.decision == "withdrawn"
+
+    if send_reviewer_notification:
+        assert Message.objects.count() == 2
+        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
+        assert Message.objects.filter(recipients__isnull=True).count() == 1
+        assert len(mail.outbox) == 1  # system messages are not sent by email
+    else:
+        assert Message.objects.count() == 1
+        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
+        assert Message.objects.filter(recipients__isnull=True).count() == 1
+        assert len(mail.outbox) == 0  # system messages are not sent by email
+    # Reminders are modified
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+    ).exists()
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+    ).exists()
+    assert Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("extra_assignment_state", ["declined", "accepted", "completed", "pending"])
+def test_deassign_reviewer_existing_assignment(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: WorkflowReviewAssignment,
+    review_form: review_models.ReviewForm,
+    normal_user: JCOMProfile,
+    extra_assignment_state: bool,
+):
+    """
+    When reviewer is deassigned, but other, created reminders depend on existing assignments.
+    """
+    # extra assignment in
+    extra_assignment = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=normal_user,
+        assigned_article=assigned_article,
+    )
+    if extra_assignment_state == "declined":
+        EvaluateReview(
+            assignment=extra_assignment,
+            reviewer=extra_assignment.reviewer,
+            editor=extra_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "0", "accept_gdpr": True},
+            token="",
+        ).run()
+    elif extra_assignment_state == "accepted":
+        EvaluateReview(
+            assignment=extra_assignment,
+            reviewer=extra_assignment.reviewer,
+            editor=extra_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            token="",
+        ).run()
+    elif extra_assignment_state == "completed":
+        rf = ReportForm(data={str(review_form.pk): "random report"}, review_assignment=extra_assignment)
+        assert rf.is_valid()
+        SubmitReview(
+            assignment=extra_assignment,
+            submit_final=True,
+            form=rf,
+            request=fake_request,
+        ).run()
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    run = DeselectReviewer(
+        assignment=review_assignment,
+        editor=review_assignment.editor,
+        request=fake_request,
+        send_reviewer_notification=False,
+        form_data={"notification_subject": "subject", "notification_body": "body"},
+    ).run()
+    reviewer = review_assignment.reviewer
+    assert run
+    assert review_assignment.is_complete
+    assert review_assignment.decision == "withdrawn"
+
+    assert Message.objects.count() == 1
+    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
+    assert Message.objects.filter(recipients__isnull=True).count() == 1
+    assert len(mail.outbox) == 0  # system messages are not sent by email
+    # Reminders are modified
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+    ).exists()
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+    ).exists()
+    if extra_assignment_state == "declined":
+        assert Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+    else:
+        assert not Reminder.objects.filter(
+            code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()
+        ).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("approved_assignment", [True, False])
+def test_deassign_reviewer_no_editor(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: WorkflowReviewAssignment,
+    editors: List[JCOMProfile],
+    approved_assignment: bool,
+):
+    """
+    If editor is not assigned to the article action is rejected.
+    """
+    if approved_assignment:
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            token="",
+        ).run()
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    with pytest.raises(ValueError):
+        DeselectReviewer(
+            assignment=review_assignment,
+            editor=editors[0],
+            request=fake_request,
+            send_reviewer_notification=True,
+            form_data={"notification_subject": "subject", "notification_body": "body"},
+        ).run()
+    review_assignment.refresh_from_db()
+    assert not review_assignment.is_complete
+    # Reminders are not modified
+    if approved_assignment:
+        assert Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.pk,
+            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        ).exists()
+    else:
+        assert Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.pk,
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        ).exists()
+    assert not Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
 
 
 @pytest.mark.django_db

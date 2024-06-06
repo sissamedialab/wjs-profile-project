@@ -15,7 +15,6 @@ from django.http import HttpRequest
 from events import logic as events_logic
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
-from review.models import ReviewAssignment
 from submission.models import Article
 from utils import setting_handler
 
@@ -36,6 +35,7 @@ from ..models import (
     EditorRevisionRequest,
     Message,
     WjsEditorAssignment,
+    WorkflowReviewAssignment,
 )
 from ..plugin_settings import (
     HANDSHAKE_URL,
@@ -346,7 +346,7 @@ def review_assignment(
     invited_user: JCOMProfile,  # noqa: F405
     assigned_article: submission_models.Article,  # noqa: F405
     review_form: review_models.ReviewForm,
-) -> ReviewAssignment:
+) -> WorkflowReviewAssignment:
     return _create_review_assignment(
         fake_request=fake_request,
         reviewer_user=invited_user,
