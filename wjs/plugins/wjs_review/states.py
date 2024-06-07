@@ -329,7 +329,6 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="make decision",
             label="Make decision",
             view_name="wjs_article_decision",
-            querystring_params={"decision": ArticleWorkflow.Decisions.MINOR_REVISION},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
