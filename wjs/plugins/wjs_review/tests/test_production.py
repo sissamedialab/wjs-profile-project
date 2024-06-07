@@ -1,9 +1,11 @@
+import logging
 from typing import Callable
 
 import pytest
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
+from django.core import mail
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
@@ -389,6 +391,7 @@ def test_typesetter_galley_generation(
     client: Client,
     mock_jcomassistant_post,
     fake_request: HttpRequest,
+    caplog,
 ):
     """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
     typesetting_assignment = (
@@ -410,8 +413,12 @@ def test_typesetter_galley_generation(
 
     typesetting_assignment.files_to_typeset.all().delete()
     fake_request.user = typesetting_assignment.typesetter
-    with pytest.raises(ValueError, match="Cannot generate Galleys. Please contact the editorial office."):
-        TypesetterTestsGalleyGeneration(typesetting_assignment, fake_request).run()
+    mail.outbox = []
+    caplog.set_level(logging.ERROR)
+    TypesetterTestsGalleyGeneration(typesetting_assignment, fake_request).run()
+    assert len(mail.outbox) == 1
+    assert "galley generation failed to start" in mail.outbox[0].subject
+    assert "Galley generation failed to start" in caplog.text
 
 
 @pytest.mark.django_db
