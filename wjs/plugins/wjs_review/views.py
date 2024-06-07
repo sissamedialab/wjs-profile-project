@@ -1401,7 +1401,7 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
         Redirect to the article details page if the revision confirmation is submitted or to the revision request page.
         """
         if self.request.POST.get(self.form_class.CONFIRMED_BUTTON_NAME):
-            return reverse("core_dashboard_article", kwargs={"article_id": self.object.article.pk})
+            return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
         else:
             return reverse(
                 "do_revisions",
