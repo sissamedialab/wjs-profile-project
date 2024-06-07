@@ -21,6 +21,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File
+from django.core.mail import send_mail
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -923,7 +924,17 @@ class TypesetterTestsGalleyGeneration:
 
     def run(self) -> None:
         if not self._check_conditions():
-            raise ValueError("Cannot generate Galleys. Please contact the editorial office.")
+            # This logic is generally called asynchronously, so we don't
+            # raise an exception here, but directly notify the typesetter
+            logger.error(f"Galley generation failed to start for article {self.assignment.round.article.id}")
+            send_mail(
+                f"{self.assignment.round.article} - galley generation failed to start",
+                f"Please check\n{self.assignment.round.article.url}\n",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            return
         self._clean_galleys()
         self._generate_and_attach_galleys()
         self._check_queries_in_tex_src()
