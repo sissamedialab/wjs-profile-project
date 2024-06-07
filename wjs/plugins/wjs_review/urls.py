@@ -57,6 +57,7 @@ from .views__production import (  # noqa F401
     TogglePublishableFlagView,
     TypesetterArchived,
     TypesetterPending,
+    TypesetterTakeInCharge,
     TypesetterUploadFiles,
     TypesetterWorkingOn,
     WriteToAuWithModeration,
@@ -210,4 +211,5 @@ urlpatterns = [
         EOSendBackToTypesetterView.as_view(),
         name="wjs_send_back_to_typ",
     ),
+    path("take_in_charge/<int:pk>/", TypesetterTakeInCharge.as_view(), name="wjs_typ_take_in_charge"),
 ]

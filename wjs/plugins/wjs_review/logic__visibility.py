@@ -398,13 +398,19 @@ class TypeSetterPermissionChecker(BasePermissionChecker):
         :rtype: bool
         """
         if isinstance(self.instance, ArticleWorkflow):
-            return self.instance.article.typesettinground_set.filter(
+            if self.instance.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
+                return True
+            if self.instance.article.typesettinground_set.filter(
                 typesettingassignment__typesetter_id=self.user.pk
-            ).exists()
+            ).exists():
+                return True
+            return False
         if isinstance(self.instance, Article):
-            return self.instance.typesettinground_set.filter(
-                typesettingassignment__typesetter_id=self.user.pk
-            ).exists()
+            if self.instance.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
+                return True
+            if self.instance.typesettinground_set.filter(typesettingassignment__typesetter_id=self.user.pk).exists():
+                return True
+            return False
         if isinstance(self.instance, TypesettingAssignment):
             return self.instance.typesetter == self.user
         if isinstance(self.instance, GalleyProofing):

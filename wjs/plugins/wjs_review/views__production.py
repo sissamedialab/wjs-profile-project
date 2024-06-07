@@ -32,6 +32,7 @@ from .logic import (
     states_when_article_is_considered_typesetter_working_on,
 )
 from .logic__production import (
+    AssignTypesetter,
     AuthorSendsCorrections,
     HandleCreateSupplementaryFile,
     HandleDeleteSupplementaryFile,
@@ -42,7 +43,11 @@ from .logic__production import (
     TypesetterTestsGalleyGeneration,
 )
 from .models import ArticleWorkflow
-from .permissions import is_article_author, is_article_typesetter
+from .permissions import (
+    has_typesetter_role_by_article,
+    is_article_author,
+    is_article_typesetter,
+)
 from .views import ArticleWorkflowBaseMixin
 
 Account = get_user_model()
@@ -649,3 +654,40 @@ class EOSendBackToTypesetterView(UserPassesTestMixin, LoginRequiredMixin, FormVi
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             return super().form_invalid(form)
+
+
+class TypesetterTakeInCharge(UserPassesTestMixin, LoginRequiredMixin, View):
+    """View to allow the typsetter to take in charge a paper."""
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
+
+    def test_func(self):
+        return has_typesetter_role_by_article(self.object, self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        """Take the article in charge."""
+        try:
+            AssignTypesetter(
+                article=self.object.article,
+                typesetter=self.request.user,
+                request=self.request,
+            ).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_review_typesetter_pending",
+                ),
+            )
+        else:
+            messages.success(request=self.request, message="Paper taken in charge.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.pk},
+            ),
+        )
