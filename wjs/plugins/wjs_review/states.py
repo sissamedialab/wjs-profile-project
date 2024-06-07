@@ -600,7 +600,7 @@ class ReadyForTypesetter(BaseState):
             permission=permissions.has_typesetter_role_by_article,
             name="typ takes in charge",
             label="Take in charge",
-            view_name="WRITEME!",  # TODO: point to existing view
+            view_name="wjs_typ_take_in_charge",
         ),
     )
 
