@@ -466,7 +466,7 @@ class ReportForm(RichTextGeneratedForm):
 
 class DecisionForm(forms.ModelForm):
     decision = forms.ChoiceField(
-        choices=ArticleWorkflow.Decisions.choices,
+        choices=ArticleWorkflow.Decisions.decision_choices,
         required=True,
     )
     decision_editor_report = forms.CharField(
