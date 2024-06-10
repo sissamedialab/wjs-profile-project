@@ -58,11 +58,11 @@ from ..models import (
     Message,
     PastEditorAssignment,
     PermissionAssignment,
+    Reminder,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 from ..plugin_settings import STAGE
-from ..reminders.models import Reminder
 from ..reminders.settings import (
     EditorShouldSelectReviewerReminderManager,
     ReviewerShouldEvaluateAssignmentReminderManager,

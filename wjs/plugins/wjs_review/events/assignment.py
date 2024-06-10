@@ -82,17 +82,24 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
 
 def assign_editor_random(**kwargs) -> Optional["WjsEditorAssignment"]:
     """Assign a random editor, for test purposes."""
+    from ..logic import BaseAssignToEditor
+
     article = kwargs["article"]
 
-    return (
-        AccountRole.objects.filter(
-            journal=article.journal,
-            role=Role.objects.get(slug="section-editor"),
+    if (
+        selected_editor_id := AccountRole.objects.filter(
+            journal=article.journal, role=Role.objects.get(slug="section-editor")
         )
         .values_list("user")
         .order_by("?")
         .first()
-    )
+    ):
+        request = get_current_request()
+        selected_editor = Account.objects.get(id=selected_editor_id[0])
+        assignment = BaseAssignToEditor(
+            editor=selected_editor, article=article, request=request, first_assignment=True
+        ).run()
+        return assignment
 
 
 def assign_eo_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]:
