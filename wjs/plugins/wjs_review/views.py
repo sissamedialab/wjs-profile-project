@@ -1537,6 +1537,7 @@ class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
 
 class EditorDeclineAssignmentView(UserPassesTestMixin, View):
     template_name = "wjs_review/elements/editor_rejects_assignment.html"
+    model = ArticleWorkflow
 
     def setup(self, request, *args, **kwargs):
         """Fetch the ArticleWorkflow instance for easier processing."""
