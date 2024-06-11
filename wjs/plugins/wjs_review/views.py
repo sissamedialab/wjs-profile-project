@@ -907,9 +907,8 @@ class ReviewSubmit(EvaluateReviewRequest):
 
 class AssignEoToArticle(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = ArticleWorkflow
-    form = AssignEoForm
+    form_class = AssignEoForm
     template_name = "wjs_review/elements/eo_assign_eo.html"
-    fields = ["eo_in_charge"]
 
     def test_func(self):
         """Verify that only staff can access."""
@@ -1639,10 +1638,11 @@ class SupervisorAssignEditor(LoginRequiredMixin, UserPassesTestMixin, UpdateView
         The user must be the article's editor or the director or a member of the EO.
 
         This view can be used for the assignment of different editors in a Special Issue,
-        but we don't check if the editor belongs to a S.I.(e.g. `permissions.can_assign_special_issue_by_article()`),
+        but we don't check if the editor belongs to a S.I. (e.g. `permissions.can_assign_special_issue_by_article()`),
         because the process is common.
         """
-        return permissions.is_article_supervisor(self.object, self.request.user)
+        workflow = self.get_object()
+        return permissions.is_article_supervisor(workflow, self.request.user)
 
     def get_success_url(self):
         messages.add_message(
