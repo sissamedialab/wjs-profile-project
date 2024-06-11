@@ -111,7 +111,7 @@ class ReviewerArticleWorkflowFilter(BaseArticleWorkflowFilter):
 class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
     template_name = "wjs_review/lists/elements/filters_staff.html"
 
-    author = django_filters.CharFilter(field_name="article__authors", method="filter_user")
+    author = django_filters.CharFilter(field_name="article__authors", method="filter_user", label=_("Authors"))
     editor = django_filters.CharFilter(
         field_name="article__editorassignment__editor",
         method="filter_user",
@@ -211,3 +211,77 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
 class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
     template_name = "wjs_review/lists/elements/filters_eo.html"
     eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user", label=_("EO in charge"))
+
+
+class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):
+    template_name = "wjs_review/lists/elements/filters_workon.html"
+
+    article_identifiers = django_filters.CharFilter(
+        field_name="article", method="filter_identifiers", label=_("Article's Identifiers")
+    )
+    typesetter = django_filters.CharFilter(
+        field_name="article__typesettinground__typesettingassignment__typesetter",
+        method="filter_user",
+        label=_("Typesetter"),
+    )
+    correspondence_author = django_filters.CharFilter(
+        field_name="article__correspondence_author", method="filter_user", label=_("Correspondence author")
+    )
+    abstract_or_title = django_filters.CharFilter(
+        field_name="article",
+        method="filter_abstract_and_title",
+        label=_("Title or Abstract"),
+    )
+    author_country = django_filters.CharFilter(
+        field_name="article__correspondence_author__country__name",
+        lookup_expr="icontains",
+        label=_("Author's country"),
+    )
+    author_institution = django_filters.CharFilter(
+        field_name="article__correspondence_author__institution",
+        lookup_expr="icontains",
+        label=_("Author's Institution"),
+    )
+
+    def filter_identifiers(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
+        """
+        Filter by article's title, identifier by substring, and id by exact match.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: target article foreign key field name
+        :type name: str
+        :param value: the value to filter
+        :type value: Union[str, int]
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value:
+            filters = Q(**{f"{name}__identifier__identifier__icontains": value})
+            try:
+                filters |= Q(**{f"{name}__id": int(value)})
+            except ValueError:
+                pass
+            return queryset.filter(filters)
+        return queryset
+
+    def filter_abstract_and_title(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
+        """
+        Filter by article's title and abstract by substring.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: target article foreign key field name
+        :type name: str
+        :param value: the value to filter
+        :type value: Union[str, int]
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value:
+            filters = Q(**{f"{name}__title__icontains": value})
+            filters |= Q(**{f"{name}__abstract__icontains": value})
+            return queryset.filter(filters)
+        return queryset
