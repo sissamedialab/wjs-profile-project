@@ -46,6 +46,7 @@ from .filters import (
     EOArticleWorkflowFilter,
     ReviewerArticleWorkflowFilter,
     StaffArticleWorkflowFilter,
+    WorkOnAPaperArticleWorkflowFilter,
 )
 from .forms import (
     ArticleReviewStateForm,
@@ -239,6 +240,7 @@ class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixi
         "wjs_review_eo_archived": _("Archived"),
         "wjs_review_eo_production": _("Production"),
         "wjs_review_eo_missing_editor": _("Missing editor"),
+        "wjs_review_eo_workon": _("Work on a paper"),
     }
 
     def test_func(self):
@@ -302,6 +304,13 @@ class EOMissingEditor(EOPending):
         )
 
 
+class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Search tool for EO."""
+
+    filterset_class = WorkOnAPaperArticleWorkflowFilter
+    filterset: WorkOnAPaperArticleWorkflowFilter
+
+
 class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Director's main page."""
 
@@ -314,6 +323,7 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
     related_views = {
         "wjs_review_director_pending": _("Pending"),
         "wjs_review_director_archived": _("Archived"),
+        "wjs_review_director_workon": _("Work on a paper"),
     }
 
     def test_func(self):
@@ -349,6 +359,13 @@ class DirectorArchived(DirectorPending):
             .filter(state__in=states_when_article_is_considered_archived_for_review)
             .exclude(article__authors=self.request.user)
         )
+
+
+class DirectorWorkOnAPaper(DirectorPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Search tool for Director."""
+
+    filterset_class = WorkOnAPaperArticleWorkflowFilter
+    filterset: WorkOnAPaperArticleWorkflowFilter
 
 
 class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
