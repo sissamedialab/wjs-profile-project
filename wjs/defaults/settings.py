@@ -132,8 +132,8 @@ the registration process before first login: click here {}
 # Functions that check if a just-submitted article might have issues
 # that would require EO attention before editor assigment
 WJS_REVIEW_CHECK_FUNCTIONS = {
-    None: ("wjs_review.events.checks.always_accept",),
-    "JCOM": ("wjs_review.events.checks.always_accept",),
+    None: ("plugins.wjs_review.events.checks.always_accept",),
+    "JCOM": ("plugins.wjs_review.events.checks.always_accept",),
 }
 
 # Functions that determine which editor is assigned to an article
@@ -141,23 +141,23 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     # Currently we must use these assignment functions because editors are not fully setup in test environment
     # and assignment by the EO is not active yet (to be completed with
     # https://gitlab.sissamedialab.it/wjs/specs/-/issues/659)
-    None: "wjs_review.events.assignment.assign_editor_random",
-    "JCOM": "wjs_review.events.assignment.assign_editor_random",
+    None: "plugins.wjs_review.events.assignment.assign_editor_random",
+    "JCOM": "plugins.wjs_review.events.assignment.assign_editor_random",
     # Commented to let always pick a random editor
     # None: "wjs_review.events.assignment.default_assign_editors_to_articles",
     # "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
 WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS = {
-    None: "wjs_review.events.assignment.assign_eo_random",
+    None: "plugins.wjs_review.events.assignment.assign_eo_random",
 }
 
 # Functions that check if a just-accepted article might have issues
 # that would prevent a typesetter from taking it in charge
 WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
-    None: ("wjs_review.events.checks_after_acceptance.always_pass",),
-    "JCOM": ("wjs_review.events.checks_after_acceptance.always_pass",),
-    "JCOMAL": ("wjs_review.events.checks_after_acceptance.always_pass",),
+    None: ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
+    "JCOM": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
+    "JCOMAL": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
 }
 
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")
