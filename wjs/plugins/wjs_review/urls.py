@@ -65,7 +65,7 @@ from .views__production import (  # noqa F401
     WriteToAuWithModeration,
     WriteToTyp,
 )
-from .views__visibility import AssignPermission
+from .views__visibility import EditUserPermissions
 
 urlpatterns = [
     path("manager/", Manager.as_view(), name=MANAGER_URL),
@@ -201,13 +201,8 @@ urlpatterns = [
     path("paper_publishable/<int:pk>/", TogglePublishableFlagView.as_view(), name="wjs_toggle_publishable"),
     path("galley_generation/<int:pk>", GalleyGenerationView.as_view(), name="wjs_typesetter_galley_generation"),
     path(
-        "article/<int:pk>/permissions/",
-        AssignPermission.as_view(),
-        name="wjs_assign_permission",
-    ),
-    path(
-        "article/<int:article_id>/permissions/<str:object_type>/<int:object_id>/",
-        AssignPermission.as_view(),
+        "article/<int:pk>/permissions/<int:user_id>/",
+        EditUserPermissions.as_view(),
         name="wjs_assign_permission",
     ),
     path(

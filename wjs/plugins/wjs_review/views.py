@@ -660,7 +660,7 @@ class ArticleDetails(UserPassesTestMixin, DetailView):
             self.object,
             self.request.user,
             self.object.article,
-            permission_type=PermissionAssignment.PermissionType.ALL,
+            permission_type=PermissionAssignment.PermissionType.NO_NAMES,
         )
 
 

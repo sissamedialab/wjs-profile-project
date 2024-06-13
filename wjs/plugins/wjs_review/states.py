@@ -83,6 +83,26 @@ def get_url_with_galleyproofing_pk(action: "ArticleAction", workflow: "ArticleWo
     return url
 
 
+def get_edit_permissions_url_review_assignment(
+    action: "ReviewAssignmentAction",
+    assignment: ReviewAssignment,
+    user: Account,
+) -> str:
+    """Return the URL of the view that is the entry point to manage the action."""
+    url = reverse(
+        action.view_name,
+        kwargs={
+            "object_id": assignment.pk,
+            "object_type": "reviewassignment",
+            "pk": assignment.article.articleworkflow.pk,
+        },
+    )
+    if action.querystring_params is not None:
+        url += "?"
+        url += urllib.parse.urlencode(action.querystring_params)
+    return url
+
+
 def get_unpulishable_css_class(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return the css class for a button that would change the flag.
 
@@ -191,22 +211,32 @@ class ReviewAssignmentAction:
     tag: str = None
     order: int = 0
     tooltip: str = None
+    querystring_params: dict = None
+    custom_get_url: Optional[Callable] = None
 
     def as_dict(self, assignment: "ReviewAssignment", user: Account):
         """Return parameters needed to build the action button."""
+        if self.custom_get_url:
+            url = self.custom_get_url(self, assignment, user)
+        else:
+            url = self.get_url(assignment, user)
         return {
             "assignment": assignment,
             "name": self.name,
             "label": self.label,
             "tooltip": self.tooltip,
-            "url": self.get_url(assignment, user),
+            "url": url,
         }
 
     def get_url(self, assignment: "ReviewAssignment", user: Account) -> str:
         """Return the URL of the view that is the entry point to manage the action."""
         if self.view_name == "WRITEME!":
             return "#"
-        return reverse(self.view_name, kwargs={"pk": assignment.id})
+        url = reverse(self.view_name, kwargs={"pk": assignment.id})
+        if self.querystring_params is not None:
+            url += "?"
+            url += urllib.parse.urlencode(self.querystring_params)
+        return url
 
     def condition_is_met(self, assignment: "ReviewAssignment", user: Account) -> bool:
         """TODO: examples..."""
@@ -363,12 +393,6 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="assigns reviewer",
             label="Select a reviewer",
             view_name="wjs_select_reviewer",
-        ),
-        ArticleAction(
-            permission=permissions.is_article_supervisor,
-            name="assign permissions",
-            label="Assign permissions",
-            view_name="wjs_assign_permission",
         ),
     )
     review_assignment_actions = BaseState.review_assignment_actions + (
