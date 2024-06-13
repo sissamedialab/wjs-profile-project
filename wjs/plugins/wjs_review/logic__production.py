@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from zipfile import ZipFile
 
 import lxml.html
@@ -709,9 +709,73 @@ class AttachGalleys:
     src files (as in <img src=...>) inside `path`.
     """
 
-    path: Path
+    archive_with_galleys: bytes  # usually a zip/tar.gz file containing the raw galley files processed by jcomassistant
     article: Article
     request: HttpRequest
+
+    def unpack_targz_from_jcomassistant(self, file: bytes):
+        """Unpack an archive received from jcomassistant.
+
+        Accept the archive in the form of a bytes string.
+
+        If a workdir is provided, unpack it in a new folder there,
+        otherwise create and use a temporary folder.
+        The caller should clean up if necessary.
+        """
+        unpack_dir = tempfile.mkdtemp()
+        # Use BytesIO to treat bytes data as a file
+        with BytesIO(file) as file_obj:
+            # Open the tar.gz archive
+            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+                # Extract all contents into the unpack directory
+                tar.extractall(path=unpack_dir)
+        unpack_dir = Path(unpack_dir)
+
+        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
+        return unpack_dir
+
+    def reemit_info_and_up(self, unpack_dir: Path) -> None:
+        """Emit as log messages lines read from the given log file.
+
+        Expect the logfile to contain log-formatted lines suchs as:
+        DEBUG From: ...
+
+        Re-emit only info, wraning, error and critical.
+
+        Also return if any error or critical was found.
+        """
+        has_error_or_critical = False
+        # log files are called something like
+        # - galley-xxx.epub_log
+        # - galley-xxx.html_log
+        # - galley-xxx.srvc_log
+        # We are going to use only the service log (*.srvc_log)
+        srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
+        if len(srvc_log_files) != 1:
+            logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
+        srvc_log_file = srvc_log_files[0]
+        with open(srvc_log_file) as log_file:
+            for line in log_file:
+                if line.startswith("INFO"):
+                    logger.info(f"JA {line[11:-1]}")
+                elif line.startswith("WARNING"):
+                    logger.warning(f"JA {line[14:-1]}")
+                elif line.startswith("ERROR"):
+                    logger.error(f"JA {line[12:-1]}")
+                    has_error_or_critical = True
+                elif line.startswith("CRITICAL"):
+                    logger.critical(f"JA {line[15:-1]}")
+                    has_error_or_critical = True
+                elif line.startswith("DEBUG"):
+                    logger.debug(f"JA {line[12:-1]}")
+        return not has_error_or_critical
+
+    def _check_conditions(self):
+        """
+        Checks for errors in the log files and if there's at least one html and epub file.
+        """
+        # NB: self.path is set in the run() method after unpacking the processed files received from jcomassistant
+        return self.reemit_info_and_up(self.path) and any(self.path.glob("*.html")) and any(self.path.glob("*.epub"))
 
     def download_and_store_article_file(self, image_source_url: Path):
         """Downaload a media file and link it to the article."""
@@ -808,10 +872,33 @@ class AttachGalleys:
         pass
 
     def run(self):
-        galleys_created = []
-        galleys_created.append(self.save_epub())
-        galleys_created.append(self.save_html())
-        return galleys_created
+        try:
+            self.path = self.unpack_targz_from_jcomassistant(self.archive_with_galleys)
+            if not self._check_conditions():
+                self.article.articleworkflow.production_flag_galleys_ok = False
+                # We save the given archive even if it has errors.
+                # We save it in the filesystem among the other article files and return it as a Galley object, so that
+                # our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
+                jcomassistant_response_content = File(
+                    BytesIO(self.archive_with_galleys), name="jcomassistant_response.tar.gz"
+                )
+                galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
+
+            else:
+                self.article.articleworkflow.production_flag_galleys_ok = True
+                galleys_created = [self.save_epub(), self.save_html()]
+            self.article.articleworkflow.save()
+            return galleys_created
+        except Exception as e:
+            logger.error(e)
+            send_mail(
+                f"{self.article} - galley unpacking and attachment failed",
+                f"Please check JCOMAssistant response content.\n{e}",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            raise
 
 
 @dataclasses.dataclass
@@ -844,10 +931,10 @@ class TypesetterTestsGalleyGeneration:
 
     def _jcom_assistant_client(self):
         assistant = JcomAssistantClient(
-            source_archive=self.assignment.files_to_typeset.first().self_article_path(),
+            archive_with_files_to_process=self.assignment.files_to_typeset.first(), user=self.assignment.typesetter
         )
-        galleys_directory = assistant.ask_jcomassistant_to_process()
-        return galleys_directory
+        response = assistant.ask_jcomassistant_to_process()
+        return response
 
     def _get_message_context(self):
         """Get the context for the message template."""
@@ -892,24 +979,25 @@ class TypesetterTestsGalleyGeneration:
         - attach generated galleys to TA (and article)
         - record success/failure of the generation
         """
+        response = self._jcom_assistant_client()
         galleys_created = AttachGalleys(
-            path=self._jcom_assistant_client(),
+            archive_with_galleys=response.content,
             article=self.assignment.round.article,
             request=self.request,
         ).run()
         self.assignment.galleys_created.set(galleys_created)
-        self._record_success_of_galley_generation()
-
-    def _record_success_of_galley_generation(self):
-        """Fixme.
-
-        This is a stub. ATM, blindly record the galley-generation as a succes.
-
-        TODO: fixme in wjs-profile-project#105
-        """
-        self.assignment.round.article.articleworkflow.production_flag_galleys_ok = True
-        self.assignment.round.article.articleworkflow.save()
-        logger.warning(f"{self.assignment.round.article.articleworkflow.production_flag_galleys_ok=}")
+        # This flag is set by AttachGalleys that we have just run
+        if self.assignment.round.article.articleworkflow.production_flag_galleys_ok:
+            return True
+        else:
+            send_mail(
+                f"{self.assignment.round.article} - galley unpacking and attachment failed",
+                f"Please zip file in Assigment {self.assignment} galleys_created.",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            return False
 
     def _check_queries_in_tex_src(self):
         """Fixme.
@@ -936,7 +1024,8 @@ class TypesetterTestsGalleyGeneration:
             )
             return
         self._clean_galleys()
-        self._generate_and_attach_galleys()
+        if not self._generate_and_attach_galleys():
+            return
         self._check_queries_in_tex_src()
         context = self._get_message_context()
         self._log_operation(context)
@@ -946,8 +1035,8 @@ class TypesetterTestsGalleyGeneration:
 class JcomAssistantClient:
     """Client for JCOM Assistant."""
 
-    source_archive: Union[str, Path]
-    workdir: Union[str, Path] = None
+    archive_with_files_to_process: File  # Usually a zip/tar.gz file object containing the TeX source files to process
+    user: Account
 
     def ask_jcomassistant_to_process(self) -> Path:
         """Send the given zip file to jcomassistant for processing.
@@ -956,69 +1045,20 @@ class JcomAssistantClient:
         """
         url = settings.JCOMASSISTANT_URL
         logger.debug(f"Contacting jcomassistant service at {url}...")
-        files = {"file": open(self.source_archive, "rb")}
+        files = {"file": open(self.archive_with_files_to_process.self_article_path(), "rb")}
 
         response = requests.post(url=url, files=files)
         if response.status_code != 200:
-            logger.error(
-                "Unexpected status code {response.status_code} processing {source_archive}. Trying to proceed..."
+            logger.error("Unexpected status code {response.status_code}. Trying to proceed...")
+            send_mail(
+                f"{self.archive_with_files_to_process.article} - galley generation service failed",
+                f"Please check JCOMAssistant service status.\n{response.content}",
+                None,
+                [self.user.email],
+                fail_silently=False,
             )
-        return self.unpack_targz_from_jcomassistant(response.content)
-
-    def unpack_targz_from_jcomassistant(
-        self,
-        galleys_archive: bytes,
-    ):
-        """Unpack an archive received from jcomassistant.
-
-        Accept the archive in the form of a bytes string.
-
-        If a workdir is provided, unpack it in a new folder there,
-        otherwise create and use a temporary folder.
-        The caller should clean up if necessary.
-        """
-        unpack_dir = tempfile.mkdtemp(dir=self.workdir)
-        # Use BytesIO to treat bytes data as a file
-        with BytesIO(galleys_archive) as file_obj:
-            # Open the tar.gz archive
-            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-                # Extract all contents into the unpack directory
-                tar.extractall(path=unpack_dir)
-        unpack_dir = Path(unpack_dir)
-        self.reemit_info_and_up(unpack_dir=unpack_dir)
-
-        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
-        return unpack_dir
-
-    def reemit_info_and_up(self, unpack_dir: Path) -> None:
-        """Emit as log messages lines read from the given log file.
-
-        Expect the logfile to contain log-formatted lines suchs as:
-        DEBUG From: ...
-
-        Re-emit only info, wraning, error and critical.
-        """
-        # log files are called something like
-        # - galley-xxx.epub_log
-        # - galley-xxx.html_log
-        # - galley-xxx.srvc_log
-        # We are going to use only the service log (*.srvc_log)
-        srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
-        if len(srvc_log_files) != 1:
-            logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
-        srvc_log_file = srvc_log_files[0]
-        with open(srvc_log_file) as log_file:
-            for line in log_file:
-                if line.startswith("INFO"):
-                    logger.info(f"JA {line[11:-1]}")
-                elif line.startswith("WARNING"):
-                    logger.warning(f"JA {line[14:-1]}")
-                elif line.startswith("ERROR"):
-                    logger.error(f"JA {line[12:-1]}")
-                elif line.startswith("CRITICAL"):
-                    logger.critical(f"JA {line[15:-1]}")
-                elif line.startswith("DEBUG"):
-                    logger.debug(f"JA {line[12:-1]}")
+            raise ValueError(f"Unexpected status code {response.status_code}.")
+        return response
 
 
 @dataclasses.dataclass
