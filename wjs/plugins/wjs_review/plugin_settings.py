@@ -251,7 +251,7 @@ def set_default_plugin_settings(force: bool = False):
             "setting": None,
             "value": """
             Dear {{ article.correspondence_author.full_name }},
-            {{ editor.full_name }} has requested a {% if minor_revision %}minor{% endif %} revision of {{ article.title }}.
+            Editor has requested a {% if minor_revision %}minor{% endif %} revision of {{ article.title }}.
             You can view your reviews and feedback on the manuscript at: {{ review_url }}
             Regards,
             {{ request.user.signature|safe }}
@@ -1300,7 +1300,7 @@ def set_default_plugin_settings(force: bool = False):
         proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ author.full_name }}, your article {article.title} has been typesetted and is ready
+            "value": """Dear {{ author.full_name }}, your article {{ article.title }} has been typesetted and is ready
             for your check.
 
             Please visit:
