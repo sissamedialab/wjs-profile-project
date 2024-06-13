@@ -1,79 +1,228 @@
+from operator import attrgetter
+from typing import Type, Union, cast
+
 from core.models import Account
 from django import forms
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.contenttypes.models import ContentType
+from django.forms import formset_factory
+from django.urls import reverse
 from django.views.generic import FormView
 
-from .logic__visibility import GrantPermissionDispatcher
-from .models import ArticleWorkflow, PermissionAssignment, WjsEditorAssignment
+from .custom_types import (
+    PermissionConfiguration,
+    PermissionInitial,
+    PermissionTargetObject,
+)
+from .forms__visibility import BaseUserPermissionFormSet, UserPermissionsForm
+from .logic__visibility import PermissionChecker
+from .models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    PermissionAssignment,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
+from .permissions import is_article_editor, is_article_supervisor
 
 
-class AssignPermissionForm(forms.Form):
-    user = forms.ModelChoiceField(queryset=None)
-    permission_type = forms.ChoiceField(choices=PermissionAssignment.PermissionType.choices)
-
-    def _get_users_for_article(self, article):
-        authors = article.authors.values_list("pk", flat=True)
-        editors = WjsEditorAssignment.objects.get_all(article).values_list("editor", flat=True)
-        past_editors = article.past_editor_assignments.all().values_list("editor", flat=True)
-        reviewers = article.reviewassignment_set.values_list("reviewer", flat=True)
-        selected_ids = set(authors) | set(editors) | set(past_editors) | set(reviewers)
-        return Account.objects.filter(pk__in=selected_ids)
-
-    def __init__(self, *args, **kwargs):
-        """Set the queryset for the recipient."""
-        self.article = kwargs.pop("article")
-        self.object_type = kwargs.pop("object_type")
-        self.object_id = kwargs.pop("object_id")
-        super().__init__(*args, **kwargs)
-        allowed_recipients = self._get_users_for_article(self.article)
-        self.fields["user"].queryset = allowed_recipients
-
-    def get_logic_instance(self) -> GrantPermissionDispatcher:
-        """Instantiate :py:class:`GrantPermissionDispatcher` class."""
-        service = GrantPermissionDispatcher(
-            user=self.cleaned_data.get("user"),
-            object_type=self.object_type,
-            object_id=self.object_id,
-        )
-        return service
-
-    def save(self) -> PermissionAssignment:
-        """Change the reviewer report due date using :py:class:`GrantPermissionDispatcher`."""
-        try:
-            service = self.get_logic_instance()
-            self.instance = service.run(self.cleaned_data.get("permission_type"))
-        except ValidationError as e:
-            self.add_error(None, e)
-            raise
-        return self.instance
-
-
-class AssignPermission(FormView):
+class EditUserPermissions(LoginRequiredMixin, UserPassesTestMixin, FormView):
     model = ArticleWorkflow
-    form_class = AssignPermissionForm
     template_name = "wjs_review/assign_permission.html"
+
+    def test_func(self):
+        return is_article_editor(self.workflow, self.request.user) or is_article_supervisor(
+            self.workflow, self.request.user
+        )
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
         self.workflow = self.model.objects.get(pk=kwargs["pk"])
+        self.user = Account.objects.get(pk=kwargs["user_id"])
+
+    def get_form_class(self) -> Type[Union[forms.Form, forms.BaseFormSet]]:
+        return formset_factory(
+            UserPermissionsForm,
+            extra=0,
+            can_delete_extra=False,
+            formset=BaseUserPermissionFormSet,
+        )
+
+    def _get_article_objects(self) -> list[PermissionTargetObject]:
+        """
+        Get all objects that need permissions assigned.
+
+        Returned objects are sorted by round number and filtered by current user role.
+
+        If EO / Director -> all objects are returned
+        If Editor -> only objects linked to the review rounds assigned to the editor are returned
+
+        :return: List of objects that need permissions assigned
+        :rtype: list[PermissionTargetObject]
+        """
+        workflow_type = ContentType.objects.get_for_model(self.workflow)
+        editor_revisions = EditorRevisionRequest.objects.filter(article=self.workflow.article).exclude(
+            article__correspondence_author=self.user
+        )
+        editor_revisions_type = ContentType.objects.get_for_model(EditorRevisionRequest)
+        review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).exclude(
+            reviewer=self.user
+        )
+        review_assignments_type = ContentType.objects.get_for_model(WorkflowReviewAssignment)
+        if is_article_editor(self.workflow, self.request.user):
+            assignment = WjsEditorAssignment.objects.get_current(self.workflow)
+            review_assignments = review_assignments.filter(review_round__in=assignment.review_rounds.all())
+            editor_revisions = editor_revisions.filter(review_round__in=assignment.review_rounds.all())
+
+        target_objects = (
+            [
+                PermissionTargetObject(
+                    object_type=workflow_type.pk,
+                    object=self.workflow,
+                    round=-1,  # "Fake" review round to tag the initial submission, to order it before all the other
+                    author_notes=True,
+                )
+            ]
+            + [
+                PermissionTargetObject(
+                    object_type=editor_revisions_type.pk, object=obj, round=obj.review_round.round_number
+                )
+                for obj in editor_revisions
+            ]
+            # We manage author notes (aka author cover letter) separately.
+            # These info are stored in editor_revisions, but they are intended more
+            # as the author's introduction to the next round/version,
+            # and not as the author's answer to the revision request
+            # Therefore we duplicate the object with author_notes flag, and move it to the next round
+            # It will be rendered twice but using different set of fields
+            + [
+                PermissionTargetObject(
+                    object_type=editor_revisions_type.pk,
+                    object=obj,
+                    round=obj.review_round.round_number + 1,
+                    author_notes=True,
+                )
+                for obj in editor_revisions
+            ]
+            + [
+                PermissionTargetObject(
+                    object_type=review_assignments_type.pk, object=obj, round=obj.review_round.round_number
+                )
+                for obj in review_assignments
+            ]
+        )
+        return sorted(target_objects, key=attrgetter("round"))
+
+    def _check_current_permission(
+        self,
+        user: Account,
+        obj: PermissionTargetObject,
+        custom_permission: PermissionConfiguration,
+        binary: bool = False,
+    ) -> PermissionAssignment.PermissionType:
+        """
+        Check the current permission for the user on the object.
+
+        Different permission types are checked separately to determine the permission level:
+
+        - Custom permission
+        - Default permission for "all" levels
+        - Default permission for "no names" levels (check is skipped if the permission is binary)
+
+        :param user: User to check the permission for
+        :type user: Account
+        :param obj: Object to check the permission for
+        :type obj: PermissionTargetObject
+        :param custom_permission: Custom permission configuration
+        :type custom_permission: PermissionConfiguration
+        :param binary: If the permission is binary (when checking secondary permissions)
+        :type binary: bool
+
+        :return: Permission level for the user
+        :rtype: PermissionAssignment.PermissionType
+        """
+        custom_permission_type = custom_permission.get((obj.object_type, obj.object.pk), None)
+        if custom_permission_type is not None:
+            return custom_permission_type
+        default_all_permission = PermissionChecker()(
+            self.workflow,
+            user,
+            obj.object,
+            permission_type=PermissionAssignment.PermissionType.ALL,
+            default_permissions=True,
+            secondary_permission=binary,
+        )
+        if default_all_permission:
+            return PermissionAssignment.PermissionType.ALL
+        # if the permission is binary, we don't need to check the NO_NAMES permission
+        if binary:
+            return PermissionAssignment.PermissionType.DENY
+        default_no_names_permission = PermissionChecker()(
+            self.workflow,
+            user,
+            obj.object,
+            permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+            default_permissions=True,
+            secondary_permission=binary,
+        )
+        if default_no_names_permission:
+            return PermissionAssignment.PermissionType.NO_NAMES
+        return PermissionAssignment.PermissionType.DENY
+
+    def get_initial(self) -> list[PermissionInitial]:
+        """
+        Get initial data for the form.
+
+        :return: List of initial data for the form
+        :rtype: list[PermissionInitial]
+        """
+        objects = self._get_article_objects()
+        permissions: PermissionConfiguration = {
+            (obj["content_type_id"], obj["object_id"]): cast(PermissionAssignment.PermissionType, obj["permission"])
+            for obj in PermissionAssignment.objects.filter(user=self.user).values(
+                "object_id", "content_type_id", "permission"
+            )
+        }
+        permission_secondary: PermissionConfiguration = {
+            (obj["content_type_id"], obj["object_id"]): cast(
+                PermissionAssignment.PermissionType, obj["permission_secondary"]
+            )
+            for obj in PermissionAssignment.objects.filter(user=self.user).values(
+                "object_id", "content_type_id", "permission_secondary"
+            )
+        }
+        initial = [
+            PermissionInitial(
+                object_type=obj.object_type,
+                object_id=obj.object.pk,
+                object=obj.object,
+                author_notes=obj.author_notes,
+                round=obj.round,
+                permission=self._check_current_permission(self.user, obj, permissions),
+                permission_secondary=self._check_current_permission(self.user, obj, permission_secondary, binary=True),
+            )
+            for obj in objects
+        ]
+        return initial
+
+    def get_success_url(self):
+        return reverse("wjs_assign_permission", kwargs={"pk": self.workflow.pk, "user_id": self.user.id})
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["article"] = self.workflow.article
-        kwargs["object_type"] = self.kwargs.get("object_type", "editorassignment")
-        kwargs["object_id"] = self.kwargs.get("object_id", WjsEditorAssignment.objects.get_current(self.workflow).pk)
+        kwargs["user"] = self.user
         return kwargs
 
     def form_valid(self, form):
         form.save()
-        messages.add_message(self.request, messages.SUCCESS, "Permissions added.")
+        messages.add_message(self.request, messages.SUCCESS, "Permissions modified.")
         return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["workflow"] = self.workflow
+        context["user"] = self.user
+        context["use_formset"] = True
         return context
-
-    def get_success_url(self):
-        return self.workflow.get_absolute_url()

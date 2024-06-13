@@ -15,6 +15,7 @@ from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import ReviewAssignment, RevisionRequest
 from submission.models import Article
 
+from . import permissions
 from .communication_utils import get_eo_user
 from .models import (
     ArticleWorkflow,
@@ -289,5 +290,57 @@ def is_author_proofing_late(assignment: GalleyProofing) -> str:
             f" Was expected by {assignment.due.strftime('%F')}."
             " Please contact the author."
         )
+    else:
+        return ""
+
+
+def can_edit_permissions_by_assignment(assignment: ReviewAssignment, user: Account) -> str:
+    """
+    Tell if the user can edit permissions on the workflow.
+
+    Permission is only available:
+    - current article editor
+    - director
+    - EO
+
+    :param assignment: The ReviewAssignment to check access to.
+    :type assignment: ReviewAssignment
+    :param user: The user to check access for.
+    :type user: Account
+    :return: True if the user can edit permission, False otherwise.
+    :rtype: bool
+    """
+    if (
+        assignment.article.editorassignment_set.filter(editor=user).exists()
+        or permissions.has_director_role_by_article(assignment.article.articleworkflow, user)
+        or permissions.has_eo_role_by_article(assignment.article.articleworkflow, user)
+    ):
+        return "You can edit permissions."
+    else:
+        return ""
+
+
+def can_edit_permissions(workflow: ArticleWorkflow, user: Account) -> str:
+    """
+    Tell if the user can edit permissions on the workflow.
+
+    Permission is only available:
+    - current article editor
+    - director
+    - EO
+
+    :param workflow: The workflow to check access to.
+    :type workflow: ArticleWorkflow
+    :param user: The user to check access for.
+    :type user: Account
+    :return: True if the user can edit permission, False otherwise.
+    :rtype: bool
+    """
+    if (
+        workflow.article.editorassignment_set.filter(editor=user).exists()
+        or permissions.has_director_role_by_article(workflow.article.articleworkflow, user)
+        or permissions.has_eo_role_by_article(workflow.article.articleworkflow, user)
+    ):
+        return "You can edit permissions."
     else:
         return ""

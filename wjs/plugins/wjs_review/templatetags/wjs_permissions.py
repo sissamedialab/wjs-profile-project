@@ -1,7 +1,10 @@
+from typing import Optional
+
 from core.models import Account
 from django import template
 from django.db import models
 
+from .. import conditions
 from ..logic__visibility import PermissionChecker
 from ..models import ArticleWorkflow, PermissionAssignment
 
@@ -10,10 +13,12 @@ register = template.Library()
 
 @register.simple_tag(takes_context=True)
 def user_has_access_to(
+    context: dict,
     workflow: ArticleWorkflow,
     user: Account,
     target: models.Model,
     permission_type: PermissionAssignment.PermissionType = "",
+    review_round: Optional[int] = None,
 ) -> bool:
     """
     Check if the user has access to the given attribute of the workflow.
@@ -40,7 +45,41 @@ def user_has_access_to(
     :type target: Model
     :param permission_type: The permission set to check access for.
     :type permission_type: PermissionAssignment.PermissionType
+    :param review_round: Review round number to check access for. If 0 current review round is used,
+        if None review round check is not used.
+    :type review_round: Optional[int]
     :return: True if the user has access, False otherwise.
     :rtype: bool
     """
-    return PermissionChecker()(workflow, user, target, permission_type=permission_type)
+    return PermissionChecker()(workflow, user, target, permission_type=permission_type, review_round=review_round)
+
+
+@register.simple_tag(takes_context=True)
+def user_can_set_permission(
+    context: dict,
+    workflow: ArticleWorkflow,
+    user: Account,
+) -> bool:
+    """
+    Check if the user can edit permissions on the workflow.
+
+    Permission is only available:
+
+    - current article editor
+    - director
+    - EO
+
+    .. block:: html
+
+        {% user_can_set_permission workflow user as can_set_permission %}
+        {% if can_set_permission %}<button>Set permission</button>{% endif %}
+
+    :param workflow: The workflow to check access to.
+    :type workflow: ArticleWorkflow
+    :param user: The user to check access for.
+    :type user: Account
+    :return: True if the user can edit permission, False otherwise.
+    :rtype: bool
+    """
+
+    return bool(conditions.can_edit_permissions(workflow, user))

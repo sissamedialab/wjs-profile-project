@@ -1,7 +1,9 @@
-{% load i18n wjs_review %}
+{% load django_bootstrap5 i18n wjs_permissions wjs_review %}
 <div class="card border border-1">
     {% with assignment=assignment_and_actions.assignment %}
         {% with attention_flag=assignment|assignment_requires_attention_tt:user %}
+          {% url "wjs_assign_permission" pk=workflow.pk user_id=assignment.reviewer.id as revision_permission_url %}
+          {% user_can_set_permission workflow=workflow user=request.user as can_set_permission %}
     <div class="card-body">
         {% if assignment.date_declined %}
         <p class="text-muted">Declined assignment</p>
@@ -22,6 +24,9 @@
                         <a href="{% url "wjs_evaluate_review" assignment_id=assignment.pk %}?access_code={{ assignment.access_code }}">{{ assignment.reviewer }}</a>
                         {% endif %}
                         <a href="{% url "wjs_message_write" article_id=assignment.article.id recipient_id=assignment.reviewer.id %}" title="Click to contact / communicate">📧</a>{# TODO: add id of reviewer #}
+                        {% if can_set_permission %}
+                          <a href="{{ revision_permission_url }}" title="Edit permissions">🗝</a>
+                        {% endif %}
                     (requested {{ assignment.date_requested }}) for review round {{ assignment.review_round.round_number }}.
                 </p>
                 <p>
@@ -50,12 +55,6 @@
                         {{ assignment.date_reminded }}
                     </p>
                 {% endif %}
-                <p class="h3">Revision request</p>
-                <p>Requested on {{ round.editorrevisionrequest_set.last.date_requested }}</p>
-                {% if not round.editorrevisionrequest_set.last.date_completed %}
-                    <p>Revision by author is pending</p>
-                {% endif %}
-
             </div>
         {% endwith %}
     <div>

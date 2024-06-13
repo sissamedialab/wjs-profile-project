@@ -1,9 +1,14 @@
-{% load wjs_review %}
+{% load django_bootstrap5 wjs_review %}
 {% for round in workflow.article.reviewround_set.all %}
     {% if round == workflow.article.current_review_round_object %}
         <p class="h3">Current round (round {{ round.round_number }})</p>
     {% else %}
         <p class="h3">Previous round (round {{ round.round_number }})</p>
+        <p class="h4">Revision request</p>
+            <p>Requested on {{ round.editorrevisionrequest_set.last.date_requested }}</p>
+            {% if not round.editorrevisionrequest_set.last.date_completed %}
+                <p>Revision by author is pending</p>
+            {% endif %}
     {% endif %}
     {% get_review_assignments round "" as assignments_and_actions %}
     {% for assignment_and_actions in assignments_and_actions %}

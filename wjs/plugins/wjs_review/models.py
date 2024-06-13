@@ -162,6 +162,10 @@ class ArticleWorkflow(TimeStampedModel):
     def __str__(self):
         return f"{self.article.id}-{self.state}"
 
+    @property
+    def permission_label(self) -> str:
+        return _("Author notes")
+
     def get_absolute_url(self):
         return reverse("wjs_article_details", args=[self.pk])
 
@@ -831,6 +835,10 @@ class EditorRevisionRequest(RevisionRequest):
     class Meta:
         ordering = ("date_requested",)
 
+    @property
+    def permission_label(self) -> str:
+        return _(f"Editor {self.editor}'s report")
+
 
 class WorkflowReviewAssignment(ReviewAssignment):
     """
@@ -851,6 +859,10 @@ class WorkflowReviewAssignment(ReviewAssignment):
     author_note_visible = models.BooleanField(_("Author note visible"), default=True)
 
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
+
+    @property
+    def permission_label(self) -> str:
+        return _(f"Reviewer {self.reviewer}'s report")
 
     @property
     def previous_review_round(self) -> Optional[ReviewRound]:
@@ -907,9 +919,17 @@ class ProphyCandidate(models.Model):
 
 class PermissionAssignment(TimeStampedModel):
     class PermissionType(models.TextChoices):
-        ALL = "all", _("All")
+        """Full set of permissions."""
+
+        ALL = "all", _("Allow")
         NO_NAMES = "no_names", _("Hide names")
-        DENY = "deny", _("Deny permission")
+        DENY = "deny", _("Deny")
+
+    class BinaryPermissionType(models.TextChoices):
+        """Subset of PermissionType for basic allow / deny check."""
+
+        ALL = "all", _("Allow")
+        DENY = "deny", _("Deny")
 
     user = models.ForeignKey(Account, verbose_name=_("User"), on_delete=models.CASCADE)
     content_type = models.ForeignKey(
@@ -934,11 +954,22 @@ class PermissionAssignment(TimeStampedModel):
         default=PermissionType.NO_NAMES,
         choices=PermissionType.choices,
     )
+    permission_secondary = models.CharField(
+        _("Extra permission set"),
+        help_text=_("Used to assign permissions to parts of the objects (eg: cover letter etc)"),
+        max_length=255,
+        blank=False,
+        default=BinaryPermissionType.DENY,
+        choices=BinaryPermissionType.choices,
+    )
 
     class Meta:
         unique_together = ("user", "content_type", "object_id")
         verbose_name = _("Permission assignment")
         verbose_name_plural = _("Permission assignments")
+
+    def __str__(self):
+        return f"{self.user} - {self.content_type.model} - {self.permission}"
 
     def match_permission(self, permission_type: PermissionType) -> bool:
         """
@@ -961,6 +992,26 @@ class PermissionAssignment(TimeStampedModel):
         if self.permission == PermissionAssignment.PermissionType.ALL.value:
             return True
         return self.permission == permission_type.value or permission_type.value == ""
+
+    def match_secondary_permission(self, permission_type: PermissionType) -> bool:
+        """
+        Check if the current secondary permission matches the requested permission type.
+
+        Secondary permission is used to assign permissions to parts of the objects:
+
+        - Article: Article.comments_for_editors
+        - EditorRevisionRequest: EditorRevisionRequest.author_note,
+
+        :param permission_type:
+        :type permission_type: PermissionAssignment.PermissionType
+        :return: requested permission matches the current permission
+        :rtype: bool
+        """
+        if self.permission_secondary == PermissionAssignment.PermissionType.DENY.value:
+            return False
+        if self.permission_secondary == PermissionAssignment.PermissionType.ALL.value:
+            return True
+        return self.permission_secondary == permission_type.value or permission_type.value == ""
 
 
 class Reminder(models.Model):
