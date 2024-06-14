@@ -518,23 +518,23 @@ def test_permission_form_view_setup_reviewer(
     assert len(initial) == 5
     for index, item in enumerate(initial):
         object_type = ContentType.objects.get_for_model(objs[index].object)
-        assert item.object == objs[index].object
-        assert item.object_type == object_type.pk
-        assert item.object_id == objs[index].object.pk
+        assert item["object"] == objs[index].object
+        assert item["object_type"] == object_type.pk
+        assert item["object_id"] == objs[index].object.pk
         # Remember that we are looking at the default permissions of a reviewer (normal_user is the first reviewer)
         if index == 0:
-            assert item.permission == PermissionAssignment.PermissionType.NO_NAMES
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.ALL
+            assert item["permission"] == PermissionAssignment.PermissionType.NO_NAMES
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
         elif index in (1, 4):
-            assert item.permission == PermissionAssignment.PermissionType.NO_NAMES
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.DENY
+            assert item["permission"] == PermissionAssignment.PermissionType.NO_NAMES
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
         elif index == 3:
             # this is the review for which we created a custom permission (see above)
-            assert item.permission == PermissionAssignment.PermissionType.NO_NAMES
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.ALL
+            assert item["permission"] == PermissionAssignment.PermissionType.NO_NAMES
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
         else:
-            assert item.permission == PermissionAssignment.PermissionType.DENY
-            assert item.permission_secondary == PermissionAssignment.PermissionType.DENY
+            assert item["permission"] == PermissionAssignment.PermissionType.DENY
+            assert item["permission_secondary"] == PermissionAssignment.PermissionType.DENY
 
 
 @pytest.mark.django_db
@@ -637,20 +637,20 @@ def test_permission_form_view_setup_editor(
     assert len(initial) == 11
     for index, item in enumerate(initial):
         object_type = ContentType.objects.get_for_model(objs[index].object)
-        assert item.object == objs[index].object
-        assert item.object_type == object_type.pk
-        assert item.object_id == objs[index].object.pk
+        assert item["object"] == objs[index].object
+        assert item["object_type"] == object_type.pk
+        assert item["object_id"] == objs[index].object.pk
         if index == 0:
-            assert item.permission == PermissionAssignment.PermissionType.ALL
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.ALL
+            assert item["permission"] == PermissionAssignment.PermissionType.ALL
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
         elif index in (1, 2, 3, 4, 6):
             # Objects of the previous review round
-            assert item.permission == PermissionAssignment.PermissionType.DENY
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.DENY
+            assert item["permission"] == PermissionAssignment.PermissionType.DENY
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
         elif index in (5, 7, 8, 9, 10):
             # Objects of the current review round
-            assert item.permission == PermissionAssignment.PermissionType.ALL
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.ALL
+            assert item["permission"] == PermissionAssignment.PermissionType.ALL
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
 
     # Permissions for original editor
     fake_request.user = past_assignment.editor
@@ -660,17 +660,17 @@ def test_permission_form_view_setup_editor(
     assert len(initial) == 11
     for index, item in enumerate(initial):
         object_type = ContentType.objects.get_for_model(objs[index].object)
-        assert item.object == objs[index].object
-        assert item.object_type == object_type.pk
-        assert item.object_id == objs[index].object.pk
+        assert item["object"] == objs[index].object
+        assert item["object_type"] == object_type.pk
+        assert item["object_id"] == objs[index].object.pk
         if index == 0:
-            assert item.permission == PermissionAssignment.PermissionType.ALL
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.ALL
+            assert item["permission"] == PermissionAssignment.PermissionType.ALL
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
         elif index in (1, 2, 3, 4, 6):
             # Objects of the previous review round
-            assert item.permission == PermissionAssignment.PermissionType.ALL
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.ALL
+            assert item["permission"] == PermissionAssignment.PermissionType.ALL
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
         elif index in (5, 7, 8, 9, 10):
             # Objects of the current review round
-            assert item.permission == PermissionAssignment.PermissionType.DENY
-            assert item.permission_secondary == PermissionAssignment.BinaryPermissionType.DENY
+            assert item["permission"] == PermissionAssignment.PermissionType.DENY
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY

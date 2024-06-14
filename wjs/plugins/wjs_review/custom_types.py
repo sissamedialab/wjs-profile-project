@@ -27,7 +27,7 @@ class PermissionTargetObject(NamedTuple):
     author_notes: bool = False
 
 
-class PermissionInitial(NamedTuple):
+class PermissionInitial(TypedDict):
     """Configuration of the initial data for the form."""
 
     object_type: int

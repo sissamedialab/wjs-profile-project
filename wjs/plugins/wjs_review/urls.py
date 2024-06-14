@@ -155,12 +155,12 @@ urlpatterns = [
         name="wjs_message_toggle_read_by_eo",
     ),
     path(
-        "messages/toggle_read/<int:message_id>/<int:recipient_id>",
+        "messages/toggle_read/<int:message_id>/<int:recipient_id>/",
         ToggleMessageReadView.as_view(),
         name="wjs_message_toggle_read",
     ),
     path(
-        "messages/attachment/<int:message_id>/<int:attachment_id>",
+        "messages/attachment/<int:message_id>/<int:attachment_id>/",
         MessageAttachmentDownloadView.as_view(),
         name="wjs_message_download_attachment",
     ),
@@ -197,9 +197,9 @@ urlpatterns = [
         name="delete_supplementary_file",
     ),
     path("annotated_files/<int:pk>/", ListAnnotatedFilesView.as_view(), name="wjs_list_annotated_files"),
-    path("send_corrections/<int:pk>", AuthorSendsCorrectionsView.as_view(), name="wjs_author_sends_corrections"),
+    path("send_corrections/<int:pk>/", AuthorSendsCorrectionsView.as_view(), name="wjs_author_sends_corrections"),
     path("paper_publishable/<int:pk>/", TogglePublishableFlagView.as_view(), name="wjs_toggle_publishable"),
-    path("galley_generation/<int:pk>", GalleyGenerationView.as_view(), name="wjs_typesetter_galley_generation"),
+    path("galley_generation/<int:pk>/", GalleyGenerationView.as_view(), name="wjs_typesetter_galley_generation"),
     path(
         "article/<int:pk>/permissions/<int:user_id>/",
         EditUserPermissions.as_view(),

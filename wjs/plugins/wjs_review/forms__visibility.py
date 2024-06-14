@@ -23,9 +23,9 @@ class BaseUserPermissionFormSet(BaseFormSet):
         kwargs = super().get_form_kwargs(index)
         kwargs["article"] = self.article
         kwargs["user"] = self.user
-        kwargs["object"] = self.initial[index].object
-        kwargs["round"] = self.initial[index].round
-        kwargs["author_notes"] = self.initial[index].author_notes
+        kwargs["object"] = self.initial[index].get("object")
+        kwargs["round"] = self.initial[index].get("round")
+        kwargs["author_notes"] = self.initial[index].get("author_notes")
         return kwargs
 
     def save(self, commit=True):

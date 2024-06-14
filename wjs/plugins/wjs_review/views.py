@@ -481,6 +481,7 @@ class UpdateState(LoginRequiredMixin, UpdateView):
         return kwargs
 
 
+# FIXME: Align permission checking logic with the rest of the views
 class ArticleAssignedEditorMixin:
     def get_queryset(self) -> QuerySet[ArticleWorkflow]:
         # TODO: We must check this once we have decided the flow for multiple review rounds
@@ -500,8 +501,7 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
     context_object_name = "workflow"
 
     def get_success_url(self):
-        # TBV:  reverse("wjs_review_list")?  wjs_review_review?
-        return reverse("wjs_article_details", args=(self.object.id,))
+        return reverse("wjs_article_details", args=(self.object.pk,))
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         """
@@ -618,7 +618,7 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
     context_object_name = "workflow"
 
     def get_success_url(self):
-        return reverse("wjs_article_details", args=(self.object.id,))
+        return reverse("wjs_article_details", args=(self.object.pk,))
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -773,7 +773,7 @@ class PostponeRevisionRequestDueDate(UserPassesTestMixin, UpdateView):
         """
         Check that the user is the article's editor
         """
-        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).article.articleworkflow
+        self.article = self.get_object().article.articleworkflow
         return permissions.is_article_editor(self.article, self.request.user)
 
     def get_success_url(self):
@@ -1231,6 +1231,7 @@ class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
     model = MessageRecipients
     form_class = ToggleMessageReadForm
     template_name = "wjs_review/elements/toggle_message_read.html"
+    context_object_name = "message"
 
     def test_func(self):
         """User must be the recipient (or staff or EO)."""
@@ -1479,7 +1480,7 @@ class ArticleReminders(UserPassesTestMixin, ListView):
 
     def test_func(self):
         """Let's show reminders only to EO or staff."""
-        return base_permissions.has_admin_role(self.request.journalm, self.request.user)
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
 
     def get_queryset(self):
         """Get reminders related to an article via ReviewAssignment or WjsEditorAssignment or similar."""
@@ -1546,7 +1547,7 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
 
     def test_func(self):
         """User must be the article's Editor and must be assigned to the article."""
-        return WjsEditorAssignment.objects.get_all(self.object).filter(editor=self.request.user).exists()
+        return permissions.is_article_editor(self.object, self.request.user)
 
     def get_logic_instance(self):
         """Instantiate :py:class:`HandleEditorDeclinesAssignment` class."""
@@ -1582,7 +1583,7 @@ class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         """
         The user must be the article's editor.
         """
-        return permissions.is_article_editor(self.object, self.request.user)
+        return permissions.is_article_editor(self.get_object().article.articleworkflow, self.request.user)
 
     def get_success_url(self):
         messages.add_message(
@@ -1590,7 +1591,7 @@ class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             messages.SUCCESS,
             "Reviewer deassigned successfully.",
         )
-        return reverse("wjs_article_details", args=(self.object.id,))
+        return reverse("wjs_article_details", args=(self.object.pk,))
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -1642,8 +1643,7 @@ class SupervisorAssignEditor(LoginRequiredMixin, UserPassesTestMixin, UpdateView
         but we don't check if the editor belongs to a S.I. (e.g. `permissions.can_assign_special_issue_by_article()`),
         because the process is common.
         """
-        workflow = self.get_object()
-        return permissions.is_article_supervisor(workflow, self.request.user)
+        return permissions.is_article_supervisor(self.get_object(), self.request.user)
 
     def get_success_url(self):
         messages.add_message(
@@ -1715,6 +1715,7 @@ class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     # so that we use it here also
     template_name = "wjs_review/write_message_to_typ.html"
     form_class = ForwardMessageForm
+    pk_url_kwarg = "original_message_pk"
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -1723,7 +1724,7 @@ class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def setup(self, request, *args, **kwargs):
         """Fetch the original message that we are going to forward."""
         super().setup(request, *args, **kwargs)
-        self.original_message = get_object_or_404(self.model, id=self.kwargs["original_message_pk"])
+        self.original_message = self.get_object()
         self.workflow = self.original_message.target.articleworkflow
 
     def get_form_kwargs(self) -> Dict[str, Any]:
