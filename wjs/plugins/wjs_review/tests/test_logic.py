@@ -780,12 +780,12 @@ def test_handle_accept_invite_reviewer(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_assignment: review_models.ReviewAssignment,
+    review_assignment_invited_user: review_models.ReviewAssignment,
     accept_gdpr: bool,
 ):
     """If the user accepts the invitation, assignment is accepted and user is confirmed if they accept GDPR."""
 
-    invited_user = review_assignment.reviewer
+    invited_user = review_assignment_invited_user.reviewer
     assignment = assigned_article.reviewassignment_set.first()
 
     evaluate_data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr}
@@ -865,12 +865,12 @@ def test_handle_decline_invite_reviewer(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_assignment: review_models.ReviewAssignment,
+    review_assignment_invited_user: review_models.ReviewAssignment,
     accept_gdpr: bool,
 ):
     """If the user declines the invitation, assignment is declined and user is confirmed if they accept GDPR."""
 
-    invited_user = review_assignment.reviewer
+    invited_user = review_assignment_invited_user.reviewer
     assignment = assigned_article.reviewassignment_set.first()
     fake_request.GET = {"access_code": assignment.access_code}
 

@@ -137,7 +137,8 @@ class TypesetterUploadFiles(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
     template_name = "wjs_review/typesetter_upload_files.html"
 
     def test_func(self):
-        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).round.article.articleworkflow
+        self.object = self.get_object()
+        self.article = self.object.round.article.articleworkflow
         return is_article_typesetter(self.article, self.request.user)
 
     def get_success_url(self):
@@ -203,6 +204,7 @@ class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, Template
         """User must be the article's typesetter"""
         return is_article_typesetter(self.article.articleworkflow, self.request.user)
 
+    # FIXME: Change to POST method
     def get(self, request, *args, **kwargs):
         """Make the article's state as Ready for Typesetting."""
         try:
@@ -379,8 +381,6 @@ class WriteToAuWithModeration(UserPassesTestMixin, LoginRequiredMixin, FormView)
         return is_article_typesetter(
             self.workflow,
             self.request.user,
-        ) or base_permissions.has_eo_role(
-            self.request.user,
         )
 
     def get_recipient(self):
@@ -556,6 +556,7 @@ class ReadyForPublicationView(UserPassesTestMixin, LoginRequiredMixin, TemplateV
             self.request.user,
         )
 
+    # FIXME: Change to POST method
     def get(self, request, *args, **kwargs):
         try:
             self.object = ReadyForPublication(
@@ -668,6 +669,7 @@ class TypesetterTakeInCharge(UserPassesTestMixin, LoginRequiredMixin, View):
     def test_func(self):
         return has_typesetter_role_by_article(self.object, self.request.user)
 
+    # FIXME: Change to POST method
     def get(self, request, *args, **kwargs):
         """Take the article in charge."""
         try:

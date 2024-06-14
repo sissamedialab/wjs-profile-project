@@ -341,15 +341,31 @@ def review_form(journal) -> review_models.ReviewForm:
 
 
 @pytest.fixture
-def review_assignment(
+def review_assignment_invited_user(
     fake_request: HttpRequest,
     invited_user: JCOMProfile,  # noqa: F405
     assigned_article: submission_models.Article,  # noqa: F405
     review_form: review_models.ReviewForm,
 ) -> WorkflowReviewAssignment:
+    """Create an review assignment for an invited (non active / confirmed) user."""
     return _create_review_assignment(
         fake_request=fake_request,
         reviewer_user=invited_user,
+        assigned_article=assigned_article,
+    )
+
+
+@pytest.fixture
+def review_assignment(
+    fake_request: HttpRequest,
+    reviewer: JCOMProfile,  # noqa: F405
+    assigned_article: submission_models.Article,  # noqa: F405
+    review_form: review_models.ReviewForm,
+) -> WorkflowReviewAssignment:
+    """Create an review assignment for reviewer users."""
+    return _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
         assigned_article=assigned_article,
     )
 
