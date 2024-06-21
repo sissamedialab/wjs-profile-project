@@ -175,6 +175,7 @@ def _assigned_to_typesetter_article(
     typesetting_assignment = AssignTypesetter(article, typesetter, fake_request).run()
     workflow = typesetting_assignment.round.article.articleworkflow
     assert workflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
     cleanup_notifications_side_effects()
     return workflow.article
 
@@ -208,6 +209,7 @@ def _assigned_to_typesetter_article_with_files_to_typeset(
         assignment=assignment,
         file_to_upload=django_file,
     ).run()
+    article_with_file.articleworkflow.save()
     return article_with_file
 
 
@@ -246,12 +248,12 @@ def _stage_proofing_article(
 
 @pytest.fixture
 def stage_proofing_article(
-    assigned_to_typesetter_article: Article,
+    assigned_to_typesetter_article_with_files_to_typeset: Article,
     typesetter: Account,
     fake_request: HttpRequest,
 ) -> Article:
     """Create and return an article in proofreading."""
-    return _stage_proofing_article(assigned_to_typesetter_article, typesetter, fake_request)
+    return _stage_proofing_article(assigned_to_typesetter_article_with_files_to_typeset, typesetter, fake_request)
 
 
 def _assigned_to_typesetter_proofs_done_article(

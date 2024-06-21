@@ -26,4 +26,11 @@
         <p>{{ preprintid }}</p>
         {% endif %}
     {% endwith %}
+    {% if workflow.production_flag_galleys_ok == workflow.GalleysStatus.NOT_TESTED %}
+      <p class="text-warning">Galleys NOT TESTED</p>
+    {% elif workflow.production_flag_galleys_ok == workflow.GalleysStatus.TEST_FAILED %}
+      <p class="text-danger">Galleys TEST FAILED</p>
+    {% else %}
+      <p class="text-success">Galleys OK</p>
+    {% endif %}
 </div>
