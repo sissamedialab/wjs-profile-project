@@ -114,6 +114,11 @@ class ArticleWorkflow(TimeStampedModel):
                 if choice[0] not in [cls.REQUIRES_RESUBMISSION.value, cls.TECHNICAL_REVISION.value]
             ]
 
+    class GalleysStatus(models.IntegerChoices):
+        NOT_TESTED = 1, _("Not tested")
+        TEST_FAILED = 2, _("Test failed")
+        TEST_SUCCEEDED = 3, _("Test succeeded")
+
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
     state = FSMField(default=ReviewStates.INCOMPLETE_SUBMISSION, choices=ReviewStates.choices, verbose_name=_("State"))
@@ -137,8 +142,12 @@ class ArticleWorkflow(TimeStampedModel):
     production_flag_no_queries = models.BooleanField(
         default=False, verbose_name=_("The latest typesetted files contain no queries for the author")
     )
-    production_flag_galleys_ok = models.BooleanField(
-        default=False, verbose_name=_("The latest galley generation was successful")
+    production_flag_galleys_ok = models.IntegerField(
+        choices=GalleysStatus.choices,
+        default=GalleysStatus.NOT_TESTED,
+        null=False,
+        blank=True,
+        verbose_name=_("The status of the latest galleys"),
     )
     production_flag_no_checks_needed = models.BooleanField(
         default=True, verbose_name=_("No special check is required on the latest typesetted files")

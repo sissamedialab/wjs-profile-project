@@ -1,11 +1,13 @@
 import logging
 from typing import Callable
+from unittest import mock
 
 import pytest
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
@@ -341,6 +343,8 @@ def test_author_sends_corrections(
     stage_proofing_article: Article,
     client: Client,
 ):
+    stage_proofing_article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+    stage_proofing_article.articleworkflow.save()
     typesetting_assignment = stage_proofing_article.typesettinground_set.first().typesettingassignment
     url = reverse("wjs_author_sends_corrections", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(stage_proofing_article.correspondence_author)
@@ -366,6 +370,9 @@ def test_author_sends_corrections(
 
     stage_proofing_article.refresh_from_db()
     assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    assert (
+        stage_proofing_article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    )
 
 
 @pytest.mark.django_db
@@ -459,8 +466,6 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
     workflow.save()
 
     # article is not "ready"
-    assert workflow.production_flag_no_queries is False
-    assert workflow.production_flag_galleys_ok is False
     assert workflow.production_flag_no_checks_needed is True
     assert workflow.can_be_set_rfp() is False
 
@@ -520,3 +525,69 @@ def test_eo_sends_back_to_typesetter(
     stage_proofing_article.articleworkflow.refresh_from_db()
     assert response.status_code == 302
     assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+
+@pytest.mark.django_db
+def test_production_flag_galleys_ok(
+    assigned_to_typesetter_article_with_files_to_typeset: Article,
+    client: Client,
+    mock_jcomassistant_post,
+):
+    """Test the production flag galleys_ok correctly indicates the status of the galleys."""
+    typesetting_assignment = (
+        assigned_to_typesetter_article_with_files_to_typeset.typesettinground_set.get().typesettingassignment
+    )
+    # Test that when the generation failed the flag is set to TEST_FAILED
+    with mock.patch("plugins.wjs_review.logic__production.AttachGalleys._check_conditions", return_value=False):
+        url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
+        client.force_login(typesetting_assignment.typesetter)
+        client.get(url)
+        assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
+        assert (
+            assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
+            == ArticleWorkflow.GalleysStatus.TEST_FAILED
+        )
+    # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
+    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    client.post(url, data={"file_to_upload": SimpleUploadedFile("test.zip", b"test")})
+    assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
+    assert (
+        assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
+        == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    )
+    # Test that when the archive conditions are met the flag is set to TEST_PASSED
+    with mock.patch("plugins.wjs_review.logic__production.AttachGalleys._check_conditions", return_value=True):
+        url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
+        client.force_login(typesetting_assignment.typesetter)
+        client.get(url)
+        assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
+        assert (
+            assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
+            == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+        )
+
+
+@pytest.mark.django_db
+def test_typesetter_takes_in_charge(
+    ready_for_typesetter_article: Article,
+    client: Client,
+    typesetter: JCOMProfile,
+):
+    assert ready_for_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    url = reverse("wjs_typ_take_in_charge", kwargs={"pk": ready_for_typesetter_article.articleworkflow.pk})
+    client.force_login(typesetter.janeway_account)
+    response = client.get(url)
+    assert response.status_code == 302
+    ready_for_typesetter_article.refresh_from_db()
+    assert ready_for_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    assert (
+        ready_for_typesetter_article.typesettinground_set.get().typesettingassignment.typesetter
+        == typesetter.janeway_account
+    )
+    assert (
+        ready_for_typesetter_article.articleworkflow.production_flag_galleys_ok
+        == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    )
+    assert ready_for_typesetter_article.articleworkflow.production_flag_no_queries is False
+    assert ready_for_typesetter_article.articleworkflow.production_flag_no_checks_needed

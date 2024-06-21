@@ -390,7 +390,7 @@ class PublishArticle:
 
 @dataclasses.dataclass
 class UploadFile:
-    """Allow the typesetter to upload typesetting files."""
+    """Allow the typesetter to upload typesetted files."""
 
     typesetter: Account
     request: HttpRequest
@@ -411,6 +411,10 @@ class UploadFile:
     def _update_typesetting_assignment(self, uploaded_file):
         """Create the relation in files_to_typeset field of TypesettingAssignment"""
         self.assignment.files_to_typeset.add(uploaded_file)
+        self.assignment.round.article.articleworkflow.production_flag_galleys_ok = (
+            ArticleWorkflow.GalleysStatus.NOT_TESTED
+        )
+        self.assignment.round.article.articleworkflow.save()
 
     def run(self):
         """Main method to execute the file upload logic."""
@@ -624,6 +628,9 @@ class AuthorSendsCorrections:
     def _update_state(self):
         """Run FSM transition."""
         self.article.articleworkflow.author_sends_corrections()
+        # we assume that, if the author sends back the paper to the typesetter (instead of sending it directly to
+        # ready-for-publication), then some change is necessary and it is ok for us to reset the flag
+        self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
         self.article.articleworkflow.save()
         self.article.stage = STAGE_TYPESETTING
         self.article.save()
@@ -875,7 +882,7 @@ class AttachGalleys:
         try:
             self.path = self.unpack_targz_from_jcomassistant(self.archive_with_galleys)
             if not self._check_conditions():
-                self.article.articleworkflow.production_flag_galleys_ok = False
+                self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
                 # We save the given archive even if it has errors.
                 # We save it in the filesystem among the other article files and return it as a Galley object, so that
                 # our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
@@ -885,7 +892,7 @@ class AttachGalleys:
                 galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
 
             else:
-                self.article.articleworkflow.production_flag_galleys_ok = True
+                self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
                 galleys_created = [self.save_epub(), self.save_html()]
             self.article.articleworkflow.save()
             return galleys_created
@@ -987,7 +994,10 @@ class TypesetterTestsGalleyGeneration:
         ).run()
         self.assignment.galleys_created.set(galleys_created)
         # This flag is set by AttachGalleys that we have just run
-        if self.assignment.round.article.articleworkflow.production_flag_galleys_ok:
+        if (
+            self.assignment.round.article.articleworkflow.production_flag_galleys_ok
+            == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+        ):
             return True
         else:
             send_mail(
@@ -1118,6 +1128,7 @@ class HandleEOSendBackToTypesetter:
     def _update_state(self):
         """Run FSM transition."""
         self.articleworkflow.admin_sends_back_to_typ()
+        self.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
         self.articleworkflow.save()
         self.articleworkflow.article.stage = STAGE_TYPESETTING
         self.articleworkflow.article.save()
