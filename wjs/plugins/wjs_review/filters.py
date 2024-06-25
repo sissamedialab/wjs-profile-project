@@ -3,6 +3,7 @@ from typing import Union
 import django_filters
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
+from django_filters.fields import ModelChoiceField
 from journal.models import Issue
 from submission.models import Keyword, Section
 
@@ -11,6 +12,48 @@ from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 from .communication_utils import get_eo_user
 from .managers import ArticleWorkflowQuerySet
 from .models import ArticleWorkflow
+
+
+class SpecialIssueFilterField(ModelChoiceField):
+    """
+    Field for the Issue model filter.
+
+    Overrides standard ModelChoiceFilter to display `Issue.issue_title` as label of the choices.
+    """
+
+    def label_from_instance(self, obj):
+        return obj.issue_title
+
+
+class SpecialIssueFilter(django_filters.ModelChoiceFilter):
+    """
+    Field for the Issue model filter.
+
+    Overrides standard ModelChoiceFilter to display a custom string as label of the choices.
+    """
+
+    field_class = SpecialIssueFilterField
+
+
+class SectionFilterField(ModelChoiceField):
+    """
+    Field for the Section model filter.
+
+    Overrides standard ModelChoiceFilter to display `Section.name` as label of the choices.
+    """
+
+    def label_from_instance(self, obj):
+        return obj.name
+
+
+class SectionFilterFilter(django_filters.ModelChoiceFilter):
+    """
+    Filter for the Section model.
+
+    Overrides standard ModelChoiceFilter to display `Section.name` as label of the choices.
+    """
+
+    field_class = SectionFilterField
 
 
 def status_choices() -> list[tuple[str, str]]:
@@ -34,6 +77,14 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
     template_name = "wjs_review/lists/elements/filters_base.html"
 
     article = django_filters.CharFilter(field_name="article", method="filter_article")
+    article_identifiers = django_filters.CharFilter(
+        field_name="article",
+        method="filter_identifiers",
+        label=_("Preprint ID/DOI"),
+    )
+    correspondence_author = django_filters.CharFilter(
+        field_name="article__correspondence_author", method="filter_user", label=_("Correspondence author")
+    )
     language = django_filters.ChoiceFilter(
         field_name="article__language",
         label=_("Language"),
@@ -45,11 +96,29 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         label=_("Keywords"),
         empty_label=_("Keywords: All"),
     )
-    section = django_filters.ModelChoiceFilter(
+    section = SectionFilterFilter(
         field_name="article__section",
         queryset=Section.objects.all(),
-        label=_("Section"),
-        empty_label=_("Sections: All"),
+        label=_("Preprint type"),
+        empty_label=_("Preprint types: All"),
+    )
+    special_issue = SpecialIssueFilter(
+        field_name="article__primary_issue",
+        queryset=Issue.objects.none(),
+        label=_("Special Issue"),
+        empty_label=_("Special Issue: All"),
+    )
+    status = django_filters.ChoiceFilter(
+        choices=[],
+        field_name="state",
+        method="filter_status",
+        label=_("Status"),
+        empty_label=_("Status: All"),
+    )
+    editor = django_filters.CharFilter(
+        field_name="article__editorassignment__editor",
+        method="filter_user",
+        label=_("Editor"),
     )
 
     class Meta:
@@ -65,10 +134,20 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         """Customize filters by journal."""
         filters = self.filters
         available_languages = get_journal_language_choices(self._journal)
+        available_primary_issues = self.queryset.values_list("article__primary_issue", flat=True).distinct()
+        filters["special_issue"].queryset = (
+            self.filters["special_issue"]
+            .queryset.filter(journal=self._journal, pk__in=available_primary_issues)
+            .order_by("issue_title")
+        )
         if len(available_languages) == 1:
             filters.pop("language")
         else:
             filters["language"].extra["choices"] = available_languages
+        available_states = self.queryset.values_list("state", flat=True).distinct()
+        filters["status"].field.choices = [
+            state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
+        ]
         filters["keywords"].queryset = self.filters["keywords"].queryset.filter(journal=self._journal).order_by("word")
         filters["section"].queryset = self.filters["section"].queryset.filter(journal=self._journal).order_by("name")
         return filters
@@ -97,6 +176,29 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
             return queryset.filter(filters)
         return queryset
 
+    def filter_identifiers(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
+        """
+        Filter by article's title, identifier by substring, and id by exact match.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: target article foreign key field name
+        :type name: str
+        :param value: the value to filter
+        :type value: Union[str, int]
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value:
+            filters = Q(**{f"{name}__identifier__identifier__icontains": value})
+            try:
+                filters |= Q(**{f"{name}__id": int(value)})
+            except ValueError:
+                pass
+            return queryset.filter(filters)
+        return queryset
+
 
 class AuthorArticleWorkflowFilter(BaseArticleWorkflowFilter):
     # Empty to ease further customization
@@ -112,39 +214,20 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
     template_name = "wjs_review/lists/elements/filters_staff.html"
 
     author = django_filters.CharFilter(field_name="article__authors", method="filter_user", label=_("Authors"))
-    editor = django_filters.CharFilter(
-        field_name="article__editorassignment__editor",
-        method="filter_user",
-        label=_("Editor"),
-    )
     reviewer = django_filters.CharFilter(
         field_name="article__reviewassignment__reviewer",
         method="filter_user",
         label=_("Reviewer"),
     )
-    special_issue = django_filters.ModelChoiceFilter(
-        field_name="article__primary_issue",
-        queryset=Issue.objects.filter(issue_type__code="collection"),
-        label=_("Special Issue"),
-        empty_label=_("Special Issue: All"),
+    typesetter = django_filters.CharFilter(
+        field_name="article__typesettinground__typesettingassignment__typesetter",
+        method="filter_user",
+        label=_("Typesetter"),
     )
-    status = django_filters.ChoiceFilter(
-        choices=[],
-        field_name="state",
-        method="filter_status",
-        label=_("Status"),
-        empty_label=_("Status: All"),
-    )
-
-    class Meta(BaseArticleWorkflowFilter.Meta):
-        model = ArticleWorkflow
 
     def select_filters(self):
         """Customize filters by journal."""
         filters = super().select_filters()
-        filters["special_issue"].queryset = (
-            self.filters["special_issue"].queryset.filter(journal=self._journal).order_by("issue_title")
-        )
         available_states = self.queryset.values_list("state", flat=True).distinct()
         filters["status"].field.choices = status_choices() + [
             state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
@@ -216,17 +299,6 @@ class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
 class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):
     template_name = "wjs_review/lists/elements/filters_workon.html"
 
-    article_identifiers = django_filters.CharFilter(
-        field_name="article", method="filter_identifiers", label=_("Article's Identifiers")
-    )
-    typesetter = django_filters.CharFilter(
-        field_name="article__typesettinground__typesettingassignment__typesetter",
-        method="filter_user",
-        label=_("Typesetter"),
-    )
-    correspondence_author = django_filters.CharFilter(
-        field_name="article__correspondence_author", method="filter_user", label=_("Correspondence author")
-    )
     abstract_or_title = django_filters.CharFilter(
         field_name="article",
         method="filter_abstract_and_title",
@@ -242,29 +314,6 @@ class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):
         lookup_expr="icontains",
         label=_("Author's Institution"),
     )
-
-    def filter_identifiers(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
-        """
-        Filter by article's title, identifier by substring, and id by exact match.
-
-        :param queryset: the queryset to filter
-        :type queryset: QuerySet
-        :param name: target article foreign key field name
-        :type name: str
-        :param value: the value to filter
-        :type value: Union[str, int]
-
-        :return: the filtered queryset
-        :rtype: QuerySet
-        """
-        if value:
-            filters = Q(**{f"{name}__identifier__identifier__icontains": value})
-            try:
-                filters |= Q(**{f"{name}__id": int(value)})
-            except ValueError:
-                pass
-            return queryset.filter(filters)
-        return queryset
 
     def filter_abstract_and_title(self, queryset: QuerySet, name: str, value: Union[str, int]) -> QuerySet:
         """

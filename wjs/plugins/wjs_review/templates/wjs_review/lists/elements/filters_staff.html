@@ -2,46 +2,50 @@
 
 <div class="row mb-3">
   <div class="col-sm-2">
-    {% bootstrap_field filter.form.section layout="floating" size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
     {% bootstrap_field filter.form.status size="sm" wrapper_class="" show_label=False %}
   </div>
-  <div class="col-sm-1">
-    {% bootstrap_button name="more" button_class="btn-outline-primary" wrapper_class="" layout="floating" content="Extra" data_bs_toggle="collapse" href="#extra_filters" role="button" aria_expanded="false" aria_controls="extra_filters" size="sm" %}
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.special_issue size="sm" wrapper_class="" show_label=False %}
   </div>
-  <div class="col-sm-3">
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.section size="sm" wrapper_class="" show_label=False %}
   </div>
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.article_identifiers size="sm" wrapper_class="" show_label=False %}
+  </div>
+  <div class="col-sm-2">
+  </div>
+  <div class="col-sm-2 d-flex justify-content-between">
+    {% bootstrap_button button_type="submit" button_class="btn-outline-primary" name="search" layout="floating" value=1 content="Search" size="sm" %}
+    <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary btn-sm">Reset filters</a>
+  </div>
+</div>
+<div class="row mb-3">
+  <div class="col-sm-2">
+    {% bootstrap_field filter.form.correspondence_author size="sm" wrapper_class="" show_label=False %}
+  </div>
+  {% if view.table_configuration_options.show_filter_editor %}
+    <div class="col-sm-2">
+      {% bootstrap_field filter.form.editor size="sm" wrapper_class="" show_label=False %}
+    </div>
+  {% endif %}
+  {% if view.table_configuration_options.show_filter_reviewer %}
+    <div class="col-sm-2">
+      {% bootstrap_field filter.form.reviewer size="sm" wrapper_class="" show_label=False %}
+    </div>
+  {% endif %}
+  {% if view.table_configuration_options.show_filter_typesetter %}
+    <div class="col-sm-2">
+      {% bootstrap_field filter.form.article size="sm" wrapper_class="" show_label=False %}
+    </div>
+  {% endif %}
   <div class="col-sm-2">
     {% bootstrap_field filter.form.article size="sm" wrapper_class="" show_label=False %}
   </div>
-  <div class="col-sm-2  d-flex justify-content-between">
-    {% bootstrap_button button_type="submit" button_class="btn-outline-primary" name="search" wrapper_class="" layout="floating" value=1 content="Search" size="sm" %}
-    <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary btn-sm">Reset</a>
-  </div>
-  <div class="collapse" id="extra_filters">
-    <div class="row">
-      <div class="col-sm-2">
-        {% bootstrap_field filter.form.keywords size="sm" wrapper_class="mt-3" show_label=False %}
-      </div>
-      <div class="col-sm-2">
-        {% bootstrap_field filter.form.author size="sm" wrapper_class="mt-3" show_label=False %}
-      </div>
-      <div class="col-sm-2">
-        {% bootstrap_field filter.form.editor size="sm" wrapper_class="mt-3" show_label=False %}
-      </div>
-      <div class="col-sm-2">
-        {% bootstrap_field filter.form.reviewer size="sm" wrapper_class="mt-3" show_label=False %}
-      </div>
-      <div class="col-sm-2">
-        {% bootstrap_field filter.form.special_issue layout="floating" size="sm" wrapper_class="mt-3" show_label=False %}
-      </div>
-      {% if filter.form.language %}
-        <div class="col-sm-2">
-          {% bootstrap_field filter.form.language size="sm" show_label=False %}
-        </div>
-      {% endif %}
+  {% if filter.form.language %}
+    <div class="col-sm-2">
+      {% bootstrap_field filter.form.language size="sm" wrapper_class="" show_label=False %}
     </div>
-  </div>
+  {% endif %}
 </div>
 {% include "wjs_review/lists/elements/filters_visibility.html" %}

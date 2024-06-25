@@ -2,20 +2,34 @@
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td>
-      {{ article.id }}
+    <td data-order="{{ article.pk }}">
+      <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
+      <a title="{{ article.title }}"
+         href="{% url 'wjs_article_details' workflow.id %}"
+         class="fw-bold">{{ article|versioned_number }}</a>
       <br />
-      <a title="{{ article.title }}" href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article.title|truncatewords:6 }}</a>
+      {% with preprintid=article|preprintid %}
+        {% if preprintid %}
+          {{ preprintid }}
+          <br />
+        {% endif %}
+      {% endwith %}
+      {% if view.table_configuration_options.table_type == "review" %}
+        <span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span>
+      {% elif view.table_configuration_options.table_type == "production" %}
+        <span title="Accepted on {{ article.date_accepted }}">{{ article.date_submitted|date:"d-M" }}</span>
+      {% endif %}
       <br />
-      {{ article.date_submitted|date:"d-M" }}
-      <br />
-      {{ article.section.name }}
-    </td>
-    <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
-      {% include "wjs_review/lists/elements/table_item_status.html" %}
+      {{ article.primary_issue|default:"—" }}
     </td>
     <td>
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
+    </td>
+    <td class="{% if attention_flag %}fw-bolder{% endif %}">
+      {{ article.title|truncatewords:6 }}
+    </td>
+    <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
+      {% include "wjs_review/lists/elements/table_item_status.html" %}
     </td>
     <td>
       {% with editor_assignment_data=article|article_current_editor %}
@@ -29,7 +43,6 @@
         {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
       {% endif %}
     </td>
-    <td title="Issue (if available)">{{ article.primary_issue|default:"—" }}</td>
     <td title="latest EO note">
       {% last_user_note article=workflow.article as note %}
       {% if note %}

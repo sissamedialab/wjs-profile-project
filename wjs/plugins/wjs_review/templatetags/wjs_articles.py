@@ -4,6 +4,7 @@ For generic tags and filters, see module wjs_review.
 
 """
 
+from datetime import datetime
 from typing import Optional
 
 from django import template
@@ -11,12 +12,23 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from django.utils.text import slugify
+from plugins.typesetting.models import (
+    GalleyProofing,
+    TypesettingAssignment,
+    TypesettingRound,
+)
 from submission.models import Article
 
 from wjs.jcom_profile.constants import EO_GROUP
 
 from ..logic import states_when_article_is_considered_in_production
-from ..models import ArticleWorkflow, Message, WjsEditorAssignment
+from ..models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
+    Message,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 
 register = template.Library()
 
@@ -126,6 +138,32 @@ def article_current_editor(article):
 
 
 @register.filter
+def article_current_typesetter(article: Article, unfiltered: bool = False) -> TypesettingAssignment:
+    """
+    Return the current typesetter.
+
+    Call as `{% with typesetter=article|article_current_typesetter %}` to get the current typesetter.
+
+    Use `{% with typesetter=article|article_current_typesetter:True %}` to filter across all typesetting rounds.
+
+    :param article: The article to get the typesetter for.
+    :type article: Article
+    :param unfiltered: If True, get the latest assignment irrespective of its stage (this is mostly useful for
+        published rs where there is not active typesetting round).
+    :type unfiltered: bool
+    :return: The typesetter of the latest typesetting assignment.
+    :rtype: TypesettingAssignment
+    """
+    try:
+        if unfiltered:
+            return TypesettingAssignment.objects.filter(round__article=article).latest("assigned").typesetter
+        else:
+            return TypesettingAssignment.active_objects.filter(round__article=article).latest("assigned").typesetter
+    except TypesettingAssignment.DoesNotExist:
+        return None
+
+
+@register.filter
 def user_is_coauthor(article: Article, user: Account) -> Optional[bool]:
     """
     Check if user is coauthor of the article.
@@ -160,3 +198,62 @@ def get_article_classes(workflow: ArticleWorkflow) -> dict[str, str]:
         "section": section,
         "publishable": publishable,
     }
+
+
+@register.filter
+def versioned_number(article: Article) -> str:
+    """Return the versioned number of the article."""
+    if typesetting_round := TypesettingRound.objects.filter(article=article).last():
+        return f"{article.pk}/v{typesetting_round.round_number}"
+    if article.current_review_round():
+        return f"{article.pk}/v{article.current_review_round()}"
+    return article.pk
+
+
+@register.filter
+def upcoming_deadline(article: Article) -> Optional[datetime]:
+    """Return the upcoming author deadline for an article."""
+    if typesetting_round := TypesettingRound.objects.filter(article=article).last():
+        try:
+            return (
+                GalleyProofing.active_objects.filter(
+                    proofreader=article.correspondence_author, round=typesetting_round
+                )
+                .latest("due")
+                .due
+            )
+        except GalleyProofing.DoesNotExist:
+            pass
+    if review_round := article.current_review_round_object():
+        try:
+            return (
+                EditorRevisionRequest.objects.filter(review_round=review_round, article=article)
+                .latest("date_due")
+                .date_due
+            )
+        except EditorRevisionRequest.DoesNotExist:
+            pass
+
+
+@register.filter
+def article_completed_review_by_user(article: Article, user: Account) -> Optional[WorkflowReviewAssignment]:
+    """Get completed review assignment if user is reviewer of the last review round of the article."""
+    try:
+        return (
+            WorkflowReviewAssignment.objects.filter(
+                article=article, reviewer=user, date_complete__isnull=False, date_declined__isnull=True
+            )
+            .exclude(decision="withdraw")
+            .latest("date_complete")
+        )
+    except WorkflowReviewAssignment.DoesNotExist:
+        pass
+
+
+@register.filter
+def article_pending_review_by_user(article: Article, user: Account) -> Optional[WorkflowReviewAssignment]:
+    """Get pending review assignment if user is reviewer of the last review round of the article."""
+    try:
+        return WorkflowReviewAssignment.objects.filter(article=article, reviewer=user, date_complete__isnull=True)
+    except WorkflowReviewAssignment.DoesNotExist:
+        pass

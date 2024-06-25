@@ -136,6 +136,9 @@ states_when_article_is_considered_missing_editor = [
     ArticleWorkflow.ReviewStates.SUBMITTED,
     ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
 ]
+states_when_article_is_considered_author_pending = [
+    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+]
 
 
 @dataclasses.dataclass
