@@ -42,6 +42,8 @@ def get_url_with_last_editor_revision_request_pk(
         )
         .last()
     )
+    if not latest_revision_request:
+        return "#"
     latest_editor_revision_request = latest_revision_request.editorrevisionrequest
     url = reverse(action.view_name, kwargs={"pk": latest_editor_revision_request.id})
     if action.querystring_params is not None:
@@ -101,6 +103,24 @@ def get_edit_permissions_url_review_assignment(
         url += "?"
         url += urllib.parse.urlencode(action.querystring_params)
     return url
+
+
+def get_do_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    revision_request = conditions.pending_revision_request(workflow, user)
+    if revision_request:
+        return reverse(
+            "do_revisions",
+            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+        )
+
+
+def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    revision_request = conditions.pending_edit_metadata_request(workflow, user)
+    if revision_request:
+        return reverse(
+            "do_revisions",
+            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+        )
 
 
 def get_unpulishable_css_class(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
@@ -519,6 +539,7 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_editor,
             name="postpone author revision deadline",
             label="",
@@ -526,16 +547,36 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
             custom_get_url=get_url_with_last_editor_revision_request_pk,
         ),
         ArticleAction(
+            condition=conditions.pending_edit_metadata_request,
+            permission=permissions.is_article_editor,
+            name="postpone author edit metadata deadline",
+            label="",
+            view_name="wjs_postpone_revision_request",
+            custom_get_url=get_url_with_last_editor_revision_request_pk,
+        ),
+        ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="submits new version",
             label="",
-            view_name="WRITEME!",  # point to wjs-review-articles/article/1375/revision/1/
+            view_name="do_revisions",
+            custom_get_url=get_do_revision_url,
         ),
         ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
             label="",
-            view_name="WRITEME!",
+            view_name="do_revisions",
+            custom_get_url=get_do_revision_url,
+        ),
+        ArticleAction(
+            condition=conditions.pending_edit_metadata_request,
+            permission=permissions.is_article_author,
+            name="edit metadata",
+            label="",
+            view_name="do_revisions",
+            custom_get_url=get_edit_metadata_revision_url,
         ),
     )
 

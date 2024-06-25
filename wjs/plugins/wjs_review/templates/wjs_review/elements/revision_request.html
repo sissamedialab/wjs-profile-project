@@ -43,17 +43,4 @@
             {% endif %}
         </div>
     {% endif %}
-    {% for revision in article.active_revision_requests %}
-        {% if not revision.date_completed and workflow|is_user_article_author:request.user %}
-            <tr>
-                <td>
-                    <a class="btn btn-primary"
-                       href="{% url 'do_revisions' article.pk revision.pk %}">
-                        Revision Request due
-                        on {{ revision.date_due|date:"Y-m-d" }}
-                    </a>
-                </td>
-            </tr>
-        {% endif %}
-    {% endfor %}
 </div>
