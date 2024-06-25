@@ -73,6 +73,7 @@ from .logic import (
     HandleEditorDeclinesAssignment,
     render_template_from_setting,
     states_when_article_is_considered_archived_for_review,
+    states_when_article_is_considered_author_pending,
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
     states_when_article_is_considered_missing_editor,
@@ -166,10 +167,10 @@ class ArticleWorkflowBaseMixin:
         base_qs = self._apply_base_filters(qs)
         try:
             if self.filterset.is_valid():
-                return self.filterset.filter_queryset(base_qs)
+                return self.filterset.filter_queryset(base_qs).distinct()
         except AttributeError:
             pass
-        return base_qs
+        return base_qs.distinct()
 
     def get_context_data(self, **kwargs):
         """Add the filterset."""
@@ -181,16 +182,18 @@ class ArticleWorkflowBaseMixin:
 class EditorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, ListView):
     """Editor's main page."""
 
-    title = _("Pending papers")
+    title = _("Pending preprints")
     role = _("Editor")
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/editor/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
     related_views = {
-        "wjs_review_list": _("Pending"),
-        "wjs_review_archived_papers": _("Archived"),
+        "wjs_review_list": _("Pending preprints"),
+        "wjs_review_archived_papers": _("Archived preprints"),
     }
+    table_configuration_options = {"show_filter_editor": False, "show_filter_reviewer": True, "table_type": "review"}
+    """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
         """
@@ -210,7 +213,7 @@ class EditorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, ListView):
 
 
 class EditorArchived(EditorPending):
-    title = _("Archived papers")
+    title = _("Archived preprints")
 
     def _apply_base_filters(self, qs):
         """
@@ -229,19 +232,36 @@ class EditorArchived(EditorPending):
 class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """EO's main page."""
 
-    title = _("Pending papers")
+    title = _("Pending preprints")
     role = _("EO")
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/eo/table.html"
     filterset_class = EOArticleWorkflowFilter
     filterset: EOArticleWorkflowFilter
+    ordering = ["-article__date_submitted"]
     related_views = {
-        "wjs_review_eo_pending": _("Pending"),
-        "wjs_review_eo_archived": _("Archived"),
+        "wjs_review_eo_pending": _("Pending preprints"),
+        "wjs_review_eo_archived": _("Archived preprints"),
         "wjs_review_eo_production": _("Production"),
-        "wjs_review_eo_missing_editor": _("Missing editor"),
-        "wjs_review_eo_workon": _("Work on a paper"),
+        "wjs_review_eo_missing_editor": _("Preprints Missing editor"),
+        "wjs_review_eo_workon": _("Search preprints"),
     }
+    table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
+    """
+    Configuration options for the table.
+
+    It's meant to be used to pass options to the table template.
+
+    Avaliable options:
+    - show_filter_editor: Show the editor filter
+    - show_filter_reviewer: Show the reviewer filter
+    - show_filter_typesetter: Show the typesetter filter
+    - show_filter_author: Show the author filter
+    - hide_editor_age: Hide editor assignment age
+    - table_type: Type of the table (review or production)
+    - reviewer_status: Hide detailed status information and show reviewer's status only
+    - show_author_due_date: Show due dates for authors (for revision request and proofreading)
+    """
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -260,7 +280,8 @@ class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixi
 
 
 class EOArchived(EOPending):
-    title = _("Archived papers")
+    title = _("Archived preprints")
+    table_configuration_options = {"hide_editor_age": True, "show_filter_editor": True, "show_filter_reviewer": True}
 
     def _apply_base_filters(self, qs):
         """
@@ -276,6 +297,8 @@ class EOArchived(EOPending):
 
 class EOProduction(EOPending):
     title = _("Papers in production")
+    table_configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
+    ordering = ["-article__date_accepted"]
 
     def _apply_base_filters(self, qs):
         """
@@ -307,6 +330,7 @@ class EOMissingEditor(EOPending):
 class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Search tool for EO."""
 
+    title = _("Search preprints")
     filterset_class = WorkOnAPaperArticleWorkflowFilter
     filterset: WorkOnAPaperArticleWorkflowFilter
 
@@ -314,20 +338,22 @@ class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListVie
 class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Director's main page."""
 
-    title = _("Pending papers")
+    title = _("Pending preprints")
     role = _("Director")
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/director/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
     related_views = {
-        "wjs_review_director_pending": _("Pending"),
-        "wjs_review_director_archived": _("Archived"),
-        "wjs_review_director_workon": _("Work on a paper"),
+        "wjs_review_director_pending": _("Pending preprints"),
+        "wjs_review_director_archived": _("Archived preprints"),
+        "wjs_review_director_workon": _("Search preprints"),
     }
+    table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
+    """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def test_func(self):
-        """Allow access only to EO (or staff)."""
+        """Allow access only to director."""
         return base_permissions.has_director_role(self.request.journal, self.request.user)
 
     def _apply_base_filters(self, qs):
@@ -345,7 +371,7 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
 
 
 class DirectorArchived(DirectorPending):
-    title = _("Archived papers")
+    title = _("Archived preprints")
 
     def _apply_base_filters(self, qs):
         """
@@ -364,6 +390,7 @@ class DirectorArchived(DirectorPending):
 class DirectorWorkOnAPaper(DirectorPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Search tool for Director."""
 
+    title = _("Search preprints")
     filterset_class = WorkOnAPaperArticleWorkflowFilter
     filterset: WorkOnAPaperArticleWorkflowFilter
 
@@ -371,17 +398,19 @@ class DirectorWorkOnAPaper(DirectorPending, LoginRequiredMixin, UserPassesTestMi
 class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Author's main page."""
 
-    title = _("Pending papers")
+    title = _("Pending preprints")
     role = _("Author")
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/author/table.html"
     filterset_class = AuthorArticleWorkflowFilter
     filterset: AuthorArticleWorkflowFilter
     related_views = {
-        "wjs_review_author_pending": _("Pending"),
-        "wjs_review_author_archived": _("Archived"),
+        "wjs_review_author_pending": _("Pending preprints"),
+        "wjs_review_author_archived": _("Archived preprints"),
     }
     show_filters = False
+    table_configuration_options = {}
+    """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
@@ -398,13 +427,17 @@ class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTest
             (
                 Q(state__in=states_when_article_is_considered_in_review)
                 | Q(state__in=states_when_article_is_considered_in_production)
+                | Q(state__in=states_when_article_is_considered_author_pending)
             )
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
 
 
 class AuthorArchived(AuthorPending):
-    title = _("Archived papers")
+    title = _("Archived preprints")
+    show_filters = True
+    table_configuration_options = {"show_author_due_date": True}
+    """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
         """
@@ -422,16 +455,19 @@ class AuthorArchived(AuthorPending):
 class ReviewerPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Reviewer's main page."""
 
-    title = _("Pending papers")
+    title = _("Pending preprints")
     role = _("Reviewer")
     template_name = "wjs_review/lists/articleworkflow_list.html"
-    template_table = "wjs_review/lists/elements/author/table.html"
+    template_table = "wjs_review/lists/elements/reviewer/table.html"
     filterset_class = ReviewerArticleWorkflowFilter
     filterset: ReviewerArticleWorkflowFilter
     related_views = {
-        "wjs_review_reviewer_pending": _("Pending"),
-        "wjs_review_reviewer_archived": _("Archived"),
+        "wjs_review_reviewer_pending": _("Pending preprints"),
+        "wjs_review_reviewer_archived": _("Archived preprints"),
     }
+    show_filters = False
+    table_configuration_options = {"reviewer_status": True, "show_filter_editor": True, "show_filter_author": False}
+    """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def test_func(self):
         """Allow access only for Reviewers of this Journal"""
@@ -453,7 +489,9 @@ class ReviewerPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
 class ReviewerArchived(ReviewerPending):
     """A reviewer's old papers."""
 
-    title = _("Archived papers")
+    title = _("Archived preprints")
+    show_filters = True
+    """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
         """

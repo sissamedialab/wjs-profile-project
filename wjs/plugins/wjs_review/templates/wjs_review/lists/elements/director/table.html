@@ -2,11 +2,11 @@
   <thead class="sticky-top bg-light">
   <tr>
     <th scope="col">Preprint</th>
-    <th scope="col">Status</th>
     <th scope="col">Authors</th>
+    <th scope="col">Title</th>
+    <th scope="col">Status</th>
     <th scope="col">Editor</th>
     <th scope="col" title="review requests">Reviewers</th>
-    <th scope="col" title="special Issue">SI</th>
     <th scope="col" title="latest personal note">Notes</th>
   </tr>
   </thead>
@@ -23,5 +23,12 @@
     searching: false,
     ordering: true,
     paging: false,
+    {% if view.table_configuration_options.table_type == "production" %}
+    order: [[ 0, "desc" ]],
+    columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }]
+    {% elif view.table_configuration_options.table_type == "review" %}
+    order: [[ 0, "desc" ]],
+    columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
+    {% endif %}
   });
 </script>

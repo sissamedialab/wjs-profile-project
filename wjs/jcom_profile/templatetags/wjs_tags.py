@@ -1,4 +1,5 @@
 """WJS tags."""
+
 import pycountry
 from core.models import Account
 from django import template
@@ -214,8 +215,7 @@ def preprintid(article):
     if preprintid := article.get_identifier("preprintid"):
         return preprintid
     else:
-        # to replace with return ""
-        return "No wjapp preprintid"
+        return ""
 
 
 @register.simple_tag(takes_context=True)

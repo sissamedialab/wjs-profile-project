@@ -1,0 +1,7 @@
+{% if review.date_complete %}
+  <a href="#" title="TODO: link to a page showing the report">report sent</a> {{ review.date_complete|date:"d-M" }}
+{% elif review.date_accepted %}
+  report due {{ review.date_due|date:"d-M" }}
+{% else %}
+  waiting for accept/decline by {{ review.date_due|date:"d-M" }}
+{% endif %}

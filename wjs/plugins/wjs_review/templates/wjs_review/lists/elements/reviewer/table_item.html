@@ -1,27 +1,41 @@
 {% load wjs_articles wjs_review wjs_tags %}
 {% get_article_classes workflow as article_classes %}
-{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
+{% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user pending_review=workflow.article|article_pending_review_by_user:request.user completed_review=workflow.article|article_completed_review_by_user:request.user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>
-    <td>
-      {{ article.id }}
+    <td data-order="{{ article.pk }}">
+      <a title="{{ article.title }}"
+         href="{% url 'wjs_article_details' workflow.id %}"
+         class="fw-bold">{{ article|versioned_number }}</a>
+      <br>
+      <span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span>
     </td>
     <td>
-      {% include "wjs_review/lists/elements/corresponding_author.html" %}
-      {% if user != article.correspondence_author %}
-        <i title="You are a corresponding author" class="bi bi-exclamation-circle"></i>
+      <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
+    </td>
+    <td>
+      {{ article.title|truncatewords:6 }}
+    </td>
+    <td>
+      {% with editor_assignment_data=article|article_current_editor %}
+        {{ editor_assignment_data.editor }}
+      {% endwith %}
+    </td>
+    <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
+      {% if view.table_configuration_options.reviewer_status %}
+        {% if completed_review %}
+          <span class="badge bg-success">Complete</span>
+        {% endif %}
+      {% else %}
+        {% include "wjs_review/lists/elements/table_item_status.html" %}
       {% endif %}
-    </td>
-      <td>
-      <a title="{{ article.title }}" href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article.title|truncatewords:6 }}</a>
-    </td>
-    <td>
-      {{ article.section.name }}
     </td>
     <td>
       {{ article.articlewrapper.special_issue|default_if_none:"" }}
     </td>
     <td class="align-bottom position-relative {% if attention_flag %}fw-bolder{% endif %}">
-      {% include "wjs_review/lists/elements/table_item_status.html" with brief=True %}
+      {% if review %}
+        {% include "wjs_review/lists/elements/table_item_reviewer_status.html" with review=pending_review %}
+      {% endif %}
     </td>
   </tr>
 {% endwith %}

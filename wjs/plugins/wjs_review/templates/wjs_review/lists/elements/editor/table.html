@@ -2,12 +2,12 @@
   <thead class="sticky-top bg-light">
   <tr>
     <th scope="col">ID</th>
+    <th scope="col" title="article type">Type</th>
     <th scope="col">Authors</th>
     <th scope="col">Title</th>
-    <th scope="col" title="article type">Type</th>
-    <th scope="col" title="special Issue">SI</th>
-    <th scope="col">Status</th>
     <th scope="col" title="review requests">Reviewers</th>
+    <th scope="col">Status</th>
+    <th scope="col" title="special Issue">SI</th>
     <th scope="col" title="latest personal note">Notes</th>
   </tr>
   </thead>
@@ -24,5 +24,7 @@
     searching: false,
     ordering: true,
     paging: false,
+    order: [[ 0, "desc" ]],
+    columns: [null, null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
   });
 </script>

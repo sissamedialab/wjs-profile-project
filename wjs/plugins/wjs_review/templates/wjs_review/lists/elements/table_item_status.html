@@ -1,5 +1,7 @@
 {% load wjs_articles %}
-{% if brief %}
+{% if generic %}
+  {% article_state_details article=workflow.article %}
+{% elif brief %}
   {% article_state_details article=workflow.article %}
   {% include "wjs_review/lists/elements/attention.html" %}
 {% else %}

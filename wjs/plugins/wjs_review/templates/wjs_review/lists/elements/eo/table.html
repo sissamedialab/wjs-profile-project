@@ -5,8 +5,12 @@
     <th scope="col">Authors</th>
     <th scope="col">Title</th>
     <th scope="col">Status</th>
-    <th scope="col">Editor</th>
-    <th scope="col" title="review requests">Reviewers</th>
+    {% if view.table_configuration_options.table_type == "production" %}
+      <th scope="col">Typesetter</th>
+    {% elif view.table_configuration_options.table_type == "review" %}
+      <th scope="col">Editor</th>
+      <th scope="col">Reviewers</th>
+    {% endif %}
     <th scope="col" title="latest personal note">Notes</th>
   </tr>
   </thead>
@@ -23,5 +27,11 @@
     searching: false,
     ordering: true,
     paging: false,
+    order: [[ 0, "desc" ]],
+    {% if view.table_configuration_options.table_type == "production" %}
+    columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }]
+    {% elif view.table_configuration_options.table_type == "review" %}
+    columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
+    {% endif %}
   });
 </script>
