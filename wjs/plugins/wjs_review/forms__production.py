@@ -4,9 +4,12 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_summernote.widgets import SummernoteWidget
+from journal.models import Issue, SectionOrdering
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from submission import models as submission_models
 
 from .logic__production import (
     HandleCreateAnnotatedFile,
@@ -204,3 +207,89 @@ class EOSendBackToTypesetterForm(forms.Form):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class SectionOrderForm(forms.Form):
+    up = forms.IntegerField(widget=forms.HiddenInput, required=False)
+    down = forms.IntegerField(widget=forms.HiddenInput, required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.journal = kwargs.pop("journal")
+        self.instance = kwargs.pop("instance")
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("up") and not cleaned_data.get("down"):
+            raise ValidationError("No action selected")
+        return cleaned_data
+
+    def clean_up(self):
+        section_id = self.data.get("up")
+        if section_id:
+            section_to_move = get_object_or_404(submission_models.Section, pk=section_id, journal=self.journal)
+            if section_to_move == self.instance.first_section:
+                raise ValidationError("You cannot move the first section up the order list")
+        return section_id
+
+    def clean_down(self):
+        section_id = self.data.get("down")
+        if section_id:
+            section_to_move = get_object_or_404(submission_models.Section, pk=section_id, journal=self.journal)
+            if section_to_move == self.instance.last_section:
+                raise ValidationError("You cannot move the last section down the order list")
+        return section_id
+
+    def move_up(self, section_id: int) -> Issue:
+        sections = self.instance.all_sections
+
+        section_to_move_up = get_object_or_404(submission_models.Section, pk=section_id, journal=self.journal)
+
+        section_to_move_up_index = sections.index(section_to_move_up)
+        section_to_move_down = sections[section_to_move_up_index - 1]
+
+        section_to_move_up_ordering, __ = SectionOrdering.objects.get_or_create(
+            issue=self.instance, section=section_to_move_up
+        )
+        section_to_move_down_ordering, __ = SectionOrdering.objects.get_or_create(
+            issue=self.instance, section=section_to_move_down
+        )
+
+        section_to_move_up_ordering.order = section_to_move_up_index - 1
+        section_to_move_down_ordering.order = section_to_move_up_index
+
+        section_to_move_up_ordering.save()
+        section_to_move_down_ordering.save()
+        return self.instance
+
+    def move_down(self, section_id: int) -> Issue:
+        sections = self.instance.all_sections
+
+        section_to_move_down = get_object_or_404(
+            submission_models.Section,
+            pk=section_id,
+            journal=self.journal,
+        )
+
+        section_to_move_down_index = sections.index(section_to_move_down)
+        section_to_move_up = sections[section_to_move_down_index + 1]
+
+        section_to_move_up_ordering, __ = SectionOrdering.objects.get_or_create(
+            issue=self.instance, section=section_to_move_up
+        )
+        section_to_move_down_ordering, __ = SectionOrdering.objects.get_or_create(
+            issue=self.instance, section=section_to_move_down
+        )
+
+        section_to_move_up_ordering.order = section_to_move_down_index
+        section_to_move_down_ordering.order = section_to_move_down_index + 1
+
+        section_to_move_up_ordering.save()
+        section_to_move_down_ordering.save()
+        return self.instance
+
+    def save(self) -> Issue:
+        if self.cleaned_data.get("up"):
+            return self.move_up(self.cleaned_data.get("up"))
+        elif self.cleaned_data.get("down"):
+            return self.move_down(self.cleaned_data.get("down"))

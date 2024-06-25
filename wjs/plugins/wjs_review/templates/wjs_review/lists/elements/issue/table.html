@@ -1,0 +1,17 @@
+<table class="table table-hover table-striped table-bordered" id="papers">
+  <thead class="sticky-top bg-light">
+  <tr>
+    <th scope="col">Name</th>
+    <th scope="col">Papers</th>
+    <th scope="col">Date</th>
+    <th scope="col" title="latest personal note">Notes</th>
+    <th scope="col" title="latest personal note">
+    </th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for issue in issues %}
+    {% include "wjs_review/lists/elements/issue/table_issue.html" %}
+  {% endfor %}
+  </tbody>
+</table>

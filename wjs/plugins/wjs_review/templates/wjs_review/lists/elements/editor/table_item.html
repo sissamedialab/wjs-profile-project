@@ -20,7 +20,7 @@
     </td>
     <td title="Issue (if available)">{{ article.primary_issue|default:"—" }}</td>
     <td title="latest personal note">
-      {% last_user_note article=workflow.article as note %}
+      {% last_user_note target=workflow.article as note %}
       {% if note %}
         <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#note_modal">{{ note.body|truncatechars_html:7|striptags }} <i class="bi bi-card-text"></i></button>
         {% include "wjs_review/base/elements/modal.html" with modal_id="note_modal" modal_title="Notes" modal_body_title=note.subject modal_body=note.body %}

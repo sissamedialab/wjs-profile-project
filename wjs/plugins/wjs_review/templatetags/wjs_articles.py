@@ -10,8 +10,10 @@ from typing import Optional
 from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import OuterRef, QuerySet
 from django.utils import timezone
 from django.utils.text import slugify
+from journal.models import ArticleOrdering, Issue
 from plugins.typesetting.models import (
     GalleyProofing,
     TypesettingAssignment,
@@ -54,7 +56,7 @@ def review_assignments_of_current_round(article):
 
 
 @register.simple_tag(takes_context=True)
-def last_user_note(context, article, user=None):
+def last_user_note(context, target, user=None):
     """Return the last note that a user wrote for himself.
 
     Useful in the pending eo listing main page.
@@ -64,8 +66,8 @@ def last_user_note(context, article, user=None):
 
     personal_notes = (
         Message.objects.filter(
-            content_type=ContentType.objects.get_for_model(article),
-            object_id=article.pk,
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.pk,
             actor=user,
             recipients=user,  # do not use `__in=[user]`: we want a note written _only_ to the user themselves
         )
@@ -76,15 +78,15 @@ def last_user_note(context, article, user=None):
 
 
 @register.simple_tag()
-def last_eo_note(article):
+def last_eo_note(target):
     """Return the last note that any EO wrote on a paper.
 
     Useful in the EO main page.
     """
     eo_notes = (
         Message.objects.filter(
-            content_type=ContentType.objects.get_for_model(article),
-            object_id=article.id,
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.pk,
             actor__groups__name=EO_GROUP,
         )
         .exclude(message_type=Message.MessageTypes.SYSTEM)
@@ -257,3 +259,14 @@ def article_pending_review_by_user(article: Article, user: Account) -> Optional[
         return WorkflowReviewAssignment.objects.filter(article=article, reviewer=user, date_complete__isnull=True)
     except WorkflowReviewAssignment.DoesNotExist:
         pass
+
+
+@register.simple_tag()
+def get_ordered_articles(issue: Issue) -> QuerySet[Article]:
+    """Return a list of articles ordered by their order in the issue."""
+    if issue.issue_type.code != "collection":
+        return issue.articles.order_by("-date_published")
+    q = issue.articles.annotate(
+        order=ArticleOrdering.objects.filter(issue=issue, article=OuterRef("pk")).values_list("order", flat=True)
+    )
+    return q.order_by("-date_published", "order")
