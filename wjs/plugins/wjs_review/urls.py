@@ -17,6 +17,7 @@ from .views import (
     DirectorArchived,
     DirectorPending,
     DirectorWorkOnAPaper,
+    DirectorWorkOnIssue,
     EditorArchived,
     EditorDeclineAssignmentView,
     EditorPending,
@@ -25,6 +26,7 @@ from .views import (
     EOPending,
     EOProduction,
     EOWorkOnAPaper,
+    EOWorkOnIssue,
     EvaluateReviewRequest,
     ForwardMessage,
     InviteReviewer,
@@ -62,6 +64,7 @@ from .views__production import (  # noqa F401
     TypesetterTakeInCharge,
     TypesetterUploadFiles,
     TypesetterWorkingOn,
+    UpdateSectionOrder,
     WriteToAuWithModeration,
     WriteToTyp,
 )
@@ -76,8 +79,10 @@ urlpatterns = [
     path("eo/production/", EOProduction.as_view(), name="wjs_review_eo_production"),
     path("eo/missing_editor/", EOMissingEditor.as_view(), name="wjs_review_eo_missing_editor"),
     path("eo/workon/", EOWorkOnAPaper.as_view(), name="wjs_review_eo_workon"),
+    path("eo/issues/", EOWorkOnIssue.as_view(), name="wjs_review_eo_issues_list"),
     path("director/pending/", DirectorPending.as_view(), name="wjs_review_director_pending"),
     path("director/archived/", DirectorArchived.as_view(), name="wjs_review_director_archived"),
+    path("director/issues/", DirectorWorkOnIssue.as_view(), name="wjs_review_director_issues_list"),
     path("director/workon/", DirectorWorkOnAPaper.as_view(), name="wjs_review_director_workon"),
     path("author/pending/", AuthorPending.as_view(), name="wjs_review_author_pending"),
     path("author/archived/", AuthorArchived.as_view(), name="wjs_review_author_archived"),
@@ -90,6 +95,7 @@ urlpatterns = [
     # Both authors and typs can set a paper ready for publication; the following is just an alias:
     path("typesetter/rfp/<int:pk>/", ReadyForPublicationView.as_view(), name="wjs_review_rfp"),
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
+    path("issues/<int:pk>/sections/order/", UpdateSectionOrder.as_view(), name="wjs_order_sections"),
     path("assign_eo/<int:pk>/", AssignEoToArticle.as_view(), name="wjs_assign_eo"),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path(

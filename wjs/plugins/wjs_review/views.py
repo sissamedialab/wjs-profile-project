@@ -18,6 +18,7 @@ from django.http import HttpResponse, HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.template import Context
 from django.urls import resolve, reverse, reverse_lazy
+from django.utils import timezone
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import (
@@ -28,7 +29,7 @@ from django.views.generic import (
     UpdateView,
     View,
 )
-from journal.models import Journal
+from journal.models import Issue, Journal
 from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission import models as submission_models
@@ -106,30 +107,12 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return base_permissions.has_eo_role(self.request.user)
 
 
-class ArticleWorkflowBaseMixin:
-    model = ArticleWorkflow
-    filterset_class = None
-    filterset: Optional[django_filters.FilterSet]
-    context_object_name = "workflows"
-    ordering = ["-modified"]
-    title: str
+class BaseRelatedViewsMixin:
     related_views: Dict[str, str] = {}
     extra_links: Dict[str, str]
-    show_filters = True
 
     def setup(self, request, *args, **kwargs):
-        """Setup and validate filterset data."""
         super().setup(request, *args, **kwargs)
-        if getattr(self, "filterset_class", None):
-            self.filterset = self.filterset_class(
-                data=self.request.GET if self.request.GET.get("search") else None,
-                queryset=self._apply_base_filters(self.model.objects.all()),
-                request=self.request,
-                journal=self.request.journal,
-            )
-            self.filterset.is_valid()
-        else:
-            self.filterset = None
         self.extra_links = {
             reverse(view_name): title
             for view_name, title in self.related_views.items()
@@ -150,6 +133,30 @@ class ArticleWorkflowBaseMixin:
         # Using __class__ instead of isinstance because derived views are always instances of the base (pending) view
         # and we want to check the exact class.
         return self.__class__ == view_class
+
+
+class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin):
+    model = ArticleWorkflow
+    filterset_class = None
+    filterset: Optional[django_filters.FilterSet]
+    context_object_name = "workflows"
+    ordering = ["-modified"]
+    title: str
+    show_filters = True
+
+    def setup(self, request, *args, **kwargs):
+        """Setup and validate filterset data."""
+        super().setup(request, *args, **kwargs)
+        if getattr(self, "filterset_class", None):
+            self.filterset = self.filterset_class(
+                data=self.request.GET if self.request.GET.get("search") else None,
+                queryset=self._apply_base_filters(self.model.objects.all()),
+                request=self.request,
+                journal=self.request.journal,
+            )
+            self.filterset.is_valid()
+        else:
+            self.filterset = None
 
     def _apply_base_filters(self, qs):
         """Apply some base filters before the filterset's "dynamic" ones.
@@ -245,6 +252,7 @@ class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixi
         "wjs_review_eo_production": _("Production"),
         "wjs_review_eo_missing_editor": _("Preprints Missing editor"),
         "wjs_review_eo_workon": _("Search preprints"),
+        "wjs_review_eo_issues_list": _("Pending Issues"),
     }
     table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
     """
@@ -335,6 +343,62 @@ class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListVie
     filterset: WorkOnAPaperArticleWorkflowFilter
 
 
+class BaseWorkOnIssue(BaseRelatedViewsMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """View to list pending issues.
+
+    "Pending" here means that the date of the issue if greater of equal to today.
+
+    We do not need to distinguish by issue type (issue vs collection/special-issue):
+    we show them all together.
+
+    """
+
+    title = _("Pending Issues")
+    role = _("Director")
+    model = Issue
+    template_name = "wjs_review/lists/issue_list.html"
+    template_table = "wjs_review/lists/elements/issue/table.html"
+    context_object_name = "issues"
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(journal=self.request.journal, date__gte=timezone.now().date())
+            .order_by("date")
+        )
+
+
+class EOWorkOnIssue(BaseWorkOnIssue):
+    role = _("EO")
+    related_views = {
+        "wjs_review_eo_pending": _("Pending"),
+        "wjs_review_eo_archived": _("Archived"),
+        "wjs_review_eo_production": _("Production"),
+        "wjs_review_eo_missing_editor": _("Missing editor"),
+        "wjs_review_eo_workon": _("Work on a paper"),
+        "wjs_review_eo_issues_list": _("Pending Issues"),
+    }
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+
+class DirectorWorkOnIssue(BaseWorkOnIssue):
+    role = _("Director")
+    related_views = {
+        "wjs_review_director_pending": _("Pending"),
+        "wjs_review_director_archived": _("Archived"),
+        "wjs_review_director_workon": _("Work on a paper"),
+        "wjs_review_director_issues_list": _("Pending Issues"),
+    }
+
+    def test_func(self):
+        """Allow access only to director."""
+        return base_permissions.has_director_role(self.request.journal, self.request.user)
+
+
 class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Director's main page."""
 
@@ -348,6 +412,7 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
         "wjs_review_director_pending": _("Pending preprints"),
         "wjs_review_director_archived": _("Archived preprints"),
         "wjs_review_director_workon": _("Search preprints"),
+        "wjs_review_director_issues_list": _("Pending Issues"),
     }
     table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
     """See :py:attr:`EOPending.table_configuration_options` for details."""

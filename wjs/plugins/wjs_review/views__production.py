@@ -11,7 +11,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView, ListView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
-from journal.models import Journal
+from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.states import BaseState
 
@@ -22,6 +22,7 @@ from .communication_utils import get_eo_user
 from .forms__production import (
     EOSendBackToTypesetterForm,
     FileForm,
+    SectionOrderForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
     WriteToTypMessageForm,
@@ -693,3 +694,27 @@ class TypesetterTakeInCharge(UserPassesTestMixin, LoginRequiredMixin, View):
                 kwargs={"pk": self.object.pk},
             ),
         )
+
+
+class UpdateSectionOrder(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Issue
+    form_class = SectionOrderForm
+    template_name = "wjs_review/lists/elements/issue/issue_list.html"
+
+    def test_func(self):
+        return base_permissions.has_eo_role(self.request.user) or base_permissions.has_director_role(
+            self.request.journal, self.request.user
+        )
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["journal"] = self.request.journal
+        return kwargs
+
+    def form_valid(self, form: SectionOrderForm) -> HttpResponse:
+        """Move sections."""
+        form.save()
+        return render(self.request, self.template_name, {"issue": self.object, "form": form})
+
+    def form_invalid(self, form):
+        return render(self.request, self.template_name, {"issue": self.object, "form": form})
