@@ -216,6 +216,13 @@ WJAPP_JCOM_IMPORT_CONNECTION_PARAMS = {
     "database": "",
 }
 
+# http wjapp login data to import files from wjapp
+# (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
+WJAPP_JCOM_IMPORT_LOGIN_PARAMS = {
+    "username": "",
+    "password": "",
+}
+
 NO_NOTIFICATION = False
 
 ENABLE_FULL_TEXT_SEARCH = True
