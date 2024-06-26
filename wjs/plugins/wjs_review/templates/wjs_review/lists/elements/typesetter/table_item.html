@@ -2,7 +2,7 @@
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>
-    <td>
+    <td class="text-nowrap">
       {{ article.journal.code }}
     </td>
     <td>

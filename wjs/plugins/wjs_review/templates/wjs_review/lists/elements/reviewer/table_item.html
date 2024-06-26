@@ -2,7 +2,7 @@
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user pending_review=workflow.article|article_pending_review_by_user:request.user completed_review=workflow.article|article_completed_review_by_user:request.user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>
-    <td data-order="{{ article.pk }}">
+    <td data-order="{{ article.pk }}" class="text-nowrap">
       <a title="{{ article.title }}"
          href="{% url 'wjs_article_details' workflow.id %}"
          class="fw-bold">{{ article|versioned_number }}</a>
