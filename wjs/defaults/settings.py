@@ -4,11 +4,12 @@ For details on how to use this, see
 https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 """
 
+from pathlib import Path
+
 from core.janeway_global_settings import TEMPLATES
 from django.urls import reverse_lazy
 
 INSTALLED_APPS = [
-    "wjs",
     "wjs.jcom_profile",
     "easy_select2",
     "rosetta",
@@ -282,6 +283,8 @@ Q_CLUSTER = {
     "retry": 90,
     "timeout": 60,
 }
+
+LOCALE_PATHS = [Path(__file__).parents[1] / "locale"]
 
 PROOFING_ASSIGNMENT_MIN_DUE_DAYS = 3
 PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
