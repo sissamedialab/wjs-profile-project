@@ -33,4 +33,9 @@
     {% else %}
       <p class="text-success">Galleys OK</p>
     {% endif %}
+    {% if workflow.production_flag_no_queries %}
+        <p class="text-success">No queries in tex file</p>
+    {% else %}
+        <p class="text-danger">Queries in tex file</p>
+    {% endif %}
 </div>

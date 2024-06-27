@@ -1,4 +1,5 @@
 import logging
+import tempfile
 from typing import Callable
 from unittest import mock
 
@@ -7,7 +8,6 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
@@ -32,6 +32,7 @@ from ..models import (
     MessageThread,
     WjsEditorAssignment,
 )
+from ..utils import tex_file_has_queries
 from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
     _accept_article,
@@ -567,6 +568,7 @@ def test_production_flag_galleys_ok(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
     client: Client,
     mock_jcomassistant_post,
+    zip_with_tex_without_query,
 ):
     """Test the production flag galleys_ok correctly indicates the status of the galleys."""
     typesetting_assignment = (
@@ -585,7 +587,9 @@ def test_production_flag_galleys_ok(
     # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
     url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
-    client.post(url, data={"file_to_upload": SimpleUploadedFile("test.zip", b"test")})
+    client.post(
+        url, data={"file_to_upload": zip_with_tex_without_query(assigned_to_typesetter_article_with_files_to_typeset)}
+    )
     assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
     assert (
         assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
@@ -626,3 +630,51 @@ def test_typesetter_takes_in_charge(
     )
     assert ready_for_typesetter_article.articleworkflow.production_flag_no_queries is False
     assert ready_for_typesetter_article.articleworkflow.production_flag_no_checks_needed
+
+
+@pytest.mark.django_db
+def test_typ_upload_file_with_query(
+    assigned_to_typesetter_article: Article,
+    client: Client,
+    zip_with_tex_with_query,
+    zip_with_tex_without_query,
+):
+    assigned_to_typesetter_article.articleworkflow.production_flag_no_queries = True
+    assigned_to_typesetter_article.articleworkflow.save()
+    typesetting_assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
+
+    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    client.post(url, data={"file_to_upload": zip_with_tex_with_query(assigned_to_typesetter_article)})
+    assigned_to_typesetter_article.refresh_from_db()
+    assert assigned_to_typesetter_article.articleworkflow.production_flag_no_queries is False
+    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    client.post(url, data={"file_to_upload": zip_with_tex_without_query(assigned_to_typesetter_article)})
+    assigned_to_typesetter_article.refresh_from_db()
+    assert assigned_to_typesetter_article.articleworkflow.production_flag_no_queries
+
+
+pesky_lines = (
+    (rb"\proofs", True),
+    (rb" \proofs", True),
+    (rb"%\proofs", False),
+    (rb"%% \proofs", False),
+    (b"\\proofs\n%\\proofs", True),
+    (rb"\proofsomething", False),
+)
+
+
+@pytest.mark.parametrize("line,expected_result", pesky_lines)
+def test_tex_file_has_queries(line, expected_result):
+    template = rb"""\documentclass{article}
+PLACEHOLDER
+\otherStuff
+and text
+    """
+    template = template.replace(b"PLACEHOLDER", line)
+    with tempfile.NamedTemporaryFile(delete=True, mode="w") as temp_file:
+        temp_file.write(template.decode("utf-8"))
+        temp_file.flush()
+        temp_file_path = temp_file.name
+        assert tex_file_has_queries(temp_file_path) == expected_result
