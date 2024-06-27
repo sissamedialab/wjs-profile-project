@@ -48,10 +48,10 @@ from wjs.jcom_profile.import_utils import (
     process_body,
 )
 from wjs.jcom_profile.permissions import has_eo_role
-from wjs.jcom_profile.utils import render_template_from_setting
+from wjs.jcom_profile.utils import render_template, render_template_from_setting
 
 from . import communication_utils
-from .models import ArticleWorkflow, Message
+from .models import ArticleWorkflow, LatexPreamble, Message
 from .permissions import (
     has_typesetter_role_by_article,
     is_article_author,
@@ -450,6 +450,23 @@ class HandleDownloadRevisionFiles:
         all_files = manuscript_files + data_figure_files + supplementary_files + source_files
         return all_files
 
+    def _generate_automatic_preamble(self):
+        try:
+            automatic_preamble_text = LatexPreamble.objects.get(journal=self.workflow.article.journal).preamble
+        except LatexPreamble.DoesNotExist:
+            logger.error(f"Missing preamble template for {self.workflow.article.journal.code}.")
+            automatic_preamble_text = (
+                f"Missing preamble template for {self.workflow.article.journal.code}\nPlease contact assistance.\n"
+            )
+        context = {
+            "journal": self.workflow.article.journal,
+            "article": self.workflow.article,
+        }
+        rendered_preamble = render_template(automatic_preamble_text, context)
+        # TODO: refactor with utils.guess_tex_filename()
+        preamble_name = f"{self.workflow.article.journal.code.lower()}-{self.workflow.article.id}-preamble.tex"
+        return rendered_preamble, preamble_name
+
     def _create_archive(self, files):
         """Create a ZIP archive from the given files."""
         in_memory = BytesIO()
@@ -457,6 +474,8 @@ class HandleDownloadRevisionFiles:
             for file in files:
                 file_path = file.self_article_path()
                 archive.write(file_path, arcname=file.original_filename)
+            automatic_preamble, preamble_name = self._generate_automatic_preamble()
+            archive.writestr(preamble_name, automatic_preamble)
 
         in_memory.seek(0)
         return in_memory

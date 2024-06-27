@@ -33,6 +33,7 @@ from ..logic import (
 from ..models import (
     ArticleWorkflow,
     EditorRevisionRequest,
+    LatexPreamble,
     Message,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
@@ -550,3 +551,30 @@ def mock_jcomassistant_post():
 
     with mock.patch.object(requests, "post", return_value=response) as mocked_requests__post:
         yield mocked_requests__post
+
+
+@pytest.fixture
+def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
+    """Create an automatic preamble for JCOM."""
+    preamble_text = """
+{% load wjs_tex %}
+{% with article.title as title %}
+{% with article.date_accepted|date:"Y-m-d" as date_accepted %}
+{% with journal.code as journal %}
+{% with article.section.wjssection.pubid_and_tex_sectioncode as type_code %}
+{% angular_variables %}
+\\article{<title>}
+\\accepted{<date_accepted>}
+\\journal{<journal>}
+\\doc_type{<type_code>}
+{% endangular_variables %}
+{% endwith %}
+{% endwith %}
+{% endwith %}
+{% endwith %}
+    """
+    automatic_preamble = LatexPreamble.objects.create(
+        journal=journal,
+        preamble=preamble_text,
+    )
+    yield automatic_preamble.preamble

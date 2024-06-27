@@ -11,6 +11,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
+from django.utils import timezone
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
@@ -20,10 +21,17 @@ from submission.models import Article
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
+from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_eo_user
 from ..logic__production import TypesetterTestsGalleyGeneration
-from ..models import ArticleWorkflow, Message, MessageThread, WjsEditorAssignment
+from ..models import (
+    ArticleWorkflow,
+    LatexPreamble,
+    Message,
+    MessageThread,
+    WjsEditorAssignment,
+)
 from ..views__production import TypesetterPending, TypesetterWorkingOn
 from .conftest import (
     _accept_article,
@@ -525,6 +533,33 @@ def test_eo_sends_back_to_typesetter(
     stage_proofing_article.articleworkflow.refresh_from_db()
     assert response.status_code == 302
     assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+
+@pytest.mark.django_db
+def test_automatic_preamble_generation(
+    jcom_automatic_preamble: LatexPreamble,
+    journal: Journal,
+    assigned_to_typesetter_article: Article,
+):
+    assigned_to_typesetter_article.section.wjssection.pubid_and_tex_sectioncode = "A"
+    context = {
+        "journal": journal,
+        "article": assigned_to_typesetter_article,
+    }
+    rendered_preamble = render_template(jcom_automatic_preamble, context)
+
+    local_date_accepted = timezone.localtime(assigned_to_typesetter_article.date_accepted)
+    formatted_date_accepted = local_date_accepted.strftime("%Y-%m-%d")
+    expected_preamble = f"""
+\\article{{{assigned_to_typesetter_article.title}}}
+\\accepted{{{formatted_date_accepted}}}
+\\journal{{{journal.code}}}
+\\doc_type{{{assigned_to_typesetter_article.section.wjssection.pubid_and_tex_sectioncode}}}
+    """
+    # We `strip()` the strings, because fragments such as
+    # {% with ...%}
+    # render to nothing, but the newlines are retained.
+    assert rendered_preamble.strip() == expected_preamble.strip()
 
 
 @pytest.mark.django_db

@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import ArticleWorkflow, ProphyAccount, ProphyCandidate
+from .models import (
+    ArticleWorkflow,
+    LatexPreamble,
+    ProphyAccount,
+    ProphyCandidate,
+    WjsSection,
+)
 
 
 @admin.register(ProphyCandidate)
@@ -24,3 +30,21 @@ class ArticleWorkflowAdmin(admin.ModelAdmin):
     list_display = ["id", "article", "state"]
     list_filter = ["state"]
     search_fields = ["article__title"]
+
+
+@admin.register(LatexPreamble)
+class LatexPreambleAdmin(admin.ModelAdmin):
+    """Helper class to "admin" LatexPreamble."""
+
+    list_display = ["journal", "preamble"]
+    list_filter = ["journal"]
+    search_fields = ["journal__code"]
+
+
+@admin.register(WjsSection)
+class WjsSectionAdmin(admin.ModelAdmin):
+    """Helper class to "admin" WjsSection."""
+
+    list_display = ["section", "pubid_and_tex_sectioncode", "doi_sectioncode"]
+    list_filter = ["section"]
+    search_fields = ["section__name"]
