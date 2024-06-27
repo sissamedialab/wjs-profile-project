@@ -57,6 +57,11 @@ from .permissions import (
     is_article_author,
     is_article_typesetter,
 )
+from .utils import (
+    get_tex_source_file_from_archive,
+    guess_typesetted_texfile_name,
+    tex_file_has_queries,
+)
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -416,6 +421,13 @@ class UploadFile:
         )
         self.assignment.round.article.articleworkflow.save()
 
+    def _look_for_queries_in_archive(self):
+        """Check if there are any queries in the archive's source tex file."""
+        filename = guess_typesetted_texfile_name(self.assignment.round.article)
+        tex_file = get_tex_source_file_from_archive(self.file_to_upload, filename)
+        self.assignment.round.article.articleworkflow.production_flag_no_queries = not tex_file_has_queries(tex_file)
+        self.assignment.round.article.articleworkflow.save()
+
     def run(self):
         """Main method to execute the file upload logic."""
         with transaction.atomic():
@@ -428,6 +440,7 @@ class UploadFile:
 
             uploaded_file = save_file_to_article(self.file_to_upload, self.assignment.round.article, self.typesetter)
             self._update_typesetting_assignment(uploaded_file)
+            self._look_for_queries_in_archive()
         return self.assignment.round.article
 
 

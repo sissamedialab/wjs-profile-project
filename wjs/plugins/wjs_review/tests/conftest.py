@@ -1,7 +1,10 @@
 import glob
+import io
 import os
 import tarfile
+import zipfile
 from io import BytesIO
+from typing import Callable
 from unittest import mock
 
 import pytest
@@ -10,6 +13,7 @@ from core import models as core_models
 from core.models import Account, File, SupplementaryFile, Workflow, WorkflowElement
 from django.core import mail
 from django.core.files import File as DjangoFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
@@ -195,20 +199,15 @@ def assigned_to_typesetter_article(
 
 
 def _assigned_to_typesetter_article_with_files_to_typeset(
-    assigned_to_typesetter_article: Article,
-    typesetter: Account,
-    fake_request: HttpRequest,
+    assigned_to_typesetter_article: Article, typesetter: Account, fake_request: HttpRequest, zip_with_tex_with_query
 ) -> Article:
-    file_name = "file_to_typeset.zip"
-    file_data = BytesIO(b"file content")
-    django_file = DjangoFile(file_data, file_name)
     assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
     fake_request.user = typesetter
     article_with_file = UploadFile(
         typesetter=typesetter,
         request=fake_request,
         assignment=assignment,
-        file_to_upload=django_file,
+        file_to_upload=zip_with_tex_with_query(assigned_to_typesetter_article),
     ).run()
     article_with_file.articleworkflow.save()
     return article_with_file
@@ -219,10 +218,11 @@ def assigned_to_typesetter_article_with_files_to_typeset(
     assigned_to_typesetter_article: Article,
     fake_request: HttpRequest,
     typesetter: Account,
+    zip_with_tex_with_query,
 ) -> Article:
     """Return an assigned to typesetter article with files to typeset."""
     return _assigned_to_typesetter_article_with_files_to_typeset(
-        assigned_to_typesetter_article, typesetter, fake_request
+        assigned_to_typesetter_article, typesetter, fake_request, zip_with_tex_with_query
     )
 
 
@@ -578,3 +578,45 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
         preamble=preamble_text,
     )
     yield automatic_preamble.preamble
+
+
+def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
+    """Create a tar.gz archive containing a .tex file with a query."""
+    file_obj = io.BytesIO()
+
+    tex_content = b"""
+\\article{article}
+\\proofs{This is a sample query in the document}
+    """
+
+    with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
+
+    file_obj.seek(0)
+    return SimpleUploadedFile("source_tex_file.zip", file_obj.getvalue(), content_type="application/zip")
+
+
+def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
+    """Create a tar.gz archive containing a .tex file with a query."""
+    file_obj = io.BytesIO()
+
+    tex_content = b"""
+\\article{article}
+\\noproofs{This is not a sample query in the document}
+    """
+
+    with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
+
+    file_obj.seek(0)
+    return SimpleUploadedFile("source_tex_file.zip", file_obj.getvalue(), content_type="application/zip")
+
+
+@pytest.fixture
+def zip_with_tex_with_query() -> Callable:
+    return _zip_with_tex_with_query
+
+
+@pytest.fixture
+def zip_with_tex_without_query() -> Callable:
+    return _zip_with_tex_without_query
