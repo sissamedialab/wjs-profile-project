@@ -23,7 +23,7 @@ from review.models import (
     ReviewRound,
     RevisionRequest,
 )
-from submission.models import Article
+from submission.models import Article, Section
 from utils.logger import get_logger
 
 from wjs.jcom_profile.constants import EO_GROUP
@@ -1120,3 +1120,21 @@ class Reminder(models.Model):
             return article
         else:
             return None
+
+
+class LatexPreamble(models.Model):
+    """Templates to generate 'preambolo automatico' to be included in files to typeset"""
+
+    journal = models.ForeignKey(Journal, on_delete=models.CASCADE)
+    preamble = models.TextField(null=False, blank=False)
+
+    class Meta:
+        verbose_name = _("LaTeX preamble")
+
+
+class WjsSection(Section):
+    """This model contains the section codes to be used in the preamble of the article."""
+
+    section = models.OneToOneField(Section, on_delete=models.CASCADE, primary_key=True, parent_link=True)
+    doi_sectioncode = models.CharField(max_length=2, null=True, blank=True)
+    pubid_and_tex_sectioncode = models.CharField(max_length=1, null=True, blank=True)
