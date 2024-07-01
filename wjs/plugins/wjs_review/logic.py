@@ -395,6 +395,9 @@ class AssignToReviewer:
         if assignment:
             if self.form_data.get("acceptance_due_date", None):
                 assignment.date_due = self.form_data.get("acceptance_due_date")
+            # refs https://gitlab.sissamedialab.it/wjs/specs/-/issues/584
+            if self.reviewer == self.editor:
+                assignment.date_accepted = timezone.now()
 
             # hackish to convert a model to a subclass
             # 1. change the underlying python class
@@ -471,21 +474,29 @@ class AssignToReviewer:
     def _log_operation(self, context: Dict[str, Any]):
         if self.reviewer == self.editor:
             # TODO: review me after specs#606
-            message_type = Message.MessageTypes.SYSTEM
+            # Do not send email when editor selects themselves as reviewer: specs#584
+            message_type = Message.MessageTypes.SILENT
+            message_subject_setting = "wjs_editor_i_will_review_message_subject"
+            message_body_setting = "wjs_editor_i_will_review_message_body"
+            message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
         else:
             message_type = Message.MessageTypes.VERBOSE
+            message_subject_setting = "subject_review_assignment"
+            message_body_setting = "review_assignment"
+            message_subject_setting_group_name = "email_subject"
+            message_body_setting_group_name = "email"
 
         review_assignment_subject = render_template_from_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_review_assignment",
+            setting_group_name=message_subject_setting_group_name,
+            setting_name=message_subject_setting,
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
             template_is_setting=True,
         )
         message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="review_assignment",
+            setting_group_name=message_body_setting_group_name,
+            setting_name=message_body_setting,
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -500,6 +511,7 @@ class AssignToReviewer:
             message_type=message_type,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=self.reviewer == self.editor,
         )
 
     def _create_reviewevaluate_reminders(self) -> None:

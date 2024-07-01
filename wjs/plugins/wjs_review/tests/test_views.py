@@ -30,6 +30,57 @@ from ..views import EditorArchived, SelectReviewer
 
 
 @pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer_gives_403_if_user_is_not_editor(
+    client: Client,
+    reviewer: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """A reviewer tries to use EditorAssignsThemselvesAsReviewer to assign themselves as reviewer."""
+    url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
+    client.force_login(reviewer.janeway_account)
+    response = client.get(url)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_in_the_past(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
+    post_data = {
+        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    assert dict(response.context["form"].errors) == {"acceptance_due_date": ["Date must be in the future"]}
+
+
+@pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_too_much_in_the_future(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """An editor cannot set the acceptance_due_date after settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt now().date()."""
+    url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
+    today = now().date()
+    date_min = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
+    date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
+    post_data = {
+        "acceptance_due_date": date_max + datetime.timedelta(days=1),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    errors = {"acceptance_due_date": [f"Date must be between {date_min} and {date_max}"]}
+    assert dict(response.context["form"].errors) == errors
+
+
+@pytest.mark.django_db
 def test_select_reviewer_queryset_for_editor(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,

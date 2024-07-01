@@ -1,0 +1,22 @@
+{% load django_bootstrap5 i18n %}
+{% url "wjs_select_reviewer" workflow.pk as search_reviewer %}
+<div class="container" id="select-reviewer">
+    <div class="row">
+        <div class="col-sm-12 border-2">
+            <form method="post" action="{% url 'wjs_editor_assigns_themselves_as_reviewer' workflow.pk %}">
+                {% csrf_token %}
+                <div class="container">
+                    <div class="row">
+                        <div content="col">{% bootstrap_form_errors form layout='inline' %}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col">{% bootstrap_form form %}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col">{% bootstrap_button button_type="submit" content="Assign" %}</div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
