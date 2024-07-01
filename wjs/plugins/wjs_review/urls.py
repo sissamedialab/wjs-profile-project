@@ -19,6 +19,7 @@ from .views import (
     DirectorWorkOnAPaper,
     DirectorWorkOnIssue,
     EditorArchived,
+    EditorAssignsThemselvesAsReviewer,
     EditorDeclineAssignmentView,
     EditorPending,
     EOArchived,
@@ -97,6 +98,11 @@ urlpatterns = [
     path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("issues/<int:pk>/sections/order/", UpdateSectionOrder.as_view(), name="wjs_order_sections"),
     path("assign_eo/<int:pk>/", AssignEoToArticle.as_view(), name="wjs_assign_eo"),
+    path(
+        "editor_assigns_themselves_as_reviewer/<int:pk>/",
+        EditorAssignsThemselvesAsReviewer.as_view(),
+        name="wjs_editor_assigns_themselves_as_reviewer",
+    ),
     path("select_reviewer/<int:pk>/", SelectReviewer.as_view(), name="wjs_select_reviewer"),
     path(
         "deselect_reviewer/<int:pk>/",

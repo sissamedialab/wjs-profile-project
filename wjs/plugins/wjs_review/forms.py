@@ -113,6 +113,7 @@ class SelectReviewerForm(forms.ModelForm):
         _today = now().date()
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
+        self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
         htmx = kwargs.pop("htmx", False)
         super().__init__(*args, **kwargs)
         # refs #648
@@ -133,12 +134,15 @@ class SelectReviewerForm(forms.ModelForm):
 
         # When loading during an htmx request fields are not required because we're only preseeding the reviewer
         # When loading during a normal request (ie: submitting the form) fields are required
-        if not htmx:
+        if not htmx and not self.editor_assigns_themselves_as_reviewer:
             self.fields["message"].required = True
             self.fields["reviewer"].required = True
 
+        if self.editor_assigns_themselves_as_reviewer:
+            self.fields["message"].widget = forms.HiddenInput()
+            self.fields["author_note_visible"].widget = forms.HiddenInput()
         # If the reviewer is not set, other fields are disabled, because we need the reviewer to be set first
-        if not self.data.get("reviewer"):
+        elif not self.data.get("reviewer"):
             self.fields["acceptance_due_date"].widget.attrs["disabled"] = True
             self.fields["message"].widget.attrs["disabled"] = True
             self.fields["author_note_visible"].widget.attrs["disabled"] = True
@@ -225,6 +229,8 @@ class SelectReviewerForm(forms.ModelForm):
 
     def clean(self) -> Dict[str, Any]:
         cleaned_data = super().clean()
+        if self.editor_assigns_themselves_as_reviewer:
+            cleaned_data["reviewer"] = self.user
         self.clean_logic()
         return cleaned_data
 

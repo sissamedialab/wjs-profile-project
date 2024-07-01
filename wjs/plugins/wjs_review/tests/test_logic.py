@@ -287,6 +287,90 @@ def test_assign_to_reviewer_hijacked(
 
 
 @pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+):
+    """An editor assigns themselves as reviewer of an article."""
+    fake_request.user = section_editor.janeway_account
+
+    acceptance_due_date = now().date() + datetime.timedelta(days=7)
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        # we must pass the Account object linked to the JCOMProfile instance, to ensure it
+        # can be used in janeway core
+        reviewer=section_editor.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": acceptance_due_date.strftime("%Y-%m-%d"),
+            "message": "random message",
+        },
+        request=fake_request,
+    )
+    assert section_editor.janeway_account not in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.reviewassignment_set.count() == 0
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    assert Message.objects.count() == 0
+    assignment = service.run()
+    assigned_article.refresh_from_db()
+
+    context = service._get_message_context()
+    assert context["article"] == assigned_article
+    assert context["journal"] == assigned_article.journal
+    assert context["request"] == fake_request
+    assert context["user_message_content"] == "random message"
+    assert context["review_assignment"] == assignment
+    assert context["acceptance_due_date"] == acceptance_due_date
+    assert context["reviewer"] == section_editor.janeway_account
+    assert not context["major_revision"]
+    assert not context["minor_revision"]
+    assert not context["already_reviewed"]
+    assert isinstance(context["acceptance_due_date"], datetime.date)
+
+    assert section_editor.janeway_account in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.stage == "Under Review"
+    assert assigned_article.reviewassignment_set.count() == 1
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    # This is "delicate": the presence or absence of ReviewAssignments does not change the article's state
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert assignment.reviewer == section_editor.janeway_account
+    assert assignment.editor == section_editor.janeway_account
+    assert assignment.date_accepted.date() == datetime.date.today()
+
+    message_subject = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="wjs_editor_i_will_review_message_subject",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
+    message_body = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="wjs_editor_i_will_review_message_body",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
+    # Check message
+    assert Message.objects.count() == 1
+    message = Message.objects.first()
+    assert message.subject == message_subject
+    # Check that the message body passed via form is ignored, and that the setting's text is used
+    assert message.body == message_body
+    assert message.message_type == Message.MessageTypes.SILENT
+    assert message.actor == section_editor.janeway_account
+    assert list(message.recipients.all()) == [section_editor.janeway_account]
+
+
+@pytest.mark.django_db
 def test_assign_to_reviewer(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,

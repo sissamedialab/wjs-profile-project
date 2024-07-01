@@ -1166,6 +1166,50 @@ def set_default_plugin_settings(force: bool = False):
             editor_decline_assignment_setting["name"],
         )
 
+    def editor_assigns_themselves_as_reviewer_message():
+        wjs_editor_i_will_review_message_subject_setting: SettingParams = {
+            "name": "wjs_editor_i_will_review_message_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the notification for self-selection of Editor as Reviewer"),
+            "description": _(
+                "The subject of the notification that is sent when an Editor self-selects as Reviewer.",
+            ),
+            "is_translatable": False,
+        }
+        wjs_editor_i_will_review_message_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Editor selects self as reviewer"),
+            "translations": {},
+        }
+        create_customization_setting(
+            wjs_editor_i_will_review_message_subject_setting,
+            wjs_editor_i_will_review_message_subject_setting_value,
+            wjs_editor_i_will_review_message_subject_setting["name"],
+        )
+        wjs_editor_i_will_review_message_body_setting: SettingParams = {
+            "name": "wjs_editor_i_will_review_message_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Body of the notification for self-selection of Editor as Reviewer"),
+            "description": _(
+                "The body of the notification that is sent when an Editor self-selects as Reviewer.",
+            ),
+            "is_translatable": False,
+        }
+        wjs_editor_i_will_review_message_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article {{ article.id }} assigned to editor for a review."),
+            "translations": {},
+        }
+        create_customization_setting(
+            wjs_editor_i_will_review_message_body_setting,
+            wjs_editor_i_will_review_message_body_setting_value,
+            wjs_editor_i_will_review_message_body_setting["name"],
+        )
+
     def typesetter_is_assigned_message():
         subject_typesetting_assignment: SettingParams = {
             "name": "typesetting_assignment_subject",
@@ -1520,6 +1564,7 @@ def set_default_plugin_settings(force: bool = False):
     due_date_postpone_message()
     due_date_far_future_message()
     editor_decline_assignment_message()
+    editor_assigns_themselves_as_reviewer_message()
     typesetter_is_assigned_message()
     article_requires_proofreading_message()
     eo_is_assigned_message()

@@ -406,7 +406,7 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="assigns self as reviewer",
             label="I will review",
             tooltip="Assign myself as reviewer",
-            view_name="WRITEME!",
+            view_name="wjs_editor_assigns_themselves_as_reviewer",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,

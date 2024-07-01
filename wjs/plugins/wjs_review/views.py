@@ -593,6 +593,29 @@ class ArticleAssignedEditorMixin:
         return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
 
 
+# refs #584
+# Make it similar to SelectReviewer, but way simpler
+class EditorAssignsThemselvesAsReviewer(ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
+    """
+    View where the logged in Editor assigns themselves as a reviewer.
+    """
+
+    model = ArticleWorkflow
+    form_class = SelectReviewerForm
+    context_object_name = "workflow"
+    template_name = "wjs_review/editor_assigns_themselves_as_reviewer.html"
+
+    def get_success_url(self):
+        return reverse("wjs_article_details", args=(self.object.id,))
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        kwargs["request"] = self.request
+        kwargs["editor_assigns_themselves_as_reviewer"] = True
+        return kwargs
+
+
 class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """
     View only checks the login status at view level because the permissions are checked by the queryset by using

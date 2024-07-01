@@ -173,6 +173,17 @@ def test_wjs_assign_eo(assigned_article, eo_user, client):
 
 
 @pytest.mark.django_db
+def test_wjs_editor_assigns_themselves_as_reviewer(assigned_article, client):
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+    client.force_login(assignment.editor)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/editor_assigns_themselves_as_reviewer/"
+        f"{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
 def test_wjs_select_reviewer(assigned_article, client):
     assignment = WjsEditorAssignment.objects.get_current(assigned_article)
     client.force_login(assignment.editor)

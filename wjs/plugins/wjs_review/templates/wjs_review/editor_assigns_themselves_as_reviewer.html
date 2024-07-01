@@ -1,0 +1,16 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n %}
+{% block title %}
+    {% translate "Editor assigns themselves as reviewer" %}
+{% endblock title %}
+{% block content_header %}
+    {% include "wjs_review/elements/article_title_and_authors.html" %}
+{% endblock content_header %}
+{% block content %}
+    {% include "wjs_review/elements/editor_assigns_themselves_as_reviewer_form.html" %}
+{% endblock content %}
+{% block content_footer %}
+    <div class="col">
+        <a class="btn btn-outline-secondary" href="{% url 'wjs_review_list' %}">Back</a>
+    </div>
+{% endblock content_footer %}
