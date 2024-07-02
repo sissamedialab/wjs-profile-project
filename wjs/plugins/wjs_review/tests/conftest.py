@@ -22,6 +22,7 @@ from review import models as review_models
 from submission.models import Article
 from utils import setting_handler
 
+from wjs.jcom_profile.models import Genealogy
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
@@ -196,6 +197,39 @@ def assigned_to_typesetter_article(
     See notes about notifications in `assigned_article`.
     """
     return _assigned_to_typesetter_article(ready_for_typesetter_article, typesetter, fake_request)
+
+
+def _assigned_to_typesetter_article_with_parent(
+    article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> Article:
+    parent_article = Article.objects.create(
+        title="Parent article",
+        journal=article.journal,
+    )
+    Genealogy.objects.create(parent=parent_article)
+    parent_article.genealogy.children.add(article)
+
+    parent_article.articleworkflow.latex_desc = "parent article desc"
+    parent_article.articleworkflow.save()
+    article.articleworkflow.latex_desc = "child article desc"
+    article.articleworkflow.save()
+    AssignTypesetter(article, typesetter, fake_request).run()
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    cleanup_notifications_side_effects()
+    return article
+
+
+@pytest.fixture
+def assigned_to_typesetter_article_with_parent(
+    ready_for_typesetter_article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> Article:
+    """Create and return an article assigned to a typesetter with a parent article, both with a latex_desc."""
+    return _assigned_to_typesetter_article_with_parent(ready_for_typesetter_article, typesetter, fake_request)
 
 
 def _assigned_to_typesetter_article_with_files_to_typeset(
@@ -557,21 +591,27 @@ def mock_jcomassistant_post():
 def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     """Create an automatic preamble for JCOM."""
     preamble_text = """
-{% load wjs_tex %}
-{% with article.title as title %}
-{% with article.date_accepted|date:"Y-m-d" as date_accepted %}
-{% with journal.code as journal %}
-{% with article.section.wjssection.pubid_and_tex_sectioncode as type_code %}
-{% angular_variables %}
-\\article{<title>}
-\\accepted{<date_accepted>}
-\\journal{<journal>}
-\\doc_type{<type_code>}
-{% endangular_variables %}
-{% endwith %}
-{% endwith %}
-{% endwith %}
-{% endwith %}
+    {% load wjs_tex %}
+    {% with article.title as title %}
+    {% with article.date_accepted|date:"Y-m-d" as date_accepted %}
+    {% with journal.code as journal %}
+    {% with article.section.wjssection.pubid_and_tex_sectioncode as type_code %}
+    {% with article.articleworkflow.latex_desc as latex_desc %}
+    {% with article.ancestors.first.parent.articleworkflow.latex_desc as latex_desc_parent %}
+    {% angular_variables %}
+    \\article{<title>}
+    \\accepted{<date_accepted>}
+    \\journal{<journal>}
+    \\doc_type{<type_code>}
+    \\latex_desc{<latex_desc>}
+    \\latex_desc_parent{<latex_desc_parent>}
+    {% endangular_variables %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
     """
     automatic_preamble = LatexPreamble.objects.create(
         journal=journal,

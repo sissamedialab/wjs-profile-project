@@ -540,22 +540,26 @@ def test_eo_sends_back_to_typesetter(
 def test_automatic_preamble_generation(
     jcom_automatic_preamble: LatexPreamble,
     journal: Journal,
-    assigned_to_typesetter_article: Article,
+    assigned_to_typesetter_article_with_parent: Article,
 ):
-    assigned_to_typesetter_article.section.wjssection.pubid_and_tex_sectioncode = "A"
+    article = assigned_to_typesetter_article_with_parent
+    article.section.wjssection.pubid_and_tex_sectioncode = "A"
+    article.save()
     context = {
         "journal": journal,
-        "article": assigned_to_typesetter_article,
+        "article": article,
     }
     rendered_preamble = render_template(jcom_automatic_preamble, context)
 
-    local_date_accepted = timezone.localtime(assigned_to_typesetter_article.date_accepted)
+    local_date_accepted = timezone.localtime(article.date_accepted)
     formatted_date_accepted = local_date_accepted.strftime("%Y-%m-%d")
     expected_preamble = f"""
-\\article{{{assigned_to_typesetter_article.title}}}
-\\accepted{{{formatted_date_accepted}}}
-\\journal{{{journal.code}}}
-\\doc_type{{{assigned_to_typesetter_article.section.wjssection.pubid_and_tex_sectioncode}}}
+    \\article{{{article.title}}}
+    \\accepted{{{formatted_date_accepted}}}
+    \\journal{{{journal.code}}}
+    \\doc_type{{{article.section.wjssection.pubid_and_tex_sectioncode}}}
+    \\latex_desc{{{article.articleworkflow.latex_desc}}}
+    \\latex_desc_parent{{{article.ancestors.first().parent.articleworkflow.latex_desc}}}
     """
     # We `strip()` the strings, because fragments such as
     # {% with ...%}
