@@ -17,7 +17,7 @@
       {% if view.table_configuration_options.table_type == "review" %}
         <span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span>
       {% elif view.table_configuration_options.table_type == "production" %}
-        <span title="Accepted on {{ article.date_accepted }}">{{ article.date_submitted|date:"d-M" }}</span>
+        <span title="Accepted on {{ article.date_accepted }}">{{ article.date_accepted|date:"d-M" }}</span>
       {% endif %}
       <br />
       {{ article.primary_issue|default:"—" }}
