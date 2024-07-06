@@ -1,4 +1,11 @@
+import os
+import re
+import tempfile
+import zipfile
+from typing import IO
+
 from django.db.models import QuerySet
+from submission.models import Article
 
 from .models import WorkflowReviewAssignment
 
@@ -32,3 +39,34 @@ def get_other_review_assignments_for_this_round(
         .exclude(decision="withdrawn")
     )
     return other_assignments_for_this_round
+
+
+def get_tex_source_file_from_archive(source_files_archive, tex_source_name: str) -> IO:
+    """Extract the source file of the article galleys.
+
+    Return the main TeX file, the one that contains the LaTeX preamble.
+    """
+    # TODO: talk with Elia on the opportunity of buildind a "texfile utils" library with similar functions
+    tempdir = tempfile.mkdtemp()
+    with zipfile.ZipFile(source_files_archive) as zip_file:
+        if tex_source_name in zip_file.namelist():
+            zip_file.extract(tex_source_name, tempdir)
+        else:
+            raise FileNotFoundError(
+                f"{tex_source_name} not found in the archive {source_files_archive}",
+            )
+    return os.path.join(tempdir, tex_source_name)
+
+
+def guess_typesetted_texfile_name(article: Article) -> str:
+    tex_source_name = f"{article.journal.code}_{article.id}.tex"
+    return tex_source_name
+
+
+def tex_file_has_queries(tex_file: IO) -> bool:
+    """Check if the TeX file contains queries."""
+    with open(tex_file, encoding="utf-8") as source:
+        if re.search(r"^\s*\\proofs\W", source.read(), re.MULTILINE):
+            return True
+        else:
+            return False

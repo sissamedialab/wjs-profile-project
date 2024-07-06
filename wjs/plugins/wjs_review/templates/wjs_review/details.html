@@ -100,25 +100,34 @@
                 {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
             </div>
             <div class="col">
-                {% for galley in article.galley_set.all %}<li>{{ galley.file.original_filename }} {{ galley.label }}</li>{% endfor %}
+                {% for galley in article.galley_set.all %}<li>{{ galley.file.original_filename }} {{ galley.label }}</li>{% empty %}no galleys yet{% endfor %}
             </div>
+        </div>
+        <div class="row">
+          <div class="col">Production flags:</div>
+          <div class="col">no queries (A): {{ article.articleworkflow.production_flag_no_queries }}</div>
+          <div class="col">galleys ok (A): {{ article.articleworkflow.production_flag_galleys_ok }}</div>
+          <div class="col">no checks needed (M): {{ article.articleworkflow.production_flag_no_checks_needed }}</div>
         </div>
     </div>
                 <div class="row">
                     <div class="col">
-                        {% if workflow|is_user_one_of_the_authors:request.user %}
-                            {% include "wjs_review/elements/revision_request_list.html" %}
+                        {% if request.user|is_user_eo %}
+                            {% include "wjs_review/elements/editor_review_assignment_list.html" %}
                             {% include "wjs_review/elements/typesetting_assignment_list.html" %}
-                        {% elif workflow|is_user_article_reviewer:request.user %}
-                            {% include "wjs_review/elements/reviewer_review_assignment_list.html" %}
+                        {% elif workflow|is_user_director:request.user %}
+                            {% include "wjs_review/elements/editor_review_assignment_list.html" %}
+                            {% include "wjs_review/elements/typesetting_assignment_list.html" %}
                         {% elif workflow|is_user_article_editor:request.user or workflow|is_user_director:request.user %}
                             {% include "wjs_review/elements/editor_review_assignment_list.html" %}
                         <!-- FIXME: Need better specifications regarding what other roles can see about Trypesetting -->
                         {% elif workflow|is_user_typesetter:request.user %}
                             {% include "wjs_review/elements/revision_request_list.html" %}
                             {% include "wjs_review/elements/typesetting_assignment_list.html" %}
-                        {% elif request.user|is_user_eo %}
-                            {% include "wjs_review/elements/editor_review_assignment_list.html" %}
+                        {% elif workflow|is_user_article_reviewer:request.user %}
+                            {% include "wjs_review/elements/reviewer_review_assignment_list.html" %}
+                        {% elif workflow|is_user_one_of_the_authors:request.user %}
+                            {% include "wjs_review/elements/revision_request_list.html" %}
                             {% include "wjs_review/elements/typesetting_assignment_list.html" %}
                         {% endif %}
                     </div>

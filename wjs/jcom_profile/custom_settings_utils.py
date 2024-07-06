@@ -125,9 +125,20 @@ def add_coauthors_submission_email_settings():
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": 'Dear {{ author.full_name}}, <br><br>Thank you for submitting "{{ article }}" to {{ article.journal }} as coauthor.<br><br> Your work will now be reviewed by an editor and we will be in touch as the peer-review process progresses.<br><br>Regards,<br>',  # noqa: E501
+        "value": """Dear {{ author.full_name}}, <br><br>
+Thank you for submitting "{{ article }}" to {{ article.journal }} as coauthor.<br><br>
+Your work will now be reviewed by an editor and we will be in touch as the peer-review process progresses.<br><br>
+Please feel free to check or update your personal data
+<a href="{% journal_base_url article.journal %}{% url 'core_edit_profile' %}">here</a>.<br><br>
+Regards,<br>
+""",
         "translations": {
-            "value_en": 'Dear {{ author.full_name}}, <br><br>Thank you for submitting "{{ article }}" to {{ article.journal }} as coauthor.<br><br> Your work will now be reviewed by an editor and we will be in touch as the peer-review process progresses.<br><br>Regards,<br>',  # noqa: E501
+            "value_en": """Dear {{ author.full_name}}, <br><br>
+Thank you for submitting "{{ article }}" to {{ article.journal }} as coauthor.<br><br>
+Your work will now be reviewed by an editor and we will be in touch as the peer-review process progresses.<br><br>
+Please feel free to check or update your personal data
+<a href="{% journal_base_url article.journal %}{% url 'core_edit_profile' %}">here</a>.<br><br>
+Regards,<br>""",
         },
     }
     create_customization_setting(

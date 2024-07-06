@@ -3,7 +3,6 @@ from typing import Optional
 from django.conf import settings
 from django.utils.module_loading import import_string
 from events import logic as events_logic
-from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
@@ -34,7 +33,6 @@ def on_article_submitted(**kwargs) -> None:
         article.articleworkflow.author_submits_paper()
         article.articleworkflow.save()
         kwargs = {"workflow": article.articleworkflow}
-        review_models.ReviewRound.objects.create(article=article, round_number=1)
         events_logic.Events.raise_event(ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED, task_object=article, **kwargs)
 
 

@@ -1,0 +1,27 @@
+<table class="table table-hover table-striped table-bordered" id="papers">
+  <thead class="sticky-top bg-light">
+  <tr>
+    <th scope="col" title="Journal">Journal</th>
+    <th scope="col" title="Article type / section">Type</th>
+    <th scope="col">ID</th>
+    <th scope="col" title="Number of days elapsed since latest state transition">Waiting days</th>
+    <th scope="col">Status</th>
+    <th scope="col">Special issue</th>
+    <th scope="col" title="Last note / message">Note</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for workflow in workflows %}
+    {% include "wjs_review/lists/elements/typesetter/table_item.html" %}
+  {% endfor %}
+  </tbody>
+</table>
+{% include "wjs_review/base/elements/pagination.html" %}
+<script>
+  new DataTable("#papers", {
+    info: false,
+    searching: false,
+    ordering: true,
+    paging: false,
+  });
+</script>

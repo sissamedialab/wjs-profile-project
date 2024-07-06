@@ -1,0 +1,42 @@
+{% load wjs_articles wjs_review wjs_tags %}
+{% if article.articleworkflow.pk %}
+  {% get_article_classes article.articleworkflow as article_classes %}
+  <div>
+    <tr class="article">
+      <td>
+        <input type="hidden" name="articles[]" value="{{ article.pk }}" />
+        <div class="d-flex">
+          {% if issue.issue_type.code == "collection" %}
+            <i class="bi bi-grip-vertical sort-grip"></i>
+          {% endif %}
+          <div>
+            <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
+            <br />
+            <a title="{{ article.title }}"
+               href="{% url 'wjs_article_details' article.articleworkflow.pk %}"
+               class="fw-bold">{{ article.pk }}</a>
+          </div>
+        </div>
+      </td>
+      <td>
+        {% include "wjs_review/lists/elements/corresponding_author.html" with workflow=article.articleworkflow %}
+      </td>
+      <td>
+        {{ article.title|truncatewords:6 }}
+      </td>
+      <td>
+        {% with editor_assignment_data=article|article_current_editor %}
+          {{ editor_assignment_data.editor }}
+        {% endwith %}
+      </td>
+      <td>
+        <span class="badge {% if publish_status %}{{ article_classes.publishable }}{% else %}{{ article_classes.state }}{% endif %}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span>
+      </td>
+      <td>
+        {{ article.date_published|date:DATE_FORMAT }}
+      </td>
+      <td>
+      </td>
+    </tr>
+  </div>
+{% endif %}

@@ -2,24 +2,44 @@
 {% load django_bootstrap5 i18n %}
 
 {% block title %}
-    {% trans "Add permission" %}
+  {% blocktranslate %}
+    Edit permission for {{ user }}
+  {% endblocktranslate %}
 {% endblock title %}
 
+{% load wjs_review %}
+
 {% block content_wrapper %}
-    <div class="container">
-        <div class="row">
-            <div class="col-sm-12">
-                <h2>{% trans "Add permission" %}</h2>
-            </div>
-        </div>
+  <div class="container">
+    <div class="row">
+      <div class="col-sm-12">
+        {% blocktranslate %}
+          <h2>Edit permission for {{ user }}</h2>
+        {% endblocktranslate %}
+      </div>
     </div>
-    <div class="container">
-        <div class="row">
-            <form method="post" action="{% url "wjs_assign_permission" pk=workflow.pk %}">
-                {% csrf_token %}
-                <div class="col">{% bootstrap_form form %}</div>
-                {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Assign" %}
-            </form>
-        </div>
+  </div>
+  <div class="container">
+    <div class="row">
+      <form method="post" action="">
+        {% csrf_token %}
+        {{ form.management_form }}
+        {% regroup form.forms by round as forms %}
+        {% for form_item in forms %}
+          {% if form_item.grouper > 0 %}
+          <h3>{% translate "Round" %}: {{ form_item.grouper }}</h3>
+          {% else %}
+          <h3>{% translate "Submission" %}</h3>
+          {% endif %}
+          <hr>
+          {% for form_item in form_item.list %}
+            {% bootstrap_form form_item layout='horizontal' %}
+            <hr>
+          {% endfor %}
+        {% endfor %}
+        {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Save" %}
+        {% bootstrap_button href="javascript:history.back()" content="Back" %}
+      </form>
     </div>
+  </div>
 {% endblock content_wrapper %}

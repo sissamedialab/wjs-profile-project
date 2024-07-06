@@ -15,11 +15,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
-from journal.models import Journal
+from journal.models import ArticleOrdering, Issue, Journal
 from plugins.typesetting.models import TypesettingRound
 from plugins.wjs_review.states import BaseState
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
-from submission.models import Article
+from submission.models import Article, Section
 from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry
@@ -71,7 +71,7 @@ def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag:
         return [
             action.as_dict(workflow, user)
             for action in state_class.article_actions
-            if action.has_permission(workflow, user)
+            if action.is_available(workflow, user)
             # if action.has_permission(workflow, user) and action.tag == tag
         ]
     else:
@@ -409,3 +409,12 @@ def get_editor_keywords(editor: Account, journal: Journal) -> List[str]:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
         eap = EditorAssignmentParameters.objects.filter(editor=editor, journal=journal).first()
     return [k.word for k in eap.keywords.all()]
+
+
+@register.simple_tag()
+def article_order(issue: Issue, section: Section, article: Article) -> int:
+    """Return the order of the article in the issue."""
+    try:
+        return ArticleOrdering.objects.get(article=article, issue=issue, section=section).order
+    except ArticleOrdering.DoesNotExist:
+        return 0

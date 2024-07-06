@@ -6,18 +6,22 @@ attention.
 
 """
 
+from typing import Optional
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
-from review.models import ReviewAssignment, RevisionRequest
+from review.models import ReviewAssignment
 from submission.models import Article
 
+from . import permissions
 from .communication_utils import get_eo_user
 from .models import (
     ArticleWorkflow,
+    EditorRevisionRequest,
     Message,
     Reminder,
     WjsEditorAssignment,
@@ -105,13 +109,7 @@ def needs_assignment(article: Article) -> str:
     # only the current one.
     # TODO: might be able to optimize (include the review_round in the where clause below)
     review_round = article.current_review_round_object()
-    assignments = ReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(
-            Q(is_complete=False, date_declined__isnull=True)  # active reviews
-            | Q(is_complete=True, date_declined__isnull=True),  # completed reviews
-        ),
-    )
+    assignments = WorkflowReviewAssignment.objects.valid(article, review_round)
     if not assignments.exists():
         return "The paper should be be assigned to some reviewer."
     else:
@@ -237,7 +235,7 @@ def any_reviewer_is_late_after_reminder(article: Article) -> str:
 
 def author_revision_is_late(article: Article) -> str:
     """Tell if the author is late in submitting a revision."""
-    late_revision_requests = RevisionRequest.objects.filter(
+    late_revision_requests = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
     ).order_by()
@@ -247,6 +245,32 @@ def author_revision_is_late(article: Article) -> str:
         return f"The revision request is {days_late} days late (was expected by {expected.strftime('%b-%d')})."
     else:
         return ""
+
+
+def pending_revision_request(workflow: ArticleWorkflow, user: Account) -> Optional[EditorRevisionRequest]:
+    """Tell if the author or the article editor have any pending minor/major revision."""
+    if not permissions.is_article_author(workflow, user) and not permissions.is_article_editor(workflow, user):
+        return None
+    pending_revision_requests = EditorRevisionRequest.objects.filter(
+        article_id=workflow.article_id,
+        date_completed__isnull=True,
+        type__in=[ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION],
+    ).order_by()
+    if pending_revision_requests.exists():
+        return pending_revision_requests.last()
+
+
+def pending_edit_metadata_request(workflow: ArticleWorkflow, user: Account) -> Optional[EditorRevisionRequest]:
+    """Tell if the author or the article editor have any pending technical revision."""
+    if not permissions.is_article_author(workflow, user) and not permissions.is_article_editor(workflow, user):
+        return None
+    pending_revision_requests = EditorRevisionRequest.objects.filter(
+        article_id=workflow.article_id,
+        date_completed__isnull=True,
+        type=ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+    ).order_by()
+    if pending_revision_requests.exists():
+        return pending_revision_requests.last()
 
 
 def eo_has_unread_messages(article: Article) -> str:
@@ -295,5 +319,57 @@ def is_author_proofing_late(assignment: GalleyProofing) -> str:
             f" Was expected by {assignment.due.strftime('%F')}."
             " Please contact the author."
         )
+    else:
+        return ""
+
+
+def can_edit_permissions_by_assignment(assignment: ReviewAssignment, user: Account) -> str:
+    """
+    Tell if the user can edit permissions on the workflow.
+
+    Permission is only available:
+    - current article editor
+    - director
+    - EO
+
+    :param assignment: The ReviewAssignment to check access to.
+    :type assignment: ReviewAssignment
+    :param user: The user to check access for.
+    :type user: Account
+    :return: True if the user can edit permission, False otherwise.
+    :rtype: bool
+    """
+    if (
+        assignment.article.editorassignment_set.filter(editor=user).exists()
+        or permissions.has_director_role_by_article(assignment.article.articleworkflow, user)
+        or permissions.has_eo_role_by_article(assignment.article.articleworkflow, user)
+    ):
+        return "You can edit permissions."
+    else:
+        return ""
+
+
+def can_edit_permissions(workflow: ArticleWorkflow, user: Account) -> str:
+    """
+    Tell if the user can edit permissions on the workflow.
+
+    Permission is only available:
+    - current article editor
+    - director
+    - EO
+
+    :param workflow: The workflow to check access to.
+    :type workflow: ArticleWorkflow
+    :param user: The user to check access for.
+    :type user: Account
+    :return: True if the user can edit permission, False otherwise.
+    :rtype: bool
+    """
+    if (
+        workflow.article.editorassignment_set.filter(editor=user).exists()
+        or permissions.has_director_role_by_article(workflow.article.articleworkflow, user)
+        or permissions.has_eo_role_by_article(workflow.article.articleworkflow, user)
+    ):
+        return "You can edit permissions."
     else:
         return ""

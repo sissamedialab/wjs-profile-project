@@ -171,6 +171,7 @@ def log_operation(
     recipients: list[Account] = None,
     message_type: Message.MessageTypes = Message.MessageTypes.STD,
     flag_as_read: bool = False,
+    flag_as_read_by_eo: bool = False,
 ) -> Message:
     """
     Create a Message to log something. Send out notifications as needed.
@@ -184,6 +185,7 @@ def log_operation(
     :param recipients: the recipients of the message
     :param message_type: the type of the message
     :param flag_as_read: whether to flag the message as read
+    :param flag_as_read_by_eo: whether to flag the message as read by eo
 
     :return: the created message
     :rtype: Message
@@ -202,7 +204,7 @@ def log_operation(
         content_type=content_type,
         object_id=object_id,
         hijacking_actor=hijacking_actor,
-        read_by_eo=flag_as_read,
+        read_by_eo=flag_as_read_by_eo,
     )
     if recipients:
         message.recipients.set(recipients)
@@ -227,7 +229,14 @@ def log_operation(
             context={"original_subject": message_subject, "original_body": message_body, "hijacker": hijacking_actor},
             template_is_setting=True,
         )
-        log_operation(article, hijack_subject, hijack_body, recipients=[actor], flag_as_read=True)
+        log_operation(
+            article,
+            hijack_subject,
+            hijack_body,
+            recipients=[actor],
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
     return message
 
 

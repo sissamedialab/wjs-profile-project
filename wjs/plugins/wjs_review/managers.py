@@ -4,7 +4,7 @@ from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import F, OuterRef, Q, QuerySet, Subquery
-from review.models import ReviewAssignment
+from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 
 from wjs.jcom_profile.permissions import has_eo_role
@@ -125,3 +125,30 @@ class WjsEditorAssignmentQuerySet(models.QuerySet):
         if isinstance(article, ArticleWorkflow):
             article = article.article
         return self.filter(article=article)
+
+
+class WorkflowReviewAssignmentQuerySet(models.QuerySet):
+    def valid(self, article: Article, review_round: ReviewRound) -> QuerySet:
+        """
+        Return the valid review assignments for the given article.
+
+        We consider "valid" every assignment where the reviewer provided a report
+        or that is still pending.
+        I.e. all assignments that have not been declined or withdrawn.
+
+        :param article: the article to get the valid review assignments for
+        :type article: Article
+
+        :param review_round: review round to get the valid review assignments for
+        :type review_round: ReviewRound
+
+        :return: the valid review assignments for the given article
+        :rtype: QuerySet
+        """
+        return self.filter(
+            Q(article=article, review_round=review_round)
+            & Q(
+                Q(is_complete=False, date_declined__isnull=True)  # active reviews
+                | Q(is_complete=True, date_declined__isnull=True),  # completed reviews
+            ),
+        )

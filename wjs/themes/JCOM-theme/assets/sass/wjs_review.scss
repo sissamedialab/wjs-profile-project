@@ -100,4 +100,24 @@ table.table-bordered.dataTable .table-borderless td {
   font-size: 0.75rem;
 }
 
+.col-size-5 {
+  width: 5%;
+}
+
+.col-size-10 {
+  width: 10%;
+}
+
+.col-size-15 {
+  width: 15%;
+}
+
+.col-size-20 {
+  width: 20%;
+}
+
+.sort-grip:hover {
+  cursor: grab;
+}
+
 @import "bootstrap/scss/bootstrap";

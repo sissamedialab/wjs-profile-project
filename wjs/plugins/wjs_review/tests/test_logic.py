@@ -1,11 +1,13 @@
 import datetime
-from typing import Callable
+from typing import Callable, List
 from unittest.mock import patch
 
 import freezegun
 import pytest
+from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.forms import models as model_forms
@@ -22,23 +24,31 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from .. import communication_utils
+from ..communication_utils import get_system_user
 from ..events.handlers import (
     dispatch_eo_assignment,
     on_article_submitted,
     on_revision_complete,
 )
-from ..forms import AssignEoForm, EditorRevisionRequestEditForm
+from ..forms import (
+    AssignEoForm,
+    EditorRevisionRequestEditForm,
+    ReportForm,
+    SupervisorAssignEditorForm,
+)
 from ..logic import (
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
     CreateReviewRound,
+    DeselectReviewer,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
     InviteReviewer,
     PostponeReviewerDueDate,
+    SubmitReview,
 )
 from ..logic__visibility import PermissionChecker
 from ..models import (
@@ -48,9 +58,16 @@ from ..models import (
     Message,
     PastEditorAssignment,
     PermissionAssignment,
+    Reminder,
     WjsEditorAssignment,
+    WorkflowReviewAssignment,
 )
 from ..plugin_settings import STAGE
+from ..reminders.settings import (
+    EditorShouldSelectReviewerReminderManager,
+    ReviewerShouldEvaluateAssignmentReminderManager,
+    ReviewerShouldWriteReviewReminderManager,
+)
 from ..views import ArticleRevisionUpdate
 from .test_helpers import _create_review_assignment, _submit_review
 
@@ -116,6 +133,7 @@ def test_manual_assign_eo_form(
     assert msg.recipients.filter(pk=second_eo.janeway_account.pk).exists()
 
 
+@pytest.mark.parametrize("current_user_editor", (True, False))
 @pytest.mark.django_db
 def test_assign_to_editor(
     review_settings,
@@ -123,9 +141,13 @@ def test_assign_to_editor(
     director: JCOMProfile,
     section_editor: JCOMProfile,
     article: submission_models.Article,
+    current_user_editor: bool,
 ):
     """An editor can be assigned to an article and objects states are updated."""
-    fake_request.user = director.janeway_account
+    if current_user_editor:
+        fake_request.user = section_editor.janeway_account
+    else:
+        fake_request.user = director.janeway_account
     article.stage = "Unsubmitted"
     article.save()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
@@ -174,6 +196,10 @@ def test_assign_to_editor(
     assert review_in_review_url in message_to_editor.body
     assert message_to_editor.message_type == "Verbose"
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
+    if current_user_editor:
+        assert message_to_editor.actor == get_system_user()
+    else:
+        assert message_to_editor.actor == director.janeway_account
 
 
 @pytest.mark.django_db
@@ -258,6 +284,90 @@ def test_assign_to_reviewer_hijacked(
     assert review_assignment_subject in user_emails[0].subject
     assert assigned_article.title in user_emails[0].subject
     assert f"User {eo_user} executed Request to review" in editor_emails[0].subject
+
+
+@pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+):
+    """An editor assigns themselves as reviewer of an article."""
+    fake_request.user = section_editor.janeway_account
+
+    acceptance_due_date = now().date() + datetime.timedelta(days=7)
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        # we must pass the Account object linked to the JCOMProfile instance, to ensure it
+        # can be used in janeway core
+        reviewer=section_editor.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": acceptance_due_date.strftime("%Y-%m-%d"),
+            "message": "random message",
+        },
+        request=fake_request,
+    )
+    assert section_editor.janeway_account not in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.reviewassignment_set.count() == 0
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    assert Message.objects.count() == 0
+    assignment = service.run()
+    assigned_article.refresh_from_db()
+
+    context = service._get_message_context()
+    assert context["article"] == assigned_article
+    assert context["journal"] == assigned_article.journal
+    assert context["request"] == fake_request
+    assert context["user_message_content"] == "random message"
+    assert context["review_assignment"] == assignment
+    assert context["acceptance_due_date"] == acceptance_due_date
+    assert context["reviewer"] == section_editor.janeway_account
+    assert not context["major_revision"]
+    assert not context["minor_revision"]
+    assert not context["already_reviewed"]
+    assert isinstance(context["acceptance_due_date"], datetime.date)
+
+    assert section_editor.janeway_account in assigned_article.journal.users_with_role("reviewer")
+    assert assigned_article.stage == "Under Review"
+    assert assigned_article.reviewassignment_set.count() == 1
+    assert assigned_article.reviewround_set.count() == 1
+    assert assigned_article.reviewround_set.filter(round_number=1).count() == 1
+    # This is "delicate": the presence or absence of ReviewAssignments does not change the article's state
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert assignment.reviewer == section_editor.janeway_account
+    assert assignment.editor == section_editor.janeway_account
+    assert assignment.date_accepted.date() == datetime.date.today()
+
+    message_subject = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="wjs_editor_i_will_review_message_subject",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
+    message_body = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="wjs_editor_i_will_review_message_body",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={"article": assigned_article},
+        template_is_setting=True,
+    )
+    # Check message
+    assert Message.objects.count() == 1
+    message = Message.objects.first()
+    assert message.subject == message_subject
+    # Check that the message body passed via form is ignored, and that the setting's text is used
+    assert message.body == message_body
+    assert message.message_type == Message.MessageTypes.SILENT
+    assert message.actor == section_editor.janeway_account
+    assert list(message.recipients.all()) == [section_editor.janeway_account]
 
 
 @pytest.mark.django_db
@@ -754,12 +864,12 @@ def test_handle_accept_invite_reviewer(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_assignment: review_models.ReviewAssignment,
+    review_assignment_invited_user: review_models.ReviewAssignment,
     accept_gdpr: bool,
 ):
     """If the user accepts the invitation, assignment is accepted and user is confirmed if they accept GDPR."""
 
-    invited_user = review_assignment.reviewer
+    invited_user = review_assignment_invited_user.reviewer
     assignment = assigned_article.reviewassignment_set.first()
 
     evaluate_data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr}
@@ -839,12 +949,12 @@ def test_handle_decline_invite_reviewer(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,
-    review_assignment: review_models.ReviewAssignment,
+    review_assignment_invited_user: review_models.ReviewAssignment,
     accept_gdpr: bool,
 ):
     """If the user declines the invitation, assignment is declined and user is confirmed if they accept GDPR."""
 
-    invited_user = review_assignment.reviewer
+    invited_user = review_assignment_invited_user.reviewer
     assignment = assigned_article.reviewassignment_set.first()
     fake_request.GET = {"access_code": assignment.access_code}
 
@@ -2584,3 +2694,259 @@ def test_past_assignment(
         assignment_3,
         permission_type=PermissionAssignment.PermissionType.ALL,
     )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "send_reviewer_notification,approved_assignment", [(True, True), (False, True), (True, False), (False, False)]
+)
+def test_deassign_reviewer(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: WorkflowReviewAssignment,
+    send_reviewer_notification: bool,
+    approved_assignment: bool,
+):
+    """
+    When reviewer is deassigned, the assignment is deleted and messages are created.
+
+    If send_reviewer_notification is True, the reviewer is notified.
+    For any value of approved_assignment, reviewer reminders are deleted. The flag is not really used to assert clauses
+    as we want to check any review reminder, but we want to use it to prepare data differently.
+    """
+    if approved_assignment:
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            token="",
+        ).run()
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    run = DeselectReviewer(
+        assignment=review_assignment,
+        editor=review_assignment.editor,
+        request=fake_request,
+        send_reviewer_notification=send_reviewer_notification,
+        form_data={"notification_subject": "subject", "notification_body": "body"},
+    ).run()
+    reviewer = review_assignment.reviewer
+    assert run
+    assert review_assignment.is_complete
+    assert review_assignment.decision == "withdrawn"
+
+    if send_reviewer_notification:
+        assert Message.objects.count() == 2
+        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
+        assert Message.objects.filter(recipients__isnull=True).count() == 1
+        assert len(mail.outbox) == 1  # system messages are not sent by email
+    else:
+        assert Message.objects.count() == 1
+        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
+        assert Message.objects.filter(recipients__isnull=True).count() == 1
+        assert len(mail.outbox) == 0  # system messages are not sent by email
+    # Reminders are modified
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+    ).exists()
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+    ).exists()
+    assert Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("extra_assignment_state", ["declined", "accepted", "completed", "pending"])
+def test_deassign_reviewer_existing_assignment(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: WorkflowReviewAssignment,
+    review_form: review_models.ReviewForm,
+    normal_user: JCOMProfile,
+    extra_assignment_state: bool,
+):
+    """
+    When reviewer is deassigned, but other, created reminders depend on existing assignments.
+    """
+    # extra assignment in
+    extra_assignment = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=normal_user,
+        assigned_article=assigned_article,
+    )
+    if extra_assignment_state == "declined":
+        EvaluateReview(
+            assignment=extra_assignment,
+            reviewer=extra_assignment.reviewer,
+            editor=extra_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "0", "accept_gdpr": True},
+            token="",
+        ).run()
+    elif extra_assignment_state == "accepted":
+        EvaluateReview(
+            assignment=extra_assignment,
+            reviewer=extra_assignment.reviewer,
+            editor=extra_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            token="",
+        ).run()
+    elif extra_assignment_state == "completed":
+        rf = ReportForm(data={str(review_form.pk): "random report"}, review_assignment=extra_assignment)
+        assert rf.is_valid()
+        SubmitReview(
+            assignment=extra_assignment,
+            submit_final=True,
+            form=rf,
+            request=fake_request,
+        ).run()
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    run = DeselectReviewer(
+        assignment=review_assignment,
+        editor=review_assignment.editor,
+        request=fake_request,
+        send_reviewer_notification=False,
+        form_data={"notification_subject": "subject", "notification_body": "body"},
+    ).run()
+    reviewer = review_assignment.reviewer
+    assert run
+    assert review_assignment.is_complete
+    assert review_assignment.decision == "withdrawn"
+
+    assert Message.objects.count() == 1
+    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
+    assert Message.objects.filter(recipients__isnull=True).count() == 1
+    assert len(mail.outbox) == 0  # system messages are not sent by email
+    # Reminders are modified
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+    ).exists()
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+    ).exists()
+    if extra_assignment_state == "declined":
+        assert Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+    else:
+        assert not Reminder.objects.filter(
+            code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()
+        ).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("approved_assignment", [True, False])
+def test_deassign_reviewer_no_editor(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: WorkflowReviewAssignment,
+    editors: List[JCOMProfile],
+    approved_assignment: bool,
+):
+    """
+    If editor is not assigned to the article action is rejected.
+    """
+    if approved_assignment:
+        EvaluateReview(
+            assignment=review_assignment,
+            reviewer=review_assignment.reviewer,
+            editor=review_assignment.editor,
+            request=fake_request,
+            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            token="",
+        ).run()
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    mail.outbox = []
+    with pytest.raises(ValueError):
+        DeselectReviewer(
+            assignment=review_assignment,
+            editor=editors[0],
+            request=fake_request,
+            send_reviewer_notification=True,
+            form_data={"notification_subject": "subject", "notification_body": "body"},
+        ).run()
+    review_assignment.refresh_from_db()
+    assert not review_assignment.is_complete
+    # Reminders are not modified
+    if approved_assignment:
+        assert Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.pk,
+            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        ).exists()
+    else:
+        assert Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.pk,
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        ).exists()
+    assert not Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+
+
+@pytest.mark.django_db
+def test_assign_different_editor(
+    assigned_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest
+):
+    """Assigned editor can be changed by EO."""
+    normal_user.add_account_role("section-editor", assigned_article.journal)
+    current_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    form_data = {
+        "editor": normal_user.pk,
+        "state": assigned_article.articleworkflow.state,
+    }
+    editors = Account.objects.get_editors_with_keywords(assigned_article, current_editor)
+    assert current_editor not in editors
+    assert normal_user.janeway_account in editors
+    form = SupervisorAssignEditorForm(
+        data=form_data,
+        user=eo_user,
+        request=fake_request,
+        instance=assigned_article.articleworkflow,
+        selectable_editors=editors,
+    )
+    form.is_valid()
+    form.save()
+    assigned_article.refresh_from_db()
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article.articleworkflow)
+    assert assignment.editor == normal_user.janeway_account
+
+
+@pytest.mark.django_db
+def test_assign_new_editor(
+    article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest, review_settings
+):
+    """Editor can be assigned by EO to an article without prior assignees."""
+    normal_user.add_account_role("section-editor", article.journal)
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    article.articleworkflow.save()
+    form_data = {
+        "editor": normal_user.pk,
+        "state": article.articleworkflow.state,
+    }
+    editors = Account.objects.get_editors_with_keywords(article)
+    assert normal_user.janeway_account in editors
+    form = SupervisorAssignEditorForm(
+        data=form_data,
+        user=eo_user,
+        request=fake_request,
+        instance=article.articleworkflow,
+        selectable_editors=editors,
+    )
+    form.is_valid()
+    form.save()
+    article.refresh_from_db()
+    assignment = WjsEditorAssignment.objects.get_current(article.articleworkflow)
+    assert assignment.editor == normal_user.janeway_account

@@ -2,12 +2,14 @@
   <thead class="sticky-top bg-light">
   <tr>
     <th scope="col">Article ID</th>
-    <th scope="col">Title</th>
-    <th scope="col">Editor</th>
-    <th scope="col" title="assignment to referee date">Assignment Date</th>
     <th scope="col">Article Type</th>
-    <th scope="col" title="special Issue">SI</th>
+    <th scope="col">Authors</th>
+    <th scope="col">Title</th>
     <th scope="col">Status</th>
+    <th scope="col" title="special Issue">SI</th>
+    {% if table.table_configuration_options.show_author_due_date %}
+      <th scope="col">Upcoming due date</th>
+    {% endif %}
   </tr>
   </thead>
   <tbody>
@@ -23,5 +25,11 @@
     searching: false,
     ordering: true,
     paging: false,
+    order: [[ 0, "desc" ]],
+    {% if table.table_configuration_options.show_author_due_date %}
+    columns: [null, null, { orderable: false }, { orderable: false }, null, null, null]
+    {% else %}
+    columns: [null, null, { orderable: false }, { orderable: false }, null, null]
+    {% endif %}
   });
 </script>

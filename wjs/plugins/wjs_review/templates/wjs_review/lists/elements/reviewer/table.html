@@ -2,16 +2,17 @@
   <thead class="sticky-top bg-light">
   <tr>
     <th scope="col">Article ID</th>
-    <th scope="col">Corresponding Author</th>
+    <th scope="col" title="article type">Type</th>
     <th scope="col">Title</th>
-    <th scope="col">Article Type</th>
-    <th scope="col">SI</th>
+    <th scope="col">Editor</th>
     <th scope="col">Status</th>
+    <th scope="col">SI</th>
+    <th scope="col">Deadline</th>
   </tr>
   </thead>
   <tbody>
   {% for workflow in workflows %}
-    {% include "wjs_review/lists/elements/author/table_item.html" %}
+    {% include "wjs_review/lists/elements/reviewer/table_item.html" %}
   {% endfor %}
   </tbody>
 </table>
@@ -22,5 +23,6 @@
     searching: false,
     ordering: true,
     paging: false,
+    columns: [null, null, { orderable: false }, { orderable: false }, null, null, null]
   });
 </script>

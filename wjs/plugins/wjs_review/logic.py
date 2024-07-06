@@ -46,10 +46,12 @@ from .events.assignment import dispatch_assignment
 from .logic__production import (  # noqa F401
     AssignTypesetter,
     AuthorSendsCorrections,
+    ReadyForPublication,
     RequestProofs,
     UploadFile,
     VerifyProductionRequirements,
 )
+from .permissions import is_article_editor
 from .reminders.settings import (
     AuthorShouldSubmitMajorRevisionReminderManager,
     AuthorShouldSubmitMinorRevisionReminderManager,
@@ -92,6 +94,13 @@ states_when_article_is_considered_archived_for_review = [
     ArticleWorkflow.ReviewStates.PUBLISHED,
 ]
 
+states_when_article_is_considered_archived = [
+    ArticleWorkflow.ReviewStates.WITHDRAWN,
+    ArticleWorkflow.ReviewStates.REJECTED,
+    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ArticleWorkflow.ReviewStates.PUBLISHED,
+]
+
 # "In review" means articles that are
 # - not archived,
 # - not in states such as SUBMITTED, INCOMPLETE_SUBMISSION, PAPER_MIGHT_HAVE_ISSUES
@@ -110,12 +119,25 @@ states_when_article_is_considered_in_production = [
     ArticleWorkflow.ReviewStates.PROOFREADING,
     ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
 ]
-
+states_when_article_is_considered_typesetter_pending = [
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+]
+states_when_article_is_considered_typesetter_working_on = [
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+]
+states_when_article_is_considered_production_archived = [
+    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+    ArticleWorkflow.ReviewStates.PUBLISHED,
+]
 states_when_article_is_considered_missing_editor = [
     ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
     ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
     ArticleWorkflow.ReviewStates.SUBMITTED,
     ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+]
+states_when_article_is_considered_author_pending = [
+    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
 ]
 
 
@@ -240,7 +262,7 @@ class AssignToEditor:
         }
 
     def _log_operation(self, context: Dict[str, Any]):
-        if self.request.user and self.request.user.is_authenticated:
+        if self.request.user and self.request.user.is_authenticated and self.request.user != self.editor:
             actor = self.request.user
         else:
             actor = None
@@ -373,6 +395,9 @@ class AssignToReviewer:
         if assignment:
             if self.form_data.get("acceptance_due_date", None):
                 assignment.date_due = self.form_data.get("acceptance_due_date")
+            # refs https://gitlab.sissamedialab.it/wjs/specs/-/issues/584
+            if self.reviewer == self.editor:
+                assignment.date_accepted = timezone.now()
 
             # hackish to convert a model to a subclass
             # 1. change the underlying python class
@@ -449,21 +474,29 @@ class AssignToReviewer:
     def _log_operation(self, context: Dict[str, Any]):
         if self.reviewer == self.editor:
             # TODO: review me after specs#606
-            message_type = Message.MessageTypes.SYSTEM
+            # Do not send email when editor selects themselves as reviewer: specs#584
+            message_type = Message.MessageTypes.SILENT
+            message_subject_setting = "wjs_editor_i_will_review_message_subject"
+            message_body_setting = "wjs_editor_i_will_review_message_body"
+            message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
         else:
             message_type = Message.MessageTypes.VERBOSE
+            message_subject_setting = "subject_review_assignment"
+            message_body_setting = "review_assignment"
+            message_subject_setting_group_name = "email_subject"
+            message_body_setting_group_name = "email"
 
         review_assignment_subject = render_template_from_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_review_assignment",
+            setting_group_name=message_subject_setting_group_name,
+            setting_name=message_subject_setting,
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
             template_is_setting=True,
         )
         message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="review_assignment",
+            setting_group_name=message_body_setting_group_name,
+            setting_name=message_body_setting,
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -478,6 +511,7 @@ class AssignToReviewer:
             message_type=message_type,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=self.reviewer == self.editor,
         )
 
     def _create_reviewevaluate_reminders(self) -> None:
@@ -1626,10 +1660,7 @@ class HandleDecision:
         Mark unfinished review requests as withdrawn.
         """
         for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
-            assignment.decision = "withdrawn"
-            assignment.is_complete = True
-            assignment.date_complete = timezone.now()
-            assignment.save()
+            assignment.withdraw()
             self._log_review_withdraw(context=email_context, reviewer=assignment.reviewer)
 
     def _store_decision(self) -> EditorDecision:
@@ -2209,3 +2240,107 @@ class HandleEditorDeclinesAssignment:
                 self._log_director()
             past_assignment = self._delete_assignment()
             return past_assignment
+
+
+@dataclasses.dataclass
+class DeselectReviewer:
+    """
+    Remove reviewer assignment
+    """
+
+    assignment: WorkflowReviewAssignment
+    editor: Account
+    request: HttpRequest
+    send_reviewer_notification: bool
+    form_data: Dict[str, Any]
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "editor": self.editor,
+            "assignment": self.assignment,
+        }
+
+    def _log_reviewer(self):
+        """Logs a message to the reviewer containing information about the motivation of the deassignment."""
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=self.form_data.get("notification_subject"),
+            message_body=self.form_data.get("notification_body"),
+            actor=self.editor,
+            recipients=[self.assignment.reviewer],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+    def _log_system(self):
+        """Logs a system message notifying for deassignment."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_deassign_reviewer_system_subject",
+            journal=self.assignment.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="editor_deassign_reviewer_system_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.editor,
+            message_type=Message.MessageTypes.SYSTEM,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+    @staticmethod
+    def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
+        """Current editor must be article editor."""
+        return is_article_editor(assignment.article.articleworkflow, editor)
+
+    def check_conditions(self):
+        """Check if the conditions for the deassignment are met."""
+        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
+        return editor_conditions
+
+    def _withdraw_assignment(self) -> bool:
+        """
+        Withdraw the assignment
+        """
+        self._delete_reviewer_reminders()
+        self._create_editor_reminder()
+        if self.send_reviewer_notification:
+            self._log_reviewer()
+        self._log_system()
+        self.assignment.withdraw()
+        return True
+
+    def _delete_reviewer_reminders(self):
+        """Delete all reminders for the deassigned reviewer."""
+        ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).delete()
+        ReviewerShouldWriteReviewReminderManager(self.assignment).delete()
+
+    def _must_create_reminders(self) -> bool:
+        """Check if there are no more reviewers for the article."""
+        assignments = WorkflowReviewAssignment.objects.valid(
+            self.assignment.article, self.assignment.review_round
+        ).exclude(pk=self.assignment.pk)
+        return not assignments.exists()
+
+    def _create_editor_reminder(self):
+        """Create reminders for the editor, is there is no more  for the director."""
+        if self._must_create_reminders():
+            EditorShouldSelectReviewerReminderManager(article=self.assignment.article, editor=self.editor).create()
+
+    def run(self) -> bool:
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            success = self._withdraw_assignment()
+            return success

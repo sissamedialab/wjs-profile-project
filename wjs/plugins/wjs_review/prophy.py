@@ -218,7 +218,7 @@ class Prophy:
                         f"Prophy candidate {c['author_id']} for article {self.article.id}"
                         f"already exists with score {prophy_candidate.score} (vs. received {c['score']})"
                         f"and prophy manuscript id {prophy_candidate.prophy_manuscript_id}"
-                        f"(vs. received {c['manuscript_id']}). Please check!",
+                        f"(vs. received {data['manuscript_id']}). Please check!",
                     )
 
         return

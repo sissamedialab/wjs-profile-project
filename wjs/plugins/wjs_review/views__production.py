@@ -1,14 +1,17 @@
 """Views related to typesetting/production."""
+
 from core.models import File, SupplementaryFile
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
-from django.views.generic import FormView, ListView, UpdateView, View
+from django.urls import reverse, reverse_lazy
+from django.utils.translation import gettext_lazy as _
+from django.views.generic import FormView, ListView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
-from journal.models import Journal
+from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.states import BaseState
 
@@ -17,35 +20,56 @@ from wjs.jcom_profile.mixins import HtmxMixin
 
 from .communication_utils import get_eo_user
 from .forms__production import (
+    EOSendBackToTypesetterForm,
     FileForm,
+    SectionOrderForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
     WriteToTypMessageForm,
 )
+from .logic import (
+    states_when_article_is_considered_production_archived,
+    states_when_article_is_considered_typesetter_pending,
+    states_when_article_is_considered_typesetter_working_on,
+)
 from .logic__production import (
+    AssignTypesetter,
     AuthorSendsCorrections,
     HandleCreateSupplementaryFile,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
+    ReadyForPublication,
     RequestProofs,
     TogglePublishableFlag,
     TypesetterTestsGalleyGeneration,
 )
 from .models import ArticleWorkflow
-from .permissions import is_article_author, is_article_typesetter
+from .permissions import (
+    has_typesetter_role_by_article,
+    is_article_author,
+    is_article_typesetter,
+)
+from .views import ArticleWorkflowBaseMixin
 
 Account = get_user_model()
 
 
-class TypesetterPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """A view showing all paper that a typesetter could take in charge.
 
     AKA "codone" :)
     """
 
+    title = _("Pending papers")
+    role = _("Typesetter")
+    template_name = "wjs_review/lists/articleworkflow_list.html"
+    template_table = "wjs_review/lists/elements/typesetter/table.html"
+    related_views = {
+        "wjs_review_typesetter_pending": _("Pending"),
+        "wjs_review_typesetter_workingon": _("Working on"),
+        "wjs_review_typesetter_archived": _("Archived"),
+    }
     model = ArticleWorkflow
-    template_name = "wjs_review/typesetter_pending.html"
-    context_object_name = "workflows"
 
     def test_func(self):
         """Allow access to typesetters and EO."""
@@ -53,53 +77,57 @@ class TypesetterPending(LoginRequiredMixin, UserPassesTestMixin, ListView):
             self.request.user,
         )
 
-    def get_queryset(self):
+    def _get_typesetter_journals(self):
+        """Get journals for which the user is typesetter."""
+        typesetter_role_slug = "typesetter"
+        return Journal.objects.filter(
+            accountrole__role__slug=typesetter_role_slug,
+            accountrole__user__id=self.request.user.id,
+        ).values_list("id", flat=True)
+
+    def _filter_by_journal(self, base_qs):
+        """Get journals for which the user is typesetter."""
+        if base_permissions.has_eo_role(self.request.user):
+            return base_qs
+        else:
+            return base_qs.filter(article__journal__in=self._get_typesetter_journals())
+
+    def _apply_base_filters(self, qs):
         """List articles ready for typesetter for each journal that the user is typesetter of.
 
         List all articles ready for typesetter if the user is EO.
         """
-        base_qs = ArticleWorkflow.objects.filter(
-            state__in=[ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER],
+        base_qs = self._filter_by_journal(qs)
+        return base_qs.filter(
+            state__in=states_when_article_is_considered_typesetter_pending,
         ).order_by("-article__date_accepted")
 
-        if base_permissions.has_eo_role(self.request.user):
-            return base_qs
-        else:
-            typesetter_role_slug = "typesetter"
-            journals_for_which_user_is_typesetter = Journal.objects.filter(
-                accountrole__role__slug=typesetter_role_slug,
-                accountrole__user__id=self.request.user.id,
-            ).values_list("id", flat=True)
-            return base_qs.filter(article__journal__in=journals_for_which_user_is_typesetter)
 
-
-class TypesetterWorkingOn(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterWorkingOn(TypesetterPending):
     """A view showing all papers that a certain typesetter is working on."""
 
-    model = ArticleWorkflow
-    template_name = "wjs_review/typesetter_pending.html"
-    context_object_name = "workflows"
+    title = _("Papers Working on")
 
-    def test_func(self):
-        """Allow access to typesetters and EO."""
-        return base_permissions.has_typesetter_role_on_any_journal(self.request.user)
-
-    def get_queryset(self):
+    def _apply_base_filters(self, qs):
         """List articles assigned to the user and still open."""
-        qs = ArticleWorkflow.objects.filter(
-            state__in=[
-                ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
-                ArticleWorkflow.ReviewStates.PROOFREADING,
-            ],
+        return qs.filter(
+            state__in=states_when_article_is_considered_typesetter_working_on,
             article__typesettinground__isnull=False,
             article__typesettinground__typesettingassignment__typesetter__pk=self.request.user.pk,
         ).order_by("-article__date_accepted")
 
-        return qs
 
-
-class TypesetterArchived(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterArchived(TypesetterPending):
     """A view showing all past papers of a typesetter."""
+
+    title = _("Typesetter Papers")
+
+    def _apply_base_filters(self, qs):
+        """List articles assigned to the user and still open."""
+        base_qs = self._filter_by_journal(qs)
+        return base_qs.filter(
+            state__in=states_when_article_is_considered_production_archived,
+        ).order_by("-article__date_accepted")
 
 
 class TypesetterUploadFiles(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
@@ -110,7 +138,8 @@ class TypesetterUploadFiles(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
     template_name = "wjs_review/typesetter_upload_files.html"
 
     def test_func(self):
-        self.article = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg]).round.article.articleworkflow
+        self.object = self.get_object()
+        self.article = self.object.round.article.articleworkflow
         return is_article_typesetter(self.article, self.request.user)
 
     def get_success_url(self):
@@ -161,42 +190,41 @@ class DownloadRevisionFiles(UserPassesTestMixin, LoginRequiredMixin, View):
             return Http404
 
 
-class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
-    """View to allow the Typesetter to mark an article as ready for proofreading."""
+class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
+    """Typesetter sends the paper to the author for proofreading."""
 
     model = TypesettingAssignment
-    template_name = "wjs_review/elements/typesetter_marks_ready_to_proofread.html"
 
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article and object for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg])
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.round.article
 
     def test_func(self):
         """User must be the article's typesetter"""
         return is_article_typesetter(self.article.articleworkflow, self.request.user)
 
-    def get_logic_instance(self):
-        """Instantiate :py:class:`RequestProofs` class."""
-        service = RequestProofs(
-            workflow=self.article.articleworkflow,
-            request=self.request,
-            assignment=self.object,
-            typesetter=self.request.user,
-        )
-        return service
-
+    # FIXME: Change to POST method
     def get(self, request, *args, **kwargs):
         """Make the article's state as Ready for Typesetting."""
         try:
-            service = self.get_logic_instance()
-            service.run()
+            RequestProofs(
+                workflow=self.article.articleworkflow,
+                request=self.request,
+                assignment=self.object,
+                typesetter=self.request.user,
+            ).run()
         except ValidationError as e:
-            context = {"error": str(e)}
+            messages.error(request=self.request, message=e)
         else:
-            context = {"article": self.article}
-        return render(request, self.template_name, context)
+            messages.success(request=self.request, message="The paper has been sent to the author for proofs.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.round.article.articleworkflow.pk},
+            ),
+        )
 
 
 class CreateSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, FormView):
@@ -354,8 +382,6 @@ class WriteToAuWithModeration(UserPassesTestMixin, LoginRequiredMixin, FormView)
         return is_article_typesetter(
             self.workflow,
             self.request.user,
-        ) or base_permissions.has_eo_role(
-            self.request.user,
         )
 
     def get_recipient(self):
@@ -438,41 +464,46 @@ class ListAnnotatedFilesView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin,
         return self.render_to_response(self.get_context_data(form=form, pk=self.object.pk))
 
 
-class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
     """Author sends corrections to Typesetter."""
 
     model = TypesettingAssignment
-    template_name = "wjs_review/author_sends_to_typesetter.html"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
-        self.object = self.model.objects.get(pk=self.kwargs[self.pk_url_kwarg])
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.round.article
 
     def test_func(self):
-        """Author can upload files."""
+        """Only author can sent the paper back to the typ."""
         return is_article_author(self.article.articleworkflow, self.request.user)
-
-    def get_logic_instance(self) -> AuthorSendsCorrections:
-        """Instantiate :py:class:`AuthorSendsCorrections` class."""
-        return AuthorSendsCorrections(
-            user=self.request.user,
-            old_assignment=self.object,
-            request=self.request,
-        )
 
     def get(self, request, *args, **kwargs):
         try:
-            service = self.get_logic_instance()
-            service.run()
+            AuthorSendsCorrections(
+                user=self.request.user,
+                old_assignment=self.object,
+                request=self.request,
+            ).run()
         except ValueError as e:
-            context = {"error": str(e)}
-        else:
-            context = {"article": self.article}
-        return render(request, self.template_name, context)
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_list_annotated_files",
+                    kwargs={"pk": self.object.round.galleyproofing_set.first().pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Corrections have been dispatched to the typesetter.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.round.article.articleworkflow.pk},
+            ),
+        )
 
 
-class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, View):
+class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, TemplateView):
     """Typesetter toggles `production_flag_no_checks_needed` flag."""
 
     model = ArticleWorkflow
@@ -497,9 +528,58 @@ class TogglePublishableFlagView(HtmxMixin, UserPassesTestMixin, LoginRequiredMix
         try:
             self.object = TogglePublishableFlag(workflow=self.object).run()
         except ValueError as e:
-            kwargs["error"] = str(e)
+            kwargs["message"] = str(e)
         context = self.get_context_data(**kwargs)
         return render(request, self.template_name, context)
+
+
+class ReadyForPublicationView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
+    """A view to move a paper to ready-for-publication.
+
+    This passage can be triggered either
+    - by the typesetter (most often)
+    - by the author
+    """
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Only typesetter and author can move the paper to ready-for-publication."""
+        return is_article_author(
+            self.object,
+            self.request.user,
+        ) or is_article_typesetter(
+            self.object,
+            self.request.user,
+        )
+
+    # FIXME: Change to POST method
+    def get(self, request, *args, **kwargs):
+        try:
+            self.object = ReadyForPublication(
+                workflow=self.object,
+                user=self.request.user,
+            ).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_article_details",
+                    kwargs={"pk": self.object.pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Paper marked ready for publication.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.pk},
+            ),
+        )
 
 
 def execute_galley_generation(
@@ -539,3 +619,102 @@ class GalleyGenerationView(UserPassesTestMixin, LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         async_task(execute_galley_generation, self.kwargs["pk"])
         return render(request, self.template_name, {"article": self.article})
+
+
+class EOSendBackToTypesetterView(UserPassesTestMixin, LoginRequiredMixin, FormView):
+    """View to allow the EO to send a paper back to typesetter."""
+
+    form_class = EOSendBackToTypesetterForm
+    template_name = "wjs_review/write_message_to_typ.html"
+    success_url = reverse_lazy("wjs_review_eo_pending")
+
+    def setup(self, request, *args, **kwargs):
+        """Fetch the Article instance for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.articleworkflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
+
+    def test_func(self):
+        """Typesetter can upload files."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["articleworkflow"] = self.articleworkflow
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.articleworkflow
+        return context
+
+    def form_valid(self, form):
+        try:
+            # NB: we are not using a ModelForm, so form.save() is not "special" and we must call it explicilty
+            form.save()
+            return super().form_valid(form)
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            return super().form_invalid(form)
+
+
+class TypesetterTakeInCharge(UserPassesTestMixin, LoginRequiredMixin, View):
+    """View to allow the typsetter to take in charge a paper."""
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
+
+    def test_func(self):
+        return has_typesetter_role_by_article(self.object, self.request.user)
+
+    # FIXME: Change to POST method
+    def get(self, request, *args, **kwargs):
+        """Take the article in charge."""
+        try:
+            AssignTypesetter(
+                article=self.object.article,
+                typesetter=self.request.user,
+                request=self.request,
+            ).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_review_typesetter_pending",
+                ),
+            )
+        else:
+            messages.success(request=self.request, message="Paper taken in charge.")
+        return HttpResponseRedirect(
+            reverse(
+                "wjs_article_details",
+                kwargs={"pk": self.object.pk},
+            ),
+        )
+
+
+class UpdateSectionOrder(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Issue
+    form_class = SectionOrderForm
+    template_name = "wjs_review/lists/elements/issue/issue_list.html"
+
+    def test_func(self):
+        return base_permissions.has_eo_role(self.request.user) or base_permissions.has_director_role(
+            self.request.journal, self.request.user
+        )
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["journal"] = self.request.journal
+        return kwargs
+
+    def form_valid(self, form: SectionOrderForm) -> HttpResponse:
+        """Move sections."""
+        form.save()
+        return render(self.request, self.template_name, {"issue": self.object, "form": form})
+
+    def form_invalid(self, form):
+        return render(self.request, self.template_name, {"issue": self.object, "form": form})

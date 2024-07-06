@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from zipfile import ZipFile
 
 import lxml.html
@@ -19,7 +19,9 @@ from core.models import File as JanewayFile
 from core.models import Galley, SupplementaryFile
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.files import File
+from django.core.mail import send_mail
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -35,6 +37,7 @@ from plugins.typesetting.models import (
     TypesettingRound,
 )
 from production.logic import save_galley, save_galley_image
+from submission import models as submission_models
 from submission.models import STAGE_PROOFING, STAGE_TYPESETTING, Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -44,14 +47,20 @@ from wjs.jcom_profile.import_utils import (
     evince_language_from_filename_and_article,
     process_body,
 )
-from wjs.jcom_profile.utils import render_template_from_setting
+from wjs.jcom_profile.permissions import has_eo_role
+from wjs.jcom_profile.utils import render_template, render_template_from_setting
 
 from . import communication_utils
-from .models import ArticleWorkflow, Message
+from .models import ArticleWorkflow, LatexPreamble, Message
 from .permissions import (
     has_typesetter_role_by_article,
     is_article_author,
     is_article_typesetter,
+)
+from .utils import (
+    get_tex_source_file_from_archive,
+    guess_typesetted_texfile_name,
+    tex_file_has_queries,
 )
 
 logger = get_logger(__name__)
@@ -386,7 +395,7 @@ class PublishArticle:
 
 @dataclasses.dataclass
 class UploadFile:
-    """Allow the typesetter to upload typesetting files."""
+    """Allow the typesetter to upload typesetted files."""
 
     typesetter: Account
     request: HttpRequest
@@ -407,6 +416,17 @@ class UploadFile:
     def _update_typesetting_assignment(self, uploaded_file):
         """Create the relation in files_to_typeset field of TypesettingAssignment"""
         self.assignment.files_to_typeset.add(uploaded_file)
+        self.assignment.round.article.articleworkflow.production_flag_galleys_ok = (
+            ArticleWorkflow.GalleysStatus.NOT_TESTED
+        )
+        self.assignment.round.article.articleworkflow.save()
+
+    def _look_for_queries_in_archive(self):
+        """Check if there are any queries in the archive's source tex file."""
+        filename = guess_typesetted_texfile_name(self.assignment.round.article)
+        tex_file = get_tex_source_file_from_archive(self.file_to_upload, filename)
+        self.assignment.round.article.articleworkflow.production_flag_no_queries = not tex_file_has_queries(tex_file)
+        self.assignment.round.article.articleworkflow.save()
 
     def run(self):
         """Main method to execute the file upload logic."""
@@ -420,6 +440,7 @@ class UploadFile:
 
             uploaded_file = save_file_to_article(self.file_to_upload, self.assignment.round.article, self.typesetter)
             self._update_typesetting_assignment(uploaded_file)
+            self._look_for_queries_in_archive()
         return self.assignment.round.article
 
 
@@ -442,6 +463,23 @@ class HandleDownloadRevisionFiles:
         all_files = manuscript_files + data_figure_files + supplementary_files + source_files
         return all_files
 
+    def _generate_automatic_preamble(self):
+        try:
+            automatic_preamble_text = LatexPreamble.objects.get(journal=self.workflow.article.journal).preamble
+        except LatexPreamble.DoesNotExist:
+            logger.error(f"Missing preamble template for {self.workflow.article.journal.code}.")
+            automatic_preamble_text = (
+                f"Missing preamble template for {self.workflow.article.journal.code}\nPlease contact assistance.\n"
+            )
+        context = {
+            "journal": self.workflow.article.journal,
+            "article": self.workflow.article,
+        }
+        rendered_preamble = render_template(automatic_preamble_text, context)
+        # TODO: refactor with utils.guess_tex_filename()
+        preamble_name = f"{self.workflow.article.journal.code.lower()}-{self.workflow.article.id}-preamble.tex"
+        return rendered_preamble, preamble_name
+
     def _create_archive(self, files):
         """Create a ZIP archive from the given files."""
         in_memory = BytesIO()
@@ -449,6 +487,8 @@ class HandleDownloadRevisionFiles:
             for file in files:
                 file_path = file.self_article_path()
                 archive.write(file_path, arcname=file.original_filename)
+            automatic_preamble, preamble_name = self._generate_automatic_preamble()
+            archive.writestr(preamble_name, automatic_preamble)
 
         in_memory.seek(0)
         return in_memory
@@ -620,6 +660,9 @@ class AuthorSendsCorrections:
     def _update_state(self):
         """Run FSM transition."""
         self.article.articleworkflow.author_sends_corrections()
+        # we assume that, if the author sends back the paper to the typesetter (instead of sending it directly to
+        # ready-for-publication), then some change is necessary and it is ok for us to reset the flag
+        self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
         self.article.articleworkflow.save()
         self.article.stage = STAGE_TYPESETTING
         self.article.save()
@@ -680,6 +723,7 @@ class TogglePublishableFlag:
     def _check_conditions(self):
         return self.workflow.state in [
             ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+            ArticleWorkflow.ReviewStates.PROOFREADING,
         ]
 
     def _toggle_publishable_flag(self):
@@ -696,11 +740,82 @@ class TogglePublishableFlag:
 
 @dataclasses.dataclass
 class AttachGalleys:
-    path: Path
+    """Attach some galley files to an Article.
+
+    Expect to find one HTML and one EPUB in `path`.
+
+    For HTML, scrape the source for <img> tags and look for the
+    src files (as in <img src=...>) inside `path`.
+    """
+
+    archive_with_galleys: bytes  # usually a zip/tar.gz file containing the raw galley files processed by jcomassistant
     article: Article
     request: HttpRequest
 
-    # TODO: consider refactoring with import_from_drupal
+    def unpack_targz_from_jcomassistant(self, file: bytes):
+        """Unpack an archive received from jcomassistant.
+
+        Accept the archive in the form of a bytes string.
+
+        If a workdir is provided, unpack it in a new folder there,
+        otherwise create and use a temporary folder.
+        The caller should clean up if necessary.
+        """
+        unpack_dir = tempfile.mkdtemp()
+        # Use BytesIO to treat bytes data as a file
+        with BytesIO(file) as file_obj:
+            # Open the tar.gz archive
+            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+                # Extract all contents into the unpack directory
+                tar.extractall(path=unpack_dir)
+        unpack_dir = Path(unpack_dir)
+
+        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
+        return unpack_dir
+
+    def reemit_info_and_up(self, unpack_dir: Path) -> None:
+        """Emit as log messages lines read from the given log file.
+
+        Expect the logfile to contain log-formatted lines suchs as:
+        DEBUG From: ...
+
+        Re-emit only info, wraning, error and critical.
+
+        Also return if any error or critical was found.
+        """
+        has_error_or_critical = False
+        # log files are called something like
+        # - galley-xxx.epub_log
+        # - galley-xxx.html_log
+        # - galley-xxx.srvc_log
+        # We are going to use only the service log (*.srvc_log)
+        srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
+        if len(srvc_log_files) != 1:
+            logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
+        srvc_log_file = srvc_log_files[0]
+        with open(srvc_log_file) as log_file:
+            for line in log_file:
+                if line.startswith("INFO"):
+                    logger.info(f"JA {line[11:-1]}")
+                elif line.startswith("WARNING"):
+                    logger.warning(f"JA {line[14:-1]}")
+                elif line.startswith("ERROR"):
+                    logger.error(f"JA {line[12:-1]}")
+                    has_error_or_critical = True
+                elif line.startswith("CRITICAL"):
+                    logger.critical(f"JA {line[15:-1]}")
+                    has_error_or_critical = True
+                elif line.startswith("DEBUG"):
+                    logger.debug(f"JA {line[12:-1]}")
+        return not has_error_or_critical
+
+    def _check_conditions(self):
+        """
+        Checks for errors in the log files and if there's at least one html and epub file.
+        """
+        # NB: self.path is set in the run() method after unpacking the processed files received from jcomassistant
+        return self.reemit_info_and_up(self.path) and any(self.path.glob("*.html")) and any(self.path.glob("*.epub"))
+
     def download_and_store_article_file(self, image_source_url: Path):
         """Downaload a media file and link it to the article."""
         if not image_source_url.exists():
@@ -796,10 +911,33 @@ class AttachGalleys:
         pass
 
     def run(self):
-        galleys_created = []
-        galleys_created.append(self.save_epub())
-        galleys_created.append(self.save_html())
-        return galleys_created
+        try:
+            self.path = self.unpack_targz_from_jcomassistant(self.archive_with_galleys)
+            if not self._check_conditions():
+                self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
+                # We save the given archive even if it has errors.
+                # We save it in the filesystem among the other article files and return it as a Galley object, so that
+                # our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
+                jcomassistant_response_content = File(
+                    BytesIO(self.archive_with_galleys), name="jcomassistant_response.tar.gz"
+                )
+                galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
+
+            else:
+                self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+                galleys_created = [self.save_epub(), self.save_html()]
+            self.article.articleworkflow.save()
+            return galleys_created
+        except Exception as e:
+            logger.error(e)
+            send_mail(
+                f"{self.article} - galley unpacking and attachment failed",
+                f"Please check JCOMAssistant response content.\n{e}",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            raise
 
 
 @dataclasses.dataclass
@@ -832,17 +970,10 @@ class TypesetterTestsGalleyGeneration:
 
     def _jcom_assistant_client(self):
         assistant = JcomAssistantClient(
-            source_archive=self.assignment.files_to_typeset.first().self_article_path(),
+            archive_with_files_to_process=self.assignment.files_to_typeset.first(), user=self.assignment.typesetter
         )
-        galleys_directory = assistant.ask_jcomassistant_to_process()
-        return galleys_directory
-
-    def _attach_galleys_service(self):
-        return AttachGalleys(
-            path=self._jcom_assistant_client(),
-            article=self.assignment.round.article,
-            request=self.request,
-        ).run()
+        response = assistant.ask_jcomassistant_to_process()
+        return response
 
     def _get_message_context(self):
         """Get the context for the message template."""
@@ -880,12 +1011,64 @@ class TypesetterTestsGalleyGeneration:
         )
         return message
 
+    def _generate_and_attach_galleys(self):
+        """Generate galleys.
+
+        - send source files to jcomassistant
+        - attach generated galleys to TA (and article)
+        - record success/failure of the generation
+        """
+        response = self._jcom_assistant_client()
+        galleys_created = AttachGalleys(
+            archive_with_galleys=response.content,
+            article=self.assignment.round.article,
+            request=self.request,
+        ).run()
+        self.assignment.galleys_created.set(galleys_created)
+        # This flag is set by AttachGalleys that we have just run
+        if (
+            self.assignment.round.article.articleworkflow.production_flag_galleys_ok
+            == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+        ):
+            return True
+        else:
+            send_mail(
+                f"{self.assignment.round.article} - galley unpacking and attachment failed",
+                f"Please zip file in Assigment {self.assignment} galleys_created.",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            return False
+
+    def _check_queries_in_tex_src(self):
+        """Fixme.
+
+        This is a stub. ATM, blindly record that there are not queries.
+
+        TODO: fixme in specs#718
+        """
+        self.assignment.round.article.articleworkflow.production_flag_no_queries = True
+        self.assignment.round.article.articleworkflow.save()
+        logger.warning(f"{self.assignment.round.article.articleworkflow.production_flag_no_queries=}")
+
     def run(self) -> None:
         if not self._check_conditions():
-            raise ValueError("Cannot generate Galleys. Please contact the editorial office.")
+            # This logic is generally called asynchronously, so we don't
+            # raise an exception here, but directly notify the typesetter
+            logger.error(f"Galley generation failed to start for article {self.assignment.round.article.id}")
+            send_mail(
+                f"{self.assignment.round.article} - galley generation failed to start",
+                f"Please check\n{self.assignment.round.article.url}\n",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            return
         self._clean_galleys()
-        galleys_created = self._attach_galleys_service()
-        self.assignment.galleys_created.set(galleys_created)
+        if not self._generate_and_attach_galleys():
+            return
+        self._check_queries_in_tex_src()
         context = self._get_message_context()
         self._log_operation(context)
 
@@ -894,8 +1077,8 @@ class TypesetterTestsGalleyGeneration:
 class JcomAssistantClient:
     """Client for JCOM Assistant."""
 
-    source_archive: Union[str, Path]
-    workdir: Union[str, Path] = None
+    archive_with_files_to_process: File  # Usually a zip/tar.gz file object containing the TeX source files to process
+    user: Account
 
     def ask_jcomassistant_to_process(self) -> Path:
         """Send the given zip file to jcomassistant for processing.
@@ -904,66 +1087,127 @@ class JcomAssistantClient:
         """
         url = settings.JCOMASSISTANT_URL
         logger.debug(f"Contacting jcomassistant service at {url}...")
-        files = {"file": open(self.source_archive, "rb")}
+        files = {"file": open(self.archive_with_files_to_process.self_article_path(), "rb")}
 
         response = requests.post(url=url, files=files)
         if response.status_code != 200:
-            logger.error(
-                "Unexpected status code {response.status_code} processing {source_archive}. Trying to proceed..."
+            logger.error("Unexpected status code {response.status_code}. Trying to proceed...")
+            send_mail(
+                f"{self.archive_with_files_to_process.article} - galley generation service failed",
+                f"Please check JCOMAssistant service status.\n{response.content}",
+                None,
+                [self.user.email],
+                fail_silently=False,
             )
-        return self.unpack_targz_from_jcomassistant(response.content)
+            raise ValueError(f"Unexpected status code {response.status_code}.")
+        return response
 
-    def unpack_targz_from_jcomassistant(
-        self,
-        galleys_archive: bytes,
-    ):
-        """Unpack an archive received from jcomassistant.
 
-        Accept the archive in the form of a bytes string.
+@dataclasses.dataclass
+class ReadyForPublication:
+    """Bring a paper in RFP state."""
 
-        If a workdir is provided, unpack it in a new folder there,
-        otherwise create and use a temporary folder.
-        The caller should clean up if necessary.
+    workflow: ArticleWorkflow
+    user: Account
+
+    def _check_conditions(self) -> bool:
+        """Check that the FSM allows the transaction.
+
+        Take the operator into consideration
         """
-        unpack_dir = tempfile.mkdtemp(dir=self.workdir)
-        # Use BytesIO to treat bytes data as a file
-        with BytesIO(galleys_archive) as file_obj:
-            # Open the tar.gz archive
-            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-                # Extract all contents into the unpack directory
-                tar.extractall(path=unpack_dir)
-        unpack_dir = Path(unpack_dir)
-        self.reemit_info_and_up(unpack_dir=unpack_dir)
+        # TODO: might want to verify some of the checks of specs#791 here
+        if is_article_author(self.workflow, self.user):
+            return can_proceed(self.workflow.author_deems_paper_ready_for_publication)
+        elif is_article_typesetter(self.workflow, self.user):
+            return can_proceed(self.workflow.typesetter_deems_paper_ready_for_publication)
+        else:
+            raise ValueError(f"Unexpected user attempting the transaction ({self.user=}).")
 
-        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
-        return unpack_dir
+    def _update_state(self):
+        """Run FSM transition."""
+        if is_article_author(self.workflow, self.user):
+            self.workflow.author_deems_paper_ready_for_publication()
+        elif is_article_typesetter(self.workflow, self.user):
+            self.workflow.typesetter_deems_paper_ready_for_publication()
+        else:
+            # should never be able to get here because _check_conditions is run berfore
+            raise ValueError(f"Unexpected user attempting the transaction ({self.user=}). Possible programming error!")
+        self.workflow.save()
 
-    def reemit_info_and_up(self, unpack_dir: Path) -> None:
-        """Emit as log messages lines read from the given log file.
+        self.workflow.article.stage = submission_models.STAGE_READY_FOR_PUBLICATION
+        self.workflow.article.save()
 
-        Expect the logfile to contain log-formatted lines suchs as:
-        DEBUG From: ...
+    def run(self):
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("Paper not yet ready for publication. For assitance, contact the EO.")
+            self._update_state()
+        return self.workflow
 
-        Re-emit only info, wraning, error and critical.
-        """
-        # log files are called something like
-        # - galley-xxx.epub_log
-        # - galley-xxx.html_log
-        # - galley-xxx.srvc_log
-        # We are going to use only the service log (*.srvc_log)
-        srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
-        if len(srvc_log_files) != 1:
-            logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
-        srvc_log_file = srvc_log_files[0]
-        with open(srvc_log_file) as log_file:
-            for line in log_file:
-                if line.startswith("INFO"):
-                    logger.info(f"JA {line[11:-1]}")
-                elif line.startswith("WARNING"):
-                    logger.warning(f"JA {line[14:-1]}")
-                elif line.startswith("ERROR"):
-                    logger.error(f"JA {line[12:-1]}")
-                elif line.startswith("CRITICAL"):
-                    logger.critical(f"JA {line[15:-1]}")
-                elif line.startswith("DEBUG"):
-                    logger.debug(f"JA {line[12:-1]}")
+
+@dataclasses.dataclass
+class HandleEOSendBackToTypesetter:
+    articleworkflow: ArticleWorkflow
+    user: Account
+    body: str
+    subject: str
+
+    def _check_conditions(self) -> bool:
+        is_user_eo = has_eo_role(self.user)
+        check_state = self.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+        return is_user_eo and check_state
+
+    def _update_state(self):
+        """Run FSM transition."""
+        self.articleworkflow.admin_sends_back_to_typ()
+        self.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
+        self.articleworkflow.save()
+        self.articleworkflow.article.stage = STAGE_TYPESETTING
+        self.articleworkflow.article.save()
+
+    def _create_typesetting_round(self):
+        """Create a new typesetting round."""
+        self.old_assignment = (
+            TypesettingAssignment.objects.filter(
+                round__article=self.articleworkflow.article,
+            )
+            .order_by("round__round_number")
+            .last()
+        )
+
+        typesetting_round, _ = TypesettingRound.objects.get_or_create(
+            article=self.articleworkflow.article,
+            round_number=self.old_assignment.round.round_number + 1,
+        )
+        return typesetting_round
+
+    def _create_typesetting_assignment(self):
+        """Create a new typesetting assignment."""
+        TypesettingAssignment.objects.create(
+            round=self._create_typesetting_round(),
+            typesetter=self.old_assignment.typesetter,
+            accepted=timezone.now(),
+            due=timezone.now() + timezone.timedelta(days=settings.TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS),
+        )
+
+    def _create_message(self):
+        """Create and send the message for the typesetter."""
+        message = Message.objects.create(
+            actor=self.user,
+            message_type=Message.MessageTypes.VERBOSE,
+            content_type=ContentType.objects.get_for_model(self.articleworkflow.article),
+            object_id=self.articleworkflow.article.pk,
+            subject=self.subject,
+            body=self.body,
+        )
+        message.recipients.add(self.old_assignment.typesetter)
+        message.emit_notification()
+
+    def run(self):
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("Invalid state transition")
+            self._update_state()
+            self._create_typesetting_assignment()
+            self._create_message()
+            return self.articleworkflow

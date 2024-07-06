@@ -1,38 +1,22 @@
 {% load django_bootstrap5 press_url static %}
+{% url 'core_edit_profile' as core_edit_profile %}
 <header class="header-main bg-header pt-2 mb-4">
   <div class="middle-header py-1">
     <div class="container">
       <div class="row">
         <div class="col-s-12">
           <div class="d-flex justify-content-between py-2">
-            {% if request.journal.header_image %}
-              {% svg_or_image request.journal.header_image css_class="header-override-image" %}
-            {% else %}
-              <img src="{% static "common/img/sample/janeway.png" %}" alt="{% trans "Logo Janeway" %}">
-            {% endif %}
-            <div class="d-flex flex-column justify-content-around">
-              <div class="d-flex justify-content-between">
-                <ul class="pre-header__social-links nav">
-                  {% if journal_settings.general.twitter_handle %}
-                    <li class="nav-item"><a class="nav-link pt-0" href="{{ journal_settings.general.twitter_handle }}" target="_blank" title="Twitter"><i class="bi bi-twitter-x"></i></a></li>
-                  {% endif %}
-                  {% if journal_settings.general.facebook_handle %}
-                    <li class="nav-item"><a class="nav-link pt-0" href="{{ journal_settings.general.facebook_handle }}" target="_blank" title="Facebook"><i class="bi bi-facebook"></i></a></li>
-                  {% endif %}
-                  {% if journal_settings.general.facebook_handle %}
-                    <li class="nav-item"><a class="nav-link pt-0" href="{% journal_url 'rss_articles' %}" target="_blank" title="RSS"><i class="bi bi-rss"></i></a></li>
-                  {% endif %}
-                </ul>
-              </div>
-              <nav class="d-flex align-items-end">
-                <ul class="nav">
-                  {% block top_menu %}
-                  {% endblock top_menu %}
-                  <li class="nav-item">
-                    {% include "wjs_review/base/elements/user_menu.html" %}
-                  </li>
-                </ul>
-              </nav>
+            <a href="{{ request.journal.site_url }}" class="d-flex align-items-center">
+              {% if request.journal.header_image %}
+                {% svg_or_image request.journal.header_image css_class="header-override-image" %}
+              {% else %}
+                <img src="{% static "common/img/sample/janeway.png" %}" alt="{% trans "Logo Janeway" %}">
+              {% endif %}
+            </a>
+            <div class="d-flex flex-column">
+                {% if core_edit_profile %}
+                <a class="btn btn-link d-flex align-items-center text-decoration-none" href="{{ core_edit_profile }}">{{ request.user.get_full_name }} <span class="fs-3 ms-3"><i class="bi bi-person-circle"></i></span></a>
+                {% endif %}
             </div>
           </div>
         </div>
@@ -55,6 +39,15 @@
                 {% endif %}
               </ul>
             </nav>
+              <nav>
+                <ul class="nav">
+                  {% block top_menu %}
+                  {% endblock top_menu %}
+                  <li class="nav-item">
+                    {% include "wjs_review/base/elements/user_menu.html" %}
+                  </li>
+                </ul>
+              </nav>
           </div>
         </div>
       </div>

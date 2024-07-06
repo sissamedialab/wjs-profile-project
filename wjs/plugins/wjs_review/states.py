@@ -16,7 +16,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import communication_utils, conditions, permissions
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, can_be_set_rfp_wrapper
 
 logger = get_logger(__name__)
 
@@ -42,6 +42,8 @@ def get_url_with_last_editor_revision_request_pk(
         )
         .last()
     )
+    if not latest_revision_request:
+        return "#"
     latest_editor_revision_request = latest_revision_request.editorrevisionrequest
     url = reverse(action.view_name, kwargs={"pk": latest_editor_revision_request.id})
     if action.querystring_params is not None:
@@ -81,6 +83,44 @@ def get_url_with_galleyproofing_pk(action: "ArticleAction", workflow: "ArticleWo
         url += "?"
         url = f"{url}?{urllib.parse.urlencode(action.querystring_params)}"
     return url
+
+
+def get_edit_permissions_url_review_assignment(
+    action: "ReviewAssignmentAction",
+    assignment: ReviewAssignment,
+    user: Account,
+) -> str:
+    """Return the URL of the view that is the entry point to manage the action."""
+    url = reverse(
+        action.view_name,
+        kwargs={
+            "object_id": assignment.pk,
+            "object_type": "reviewassignment",
+            "pk": assignment.article.articleworkflow.pk,
+        },
+    )
+    if action.querystring_params is not None:
+        url += "?"
+        url += urllib.parse.urlencode(action.querystring_params)
+    return url
+
+
+def get_do_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    revision_request = conditions.pending_revision_request(workflow, user)
+    if revision_request:
+        return reverse(
+            "do_revisions",
+            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+        )
+
+
+def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    revision_request = conditions.pending_edit_metadata_request(workflow, user)
+    if revision_request:
+        return reverse(
+            "do_revisions",
+            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+        )
 
 
 def get_unpulishable_css_class(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
@@ -133,13 +173,13 @@ class ArticleAction:
     custom_get_url: Optional[Callable] = None
     custom_get_css_class: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
+    condition: Optional[Callable] = None
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
 
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
-
         return {
             "name": self.name,
             "label": self.custom_get_label(self, workflow, user) if self.custom_get_label else self.label,
@@ -161,7 +201,21 @@ class ArticleAction:
             url += urllib.parse.urlencode(self.querystring_params)
         return url
 
-    def has_permission(self, workflow: "ArticleWorkflow", user: Account) -> bool:
+    def is_available(self, workflow: "ArticleWorkflow", user: Account) -> bool:
+        """Return true if permission and condition are both met."""
+        return self._has_permission(workflow, user) and self._condition_is_met(workflow, user)
+
+    def _condition_is_met(self, workflow: "ArticleWorkflow", user: Account) -> bool:
+        """Return true if the action has condition and it evauates to true.
+
+        If there is no condition, the action is considered available.
+        """
+        if self.condition is None:
+            return True
+        else:
+            return self.condition(workflow=workflow, user=user)
+
+    def _has_permission(self, workflow: "ArticleWorkflow", user: Account) -> bool:
         """Return true if the user has permission to run this action, given the current status of the article."""
         return self.permission(workflow, user)
 
@@ -177,22 +231,32 @@ class ReviewAssignmentAction:
     tag: str = None
     order: int = 0
     tooltip: str = None
+    querystring_params: dict = None
+    custom_get_url: Optional[Callable] = None
 
     def as_dict(self, assignment: "ReviewAssignment", user: Account):
         """Return parameters needed to build the action button."""
+        if self.custom_get_url:
+            url = self.custom_get_url(self, assignment, user)
+        else:
+            url = self.get_url(assignment, user)
         return {
             "assignment": assignment,
             "name": self.name,
             "label": self.label,
             "tooltip": self.tooltip,
-            "url": self.get_url(assignment, user),
+            "url": url,
         }
 
     def get_url(self, assignment: "ReviewAssignment", user: Account) -> str:
         """Return the URL of the view that is the entry point to manage the action."""
         if self.view_name == "WRITEME!":
             return "#"
-        return reverse(self.view_name, kwargs={"pk": assignment.id})
+        url = reverse(self.view_name, kwargs={"pk": assignment.id})
+        if self.querystring_params is not None:
+            url += "?"
+            url += urllib.parse.urlencode(self.querystring_params)
+        return url
 
     def condition_is_met(self, assignment: "ReviewAssignment", user: Account) -> bool:
         """TODO: examples..."""
@@ -260,10 +324,10 @@ class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
-            permission=permissions.has_director_role_by_article,
-            name="selects editor",
-            label="",
-            view_name="WRITEME!",
+            permission=permissions.is_article_supervisor,
+            name="assigns editor",
+            label="Assign Editor",
+            view_name="wjs_assigns_editor",
         ),
     )
 
@@ -284,10 +348,10 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             view_name="wjs_unassign_assignment",
         ),
         ArticleAction(
-            permission=permissions.can_assign_special_issue_by_article,
+            permission=permissions.is_article_supervisor,
             name="assigns different editor",
             label="Assign different Editor",
-            view_name="wjs_assigns_different_editor",
+            view_name="wjs_assigns_editor",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -315,7 +379,6 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="make decision",
             label="Make decision",
             view_name="wjs_article_decision",
-            querystring_params={"decision": ArticleWorkflow.Decisions.MINOR_REVISION},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -343,7 +406,7 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             name="assigns self as reviewer",
             label="I will review",
             tooltip="Assign myself as reviewer",
-            view_name="WRITEME!",
+            view_name="wjs_editor_assigns_themselves_as_reviewer",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -351,80 +414,20 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
             label="Select a reviewer",
             view_name="wjs_select_reviewer",
         ),
-        ArticleAction(
-            permission=permissions.is_special_issue_supervisor,
-            name="assign permissions",
-            label="Assign permissions",
-            view_name="wjs_assign_permission",
-        ),
-        # TODO: drop these? Not currently used in reviewer's templates.
-        # :START
-        ArticleAction(
-            permission=permissions.has_reviewer_role_by_article,
-            name="decline",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_reviewer_role_by_article,
-            name="write report",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_reviewer_role_by_article,
-            name="postpones rev.report deadline",
-            label="",
-            view_name="WRITEME!",
-        ),
-        # :END
-        ArticleAction(
-            permission=permissions.has_director_role_by_article,
-            name="reminds editor",
-            label="",
-            view_name="WRITEME!",
-        ),
     )
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
             label="Deselect reviewer",
-            view_name="WRITEME!",
+            view_name="wjs_deselect_reviewer",
             tooltip="Withdraw review assignment",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.is_late_invitation,
-            name="reminds reviewer assignment",
-            label="Remind reviewer",
-            tooltip="Solicit accept/decline answer from the reviewer",
-            view_name="WRITEME!",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.is_late,
-            name="reminds reviewer report",
-            label="Remind reviewer",
-            tooltip="Solicit a report from the reviewer",
-            view_name="WRITEME!",
         ),
         ReviewAssignmentAction(
             condition=conditions.review_not_done,
             name="postpone reviewer due date",
             label="Postpone Reviewer due date",
             view_name="wjs_postpone_reviewer_due_date",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.review_done,
-            name="ask report revision",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.review_done,
-            name="acknowledge report",
-            label="Acknowledge report",
-            view_name="WRITEME!",
-            tooltip="Say thanks to the reviewer",
         ),
     )
 
@@ -531,21 +534,12 @@ class Accepted(BaseState):  # noqa N801 CapWords convention
     """Accepted"""
 
 
-class WritemeProduction(BaseState):  # noqa N801 CapWords convention
-    """Writeme production"""
-
-
 class ToBeRevised(BaseState):  # noqa N801 CapWords convention
     """To be revised"""
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
-            permission=permissions.is_article_editor,
-            name="reminds author",
-            label="",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_editor,
             name="postpone author revision deadline",
             label="",
@@ -553,16 +547,36 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
             custom_get_url=get_url_with_last_editor_revision_request_pk,
         ),
         ArticleAction(
+            condition=conditions.pending_edit_metadata_request,
+            permission=permissions.is_article_editor,
+            name="postpone author edit metadata deadline",
+            label="",
+            view_name="wjs_postpone_revision_request",
+            custom_get_url=get_url_with_last_editor_revision_request_pk,
+        ),
+        ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="submits new version",
             label="",
-            view_name="WRITEME!",
+            view_name="do_revisions",
+            custom_get_url=get_do_revision_url,
         ),
         ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
             label="",
-            view_name="WRITEME!",
+            view_name="do_revisions",
+            custom_get_url=get_do_revision_url,
+        ),
+        ArticleAction(
+            condition=conditions.pending_edit_metadata_request,
+            permission=permissions.is_article_author,
+            name="edit metadata",
+            label="",
+            view_name="do_revisions",
+            custom_get_url=get_edit_metadata_revision_url,
         ),
     )
 
@@ -650,13 +664,7 @@ class ReadyForTypesetter(BaseState):
             permission=permissions.has_typesetter_role_by_article,
             name="typ takes in charge",
             label="Take in charge",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_admin_role_by_article,
-            name="admin assigns typesetter",
-            label="Assign typesetter",
-            view_name="WRITEME!",
+            view_name="wjs_typ_take_in_charge",
         ),
     )
 
@@ -667,12 +675,6 @@ class TypesetterSelected(BaseState):
     """
 
     article_actions = BaseState.article_actions + (
-        ArticleAction(
-            permission=permissions.is_article_typesetter,
-            name="delete / replace source for galley generation",  # one action? 4 actions?
-            label="Manage sources (for galley generation issues)",
-            view_name="WRITEME!",
-        ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
             name="uploads sources",  # this pairs with the one above ⮵
@@ -704,30 +706,6 @@ class TypesetterSelected(BaseState):
             custom_get_label=get_publishable_label,
         ),
         ArticleAction(
-            # typ marks checks such as:
-            # - galleys OK",
-            # - supplementary material ok",
-            # - ...",
-            permission=permissions.is_article_typesetter,
-            name="marks pre-flight checks",
-            label="marks pre-flight checks",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            # No estemporary haikus from typ to au
-            # TBV: can probably be dropped (see US ID:NA row:260 order:235)
-            permission=permissions.is_article_typesetter,
-            name="asks non-standard messages for author to EO",
-            label="asks non-standard messages for author to EO",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.is_article_typesetter,
-            name="Insert notes",
-            label="Insert notes",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
             permission=permissions.is_article_typesetter,
             name="Send to Author",
             label="Send to Author",
@@ -751,6 +729,13 @@ class TypesetterSelected(BaseState):
             name="write_to_typesetter",
             label="Write to typesetter",
             view_name="wjs_message_write_to_typ",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter_and_paper_can_go_rfp,
+            name="typesetter_deems_paper_ready_for_publication",
+            label="Paper is ready for publication",
+            view_name="wjs_review_rfp",
+            condition=can_be_set_rfp_wrapper,
         ),
     )
 
@@ -811,10 +796,26 @@ class Proofreading(BaseState):
             view_name="wjs_message_write_to_typ",
         ),
         ArticleAction(
+            permission=permissions.is_article_author_and_paper_can_go_rfp,
+            name="author_deems_paper_ready_for_publication",
+            label="Paper is ready for publication",
+            view_name="wjs_review_rfp",
+            condition=can_be_set_rfp_wrapper,
+        ),
+        ArticleAction(
             permission=permissions.is_article_typesetter,
             name="Contact Author",
             label="Contact Author",
             view_name="wjs_message_write_to_auwm",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="toggle paper non-publishable flag",
+            label="Mark Unpublishable",
+            view_name="wjs_toggle_publishable",
+            is_htmx=True,
+            custom_get_css_class=get_unpulishable_css_class,
+            custom_get_label=get_publishable_label,
         ),
     )
 
@@ -861,18 +862,23 @@ class ReadyForPublication(BaseState):
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
-            # TBV: very similar to what typs does in TypesetterSelected!
-            #      Double-check might be good.
-            #
-            # EO/admin marks checks such as:
-            # - TA ok
-            # - galleys OK",
-            # - supplementary material ok",
-            # - ...",
-            permission=permissions.is_article_typesetter,
-            name="marks pre-flight checks",
-            label="marks pre-flight checks",
+            permission=permissions.has_eo_role_by_article,
+            name="publish",
+            label="Publish",
             view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="back to typ",
+            label="Back to typ",
+            view_name="WRITEME!",
+        ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="Send paper back to Typesetter",
+            label="Send paper back to Typesetter",
+            tooltip="Ask the typesetter for some changes...",
+            view_name="wjs_send_back_to_typ",
         ),
     )
 

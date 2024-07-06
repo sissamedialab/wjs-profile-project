@@ -30,6 +30,57 @@ from ..views import EditorArchived, SelectReviewer
 
 
 @pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer_gives_403_if_user_is_not_editor(
+    client: Client,
+    reviewer: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """A reviewer tries to use EditorAssignsThemselvesAsReviewer to assign themselves as reviewer."""
+    url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
+    client.force_login(reviewer.janeway_account)
+    response = client.get(url)
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_in_the_past(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
+    post_data = {
+        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    assert dict(response.context["form"].errors) == {"acceptance_due_date": ["Date must be in the future"]}
+
+
+@pytest.mark.django_db
+def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_too_much_in_the_future(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """An editor cannot set the acceptance_due_date after settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt now().date()."""
+    url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
+    today = now().date()
+    date_min = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
+    date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
+    post_data = {
+        "acceptance_due_date": date_max + datetime.timedelta(days=1),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    errors = {"acceptance_due_date": [f"Date must be between {date_min} and {date_max}"]}
+    assert dict(response.context["form"].errors) == errors
+
+
+@pytest.mark.django_db
 def test_select_reviewer_queryset_for_editor(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
@@ -233,44 +284,48 @@ def test_invite_function_creates_inactive_user(
 @pytest.mark.django_db
 def test_accept_invite(
     client: Client,
-    review_assignment: ReviewAssignment,
+    review_assignment_invited_user: ReviewAssignment,
     review_form: ReviewForm,
     accept_gdpr: bool,
 ):
     """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
-    invited_user = review_assignment.reviewer
-    url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"{url}?access_code={review_assignment.access_code}"
-    redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
-    redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
-    data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": review_assignment.date_due}
+    invited_user = review_assignment_invited_user.reviewer
+    url = reverse(
+        "wjs_evaluate_review", args=(review_assignment_invited_user.pk, invited_user.jcomprofile.invitation_token)
+    )
+    url = f"{url}?access_code={review_assignment_invited_user.access_code}"
+    redirect_url = reverse("wjs_review_review", args=(review_assignment_invited_user.pk,))
+    redirect_url = f"{redirect_url}?access_code={review_assignment_invited_user.access_code}"
+    data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": review_assignment_invited_user.date_due}
     # Message related to the editor assignment
     assert Message.objects.count() == 1
     response = client.post(url, data=data)
     request = response.wsgi_request
-    review_assignment.refresh_from_db()
+    review_assignment_invited_user.refresh_from_db()
     invited_user.refresh_from_db()
     if accept_gdpr:
         assert Message.objects.count() == 2
         # Message related to the reviewer accepting the assignment
         message = Message.objects.last()
         assert message.actor == invited_user
-        assert list(message.recipients.all()) == [review_assignment.editor]
+        assert list(message.recipients.all()) == [review_assignment_invited_user.editor]
         message_subject = get_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_accept_acknowledgement",
-            journal=review_assignment.article.journal,
+            journal=review_assignment_invited_user.article.journal,
         ).processed_value
         message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_accept_acknowledgement",
-            journal=review_assignment.article.journal,
+            journal=review_assignment_invited_user.article.journal,
             request=request,
             context={
-                "article": review_assignment.article,
+                "article": review_assignment_invited_user.article,
                 "request": request,
-                "review_assignment": review_assignment,
-                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+                "review_assignment": review_assignment_invited_user,
+                "review_url": reverse(
+                    "wjs_review_review", kwargs={"assignment_id": review_assignment_invited_user.id}
+                ),
             },
             template_is_setting=True,
         )
@@ -281,9 +336,9 @@ def test_accept_invite(
         assert invited_user.is_active
         assert invited_user.jcomprofile.gdpr_checkbox
         assert not invited_user.jcomprofile.invitation_token
-        assert review_assignment.date_accepted
-        assert not review_assignment.date_declined
-        assert not review_assignment.is_complete
+        assert review_assignment_invited_user.date_accepted
+        assert not review_assignment_invited_user.date_declined
+        assert not review_assignment_invited_user.is_complete
     else:
         # No new message created
         assert Message.objects.count() == 1
@@ -291,33 +346,35 @@ def test_accept_invite(
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
-        assert not review_assignment.date_accepted
-        assert not review_assignment.date_declined
-        assert not review_assignment.is_complete
+        assert not review_assignment_invited_user.date_accepted
+        assert not review_assignment_invited_user.date_declined
+        assert not review_assignment_invited_user.is_complete
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_accept_invite_date_due_in_the_future(
     client: Client,
-    review_assignment: ReviewAssignment,
+    review_assignment_invited_user: ReviewAssignment,
     review_form: ReviewForm,
     accept_gdpr: bool,
 ):
     """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
-    invited_user = review_assignment.reviewer
-    url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"{url}?access_code={review_assignment.access_code}"
-    redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
-    redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
+    invited_user = review_assignment_invited_user.reviewer
+    url = reverse(
+        "wjs_evaluate_review", args=(review_assignment_invited_user.pk, invited_user.jcomprofile.invitation_token)
+    )
+    url = f"{url}?access_code={review_assignment_invited_user.access_code}"
+    redirect_url = reverse("wjs_review_review", args=(review_assignment_invited_user.pk,))
+    redirect_url = f"{redirect_url}?access_code={review_assignment_invited_user.access_code}"
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    date_due = review_assignment_invited_user.date_due + datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
     # Message related to the editor assignment
     assert Message.objects.count() == 1
     response = client.post(url, data=data)
     request = response.wsgi_request
-    review_assignment.refresh_from_db()
+    review_assignment_invited_user.refresh_from_db()
     invited_user.refresh_from_db()
 
     if accept_gdpr:
@@ -325,22 +382,24 @@ def test_accept_invite_date_due_in_the_future(
         # Message related to the reviewer accepting the assignment
         message = Message.objects.last()
         assert message.actor == invited_user
-        assert list(message.recipients.all()) == [review_assignment.editor]
+        assert list(message.recipients.all()) == [review_assignment_invited_user.editor]
         message_subject = get_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_accept_acknowledgement",
-            journal=review_assignment.article.journal,
+            journal=review_assignment_invited_user.article.journal,
         ).processed_value
         message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_accept_acknowledgement",
-            journal=review_assignment.article.journal,
+            journal=review_assignment_invited_user.article.journal,
             request=request,
             context={
-                "article": review_assignment.article,
+                "article": review_assignment_invited_user.article,
                 "request": request,
-                "review_assignment": review_assignment,
-                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+                "review_assignment": review_assignment_invited_user,
+                "review_url": reverse(
+                    "wjs_review_review", kwargs={"assignment_id": review_assignment_invited_user.id}
+                ),
             },
             template_is_setting=True,
         )
@@ -351,11 +410,11 @@ def test_accept_invite_date_due_in_the_future(
         assert invited_user.is_active
         assert invited_user.jcomprofile.gdpr_checkbox
         assert not invited_user.jcomprofile.invitation_token
-        assert review_assignment.date_accepted
-        assert not review_assignment.date_declined
-        assert not review_assignment.is_complete
+        assert review_assignment_invited_user.date_accepted
+        assert not review_assignment_invited_user.date_declined
+        assert not review_assignment_invited_user.is_complete
         # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date
-        assert review_assignment.date_due == date_due
+        assert review_assignment_invited_user.date_due == date_due
     else:
         # No new message created
         assert Message.objects.count() == 1
@@ -363,41 +422,43 @@ def test_accept_invite_date_due_in_the_future(
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
-        assert not review_assignment.date_accepted
-        assert not review_assignment.date_declined
-        assert not review_assignment.is_complete
+        assert not review_assignment_invited_user.date_accepted
+        assert not review_assignment_invited_user.date_declined
+        assert not review_assignment_invited_user.is_complete
         # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date
-        assert review_assignment.date_due != date_due
+        assert review_assignment_invited_user.date_due != date_due
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_accept_invite_but_date_due_in_the_past(
     client: Client,
-    review_assignment: ReviewAssignment,
+    review_assignment_invited_user: ReviewAssignment,
     review_form: ReviewForm,
     accept_gdpr: bool,
 ):
     """If user accepts the invitation, it's accepted only if they selects gdpr acceptance."""
-    invited_user = review_assignment.reviewer
-    url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"{url}?access_code={review_assignment.access_code}"
+    invited_user = review_assignment_invited_user.reviewer
+    url = reverse(
+        "wjs_evaluate_review", args=(review_assignment_invited_user.pk, invited_user.jcomprofile.invitation_token)
+    )
+    url = f"{url}?access_code={review_assignment_invited_user.access_code}"
     # Janeway' quick_assign() sets date_due as timezone.now() + timedelta(something), so it's a datetime.datetime
-    date_due = review_assignment.date_due - datetime.timedelta(days=1)
+    date_due = review_assignment_invited_user.date_due - datetime.timedelta(days=1)
     data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr, "date_due": date_due}
     # Message related to the editor assignment
     assert Message.objects.count() == 1
     response = client.post(url, data=data)
-    review_assignment.refresh_from_db()
+    review_assignment_invited_user.refresh_from_db()
     invited_user.refresh_from_db()
 
     assert response.status_code == 200
     assert not invited_user.is_active
     assert not invited_user.jcomprofile.gdpr_checkbox
     assert invited_user.jcomprofile.invitation_token
-    assert not review_assignment.date_accepted
-    assert not review_assignment.date_declined
-    assert not review_assignment.is_complete
+    assert not review_assignment_invited_user.date_accepted
+    assert not review_assignment_invited_user.date_declined
+    assert not review_assignment_invited_user.is_complete
     assert response.context_data["form"].errors["date_due"] == ["Date must be in the future"]
 
     if accept_gdpr:
@@ -415,28 +476,30 @@ def test_accept_invite_but_date_due_in_the_past(
 @pytest.mark.django_db
 def test_decline_invite(
     client: Client,
-    review_assignment: ReviewAssignment,
+    review_assignment_invited_user: ReviewAssignment,
     review_form: ReviewForm,
     accept_gdpr: bool,
     reason: str,
 ):
     """If user declines the invitation, is activated only if accepts gdpr and declined only if it provides reason."""
-    invited_user = review_assignment.reviewer
-    url = reverse("wjs_evaluate_review", args=(review_assignment.pk, invited_user.jcomprofile.invitation_token))
-    url = f"{url}?access_code={review_assignment.access_code}"
-    redirect_url = reverse("wjs_declined_review", args=(review_assignment.pk,))
-    redirect_url = f"{redirect_url}?access_code={review_assignment.access_code}"
+    invited_user = review_assignment_invited_user.reviewer
+    url = reverse(
+        "wjs_evaluate_review", args=(review_assignment_invited_user.pk, invited_user.jcomprofile.invitation_token)
+    )
+    url = f"{url}?access_code={review_assignment_invited_user.access_code}"
+    redirect_url = reverse("wjs_declined_review", args=(review_assignment_invited_user.pk,))
+    redirect_url = f"{redirect_url}?access_code={review_assignment_invited_user.access_code}"
     data = {
         "reviewer_decision": "0",
         "accept_gdpr": accept_gdpr,
-        "date_due": review_assignment.date_due,
+        "date_due": review_assignment_invited_user.date_due,
         "decline_reason": reason,
     }
     # Message related to the editor assignment
     assert Message.objects.count() == 1
     response = client.post(url, data=data)
     request = response.wsgi_request
-    review_assignment.refresh_from_db()
+    review_assignment_invited_user.refresh_from_db()
     invited_user.refresh_from_db()
     if not reason:
         assert response.status_code == 200
@@ -444,49 +507,51 @@ def test_decline_invite(
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
-        assert not review_assignment.date_accepted
-        assert not review_assignment.date_declined
-        assert not review_assignment.is_complete
+        assert not review_assignment_invited_user.date_accepted
+        assert not review_assignment_invited_user.date_declined
+        assert not review_assignment_invited_user.is_complete
     elif accept_gdpr:
         assert response.status_code == 302
         assert response.headers["Location"] == redirect_url
         assert invited_user.is_active
         assert invited_user.jcomprofile.gdpr_checkbox
         assert not invited_user.jcomprofile.invitation_token
-        assert not review_assignment.date_accepted
-        assert review_assignment.date_declined
-        assert review_assignment.is_complete
+        assert not review_assignment_invited_user.date_accepted
+        assert review_assignment_invited_user.date_declined
+        assert review_assignment_invited_user.is_complete
     else:
         assert response.status_code == 302
         assert response.headers["Location"] == redirect_url
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
-        assert not review_assignment.date_accepted
-        assert review_assignment.date_declined
-        assert review_assignment.is_complete
+        assert not review_assignment_invited_user.date_accepted
+        assert review_assignment_invited_user.date_declined
+        assert review_assignment_invited_user.is_complete
 
     if reason:
         assert Message.objects.count() == 2
         # Message related to the reviewer declining the assignment
         message = Message.objects.last()
         assert message.actor == invited_user
-        assert list(message.recipients.all()) == [review_assignment.editor]
+        assert list(message.recipients.all()) == [review_assignment_invited_user.editor]
         message_subject = get_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_decline_acknowledgement",
-            journal=review_assignment.article.journal,
+            journal=review_assignment_invited_user.article.journal,
         ).processed_value
         message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_decline_acknowledgement",
-            journal=review_assignment.article.journal,
+            journal=review_assignment_invited_user.article.journal,
             request=request,
             context={
-                "article": review_assignment.article,
+                "article": review_assignment_invited_user.article,
                 "request": request,
-                "review_assignment": review_assignment,
-                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+                "review_assignment": review_assignment_invited_user,
+                "review_url": reverse(
+                    "wjs_review_review", kwargs={"assignment_id": review_assignment_invited_user.id}
+                ),
             },
             template_is_setting=True,
         )
@@ -612,15 +677,31 @@ def test_revision_file_replace_no_perms(
 
 @pytest.mark.django_db
 def test_editor_with_kdws_list_retrieval(article_with_keywords, editors_with_keywords):
-    editors_list = Account.objects.get_editors_with_keywords(editors_with_keywords[0], article_with_keywords)
+    """Test the function get_editors_with_keywords().
+
+    Note that editors_with_keywords is a list of 4 editors such that
+    - e0: k0 k1 k2
+    - e1: k0 k1 k2
+    - e2: k0 k1
+    - e3:          k3
+    and article_with_keywords has k0 k1 k2
+    """
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords, editors_with_keywords[0])
 
     assert editors_list[0] == editors_with_keywords[1].janeway_account
     assert editors_list[2] == editors_with_keywords[3].janeway_account
 
-    editors_list = Account.objects.get_editors_with_keywords(editors_with_keywords[1], article_with_keywords)
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords, editors_with_keywords[1])
 
     assert editors_list[0] == editors_with_keywords[0].janeway_account
     assert editors_list[2] == editors_with_keywords[3].janeway_account
+
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords)
+
+    assert editors_list[0] == editors_with_keywords[0].janeway_account
+    assert editors_list[1] == editors_with_keywords[1].janeway_account
+    assert editors_list[2] == editors_with_keywords[2].janeway_account
+    assert editors_list[3] == editors_with_keywords[3].janeway_account
 
 
 @pytest.mark.django_db

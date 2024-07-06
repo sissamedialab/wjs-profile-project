@@ -1,7 +1,10 @@
 import glob
+import io
 import os
 import tarfile
+import zipfile
 from io import BytesIO
+from typing import Callable
 from unittest import mock
 
 import pytest
@@ -10,15 +13,16 @@ from core import models as core_models
 from core.models import Account, File, SupplementaryFile, Workflow, WorkflowElement
 from django.core import mail
 from django.core.files import File as DjangoFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
-from review.models import ReviewAssignment
 from submission.models import Article
 from utils import setting_handler
 
+from wjs.jcom_profile.models import Genealogy
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
@@ -34,8 +38,10 @@ from ..logic import (
 from ..models import (
     ArticleWorkflow,
     EditorRevisionRequest,
+    LatexPreamble,
     Message,
     WjsEditorAssignment,
+    WorkflowReviewAssignment,
 )
 from ..plugin_settings import (
     HANDSHAKE_URL,
@@ -175,6 +181,7 @@ def _assigned_to_typesetter_article(
     typesetting_assignment = AssignTypesetter(article, typesetter, fake_request).run()
     workflow = typesetting_assignment.round.article.articleworkflow
     assert workflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
     cleanup_notifications_side_effects()
     return workflow.article
 
@@ -192,22 +199,51 @@ def assigned_to_typesetter_article(
     return _assigned_to_typesetter_article(ready_for_typesetter_article, typesetter, fake_request)
 
 
-def _assigned_to_typesetter_article_with_files_to_typeset(
-    assigned_to_typesetter_article: Article,
+def _assigned_to_typesetter_article_with_parent(
+    article: Article,
     typesetter: Account,
     fake_request: HttpRequest,
 ) -> Article:
-    file_name = "file_to_typeset.zip"
-    file_data = BytesIO(b"file content")
-    django_file = DjangoFile(file_data, file_name)
+    parent_article = Article.objects.create(
+        title="Parent article",
+        journal=article.journal,
+    )
+    Genealogy.objects.create(parent=parent_article)
+    parent_article.genealogy.children.add(article)
+
+    parent_article.articleworkflow.latex_desc = "parent article desc"
+    parent_article.articleworkflow.save()
+    article.articleworkflow.latex_desc = "child article desc"
+    article.articleworkflow.save()
+    AssignTypesetter(article, typesetter, fake_request).run()
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    cleanup_notifications_side_effects()
+    return article
+
+
+@pytest.fixture
+def assigned_to_typesetter_article_with_parent(
+    ready_for_typesetter_article: Article,
+    typesetter: Account,
+    fake_request: HttpRequest,
+) -> Article:
+    """Create and return an article assigned to a typesetter with a parent article, both with a latex_desc."""
+    return _assigned_to_typesetter_article_with_parent(ready_for_typesetter_article, typesetter, fake_request)
+
+
+def _assigned_to_typesetter_article_with_files_to_typeset(
+    assigned_to_typesetter_article: Article, typesetter: Account, fake_request: HttpRequest, zip_with_tex_with_query
+) -> Article:
     assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
     fake_request.user = typesetter
     article_with_file = UploadFile(
         typesetter=typesetter,
         request=fake_request,
         assignment=assignment,
-        file_to_upload=django_file,
+        file_to_upload=zip_with_tex_with_query(assigned_to_typesetter_article),
     ).run()
+    article_with_file.articleworkflow.save()
     return article_with_file
 
 
@@ -216,10 +252,11 @@ def assigned_to_typesetter_article_with_files_to_typeset(
     assigned_to_typesetter_article: Article,
     fake_request: HttpRequest,
     typesetter: Account,
+    zip_with_tex_with_query,
 ) -> Article:
     """Return an assigned to typesetter article with files to typeset."""
     return _assigned_to_typesetter_article_with_files_to_typeset(
-        assigned_to_typesetter_article, typesetter, fake_request
+        assigned_to_typesetter_article, typesetter, fake_request, zip_with_tex_with_query
     )
 
 
@@ -246,12 +283,12 @@ def _stage_proofing_article(
 
 @pytest.fixture
 def stage_proofing_article(
-    assigned_to_typesetter_article: Article,
+    assigned_to_typesetter_article_with_files_to_typeset: Article,
     typesetter: Account,
     fake_request: HttpRequest,
 ) -> Article:
     """Create and return an article in proofreading."""
-    return _stage_proofing_article(assigned_to_typesetter_article, typesetter, fake_request)
+    return _stage_proofing_article(assigned_to_typesetter_article_with_files_to_typeset, typesetter, fake_request)
 
 
 def _assigned_to_typesetter_proofs_done_article(
@@ -341,15 +378,31 @@ def review_form(journal) -> review_models.ReviewForm:
 
 
 @pytest.fixture
-def review_assignment(
+def review_assignment_invited_user(
     fake_request: HttpRequest,
     invited_user: JCOMProfile,  # noqa: F405
     assigned_article: submission_models.Article,  # noqa: F405
     review_form: review_models.ReviewForm,
-) -> ReviewAssignment:
+) -> WorkflowReviewAssignment:
+    """Create an review assignment for an invited (non active / confirmed) user."""
     return _create_review_assignment(
         fake_request=fake_request,
         reviewer_user=invited_user,
+        assigned_article=assigned_article,
+    )
+
+
+@pytest.fixture
+def review_assignment(
+    fake_request: HttpRequest,
+    reviewer: JCOMProfile,  # noqa: F405
+    assigned_article: submission_models.Article,  # noqa: F405
+    review_form: review_models.ReviewForm,
+) -> WorkflowReviewAssignment:
+    """Create an review assignment for reviewer users."""
+    return _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
         assigned_article=assigned_article,
     )
 
@@ -532,3 +585,78 @@ def mock_jcomassistant_post():
 
     with mock.patch.object(requests, "post", return_value=response) as mocked_requests__post:
         yield mocked_requests__post
+
+
+@pytest.fixture
+def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
+    """Create an automatic preamble for JCOM."""
+    preamble_text = """
+    {% load wjs_tex %}
+    {% with article.title as title %}
+    {% with article.date_accepted|date:"Y-m-d" as date_accepted %}
+    {% with journal.code as journal %}
+    {% with article.section.wjssection.pubid_and_tex_sectioncode as type_code %}
+    {% with article.articleworkflow.latex_desc as latex_desc %}
+    {% with article.ancestors.first.parent.articleworkflow.latex_desc as latex_desc_parent %}
+    {% angular_variables %}
+    \\article{<title>}
+    \\accepted{<date_accepted>}
+    \\journal{<journal>}
+    \\doc_type{<type_code>}
+    \\latex_desc{<latex_desc>}
+    \\latex_desc_parent{<latex_desc_parent>}
+    {% endangular_variables %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    """
+    automatic_preamble = LatexPreamble.objects.create(
+        journal=journal,
+        preamble=preamble_text,
+    )
+    yield automatic_preamble.preamble
+
+
+def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
+    """Create a tar.gz archive containing a .tex file with a query."""
+    file_obj = io.BytesIO()
+
+    tex_content = b"""
+\\article{article}
+\\proofs{This is a sample query in the document}
+    """
+
+    with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
+
+    file_obj.seek(0)
+    return SimpleUploadedFile("source_tex_file.zip", file_obj.getvalue(), content_type="application/zip")
+
+
+def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
+    """Create a tar.gz archive containing a .tex file with a query."""
+    file_obj = io.BytesIO()
+
+    tex_content = b"""
+\\article{article}
+\\noproofs{This is not a sample query in the document}
+    """
+
+    with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
+
+    file_obj.seek(0)
+    return SimpleUploadedFile("source_tex_file.zip", file_obj.getvalue(), content_type="application/zip")
+
+
+@pytest.fixture
+def zip_with_tex_with_query() -> Callable:
+    return _zip_with_tex_with_query
+
+
+@pytest.fixture
+def zip_with_tex_without_query() -> Callable:
+    return _zip_with_tex_without_query

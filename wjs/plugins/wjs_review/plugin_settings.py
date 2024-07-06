@@ -251,7 +251,7 @@ def set_default_plugin_settings(force: bool = False):
             "setting": None,
             "value": """
             Dear {{ article.correspondence_author.full_name }},
-            {{ editor.full_name }} has requested a {% if minor_revision %}minor{% endif %} revision of {{ article.title }}.
+            Editor has requested a {% if minor_revision %}minor{% endif %} revision of {{ article.title }}.
             You can view your reviews and feedback on the manuscript at: {{ review_url }}
             Regards,
             {{ request.user.signature|safe }}
@@ -1166,6 +1166,50 @@ def set_default_plugin_settings(force: bool = False):
             editor_decline_assignment_setting["name"],
         )
 
+    def editor_assigns_themselves_as_reviewer_message():
+        wjs_editor_i_will_review_message_subject_setting: SettingParams = {
+            "name": "wjs_editor_i_will_review_message_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the notification for self-selection of Editor as Reviewer"),
+            "description": _(
+                "The subject of the notification that is sent when an Editor self-selects as Reviewer.",
+            ),
+            "is_translatable": False,
+        }
+        wjs_editor_i_will_review_message_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Editor selects self as reviewer"),
+            "translations": {},
+        }
+        create_customization_setting(
+            wjs_editor_i_will_review_message_subject_setting,
+            wjs_editor_i_will_review_message_subject_setting_value,
+            wjs_editor_i_will_review_message_subject_setting["name"],
+        )
+        wjs_editor_i_will_review_message_body_setting: SettingParams = {
+            "name": "wjs_editor_i_will_review_message_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Body of the notification for self-selection of Editor as Reviewer"),
+            "description": _(
+                "The body of the notification that is sent when an Editor self-selects as Reviewer.",
+            ),
+            "is_translatable": False,
+        }
+        wjs_editor_i_will_review_message_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article {{ article.id }} assigned to editor for a review."),
+            "translations": {},
+        }
+        create_customization_setting(
+            wjs_editor_i_will_review_message_body_setting,
+            wjs_editor_i_will_review_message_body_setting_value,
+            wjs_editor_i_will_review_message_body_setting["name"],
+        )
+
     def typesetter_is_assigned_message():
         subject_typesetting_assignment: SettingParams = {
             "name": "typesetting_assignment_subject",
@@ -1300,7 +1344,7 @@ def set_default_plugin_settings(force: bool = False):
         proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ author.full_name }}, your article {article.title} has been typesetted and is ready
+            "value": """Dear {{ author.full_name }}, your article {{ article.title }} has been typesetted and is ready
             for your check.
 
             Please visit:
@@ -1410,6 +1454,96 @@ def set_default_plugin_settings(force: bool = False):
             typesetting_generated_galleys_setting["name"],
         )
 
+    def editor_deassign_reviewer_messages():
+        subject_editor_deassign_reviewer: SettingParams = {
+            "name": "editor_deassign_reviewer_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for reviewer deassign notification."),
+            "description": _(
+                "The subject of the notification that is sent to the reviewer when deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        subject_editor_deassign_reviewer_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Review assignment has been deassigned"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_editor_deassign_reviewer,
+            subject_editor_deassign_reviewer_setting_value,
+            subject_editor_deassign_reviewer["name"],
+        )
+        editor_deassign_reviewer_setting: SettingParams = {
+            "name": "editor_deassign_reviewer_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for reviewer deassign notification."),
+            "description": _(
+                "The body of the notification that is sent to the reviewer when deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        editor_deassign_reviewer_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ assignment.reviewer.full_name }}, thanks for your involvements.
+
+            Your review is no longer needed
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            editor_deassign_reviewer_setting,
+            editor_deassign_reviewer_setting_value,
+            editor_deassign_reviewer_setting["name"],
+        )
+        subject_editor_deassign_reviewer_system: SettingParams = {
+            "name": "editor_deassign_reviewer_system_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for system message when a reviewer is deassigned."),
+            "description": _(
+                "The subject of the system message that is logged when the reviewer is deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        subject_editor_deassign_reviewer_system_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Review assignment has been deassigned"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_editor_deassign_reviewer_system,
+            subject_editor_deassign_reviewer_system_setting_value,
+            subject_editor_deassign_reviewer_system["name"],
+        )
+        editor_deassign_reviewer_system_setting: SettingParams = {
+            "name": "editor_deassign_reviewer_system_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for system message when a reviewer is deassigned."),
+            "description": _(
+                "The body of the system message that is logged when the reviewer is deassigned.",
+            ),
+            "is_translatable": False,
+        }
+        editor_deassign_reviewer_system_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Reviewer {{ assignment.reviewer.full_name }} has been deassigned from {{ assignment.article }}.
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            editor_deassign_reviewer_system_setting,
+            editor_deassign_reviewer_system_setting_value,
+            editor_deassign_reviewer_system_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1430,11 +1564,13 @@ def set_default_plugin_settings(force: bool = False):
     due_date_postpone_message()
     due_date_far_future_message()
     editor_decline_assignment_message()
+    editor_assigns_themselves_as_reviewer_message()
     typesetter_is_assigned_message()
     article_requires_proofreading_message()
     eo_is_assigned_message()
     author_sends_corrections_message()
     typesetting_generated_galleys_message()
+    editor_deassign_reviewer_messages()
 
 
 def ensure_workflow_elements():

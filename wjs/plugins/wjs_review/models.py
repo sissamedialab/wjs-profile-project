@@ -9,8 +9,9 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import BLANK_CHOICE_DASH, QuerySet
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from journal.models import Journal
@@ -22,19 +23,27 @@ from review.models import (
     ReviewRound,
     RevisionRequest,
 )
-from submission.models import Article
+from submission.models import Article, Section
 from utils.logger import get_logger
 
 from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.models import Correspondence
 
 from . import permissions
-from .managers import ArticleWorkflowQuerySet, WjsEditorAssignmentQuerySet
-from .reminders.models import Reminder  # noqa F401
+from .managers import (
+    ArticleWorkflowQuerySet,
+    WjsEditorAssignmentQuerySet,
+    WorkflowReviewAssignmentQuerySet,
+)
 
 logger = get_logger(__name__)
 
 Account = get_user_model()
+
+
+def can_be_set_rfp_wrapper(workflow: "ArticleWorkflow", **kwargs) -> bool:
+    """Only wraps the method that tests if a article can transition to READY_FOR_PUBLICATION."""
+    return workflow.can_be_set_rfp()
 
 
 def create_director_reminders(workflow):
@@ -86,6 +95,8 @@ class ArticleWorkflow(TimeStampedModel):
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
 
+        __empty__ = BLANK_CHOICE_DASH[0][0]
+
         ACCEPT = "accept", _("Accept")
         REJECT = "reject", _("Reject")
         MINOR_REVISION = EditorialDecisions.MINOR_REVISIONS.value, _("Minor revision")
@@ -93,6 +104,20 @@ class ArticleWorkflow(TimeStampedModel):
         TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
         REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
+
+        @classmethod
+        @property
+        def decision_choices(cls):
+            return [
+                choice
+                for choice in cls.choices
+                if choice[0] not in [cls.REQUIRES_RESUBMISSION.value, cls.TECHNICAL_REVISION.value]
+            ]
+
+    class GalleysStatus(models.IntegerChoices):
+        NOT_TESTED = 1, _("Not tested")
+        TEST_FAILED = 2, _("Test failed")
+        TEST_SUCCEEDED = 3, _("Test succeeded")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
@@ -117,15 +142,19 @@ class ArticleWorkflow(TimeStampedModel):
     production_flag_no_queries = models.BooleanField(
         default=False, verbose_name=_("The latest typesetted files contain no queries for the author")
     )
-    production_flag_galleys_ok = models.BooleanField(
-        default=False, verbose_name=_("The latest galley generation was successful")
+    production_flag_galleys_ok = models.IntegerField(
+        choices=GalleysStatus.choices,
+        default=GalleysStatus.NOT_TESTED,
+        null=False,
+        blank=True,
+        verbose_name=_("The status of the latest galleys"),
     )
     production_flag_no_checks_needed = models.BooleanField(
         default=True, verbose_name=_("No special check is required on the latest typesetted files")
     )
 
-    # date_last_transition = ... WRITEME
-    # set the date on post-transition signal
+    latest_state_change = models.DateTimeField(default=timezone.now, null=True, blank=True)
+    latex_desc = models.TextField(null=True, blank=True)
 
     objects = ArticleWorkflowQuerySet.as_manager()
 
@@ -143,6 +172,10 @@ class ArticleWorkflow(TimeStampedModel):
     def __str__(self):
         return f"{self.article.id}-{self.state}"
 
+    @property
+    def permission_label(self) -> str:
+        return _("Author notes")
+
     def get_absolute_url(self):
         return reverse("wjs_article_details", args=[self.pk])
 
@@ -154,6 +187,14 @@ class ArticleWorkflow(TimeStampedModel):
             )
         except EditorRevisionRequest.DoesNotExist:
             return None
+
+    def can_be_set_rfp(self) -> bool:
+        """Tess if the article can transition to READY_FOR_PUBLICATION."""
+        return (
+            self.production_flag_galleys_ok
+            and self.production_flag_no_checks_needed
+            and self.production_flag_no_queries
+        )
 
     # director selects editor
     @transition(
@@ -326,7 +367,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.EDITOR_SELECTED,
         target=ReviewStates.EDITOR_SELECTED,
-        permission=permissions.is_special_issue_supervisor,
+        permission=permissions.is_article_supervisor,
         # TODO: conditions=[],
     )
     def editor_assign_different_editor(self):
@@ -392,7 +433,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.READY_FOR_PUBLICATION,
         target=ReviewStates.TYPESETTER_SELECTED,
-        # TODO: permission=,
+        permission=permissions.has_eo_role_by_article,
         # TODO: conditions=[],
     )
     def admin_sends_back_to_typ(self):
@@ -404,9 +445,20 @@ class ArticleWorkflow(TimeStampedModel):
         source=ReviewStates.TYPESETTER_SELECTED,
         target=ReviewStates.READY_FOR_PUBLICATION,
         # TODO: permission=,
-        # TODO: conditions=[],
+        conditions=[can_be_set_rfp_wrapper],
     )
     def typesetter_deems_paper_ready_for_publication(self):
+        pass
+
+    # author deems paper ready for publication
+    @transition(
+        field=state,
+        source=ReviewStates.PROOFREADING,
+        target=ReviewStates.READY_FOR_PUBLICATION,
+        # TODO: permission=,
+        conditions=[can_be_set_rfp_wrapper],
+    )
+    def author_deems_paper_ready_for_publication(self):
         pass
 
     # typesetter sends to editor for check
@@ -793,6 +845,10 @@ class EditorRevisionRequest(RevisionRequest):
     class Meta:
         ordering = ("date_requested",)
 
+    @property
+    def permission_label(self) -> str:
+        return _(f"Editor {self.editor}'s report")
+
 
 class WorkflowReviewAssignment(ReviewAssignment):
     """
@@ -811,6 +867,12 @@ class WorkflowReviewAssignment(ReviewAssignment):
     #  Quando si aggiungono nuovi campi modificare il metodo AssignToReviewer._assign_reviewer per evitare di ottenere
     #  errori nel salvataggio.
     author_note_visible = models.BooleanField(_("Author note visible"), default=True)
+
+    objects = WorkflowReviewAssignmentQuerySet.as_manager()
+
+    @property
+    def permission_label(self) -> str:
+        return _(f"Reviewer {self.reviewer}'s report")
 
     @property
     def previous_review_round(self) -> Optional[ReviewRound]:
@@ -867,9 +929,17 @@ class ProphyCandidate(models.Model):
 
 class PermissionAssignment(TimeStampedModel):
     class PermissionType(models.TextChoices):
-        ALL = "all", _("All")
+        """Full set of permissions."""
+
+        ALL = "all", _("Allow")
         NO_NAMES = "no_names", _("Hide names")
-        DENY = "deny", _("Deny permission")
+        DENY = "deny", _("Deny")
+
+    class BinaryPermissionType(models.TextChoices):
+        """Subset of PermissionType for basic allow / deny check."""
+
+        ALL = "all", _("Allow")
+        DENY = "deny", _("Deny")
 
     user = models.ForeignKey(Account, verbose_name=_("User"), on_delete=models.CASCADE)
     content_type = models.ForeignKey(
@@ -894,11 +964,22 @@ class PermissionAssignment(TimeStampedModel):
         default=PermissionType.NO_NAMES,
         choices=PermissionType.choices,
     )
+    permission_secondary = models.CharField(
+        _("Extra permission set"),
+        help_text=_("Used to assign permissions to parts of the objects (eg: cover letter etc)"),
+        max_length=255,
+        blank=False,
+        default=BinaryPermissionType.DENY,
+        choices=BinaryPermissionType.choices,
+    )
 
     class Meta:
         unique_together = ("user", "content_type", "object_id")
         verbose_name = _("Permission assignment")
         verbose_name_plural = _("Permission assignments")
+
+    def __str__(self):
+        return f"{self.user} - {self.content_type.model} - {self.permission}"
 
     def match_permission(self, permission_type: PermissionType) -> bool:
         """
@@ -921,3 +1002,140 @@ class PermissionAssignment(TimeStampedModel):
         if self.permission == PermissionAssignment.PermissionType.ALL.value:
             return True
         return self.permission == permission_type.value or permission_type.value == ""
+
+    def match_secondary_permission(self, permission_type: PermissionType) -> bool:
+        """
+        Check if the current secondary permission matches the requested permission type.
+
+        Secondary permission is used to assign permissions to parts of the objects:
+
+        - Article: Article.comments_for_editors
+        - EditorRevisionRequest: EditorRevisionRequest.author_note,
+
+        :param permission_type:
+        :type permission_type: PermissionAssignment.PermissionType
+        :return: requested permission matches the current permission
+        :rtype: bool
+        """
+        if self.permission_secondary == PermissionAssignment.PermissionType.DENY.value:
+            return False
+        if self.permission_secondary == PermissionAssignment.PermissionType.ALL.value:
+            return True
+        return self.permission_secondary == permission_type.value or permission_type.value == ""
+
+
+class Reminder(models.Model):
+    """A message sent to someone to remind him that some due date has elapsed."""
+
+    class ReminderCodes(models.TextChoices):
+        # specs#618
+        REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1 = "REEA1", _("Reviewer should evaluate assignment")
+        REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2 = "REEA2", _("Reviewer should evaluate assignment")
+        REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3 = "REEA3", _("Reviewer should evaluate assignment")
+        REVIEWER_SHOULD_WRITE_REVIEW_1 = "REWR1", _("Reviewer should write review")
+        REVIEWER_SHOULD_WRITE_REVIEW_2 = "REWR2", _("Reviewer should write review")
+        # specs#619
+        EDITOR_SHOULD_SELECT_REVIEWER_1 = "EDSR1", _("Editor should select reviewer")
+        EDITOR_SHOULD_SELECT_REVIEWER_2 = "EDSR2", _("Editor should select reviewer")
+        EDITOR_SHOULD_SELECT_REVIEWER_3 = "EDSR3", _("Editor should select reviewer")
+        EDITOR_SHOULD_MAKE_DECISION_1 = "EDMD1", _("Editor should make decision")
+        EDITOR_SHOULD_MAKE_DECISION_2 = "EDMD2", _("Editor should make decision")
+        EDITOR_SHOULD_MAKE_DECISION_3 = "EDMD3", _("Editor should make decision")
+        # specs#635
+        AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1 = "AUMJR1", _("Author should submit major revision")
+        AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2 = "AUMJR2", _("Author should submit major revision")
+        AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1 = "AUMIR1", _("Author should submit minor revision")
+        AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2 = "AUMIR2", _("Author should submit minor revision")
+        AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1 = "AUTCR1", _("Author should submit technical revision")
+        AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2 = "AUTCR2", _("Author should submit technical revision")
+        DIRECTOR_SHOULD_ASSIGN_EDITOR_1 = "DIRASED1", _("Director should assign editor")
+        DIRECTOR_SHOULD_ASSIGN_EDITOR_2 = "DIRASED2", _("Director should assign editor")
+
+    code = models.CharField(
+        max_length=10,
+        choices=ReminderCodes.choices,
+    )
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_due = models.DateField()
+    date_sent = models.DateTimeField(null=True, blank=True)
+    disabled = models.BooleanField(default=False)
+    clemency_days = models.IntegerField()
+
+    # The "target" of a reminder can be something like a ReviewAssigment (for reminders to reviewers), an
+    # WjsEditorAssignment (for reminders to editors), but also just an Article (e.g. for reminders to EO related to
+    # articles with no editor assigned).
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        null=True,
+    )
+    object_id = models.PositiveIntegerField(
+        null=True,
+    )
+    target = GenericForeignKey(
+        "content_type",
+        "object_id",
+    )
+
+    recipient = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="reminders_that_i_receive")
+    # TODO: it's ok to drop a reminder if the recipient disappears, but the actor might be different...
+    # Does the business logic prevent this problem?
+    # E.g. to delete the editor, one should first re-assign the article and manage the reviewassignments anyway...
+    actor = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="reminders_that_i_send")
+    hide_actor_name = models.BooleanField(
+        default=True,
+        help_text="Hide the name of the actor in the message body / subject / From-header",
+    )
+
+    # Subject and body are taken from .settings.reminders.
+    # That dictionary should contain the template that will be rendered to create the reminder message.
+    # The message is rendered when the reminder is created. This should allow for the editing of existing reminders.
+    message_subject = models.TextField()
+    message_body = models.TextField()
+    # TODO: add message_from_header ?
+
+    class Meta:
+        verbose_name = _("Reminder")
+        verbose_name_plural = _("Reminders")
+        app_label = "wjs_review"
+
+    def __str__(self):
+        return self.code
+
+    def get_from_email(self) -> str:
+        """Compute the "From:" header for the notifcation email.
+
+        The email is always the same, but the name part changes.
+        E.g.
+        From: Matteo Gamboz <wjs-support@medialab.sissa.it>
+        """
+        # TODO: hide name sometimes
+        name = self.actor.full_name()
+        email = settings.DEFAULT_FROM_EMAIL
+        from_header = f"{name} <{email}>"
+        return from_header
+
+    def get_related_article(self) -> Optional[Article]:
+        """Try to find the article that this reminder is related to."""
+        if article := getattr(self.target, "article", None):
+            return article
+        else:
+            return None
+
+
+class LatexPreamble(models.Model):
+    """Templates to generate 'preambolo automatico' to be included in files to typeset"""
+
+    journal = models.ForeignKey(Journal, on_delete=models.CASCADE)
+    preamble = models.TextField(null=False, blank=False)
+
+    class Meta:
+        verbose_name = _("LaTeX preamble")
+
+
+class WjsSection(Section):
+    """This model contains the section codes to be used in the preamble of the article."""
+
+    section = models.OneToOneField(Section, on_delete=models.CASCADE, primary_key=True, parent_link=True)
+    doi_sectioncode = models.CharField(max_length=2, null=True, blank=True)
+    pubid_and_tex_sectioncode = models.CharField(max_length=1, null=True, blank=True)

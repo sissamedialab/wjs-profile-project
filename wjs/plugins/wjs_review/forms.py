@@ -34,6 +34,7 @@ from .logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
+    DeselectReviewer,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
@@ -112,6 +113,7 @@ class SelectReviewerForm(forms.ModelForm):
         _today = now().date()
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
+        self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
         htmx = kwargs.pop("htmx", False)
         super().__init__(*args, **kwargs)
         # refs #648
@@ -132,12 +134,15 @@ class SelectReviewerForm(forms.ModelForm):
 
         # When loading during an htmx request fields are not required because we're only preseeding the reviewer
         # When loading during a normal request (ie: submitting the form) fields are required
-        if not htmx:
+        if not htmx and not self.editor_assigns_themselves_as_reviewer:
             self.fields["message"].required = True
             self.fields["reviewer"].required = True
 
+        if self.editor_assigns_themselves_as_reviewer:
+            self.fields["message"].widget = forms.HiddenInput()
+            self.fields["author_note_visible"].widget = forms.HiddenInput()
         # If the reviewer is not set, other fields are disabled, because we need the reviewer to be set first
-        if not self.data.get("reviewer"):
+        elif not self.data.get("reviewer"):
             self.fields["acceptance_due_date"].widget.attrs["disabled"] = True
             self.fields["message"].widget.attrs["disabled"] = True
             self.fields["author_note_visible"].widget.attrs["disabled"] = True
@@ -224,6 +229,8 @@ class SelectReviewerForm(forms.ModelForm):
 
     def clean(self) -> Dict[str, Any]:
         cleaned_data = super().clean()
+        if self.editor_assigns_themselves_as_reviewer:
+            cleaned_data["reviewer"] = self.user
         self.clean_logic()
         return cleaned_data
 
@@ -465,7 +472,7 @@ class ReportForm(RichTextGeneratedForm):
 
 class DecisionForm(forms.ModelForm):
     decision = forms.ChoiceField(
-        choices=ArticleWorkflow.Decisions.choices,
+        choices=ArticleWorkflow.Decisions.decision_choices,
         required=True,
     )
     decision_editor_report = forms.CharField(
@@ -866,7 +873,39 @@ class AssignEoForm(forms.ModelForm):
         return self.instance
 
 
-class EditorAssignsDifferentEditorForm(forms.ModelForm):
+class DeselectReviewerForm(forms.Form):
+    send_notification = forms.BooleanField(label=_("Send notification to the reviewer"), required=False, initial=True)
+    notification_subject = forms.CharField(label=_("Subject"))
+    notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        self.user = kwargs.pop("user")
+        self.instance = kwargs.pop("instance")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> DeselectReviewer:
+        """Instantiate :py:class:`DeselectReviewer` class."""
+        return DeselectReviewer(
+            assignment=self.instance,
+            editor=self.user,
+            send_reviewer_notification=self.cleaned_data["send_notification"],
+            request=self.request,
+            form_data=self.data,
+        )
+
+    def save(self, commit=True):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class SupervisorAssignEditorForm(forms.ModelForm):
     editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
 
@@ -889,22 +928,29 @@ class EditorAssignsDifferentEditorForm(forms.ModelForm):
             request=self.request,
         )
 
-    def get_deassignment_logic_instance(self) -> HandleEditorDeclinesAssignment:
-        """Instantiate :py:class:`DeassignFromEditor` class."""
-        assignment = WjsEditorAssignment.objects.get_current(self.instance)
-        return HandleEditorDeclinesAssignment(
-            # Like in the view, assume that there is only one editorassignment for each article, the condition in the
-            # logic will double-check it.
-            assignment=assignment,
-            editor=assignment.editor,
-            request=self.request,
-        )
+    def get_deassignment_logic_instance(self) -> Optional[HandleEditorDeclinesAssignment]:
+        """
+        Instantiate :py:class:`DeassignFromEditor` class.
 
-    def save(self):
+        If no existing assignment is found, return None (ie: no deassignment is needed).
+        """
+        try:
+            assignment = WjsEditorAssignment.objects.get_current(self.instance)
+            return HandleEditorDeclinesAssignment(
+                # Like in the view, assume that there is only one editorassignment for each article,
+                # the condition in the logic will double-check it.
+                assignment=assignment,
+                editor=assignment.editor,
+                request=self.request,
+            )
+        except WjsEditorAssignment.DoesNotExist:
+            return None
+
+    def save(self, commit=True):
         try:
             service = self.get_logic_instance()
-            service_deassignment = self.get_deassignment_logic_instance()
-            service_deassignment.run()
+            if service_deassignment := self.get_deassignment_logic_instance():
+                service_deassignment.run()
             service.run()
         except ValidationError as e:
             self.add_error(None, e)
