@@ -1,6 +1,7 @@
 """Import article from wjapp."""
 
 import datetime
+from dataclasses import dataclass, field
 from io import BytesIO
 
 import freezegun
@@ -28,7 +29,11 @@ from plugins.wjs_review.logic import (
     WorkflowReviewAssignment,
     render_template_from_setting,
 )
-from plugins.wjs_review.models import ArticleWorkflow, EditorDecision
+from plugins.wjs_review.models import (
+    ArticleWorkflow,
+    EditorDecision,
+    WjsEditorAssignment,
+)
 from review.models import (
     EditorAssignment,
     ReviewAssignment,
@@ -60,10 +65,11 @@ logger = get_logger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Connect to wjApp jcom database and read article data."  # NOQA A003
+    help = "Connect to wjApp jcom database and read article data."  # noqa A003
 
     def handle(self, *args, **options):
         """Command entry point."""
+
         if not getattr(settings, "NO_NOTIFICATION", None):
             self.stderr.write(
                 """Notifications are enabled, not importing to avoid spamming. Please set `NO_NOTIFICATION = True`
@@ -78,6 +84,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Add arguments to command."""
+
         parser.add_argument(
             "--preprintid",
             default="",
@@ -94,6 +101,8 @@ class Command(BaseCommand):
 
     def import_data_article(self, **options):
         """Process one article."""
+
+        session = None
         if self.options["importfiles"]:
             login_setting = f"WJAPP_{self.journal.code.upper()}_IMPORT_LOGIN_PARAMS"
             login_parameters = getattr(settings, login_setting, None)
@@ -171,242 +180,38 @@ class Command(BaseCommand):
         # read all version versionNum, versionCod
         versions = self.read_versions_data(document_cod)
 
-        # editor selection is done while reading the history
-        editor = None
-        editor_maxworkload = None
-
         # In wjapp, the concept of version is paramount. All actions revolve around versions.
         # Here we cycle through each version and manage the data that need.
         for v in versions:
             imported_version_cod = v["versionCod"]
             imported_version_num = v["versionNumber"]
 
-            # TEST IMPORT: for JCOM_003N_0623
-            #             with version 5 accepted editor report not visible on author page
-            if preprintid == "JCOM_003N_0623" and v["versionNumber"] > 4:
-                logger.error(f"TEST: forced stop before JCOM_003N_0623 version {v['versionNumber']}")
-                break
-
             # read actions history from wjapp preprint
             history = self.read_history_data(imported_version_cod)
 
+            # Note: editor selection is done with actions of the history
+
             for action in history:
+                # TODO: move the update of imported_document_layer_cod_list out of the action manager
+                # using as return value of each action manager run() the partial list
                 logger.debug(f"Looking at action {action['actionID']} ({action['actHistCod']})")
-
-                if action["actionID"] in ("SYS_ASS_ED", "ED_SEL_N_ED", "ADMIN_ASS_N_ED"):
-                    # these map (roughly) to EditorAssignment
-                    editor_cod = action["targetCod"]
-                    editor_lastname = action["targetLastname"]
-                    editor_firstname = action["targetFirstname"]
-                    editor_email = action["targetEmail"]
-                    editor_assign_date = action["actionDate"]
-                    editor_maxworkload = action["targetEditorWorkload"]
-
-                    # there are wjapp actions SYS_ASS_ED with editor assigned None
-                    # example: JCOM_003A_0424 version 2
-                    if editor_cod:
-                        # editor assignment
-                        editor = self.set_editor(
-                            article,
-                            editor_cod,
-                            editor_lastname,
-                            editor_firstname,
-                            editor_email,
-                            editor_assign_date,
-                        )
-
-                        # editor parameters
-                        editor_parameters = self.read_editor_parameters(editor_cod)
-                        self.set_editor_parameters(article, editor, editor_maxworkload, editor_parameters)
-
-                        if action["actionID"] == "SYS_ASS_ED":
-                            # TODO: import files must be done not only for this case but for each new wjapp version
-                            # TODO: import files must be extended to wjapp source zip/targz file and attachments
-                            if self.options["importfiles"]:
-                                response = self.download_manuscript_version(session, imported_version_num, preprintid)
-                                self.save_manuscript(preprintid, article, response)
-
-                if action["actionID"] in ("ED_ASS_REF", "ED_ADD_REF"):
-                    # these map (roughly) to ReviewAssignment
-                    # (review assignments are created onto the current review round; see external loop on versions)
-
-                    # TODO: refactor to avoid to repeat this fragment. Check that the editor must already be set
-                    if not editor:
-                        logger.error(f"editor not set for {preprintid} {article.id}")
-                        self.connection.close()
-                        return
-
-                    # reviewer data from Current_Referees
-                    reviewer_data = self.read_reviewer_data(imported_version_cod, action["targetCod"])
-
-                    # Reviewer not in Current_Referees - for example a removed referee
-                    #
-                    # The Action_History contains some data of the referee-related actions:
-                    # - referee assignment
-                    # - referee acceptance
-                    # - referee removal
-                    # - ..
-                    #
-                    # Current_Referees contains all the data of the (current) referees assignments (it is the
-                    # closest thing to Janeway's ReviewAssignment). But, if a referee has been "removed", the
-                    # relative assignment data is lost (we have a note about it only in Action_History).
-                    #
-                    # In wjapp, only referees that have not done any report can be removed.
-                    #
-                    # The import process loops on the action_history and executes all the actions version by
-                    # version.  When a referee assignment data is found also in Current_Referees, it is checked to
-                    # extract data (the fact that the action exists, means that the referee has not been removed),
-                    # otherwise remain only the action data.
-
-                    if not reviewer_data:
-                        reviewer_data = {
-                            "refereeCod": action["targetCod"],
-                            "refereeLastName": action["targetLastname"],
-                            "refereeFirstName": action["targetFirstname"],
-                            "refereeEmail": action["targetEmail"],
-                            "refereeAssignDate": action["actionDate"],
-                            "report_due_date": None,
-                            "refereeAcceptDate": None,
-                        }
-
-                    # select reviewer message
-                    reviewer_message = self.read_reviewer_message(
-                        imported_version_cod, action["targetCod"], preprintid, action["actionDate"]
-                    )
-                    logger.debug(f"Reviewer message: {reviewer_message.get('documentLayerCod')}")
-
-                    self.set_reviewer(article, editor, reviewer_data, reviewer_message)
-
-                if action["actionID"] in ("EQ1_REF_REF", "GT1_REF_REF", "REF_REF"):
-                    # wjapp actions for referee declined assignment for preprintid in wjapp:
-
-                    # - EQ1_REF_REF: this action indicates that a referee declined an assignment on a
-                    #   paper with exactly one referee (i.e. the paper has no more active review assignments)
-
-                    # - GT1_REF_REF: this action indicates that a referee declined an assignment on a
-                    #   paper with more than one referee (i.e. the paper has still active review assignments)
-
-                    # - REF_REF:  this action indicates that a referee declined an assignment.
-                    #   It is present in the wjapp code and Action table, but seems not used.
-                    #   Probably has been replaced by the two above. Added for completeness
-
-                    # TODO: refactor to avoid to repeat this fragment. Check that the editor must already be set
-                    if not editor:
-                        logger.error(f"editor not set for {preprintid} {article.id}")
-                        self.connection.close()
-                        return
-
-                    reviewer_decline_message = self.read_reviewer_decline_message(
-                        imported_version_cod, action["agentCod"], preprintid, action["actionDate"]
-                    )
-
-                    self.reviewer_declines(
-                        article,
-                        editor,
-                        action["agentCod"],
-                        action["agentLastname"],
-                        action["agentFirstname"],
-                        action["agentEmail"],
-                        action["actionDate"],
-                        reviewer_decline_message,
-                    )
-
-                if action["actionID"] == "REF_SENDS_REP":
-                    # Reviewer send report
-
-                    # TODO: refactor to avoid to repeat this fragment. Check that the editor must already be set
-                    if not editor:
-                        logger.error(f"editor not set for {preprintid} {article.id}")
-                        self.connection.close()
-                        return
-
-                    wjapp_reviewer_report = self.read_reviewer_report_message(
-                        imported_version_cod, action["agentCod"], preprintid, action["actionDate"]
-                    )
-                    self.reviewer_send_report(
-                        article,
-                        editor,
-                        action["agentCod"],
-                        action["agentLastname"],
-                        action["agentFirstname"],
-                        action["agentEmail"],
-                        action["actionDate"],
-                        wjapp_reviewer_report,
-                    )
-
-                if action["actionID"] in ("ED_REQ_REV", "ED_ACC_DOC_WMC", "ED_REJ_DOC"):
-                    # wjs editor report store:
-                    #
-                    # - for ED_REQ_REV, ED_ACC_DOC_WMC
-                    #     the EDREP is visible for the author on revision request page
-                    #        the view is ArticleRevisionUpdate based on model EditorRevisionRequest
-                    #         the templates are
-                    #            "wjs/themes/JCOM-theme/templates/admin/review/revision/do_revision.
-                    #            --> wjs_review/elements/revision_author_info.html
-                    #
-                    # - for ED_REJ_DOC the EDREP is NOT visible for the author
-                    #
-                    # - all editor reports are stored in EditorDecision.decision_editor_report
-                    #
-                    # - editor reports with revision request are stored also in EditorRevisionRequest
-
-                    if action["actionID"] == "ED_REQ_REV":
-                        # Editor requires major revision
-                        editor_decision = ArticleWorkflow.Decisions.MAJOR_REVISION
-                        requires_revision = True
-                        revision_interval_days = get_setting(
-                            "wjs_review",
-                            "default_author_major_revision_days",
-                            self.journal,
-                        ).process_value()
-
-                    if action["actionID"] == "ED_ACC_DOC_WMC":
-                        # Editor requires minor revision
-                        editor_decision = ArticleWorkflow.Decisions.MINOR_REVISION
-                        requires_revision = True
-                        revision_interval_days = get_setting(
-                            "wjs_review",
-                            "default_author_minor_revision_days",
-                            self.journal,
-                        ).process_value()
-
-                    # when rejected the article is no more visible in pending
-                    if action["actionID"] == "ED_REJ_DOC":
-                        # Editor requires minor revision
-                        editor_decision = ArticleWorkflow.Decisions.REJECT
-                        requires_revision = False
-                        revision_interval_days = 0
-
-                    # TODO: refactor to avoid to repeat this fragment. Check that the editor must already be set
-                    if not editor:
-                        logger.error(f"editor not set for {preprintid} {article.id}")
-                        self.connection.close()
-                        return
-
-                    wjapp_editor_report = self.read_editor_report_message(
-                        imported_version_cod, action["agentCod"], preprintid, action["actionDate"]
-                    )
-
-                    revision = self.editor_decides(
-                        article,
-                        editor,
-                        editor_decision,
-                        action["actionDate"],
-                        wjapp_editor_report,
-                        requires_revision,
-                        revision_interval_days,
-                    )
-                    if requires_revision:
-                        logger.debug(f"editor decision with revision request EditorRevisionRequest: {revision=}")
-
-                if action["actionID"] in ("AU_SUB_REV", "AU_SUB_REV_WMC"):
-                    # TBV: author of the action is the same of main_author?
-                    #      the author could be switched with coauthor
-                    self.author_submit_revision(
-                        main_author,
-                        article,
-                        action["actionDate"],
-                    )
+                if action_manager := globals().get(action["actionID"]):
+                    # "actionID" is something like SYS_ASS_ED, that is also
+                    # the name of a class defined in this module
+                    action_manager(
+                        action=action,
+                        connection=self.connection,
+                        session=session,
+                        journal=self.journal,
+                        preprintid=preprintid,
+                        article=article,
+                        imported_version_num=imported_version_num,
+                        imported_version_cod=imported_version_cod,
+                        importfiles=self.options["importfiles"],
+                        imported_document_layer_cod_list=self.imported_document_layer_cod_list,
+                    ).run()
+                else:
+                    logger.warning(f"Action {action['actionID']} not yet managed.")
 
         self.connection.close()
 
@@ -416,6 +221,7 @@ class Command(BaseCommand):
 
     def wjapp_login(self, username, passwd):
         """Login to wjapp to download files."""
+
         # TODO: add login successful check (verify reponse.content)
         payload = {
             "userid": f"{username}",
@@ -439,6 +245,7 @@ class Command(BaseCommand):
 
     def read_article_data(self, preprintid):
         """Read article main data."""
+
         cursor_article = self.connection.cursor(dictionary=True)
         query = """
 SELECT
@@ -540,263 +347,13 @@ ORDER BY ah.actionDate
         cursor_history.close()
         return history
 
-    def read_editor_parameters(self, editor_cod):
-        """Read editor parameters."""
-        cursor_editor_parameters = self.connection.cursor(dictionary=True)
-        query_editor_parameters = """
-SELECT
-ek.editorCod,
-ek.keywordCod,
-ek.keywordWeight,
-kw.keywordName
-FROM Editor_Keyword ek
-LEFT JOIN Keyword kw USING (keywordCod)
-WHERE editorCod=%(editor_cod)s
-"""
-        editor_parameters = cursor_editor_parameters.execute(query_editor_parameters, {"editor_cod": editor_cod})
-        editor_parameters = cursor_editor_parameters.fetchall()
-        cursor_editor_parameters.close()
-        return editor_parameters
-
-    def read_reviewer_data(self, imported_version_cod, user_cod):
-        """Read reviewer data."""
-        cursor_reviewer = self.connection.cursor(dictionary=True)
-        query_reviewer = """
-SELECT
-refereeCod,
-u.lastName  AS refereeLastName,
-u.firstName AS refereeFirstName,
-u.email     AS refereeEmail,
-assignDate  AS refereeAssignDate,
-refereeReportDeadlineDate AS report_due_date,
-acceptDate AS refereeAcceptDate
-FROM Current_Referees c
-LEFT JOIN User u ON (u.userCod=c.refereeCod)
-WHERE
-        versioncod=%(imported_version_cod)s
-    AND refereeCod=%(user_cod)s
-ORDER BY assignDate
-"""
-        cursor_reviewer.execute(
-            query_reviewer,
-            {
-                "imported_version_cod": imported_version_cod,
-                "user_cod": user_cod,
-            },
-        )
-        reviewer_data = cursor_reviewer.fetchone()
-        cursor_reviewer.close()
-        return reviewer_data
-
-    def read_reviewer_message(self, imported_version_cod, user_cod, preprintid, action_date):
-        """Read the message that is sent to the reviewer when he is assigned to a paper."""
-        cursor_reviewer_message = self.connection.cursor(
-            buffered=True,
-            dictionary=True,
-        )
-
-        # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
-        # from editor, in a certain time range (5") respect to the action_date
-
-        # NOTE: condition on documentLayerSubject not used because:
-        #      - wjapp maintenace "change documentType" let old preprintid in
-        #        Document_Layer (and Attachments)
-        #      - exist documentLayerSubject customized by the editor
-        #      - imported _version_cod ensures to retrive the correct article
-
-        query_reviewer_message = """
-SELECT
-dl.documentLayerCod,
-dl.documentLayerText
-FROM Document_Layer dl
-LEFT JOIN User_Rights ur USING (documentLayerCod)
-LEFT JOIN User u USING (userCod)
-WHERE
-    versioncod=%(imported_version_cod)s
-AND ur.userCod=%(user_cod)s
-AND dl.documentLayerType='EMAIL'
-AND ur.userType='recipient'
-AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
-ORDER BY dl.submissionDate
-"""
-        cursor_reviewer_message.execute(
-            query_reviewer_message,
-            {
-                "imported_version_cod": imported_version_cod,
-                "user_cod": user_cod,
-                "action_date": str(action_date),
-            },
-        )
-        if cursor_reviewer_message.rowcount != 1:
-            logger.error(f"Found {cursor_reviewer_message.rowcount} reviewer assignment messages: {preprintid}")
-            reviewer_message = None
-        else:
-            reviewer_message = cursor_reviewer_message.fetchone()
-        cursor_reviewer_message.close()
-        return reviewer_message
-
-    def read_reviewer_decline_message(self, imported_version_cod, agent_cod, preprintid, action_date):
-        """Read decline message."""
-        cursor_reviewer_decline_message = self.connection.cursor(buffered=True, dictionary=True)
-
-        # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
-        # from editor, in a certain time range (5") respect to the action_date
-
-        # NOTE: condition on documentLayerSubject not used because:
-        #      - wjapp maintenace "change documentType" let old preprintid in
-        #        Document_Layer (and Attachments)
-        #      - exist documentLayerSubject customized by the editor
-        #      - imported _version_cod ensures to retrive the correct article
-
-        query_reviewer_decline_message = """
-SELECT
-dl.documentLayerCod,
-dl.documentLayerText
-FROM Document_Layer dl
-LEFT JOIN User_Rights ur USING (documentLayerCod)
-LEFT JOIN User u USING (userCod)
-WHERE
-    versioncod=%(imported_version_cod)s
-AND ur.userCod=%(agent_cod)s
-AND dl.documentLayerType='EMAIL'
-AND ur.userType='author'
-AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
-ORDER BY dl.submissionDate
-"""
-        cursor_reviewer_decline_message.execute(
-            query_reviewer_decline_message,
-            {
-                "imported_version_cod": imported_version_cod,
-                "agent_cod": agent_cod,
-                "action_date": str(action_date),
-            },
-        )
-        if cursor_reviewer_decline_message.rowcount != 1:
-            logger.error(f"Found {cursor_reviewer_decline_message.rowcount} reviewer decline messages: {preprintid}")
-            reviewer_decline_message = None
-        else:
-            reviewer_decline_message = cursor_reviewer_decline_message.fetchone()
-        cursor_reviewer_decline_message.close()
-        return reviewer_decline_message
-
-    def read_reviewer_report_message(self, imported_version_cod, agent_cod, preprintid, action_date):
-        """Read report message."""
-        cursor_reviewer_report_message = self.connection.cursor(buffered=True, dictionary=True)
-
-        # in wjapp a certain message is not directly linked to an action. So we make a list of REREP
-        # from the reviewer, in a certain time range (-10" +5") respect to the action_date
-
-        # NOTE: condition on documentLayerSubject not used because:
-        #      - wjapp maintenace "change documentType" let old preprintid in
-        #        Document_Layer (and Attachments)
-        #      - imported _version_cod ensures to retrive the correct article
-
-        query_reviewer_report_message = """
-SELECT
-dl.documentLayerCod,
-dl.documentLayerText,
-dl.documentLayerOnlyTex
-FROM Document_Layer dl
-LEFT JOIN User_Rights ur USING (documentLayerCod)
-LEFT JOIN User u USING (userCod)
-WHERE
-    versioncod=%(imported_version_cod)s
-AND ur.userCod=%(agent_cod)s
-AND dl.documentLayerType='REREP'
-AND ur.userType='author'
-AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
-ORDER BY dl.submissionDate
-"""
-        cursor_reviewer_report_message.execute(
-            query_reviewer_report_message,
-            {
-                "imported_version_cod": imported_version_cod,
-                "agent_cod": agent_cod,
-                "action_date": str(action_date),
-            },
-        )
-        if cursor_reviewer_report_message.rowcount != 1:
-            logger.error(f"Found {cursor_reviewer_report_message.rowcount} reviewer report: {preprintid}")
-            reviewer_report_message = None
-        else:
-            reviewer_report_message = cursor_reviewer_report_message.fetchone()
-        cursor_reviewer_report_message.close()
-        return reviewer_report_message
-
-    def read_editor_report_message(self, imported_version_cod, agent_cod, preprintid, action_date):
-        """Read editor report message."""
-        cursor_editor_report_message = self.connection.cursor(buffered=True, dictionary=True)
-
-        # in wjapp a certain message is not directly linked to an action. So we make a list of EDREP
-        # from the editor, in a certain time range (-10" +5") respect to the action_date
-
-        # NOTE: condition on documentLayerSubject not used because:
-        #      - wjapp maintenace "change documentType" let old preprintid in
-        #        Document_Layer (and Attachments)
-        #      - imported _version_cod ensures to retrive the correct article
-
-        query_editor_report_message = """
-SELECT
-dl.documentLayerCod,
-dl.documentLayerText,
-dl.documentLayerOnlyTex
-FROM Document_Layer dl
-LEFT JOIN User_Rights ur USING (documentLayerCod)
-LEFT JOIN User u USING (userCod)
-WHERE
-    versioncod=%(imported_version_cod)s
-AND ur.userCod=%(agent_cod)s
-AND dl.documentLayerType='EDREP'
-AND ur.userType='author'
-AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
-ORDER BY dl.submissionDate
-"""
-        cursor_editor_report_message.execute(
-            query_editor_report_message,
-            {
-                "imported_version_cod": imported_version_cod,
-                "agent_cod": agent_cod,
-                "action_date": str(action_date),
-            },
-        )
-        if cursor_editor_report_message.rowcount != 1:
-            logger.error(f"Found {cursor_editor_report_message.rowcount} reviewer report: {preprintid}")
-            editor_report_message = None
-        else:
-            editor_report_message = cursor_editor_report_message.fetchone()
-            logger.debug(f"{preprintid} EDREP: {editor_report_message.get('documentLayerCod')}")
-        cursor_editor_report_message.close()
-        return editor_report_message
-
-    def download_manuscript_version(self, session, imported_version_num, preprintid):
-        """Download pdf manuscript for imported version."""
-        # TODO: move url to plugin settings (depends on journal)?
-        # authorised request.
-        # ex: https://jcom.sissa.it/jcom/common/archiveFile?
-        #    filePath=JCOM_003N_0623/5/JCOM_003N_0623.pdf&fileType=pdf
-        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
-        file_url = f"{url_base}{preprintid}/{imported_version_num}/{preprintid}.pdf&fileType=pdf"
-        logger.debug(f"{file_url=}")
-
-        response = session.get(file_url)
-
-        assert response.status_code == 200, f"Got {response.status_code}!"
-
-        if response.headers["Content-Length"] == "0":
-            logger.error(f"check wjapp login credentials empty file downloaded: {response.headers['Content-Length']}")
-
-        return response
-
     #
     # functions to set data in wjs
     #
 
     def create_article(self, row):
         """Create the article."""
+
         preprintid = row["preprintId"]
         article = submission_models.Article.get_article(
             journal=self.journal,
@@ -837,7 +394,8 @@ ORDER BY dl.submissionDate
         article.imported = True
         article.date_submitted = rome_timezone.localize(row["submissionDate"])
         article.save()
-        main_author = self.account_get_or_create_check_correspondence(
+        main_author = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
             row["authorCod"],
             row["author_lastname"],
             row["author_firstname"],
@@ -861,93 +419,9 @@ ORDER BY dl.submissionDate
         article.refresh_from_db()
         return (article, preprintid, main_author)
 
-    # TODO: check why new review_round is not created
-    def set_editor(self, article, editor_cod, editor_lastname, editor_firstname, editor_email, editor_assign_date):
-        """Assign the editor.
-
-        Also create the editor's Account if necessary.
-        """
-        editor = self.account_get_or_create_check_correspondence(
-            editor_cod,
-            editor_lastname,
-            editor_firstname,
-            editor_email,
-        )
-
-        # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
-        # article.
-        if not editor.check_role(self.journal, "section-editor"):
-            editor.add_account_role("section-editor", self.journal)
-
-        logger.debug(f"Assigning {editor.last_name} {editor.first_name} onto {article.pk}")
-
-        # TODO: we need a function in the logic to reassign a new editor to the article.
-        #       As temporary replacement we delete the editor assignments for the article
-        EditorAssignment.objects.filter(article=article).delete()
-
-        # Manually move into a state where editor assignment can take place
-        # TODO: check if this is not the case already...
-        article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
-        article.articleworkflow.save()
-
-        request = create_fake_request(user=None, journal=self.journal)
-        GlobalRequestMiddleware.process_request(request)
-
-        with freezegun.freeze_time(
-            rome_timezone.localize(editor_assign_date),
-        ):
-            AssignToEditor(
-                article=article,
-                editor=editor,
-                request=request,
-            ).run()
-            article.save()
-        article.refresh_from_db()
-        return editor
-
-    def account_get_or_create_check_correspondence(self, user_cod, last_name, first_name, imported_email):
-        """Get a user account - check Correspondence and eventually create new account."""
-        # Check if we know this person form some other journal or by email
-        source = self.journal.code.lower()
-        account_created = False
-        mappings = wjs_models.Correspondence.objects.filter(
-            Q(user_cod=user_cod, source=source) | Q(email=imported_email),
-        )
-        if mappings.count() == 0:
-            # We never saw this person in other journals.
-            account, account_created = Account.objects.get_or_create(
-                email=imported_email,
-                defaults={
-                    "first_name": first_name,
-                    "last_name": last_name,
-                },
-            )
-            mapping = wjs_models.Correspondence.objects.create(
-                user_cod=user_cod,
-                source=source,
-                email=imported_email,
-                account=account,
-            )
-        elif mappings.count() >= 1:
-            # We know this person from another journal
-            logger.debug(
-                f"WJS mapping exists ({mappings.count()} correspondences)"
-                f" for {user_cod}/{source} or {imported_email}",
-            )
-            mapping = check_mappings(mappings, imported_email, user_cod, source)
-
-        account = mapping.account
-
-        # `used` indicates that this usercod from this source
-        # has been used to create the core.Account record
-        if account_created:
-            mapping.used = True
-            mapping.save()
-
-        return account
-
     def set_section(self, article, section_name):
         """Set the section."""
+
         if section_name not in SECTIONS_MAPPING:
             logger.critical(f'Unknown article type "{section_name}" for {article.get_identifier("preprintid")}')
             raise UnknownSection(f'Unknown article type "{section_name}" for {article.get_identifier("preprintid")}')
@@ -972,53 +446,9 @@ ORDER BY dl.submissionDate
 
         article.save()
 
-    def set_editor_parameters(self, article: submission_models.Article, editor, editor_maxworkload, editor_parameters):
-        """Set the editor parameters.
-
-        - max-workload (EditorAssignmentParameters workload)
-        - keyword      (EditorKeyword into EditorAssignmentParameters keywords)
-        - kwd weight   (EditorKeyword weight)
-        """
-        if editor_parameters:
-            assignment_parameters, eap_created = wjs_models.EditorAssignmentParameters.objects.get_or_create(
-                editor=editor,
-                journal=self.journal,
-            )
-        else:
-            return
-
-        if not editor_maxworkload:
-            logger.error(f"Missing editor max workload: {editor_maxworkload}")
-
-        if editor_maxworkload == 9999:
-            logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
-
-        assignment_parameters.workload = editor_maxworkload
-        assignment_parameters.save()
-
-        # delete all existing editor kwds
-        wjs_models.EditorKeyword.objects.filter(editor_parameters=assignment_parameters).delete()
-
-        # create all new editor kwds
-        for ep in editor_parameters:
-            kwd_word = ep["keywordName"]
-            kwd_weight = ep["keywordWeight"]
-            logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
-            keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
-            if created:
-                logger.warning(
-                    f'Created keyword "{kwd_word}" for editor {editor}. Please check!',
-                )
-            wjs_models.EditorKeyword.objects.create(
-                editor_parameters=assignment_parameters,
-                keyword=keyword,
-                weight=kwd_weight,
-            )
-
-        return
-
     def set_keywords(self, article: submission_models.Article, keywords):
         """Set the keywords."""
+
         # Drop all article's kwds (and KeywordArticles, used for kwd ordering)
         article.keywords.clear()
         order = 0
@@ -1054,18 +484,438 @@ ORDER BY dl.submissionDate
             article.keywords.add(keyword)
         article.save()
 
-    def set_reviewer(self, article, editor, reviewer_data, reviewer_message):
+
+#
+# general function
+#
+
+
+def account_get_or_create_check_correspondence(source, user_cod, last_name, first_name, imported_email):
+    """Get a user account - check Correspondence and eventually create new account."""
+
+    # ex: source: jcom, jcomal, prophy, ...
+    # Check if we know this person form some other journal or by email
+    account_created = False
+    mappings = wjs_models.Correspondence.objects.filter(
+        Q(user_cod=user_cod, source=source) | Q(email=imported_email),
+    )
+    if mappings.count() == 0:
+        # We never saw this person in other journals.
+        account, account_created = Account.objects.get_or_create(
+            email=imported_email,
+            defaults={
+                "first_name": first_name,
+                "last_name": last_name,
+            },
+        )
+        mapping = wjs_models.Correspondence.objects.create(
+            user_cod=user_cod,
+            source=source,
+            email=imported_email,
+            account=account,
+        )
+    elif mappings.count() >= 1:
+        # We know this person from another journal
+        logger.debug(
+            f"WJS mapping exists ({mappings.count()} correspondences)" f" for {user_cod}/{source} or {imported_email}",
+        )
+        mapping = check_mappings(mappings, imported_email, user_cod, source)
+
+    account = mapping.account
+    # `used` indicates that this usercod from this source
+    # has been used to create the core.Account record
+    if account_created:
+        mapping.used = True
+        mapping.save()
+
+    return account
+
+
+@dataclass
+class BaseActionManager:
+    """Data class that manages one action."""
+
+    # one of the records returned by of the read_history_data() / action-history
+    # item (agent, target, version_code, etc.)
+    action: dict
+    connection: mariadb.connection
+    session: requests.sessions.Session
+    journal: Journal
+    preprintid: str
+    article: submission_models.Article
+    imported_version_num: int
+    imported_version_cod: int
+    importfiles: bool
+    imported_document_layer_cod_list: list
+
+    def run(self):
+        raise NotImplementedError
+
+    def get_current_editor(self):
+        return WjsEditorAssignment.objects.get_current(self.article).editor
+
+    def check_editor_set(self):
+        if not self.get_current_editor():
+            logger.error(f"editor not set for {self.preprintid} {self.article.id}")
+            self.connection.close()
+            raise Exception
+
+    def download_manuscript_version(self):
+        """Download pdf manuscript for imported version."""
+
+        # TODO: move url to plugin settings (depends on journal)?
+        # authorised request.
+        # ex: https://jcom.sissa.it/jcom/common/archiveFile?
+        #    filePath=JCOM_003N_0623/5/JCOM_003N_0623.pdf&fileType=pdf
+        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
+        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
+        logger.debug(f"{file_url=}")
+
+        response = self.session.get(file_url)
+
+        assert response.status_code == 200, f"Got {response.status_code}!"
+
+        if response.headers["Content-Length"] == "0":
+            logger.error(f"check wjapp login credentials empty file downloaded: {response.headers['Content-Length']}")
+
+        return response
+
+    def save_manuscript(self, response):
+        """Save manuscript from response"""
+
+        manuscript_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.pdf")
+
+        manuscript_file = files.save_file_to_article(
+            manuscript_dj,
+            self.article,
+            self.article.correspondence_author,
+        )
+        self.article.manuscript_files.add(manuscript_file)
+        manuscript_file.label = "PDF"
+        manuscript_file.description = ""
+        manuscript_file.save()
+        self.article.save()
+        return
+
+    # move to utility?
+    def newlines_text_to_html(self, message: str) -> str:
+        """Format Document_Layer message read from wjapp."""
+        # TBV: format other new-line styles?
+        #      Document_Layer messages/report from jcom jcomal are text message
+        return message.replace("\r\n", "<br/>")
+
+
+@dataclass
+class EditorAssignmentAction(BaseActionManager):
+    """Manages editor assignment action."""
+
+    action_triggers_import_files: bool = field(init=False, default=False)
+
+    def run(self):
+        """Editor assignment management."""
+
+        # these map (roughly) to EditorAssignment
+        editor_cod = self.action["targetCod"]
+        editor_lastname = self.action["targetLastname"]
+        editor_firstname = self.action["targetFirstname"]
+        editor_email = self.action["targetEmail"]
+        editor_assign_date = self.action["actionDate"]
+        editor_maxworkload = self.action["targetEditorWorkload"]
+
+        # there are wjapp actions SYS_ASS_ED with editor assigned None
+        # example: JCOM_003A_0424 version 2
+        if editor_cod:
+            # attribute editor added
+            self.set_editor(
+                editor_cod,
+                editor_lastname,
+                editor_firstname,
+                editor_email,
+                editor_assign_date,
+            )
+
+            # added attribute editor parameters
+            editor_parameters = self.read_editor_parameters(editor_cod)
+            self.set_editor_parameters(editor_parameters, editor_maxworkload)
+
+            if self.action_triggers_import_files and self.importfiles:
+                # TODO: import files must be done not only for this case but for each new wjapp version
+                # TODO: import files must be extended to wjapp source zip/targz file and attachments
+                response = self.download_manuscript_version()
+                self.save_manuscript(response)
+
+    # TODO: check why new review_round is not created
+    def set_editor(self, editor_cod, editor_lastname, editor_firstname, editor_email, editor_assign_date):
+        """Assign the editor.
+
+        Also create the editor's Account if necessary.
+        """
+        editor = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            editor_cod,
+            editor_lastname,
+            editor_firstname,
+            editor_email,
+        )
+
+        # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
+        # article.
+        if not editor.check_role(self.journal, "section-editor"):
+            editor.add_account_role("section-editor", self.journal)
+
+        logger.debug(f"Assigning {editor.last_name} {editor.first_name} onto {self.article.pk}")
+
+        # TODO: we need a function in the logic to reassign a new editor to the article.
+        #       As temporary replacement we delete the editor assignments for the article
+        EditorAssignment.objects.filter(article=self.article).delete()
+
+        # Manually move into a state where editor assignment can take place
+        # TODO: check if this is not the case already...
+        self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+        self.article.articleworkflow.save()
+
+        request = create_fake_request(user=None, journal=self.journal)
+        GlobalRequestMiddleware.process_request(request)
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(editor_assign_date),
+        ):
+            AssignToEditor(
+                article=self.article,
+                editor=editor,
+                request=request,
+            ).run()
+            self.article.save()
+        self.article.refresh_from_db()
+        return editor
+
+    def read_editor_parameters(self, editor_cod):
+        """Read editor parameters."""
+
+        # Note mar 2 lug 2024:
+        # in jcom only 1 editor has keywords
+        cursor_editor_parameters = self.connection.cursor(dictionary=True)
+        query_editor_parameters = """
+SELECT
+ek.editorCod,
+ek.keywordCod,
+ek.keywordWeight,
+kw.keywordName
+FROM Editor_Keyword ek
+LEFT JOIN Keyword kw USING (keywordCod)
+WHERE editorCod=%(editor_cod)s
+"""
+        editor_parameters = cursor_editor_parameters.execute(query_editor_parameters, {"editor_cod": editor_cod})
+        editor_parameters = cursor_editor_parameters.fetchall()
+        cursor_editor_parameters.close()
+        return editor_parameters
+
+    def set_editor_parameters(self, editor_parameters, editor_maxworkload):
+        """Set the editor parameters.
+
+        - max-workload (EditorAssignmentParameters workload)
+        - keyword      (EditorKeyword into EditorAssignmentParameters keywords)
+        - kwd weight   (EditorKeyword weight)
+        """
+
+        if editor_parameters:
+            assignment_parameters, eap_created = wjs_models.EditorAssignmentParameters.objects.get_or_create(
+                editor=self.get_current_editor(),
+                journal=self.journal,
+            )
+        else:
+            return
+
+        if not editor_maxworkload:
+            logger.error(f"Missing editor max workload: {editor_maxworkload}")
+
+        if editor_maxworkload == 9999:
+            logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
+
+        assignment_parameters.workload = editor_maxworkload
+        assignment_parameters.save()
+
+        # delete all existing editor kwds
+        wjs_models.EditorKeyword.objects.filter(editor_parameters=assignment_parameters).delete()
+
+        # create all new editor kwds
+        for ep in editor_parameters:
+            kwd_word = ep["keywordName"]
+            kwd_weight = ep["keywordWeight"]
+            logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
+            keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
+            if created:
+                logger.warning(
+                    f'Created keyword "{kwd_word}" for editor {self.get_current_editor()}. Please check!',
+                )
+            wjs_models.EditorKeyword.objects.create(
+                editor_parameters=assignment_parameters,
+                keyword=keyword,
+                weight=kwd_weight,
+            )
+
+        return
+
+
+@dataclass
+class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
+    """Manages action SYS_ASS_ED."""
+
+    def __post_init__(self):
+        self.action_triggers_import_files = True
+
+
+class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
+    """Manages action ED_SEL_N_ED."""
+
+
+class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
+    """Manages action ADMIN_ASS_N_ED."""
+
+
+class ReviewAssignmentAction(BaseActionManager):
+    """Review assignment management.
+
+    All actions of this class map (roughly) to ReviewAssignment.
+    Review assignments are created onto the current review round; see external loop on versions.
+    """
+
+    def run(self):
+        self.check_editor_set()
+
+        # reviewer data from Current_Referees
+        reviewer_data = self.read_reviewer_data()
+
+        # Reviewer not in Current_Referees - for example a removed referee
+        #
+        # The Action_History contains some data of the referee-related actions:
+        # - referee assignment
+        # - referee acceptance
+        # - referee removal
+        # - ..
+        #
+        # Current_Referees contains all the data of the (current) referees assignments (it is the
+        # closest thing to Janeway's ReviewAssignment). But, if a referee has been "removed", the
+        # relative assignment data is lost (we have a note about it only in Action_History).
+        #
+        # In wjapp, only referees that have not done any report can be removed.
+        #
+        # The import process loops on the action_history and executes all the actions version by
+        # version.  When a referee assignment data is found also in Current_Referees, it is checked to
+        # extract data (the fact that the action exists, means that the referee has not been removed),
+        # otherwise remain only the action data.
+
+        if not reviewer_data:
+            reviewer_data = {
+                "refereeCod": self.action["targetCod"],
+                "refereeLastName": self.action["targetLastname"],
+                "refereeFirstName": self.action["targetFirstname"],
+                "refereeEmail": self.action["targetEmail"],
+                "refereeAssignDate": self.action["actionDate"],
+                "report_due_date": None,
+                "refereeAcceptDate": None,
+            }
+
+        # select reviewer message
+        reviewer_message = self.read_reviewer_message()
+        logger.debug(f"Reviewer message: {reviewer_message.get('documentLayerCod')}")
+
+        self.set_reviewer(reviewer_data, reviewer_message)
+
+    def read_reviewer_data(self):
+        """Read reviewer data."""
+
+        cursor_reviewer = self.connection.cursor(dictionary=True)
+        query_reviewer = """
+SELECT
+refereeCod,
+u.lastName  AS refereeLastName,
+u.firstName AS refereeFirstName,
+u.email     AS refereeEmail,
+assignDate  AS refereeAssignDate,
+refereeReportDeadlineDate AS report_due_date,
+acceptDate AS refereeAcceptDate
+FROM Current_Referees c
+LEFT JOIN User u ON (u.userCod=c.refereeCod)
+WHERE
+        versioncod=%(imported_version_cod)s
+    AND refereeCod=%(user_cod)s
+ORDER BY assignDate
+"""
+        cursor_reviewer.execute(
+            query_reviewer,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "user_cod": self.action["targetCod"],
+            },
+        )
+        reviewer_data = cursor_reviewer.fetchone()
+        cursor_reviewer.close()
+        return reviewer_data
+
+    def read_reviewer_message(self):
+        """Read the message that is sent to the reviewer when he is assigned to a paper."""
+
+        cursor_reviewer_message = self.connection.cursor(
+            buffered=True,
+            dictionary=True,
+        )
+
+        # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
+        # from editor, in a certain time range (5") respect to the action_date
+
+        # NOTE: condition on documentLayerSubject not used because:
+        #      - wjapp maintenace "change documentType" let old preprintid in
+        #        Document_Layer (and Attachments)
+        #      - exist documentLayerSubject customized by the editor
+        #      - imported _version_cod ensures to retrive the correct article
+
+        query_reviewer_message = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerText
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(user_cod)s
+AND dl.documentLayerType='EMAIL'
+AND ur.userType='recipient'
+AND dl.submissionDate>=%(action_date)s
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+ORDER BY dl.submissionDate
+"""
+        cursor_reviewer_message.execute(
+            query_reviewer_message,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "user_cod": self.action["targetCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_reviewer_message.rowcount != 1:
+            logger.error(f"Found {cursor_reviewer_message.rowcount} reviewer assignment messages: {self.preprintid}")
+            reviewer_message = None
+        else:
+            reviewer_message = cursor_reviewer_message.fetchone()
+        cursor_reviewer_message.close()
+        return reviewer_message
+
+    def set_reviewer(self, reviewer_data, reviewer_message):
         """Set a reviewer."""
-        reviewer = self.account_get_or_create_check_correspondence(
+
+        reviewer = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
             reviewer_data["refereeCod"],
             reviewer_data["refereeLastName"],
             reviewer_data["refereeFirstName"],
             reviewer_data["refereeEmail"],
         )
-        logger.debug(f"Creating review assignment of {article.id} to reviewer {reviewer}")
+        logger.debug(f"Creating review assignment of {self.article.id} to reviewer {reviewer}")
 
         request = create_fake_request(user=None, journal=self.journal)
-        request.user = editor
+        request.user = self.get_current_editor()
 
         with freezegun.freeze_time(
             rome_timezone.localize(reviewer_data["refereeAssignDate"]),
@@ -1084,7 +934,7 @@ ORDER BY dl.submissionDate
             date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
 
             if reviewer_message:
-                message = newlines_text_to_html(reviewer_message.get("documentLayerText"))
+                message = self.newlines_text_to_html(reviewer_message.get("documentLayerText"))
                 self.imported_document_layer_cod_list.append(reviewer_message.get("documentLayerCod"))
                 logger.debug(f"append reviewer message: {reviewer_message.get('documentLayerCod')}")
 
@@ -1095,12 +945,14 @@ ORDER BY dl.submissionDate
                     journal=self.journal,
                     request=request,
                     context={
-                        "article": article,
+                        "article": self.article,
                         "request": request,
                     },
                     template_is_setting=True,
                 )
-                logger.warning(f"used default reviewer message {reviewer=} {article=} {editor=}")
+                logger.warning(
+                    f"used default reviewer message {reviewer=} {self.article=} {self.get_current_editor()=}"
+                )
 
             form_data = {
                 "acceptance_due_date": date_due,
@@ -1108,8 +960,8 @@ ORDER BY dl.submissionDate
             }
             review_assignment = AssignToReviewer(
                 reviewer=reviewer,
-                workflow=article.articleworkflow,
-                editor=editor,
+                workflow=self.article.articleworkflow,
+                editor=self.get_current_editor(),
                 form_data=form_data,
                 request=request,
             ).run()
@@ -1125,7 +977,7 @@ ORDER BY dl.submissionDate
                     EvaluateReview(
                         assignment=review_assignment,
                         reviewer=reviewer,
-                        editor=editor,
+                        editor=self.get_current_editor(),
                         form_data={"reviewer_decision": "1", "accept_gdpr": True},
                         request=request,
                         token=None,
@@ -1140,19 +992,94 @@ ORDER BY dl.submissionDate
 
         return review_assignment
 
-    def reviewer_declines(
-        self,
-        article,
-        editor,
-        reviewer_cod,
-        reviewer_lastname,
-        reviewer_firstname,
-        reviewer_email,
-        reviewer_declines_date,
-        reviewer_decline_message,
-    ):
+
+class ED_ASS_REF(ReviewAssignmentAction):  # noqa N801
+    """Manages wjapp action ED_ASS_REF."""
+
+
+class ED_ADD_REF(ReviewAssignmentAction):  # noqa N801
+    """Manages wjapp action ED_ADD_REF."""
+
+
+class ReviewerDeclineAction(BaseActionManager):
+    """Reviewer decline management."""
+
+    def run(self):
+        # wjapp actions for referee declined assignment for preprintid in wjapp:
+
+        # - EQ1_REF_REF: this action indicates that a referee declined an assignment on a
+        #   paper with exactly one referee (i.e. the paper has no more active review assignments)
+
+        # - GT1_REF_REF: this action indicates that a referee declined an assignment on a
+        #   paper with more than one referee (i.e. the paper has still active review assignments)
+
+        # - REF_REF:  this action indicates that a referee declined an assignment.
+        #   It is present in the wjapp code and Action table, but seems not used.
+        #   Probably has been replaced by the two above. Added for completeness
+
+        self.check_editor_set()
+        reviewer_decline_message = self.read_reviewer_decline_message()
+        self.reviewer_declines(reviewer_decline_message)
+
+    def read_reviewer_decline_message(self):
+        """Read decline message."""
+
+        cursor_reviewer_decline_message = self.connection.cursor(buffered=True, dictionary=True)
+
+        # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
+        # from editor, in a certain time range (5") respect to the action_date
+
+        # NOTE: condition on documentLayerSubject not used because:
+        #      - wjapp maintenace "change documentType" let old preprintid in
+        #        Document_Layer (and Attachments)
+        #      - exist documentLayerSubject customized by the editor
+        #      - imported _version_cod ensures to retrive the correct article
+
+        query_reviewer_decline_message = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerText
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(agent_cod)s
+AND dl.documentLayerType='EMAIL'
+AND ur.userType='author'
+AND dl.submissionDate>=%(action_date)s
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+ORDER BY dl.submissionDate
+"""
+        cursor_reviewer_decline_message.execute(
+            query_reviewer_decline_message,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "agent_cod": self.action["agentCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_reviewer_decline_message.rowcount != 1:
+            logger.error(
+                f"Found {cursor_reviewer_decline_message.rowcount} reviewer decline messages: {self.preprintid}"
+            )
+            reviewer_decline_message = None
+        else:
+            reviewer_decline_message = cursor_reviewer_decline_message.fetchone()
+        cursor_reviewer_decline_message.close()
+        return reviewer_decline_message
+
+    def reviewer_declines(self, reviewer_decline_message):
         """Reviewer declines."""
-        reviewer = self.account_get_or_create_check_correspondence(
+
+        reviewer_cod = self.action["agentCod"]
+        reviewer_lastname = self.action["agentLastname"]
+        reviewer_firstname = self.action["agentFirstname"]
+        reviewer_email = self.action["agentEmail"]
+        reviewer_declines_date = self.action["actionDate"]
+
+        reviewer = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
             reviewer_cod,
             reviewer_lastname,
             reviewer_firstname,
@@ -1166,15 +1093,18 @@ ORDER BY dl.submissionDate
         # respecting the temporal order in which they have been originally created;
         # so we are always working on the latest/current version/review-round.
         review_assignment = WorkflowReviewAssignment.objects.get(
-            reviewer=reviewer, article=article, editor=editor, review_round=article.current_review_round_object()
+            reviewer=reviewer,
+            article=self.article,
+            editor=self.get_current_editor(),
+            review_round=self.article.current_review_round_object(),
         )
 
         with freezegun.freeze_time(
             rome_timezone.localize(reviewer_declines_date),
         ):
-            logger.debug(f"Reviewer {reviewer} declines {article}")
+            logger.debug(f"Reviewer {reviewer} declines {self.article}")
 
-            decline_reason = newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
+            decline_reason = self.newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
             self.imported_document_layer_cod_list.append(reviewer_decline_message.get("documentLayerCod"))
             logger.debug(f"append reviewer decline message: {self.imported_document_layer_cod_list=}")
 
@@ -1182,7 +1112,7 @@ ORDER BY dl.submissionDate
             EvaluateReview(
                 assignment=review_assignment,
                 reviewer=reviewer,
-                editor=editor,
+                editor=self.get_current_editor(),
                 form_data={"reviewer_decision": "0", "decline_reason": decline_reason, "accept_gdpr": True},
                 request=request,
                 token=None,
@@ -1190,19 +1120,88 @@ ORDER BY dl.submissionDate
 
         return
 
+
+class EQ1_REF_REF(ReviewerDeclineAction):  # noqa N801
+    """Manages wjapp action EQ1_REF_REF."""
+
+
+class GT1_REF_REF(ReviewerDeclineAction):  # noqa N801
+    """Manages wjapp action GT1_REF_REF."""
+
+
+class REF_REF(ReviewerDeclineAction):  # noqa N801
+    """Manages wjapp action REF_REF."""
+
+
+class REF_SENDS_REP(BaseActionManager):  # noqa N801
+    """Reviewer send report management: wjapp action REF_SENDS_REP."""
+
+    def run(self):
+        # Reviewer send report
+
+        self.check_editor_set()
+        self.reviewer_send_report(self.read_reviewer_report_message())
+
+    def read_reviewer_report_message(self):
+        """Read report message."""
+
+        cursor_reviewer_report_message = self.connection.cursor(buffered=True, dictionary=True)
+
+        # in wjapp a certain message is not directly linked to an action. So we make a list of REREP
+        # from the reviewer, in a certain time range (-10" +5") respect to the action_date
+
+        # NOTE: condition on documentLayerSubject not used because:
+        #      - wjapp maintenace "change documentType" let old preprintid in
+        #        Document_Layer (and Attachments)
+        #      - imported _version_cod ensures to retrive the correct article
+
+        query_reviewer_report_message = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerText,
+dl.documentLayerOnlyTex
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(agent_cod)s
+AND dl.documentLayerType='REREP'
+AND ur.userType='author'
+AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+ORDER BY dl.submissionDate
+"""
+        cursor_reviewer_report_message.execute(
+            query_reviewer_report_message,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "agent_cod": self.action["agentCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_reviewer_report_message.rowcount != 1:
+            logger.error(f"Found {cursor_reviewer_report_message.rowcount} reviewer report: {self.preprintid}")
+            reviewer_report_message = None
+        else:
+            reviewer_report_message = cursor_reviewer_report_message.fetchone()
+        cursor_reviewer_report_message.close()
+        return reviewer_report_message
+
     def reviewer_send_report(
         self,
-        article,
-        editor,
-        reviewer_cod,
-        reviewer_lastname,
-        reviewer_firstname,
-        reviewer_email,
-        reviewer_report_date,
         wjapp_report,
     ):
         """Reviewer sends report."""
-        reviewer = self.account_get_or_create_check_correspondence(
+
+        reviewer_cod = self.action["agentCod"]
+        reviewer_lastname = self.action["agentLastname"]
+        reviewer_firstname = self.action["agentFirstname"]
+        reviewer_email = self.action["agentEmail"]
+        reviewer_report_date = self.action["actionDate"]
+
+        reviewer = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
             reviewer_cod,
             reviewer_lastname,
             reviewer_firstname,
@@ -1211,9 +1210,9 @@ ORDER BY dl.submissionDate
 
         review_assignment = WorkflowReviewAssignment.objects.get(
             reviewer=reviewer,
-            article=article,
-            editor=editor,
-            review_round=article.current_review_round_object(),
+            article=self.article,
+            editor=self.get_current_editor(),
+            review_round=self.article.current_review_round_object(),
         )
         request = create_fake_request(user=None, journal=self.journal)
         request.user = reviewer
@@ -1229,11 +1228,11 @@ ORDER BY dl.submissionDate
 
         # the (current) default review form element "Cover letter for the Editor (confidential)"
         # has a rich-text/html widget.  Text from wjapp formatted to html
-        formatted_cover_letter_message = newlines_text_to_html(wjapp_report.get("documentLayerText"))
+        formatted_cover_letter_message = self.newlines_text_to_html(wjapp_report.get("documentLayerText"))
 
         # the (current) default review form element "Report text (to be sent to authors)"
         # has a rich-text/html widget. Text from wjapp formatted to html
-        formatted_report_message = newlines_text_to_html(wjapp_report.get("documentLayerOnlyTex"))
+        formatted_report_message = self.newlines_text_to_html(wjapp_report.get("documentLayerOnlyTex"))
 
         current_setting = get_setting(
             "general",
@@ -1284,39 +1283,111 @@ ORDER BY dl.submissionDate
 
         return
 
-    def editor_decides(
-        self,
-        article,
-        editor,
-        editor_decision,
-        editor_report_date,
-        wjapp_editor_report,
-        requires_revision,
-        revision_interval_days,
-    ):
+
+@dataclass
+class EditorDecisionAction(BaseActionManager):
+    """Editor decision management."""
+
+    editor_decison: tuple = field(init=False)
+    requires_revision: bool = field(init=False)
+    revision_interval_days: int = field(init=False)
+
+    def run(self):
+        # wjs editor report store:
+        #
+        # - for ED_REQ_REV, ED_ACC_DOC_WMC
+        #     the EDREP is visible for the author on revision request page
+        #        the view is ArticleRevisionUpdate based on model EditorRevisionRequest
+        #         the templates are
+        #            "wjs/themes/JCOM-theme/templates/admin/review/revision/do_revision.
+        #            --> wjs_review/elements/revision_author_info.html
+        #
+        # - for ED_REJ_DOC the EDREP is NOT visible for the author
+        #
+        # - all editor reports are stored in EditorDecision.decision_editor_report
+        #
+        # - editor reports with revision request are stored also in EditorRevisionRequest
+
+        self.check_editor_set()
+
+        revision = self.editor_decides()
+        if self.requires_revision:
+            logger.debug(f"editor decision with revision request EditorRevisionRequest: {revision=}")
+
+    def read_editor_report_message(self):
+        """Read editor report message."""
+
+        cursor_editor_report_message = self.connection.cursor(buffered=True, dictionary=True)
+
+        # in wjapp a certain message is not directly linked to an action. So we make a list of EDREP
+        # from the editor, in a certain time range (-10" +5") respect to the action_date
+
+        # NOTE: condition on documentLayerSubject not used because:
+        #      - wjapp maintenace "change documentType" let old preprintid in
+        #        Document_Layer (and Attachments)
+        #      - imported _version_cod ensures to retrive the correct article
+
+        query_editor_report_message = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerText,
+dl.documentLayerOnlyTex
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(agent_cod)s
+AND dl.documentLayerType='EDREP'
+AND ur.userType='author'
+AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+ORDER BY dl.submissionDate
+"""
+        cursor_editor_report_message.execute(
+            query_editor_report_message,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "agent_cod": self.action["agentCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_editor_report_message.rowcount != 1:
+            logger.error(f"Found {cursor_editor_report_message.rowcount} reviewer report: {self.preprintid}")
+            editor_report_message = None
+        else:
+            editor_report_message = cursor_editor_report_message.fetchone()
+            logger.debug(f"{self.preprintid} EDREP: {editor_report_message.get('documentLayerCod')}")
+        cursor_editor_report_message.close()
+        return editor_report_message
+
+    def editor_decides(self):
         """Editor decides on article."""
+
+        wjapp_editor_report = self.read_editor_report_message()
+        editor_report_date = self.action["actionDate"]
 
         # the (current) default review form element for editor cover letter
         # has a rich-text/html widget.  Text from wjapp formatted to html
-        wjapp_editor_cover_letter_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerText"))
+        wjapp_editor_cover_letter_message = self.newlines_text_to_html(wjapp_editor_report.get("documentLayerText"))
 
         # the (current) default review form element for editor report
         # has a rich-text/html widget.  Text from wjapp formatted to html
-        wjapp_editor_report_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
+        wjapp_editor_report_message = self.newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
 
         request = create_fake_request(user=None, journal=self.journal)
-        request.user = editor
+        request.user = self.get_current_editor()
 
         with freezegun.freeze_time(
             rome_timezone.localize(editor_report_date),
         ):
             date_due = timezone.now().date()
-            if requires_revision:
-                date_due = date_due + datetime.timedelta(days=revision_interval_days)
+            if self.requires_revision:
+                date_due = date_due + datetime.timedelta(days=self.revision_interval_days)
 
             # TBV: date_due has to be set in the form in the case of rejection?
             form_data = {
-                "decision": editor_decision,
+                "decision": self.editor_decision,
                 "decision_editor_report": wjapp_editor_report_message,
                 "decision_internal_note": wjapp_editor_cover_letter_message,
                 "withdraw_notice": "notice",
@@ -1324,36 +1395,78 @@ ORDER BY dl.submissionDate
             }
 
             handle = HandleDecision(
-                workflow=article.articleworkflow,
+                workflow=self.article.articleworkflow,
                 form_data=form_data,
-                user=editor,
+                user=self.get_current_editor(),
                 request=request,
             )
             handle.run()
-        article.refresh_from_db()
+        self.article.refresh_from_db()
         revision = None
-        if requires_revision:
+        if self.requires_revision:
             revision = EditorRevisionRequest.objects.get(
-                article=article, review_round=article.current_review_round_object()
+                article=self.article, review_round=self.article.current_review_round_object()
             )
         return revision
 
-    def author_submit_revision(
-        self,
-        main_author,
-        article,
-        author_report_date,
-    ):
+
+@dataclass
+class ED_REQ_REV(EditorDecisionAction):  # noqa N801
+    """Manages wjapp action ED_REQ_REQ: editor requires major revision."""
+
+    def __post_init__(self):
+        self.editor_decision = ArticleWorkflow.Decisions.MAJOR_REVISION
+        self.requires_revision = True
+        self.revision_interval_days = get_setting(
+            "wjs_review",
+            "default_author_major_revision_days",
+            self.journal,
+        ).process_value()
+
+
+@dataclass
+class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
+    """Manages wjapp action ED_ACC_DOC_WMC: editor requires minor revision."""
+
+    def __post_init__(self):
+        self.editor_decision = ArticleWorkflow.Decisions.MINOR_REVISION
+        self.requires_revision = True
+        self.revision_interval_days = get_setting(
+            "wjs_review",
+            "default_author_minor_revision_days",
+            self.journal,
+        ).process_value()
+
+
+@dataclass
+class ED_REJ_DOC(EditorDecisionAction):  # noqa N801
+    """Manages wjapp action ED_REJ_DOC: editor rejects."""
+
+    def __post_init__(self):
+        self.editor_decision = ArticleWorkflow.Decisions.REJECT
+        self.requires_revision = False
+        self.revision_interval_days = 0
+
+
+class AuthorSubmitRevisionAction(BaseActionManager):
+    """Author submit revision management."""
+
+    def run(self):
+        # TBV: author of the action is the same of main_author?
+        #      the author could be switched with coauthor
+
         # TBV: necessary to mark_all_messages_read  ??
 
+        author_report_date = self.action["actionDate"]
+
         request = create_fake_request(user=None, journal=self.journal)
-        request.user = main_author
+        request.user = self.article.correspondence_author
 
         # TODO: to be read from wjapp jcom
         form_data = {"author_note": "covering letter from the author (the text-field, not the file!)"}
 
         revision_request = EditorRevisionRequest.objects.get(
-            article=article, review_round=article.current_review_round_object()
+            article=self.article, review_round=self.article.current_review_round_object()
         )
 
         with freezegun.freeze_time(
@@ -1362,39 +1475,19 @@ ORDER BY dl.submissionDate
             service = AuthorHandleRevision(
                 revision=revision_request,
                 form_data=form_data,
-                user=main_author,
+                user=self.article.correspondence_author,
                 request=request,
             )
             service.run()
 
-        article.refresh_from_db()
+        self.article.refresh_from_db()
 
         return
 
-    def save_manuscript(self, preprintid, article, response):
-        """Save manuscript from response"""
-        manuscript_dj = DjangoFile(BytesIO(response.content), f"{preprintid}.pdf")
 
-        manuscript_file = files.save_file_to_article(
-            manuscript_dj,
-            article,
-            article.correspondence_author,
-        )
-        article.manuscript_files.add(manuscript_file)
-        manuscript_file.label = "PDF"
-        manuscript_file.description = ""
-        manuscript_file.save()
-        article.save()
-        return
+class AU_SUB_REV(AuthorSubmitRevisionAction):  # noqa N801
+    """Manages wjapp action AU_SUB_REV."""
 
 
-#
-# utility
-#
-
-
-def newlines_text_to_html(message: str) -> str:
-    """Format Document_Layer message read from wjapp."""
-    # TBV: format other new-line styles?
-    #      Document_Layer messages/report from jcom jcomal are text message
-    return message.replace("\r\n", "<br/>")
+class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
+    """Manages wjapp action AU_SUB_REV_WMC."""
