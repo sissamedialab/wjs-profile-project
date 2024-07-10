@@ -1,12 +1,14 @@
 from typing import Union
 
 import django_filters
+from core.models import Account
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters.fields import ModelChoiceField
 from journal.models import Issue
 from submission.models import Keyword, Section
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from .communication_utils import get_eo_user
@@ -76,14 +78,14 @@ def status_choices() -> list[tuple[str, str]]:
 class BaseArticleWorkflowFilter(django_filters.FilterSet):
     template_name = "wjs_review/lists/elements/filters_base.html"
 
-    article = django_filters.CharFilter(field_name="article", method="filter_article")
+    article = django_filters.CharFilter(field_name="article", method="filter_article", label=_("Title"))
     article_identifiers = django_filters.CharFilter(
         field_name="article",
         method="filter_identifiers",
         label=_("Preprint ID/DOI"),
     )
     correspondence_author = django_filters.CharFilter(
-        field_name="article__correspondence_author", method="filter_user", label=_("Correspondence author")
+        field_name="article__correspondence_author", method="filter_user", label=_("Corresponding author")
     )
     language = django_filters.ChoiceFilter(
         field_name="article__language",
@@ -293,7 +295,13 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
 
 class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
     template_name = "wjs_review/lists/elements/filters_eo.html"
-    eo_in_charge = django_filters.CharFilter(field_name="eo_in_charge", method="filter_user", label=_("EO in charge"))
+    eo_in_charge = django_filters.ModelChoiceFilter(
+        field_name="eo_in_charge",
+        method="filter_user",
+        label=_("EO in charge"),
+        empty_label=_("EO in charge: All"),
+        queryset=Account.objects.filter(groups__name=constants.EO_GROUP),
+    )
 
 
 class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):

@@ -243,7 +243,7 @@ def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
 
 def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
     """
-    Check if the user is the correspondence author of the article.
+    Check if the user is the Corresponding author of the article.
 
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow
@@ -251,7 +251,7 @@ def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
     :param user: The user to check for role.
     :type user: Account
 
-    :return: True if the user is the correspondence author, False otherwise.
+    :return: True if the user is the Corresponding author, False otherwise.
     :rtype: bool
     """
     return instance.article.correspondence_author == user
@@ -259,7 +259,7 @@ def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
 
 def is_article_author_and_paper_can_go_rfp(instance: "ArticleWorkflow", user: Account) -> bool:
     """
-    Check if the user is the correspondence author and if the article can transition into READY_FOR_PUBLI CATION.
+    Check if the user is the Corresponding author and if the article can transition into READY_FOR_PUBLI CATION.
 
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow
@@ -267,7 +267,7 @@ def is_article_author_and_paper_can_go_rfp(instance: "ArticleWorkflow", user: Ac
     :param user: The user to check for role.
     :type user: Account
 
-    :return: True if the user is the correspondence author, False otherwise.
+    :return: True if the user is the Corresponding author, False otherwise.
     :rtype: bool
     """
     return instance.can_be_set_rfp() and is_article_author(instance, user)
@@ -283,7 +283,7 @@ def is_article_typesetter_and_paper_can_go_rfp(instance: "ArticleWorkflow", user
     :param user: The user to check for role.
     :type user: Account
 
-    :return: True if the user is the correspondence author, False otherwise.
+    :return: True if the user is the Corresponding author, False otherwise.
     :rtype: bool
     """
     # TODO: consider rfc with the above method `is_article_author_and_paper_can_go_rfp`
@@ -292,9 +292,9 @@ def is_article_typesetter_and_paper_can_go_rfp(instance: "ArticleWorkflow", user
 
 def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     """
-    Return True if the user is one of the authors or the correspondence author.
+    Return True if the user is one of the authors or the Corresponding author.
 
-    Remember that, in J., it is not mandatory for the correspondence author to be one of the authors!
+    Remember that, in J., it is not mandatory for the Corresponding author to be one of the authors!
 
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow
@@ -302,7 +302,7 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     :param user: The user to check for role.
     :type user: Account
 
-    :return: True if the user is included in the article authors list or is the correspondence author, False otherwise.
+    :return: True if the user is included in the article authors list or is the Corresponding author, False otherwise.
     :rtype: bool
     """
     is_correspondence_author = instance.article.correspondence_author == user

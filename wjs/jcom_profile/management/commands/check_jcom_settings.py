@@ -1,4 +1,5 @@
 """Check (and/or set) Janeway settings suitable for JCOM."""
+
 from django.core.management.base import BaseCommand
 from journal.models import Journal
 from press.models import Press
@@ -302,7 +303,7 @@ SETTINGS = {
         ("general", "from_address", "jcom-eo@jcom.sissa.it"),
         #
         # Hide Author Email Links - If enabled the article page
-        # will not display links to email correspondence authors.
+        # will not display links to email Corresponding authors.
         ("article", "hide_author_email_links", ""),
         #
         # Journal Uses HTTPS - Used for URL generation.
@@ -561,7 +562,7 @@ SETTINGS = {
         ("general", "from_address", "jcomal-eo@jcomal.sissa.it"),
         #
         # Hide Author Email Links - If enabled the article page
-        # will not display links to email correspondence authors.
+        # will not display links to email Corresponding authors.
         ("article", "hide_author_email_links", ""),
         #
         # Journal Uses HTTPS - Used for URL generation.
