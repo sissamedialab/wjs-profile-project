@@ -87,11 +87,6 @@ states_when_article_is_considered_archived_for_review = [
     ArticleWorkflow.ReviewStates.WITHDRAWN,
     ArticleWorkflow.ReviewStates.REJECTED,
     ArticleWorkflow.ReviewStates.NOT_SUITABLE,
-    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
-    ArticleWorkflow.ReviewStates.PROOFREADING,
-    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
-    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
-    ArticleWorkflow.ReviewStates.PUBLISHED,
 ]
 
 states_when_article_is_considered_archived = [
@@ -109,6 +104,9 @@ states_when_article_is_considered_in_review = [
     ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
     ArticleWorkflow.ReviewStates.PAPER_HAS_EDITOR_REPORT,
     ArticleWorkflow.ReviewStates.TO_BE_REVISED,
+    ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
+    ArticleWorkflow.ReviewStates.SUBMITTED,
+    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
 ]
 
 # TODO: write me!
@@ -129,12 +127,6 @@ states_when_article_is_considered_typesetter_working_on = [
 states_when_article_is_considered_production_archived = [
     ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
     ArticleWorkflow.ReviewStates.PUBLISHED,
-]
-states_when_article_is_considered_missing_editor = [
-    ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
-    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
-    ArticleWorkflow.ReviewStates.SUBMITTED,
-    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
 ]
 states_when_article_is_considered_author_pending = [
     ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
@@ -1834,7 +1826,7 @@ class HandleMessage:
                     accountrole__role__slug="director",
                 ),
             )
-            # the correspondence author
+            # the Corresponding author
             others.append(
                 Account.objects.filter(id=article.correspondence_author.id),
             )

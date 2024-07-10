@@ -497,7 +497,7 @@ def create_submitted_articles() -> Callable[[journal_models.Journal, int], List[
 def _create_published_articles(admin, editor, journal, sections, keywords, items=10):
     """Create articles in published stage - Function version.
 
-    Correspondence author (owner), keywords and section are random.
+    Corresponding author (owner), keywords and section are random.
 
     selected_keyword is the keyword that will be added to all articles.
     """
@@ -539,7 +539,7 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
 def published_articles(admin, editor, journal, sections, keywords):
     """Create articles in published stage - Fixture version.
 
-    Correspondence author (owner), keywords and section are random"""
+    Corresponding author (owner), keywords and section are random"""
     return _create_published_articles(admin, editor, journal, sections, keywords)
 
 

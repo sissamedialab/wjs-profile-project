@@ -46,13 +46,6 @@ def test_wjs_review_eo_production(journal, eo_user, client):
 
 
 @pytest.mark.django_db
-def test_wjs_review_eo_missing_editor(journal, eo_user, client):
-    client.force_login(eo_user)
-    response = client.get(f"/{journal.code}/plugins/wjs-review-articles/eo/missing_editor/")
-    assert response.status_code == 200
-
-
-@pytest.mark.django_db
 def test_wjs_review_eo_workon(journal, eo_user, client):
     client.force_login(eo_user)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/eo/workon/")

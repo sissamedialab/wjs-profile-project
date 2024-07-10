@@ -46,7 +46,7 @@ def test_pending_revision_request(
     completed: bool,
     success: bool,
 ):
-    """Pending revision request are returned for the correspondence author / editor and not for normal users."""
+    """Pending revision request are returned for the Corresponding author / editor and not for normal users."""
 
     section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     if user_type == "author":
@@ -121,7 +121,7 @@ def test_pending_edit_metadata_request(
     """
     Pending edit metadata (technical revision) request are returned depending on user role.
 
-    They are returned for the correspondence author / editor and not for normal users.
+    They are returned for the Corresponding author / editor and not for normal users.
     """
 
     section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
