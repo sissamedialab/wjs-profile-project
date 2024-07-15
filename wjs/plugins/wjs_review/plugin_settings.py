@@ -1072,7 +1072,7 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for notification when due date is postponed far in the future."),
             "description": _(
-                "The subject of a notification that the system sends to EO when an editor postpones a reviewer report due date fare into the future.",
+                "The subject of a notification that the system sends to EO when an editor postpones a reviewer report due date far into the future.",
             ),
             "is_translatable": False,
         }

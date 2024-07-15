@@ -1886,3 +1886,13 @@ class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def get_success_url(self):
         """Point back to the paper's status page."""
         return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
+
+
+class DownloadAnythingDROPME(View):
+    """DROPME! UNSAFE!"""
+
+    def get(self, request, *args, **kwargs):
+        """Serve any File."""
+        attachment = core_models.File.objects.get(id=self.kwargs["file_id"])
+        article = Article.objects.get(id=self.kwargs["article_id"])
+        return core_files.serve_file(request, attachment, article, public=True)

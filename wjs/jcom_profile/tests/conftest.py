@@ -3,20 +3,16 @@
 import os
 import random
 from datetime import timedelta
-from importlib import import_module
 from typing import Callable, List, Optional
 
 import factory
 import pytest
 import pytest_factoryboy
-from core.middleware import GlobalRequestMiddleware
 from core.models import File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
 from django.contrib.auth.models import Group
-from django.contrib.messages.storage import default_storage
 from django.core import management
 from django.core.cache import cache
-from django.http import QueryDict
 from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
 from django.utils.timezone import now
@@ -36,7 +32,6 @@ from utils.install import (
     update_xsl_files,
 )
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
-from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import save_setting
 from utils.testing.helpers import create_galley
 
@@ -69,7 +64,7 @@ from wjs.jcom_profile.models import (
     JCOMProfile,
     SpecialIssue,
 )
-from wjs.jcom_profile.utils import generate_token
+from wjs.jcom_profile.utils import create_rich_fake_request, generate_token
 
 fake = Faker()
 
@@ -156,19 +151,7 @@ def set_fixed_time():
 @pytest.fixture
 def fake_request(journal, settings):
     """Create a fake_factory request suitable for rendering templates."""
-    # - cron/management/commands/send_publication_notifications.py
-    engine = import_module(settings.SESSION_ENGINE)
-
-    fake_request = create_fake_request(user=None, journal=journal)
-    fake_request.GET = QueryDict("", mutable=True)
-    fake_request.POST = QueryDict("", mutable=True)
-    GlobalRequestMiddleware.process_request(fake_request)
-    # messages are required by review functions
-    settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
-    fake_request._messages = default_storage(fake_request)
-    fake_request.COOKIES = {}
-    fake_request.session = engine.SessionStore()
-    return fake_request
+    return create_rich_fake_request(journal, settings)
 
 
 @pytest.fixture()
@@ -459,6 +442,7 @@ def article(admin, coauthor, journal, sections):
         owner=admin,
         date_submitted=None,
         section=random.choice(sections),
+        language="eng",
     )
     article.authors.add(admin, coauthor)
     for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:

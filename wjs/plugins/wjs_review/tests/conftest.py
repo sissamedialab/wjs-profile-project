@@ -1,9 +1,9 @@
 import glob
 import io
 import os
-import tarfile
 import zipfile
 from io import BytesIO
+from pathlib import Path
 from typing import Callable
 from unittest import mock
 
@@ -58,7 +58,11 @@ from ..plugin_settings import (
     STAGE,
     set_default_plugin_settings,
 )
-from .test_helpers import _create_review_assignment
+from .test_helpers import (
+    ThreadedHTTPServer,
+    _create_review_assignment,
+    create_mock_tar_gz,
+)
 
 TEST_FILES_EXTENSION = ".santaveronica"
 
@@ -386,8 +390,26 @@ def _create_rfp_article(
     article.section.wjssection.pubid_and_tex_sectioncode = "A"
     article.section.wjssection.save()
 
+    # At this point of their life, articles should already have one (and only one) source file
+    if article.source_files.count() == 0:
+        # the upstream fixtures did not oblige: let's fix the problem;
+        # create a dummy file, with nothing on the filesystem
+        # a janeway file can apparently exists without django file (e.g. DjangoFile(file=BytesIO(b"hi"), name="x.zip"))
+        janeway_file = File.objects.create(
+            mime_type="application/zip",
+            original_filename="original_filename.zip",
+            uuid_filename="uf.zip",
+            label="label",
+            description="description",
+            owner=article.correspondence_author,
+            is_galley=False,
+            article_id=article.pk,
+        )
+        article.source_files.set((janeway_file,))
+
     article.articleworkflow.production_flag_no_queries = True
     article.articleworkflow.production_flag_no_checks_needed = True
+    article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
     article.galley_set.set(_create_generic_galleys(article=article))
     article.articleworkflow.save()
     ReadyForPublication(workflow=article.articleworkflow, user=user).run()
@@ -414,6 +436,14 @@ def rfp_article(
         request=fake_request,
     )
     return article
+
+
+@pytest.fixture(scope="session")
+def http_server():
+    server = ThreadedHTTPServer("localhost", 2702)  # ⇠ my birthday 🎂
+    server.start()
+    yield server
+    server.stop()
 
 
 @pytest.fixture
@@ -635,38 +665,14 @@ def _create_galleyproofing_proofed_files(
                 article.save()
 
 
-def create_mock_tar_gz():
-    """Create a tar.gz archive containing a dummy .html and .epub file."""
-    file_obj = BytesIO()
-    with tarfile.open(fileobj=file_obj, mode="w:gz") as tar:
-        html_content = b"<html><body><h1>Dummy HTML</h1></body></html>"
-        html_info = tarfile.TarInfo(name="dummy.html")
-        html_info.size = len(html_content)
-        tar.addfile(html_info, BytesIO(html_content))
-
-        epub_content = b"Dummy EPUB content"
-        epub_info = tarfile.TarInfo(name="dummy.epub")
-        epub_info.size = len(epub_content)
-        tar.addfile(epub_info, BytesIO(epub_content))
-
-        srvc_log_content = b"INFO This is a mock service log"
-        srvc_log_info = tarfile.TarInfo(name="galley-dummy.srvc_log")
-        srvc_log_info.size = len(srvc_log_content)
-        tar.addfile(srvc_log_info, BytesIO(srvc_log_content))
-
-    file_obj.seek(0)
-    return file_obj.getvalue()
-
-
 @pytest.fixture
 def mock_jcomassistant_post():
     """Fixture to mock requests.post for JcomAssistantClient."""
-
     import requests
 
     response = requests.models.Response()
     response.status_code = 200
-    response._content = create_mock_tar_gz()
+    response._content = create_mock_tar_gz().getvalue()
 
     with mock.patch.object(requests, "post", return_value=response) as mocked_requests__post:
         yield mocked_requests__post
@@ -697,6 +703,15 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     {% endwith %}
     {% endwith %}
     {% endwith %}
+
+    %% Filled-in during publication:
+    \\published{???}"
+    \\publicationyear{xxxx}"
+    \\publicationvolume{xx}"
+    \\publicationissue{xx}"
+    \\publicationnum{xx}"
+    \\doiInfo{https://doi.org/}{doi}"
+
     """
     automatic_preamble = LatexPreamble.objects.create(
         journal=journal,
@@ -707,13 +722,13 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
 
 def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
     """Create a tar.gz archive containing a .tex file with a query."""
+    with open(Path(__file__).parent / "source.tex", "rb") as source:
+        tex_content = source.read()
+    tex_content = tex_content.replace(
+        rb"\begin{document}",
+        b"\\proofs{This is a sample query in the document}\n\n\\begin{document}",
+    )
     file_obj = io.BytesIO()
-
-    tex_content = b"""
-\\article{article}
-\\proofs{This is a sample query in the document}
-    """
-
     with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
         zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
 
@@ -723,13 +738,13 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
 
 def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
     """Create a tar.gz archive containing a .tex file with a query."""
+    with open(Path(__file__).parent / "source.tex", "rb") as source:
+        tex_content = source.read()
+    tex_content = tex_content.replace(
+        rb"\begin{document}",
+        b"\\noproofs{This is not a sample query in the document}\n\n\\begin{document}",
+    )
     file_obj = io.BytesIO()
-
-    tex_content = b"""
-\\article{article}
-\\noproofs{This is not a sample query in the document}
-    """
-
     with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
         zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
 
@@ -745,3 +760,40 @@ def zip_with_tex_with_query() -> Callable:
 @pytest.fixture
 def zip_with_tex_without_query() -> Callable:
     return _zip_with_tex_without_query
+
+
+def _jump_article_to_rfp(article: Article, typesetter: Account, request: HttpRequest) -> Article:
+    """Quickly (?) bring a pristine paper into ready-for-publication state."""
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    ta: TypesettingAssignment = AssignTypesetter(article, typesetter, request).run()
+    assert ta.typesetter == typesetter
+    article.refresh_from_db()
+    request.user = typesetter
+    UploadFile(
+        typesetter=typesetter,
+        request=request,
+        assignment=ta,
+        file_to_upload=_zip_with_tex_without_query(article),
+    ).run()
+    article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+    article.articleworkflow.production_flag_no_checks_needed = True
+    article.articleworkflow.production_flag_no_queries = True
+    article.articleworkflow.save()
+
+    # TBV: the need to manually set "source_files" here probably indicates a bug: neither UpoadFile nor
+    # TypesetterTestsGalleyGeneration set this field. This is related to specs#862
+    janeway_file = File.objects.create(
+        mime_type="application/zip",
+        original_filename="original_filename.zip",
+        uuid_filename="uf.zip",
+        label="label",
+        description="description",
+        owner=article.correspondence_author,
+        is_galley=False,
+        article_id=article.pk,
+    )
+    article.source_files.set((janeway_file,))
+
+    ReadyForPublication(article.articleworkflow, typesetter).run()
+    article.refresh_from_db()
+    return article

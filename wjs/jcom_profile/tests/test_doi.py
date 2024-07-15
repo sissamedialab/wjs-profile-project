@@ -3,6 +3,11 @@
 # TODO: ask Iacopo why relative imports don't work... from ..utils import generate_doi
 import pytest
 from django.utils import timezone
+from plugins.wjs_review.management.commands.populate_wjs_section import (
+    JCOM_SECTION_TO_DOISECTIONCODE,
+    JCOM_SECTION_TO_PUBIDSECTIONCODE,
+)
+from plugins.wjs_review.models import ArticleWorkflow
 
 from wjs.jcom_profile.utils import generate_doi
 
@@ -105,7 +110,11 @@ def test_doi_generation_jcom__independent(
     wjapp.
 
     """
-    section = section_factory(name=section_name)
+    section = section_factory(name="any", journal=journal)
+    section.refresh_from_db()
+    section.wjssection.doi_sectioncode = JCOM_SECTION_TO_DOISECTIONCODE[section_name]
+    section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[section_name]
+    section.wjssection.save()
 
     issue = issue_factory(
         journal=journal,
@@ -114,13 +123,15 @@ def test_doi_generation_jcom__independent(
     )
 
     for index in range(num_published_siblings):
-        article_factory(
+        a = article_factory(
             title=f"Already published {section_name} - {index}",
             journal=journal,
             section=section,
             primary_issue=issue,
             date_published=timezone.now(),
         )
+        a.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+        a.articleworkflow.save()
 
     article = article_factory(
         journal=journal,
@@ -154,42 +165,61 @@ def test_doi_generation_jcom__conference_and_book_review(
     """
     # Set the stage: an issue with two book reviews and a conference review already published
     issue = issue_factory(journal=journal, volume=1, issue="02")
-    bookreview_section = section_factory(name="book review")
-    conferencereview_section = section_factory(name="conference review")
-    article_factory(
+
+    section_name = "book review"
+    bookreview_section = section_factory(name=section_name, journal=journal)
+    bookreview_section.refresh_from_db()
+    bookreview_section.wjssection.doi_sectioncode = JCOM_SECTION_TO_DOISECTIONCODE[section_name]
+    bookreview_section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[section_name]
+    bookreview_section.wjssection.save()
+
+    section_name = "conference review"
+    conferencereview_section = section_factory(name=section_name, journal=journal)
+    conferencereview_section.refresh_from_db()
+    conferencereview_section.wjssection.doi_sectioncode = JCOM_SECTION_TO_DOISECTIONCODE[section_name]
+    conferencereview_section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[section_name]
+    conferencereview_section.wjssection.save()
+    br1 = article_factory(
         title="Book review 1",
         journal=journal,
         section=bookreview_section,
         primary_issue=issue,
         date_published=timezone.now(),
     )
-    article_factory(
+    br1.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+    br1.articleworkflow.save()
+    br2 = article_factory(
         title="Book review 2",
         journal=journal,
         section=bookreview_section,
         primary_issue=issue,
         date_published=timezone.now(),
     )
-    article_factory(
+    br2.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+    br2.articleworkflow.save()
+    cr1 = article_factory(
         title="Conference review 1",
         journal=journal,
         section=conferencereview_section,
         primary_issue=issue,
         date_published=timezone.now(),
     )
+    cr1.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+    cr1.articleworkflow.save()
 
     # Now the test: new book or conference reviews should get counter == 4
     # TODO: ArticleWorkflow.compute_doi/pubid are stateless
     # (i.e. they compute a "new" pubid even if the article already has one)
     # I could use one of the articles created above,
     # but I prefer to simulate a scenario closer to the most common situation
-    br = article_factory(
+    br3 = article_factory(
         journal=journal,
         section=bookreview_section,
         primary_issue=issue,
+        date_published=timezone.now(),
     )
-    assert br.articleworkflow.compute_doi() == "10.22323/2.01020704"
-    assert br.articleworkflow.compute_pubid() == f"JCOM_0102_{year}_R04"
+    assert br3.articleworkflow.compute_doi() == "10.22323/2.01020704"
+    assert br3.articleworkflow.compute_pubid() == f"JCOM_0102_{year}_R04"
 
     cr = article_factory(
         journal=journal,

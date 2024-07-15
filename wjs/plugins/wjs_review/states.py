@@ -863,9 +863,10 @@ class ReadyForPublication(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
-            name="publish",
+            name="begin publication",
             label="Publish",
-            view_name="wjs_review_publish",
+            tooltip="Begin the publication process",
+            view_name="wjs_review_begin_publication",
         ),
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
@@ -873,6 +874,22 @@ class ReadyForPublication(BaseState):
             label="Send paper back to Typesetter",
             tooltip="Ask the typesetter for some changes...",
             view_name="wjs_send_back_to_typ",
+        ),
+    )
+
+
+class PublicationInProgress(BaseState):
+    """
+    Publication in progress
+    """
+
+    article_actions = BaseState.article_actions + (
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="finish publication",
+            label="Finish publication",
+            tooltip="Retry to terminate the publication process",
+            view_name="wjs_review_finish_publication",
         ),
     )
 

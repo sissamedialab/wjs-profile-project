@@ -18,6 +18,7 @@ from .views import (
     DirectorPending,
     DirectorWorkOnAPaper,
     DirectorWorkOnIssue,
+    DownloadAnythingDROPME,
     EditorArchived,
     EditorAssignsThemselvesAsReviewer,
     EditorDeclineAssignmentView,
@@ -50,13 +51,14 @@ from .views import (
 )
 from .views__production import (  # noqa F401
     AuthorSendsCorrectionsView,
+    BeginPublicationView,
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DownloadRevisionFiles,
     EOSendBackToTypesetterView,
+    FinishPublicationView,
     GalleyGenerationView,
     ListAnnotatedFilesView,
-    PublishView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
     TogglePublishableFlagView,
@@ -216,11 +218,17 @@ urlpatterns = [
         EditUserPermissions.as_view(),
         name="wjs_assign_permission",
     ),
-    path("publish/<int:pk>/", PublishView.as_view(), name="wjs_review_publish"),
+    path("begin_publication/<int:pk>/", BeginPublicationView.as_view(), name="wjs_review_begin_publication"),
+    path("finish_publication/<int:pk>/", FinishPublicationView.as_view(), name="wjs_review_finish_publication"),
     path(
         "send_back_to_typesetter/<int:pk>/",
         EOSendBackToTypesetterView.as_view(),
         name="wjs_send_back_to_typ",
     ),
     path("take_in_charge/<int:pk>/", TypesetterTakeInCharge.as_view(), name="wjs_typ_take_in_charge"),
+    path(
+        "download_anything/<int:article_id>/<int:file_id>",
+        DownloadAnythingDROPME.as_view(),
+        name="download_anything_dropme",
+    ),
 ]
