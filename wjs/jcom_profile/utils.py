@@ -213,6 +213,7 @@ def generate_doi(article: Article) -> Optional[str]:
         "editorial": "05",
         "conference review": "06",
         "book review": "07",
+        "review": "10",  # seen first time with JCOMAL_001R_0424 (but reviews already exist in JCOMAL...)
         "practice insight": "08",
         "focus": "09",  # Warning: focus and review article have the same code!!!
         "review article": "09",  # Probably not important: no focus for many years (as of 2023)!

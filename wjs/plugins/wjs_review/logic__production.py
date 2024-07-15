@@ -751,8 +751,9 @@ class AttachGalleys:
     archive_with_galleys: bytes  # usually a zip/tar.gz file containing the raw galley files processed by jcomassistant
     article: Article
     request: HttpRequest
+    path: Path = dataclasses.field(init=False)  # path of the tmpdir where the upack method unpacked the received files
 
-    def unpack_targz_from_jcomassistant(self, file: bytes):
+    def unpack_targz_from_jcomassistant(self) -> Path:
         """Unpack an archive received from jcomassistant.
 
         Accept the archive in the form of a bytes string.
@@ -763,7 +764,7 @@ class AttachGalleys:
         """
         unpack_dir = tempfile.mkdtemp()
         # Use BytesIO to treat bytes data as a file
-        with BytesIO(file) as file_obj:
+        with BytesIO(self.archive_with_galleys) as file_obj:
             # Open the tar.gz archive
             with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
                 # Extract all contents into the unpack directory
@@ -771,7 +772,8 @@ class AttachGalleys:
         unpack_dir = Path(unpack_dir)
 
         logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
-        return unpack_dir
+        self.path = unpack_dir
+        return self.path
 
     def reemit_info_and_up(self, unpack_dir: Path) -> None:
         """Emit as log messages lines read from the given log file.
@@ -813,7 +815,7 @@ class AttachGalleys:
         """
         Checks for errors in the log files and if there's at least one html and epub file.
         """
-        # NB: self.path is set in the run() method after unpacking the processed files received from jcomassistant
+        # NB: self.path is set in the unpack_targz_from_jcomassistant() method
         return self.reemit_info_and_up(self.path) and any(self.path.glob("*.html")) and any(self.path.glob("*.epub"))
 
     def download_and_store_article_file(self, image_source_url: Path):
@@ -912,7 +914,7 @@ class AttachGalleys:
 
     def run(self):
         try:
-            self.path = self.unpack_targz_from_jcomassistant(self.archive_with_galleys)
+            self.unpack_targz_from_jcomassistant()
             if not self._check_conditions():
                 self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
                 # We save the given archive even if it has errors.
@@ -1080,15 +1082,25 @@ class JcomAssistantClient:
     archive_with_files_to_process: File  # Usually a zip/tar.gz file object containing the TeX source files to process
     user: Account
 
-    def ask_jcomassistant_to_process(self) -> Path:
+    def ask_jcomassistant_to_process(self) -> requests.Response:
         """Send the given zip file to jcomassistant for processing.
 
         Return the path to a folder with the unpacked response.
         """
         url = settings.JCOMASSISTANT_URL
         logger.debug(f"Contacting jcomassistant service at {url}...")
-        files = {"file": open(self.archive_with_files_to_process.self_article_path(), "rb")}
 
+        # TODO: please decide what you want!
+        if isinstance(self.archive_with_files_to_process, JanewayFile):  # File???
+            file_path = self.archive_with_files_to_process.self_article_path()
+        elif isinstance(self.archive_with_files_to_process, Path):
+            file_path = self.archive_with_files_to_process
+        else:
+            raise NotImplementedError(
+                f"Don't know how to open {type(self.archive_with_files_to_process)} for jcomassistant processing!",
+            )
+
+        files = {"file": open(file_path, "rb")}
         response = requests.post(url=url, files=files)
         if response.status_code != 200:
             logger.error("Unexpected status code {response.status_code}. Trying to proceed...")

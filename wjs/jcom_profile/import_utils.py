@@ -21,6 +21,7 @@ COUNTRIES_MAPPING = {
     "Netherlands (the)": "Netherlands",
     "Philippines (the)": "Philippines",
     "Russian Federation (the)": "Russian Federation",
+    "United Arab Emirates (the)": "United Arab Emirates",
     "United Kingdom of Great Britain and Northern Ireland (the)": "United Kingdom",
     "United States of America (the)": "United States",
     "Taiwan": "Taiwan, Province of China",

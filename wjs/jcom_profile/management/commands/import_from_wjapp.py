@@ -5,6 +5,7 @@ import re
 import shutil
 import tempfile
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import lxml.etree
@@ -54,6 +55,7 @@ SECTIONS_MAPPING = {
     "letter": "Letter",
     "book review": "Book Review",
     "conference review": "Conference Review",
+    "review": "Review",
 }
 
 
@@ -103,11 +105,6 @@ class Command(BaseCommand):
             action="store_true",
             help="Only regenerate HTML galleys without re-creating the article",
         )
-        parser.add_argument(
-            "--skip-galley-generation",
-            action="store_true",
-            help="Do not generate HTML and EPUB galleys (useful only in debug)",
-        )
 
     def read_from_watched_dir(self):
         """Read zip files from the watched folder and start the import process."""
@@ -141,27 +138,31 @@ class Command(BaseCommand):
             logger.error(f"Found {len(workdir)} files in the root of the zip file. Trying the first: {workdir[0]}")
         workdir = tmpdir / Path(workdir[0])
 
+        @dataclass
+        class UserInfo:
+            email: str
+
         try:
-            jcomassistant_client = JcomAssistantClient(zip_file, workdir=workdir)
-            folder_with_unpacked_files = jcomassistant_client.ask_jcomassistant_to_process()
+            jcomassistant_client = JcomAssistantClient(
+                archive_with_files_to_process=zip_file,
+                user=UserInfo(email="gamboz@medialab.sissa.it"),
+            )
+            response = jcomassistant_client.ask_jcomassistant_to_process()
         except JCOMAssitantException as ja_exception:
             logger.critical(f"Galley generation failed. Aborting process! {ja_exception}")
             logger.warning(f"Please cleanup tmpfolder {tmpdir}")
             return
-        else:
-            folder_with_unpacked_files = Path(folder_with_unpacked_files)
+
+        # Here we use the AttachGalleys service only to unpack the response in order to find the XML file that will
+        # tells us how to create the article.  We then "complete" the initialization of the service (by adding a
+        # reference to the newly created article) and manually set the galleys.
+        attach_service = AttachGalleys(archive_with_galleys=response.content, article=None, request=fake_request)
+        folder_with_unpacked_files = attach_service.unpack_targz_from_jcomassistant()
 
         ja_files = os.listdir(folder_with_unpacked_files)
 
         wjapp_xml_filename = [f for f in ja_files if f.endswith(".xml")][0]
         xml_obj = lxml.etree.parse(folder_with_unpacked_files / wjapp_xml_filename)
-
-        # Assume that if there is a PDF file, it is the translated and proceessed galley
-        pdf_files = [f for f in ja_files if f.endswith(".pdf")]
-        if len(pdf_files) > 0:
-            multilingual = True
-        else:
-            multilingual = False
 
         if self.options["only_regenerate_html_galley"]:
             logger.error("Not yet implemented")
@@ -178,39 +179,40 @@ class Command(BaseCommand):
         self.set_section(article, xml_obj, pubid, issue)
         self.set_authors(article, xml_obj)
         self.set_license(article)
+        self.set_doi(article)
+
         self.set_pdf_galleys(article, xml_obj, pubid, workdir)
         self.set_supplementary_material(article, pubid, workdir)
 
-        # TODO: drop option "skip-galley-generation"? We need to contact jcomassistant anyway...
-        if not self.options["skip_galley_generation"]:
-            try:
-                AttachGalleys(folder_with_unpacked_files, article, fake_request).run()
+        try:
+            attach_service.article = article
+            attach_service.save_epub()
+            attach_service.save_html()
 
-            except Exception as exception:
-                logger.error(f"Generation of HTML and EPUB galleys failes: {exception}")
+        except Exception as exception:
+            logger.error(f"Generation of HTML and EPUB galleys fails: {exception}")
 
-            if multilingual:
-                logger.critical("Multilingual not implemented. See specs#774")
-                # specs#774 try:
-                # specs#774     for translation_tex_filename in tex_filenames[1:]:
-                # specs#774         correct_translation(translation_tex_filename, tex_filename)
+        if len([f for f in ja_files if f.endswith(".pdf")]) > 0:  # FIXME!!!
+            logger.critical("Multilingual not implemented. See specs#774")
+            # specs#774 try:
+            # specs#774     for translation_tex_filename in tex_filenames[1:]:
+            # specs#774         correct_translation(translation_tex_filename, tex_filename)
 
-                # specs#774         translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
-                # specs#774         # TODO: verify if Janeway can manage tranlastions of HTML galley
+            # specs#774         translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
+            # specs#774         # TODO: verify if Janeway can manage tranlastions of HTML galley
 
-                # specs#774         translation_tex_data = read_tex(translation_tex_filename)
-                # specs#774         translation_epub_galley_filename = make_epub.make(
-                # specs#774             translation_html_galley_filename,
-                # specs#774             tex_data=translation_tex_data,
-                # specs#774         )
-                # specs#774         self.set_epub_galley(article, translation_epub_galley_filename, pubid)
+            # specs#774         translation_tex_data = read_tex(translation_tex_filename)
+            # specs#774         translation_epub_galley_filename = make_epub.make(
+            # specs#774             translation_html_galley_filename,
+            # specs#774             tex_data=translation_tex_data,
+            # specs#774         )
+            # specs#774         self.set_epub_galley(article, translation_epub_galley_filename, pubid)
 
-                # specs#774 except Exception as exception:
-                # specs#774     logger.error(
-                # specs#774         f"Generation of HTML and EPUB failed for {translation_tex_filename}: {exception}",
-                # specs#774     )
+            # specs#774 except Exception as exception:
+            # specs#774     logger.error(
+            # specs#774         f"Generation of HTML and EPUB failed for {translation_tex_filename}: {exception}",
+            # specs#774     )
 
-        self.set_doi(article)
         publish_article(article)
         # Cleanup
         shutil.rmtree(tmpdir)
@@ -668,7 +670,7 @@ def set_pdf_galley(article, file_path, pubid):
     # they are supposed to be of the same language. Not checking.
     #
     # If the article language is different from
-    # english, this means that a non-English gally has
+    # english, this means that a non-English galley has
     # already been processed and there is no need to
     # set the language again.
     if language and language != "en":
