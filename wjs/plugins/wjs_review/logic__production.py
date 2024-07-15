@@ -7,9 +7,10 @@ import datetime
 import os
 import tarfile
 import tempfile
+import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional, Tuple
 from zipfile import ZipFile
 
 import lxml.html
@@ -37,11 +38,16 @@ from plugins.typesetting.models import (
     TypesettingRound,
 )
 from production.logic import save_galley, save_galley_image
-from submission import models as submission_models
-from submission.models import STAGE_PROOFING, STAGE_TYPESETTING, Article
+from submission.models import (
+    STAGE_PROOFING,
+    STAGE_READY_FOR_PUBLICATION,
+    STAGE_TYPESETTING,
+    Article,
+)
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
+from wjs.jcom_profile import import_utils
 from wjs.jcom_profile.import_utils import (
     decide_galley_label,
     evince_language_from_filename_and_article,
@@ -361,36 +367,6 @@ class RequestProofs:
             proofing_assignment = self._create_proofing_assignment()
             self._log_operation(context=self._get_message_context())
             return proofing_assignment
-
-
-@dataclasses.dataclass
-class PublishArticle:
-    """Manage an article's publication."""
-
-    # Placeholder!
-
-    workflow: ArticleWorkflow
-    request: HttpRequest
-
-    def _trigger_workflow_event(self):
-        # TODO: review me!
-        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
-        workflow_kwargs = {
-            "handshake_url": "wjs_review_list",
-            "request": self.request,
-            "article": self.workflow.article,
-            "switch_stage": True,
-        }
-        self._trigger_article_event(events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE, workflow_kwargs)
-
-    def _trigger_article_event(self, event: str, context: Dict[str, Any]):
-        # TODO: refactor with Handledecision._trigger_article_event
-        """Trigger the given event."""
-        return events_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
-
-    def run(self):
-        # TODO: writeme!
-        self._trigger_workflow_event()
 
 
 @dataclasses.dataclass
@@ -947,7 +923,7 @@ class TypesetterTestsGalleyGeneration:
     """Generate galleys for an article."""
 
     assignment: TypesettingAssignment
-    request: HttpRequest  # Used only Janeway's save_galley, in log_operation and maybe in _check_conditions
+    request: HttpRequest  # Used in Janeway's save_galley, in log_operation and maybe in _check_conditions
 
     def _check_user_conditions(self):
         """Check if the user is article's typesetter."""
@@ -1146,7 +1122,7 @@ class ReadyForPublication:
             raise ValueError(f"Unexpected user attempting the transaction ({self.user=}). Possible programming error!")
         self.workflow.save()
 
-        self.workflow.article.stage = submission_models.STAGE_READY_FOR_PUBLICATION
+        self.workflow.article.stage = STAGE_READY_FOR_PUBLICATION
         self.workflow.article.save()
 
     def run(self):
@@ -1223,3 +1199,233 @@ class HandleEOSendBackToTypesetter:
             self._create_typesetting_assignment()
             self._create_message()
             return self.articleworkflow
+
+
+@dataclasses.dataclass
+class Publish:
+    """Publish a paper.
+
+    Regenerate the galleys with final info (publication date, DOI, etc.)
+    and bump the state.
+
+    This action is not explicitly locked per journal. I.e. a new publication can start even if there is another
+    publication in progress. But (!) the process is wrapped into an atomic transaction, so that if any conflict arise,
+    the procedure is aborted and the operator notified.
+
+    """
+
+    workflow: ArticleWorkflow
+    user: Account  # this user will be contacted is somwthing goes wrong during galley generation
+    request: HttpRequest  # we'll end-up calling Janeway's save_galley_image(), that needs a request obj
+    assignment: TypesettingAssignment = dataclasses.field(init=False)
+    source_files: Path = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        """Find the source files."""
+        # TODO: we could store the source files in two places:
+        # - article.source_files
+        # - last TA.files_to_typeset
+        # now we use TA, because we must keep a history of them source files.
+        # But we should probably
+        # - keep the latest sources on the article
+        # - keep the history in the TA:
+        #   every time the typ UploadFile,
+        #   store the reference to the files bot in TA and article
+
+        self.assignment = self.workflow.latest_typesetting_assignment()
+        # The source files for the galley are in the latest typesetting assignment
+        # Even if the field is a m2m, we alway set at most one item.
+        self.source_files = Path(self.assignment.files_to_typeset.get().self_article_path())
+
+    def check_conditions(self) -> Tuple[bool, Optional[str]]:
+        if self.workflow.state not in [
+            ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+        ]:
+            return (False, "Paper not in expected state")
+        if not self.workflow.can_be_set_rfp():
+            return (False, "Paper not ready. Please check galleys or queries in the sources.")
+        if self.workflow.article.primary_issue is None:
+            return (False, "Paper has not issue associated.")
+        return (True, None)
+
+    def set_article_identifiers(self):
+        """Set DOI and pubid and publication date."""
+        if not self.workflow.article.date_published:
+            self.workflow.article.date_published = timezone.now()
+            self.workflow.article.save()
+        self.workflow.set_doi()
+        self.workflow.set_pubid()
+
+    # TODO: refactor with TypesetterTestsGalleyGeneration methods
+    def _jcom_assistant_client(self) -> requests.Response:
+        assistant = JcomAssistantClient(
+            archive_with_files_to_process=self.assignment.files_to_typeset.first(),
+            user=self.user,
+        )
+        response = assistant.ask_jcomassistant_to_process()
+        return response
+
+    # TODO: refactor with TypesetterTestsGalleyGeneration methods
+    # here I've changed some variables names and the mail message
+    def _generate_and_attach_galleys(self):
+        response = self._jcom_assistant_client()
+        galleys_created = AttachGalleys(
+            archive_with_galleys=response.content,
+            article=self.workflow.article,
+            request=self.request,
+        ).run()
+        self.assignment.galleys_created.set(galleys_created)
+        # This flag is set by AttachGalleys that we have just run
+        if self.workflow.production_flag_galleys_ok:
+            return True
+        else:
+            send_mail(
+                f"{self.workflow.article} - final galley generation failed",
+                f"Please find modified source zip file in TA {self.assignment} galleys_created.",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            return False
+
+    def generate_final_galleys(self):
+        """Generate galleys with final info.
+
+        We assume that the article already has pubid and DOI.
+        Here we add these (and the publication date) to the TeX source
+        and re-generate the galleys.
+        """
+        try:
+            source_file = self._get_source_file()
+            prepared_source_file = self._prepare_source(source_file)
+            # TODO: save "historical" version of such file (see Janeway's file history) before modification
+            self._store_prepared_source(prepared_source_file)
+            if not self._generate_and_attach_galleys():
+                raise ValueError("Galleys generated, but something went wrong.")
+        except Exception as exception:
+            logger.error(f"Got exception during final galley generation: {exception}.")
+            raise ValueError(
+                "Final galley generation failed. Publication aborted."
+                " You may want to send the paper back to the typesetter.",
+            )
+
+    def _store_prepared_source(self, file_data: BytesIO, file_name: str = None):
+        """Include the give file into the article galleys, under the given file-name.
+
+        Defaults to replacing the tex source file (i.e. the file name will be something like JCOM_123.tex).
+        """
+        # TODO: talk with Elian on the opportunity of buildind a "texfile utils" library with similar functions
+        # TODO: refactor with utils.guess_tex_filename()
+        file_name = (
+            f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex" if file_name is None else file_name
+        )
+        tempfiledesc, tempfilename = tempfile.mkstemp(dir=self.source_files.parent)
+        originalfile_was_in_archive = False
+        with zipfile.ZipFile(self.source_files, "r") as original_zip:
+            with zipfile.ZipFile(tempfilename, "w") as new_zip:
+                for item in original_zip.infolist():
+                    if item.filename != file_name:
+                        new_zip.writestr(item, original_zip.read(item.filename))
+                    else:
+                        originalfile_was_in_archive = True
+                new_zip.writestr(zinfo_or_arcname=file_name, data=file_data.read())
+
+        # Sanity check: we usually expect to replace a file that already exists in the sources archive
+        if not originalfile_was_in_archive:
+            logger.warning(
+                f"Cannot find {file_name} in archive {self.source_files} for article {self.workflow}."
+                " File added to archive and hoping for the best.",
+            )
+        os.replace(tempfilename, self.source_files)
+
+    def _prepare_source(self, source_file: BytesIO) -> BytesIO:
+        r"""Set pubid, DOI and publication date into the given file and return it.
+
+        Placeholders are expected as follow:
+        \published{???}
+        \publicationyear{xxxx}
+        \publicationvolume{xx}
+        \publicationissue{xx}
+        \publicationnum{xx}
+        \doiInfo{doi}{xxxxxxx}
+
+        """
+        publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
+        publication_year = self.workflow.article.date_published.year
+        volume = f"{self.workflow.article.primary_issue.volume:02d}"
+        # TODO: can it ever happen that issue.issue is not in the form "01"?
+        issue = f"{int(self.workflow.article.primary_issue.issue):02d}"
+        # Page numbers should have been set when we set the pubid when we do set_article_identifiers()
+        num = self.workflow.page_numbers
+        doi = self.workflow.article.get_doi()
+
+        replacements = (
+            # f-strings and latex macros don't dance well together...
+            (r"\published{???}", rf"\published{{{publication_date}}}"),
+            (r"\publicationyear{xxxx}", rf"\publicationyear{{{publication_year}}}"),
+            (r"\publicationvolume{xx}", rf"\publicationvolume{{{volume}}}"),
+            (r"\publicationissue{xx}", rf"\publicationissue{{{issue}}}"),
+            (r"\publicationnum{xx}", rf"\publicationnum{{{num}}}"),
+            (r"\doiInfo{doi}{xxxxxxx}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
+        )
+
+        source_file.seek(0)
+        # we can safely assume that we are dealing with a utf8-encoded text file
+        content = source_file.read().decode("utf-8")
+
+        # TODO: should I expect to always find all replacement?
+        # I.e. is it an error if some replacement cannot be found in the source?
+        for old_string, new_string in replacements:
+            content = content.replace(old_string, new_string, 1)
+        processed_file = BytesIO(content.encode("utf-8"))
+        return processed_file
+
+    def _get_source_file(self) -> BytesIO:
+        """Extract the source file of the article galleys.
+
+        Return the main TeX file, the one that contains the LaTeX preamble.
+        """
+        # TODO: talk with Elia on the opportunity of buildind a "texfile utils" library with similar functions
+        # TODO: refactor with utils.guess_tex_filename()
+        tex_source_name = f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex"
+        # TODO: ask Elia: is zip-file correct? should it be tar.gz? maybe both?
+        with zipfile.ZipFile(self.source_files) as zip_file:
+            if tex_source_name in zip_file.namelist():
+                main_tex = zip_file.open(tex_source_name)
+            else:
+                raise FileNotFoundError(
+                    f"Cannot read {tex_source_name} from archive {self.source_files} for article {self.workflow}",
+                )
+        return main_tex
+
+    def update_state(self):
+        """Bumb state and stage."""
+        self.workflow.admin_publishes()
+        # Apply Janeway logic (snapshot authors etc.)
+        import_utils.publish_article(self.workflow.article)
+        self._trigger_workflow_event()
+
+    def _trigger_workflow_event(self):
+        """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
+        workflow_kwargs = {
+            "handshake_url": "wjs_review_list",
+            "request": self.request,
+            "article": self.workflow.article,
+            "switch_stage": True,
+        }
+        events_logic.Events.raise_event(
+            events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE,
+            task_object=self.workflow.article,
+            **workflow_kwargs,
+        )
+
+    def run(self):
+        # TODO: if not journal.publication_locked / publication_inprogress
+        with transaction.atomic():
+            green_light, reason = self.check_conditions()
+            if not green_light:
+                raise ValueError(f"Paper cannot be published. {reason}")
+            self.set_article_identifiers()
+            self.generate_final_galleys()
+            self.update_state()
+        return self.workflow

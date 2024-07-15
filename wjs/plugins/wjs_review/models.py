@@ -14,8 +14,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
+from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
+from plugins.typesetting.models import TypesettingAssignment
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -24,6 +26,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
+from utils import setting_handler
 from utils.logger import get_logger
 
 from wjs.jcom_profile.constants import EO_GROUP
@@ -39,6 +42,45 @@ from .managers import (
 logger = get_logger(__name__)
 
 Account = get_user_model()
+
+# The first piece of the DOIs or our journal's papers identifies the journal.
+# The first of our self-published systems to acquire a DOI was PoS, so it gets "1"
+MEDIALAB_DOI_JOURNAL_NUMBER = {
+    "PoS": "1",
+    "JCOM": "2",
+    "JCOMAL": "3",
+}
+
+# In JCOM (and JCOMAL), the DOI depends on a code that depends on the section (article type).
+# This is peculiar of JCOM and does not apply to other journals.
+JCOM_SECTION_TO_DOISECTIONCODE = {
+    "letter": "01",
+    "article": "02",
+    "commentary": "03",
+    "essay": "04",
+    "editorial": "05",
+    "conference review": "06",
+    "book review": "07",
+    "practice insight": "08",
+    "focus": "09",  # Warning: focus and review article have the same code!!!
+    "review article": "09",  # Probably not important: no focus for many years (as of 2023)!
+}
+JCOM_SECTION_TO_PUBIDSECTIONCODE = {
+    "letter": "L",
+    "article": "A",
+    "commentary": "C",
+    "essay": "Y",
+    "editorial": "E",
+    "conference review": "R",  # Same code for conference and book review
+    "book review": "R",  # Same code for conference and book review
+    "practice insight": "N",
+    "focus": "F",
+    "review article": "V",
+}
+# NB: reviews (conference review and book review) are a bit confusing:
+# - they are counted together (as if they were in the same section; e.g. CR-1, BR-2, CR-3)
+# - have same PUBID section code (both are "R", as in JCOM_0000_0000_R00)
+# - have different DOI section code (e.g. prefix/0.00000600 vs prefix/0.00000700)
 
 
 def can_be_set_rfp_wrapper(workflow: "ArticleWorkflow", **kwargs) -> bool:
@@ -188,12 +230,136 @@ class ArticleWorkflow(TimeStampedModel):
         except EditorRevisionRequest.DoesNotExist:
             return None
 
+    def latest_typesetting_assignment(self):
+        """Return the last (or "current") TA.
+
+        During production, the last TA contains references to the latest sources and galleys.
+        """
+        try:
+            return (
+                TypesettingAssignment.objects.filter(
+                    round__article_id=self.article.id,
+                    completed__isnull=True,
+                )
+                .order_by("-id")
+                .first()
+            )
+        # TODO: ensure that there is always at most one TA with completed == NULL
+        except TypesettingAssignment.DoesNotExist:
+            return None
+
     def can_be_set_rfp(self) -> bool:
-        """Tess if the article can transition to READY_FOR_PUBLICATION."""
+        """Test if the article can transition to READY_FOR_PUBLICATION."""
         return (
             self.production_flag_galleys_ok
             and self.production_flag_no_checks_needed
             and self.production_flag_no_queries
+        )
+
+    def compute_pubid(self, save_eid: bool = False) -> str:
+        """Compute and return the pubid that the Article would get now.
+
+        Pass along `save_eid` to compute_eid, so that the computed eid is stored as page number.
+        This is useful during publication, but let the computation be free of side-effects otherwise.
+        """
+        # This function would probably be better placed in the Journal model,
+        # but since we don't yet have a o2o/wrapper on that model I'm leaving it here.
+        if self.article.journal.code != "JCOM":
+            raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
+
+        # Feel free to fail badly.
+        # Exceptions should be dealt with upstream.
+        volume = f"{self.article.issue.volume:02d}"
+        issue = f"{int(self.article.issue.issue):02d}"
+        eid = self.compute_eid(save_as_pagenumber=save_eid)
+        pubid = f"{self.article.journal.code}_{volume}{issue}_{timezone.now().year}_{eid}"
+        return pubid
+
+    def compute_doi(self) -> str:
+        # Same considerations about where to place the function as compute_pubid() above.
+        #
+        # Please also note that Janeway has its way of generating DOIs,
+        # i.e. by rendering the journal setting "doi_pattern"
+        article = self.article
+        if article.journal.code != "JCOM":
+            raise NotImplementedError(f"Don't know how to compute DOI for {article.journal.code}")
+
+        # See specs#208 for specs on JCOM DOI
+        # Adapting utils.generate_doi()
+        # Feel free to fail badly.
+        # Exceptions should be dealt with upstream.
+        doi_prefix = setting_handler.get_setting("Identifiers", "crossref_prefix", article.journal).value
+        system_number = MEDIALAB_DOI_JOURNAL_NUMBER[article.journal.code]
+        volume = f"{article.issue.volume:02d}"
+        issue = f"{int(article.issue.issue):02d}"
+        # TODO: refactor eid into cached property?
+        counter = self._count_published_papers_in_same_issue_and_section() + 1
+        counter = f"{counter:02d}"
+        type_code = JCOM_SECTION_TO_DOISECTIONCODE[article.section.name.lower()]
+        doi = f"{doi_prefix}/{system_number}.{volume}{issue}{type_code}{counter}"
+        return doi
+
+    def compute_eid(self, save_as_pagenumber: bool = False) -> str:
+        """Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
+
+        Eid has the form "A01", "C03", ... and it includes info about the paper section and the number of papers
+        published in the same section/issue.
+
+        If page_numbers has already been set (manually or otherwise), then just use it (see submission.Article).
+        """
+        if self.article.page_numbers:
+            return self.article.page_numbers
+        counter = self._count_published_papers_in_same_issue_and_section() + 1
+        type_code = JCOM_SECTION_TO_PUBIDSECTIONCODE[self.article.section.name.lower()]
+        # Editorials are special:
+        # there always is at most one, so they are not E01 E02,
+        # but just "E" (without any number)
+        if type_code == "E":
+            assert counter == 1, f"Impossible number of editorials ({counter}) for issue of article {self.id}"
+            eid = type_code
+        else:
+            eid = f"{type_code}{counter:02d}"
+
+        if save_as_pagenumber:
+            self.page_numbers = eid
+            self.save()
+
+        return eid
+
+    def _count_published_papers_in_same_issue_and_section(self) -> int:
+        """Nomen omen, but reviews are special 😢 (see the code)."""
+        if not self.article.primary_issue:
+            # Manually raising error to give explanatory message
+            raise ValueError(f"Trying to count similar papers but no primary issue set for article {self.article.id}")
+
+        pesky_sections = ("book review", "conference review")
+        if self.article.section.name in pesky_sections:
+            return Article.objects.filter(
+                primary_issue_id=self.article.primary_issue.id,
+                section__name__in=pesky_sections,
+                date_published__isnull=False,
+            ).count()
+        else:
+            return Article.objects.filter(
+                primary_issue_id=self.article.primary_issue.id,
+                section_id=self.article.section.id,
+                date_published__isnull=False,
+            ).count()
+
+    def set_pubid(self):
+        return Identifier.objects.create(
+            id_type="pubid",
+            # pubid depends on eid/page_numbers
+            # if we have to compute it now, we also save it to maintain coherence
+            identifier=self.compute_pubid(save_eid=True),
+            article=self.article,
+        )
+
+    def set_doi(self):
+        return Identifier.objects.create(
+            id_type="doi",
+            identifier=self.compute_doi(),
+            article=self.article,
         )
 
     # director selects editor

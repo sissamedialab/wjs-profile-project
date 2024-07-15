@@ -865,13 +865,7 @@ class ReadyForPublication(BaseState):
             permission=permissions.has_eo_role_by_article,
             name="publish",
             label="Publish",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_eo_role_by_article,
-            name="back to typ",
-            label="Back to typ",
-            view_name="WRITEME!",
+            view_name="wjs_review_publish",
         ),
         ArticleAction(
             permission=permissions.has_eo_role_by_article,

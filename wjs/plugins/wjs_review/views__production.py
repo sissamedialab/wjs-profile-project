@@ -28,6 +28,7 @@ from .forms__production import (
     WriteToTypMessageForm,
 )
 from .logic import (
+    Publish,
     states_when_article_is_considered_production_archived,
     states_when_article_is_considered_typesetter_pending,
     states_when_article_is_considered_typesetter_working_on,
@@ -718,3 +719,37 @@ class UpdateSectionOrder(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, Upd
 
     def form_invalid(self, form):
         return render(self.request, self.template_name, {"issue": self.object, "form": form})
+
+
+class PublishView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """EO publish a paper."""
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+        self.article = self.object.article
+
+    def test_func(self):
+        """Only EO can publish."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            self.object = Publish(
+                workflow=self.object,
+                user=self.request.user,
+                request=self.request,
+            ).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_article_details",
+                    kwargs={"pk": self.object.pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Paper published.")
+        return HttpResponseRedirect(self.object.article.url)

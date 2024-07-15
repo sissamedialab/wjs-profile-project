@@ -568,3 +568,12 @@ def test_wjs_typ_take_in_charge(assigned_article, typesetter, client):
         f"{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 302
+
+
+@pytest.mark.django_db
+def test_wjs_review_publish(rfp_article, eo_user, client):
+    client.force_login(eo_user)
+    response = client.get(
+        f"/{rfp_article.journal.code}/plugins/wjs-review-articles/publish/{rfp_article.articleworkflow.pk}/",
+    )
+    assert response.status_code == 302
