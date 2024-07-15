@@ -46,7 +46,8 @@ from .events.assignment import dispatch_assignment
 from .logic__production import (  # noqa F401
     AssignTypesetter,
     AuthorSendsCorrections,
-    Publish,
+    BeginPublication,
+    FinishPublication,
     ReadyForPublication,
     RequestProofs,
     UploadFile,

@@ -1,3 +1,9 @@
+import io
+import pathlib
+import tarfile
+import threading
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
 from core.models import Workflow, WorkflowElement
 from django.http import HttpRequest
 from journal.models import Journal
@@ -63,3 +69,62 @@ def _submit_review(
         request=fake_request,
     )
     submit.run()
+
+
+def create_mock_tar_gz():
+    """Create a tar.gz archive containing a dummy .html and .epub file."""
+    here = pathlib.Path(__file__).parent
+    galley_name = "galley-x"
+    html_filepath = here / f"{galley_name}.html"
+    # TODO: drop binary epub (zip), layout source files for benefito of git,
+    # and re-compose epub on demand
+    epub_filepath = here / f"{galley_name}.epub"
+    pdf_filepath = here / f"{galley_name}.pdf"
+    log_filepath = here / f"{galley_name}.srvc_log"
+    inmemory_targz = io.BytesIO()
+    with tarfile.open(fileobj=inmemory_targz, mode="w:gz") as tar:
+        tar.add(html_filepath, arcname=f"{galley_name}.html")
+        tar.add(epub_filepath, arcname=f"{galley_name}.epub")
+        tar.add(pdf_filepath, arcname=f"{galley_name}.pdf")
+        tar.add(log_filepath, arcname=f"{galley_name}.srvc_log")
+    inmemory_targz.seek(0)
+    return inmemory_targz
+
+
+class CustomHTTPRequestHandler(SimpleHTTPRequestHandler):
+    """Simple server suitable to simulate jcomassistant."""
+
+    def do_POST(self):  # noqa N802 (case)
+        """Return always the same valid galleys."""
+        if self.path == "/good_galleys":
+            self.send_response(200)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Content-Disposition", 'attachment; filename="galleys.tar.gz"')
+            self.end_headers()
+            inmemory_targz = create_mock_tar_gz()
+            self.wfile.write(inmemory_targz.read())
+        elif self.path == "/server_error":
+            self.send_response(500)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Internal Server Error")
+        else:
+            super().do_POST()
+
+
+class ThreadedHTTPServer:
+    """Http server that runs in another thread."""
+
+    def __init__(self, host, port):
+        server = HTTPServer((host, port), CustomHTTPRequestHandler)
+        self.server = server
+        self.thread = threading.Thread(target=server.serve_forever)
+        self.thread.daemon = True  # This thread dies when the main thread dies
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()

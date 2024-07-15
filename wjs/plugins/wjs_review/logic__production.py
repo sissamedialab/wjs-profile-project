@@ -5,6 +5,7 @@ This module should be *-imported into logic.py
 import dataclasses
 import datetime
 import os
+import shutil
 import tarfile
 import tempfile
 import zipfile
@@ -30,6 +31,7 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
 from django_fsm import can_proceed
+from django_q.tasks import async_task
 from events import logic as events_logic
 from lxml.html import HtmlElement
 from plugins.typesetting.models import (
@@ -54,7 +56,11 @@ from wjs.jcom_profile.import_utils import (
     process_body,
 )
 from wjs.jcom_profile.permissions import has_eo_role
-from wjs.jcom_profile.utils import render_template, render_template_from_setting
+from wjs.jcom_profile.utils import (
+    create_rich_fake_request,
+    render_template,
+    render_template_from_setting,
+)
 
 from . import communication_utils
 from .models import ArticleWorkflow, LatexPreamble, Message
@@ -268,9 +274,6 @@ class AssignTypesetter:
                 self._mark_message_read(message)
             self.save_supplementary_files_at_acceptance()
             return self.assignment
-        #  - TBD: create production.models.TypesettingTask
-        #  - ✗ TBD: create TypesettingClaim
-        #  - ✗ TBD: create TypesettingAssignment.corrections
 
 
 @dataclasses.dataclass
@@ -284,14 +287,23 @@ class RequestProofs:
     request: HttpRequest
     assignment: TypesettingAssignment
     typesetter: Account
+    article: Article = dataclasses.field(init=False)  # just a shortcut
 
-    def _check_conditions(self):
-        """Check if the conditions for the assignment are met."""
+    def __post_init__(self):
+        """Find the source files."""
         self.article = self.workflow.article
-        typesetter_is_typesetter = has_typesetter_role_by_article(self.workflow, self.typesetter)
-        state_conditions = can_proceed(self.workflow.typesetter_submits)
-        # TODO: Write a condition for Galleys.
-        return typesetter_is_typesetter and state_conditions
+
+    def _check_conditions(self) -> Tuple[bool, Optional[str]]:
+        """Check if the conditions for the assignment are met."""
+        if not has_typesetter_role_by_article(self.workflow, self.typesetter):
+            return (False, "User attempting action is not the paper's typesetter")
+        if not can_proceed(self.workflow.typesetter_submits):
+            return (False, "Invalid transition")
+        # Not enforcing any check on galleys in order to permit typ to ask proofs in any condition. This allows, for
+        # instance, to request proofs right away (before the typ does any work), to meet author's request to upload a
+        # "corrected" version (sometimes non-English authors have their paper checked for English by professionals, but
+        # only after acceptance).
+        return (True, None)
 
     def _update_state(self):
         """Run FSM transition."""
@@ -361,8 +373,9 @@ class RequestProofs:
     def run(self) -> GalleyProofing:
         """Move the article state to PROOFREADING and notify the author."""
         with transaction.atomic():
-            if not self._check_conditions():
-                raise ValueError("Invalid state transition")
+            green_light, reason = self._check_conditions()
+            if not green_light:
+                raise ValueError(reason)
             self._update_state()
             proofing_assignment = self._create_proofing_assignment()
             self._log_operation(context=self._get_message_context())
@@ -530,6 +543,10 @@ class HandleDeleteSupplementaryFile:
 
 
 def check_annotated_file_conditions(user: Account, galleyproofing: GalleyProofing) -> bool:
+    """Check if annotated files (proofed files) can be created or deleted.
+
+    This check is used in HandleCreateAnnotatedFile and HandleDeleteAnnotatedFile.
+    """
     article = galleyproofing.round.article
     article_author = galleyproofing.proofreader == user
     check_state = (
@@ -734,8 +751,7 @@ class AttachGalleys:
 
         Accept the archive in the form of a bytes string.
 
-        If a workdir is provided, unpack it in a new folder there,
-        otherwise create and use a temporary folder.
+        Create and use a temporary folder.
         The caller should clean up if necessary.
         """
         unpack_dir = tempfile.mkdtemp()
@@ -787,12 +803,19 @@ class AttachGalleys:
                     logger.debug(f"JA {line[12:-1]}")
         return not has_error_or_critical
 
-    def _check_conditions(self):
+    def _check_conditions(self) -> Tuple[bool, Optional[str]]:
         """
-        Checks for errors in the log files and if there's at least one html and epub file.
+        Check for errors in the log files and if the expected files exist.
+
+        We should get at least one PDF, one html and one epub file.
         """
-        # NB: self.path is set in the unpack_targz_from_jcomassistant() method
-        return self.reemit_info_and_up(self.path) and any(self.path.glob("*.html")) and any(self.path.glob("*.epub"))
+        # NB: self.path is set in the run() method after unpacking the processed files received from jcomassistant
+        if not self.reemit_info_and_up(self.path):
+            return (False, "Errors found during generation.")
+        for extension in ("html", "epub", "pdf"):
+            if not any(self.path.glob(f"*.{extension}")):
+                return (False, f"Missing {extension} file")
+        return (True, None)
 
     def download_and_store_article_file(self, image_source_url: Path):
         """Downaload a media file and link it to the article."""
@@ -831,7 +854,11 @@ class AttachGalleys:
             out_file.write(lxml.html.tostring(html, pretty_print=False))
 
     def save_html(self):
-        """Set the give file as HTML galley."""
+        """Set the first html file as HTML galley.
+
+        Process it to adapt to our web page (drop how-to-cite, etc.)
+        and deal with possible images.
+        """
         html_galley_filename = [f for f in self.path.iterdir() if f.suffix == ".html"][0]
         html_galley_text = open(html_galley_filename).read()
 
@@ -868,7 +895,7 @@ class AttachGalleys:
         self.article.save()
 
     def save_epub(self):
-        """Set the give file as EPUB galley."""
+        """Set the first epub file as EPUB galley."""
         epub_galley_filename = [f for f in self.path.iterdir() if f.suffix == ".epub"][0]
         epub_galley_file = File(open(epub_galley_filename, "rb"), name=epub_galley_filename.name)
         file_mimetype = "application/epub+zip"
@@ -886,36 +913,61 @@ class AttachGalleys:
         return galley
 
     def save_pdf(self):
-        pass
+        """Set the first pdf file as PDF galley."""
+        pdf_files = [f for f in self.path.iterdir() if f.suffix == ".pdf"]
+        if len(pdf_files) != 1:
+            # TODO: temporary workaround! In production, this should trigger a stopping error
+            logger.error(f"Cannot find PDF in galleys of {self.article.id}")
+            return
+        pdf_galley_filename = pdf_files[0]
+        pdf_galley_file = File(open(pdf_galley_filename, "rb"), name=pdf_galley_filename.name)
+        file_mimetype = "application/pdf+zip"
+        label, language = decide_galley_label(file_name=str(pdf_galley_filename), file_mimetype=file_mimetype)
+        galley = save_galley(
+            self.article,
+            request=self.request,
+            uploaded_file=pdf_galley_file,
+            is_galley=True,
+            label=label,
+            save_to_disk=True,
+            public=True,
+        )
+        logger.debug(f"PDF galley {label} set onto {self.article.id}")
+        return galley
 
     def run(self):
-        try:
-            self.unpack_targz_from_jcomassistant()
-            if not self._check_conditions():
-                self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
-                # We save the given archive even if it has errors.
-                # We save it in the filesystem among the other article files and return it as a Galley object, so that
-                # our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
-                jcomassistant_response_content = File(
-                    BytesIO(self.archive_with_galleys), name="jcomassistant_response.tar.gz"
-                )
-                galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
-
-            else:
-                self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-                galleys_created = [self.save_epub(), self.save_html()]
+        # TODO: review me with specs#774: missing management of multilingual papers and PDF compilation
+        self.path = self.unpack_targz_from_jcomassistant()
+        green_light, reason = self._check_conditions()
+        if not green_light:
+            self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
             self.article.articleworkflow.save()
-            return galleys_created
-        except Exception as e:
-            logger.error(e)
-            send_mail(
-                f"{self.article} - galley unpacking and attachment failed",
-                f"Please check JCOMAssistant response content.\n{e}",
-                None,
-                [self.request.user.email],
-                fail_silently=False,
+            self._notify_error(reason)
+            # We save the given archive even if it has errors.
+            # We save it in the filesystem among the other article files and return it as a Galley object, so that
+            # our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
+            jcomassistant_response_content = File(
+                BytesIO(self.archive_with_galleys),
+                name="jcomassistant_response.tar.gz",
             )
-            raise
+            galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
+
+        else:
+            galleys_created = [self.save_epub(), self.save_html(), self.save_pdf()]
+            self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+            self.article.articleworkflow.save()
+        shutil.rmtree(self.path)
+        return galleys_created
+
+    def _notify_error(self, reason: str):
+        logger.error(f"Galleys generation failed for {self.article.id}: {reason}")
+        send_mail(
+            f"{self.article} - galley unpacking and attachment failed",
+            f"Please check JCOMAssistant response content.\n{reason}",
+            None,
+            [self.request.user.email],
+            fail_silently=False,
+        )
 
 
 @dataclasses.dataclass
@@ -996,6 +1048,8 @@ class TypesetterTestsGalleyGeneration:
         - attach generated galleys to TA (and article)
         - record success/failure of the generation
         """
+        # TODO: wrap in try/except and contact typ on errors
+        # e.g. ConnectionError janeway-services.ud.sissamedialab.it Name or service not known
         response = self._jcom_assistant_client()
         galleys_created = AttachGalleys(
             archive_with_galleys=response.content,
@@ -1202,16 +1256,21 @@ class HandleEOSendBackToTypesetter:
 
 
 @dataclasses.dataclass
-class Publish:
-    """Publish a paper.
+class BeginPublication:
+    """Begin the publication process.
 
-    Regenerate the galleys with final info (publication date, DOI, etc.)
-    and bump the state.
+    The publication process is comprised of two steps:
+    - begin publication
+      - set the identifiers and publication date
+      - adapt the source files with the identifiers
+    - finish publication
+      - generate the galleys
+      - bump the article stage
 
-    This action is not explicitly locked per journal. I.e. a new publication can start even if there is another
-    publication in progress. But (!) the process is wrapped into an atomic transaction, so that if any conflict arise,
-    the procedure is aborted and the operator notified.
+    The second stage might be long (galley generation can last for even a minute) and could crash (most probably for
+    some infrastructure temporary issue).
 
+    Here we deal with the first stage and demand the second to another part of the logic.
     """
 
     workflow: ArticleWorkflow
@@ -1222,16 +1281,6 @@ class Publish:
 
     def __post_init__(self):
         """Find the source files."""
-        # TODO: we could store the source files in two places:
-        # - article.source_files
-        # - last TA.files_to_typeset
-        # now we use TA, because we must keep a history of them source files.
-        # But we should probably
-        # - keep the latest sources on the article
-        # - keep the history in the TA:
-        #   every time the typ UploadFile,
-        #   store the reference to the files bot in TA and article
-
         self.assignment = self.workflow.latest_typesetting_assignment()
         # The source files for the galley are in the latest typesetting assignment
         # Even if the field is a m2m, we alway set at most one item.
@@ -1256,61 +1305,29 @@ class Publish:
         self.workflow.set_doi()
         self.workflow.set_pubid()
 
-    # TODO: refactor with TypesetterTestsGalleyGeneration methods
-    def _jcom_assistant_client(self) -> requests.Response:
-        assistant = JcomAssistantClient(
-            archive_with_files_to_process=self.assignment.files_to_typeset.first(),
-            user=self.user,
-        )
-        response = assistant.ask_jcomassistant_to_process()
-        return response
-
-    # TODO: refactor with TypesetterTestsGalleyGeneration methods
-    # here I've changed some variables names and the mail message
-    def _generate_and_attach_galleys(self):
-        response = self._jcom_assistant_client()
-        galleys_created = AttachGalleys(
-            archive_with_galleys=response.content,
-            article=self.workflow.article,
-            request=self.request,
-        ).run()
-        self.assignment.galleys_created.set(galleys_created)
-        # This flag is set by AttachGalleys that we have just run
-        if self.workflow.production_flag_galleys_ok:
-            return True
-        else:
-            send_mail(
-                f"{self.workflow.article} - final galley generation failed",
-                f"Please find modified source zip file in TA {self.assignment} galleys_created.",
-                None,
-                [self.request.user.email],
-                fail_silently=False,
-            )
-            return False
-
-    def generate_final_galleys(self):
-        """Generate galleys with final info.
+    def prepare_source_files(self):
+        """Apply identifiers and publication date to source files.
 
         We assume that the article already has pubid and DOI.
-        Here we add these (and the publication date) to the TeX source
-        and re-generate the galleys.
+        Here we add these (and the publication date) to the TeX source.
+
+        The prepared source files are then (saved to the filesystem) and linked to the
+        article's source-files.
         """
         try:
             source_file = self._get_source_file()
             prepared_source_file = self._prepare_source(source_file)
             # TODO: save "historical" version of such file (see Janeway's file history) before modification
             self._store_prepared_source(prepared_source_file)
-            if not self._generate_and_attach_galleys():
-                raise ValueError("Galleys generated, but something went wrong.")
         except Exception as exception:
-            logger.error(f"Got exception during final galley generation: {exception}.")
             raise ValueError(
-                "Final galley generation failed. Publication aborted."
-                " You may want to send the paper back to the typesetter.",
+                "Preparation of source files for final galley generation failed. Publication aborted."
+                " You may want to send the paper back to the typesetter.\n"
+                f" {exception}",
             )
 
     def _store_prepared_source(self, file_data: BytesIO, file_name: str = None):
-        """Include the give file into the article galleys, under the given file-name.
+        """Include the given file into the article source files zip, under the given file-name.
 
         Defaults to replacing the tex source file (i.e. the file name will be something like JCOM_123.tex).
         """
@@ -1336,7 +1353,30 @@ class Publish:
                 f"Cannot find {file_name} in archive {self.source_files} for article {self.workflow}."
                 " File added to archive and hoping for the best.",
             )
-        os.replace(tempfilename, self.source_files)
+
+        # Replace the article.source_files (only one item) with the just modified sources
+        # TODO: we could store the source files in two places:
+        # - article.source_files
+        # - last TA.files_to_typeset
+        # now we use TA, because we must keep a history of them source files.
+        # But we should probably
+        # - keep the latest sources on the article
+        # - keep the history in the TA:
+        #   every time the typ UploadFile,
+        #   store the reference to the files bot in TA and article
+
+        final_sources: JanewayFile = save_file_to_article(
+            file_to_handle=File(open(tempfilename, "rb"), name=file_name.replace(".tex", ".zip")),
+            article=self.workflow.article,
+            owner=self.user,
+            label="Final sources",
+            description="Source files for final galleys",
+            replace=None,
+        )
+        assert self.workflow.article.source_files.count() == 1, "Too many source files. Expected exactly one!"
+        self.workflow.article.source_files.first().delete()  # TODO: verify that `delete` also unlinks!
+        self.workflow.article.source_files.set((final_sources,))
+        os.unlink(tempfilename)
 
     def _prepare_source(self, source_file: BytesIO) -> BytesIO:
         r"""Set pubid, DOI and publication date into the given file and return it.
@@ -1347,7 +1387,7 @@ class Publish:
         \publicationvolume{xx}
         \publicationissue{xx}
         \publicationnum{xx}
-        \doiInfo{doi}{xxxxxxx}
+        \doiInfo{https://doi.org/}{doi}
 
         """
         publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
@@ -1359,6 +1399,7 @@ class Publish:
         num = self.workflow.page_numbers
         doi = self.workflow.article.get_doi()
 
+        # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
         replacements = (
             # f-strings and latex macros don't dance well together...
             (r"\published{???}", rf"\published{{{publication_date}}}"),
@@ -1366,7 +1407,7 @@ class Publish:
             (r"\publicationvolume{xx}", rf"\publicationvolume{{{volume}}}"),
             (r"\publicationissue{xx}", rf"\publicationissue{{{issue}}}"),
             (r"\publicationnum{xx}", rf"\publicationnum{{{num}}}"),
-            (r"\doiInfo{doi}{xxxxxxx}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
+            (r"\doiInfo{https://doi.org/}{doi}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
         )
 
         source_file.seek(0)
@@ -1399,10 +1440,110 @@ class Publish:
         return main_tex
 
     def update_state(self):
+        """Bumb the state (but not the stage)."""
+        self.workflow.begin_publication()
+
+    def trigger_galley_generation(self):
+        """Trigger an async process for the galley generation."""
+        async_task(finishpublication_wrapper, workflow_pk=self.workflow.pk, user_pk=self.user.pk)
+
+    def run(self):
+        with transaction.atomic():
+            green_light, reason = self.check_conditions()
+            if not green_light:
+                raise ValueError(f"Paper cannot be published. {reason}")
+            self.set_article_identifiers()
+            self.prepare_source_files()
+            self.update_state()
+        # We bump the state _before_ triggering the galley generation,
+        # because once the article is in publication-in-progress,
+        # the galley generation can always be triggered.
+        #
+        # Also, we keep the trigger outside the transition, else
+        # risk re-winding the transaction if the trigger fails.
+        #
+        # If we do vice-versa (trigger and then bump) and the bump fails,
+        # the transaction can be re-winded, but the
+        # galley generation has already been started and is proceeding.
+        self.trigger_galley_generation()
+        return self.workflow
+
+
+@dataclasses.dataclass
+class FinishPublication:
+    """Conclude the publication process.
+
+    This mean
+    - generate the galleys
+    - bump the state/stage
+    - notify who needs to be notified.
+    """
+
+    workflow: ArticleWorkflow
+    user: Account  # this user will be contacted is somwthing goes wrong during galley generation
+    request: HttpRequest  # we'll end-up calling Janeway's save_galley_image(), that needs a request obj
+
+    def check_conditions(self) -> Tuple[bool, Optional[str]]:
+        if self.workflow.state not in [
+            ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS,
+        ]:
+            return (False, "Paper not in expected state")
+        return (True, None)
+
+    # TODO: refactor with TypesetterTestsGalleyGeneration methods
+    def _jcom_assistant_client(self) -> requests.Response:
+        assistant = JcomAssistantClient(
+            archive_with_files_to_process=self.workflow.article.source_files.first(),
+            user=self.user,
+        )
+        response = assistant.ask_jcomassistant_to_process()
+        return response
+
+    # TODO: refactor with TypesetterTestsGalleyGeneration methods
+    # here I've changed some variables names and the mail message
+    def generate_final_galleys(self):
+        response = self._jcom_assistant_client()
+        galleys_created = AttachGalleys(
+            archive_with_galleys=response.content,
+            article=self.workflow.article,
+            request=self.request,
+        ).run()
+        self.workflow.article.galley_set.set(galleys_created)
+        # This flag is set by AttachGalleys that we have just run
+        if self.workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED:
+            return True
+        else:
+            send_mail(
+                f"{self.workflow.article} - final galley generation failed",
+                """Please note that the generation has been attempted on the article sources,
+and this have been automatically derived from the latest typesetted files.
+
+This is usually related to some temporary issue with the infrastructure.
+
+Please retry and contact assistance is the problem persists.
+""",
+                None,
+                [self.request.user.email],
+                fail_silently=False,
+            )
+            return False
+
+    def update_state(self):
         """Bumb state and stage."""
-        self.workflow.admin_publishes()
+        self.workflow.finish_publication()
         # Apply Janeway logic (snapshot authors etc.)
+
+        # TODO: in import_utils, we verify the article's issue's date against the article publication date. This makes
+        # sense in the context of setting some metadata on the issue that we did not have before, but does it makes
+        # sense here also?
+
+        # ... if article.date_published < article.issue.date_published:
+        # ...   article.issue.date = article.date_published
+
+        # Also, there might be reasons to snapshot the authors before,
+        # i.e. when the identifiers are set.
         import_utils.publish_article(self.workflow.article)
+
         self._trigger_workflow_event()
 
     def _trigger_workflow_event(self):
@@ -1420,12 +1561,25 @@ class Publish:
         )
 
     def run(self):
-        # TODO: if not journal.publication_locked / publication_inprogress
         with transaction.atomic():
             green_light, reason = self.check_conditions()
             if not green_light:
-                raise ValueError(f"Paper cannot be published. {reason}")
-            self.set_article_identifiers()
-            self.generate_final_galleys()
-            self.update_state()
+                raise ValueError(f"Final falley generation cannot be started. {reason}")
+            if self.generate_final_galleys():
+                self.update_state()
         return self.workflow
+
+
+def finishpublication_wrapper(workflow_pk: int, user_pk: int):
+    """Wrap the call to FinishSubmission to allow for async processing."""
+    # Please note that we cannot directly use the real request object because
+    # cannot pickle '_io.BufferedReader' object
+    user = Account.objects.get(pk=user_pk)
+    workflow = ArticleWorkflow.objects.get(pk=workflow_pk)
+    request = create_rich_fake_request(journal=workflow.article.journal, settings=settings, user=user)
+
+    FinishPublication(
+        workflow=workflow,
+        user=user,
+        request=request,
+    ).run()

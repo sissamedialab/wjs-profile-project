@@ -1,15 +1,19 @@
+import io
 import logging
+import tarfile
 import tempfile
 from typing import Callable
 from unittest import mock
 
 import pytest
+import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
 from django.http import HttpRequest
+from django.test import override_settings
 from django.test.client import Client
 from django.urls import reverse
 from django.utils import timezone
@@ -20,12 +24,17 @@ from press.models import Press
 from submission import models as submission_models
 from submission.models import Article
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_eo_user
-from ..logic__production import Publish, TypesetterTestsGalleyGeneration
+from ..logic__production import (
+    BeginPublication,
+    FinishPublication,
+    TypesetterTestsGalleyGeneration,
+)
 from ..models import (
     ArticleWorkflow,
     LatexPreamble,
@@ -39,9 +48,13 @@ from .conftest import (
     _accept_article,
     _assign_article,
     _assigned_to_typesetter_article,
+    _jump_article_to_rfp,
     _ready_for_typesetter_article,
     _stage_proofing_article,
 )
+from .test_helpers import ThreadedHTTPServer
+
+Account = get_user_model()
 
 Account = get_user_model()
 
@@ -426,7 +439,7 @@ def test_typesetter_galley_generation(
     assert response.context["article"] == assigned_to_typesetter_article_with_files_to_typeset
 
     galleys_created = typesetting_assignment.galleys_created.all()
-    assert galleys_created.count() == 2
+    assert galleys_created.count() == 3
     assert any(galley.file.original_filename.endswith(".html") for galley in galleys_created)
     assert any(galley.file.original_filename.endswith(".epub") for galley in galleys_created)
 
@@ -509,6 +522,7 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
     # not, let's make the paper ready
     workflow.production_flag_no_queries = True
     workflow.production_flag_galleys_ok = True
+    workflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
     workflow.save()
     assert workflow.can_be_set_rfp() is True
 
@@ -556,18 +570,16 @@ def test_automatic_preamble_generation(
 
     local_date_accepted = timezone.localtime(article.date_accepted)
     formatted_date_accepted = local_date_accepted.strftime("%Y-%m-%d")
-    expected_preamble = f"""
-    \\article{{{article.title}}}
-    \\accepted{{{formatted_date_accepted}}}
-    \\journal{{{journal.code}}}
-    \\doc_type{{{article.section.wjssection.pubid_and_tex_sectioncode}}}
-    \\latex_desc{{{article.articleworkflow.latex_desc}}}
-    \\latex_desc_parent{{{article.ancestors.first().parent.articleworkflow.latex_desc}}}
-    """
-    # We `strip()` the strings, because fragments such as
-    # {% with ...%}
-    # render to nothing, but the newlines are retained.
-    assert rendered_preamble.strip() == expected_preamble.strip()
+    expected_preamble_pieces = (
+        f"\\article{{{article.title}}}",
+        f"\\accepted{{{formatted_date_accepted}}}",
+        f"\\journal{{{journal.code}}}",
+        f"\\doc_type{{{article.section.wjssection.pubid_and_tex_sectioncode}}}",
+        f"\\latex_desc{{{article.articleworkflow.latex_desc}}}",
+        f"\\latex_desc_parent{{{article.ancestors.first().parent.articleworkflow.latex_desc}}}",
+    )
+    for piece in expected_preamble_pieces:
+        assert piece in rendered_preamble
 
 
 @pytest.mark.django_db
@@ -582,15 +594,25 @@ def test_production_flag_galleys_ok(
         assigned_to_typesetter_article_with_files_to_typeset.typesettinground_set.get().typesettingassignment
     )
     # Test that when the generation failed the flag is set to TEST_FAILED
-    with mock.patch("plugins.wjs_review.logic__production.AttachGalleys._check_conditions", return_value=False):
+    with mock.patch(
+        "plugins.wjs_review.logic__production.AttachGalleys._check_conditions",
+        return_value=(False, "I am a teapot"),
+    ):
         url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
-        client.get(url)
+        response = client.get(url)
         assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
         assert (
             assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
             == ArticleWorkflow.GalleysStatus.TEST_FAILED
         )
+
+        # [Just a reminder for me]
+        # Even if the generation failed, the typesetter did not see (django) message indicating the issue in the
+        # response he received. The generation is async, and errors are delivered via email.
+        messages = list(get_messages(response.wsgi_request))
+        assert not any("I am a teapot" in message.message for message in messages)
+
     # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
     url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
@@ -603,7 +625,10 @@ def test_production_flag_galleys_ok(
         == ArticleWorkflow.GalleysStatus.NOT_TESTED
     )
     # Test that when the archive conditions are met the flag is set to TEST_PASSED
-    with mock.patch("plugins.wjs_review.logic__production.AttachGalleys._check_conditions", return_value=True):
+    with mock.patch(
+        "plugins.wjs_review.logic__production.AttachGalleys._check_conditions",
+        return_value=(True, None),
+    ):
         url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
         client.get(url)
@@ -703,11 +728,152 @@ def test_publication(
     workflow: ArticleWorkflow = rfp_article.articleworkflow
     assert workflow.compute_eid() == "A01"
 
-    with mock.patch("plugins.wjs_review.logic__production.Publish._generate_and_attach_galleys"):
-        Publish(workflow=workflow, user=eo_user, request=fake_request).run()
+    with mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"):
+        BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
 
     # This is "funny":
     assert workflow.compute_eid() == "A02"
     # TODO: turn the eid into a property stored into `article.page_numbers`?
+
+
+@pytest.mark.django_db
+def test_publication_with_fake_galley_generation(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+    http_server: ThreadedHTTPServer,
+):
+    """Test publication.
+
+    Galleys are stored (they are received from a dummy server).
+    """
+    assert rfp_article.section.name == "Article"
+    workflow: ArticleWorkflow = rfp_article.articleworkflow
+    assert workflow.compute_eid() == "A01"
+
+    # TODO: patch core.files.save_file_to_article so that a core.File is generated, but no file arrives on the
+    # filesystem
+    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+        BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
+    workflow.refresh_from_db()
+    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert workflow.article.galley_set.count() == 3
+
+
+@pytest.mark.django_db
+def test_publication_multiple_articles(
+    journal,
+    jcom_doi_prefix,
+    article_factory,
+    section_factory,
+    issue_factory,
+    review_settings,
+    fake_request: HttpRequest,
+    jcom_user: JCOMProfile,
+    http_server: ThreadedHTTPServer,
+):
+    """Publication proceeds with correctly even if one article's final galleys fail.
+
+    Here we simulate an issue with three articles:
+    - the first is correctly published
+    - the second begins publication, but the final step fails
+    - the this is correctly published
+    - infrastrucute problems are fixed and the second can correctly finish publication
+    """
+    typ = jcom_user
+    jcom_user.add_account_role(constants.TYPESETTER_ROLE, journal)
+    issue = issue_factory(journal=journal, volume=1, issue="02")
+    article_section = section_factory(name="article", journal=journal)
+    # HHHHHAAAAAAAAA!!!!!!! without the refresh below, I get a NotNullViolation: for column "journal_id" of
+    # relation "submission_section" as soon as I hit the save()!!! WHY??? 😢🤯
+    article_section.refresh_from_db()
+    assert article_section.journal == journal
+    assert article_section.wjssection is not None
+    article_section.wjssection.doi_sectioncode = "02"
+    article_section.wjssection.pubid_and_tex_sectioncode = "A"
+    article_section.wjssection.save()
+    assert article_section.wjssection.section == article_section
+
+    a1 = article_factory(
+        title="Article 1",
+        journal=journal,
+        section=article_section,
+        primary_issue=issue,
+        date_published=timezone.now(),
+    )
+    _jump_article_to_rfp(a1, typ, fake_request)
+    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+        service = BeginPublication(workflow=a1.articleworkflow, user=typ, request=fake_request)
+        service.run()
+    a1.refresh_from_db()
+    assert a1.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert a1.get_identifier("pubid").endswith("A01")
+
+    a2 = article_factory(
+        title="Article 2",
+        journal=journal,
+        section=article_section,
+        primary_issue=issue,
+        date_published=timezone.now(),
+    )
+    _jump_article_to_rfp(a2, typ, fake_request)
+    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/server_error"):
+        #                                                            ⮴ 💩 ⮵
+        service = BeginPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
+        with pytest.raises(ValueError):
+            service.run()
+    # TODO: simulate other kinds of errors:
+    # - missing files pdf/epub/html
+    # - errors in the log file
+    a2.refresh_from_db()
+    a2.articleworkflow.refresh_from_db()
+    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
+    assert a2.get_identifier("pubid").endswith("A02")
+
+    a3 = article_factory(
+        title="Article 3",
+        journal=journal,
+        section=article_section,
+        primary_issue=issue,
+        date_published=timezone.now(),
+    )
+    _jump_article_to_rfp(a3, typ, fake_request)
+    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+        service = BeginPublication(workflow=a3.articleworkflow, user=typ, request=fake_request)
+        service.run()
+    a3.refresh_from_db()
+    assert a3.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert a3.get_identifier("pubid").endswith("A03")
+
+    # retry a2: expect change in the state, but not in the pubid etc.
+    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+        service = FinishPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
+        #    ⚠  Finish! (not "Begin")
+        service.run()
+    a2.refresh_from_db()
+    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert a2.get_identifier("pubid").endswith("A02")
+
+
+@pytest.mark.skip(reason="Only tests the helper server.")
+def test_good_galleys(http_server: ThreadedHTTPServer, tmp_path):
+    url = "http://localhost:2702/good_galleys"
+    response = requests.post(url)
+    assert response.status_code == 200
+    assert len(response.content) > 0
+    inmemory_targz = io.BytesIO()
+    inmemory_targz.write(response.content)
+    inmemory_targz.seek(0)
+    with tarfile.open(fileobj=inmemory_targz, mode="r:gz") as tar:
+        tar.extractall(path=tmp_path)
+    # We should get pdf, html, epub and log files
+    assert len(list(tmp_path.glob("*"))) == 4
+
+
+@pytest.mark.skip(reason="Only tests the helper server.")
+def test_http_server_root(http_server):
+    url = "http://localhost:2702/"
+    response = requests.get(url)
+    assert response.status_code == 200

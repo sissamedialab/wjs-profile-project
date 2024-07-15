@@ -100,7 +100,7 @@
                 {% for data_figure_file in article.data_figure_files.all %}<li>{{ data_figure_file.original_filename }}</li>{% endfor %}
             </div>
             <div class="col">
-                {% for galley in article.galley_set.all %}<li>{{ galley.file.original_filename }} {{ galley.label }}</li>{% empty %}no galleys yet{% endfor %}
+                {% for galley in article.galley_set.all %}<li><a href="{% url 'download_anything_dropme' article_id=article.id file_id=galley.file.id %}">{{ galley.file.original_filename }} {{ galley.label }}</a></li>{% empty %}no galleys yet{% endfor %}
             </div>
         </div>
         <div class="row">

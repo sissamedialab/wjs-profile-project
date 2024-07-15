@@ -58,6 +58,7 @@ repos:
     rev: v1.34.1
     hooks:
       - id: djlint-django
+        exclude: '.*/tests/.*\.html$'
   - repo: https://github.com/pre-commit/mirrors-prettier
     # the actually used version is the one below in additional dependencies, pre-commit mirror does not support
     # prettier versions well, the manual pin below is a good way to pin the version

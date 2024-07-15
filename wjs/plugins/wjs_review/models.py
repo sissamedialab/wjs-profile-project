@@ -51,37 +51,6 @@ MEDIALAB_DOI_JOURNAL_NUMBER = {
     "JCOMAL": "3",
 }
 
-# In JCOM (and JCOMAL), the DOI depends on a code that depends on the section (article type).
-# This is peculiar of JCOM and does not apply to other journals.
-JCOM_SECTION_TO_DOISECTIONCODE = {
-    "letter": "01",
-    "article": "02",
-    "commentary": "03",
-    "essay": "04",
-    "editorial": "05",
-    "conference review": "06",
-    "book review": "07",
-    "practice insight": "08",
-    "focus": "09",  # Warning: focus and review article have the same code!!!
-    "review article": "09",  # Probably not important: no focus for many years (as of 2023)!
-}
-JCOM_SECTION_TO_PUBIDSECTIONCODE = {
-    "letter": "L",
-    "article": "A",
-    "commentary": "C",
-    "essay": "Y",
-    "editorial": "E",
-    "conference review": "R",  # Same code for conference and book review
-    "book review": "R",  # Same code for conference and book review
-    "practice insight": "N",
-    "focus": "F",
-    "review article": "V",
-}
-# NB: reviews (conference review and book review) are a bit confusing:
-# - they are counted together (as if they were in the same section; e.g. CR-1, BR-2, CR-3)
-# - have same PUBID section code (both are "R", as in JCOM_0000_0000_R00)
-# - have different DOI section code (e.g. prefix/0.00000600 vs prefix/0.00000700)
-
 
 def can_be_set_rfp_wrapper(workflow: "ArticleWorkflow", **kwargs) -> bool:
     """Only wraps the method that tests if a article can transition to READY_FOR_PUBLICATION."""
@@ -133,6 +102,7 @@ class ArticleWorkflow(TimeStampedModel):
         PUBLISHED = "Published", _("Published")
         READY_FOR_PUBLICATION = "ReadyForPublication", _("Ready for publication")
         SEND_TO_EDITOR_FOR_CHECK = "SendToEditorForCheck", _("Send to editor for check")
+        PUBLICATION_IN_PROGRESS = "PublicationInProgress", _("Publication in progress")
 
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
@@ -251,7 +221,7 @@ class ArticleWorkflow(TimeStampedModel):
     def can_be_set_rfp(self) -> bool:
         """Test if the article can transition to READY_FOR_PUBLICATION."""
         return (
-            self.production_flag_galleys_ok
+            self.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
             and self.production_flag_no_checks_needed
             and self.production_flag_no_queries
         )
@@ -295,7 +265,12 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: refactor eid into cached property?
         counter = self._count_published_papers_in_same_issue_and_section() + 1
         counter = f"{counter:02d}"
-        type_code = JCOM_SECTION_TO_DOISECTIONCODE[article.section.name.lower()]
+        type_code = article.section.wjssection.doi_sectioncode
+        if not type_code:
+            logger.error(
+                f'Section "{article.section}" is missing DOI code. DOI will be wrong!'
+                "Please correct from the admin interface.",
+            )
         doi = f"{doi_prefix}/{system_number}.{volume}{issue}{type_code}{counter}"
         return doi
 
@@ -310,7 +285,12 @@ class ArticleWorkflow(TimeStampedModel):
         if self.article.page_numbers:
             return self.article.page_numbers
         counter = self._count_published_papers_in_same_issue_and_section() + 1
-        type_code = JCOM_SECTION_TO_PUBIDSECTIONCODE[self.article.section.name.lower()]
+        type_code = self.article.section.wjssection.pubid_and_tex_sectioncode
+        if not type_code:
+            logger.error(
+                f'Section "{self.article.section}" is missing PUBID code. PUBID will be wrong!'
+                "Please correct from the admin interface.",
+            )
         # Editorials are special:
         # there always is at most one, so they are not E01 E02,
         # but just "E" (without any number)
@@ -332,19 +312,21 @@ class ArticleWorkflow(TimeStampedModel):
             # Manually raising error to give explanatory message
             raise ValueError(f"Trying to count similar papers but no primary issue set for article {self.article.id}")
 
+        base_qs = Article.objects.filter(
+            primary_issue_id=self.article.primary_issue.pk,
+            # remember that, during publication, the article has already been given a publication date
+            # when we reach this point
+            date_published__isnull=False,
+            articleworkflow__state__in=[
+                ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS,
+                ArticleWorkflow.ReviewStates.PUBLISHED,
+            ],
+        )
         pesky_sections = ("book review", "conference review")
         if self.article.section.name in pesky_sections:
-            return Article.objects.filter(
-                primary_issue_id=self.article.primary_issue.id,
-                section__name__in=pesky_sections,
-                date_published__isnull=False,
-            ).count()
+            return base_qs.filter(section__name__in=pesky_sections).count()
         else:
-            return Article.objects.filter(
-                primary_issue_id=self.article.primary_issue.id,
-                section_id=self.article.section.id,
-                date_published__isnull=False,
-            ).count()
+            return base_qs.filter(section_id=self.article.section.pk).count()
 
     def set_pubid(self):
         return Identifier.objects.create(
@@ -583,17 +565,6 @@ class ArticleWorkflow(TimeStampedModel):
     def author_sends_corrections(self):
         pass
 
-    # EO publishes
-    @transition(
-        field=state,
-        source=ReviewStates.READY_FOR_PUBLICATION,
-        target=ReviewStates.PUBLISHED,
-        # TODO: permission=,
-        # TODO: conditions=[],
-    )
-    def admin_publishes(self):
-        pass
-
     # EO sends back to typ
     @transition(
         field=state,
@@ -647,6 +618,26 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: conditions=[],
     )
     def system_verifies_production_requirements(self):
+        pass
+
+    # EO initiates publication
+    @transition(
+        field=state,
+        source=ReviewStates.READY_FOR_PUBLICATION,
+        target=ReviewStates.PUBLICATION_IN_PROGRESS,
+    )
+    def begin_publication(self):
+        pass
+
+    # system concludes publication
+    @transition(
+        field=state,
+        source=ReviewStates.PUBLICATION_IN_PROGRESS,
+        target=ReviewStates.PUBLISHED,
+        # TODO: permission=,
+        # TODO: conditions=[],
+    )
+    def finish_publication(self):
         pass
 
     def rename_manuscript_files(self):
