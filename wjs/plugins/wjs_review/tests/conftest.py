@@ -10,13 +10,21 @@ from unittest import mock
 import pytest
 from core import files
 from core import models as core_models
-from core.models import Account, File, SupplementaryFile, Workflow, WorkflowElement
+from core.models import (
+    Account,
+    File,
+    Galley,
+    SupplementaryFile,
+    Workflow,
+    WorkflowElement,
+)
 from django.core import mail
 from django.core.files import File as DjangoFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
+from journal.models import Issue
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
 from submission.models import Article
@@ -31,6 +39,7 @@ from ..logic import (
     AssignTypesetter,
     AuthorSendsCorrections,
     HandleDecision,
+    ReadyForPublication,
     RequestProofs,
     UploadFile,
     VerifyProductionRequirements,
@@ -329,6 +338,82 @@ def assigned_to_typesetter_proofs_done_article(
     See notes about notifications in `assigned_article`.
     """
     return _assigned_to_typesetter_proofs_done_article(ready_for_typesetter_article, fake_request)
+
+
+def _create_generic_galleys(article: Article) -> [Galley, Galley, Galley]:
+    """Create a PDF, an epub and an HTML "files" wrapped into a Galley object."""
+    pdf_corefile = File.objects.create(
+        mime_type="application/pdf",
+        original_filename="of.pdf",
+        uuid_filename="uf.pdf",
+        is_galley=True,
+    )
+    pdf_galley = Galley.objects.create(file=pdf_corefile, label="PDF", type="pdf", article=article)
+
+    epub_corefile = File.objects.create(
+        mime_type="application/epub+zip",
+        original_filename="of.epub",
+        uuid_filename="uf.epub",
+        is_galley=True,
+    )
+    epub_galley = Galley.objects.create(file=epub_corefile, label="EPUB", type="epub", article=article)
+
+    html_corefile = File.objects.create(
+        mime_type="text/html",
+        original_filename="of.html",
+        uuid_filename="uf.html",
+        is_galley=True,
+    )
+    html_galley = Galley.objects.create(file=html_corefile, label="HTML", type="html", article=article)
+
+    return (pdf_galley, epub_galley, html_galley)
+
+
+def _create_rfp_article(
+    article: Article,
+    issue: Issue,
+    user: Account,
+    request: HttpRequest,
+) -> Article:
+    """Create an article ready for publication."""
+    article.primary_issue = issue
+    article.save()
+
+    # Force the article to have a section named "article" to ease pubid/doi generation
+    article.section.name = "Article"
+    article.section.save()
+    article.section.wjssection.doi_sectioncode = "02"
+    article.section.wjssection.pubid_and_tex_sectioncode = "A"
+    article.section.wjssection.save()
+
+    article.articleworkflow.production_flag_no_queries = True
+    article.articleworkflow.production_flag_no_checks_needed = True
+    article.galley_set.set(_create_generic_galleys(article=article))
+    article.articleworkflow.save()
+    ReadyForPublication(workflow=article.articleworkflow, user=user).run()
+    article.refresh_from_db()
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+    article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+    return article
+
+
+@pytest.fixture
+def rfp_article(
+    assigned_to_typesetter_article_with_files_to_typeset: Article,
+    fb_issue: Issue,
+    fake_request: HttpRequest,
+) -> Article:
+    """Create an article in ready-for-publication."""
+    typesetter = (
+        assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.latest_typesetting_assignment().typesetter
+    )
+    article = _create_rfp_article(
+        article=assigned_to_typesetter_article_with_files_to_typeset,
+        issue=fb_issue,
+        user=typesetter,
+        request=fake_request,
+    )
+    return article
 
 
 @pytest.fixture

@@ -56,6 +56,7 @@ from .views__production import (  # noqa F401
     EOSendBackToTypesetterView,
     GalleyGenerationView,
     ListAnnotatedFilesView,
+    PublishView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
     TogglePublishableFlagView,
@@ -215,6 +216,7 @@ urlpatterns = [
         EditUserPermissions.as_view(),
         name="wjs_assign_permission",
     ),
+    path("publish/<int:pk>/", PublishView.as_view(), name="wjs_review_publish"),
     path(
         "send_back_to_typesetter/<int:pk>/",
         EOSendBackToTypesetterView.as_view(),

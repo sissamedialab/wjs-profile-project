@@ -37,6 +37,7 @@ from utils.install import (
 )
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
 from utils.management.commands.test_fire_event import create_fake_request
+from utils.setting_handler import save_setting
 from utils.testing.helpers import create_galley
 
 from wjs.jcom_profile import constants
@@ -408,6 +409,17 @@ def journal(press, director_role):
     # This is the same code run by `core.middleware.SiteSettingsMiddleware` ensuring the same behavior in the tests
     set_script_prefix(f"/{journal.code}")
     return journal
+
+
+@pytest.fixture
+def jcom_doi_prefix(journal):
+    """Set the JCOM DOI prefix onto journal."""
+    save_setting(
+        setting_group_name="Identifiers",
+        setting_name="crossref_prefix",
+        journal=journal,
+        value="10.22323",
+    )
 
 
 @pytest.fixture

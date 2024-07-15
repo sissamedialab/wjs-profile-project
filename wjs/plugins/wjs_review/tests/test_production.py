@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
@@ -24,7 +25,7 @@ from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_eo_user
-from ..logic__production import TypesetterTestsGalleyGeneration
+from ..logic__production import Publish, TypesetterTestsGalleyGeneration
 from ..models import (
     ArticleWorkflow,
     LatexPreamble,
@@ -41,6 +42,8 @@ from .conftest import (
     _ready_for_typesetter_article,
     _stage_proofing_article,
 )
+
+Account = get_user_model()
 
 
 @pytest.mark.django_db
@@ -682,3 +685,29 @@ and text
         temp_file.flush()
         temp_file_path = temp_file.name
         assert tex_file_has_queries(temp_file_path) == expected_result
+
+
+@pytest.mark.django_db
+def test_publication(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+):
+    """Test publication.
+
+    An article in state ready-for-publication can be published by EO.
+
+    Not testing Janeway-related stuff, such as snapshotting authors.
+    """
+    assert rfp_article.section.name == "Article"
+    workflow: ArticleWorkflow = rfp_article.articleworkflow
+    assert workflow.compute_eid() == "A01"
+
+    with mock.patch("plugins.wjs_review.logic__production.Publish._generate_and_attach_galleys"):
+        Publish(workflow=workflow, user=eo_user, request=fake_request).run()
+    workflow.refresh_from_db()
+    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+
+    # This is "funny":
+    assert workflow.compute_eid() == "A02"
+    # TODO: turn the eid into a property stored into `article.page_numbers`?
