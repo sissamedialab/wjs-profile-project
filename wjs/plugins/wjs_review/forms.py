@@ -29,7 +29,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import EO_GROUP
 
-from . import communication_utils
+from . import communication_utils, conditions
 from .logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -1024,3 +1024,51 @@ class ForwardMessageForm(forms.ModelForm):
             )
 
             return message
+
+
+class ArticleExtraInformationUpdateForm(forms.ModelForm):
+    social_media_image = forms.ImageField(required=False, label=_("Social media image"))
+    english_title = forms.CharField(label=_("Article title - English language"))
+    english_abstract = forms.CharField(label=_("Article abstract - English language"), widget=SummernoteWidget())
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = [
+            "social_media_short_description",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        if "initial" not in kwargs:
+            kwargs["initial"] = {}
+        if kwargs["instance"]:
+            kwargs["initial"]["social_media_image"] = kwargs["instance"].article.meta_image
+            # this is always true even if the journal has no english language
+            # because models are common to all journals, access to it
+            kwargs["initial"]["english_title"] = kwargs["instance"].article.title_en
+            kwargs["initial"]["english_abstract"] = kwargs["instance"].article.abstract_en
+        super().__init__(*args, **kwargs)
+
+        needs_english = conditions.journal_requires_english_content(self.instance.article.journal)
+        is_published_piecemeal = conditions.article_is_published_piecemeal(self.instance)
+
+        # If no conditions are met, fields list is empty but this is not an issue as at least on condition must be met
+        # for the view to be accessible.
+        if not needs_english:
+            del self.fields["english_title"]
+            del self.fields["english_abstract"]
+        if not is_published_piecemeal:
+            del self.fields["social_media_image"]
+            del self.fields["social_media_short_description"]
+
+    def save(self, commit=True):
+        instance = super().save(commit)
+        if self.cleaned_data.get("social_media_image"):
+            instance.article.meta_image = self.cleaned_data["social_media_image"]
+            instance.article.save()
+        # this step is entirely skipped if the journal doesn't need english content, so there is no risk to overwrite
+        # the original title and abstract
+        if self.cleaned_data.get("english_title"):
+            instance.article.title_en = self.cleaned_data["english_title"]
+            instance.article.abstract_en = self.cleaned_data["english_abstract"]
+            instance.article.save()
+        return instance

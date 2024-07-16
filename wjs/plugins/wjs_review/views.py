@@ -50,6 +50,7 @@ from .filters import (
     WorkOnAPaperArticleWorkflowFilter,
 )
 from .forms import (
+    ArticleExtraInformationUpdateForm,
     ArticleReviewStateForm,
     AssignEoForm,
     DecisionForm,
@@ -1896,3 +1897,15 @@ class DownloadAnythingDROPME(View):
         attachment = core_models.File.objects.get(id=self.kwargs["file_id"])
         article = Article.objects.get(id=self.kwargs["article_id"])
         return core_files.serve_file(request, attachment, article, public=True)
+
+
+class ArticleExtraInformationUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = ArticleWorkflow
+    template_name = "wjs_review/articleworkflow_form.html"
+    form_class = ArticleExtraInformationUpdateForm
+
+    def test_func(self):
+        articleworkflow = self.get_object()
+        return permissions.is_article_author(articleworkflow, self.request.user) or permissions.has_eo_role_by_article(
+            articleworkflow, self.request.user
+        )

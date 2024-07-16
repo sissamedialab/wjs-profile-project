@@ -6,6 +6,7 @@ from .views import (
     ArticleAdminDispatchAssignment,
     ArticleDecision,
     ArticleDetails,
+    ArticleExtraInformationUpdateView,
     ArticleMessages,
     ArticleReminders,
     ArticleRevisionFileUpdate,
@@ -132,6 +133,7 @@ urlpatterns = [
         name="wjs_invite_reviewer_prophy",
     ),
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
+    path("additional_info/<int:pk>/", ArticleExtraInformationUpdateView.as_view(), name="wjs_article_additional_info"),
     path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("admin_decision/<int:pk>/", ArticleAdminDecision.as_view(), name="wjs_article_admin_decision"),
     path(

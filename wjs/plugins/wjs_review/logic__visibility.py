@@ -349,14 +349,12 @@ class AuthorPermissionChecker(BasePermissionChecker):
         if isinstance(self.instance, GalleyProofing):
             return self.instance.proofreader == self.user
         if isinstance(self.instance, ArticleWorkflow):
-            return self.instance.article.authors.filter(pk=self.user.pk).exists()
+            return permissions.is_one_of_the_authors(self.instance, self.user)
         if isinstance(self.instance, Article):
-            return self.instance.authors.filter(pk=self.user.pk).exists()
+            return permissions.is_one_of_the_authors(self.instance.articleworkflow, self.user)
         if isinstance(self.instance, RevisionRequest):
-            return (
-                self.instance.article.authors.filter(pk=self.user.pk).exists()
-                and permission_type == PermissionAssignment.PermissionType.NO_NAMES
-            )
+            is_an_author = permissions.is_one_of_the_authors(self.instance.articleworkflow, self.user)
+            return is_an_author and permission_type == PermissionAssignment.PermissionType.NO_NAMES
         return False
 
 

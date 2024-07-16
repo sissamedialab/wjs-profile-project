@@ -570,8 +570,8 @@ def test_wjs_typ_take_in_charge(assigned_article, typesetter, client):
     assert response.status_code == 302
 
 
-@pytest.mark.django_db
 # TODO here this mocks rfp_article... ??? @patch("plugins.wjs_review.logic__production.FinishPublication.run")
+@pytest.mark.django_db
 def test_wjs_review_begin_publication(rfp_article, eo_user, client):
     client.force_login(eo_user)
     with patch("plugins.wjs_review.logic__production.FinishPublication.run"):
@@ -591,3 +591,14 @@ def test_wjs_review_finish_publication(rfp_article, eo_user, client):
         f"{rfp_article.articleworkflow.pk}/",
     )
     assert response.status_code == 302
+
+
+@pytest.mark.django_db
+def test_wjs_additional_info(assigned_article, typesetter, eo_user, client):
+    """Article Additional information view."""
+    client.force_login(eo_user)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/"
+        f"additional_info/{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200
