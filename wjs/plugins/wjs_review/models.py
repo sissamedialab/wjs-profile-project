@@ -168,6 +168,8 @@ class ArticleWorkflow(TimeStampedModel):
     latest_state_change = models.DateTimeField(default=timezone.now, null=True, blank=True)
     latex_desc = models.TextField(null=True, blank=True)
 
+    social_media_short_description = models.TextField(_("Short description for social media"), null=True, blank=True)
+
     objects = ArticleWorkflowQuerySet.as_manager()
 
     class Meta:

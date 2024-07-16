@@ -784,6 +784,13 @@ class Proofreading(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_author,
+            name="author_add_extra_information",
+            label="Send extra article information",
+            view_name="wjs_article_additional_info",
+            condition=conditions.needs_extra_article_information,
+        ),
+        ArticleAction(
+            permission=permissions.is_article_author,
             name="author_sends_corrections",
             label="Send corrections",
             view_name="wjs_list_annotated_files",
