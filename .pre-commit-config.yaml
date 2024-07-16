@@ -21,11 +21,11 @@ repos:
     hooks:
       - id: isort
   - repo: https://github.com/psf/black
-    rev: 23.3.0
+    rev: 24.4.2
     hooks:
       - id: black
   - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
+    rev: 7.1.0
     hooks:
       - id: flake8
         additional_dependencies:
@@ -36,7 +36,7 @@ repos:
           - flake8-eradicate
           - pep8-naming
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.2
+    rev: v3.16.0
     hooks:
       - id: pyupgrade
         args:
@@ -54,6 +54,11 @@ repos:
               ^wjs/jcom_profile/migrations/|
               ^^wjs/jcom_profile/tests/
           )
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: "1.18.0"
+    hooks:
+      - id: django-upgrade
+        args: [--target-version, "4.2"]
   - repo: https://github.com/Riverside-Healthcare/djLint
     rev: v1.34.1
     hooks:

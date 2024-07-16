@@ -15,8 +15,7 @@ nav {
 
   color: $navbar-font-color;
   @extend .z-depth-1;
-  // customized variable
-  background-color: $navbar-bg-color;
+  background-color: $primary-color;
   width: 100%;
   height: $navbar-height-mobile;
   line-height: $navbar-line-height-mobile;
@@ -38,12 +37,12 @@ nav {
   }
 
   @media #{$large-and-up} {
-    a.button-collapse { display: none; }
+    a.sidenav-trigger { display: none; }
   }
 
 
   // Collapse button
-  .button-collapse {
+  .sidenav-trigger {
     float: left;
     position: relative;
     z-index: 1;
@@ -199,7 +198,7 @@ nav {
   nav.nav-extended .nav-wrapper {
     min-height: $navbar-height;
   }
-  nav, nav .nav-wrapper i, nav a.button-collapse, nav a.button-collapse i {
+  nav, nav .nav-wrapper i, nav a.sidenav-trigger, nav a.sidenav-trigger i {
     height: $navbar-height;
     line-height: $navbar-line-height;
   }

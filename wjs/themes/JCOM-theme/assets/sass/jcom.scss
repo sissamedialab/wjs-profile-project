@@ -1,9 +1,12 @@
 @charset "UTF-8";
+@import url("https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap");
 
-// Colors
-@import "components/color";
+// Custom colors
+@import "components/color-variables";
 @import "jcom-color-variables";
-@import "components/color_classes";
+
+// Color
+@import "components/color-classes";
 
 // Variables;
 @import "components/variables";
@@ -18,7 +21,6 @@
 @import "components/icons-material-design";
 @import "components/grid";
 @import "components/navbar";
-@import "components/roboto";
 @import "components/typography";
 @import "components/transitions";
 @import "components/cards";
@@ -34,15 +36,14 @@
 @import "components/materialbox";
 @import "components/forms/forms";
 @import "components/table_of_contents";
-@import "components/sideNav";
+@import "components/sidenav";
 @import "components/preloader";
 @import "components/slider";
 @import "components/carousel";
 @import "components/tapTarget";
 @import "components/pulse";
-@import "components/date_picker/default";
-@import "components/date_picker/default.date";
-@import "components/date_picker/default.time";
+@import "components/datepicker";
+@import "components/timepicker";
 
 // customizations TBV
 @import "jcom_custom";

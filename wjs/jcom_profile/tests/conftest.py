@@ -76,16 +76,21 @@ JOURNAL_CODE = "JCOM"
 
 EXTRAFIELDS_FRAGMENTS = [
     # Profession - a <select>
-    '<select name="profession" class="validate" required id="id_profession">',
-    '<label class="input-field-label" for="id_profession" data-error="" data-success="" id="label_profession">',
+    '<select name="profession"',
+    '<label class="control-label s12 ">Profession</label>',
     # GDPR - a checkbox
     # NB: this <input> has slightly different layouts in the profile form and in the
     # registration form:
     # - <input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />
     # - <input type="checkbox" name="gdpr_checkbox" id="id_gdpr_checkbox" checked />
-    # TODO: be a man and use selenium!
-    '<input type="checkbox" id="id_gdpr_checkbox" name="gdpr_checkbox"',
-    '<label class="input-field-label" for="id_gdpr_checkbox">',
+    '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox"',
+]
+
+EXTRAFIELDS_FRAGMENTS_JOURNAL = EXTRAFIELDS_FRAGMENTS + [
+    'privacy">Privacy Policy</a></span>',
+]
+EXTRAFIELDS_FRAGMENTS_PRESS = EXTRAFIELDS_FRAGMENTS + [
+    'privacy/">Privacy Policy</a></span>',
 ]
 
 ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
@@ -497,7 +502,7 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
 
     selected_keyword is the keyword that will be added to all articles.
     """
-    published_date = now() - timedelta(days=1)
+    published_date = now() - timedelta(days=3)
 
     # we must explicitly determine the created articles because articles might be created by other fixtures
     # and returning a blanket "all" queryset would include sections articles by those fixtures

@@ -1,9 +1,11 @@
 """Tests related to the submission process."""
+
 import lxml.html
 import pytest
 from core.middleware import SiteSettingsMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.cache import cache
+from django.core.handlers.base import BaseHandler
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
@@ -402,7 +404,7 @@ class TestInfoStage:
         # simulate session middleware (it is needed because the
         # template of the response uses the templatetag
         # "hijack_notification")
-        SessionMiddleware().process_request(request)
+        SessionMiddleware(BaseHandler.get_response).process_request(request)
         # https://youtu.be/vZraNnWnYXE?t=10
 
     def sections_in_the_form(self, response):
@@ -421,8 +423,7 @@ class TestInfoStage:
         values = [e.attrib.get("value") for e in got]
         for section in expected:
             assert str(section.id) in values
-            section_text = str(section)
-            assert section_text in texts
+            assert section.display_name_public_submission() in texts
 
 
 @pytest.mark.django_db

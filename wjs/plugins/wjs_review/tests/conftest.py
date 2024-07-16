@@ -469,7 +469,6 @@ def review_form(journal) -> review_models.ReviewForm:
     else:
         review_form = review_models.ReviewForm.objects.create(
             name="A Form",
-            slug="A Slug",
             intro="i",
             thanks="t",
             journal=journal,

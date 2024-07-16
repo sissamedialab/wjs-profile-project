@@ -2,21 +2,6 @@ body {
   background-color: color("grey", "lighten-4");
 }
 
-.btn,
-.btn-large {
-  background-color: color("journal-color", "base");
-}
-.btn:hover,
-.btn-large:hover {
-  background-color: color("journal-color", "lighten-1");
-}
-
-/* Used in article_listing.html to show publication date and article type (section) in article listings */
-div.left-right {
-  display: flex;
-  justify-content: space-between;
-}
-
 /* submission form */
 .button.success {
   background-color: color("journal-color", "base");
@@ -29,19 +14,6 @@ div.left-right {
   color: color("shades", "white");
 }
 
-.pagination {
-  li {
-    &.active {
-      background-color: $primary-base;
-    }
-  }
-}
-
-.select2-container {
-  margin-top: 10px !important;
-  width: 100% !important;
-}
-
 .main-title {
   color: color("journal-color", "base");
   font-size: 2.5rem;
@@ -52,10 +24,4 @@ div.left-right {
   color: color("journal-color", "accent-1");
   font-size: 1.5rem;
   font-weight: bold;
-}
-
-/* Set this or the width of the captcha input will get to ~500px. */
-/* Reason unknown... */
-#id_captcha {
-  width: 0px;
 }

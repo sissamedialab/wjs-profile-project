@@ -43,9 +43,11 @@ def test_news_context(fake_request, news_item_factory):
     for news_item in NewsItem.objects.filter(content_type=content_type, object_id=journal.pk):
         news_item.tags.set(
             [
-                Tag.objects.get_or_create(text="news")[0].id
-                if news_item.sequence % 2 == 0
-                else Tag.objects.get_or_create(text="call")[0].id,
+                (
+                    Tag.objects.get_or_create(text="news")[0].id
+                    if news_item.sequence % 2 == 0
+                    else Tag.objects.get_or_create(text="call")[0].id
+                ),
             ],
         )
 

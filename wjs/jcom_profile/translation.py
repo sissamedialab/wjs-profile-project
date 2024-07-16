@@ -1,5 +1,6 @@
 """Register models for translation."""
-from journal.models import Issue
+
+from journal.translation import IssueTranslationOptions
 from modeltranslation.translator import TranslationOptions, register
 from submission.models import Keyword
 
@@ -9,6 +10,4 @@ class KeywordTranslationOptions(TranslationOptions):
     fields = ("word",)
 
 
-@register(Issue)
-class IssueTranslationOptions(TranslationOptions):
-    fields = ("issue_title", "issue_description")
+IssueTranslationOptions.fields += ("issue_title", "issue_description")

@@ -1,6 +1,5 @@
 """Management command to add all customizations."""
 
-
 from django.core import management
 from django.core.management.base import BaseCommand
 from utils.logger import get_logger

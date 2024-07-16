@@ -1,4 +1,5 @@
 """Tests related to the if-no-gdpr-acknowledged-redirect-me middleware."""
+
 import pytest
 from core.models import Account
 from django.test import Client

@@ -1,4 +1,5 @@
 """Newsletter aka "Publication alerts" service."""
+
 import datetime
 from typing import Dict, Iterable, List, Tuple, TypedDict
 from unittest.mock import Mock

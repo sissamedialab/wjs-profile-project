@@ -28,7 +28,7 @@
 
   h1,
   h2 {
-    border-bottom: 1px solid color("grey", "lighten-2");
+    border-bottom: $border-base;
   }
 
   h3 {
@@ -37,5 +37,17 @@
 
   h4 {
     font-size: 1rem;
+  }
+}
+
+.news-item {
+  margin: 1.5rem 0;
+
+  &:first-of-type {
+    margin-top: 0;
+  }
+
+  &:last-of-type {
+    margin-bottom: 0;
   }
 }

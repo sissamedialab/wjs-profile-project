@@ -1,12 +1,9 @@
-{% load materialize_forms_override %}
+{% load materializecss %}
 {% if not skip_wrapper %}<div class="input-field">{% endif %}
     {% if skip_validate %}
         {{ field }}
     {% else %}
-        {{ field|addcss:"validate" }}
-    {% endif %}
-    {% if not field|file_input and not hide_label %}
-        <label class="input-field-label" for="id_{{ field.name }}" data-error="{{ data_error }}" data-success="{{ data_success }}" id="label_{{ field.name }}">{{ field.label }}</label>
+        {{ field|materializecss:"validate" }}
     {% endif %}
     {% if field.field.help_text %}
         <small class="text-muted">

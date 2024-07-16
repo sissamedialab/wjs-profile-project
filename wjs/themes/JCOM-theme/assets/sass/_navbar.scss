@@ -1,9 +1,13 @@
 nav {
-  height: auto;
-  line-height: 1;
+  color: color("blue-grey", "darken-4");
+  background-color: color("blue-grey", "lighten-5");
+
+  li {
+    line-height: 56px;
+  }
 
   .brand-logo {
-    padding: 20px 0 0 0;
+    padding: 1rem 0 0 0;
     position: relative;
 
     img {
@@ -11,100 +15,22 @@ nav {
     }
   }
 
-  // Collapse button
-  .button-collapse {
-    @media #{$medium-and-down} {
-      padding: 0;
-    }
-
+  .sidenav-trigger {
     float: right;
-    height: $navbar-height-mobile;
-    margin: 0;
-    padding: 20px;
-    position: relative;
-    z-index: 1;
-
-    i {
-      height: $navbar-height-mobile;
-      line-height: $navbar-line-height-mobile;
-    }
   }
 
   .input-field {
-    line-height: 0;
-    margin: 0;
-    height: 100%;
-
-    input {
-      height: 100%;
-      font-size: 1.2rem;
-      border: none;
-      padding-left: 2rem;
-
-      &:focus,
-      &[type="text"]:valid {
-        border-bottom: $input-border;
-        margin-bottom: 0;
-      }
-    }
-
     button {
       line-height: 0;
-      margin: 12px;
-      padding: 10px;
-    }
-  }
-
-  li {
-    line-height: 56px;
-
-    &:last-child {
-      @media screen and (max-width: 1023px) {
-        float: none;
-      }
-
-      float: right;
-    }
-
-    form {
-      display: flex;
+      margin: $margin-half;
+      padding: $margin-half;
     }
   }
 }
 
 .top-nav {
+  line-height: 1;
   margin: 0;
-}
-
-.bottom-nav {
-  align-items: center;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-}
-
-.side-nav {
-  .social-media-links {
-    display: flex;
-    flex-direction: row;
-    margin: 32px 0;
-    padding: 0 32px;
-
-    a {
-      padding: 0 16px;
-    }
-  }
-}
-
-nav {
-  .social-media-links {
-    display: flex;
-    padding-left: 15px;
-
-    li {
-      float: none;
-    }
-  }
 }
 
 .actions {
@@ -120,50 +46,20 @@ nav {
     align-items: flex-end;
     display: flex;
     flex-direction: column;
+    margin: $margin-half 0;
   }
 }
 
-.language-select {
-  height: 56px;
+.bottom-nav {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
 
-  @media screen and (max-width: 1023px) {
-    justify-content: center;
-  }
-
-  &__wrapper {
-    align-items: center;
+  .bottom-nav-menu {
     display: flex;
-    margin: 0.9rem 0;
+    flex-wrap: wrap;
 
-    &:after {
-      content: " ";
-      border-right: 2px solid color("journal-color", "lighten-2");
-      height: 0.7rem;
-      margin: 0.5rem;
-    }
-  }
-
-  &__button {
-    background: transparent;
-    border: none;
-    color: color("shades", "black");
-    font-size: 0.8rem;
-    margin: 0 0.5rem;
-    text-transform: uppercase;
-
-    &:focus {
-      background-color: transparent;
-    }
-
-    &:hover {
-      color: color("journal-color", "accent-1");
-    }
-
-    &--selected {
-      font-weight: 500;
-      color: color("journal-color", "base");
+    ul {
+      float: none;
     }
   }
 }

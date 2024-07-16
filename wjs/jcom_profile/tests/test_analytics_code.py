@@ -1,4 +1,5 @@
 """Test that the analytics code set via the appropriate setting appears in some important pages."""
+
 import faker
 import pytest
 from django.core.cache import cache

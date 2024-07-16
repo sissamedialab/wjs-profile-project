@@ -1,4 +1,5 @@
 """Sample setting for deployed environments."""
+
 from wjs.defaults.settings import *  # noqa
 
 DATABASES = {

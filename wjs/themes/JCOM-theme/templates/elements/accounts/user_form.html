@@ -1,74 +1,37 @@
-{% load materialize_forms_override %}
-{% load static %}
-{% load i18n %}
-{% load hooks %}
+{% load hooks i18n materializecss static %}
 
 <h5>{% trans "Core Data" %}</h5>
 <div class="row">
-    <div class="col m2">
-        {% include "forms/field.html" with field=form.salutation %}
-    </div>
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.first_name %}
-    </div>
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.middle_name %}
-    </div>
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.last_name %}
-    </div>
-    <div class="col m1">
-        {% include "forms/field.html" with field=form.suffix %}
-    </div>
+    {{ form.salutation|materializecss:"m2" }}
+    {{ form.first_name|materializecss:"m3" }}
+    {{ form.middle_name|materializecss:"m3" }}
+    {{ form.last_name|materializecss:"m3" }}
+    {{ form.suffix|materializecss:"m1" }}
 </div>
 <div class="row">
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.department %}
-    </div>
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.institution %}
-    </div>
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.country %}
-    </div>
-    <div class="col m3">
-        {% include "forms/field.html" with field=form.preferred_timezone %}
-    </div>
+    {{ form.department|materializecss:"m3" }}
+    {{ form.institution|materializecss:"m3" }}
+    {{ form.country|materializecss:"m3" }}
+    {{ form.preferred_timezone|materializecss:"m3" }}
 </div>
 {% hook 'extra_corefields' %}
 <hr />
 <h5>{% trans "Social Media and Accounts" %}</h5>
 <div class="row">
-    <div class="col m4">
-        {% include "forms/field.html" with field=form.twitter %}
-    </div>
-    <div class="col m4">
-        {% include "forms/field.html" with field=form.facebook %}
-    </div>
-    <div class="col m4">
-        {% include "forms/field.html" with field=form.orcid %}
-    </div>
+    {{ form.twitter|materializecss:"m4" }}
+    {{ form.facebook|materializecss:"m4" }}
+    {{ form.orcid|materializecss:"m4" }}
 </div>
 <div class="row">
-    <div class="col m4">
-        {% include "forms/field.html" with field=form.github %}
-    </div>
-    <div class="col m4">
-        {% include "forms/field.html" with field=form.linkedin %}
-    </div>
-    <div class="col m4">
-        {% include "forms/field.html" with field=form.website %}
-    </div>
+    {{ form.github|materializecss:"m4" }}
+    {{ form.linkedin|materializecss:"m4" }}
+    {{ form.website|materializecss:"m4" }}
 </div>
 <hr />
 <h5>{% trans "Biography and Signature" %}</h5>
 <div class="row">
-    <div class="col m6">
-        {% include "forms/field.html" with field=form.biography %}
-    </div>
-    <div class="col m6">
-        {% include "forms/field.html" with field=form.signature %}
-    </div>
+    {{ form.biography|materializecss:"m6" }}
+    {{ form.signature|materializecss:"m6" }}
     <div class="col m12">
         <label for="id_interests">{% trans "Review Interests" %}</label>
         <input type="text" id="id_interests" name="interests" value="{% for interest in user_to_edit.interest.all %}{{ interest }}{% if not forloop.last %},{% endif %}{% endfor %}"/> {% trans "Hit Enter to add a new interest" %}.
@@ -84,14 +47,10 @@
             <img src="{% static "common/img/icons/users.png" %}" class="responsive-image" alt="{% trans "Profile image" %}">
         {% endif %}
     </div>
-    <div class="col m9">
-        {% include "forms/field.html" with field=form.profile_image %}
-    </div>
+    {{ form.profile_image|materializecss:"m9" }}
 </div>
 <hr />
 <h5>{% trans "Options" %}</h5>
 <div class="row">
-    <div class="col m12">
-        {% include "forms/field.html" with field=form.enable_public_profile %}
-    </div>
+    {{ form.biography|materializecss }}
 </div>

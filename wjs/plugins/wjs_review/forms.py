@@ -311,7 +311,7 @@ class InviteUserForm(forms.Form):
         )
         return service
 
-    def save(self):
+    def save(self, commit: bool = True):
         """
         Create user and send invitation.
 
@@ -773,7 +773,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
         )
         return service
 
-    def save(self) -> ReviewAssignment:
+    def save(self, commit=True) -> ReviewAssignment:
         """Change the reviewer report due date using :py:class:`PostponeReviewerReportDueDate`."""
         try:
             service = self.get_logic_instance()
@@ -867,7 +867,7 @@ class AssignEoForm(forms.ModelForm):
             raise forms.ValidationError(_("Executing users must be part of EO."))
         return cleaned_data
 
-    def save(self, commit=True):
+    def save(self, commit: bool = True):
         super().save(commit)
         self._log_eo_if_eo_assigned()
         return self.instance
@@ -946,7 +946,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
         except WjsEditorAssignment.DoesNotExist:
             return None
 
-    def save(self, commit=True):
+    def save(self, commit: bool = True):
         try:
             service = self.get_logic_instance()
             if service_deassignment := self.get_deassignment_logic_instance():

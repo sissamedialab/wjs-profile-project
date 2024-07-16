@@ -1,4 +1,5 @@
 """Test some parts of the command that imports JCOM articles from Drupal."""
+
 import os
 from pathlib import Path
 

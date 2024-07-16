@@ -1,4 +1,5 @@
 """Hooks."""
+
 from django.template.loader import render_to_string
 from django.utils.translation import gettext as _
 
@@ -17,7 +18,7 @@ def extra_edit_profile_parameters_hook(request_context):
     journal = request_context.request.journal
     rendered = ""
     if user and journal and user.check_role(journal, "section-editor"):
-        template_name = "extra_edit_profile_card_block.html"
+        template_name = "elements/accounts/extra_edit_profile_card_block.html"
         rendered = render_to_string(
             template_name,
             {
@@ -32,7 +33,7 @@ def extra_edit_profile_parameters_hook(request_context):
 
 def extra_edit_subscription_hook(request_context):
     """Add hook to add newsletters card."""
-    template_name = "extra_edit_profile_card_block.html"
+    template_name = "elements/accounts/extra_edit_profile_card_block.html"
     rendered = render_to_string(
         template_name,
         {

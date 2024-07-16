@@ -1,4 +1,5 @@
 """Views that manage redirect from Drupal-style URLs to Janeway."""
+
 from core.models import Account, Galley, SupplementaryFile
 from django.http import Http404
 from django.shortcuts import get_object_or_404

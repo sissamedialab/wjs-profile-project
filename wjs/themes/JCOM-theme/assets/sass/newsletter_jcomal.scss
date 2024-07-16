@@ -1,8 +1,11 @@
 @charset "UTF-8";
 
-// Colors
-@import "components/color";
+// Custom colors
+@import "components/color-variables";
 @import "jcomal-color-variables";
+
+// Color
+@import "components/color-classes";
 
 // Variables;
 @import "components/variables";
