@@ -11,6 +11,7 @@ from core.models import Account
 from django.contrib.auth import login
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File as DjangoFile
+from django.core.handlers.base import BaseHandler
 from django.http import HttpRequest
 from django.test import Client
 from django.urls import reverse
@@ -525,7 +526,7 @@ def test_hijack_notifications(
         fake_request.session["silent_hijack"] = not notify_flag
         fake_request.session["hijack_history"] = hijack_history
     GlobalRequestMiddleware.process_request(fake_request)
-    HijackUserMiddleware().process_request(fake_request)
+    HijackUserMiddleware(BaseHandler.get_response).process_request(fake_request)
 
     hijacker = get_hijacker()
     notify = should_notify_actor()

@@ -1,4 +1,5 @@
 """Events-related functions."""
+
 from django.urls import reverse
 from utils import notify_helpers
 from utils.logger import get_logger

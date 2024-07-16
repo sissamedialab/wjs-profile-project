@@ -1,4 +1,5 @@
 """Tests related to the submission process."""
+
 import lxml.html
 import pytest
 from django.test import Client

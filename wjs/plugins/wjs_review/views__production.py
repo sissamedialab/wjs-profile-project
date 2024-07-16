@@ -1,4 +1,5 @@
 """Views related to typesetting/production."""
+
 from core.models import File, SupplementaryFile
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -328,7 +329,7 @@ class WriteToTyp(UserPassesTestMixin, LoginRequiredMixin, FormView):
             .values(
                 "typesetter__pk",
             )
-            .order_by("round__number")
+            .order_by("round__round_number")
             .last()["typesetter__pk"]
         )
 

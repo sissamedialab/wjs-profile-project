@@ -7,6 +7,7 @@ select anything thought that this way they would receive alerts for
 all topics this.
 
 """
+
 from django.core.management.base import BaseCommand
 from journal.models import Journal
 from submission.models import Keyword

@@ -4,24 +4,38 @@
 {% load wjs_tags %}
 {% hook 'filter_search' %}
 {% block title %}
-    {% trans "Search" %}
+    {% if filter_by %}
+        {{ filter_by.title }}: {{ filter_by.filtering_object }}
+    {% elif view.exclude_children %}
+        {% trans "Publications" %}
+    {% else %}
+        {% trans "Search" %}
+    {% endif %}
 {% endblock title %}
 {% block body %}
-    {% if search_term %}
-        <h1>
-            {% trans "Searching for" %}: <i>{{ search_term }}</i>
-        </h1>
-    {% elif keyword %}
-        <h1>
-            {% trans "Keyword" %}: <i>{{ keyword }}</i>
-        </h1>
-    {% endif %}
     <div class="row">
-        <div class="col s12 l8">
-            <h2 class="main-title">{% trans "Publications" %}</h2>
+        <div class="col s12{% if not filter_by %} l8{% endif %}">
+            {% if filter_by %}
+                <p>
+                    <a href="{% url "journal_articles" %}">
+                        <i class="fa fa-caret-left"></i>
+                        {% trans "Browse all Publications" %}
+                    </a>
+                </p>
+            {% endif %}
+            <h2 class="main-title">
+                {% if filter_by %}
+                    {{ filter_by.title }}: {{ filter_by.filtering_object }}
+                {% elif view.exclude_children %}
+                    {% trans "Publications" %}
+                {% else %}
+                    {% trans "Search" %}
+                {% endif %}
+            </h2>
+            {% if filter_by.paragraph %}<p>{{ filter_by.paragraph }}</p>{% endif %}
             <p>
-                {% if articles.paginator.count %}
-                    {% blocktrans count counter=articles.paginator.count %}
+                {% if paginator.count %}
+                    {% blocktrans count counter=paginator.count %}
                         {{ counter }} publication found
                     {% plural %}
                         {{ counter }} publications found
@@ -33,12 +47,14 @@
             {% for article in articles %}
                 {% include "elements/article_listing.html" with article=article %}
             {% endfor %}
-            {% include "elements/pagination.html" with page=articles %}
+            {% include "elements/pagination.html" with page=page_obj %}
         </div>
-        <div class="col s12 l4">
-            <h2 class="main-title">{% trans "Search" %}</h2>
-            <div class="card-panel">{% include "journal/components/search_sidebar.html" %}</div>
-        </div>
+        {% if not filter_by %}
+            <div class="col s12 l4">
+                <h2 class="main-title">{% trans "Search" %}</h2>
+                <div class="card-panel">{% include "journal/components/search_sidebar.html" %}</div>
+            </div>
+        {% endif %}
     </div>
 {% endblock body %}
 {% block js %}

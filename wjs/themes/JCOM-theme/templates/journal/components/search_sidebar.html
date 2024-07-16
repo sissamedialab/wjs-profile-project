@@ -1,83 +1,35 @@
 {% load i18n %}
+{% load materializecss %}
 <form method="get" action="{% url 'search' %}">
-    {% if not keyword %}
-        <label for="{{ form.article_search.id_for_label }}">
-            {% trans "Search titles, keywords, and authors" %}
-        </label>
-    {% endif %}
-    <div class="input-field">
-        {% if not keyword %}
-            {{ form.article_search.errors }}
-            {{ form.article_search }}
-        {% else %}
-            {% trans "You are currently browsing by keyword" %}.
-            <p>
-                <a href="{% url 'search' %}">{% trans "Search for an article" %}.</a>
-            </p>
-        {% endif %}
+    <div class="row">
+        {{ form.article_search|materializecss }}
+        <ul class="col s12 form-group collapsible collapsible-search">
+            <li>
+                <div class="collapsible-header">
+                    {% trans "Filter by section" %}
+                    <i class="material-icons right">arrow_drop_down</i>
+                </div>
+                <div class="collapsible-body">
+                    {{ form.sections|materializecss }}
+                </div>
+            </li>
+        </ul>
+        <ul class="col s12 form-group collapsible collapsible-search">
+            <li>
+                <div class="collapsible-header">
+                    {% trans "Filter by keyword" %}
+                    <i class="material-icons right">arrow_drop_down</i>
+                </div>
+                <div class="collapsible-body">
+                    {{ form.keywords|materializecss }}
+                </div>
+            </li>
+        </ul>
+        {{ form.year|materializecss }}
+        {{ form.sort|materializecss }}
+        {{ form.show|materializecss }}
+        <div class="col s12">
+            <button type="submit" class="btn btn-primary">{% trans "Search" %}</button>
+        </div>
     </div>
-    <ul class="form-group collapsible collapsible-search">
-        <li>
-            <div class="collapsible-header">
-                {% trans "Filter by section" %}
-                <span class="caret">▼</span>
-            </div>
-            <div class="collapsible-body">
-                {% for section in sections %}
-                    <input id="section-{{ section.id }}"
-                           value="{{ section.id }}"
-                           type="checkbox"
-                           name="sections"
-                           {% if section.id in selected_sections %}checked="checked"{% endif %}>
-                    <label for="section-{{ section.id }}">{{ section.name }}</label>
-                    <br />
-                {% endfor %}
-            </div>
-        </li>
-    </ul>
-    <ul class="form-group collapsible collapsible-search">
-        <li>
-            <div class="collapsible-header">
-                {% trans "Filter by keyword" %}
-                <span class="caret">▼</span>
-            </div>
-            <div class="collapsible-body">
-                {% for keyword in keywords %}
-                    <div class="keyword">
-                        <input id="{{ keyword }}"
-                               value="{{ keyword }}"
-                               type="checkbox"
-                               name="keywords"
-                               {% if keyword.word in selected_keywords %}checked="checked"{% endif %}>
-                        <label for="{{ keyword }}">{{ keyword.word }}</label>
-                    </div>
-                {% endfor %}
-            </div>
-        </li>
-    </ul>
-    <ul class="form-group">
-        <li>
-            <label for="year">
-                {% trans "Filter by year" %}
-            </label>
-            <div class="input-field">
-                <input id="year" type="number" name="year" value="{{ year }}">
-            </div>
-        </li>
-    </ul>
-    <label for="{{ form.sort.id_for_label }}">{% trans "Sort articles by" %}</label>
-    <div class="input-field">
-        {{ form.sort.errors }}
-        {{ form.sort }}
-    </div>
-    <div class="input-field">
-        <select name="show" class="form-control">
-            <option value="10"{% if show == 10 %} selected="selected"{% endif %}>10</option>
-            <option value="20"{% if show == 20 %} selected="selected"{% endif %}>20</option>
-            <option value="50"{% if show == 50 %} selected="selected"{% endif %}>50</option>
-            <option value="100"{% if show == 100 %} selected="selected"{% endif %}>100</option>
-        </select>
-        <label>{% trans "Show" %}</label>
-    </div>
-    <button type="submit" class="btn btn-primary">{% trans "Search" %}</button>
 </form>

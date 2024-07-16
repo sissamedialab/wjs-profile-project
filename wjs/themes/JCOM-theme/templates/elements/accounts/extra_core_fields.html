@@ -1,19 +1,9 @@
-{% load materialize_forms_override %}
+{% load materializecss %}
 <div class="row">
     <div class="col s12 m6">
-        {% include "forms/field.html" with field=form.profession %}
+        {{ form.profession|materializecss }}
     </div>
     <div class="col s12 m6">
-        <div class="input-field">
-            {% include "forms/field.html" with field=form.gdpr_checkbox hide_label=True skip_wrapper=True %}
-            <label class="input-field-label" for="{{ form.gdpr_checkbox.id_for_label }}">{% trans "By registering an account you agree to our" %}
-                {% if journal_settings.general.privacy_policy_url %}
-                    <a href="{{ journal_settings.general.privacy_policy_url }}">{% trans "Privacy Policy" %}</a>
-                {% else %}
-                    <a href="{% url 'cms_page' "privacy" %}">{% trans "Privacy Policy" %} </a>
-                {% endif %}
-                *
-            </label>
-        </div>
+        {{ form.gdpr_checkbox|materializecss }}
     </div>
 </div>

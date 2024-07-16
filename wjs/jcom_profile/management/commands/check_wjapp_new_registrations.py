@@ -1,4 +1,5 @@
 """Compare newly registered users in wjapp with possibile match in Janeway."""
+
 from urllib.parse import urlencode
 
 import mariadb

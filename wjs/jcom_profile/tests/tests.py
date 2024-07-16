@@ -3,10 +3,14 @@
 import pytest
 from core.models import Account
 from django.test import Client
+from journal.models import Journal
 
-from wjs.jcom_profile.forms import JCOMProfileForm, JCOMRegistrationForm
+from wjs.jcom_profile.forms import JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.tests.conftest import EXTRAFIELDS_FRAGMENTS
+from wjs.jcom_profile.tests.conftest import (
+    EXTRAFIELDS_FRAGMENTS_JOURNAL,
+    EXTRAFIELDS_FRAGMENTS_PRESS,
+)
 
 
 class TestJCOMProfileProfessionModelTests:
@@ -48,7 +52,7 @@ class TestJCOMProfileURLs:
         expected_register_link = f'/{journal.code}/plugins/register/step/1/"> Register'
         assert expected_register_link in response.content.decode()
 
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
+    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_JOURNAL)
     @pytest.mark.django_db
     def test_journal_registration_form_has_extrafields(self, journal, fragment):
         """The extra fields must appear in the **journal** registration form."""
@@ -56,7 +60,7 @@ class TestJCOMProfileURLs:
         response = client.get(f"/{journal.code}/register/step/1/")
         assert fragment in response.content.decode()
 
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
+    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_PRESS)
     @pytest.mark.django_db
     def test_press_registration_form_has_extrafields(self, press, fragment):
         """The extra fields must appear in the **press** registration form."""
@@ -65,7 +69,7 @@ class TestJCOMProfileURLs:
         response = client.get("/register/step/1/")
         assert fragment in response.content.decode()
 
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
+    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_JOURNAL)
     @pytest.mark.django_db
     def test_journal_user_profile_form_has_extrafields(self, admin, journal, fragment):
         """The extra fields must appear in the **journal** user profile form."""
@@ -76,7 +80,7 @@ class TestJCOMProfileURLs:
         assert response.status_code == 200
         assert fragment in response.content.decode()
 
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS)
+    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_PRESS)
     @pytest.mark.django_db
     def test_press_user_profile_form_has_extrafields(self, admin, press, fragment):
         """The extra fields must appear in the **press** user profile form."""
@@ -90,19 +94,22 @@ class TestJCOMProfileURLs:
 class TestJCOMWIP:
     """Tests in `pytest`-style."""
 
-    def test_registration_form_field_profession_is_mandatory(self):
+    @pytest.mark.django_db
+    def test_registration_form_field_profession_is_mandatory(self, journal: Journal):
         """The field "profession" is mandatory in the registration form."""
-        form = JCOMRegistrationForm()
+        form = JCOMRegistrationForm(journal=journal)
         assert form.fields.get("profession").required
 
-    def test_gdpr_checkbox_is_mandatory(self):
+    @pytest.mark.django_db
+    def test_gdpr_checkbox_is_mandatory(self, journal: Journal):
         """The field "profession" is mandatory in the registration form."""
-        form = JCOMRegistrationForm()
+        form = JCOMRegistrationForm(journal=journal)
         assert form.fields.get("gdpr_checkbox").required
 
-    def test_profile_form_field_profession_is_mandatory(self):
+    @pytest.mark.django_db
+    def test_profile_form_field_profession_is_mandatory(self, journal: Journal):
         """The field "profession" is mandatory in the profile form."""
-        form = JCOMProfileForm()
+        form = JCOMRegistrationForm(journal=journal)
         assert form.fields.get("profession").required
 
     @pytest.mark.django_db

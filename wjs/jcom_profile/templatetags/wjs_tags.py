@@ -7,7 +7,7 @@ from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from journal import logic as journal_logic
 from journal.models import Issue
 from submission.models import STAGE_PUBLISHED, Article, Keyword

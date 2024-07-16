@@ -1,4 +1,5 @@
 """Test the command that extracs doi url from the journals."""
+
 import csv
 
 import pytest

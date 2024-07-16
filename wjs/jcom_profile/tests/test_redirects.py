@@ -1,4 +1,5 @@
 """Test redirects."""
+
 import re
 
 import pytest

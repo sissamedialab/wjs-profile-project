@@ -1,4 +1,5 @@
 """Test (apache) redirects."""
+
 import re
 
 import requests

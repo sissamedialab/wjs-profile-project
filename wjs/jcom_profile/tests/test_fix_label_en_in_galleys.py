@@ -1,4 +1,5 @@
 """Test the command that fix language label in jcom galley where missing."""
+
 import csv
 
 import pytest

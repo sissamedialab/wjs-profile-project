@@ -1,4 +1,5 @@
 """Include utility functions to be used across the project."""
+
 import base64
 import hashlib
 import os

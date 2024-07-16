@@ -1,5 +1,5 @@
 .full-width-card {
-  @media screen and (max-width: 1280px) {
+  @media screen and (max-width: $large-screen) {
     flex-direction: column;
   }
 
@@ -7,18 +7,18 @@
   flex-direction: row;
 
   .card-image {
-    @media screen and (max-width: 1280px) {
-      padding-right: 24px;
+    @media screen and (max-width: $large-screen) {
+      padding-right: $margin-large;
     }
 
     flex: 1 1 50%;
-    padding: 24px;
-    padding-right: 12px;
+    padding: $margin-large;
+    padding-right: $margin-large-half;
   }
 
   .card-content {
     flex: 1 1 100%;
-    padding: 24px;
+    padding: $margin-large;
   }
 
   &-image {
@@ -26,11 +26,11 @@
     display: flex;
 
     + .card-content {
-      @media screen and (max-width: 1280px) {
-        padding-left: 24px;
+      @media screen and (max-width: $large-screen) {
+        padding-left: $margin-large;
       }
 
-      padding-left: 12px;
+      padding-left: $margin-large-half;
     }
   }
 }

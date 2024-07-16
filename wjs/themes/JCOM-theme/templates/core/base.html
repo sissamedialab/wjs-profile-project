@@ -111,9 +111,12 @@
         <script>
             $(document).ready(function() {
                 {# Initialize mobile sidebar navigation #}
-                $(".button-collapse").sideNav();
+                $(".sidenav").sidenav();
                 {# Initialize selects #}
-                $('select').material_select();
+                $('select').formSelect();
+                $('.dropdown-trigger').dropdown();
+                $('.collapsible').collapsible();
+                $('.modal').modal();
             });
         </script>
         {% if request.repository and request.repository.custom_js_code %}

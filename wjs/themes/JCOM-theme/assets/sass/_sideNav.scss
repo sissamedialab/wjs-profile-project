@@ -1,15 +1,25 @@
-.side-nav {
+.sidenav {
   .input-field {
-    height: 100%;
     padding: 2rem;
-    width: 100%;
 
     button {
       margin: 0;
       width: 100%;
+    }
+  }
+
+  .social-media-links {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 0;
+    padding: 0 2rem;
+
+    a {
+      padding: 0;
 
       i {
-        height: auto;
+        margin: 0;
       }
     }
   }

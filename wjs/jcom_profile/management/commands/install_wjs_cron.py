@@ -1,4 +1,5 @@
 """Install WJS cron jobs."""
+
 # Adapted from src/cron/management/commands/install_cron.py
 import os
 

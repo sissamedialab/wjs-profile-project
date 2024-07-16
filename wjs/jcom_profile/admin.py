@@ -1,4 +1,5 @@
 """Register the models with the admin interface."""
+
 from core.admin import AccountAdmin
 from core.models import Account
 from django.contrib import admin
