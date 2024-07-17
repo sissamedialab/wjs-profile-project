@@ -3,6 +3,7 @@
 They should verify if the paper might have issues that would prevent a typesetter from taking it in charge.
 
 """
+
 from submission import models as submission_models
 
 

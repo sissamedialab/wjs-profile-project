@@ -1,23 +1,31 @@
 """Include utility functions to be used across the project."""
+
 import base64
 import hashlib
 import os
 import re
 import shutil
+from importlib import import_module
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from core import files as core_files
+from core.middleware import GlobalRequestMiddleware
 from django.conf import settings
-from django.http import HttpRequest
+from django.contrib.auth import get_user_model
+from django.contrib.messages.storage import default_storage
+from django.http import HttpRequest, QueryDict
 from django.template import Context, Template
 from journal.models import Journal
 from submission.models import Article
 from utils.logger import get_logger
+from utils.management.commands.test_fire_event import create_fake_request
 from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
 
 logger = get_logger(__name__)
+
+Account = get_user_model()
 
 
 def generate_token(email: str, journal_code: str) -> str:
@@ -213,6 +221,7 @@ def generate_doi(article: Article) -> Optional[str]:
         "editorial": "05",
         "conference review": "06",
         "book review": "07",
+        "review": "10",  # seen first time with JCOMAL_001R_0424 (but reviews already exist in JCOMAL...)
         "practice insight": "08",
         "focus": "09",  # Warning: focus and review article have the same code!!!
         "review article": "09",  # Probably not important: no focus for many years (as of 2023)!
@@ -258,3 +267,22 @@ def render_template_from_setting(
         template_is_setting=template_is_setting,
     )
     return rendered_template
+
+
+def create_rich_fake_request(journal: Journal, settings: dict, user: Account = None) -> HttpRequest:
+    """Create a fake_factory request suitable for rendering templates and storing django messages."""
+    # - cron/management/commands/send_publication_notifications.py
+    # - workflow-element-complete triggers core.workflow.workflow_next() that can store messages
+    fake_request = create_fake_request(user=user, journal=journal)
+    fake_request.GET = QueryDict("", mutable=True)
+    fake_request.POST = QueryDict("", mutable=True)
+    GlobalRequestMiddleware.process_request(fake_request)
+    # messages are required by review functions
+    original_message_storage = settings.MESSAGE_STORAGE
+    settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
+    fake_request._messages = default_storage(fake_request)
+    settings.MESSAGE_STORAGE = original_message_storage
+    fake_request.COOKIES = {}
+    engine = import_module(settings.SESSION_ENGINE)
+    fake_request.session = engine.SessionStore()
+    return fake_request

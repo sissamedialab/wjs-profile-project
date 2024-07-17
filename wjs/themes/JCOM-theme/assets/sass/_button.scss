@@ -1,3 +1,9 @@
-.btn {
-  margin: 10px 0 20px;
+.btn,
+.btn-large {
+  background-color: color("journal-color", "base");
+}
+
+.btn:hover,
+.btn-large:hover {
+  background-color: color("journal-color", "lighten-1");
 }

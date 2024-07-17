@@ -3,20 +3,16 @@
 import os
 import random
 from datetime import timedelta
-from importlib import import_module
 from typing import Callable, List, Optional
 
 import factory
 import pytest
 import pytest_factoryboy
-from core.middleware import GlobalRequestMiddleware
 from core.models import File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
 from django.contrib.auth.models import Group
-from django.contrib.messages.storage import default_storage
 from django.core import management
 from django.core.cache import cache
-from django.http import QueryDict
 from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
 from django.utils.timezone import now
@@ -36,7 +32,7 @@ from utils.install import (
     update_xsl_files,
 )
 from utils.management.commands.install_janeway import ROLES_RELATIVE_PATH
-from utils.management.commands.test_fire_event import create_fake_request
+from utils.setting_handler import save_setting
 from utils.testing.helpers import create_galley
 
 from wjs.jcom_profile import constants
@@ -68,7 +64,7 @@ from wjs.jcom_profile.models import (
     JCOMProfile,
     SpecialIssue,
 )
-from wjs.jcom_profile.utils import generate_token
+from wjs.jcom_profile.utils import create_rich_fake_request, generate_token
 
 fake = Faker()
 
@@ -80,16 +76,21 @@ JOURNAL_CODE = "JCOM"
 
 EXTRAFIELDS_FRAGMENTS = [
     # Profession - a <select>
-    '<select name="profession" class="validate" required id="id_profession">',
-    '<label class="input-field-label" for="id_profession" data-error="" data-success="" id="label_profession">',
+    '<select name="profession"',
+    '<label class="control-label s12 ">Profession</label>',
     # GDPR - a checkbox
     # NB: this <input> has slightly different layouts in the profile form and in the
     # registration form:
     # - <input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />
     # - <input type="checkbox" name="gdpr_checkbox" id="id_gdpr_checkbox" checked />
-    # TODO: be a man and use selenium!
-    '<input type="checkbox" id="id_gdpr_checkbox" name="gdpr_checkbox"',
-    '<label class="input-field-label" for="id_gdpr_checkbox">',
+    '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox"',
+]
+
+EXTRAFIELDS_FRAGMENTS_JOURNAL = EXTRAFIELDS_FRAGMENTS + [
+    'privacy">Privacy Policy</a></span>',
+]
+EXTRAFIELDS_FRAGMENTS_PRESS = EXTRAFIELDS_FRAGMENTS + [
+    'privacy/">Privacy Policy</a></span>',
 ]
 
 ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
@@ -155,19 +156,7 @@ def set_fixed_time():
 @pytest.fixture
 def fake_request(journal, settings):
     """Create a fake_factory request suitable for rendering templates."""
-    # - cron/management/commands/send_publication_notifications.py
-    engine = import_module(settings.SESSION_ENGINE)
-
-    fake_request = create_fake_request(user=None, journal=journal)
-    fake_request.GET = QueryDict("", mutable=True)
-    fake_request.POST = QueryDict("", mutable=True)
-    GlobalRequestMiddleware.process_request(fake_request)
-    # messages are required by review functions
-    settings.MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
-    fake_request._messages = default_storage(fake_request)
-    fake_request.COOKIES = {}
-    fake_request.session = engine.SessionStore()
-    return fake_request
+    return create_rich_fake_request(journal, settings)
 
 
 @pytest.fixture()
@@ -411,6 +400,17 @@ def journal(press, director_role):
 
 
 @pytest.fixture
+def jcom_doi_prefix(journal):
+    """Set the JCOM DOI prefix onto journal."""
+    save_setting(
+        setting_group_name="Identifiers",
+        setting_name="crossref_prefix",
+        journal=journal,
+        value="10.22323",
+    )
+
+
+@pytest.fixture
 def journal_factory(press):
     """Provide a factory to create a journal."""
 
@@ -447,6 +447,7 @@ def article(admin, coauthor, journal, sections):
         owner=admin,
         date_submitted=None,
         section=random.choice(sections),
+        language="eng",
     )
     article.authors.add(admin, coauthor)
     for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:
@@ -497,11 +498,11 @@ def create_submitted_articles() -> Callable[[journal_models.Journal, int], List[
 def _create_published_articles(admin, editor, journal, sections, keywords, items=10):
     """Create articles in published stage - Function version.
 
-    Correspondence author (owner), keywords and section are random.
+    Corresponding author (owner), keywords and section are random.
 
     selected_keyword is the keyword that will be added to all articles.
     """
-    published_date = now() - timedelta(days=1)
+    published_date = now() - timedelta(days=3)
 
     # we must explicitly determine the created articles because articles might be created by other fixtures
     # and returning a blanket "all" queryset would include sections articles by those fixtures
@@ -539,7 +540,7 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
 def published_articles(admin, editor, journal, sections, keywords):
     """Create articles in published stage - Fixture version.
 
-    Correspondence author (owner), keywords and section are random"""
+    Corresponding author (owner), keywords and section are random"""
     return _create_published_articles(admin, editor, journal, sections, keywords)
 
 

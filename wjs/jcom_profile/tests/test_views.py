@@ -7,6 +7,7 @@ from django.core import mail
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
+from django.utils.timezone import now
 from submission import models as submission_models
 from submission.models import Keyword, Section
 from utils import setting_handler
@@ -38,11 +39,11 @@ def test_filter_articles_by_author(editor, published_articles, press, admin, sec
     articles_per_author = published_articles.filter(frozenauthor__author__in=[author], journal=journal)
 
     assert response.status_code == 200
-    assert response.context["title"] == "Filter by author"
-    assert response.context["paragraph"] == "All author's publications are listed below."
-    assert response.context["filtered_object"] == author.full_name()
+    assert response.context["filter_by"]["title"] == "Filter by author"
+    assert response.context["filter_by"]["paragraph"] == "All author's publications are listed below."
+    assert response.context["filter_by"]["filtering_object"] == author.full_name()
 
-    assert set(response.context["articles"].object_list) == set(articles_per_author)
+    assert set(response.context["page_obj"].object_list) == set(articles_per_author)
     for article in response.context["articles"]:
         assert author.pk in list(article.frozenauthor_set.values_list("author_id", flat=True))
         assert article.journal == journal
@@ -60,14 +61,73 @@ def test_filter_articles_by_section(editor, published_articles, press, admin, se
     response = client.get(url)
 
     assert response.status_code == 200
-    assert response.context["title"] == "Filter by section"
-    assert response.context["paragraph"] == "Publications included in this section."
-    assert response.context["filtered_object"] == section.name
+    assert response.context["filter_by"]["title"] == "Filter by section"
+    assert response.context["filter_by"]["paragraph"] == "Publications included in this section."
+    assert response.context["filter_by"]["filtering_object"] == section.name
 
-    assert response.context["articles"].object_list
+    assert response.context["page_obj"].object_list
     for article in response.context["articles"]:
         assert article.section.pk == section.pk
         assert article.journal == journal
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("filter_field", ("section", "keyword", "year"))
+def test_search(editor, published_articles, press, admin, sections, keywords, journal, filter_field):
+    articles = _create_published_articles(admin, editor, journal, sections, keywords, items=20)
+
+    client = Client()
+    kwargs = {"article_search": "Searchme", "sort": "relevance"}
+    if filter_field == "section":
+        active_sections = Section.objects.filter(pk__in=published_articles.values_list("section", flat=True))
+        section = random.choice(active_sections)
+        kwargs["sections"] = section.pk
+        filtered = articles.filter(section=section)
+        assert filtered.exists()
+        matches_count = filtered.count()
+        for f in filtered:
+            f.title = "Searchme"
+            f.index_full_text()
+            f.save()
+    elif filter_field == "keyword":
+        active_keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
+        keyword = random.choice(active_keywords)
+        kwargs["keywords"] = keyword.pk
+        filtered = articles.filter(keywords=keyword)
+        assert filtered.exists()
+        matches_count = filtered.count()
+        for f in filtered:
+            f.title = "Searchme"
+            f.index_full_text()
+            f.save()
+    elif filter_field == "year":
+        year = now().year
+        kwargs["year"] = year
+        filtered = articles.filter(date_published__year=year)
+        assert filtered.exists()
+        matches_count = filtered.count()
+        for f in filtered:
+            f.title = "Searchme"
+            f.index_full_text()
+            f.save()
+    url = reverse("search")
+    response = client.get(url, kwargs)
+
+    assert response.status_code == 200
+    assert response.context["paginator"].count == matches_count
+    if matches_count > 10:
+        assert response.context["paginator"].num_pages == 2
+    else:
+        assert response.context["articles"].count() == matches_count
+
+    for article in response.context["articles"]:
+        assert article.journal == journal
+        if filter_field == "section":
+            assert article.section == section
+        elif filter_field == "keyword":
+            assert article.keywords.filter(pk=keyword.pk).exists()
+        else:
+            assert article.date_published.year == year
 
 
 @pytest.mark.django_db
@@ -82,11 +142,11 @@ def test_filter_articles_by_keyword(editor, published_articles, press, admin, se
     response = client.get(url)
 
     assert response.status_code == 200
-    assert response.context["title"] == "Filter by keyword"
-    assert response.context["paragraph"] == "Publications including this keyword are listed below."
-    assert response.context["filtered_object"] == keyword.word
+    assert response.context["filter_by"]["title"] == "Filter by keyword"
+    assert response.context["filter_by"]["paragraph"] == "Publications including this keyword are listed below."
+    assert response.context["filter_by"]["filtering_object"] == keyword.word
 
-    assert response.context["articles"].object_list
+    assert response.context["page_obj"].object_list
     for article in response.context["articles"]:
         assert keyword.pk in article.keywords.values_list("pk", flat=True)
         assert article.journal == journal

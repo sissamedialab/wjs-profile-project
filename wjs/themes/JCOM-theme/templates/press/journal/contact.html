@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+{% load i18n materializecss %}
+{% comment %}
+   file removed in janeway but still referenced in the view because of the following comment
+    See https://github.com/BirkbeckCTP/janeway/pull/3710#issuecomment-1908344859
+{% endcomment %}
+
+{% block title %}{% trans "Contact" %}{% endblock title %}
+
+{% block body %}
+    <div class="row">
+        <div class="col m5">
+            <div class="card">
+                <div class="card-content">
+                    <span class="card-title">
+                        {% if request.journal %}
+                            {% trans "Journal Representatives" %}
+                        {% else %}
+                            {% trans "Press Representatives" %}
+                        {% endif %}
+                    </span>
+                    {% for contact in contacts %}
+                        <h5>{{ contact.name }}</h5>
+                        <p>{{ contact.role }}</p>
+                    {% endfor %}
+                    {% if journal_settings.general.contact_info %}
+                        <span class="card-title">
+                            {% trans "Contact Information" %}
+                         </span>
+                        {{ journal_settings.general.contact_info|safe }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col l7 m7">
+            <div class="card">
+                <div class="card-content">
+                    <span class="card-title">
+                        {% trans "Contact" %}
+                    </span>
+                    <form method="post">
+                        {% include "elements/forms/errors.html" with form=contact_form %}
+                        {% csrf_token %}
+
+                        {{ contact_form|materializecss }}
+
+                        <button type="submit" class="btn">{% trans "Send Message" %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock body %}

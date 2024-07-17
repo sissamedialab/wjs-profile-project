@@ -1,4 +1,5 @@
 """Configure this application."""
+
 # https://docs.djangoproject.com/en/4.0/ref/applications/
 from django.apps import AppConfig
 

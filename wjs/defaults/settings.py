@@ -302,3 +302,6 @@ JCOMASSISTANT_URL = "http://janeway-services.ud.sissamedialab.it:1234/jcomassist
 # We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact
 # for now as it's just the dashboard css
 BOOTSTRAP5 = {"css_url": "/static/JCOM-theme/css/wjs_review.css"}
+
+# The list of journals that supports multiple languages and needs base english for display on the website
+WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]

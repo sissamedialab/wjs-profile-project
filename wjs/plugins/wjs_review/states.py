@@ -784,6 +784,13 @@ class Proofreading(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_author,
+            name="author_add_extra_information",
+            label="Send extra article information",
+            view_name="wjs_article_additional_info",
+            condition=conditions.needs_extra_article_information,
+        ),
+        ArticleAction(
+            permission=permissions.is_article_author,
             name="author_sends_corrections",
             label="Send corrections",
             view_name="wjs_list_annotated_files",
@@ -863,15 +870,10 @@ class ReadyForPublication(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
-            name="publish",
+            name="begin publication",
             label="Publish",
-            view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.has_eo_role_by_article,
-            name="back to typ",
-            label="Back to typ",
-            view_name="WRITEME!",
+            tooltip="Begin the publication process",
+            view_name="wjs_review_begin_publication",
         ),
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
@@ -879,6 +881,22 @@ class ReadyForPublication(BaseState):
             label="Send paper back to Typesetter",
             tooltip="Ask the typesetter for some changes...",
             view_name="wjs_send_back_to_typ",
+        ),
+    )
+
+
+class PublicationInProgress(BaseState):
+    """
+    Publication in progress
+    """
+
+    article_actions = BaseState.article_actions + (
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="finish publication",
+            label="Finish publication",
+            tooltip="Retry to terminate the publication process",
+            view_name="wjs_review_finish_publication",
         ),
     )
 

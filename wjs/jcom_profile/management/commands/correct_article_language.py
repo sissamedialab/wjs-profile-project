@@ -5,6 +5,7 @@ set as "full-name", not as language 3-letter code. This script rectify
 this.
 
 """
+
 from django.core.management.base import BaseCommand
 from journal.models import Journal
 from submission.models import LANGUAGE_CHOICES, Article

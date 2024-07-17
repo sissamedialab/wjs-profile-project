@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
-{% load materialize %}
+{% load materializecss %}
 {% load i18n %}
 {% block body %}
     <div class="row">
@@ -24,18 +24,24 @@
                         <br />
                         {% trans "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page." %}
                     </p>
-                    {% materialize_form form %}
-                    {% if active %}
-                        <button class="btn" type="submit">
-                            <i class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
-                        </button>
-                        <a href="#modal1" class="btn modal-trigger"><i class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
-                        </a>
-                    {% else %}
-                        <button class="btn" type="submit">
-                            <i class="fa fa-check">&nbsp;</i>{% trans "Activate" %}
-                        </button>
-                    {% endif %}
+                    <div class="row">
+                        {{ form|materializecss }}
+                    </div>
+                    <div class="row">
+                        <div class="col s12 center-align">
+                            {% if active %}
+                                <button class="btn" type="submit">
+                                    <i class="fa fa-check">&nbsp;</i>{% trans "Save preferences" %}
+                                </button>
+                                <a href="#modal1" class="btn modal-trigger"><i class="fa fa-times">&nbsp;</i>{% trans "Unsubscribe" %}
+                                </a>
+                            {% else %}
+                                <button class="btn" type="submit">
+                                    <i class="fa fa-check">&nbsp;</i>{% trans "Activate" %}
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
                 </form>
                 {% include "elements/accounts/unsubscribe_confirmation_modal.html" %}
             </div>

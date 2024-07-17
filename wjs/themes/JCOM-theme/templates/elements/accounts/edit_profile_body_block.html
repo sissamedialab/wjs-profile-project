@@ -1,4 +1,4 @@
-{% load i18n roles %}
+{% load i18n materializecss roles %}
 {% user_has_role request 'reader' as reader %}
 {% load hooks %}
 <div class="row">
@@ -16,13 +16,7 @@
                     <p>
                         <strong>{% trans "Current Email Address" %}:</strong> {{ request.user.email }}
                     </p>
-                    <div class="input-field">
-                        <input type="email"
-                               name="email_address"
-                               class="form-control"
-                               placeholder="janeway@voyager.com" />
-                        <label for="email_address">{% trans "New Email Address" %}</label>
-                    </div>
+                    {{ form.email|materializecss }}
                     <button type="submit" name="email" class="btn btn-warning">
                         {% trans "Update Email Address" %}
                     </button>
@@ -53,11 +47,13 @@
                             {% endif %}
                         </p>
                     </form>
+                    <br /><br />
                 {% endif %}
                 <span class="card-title">{% trans "Data Export" %}</span>
                 <p>{% trans "You may export your data into a JSON file for reuse." %}</p>
                 <form method="post">
                     {% csrf_token %}
+                    <br>
                     <button name="export" class="btn btn-warning">{% trans "Export" %}</button>
                 </form>
             </div>
@@ -75,20 +71,10 @@
                 <form method="post">
                     {% csrf_token %}
                     <div class="row">
-                        <div class="input-field col m4">
-                            <input type="password" name="current_password" />
-                            <label for="current_password">{% trans "Current Password" %}</label>
-                        </div>
-                        <div class="input-field col m4">
-                            <input type="password" name="new_password_one" />
-                            <label for="new_password_one">{% trans "New Password" %}</label>
-                        </div>
-                        <div class="input-field col m4">
-                            <input type="password" name="new_password_two" />
-                            <label for="new_password_two">{% trans "Enter Password Again" %}</label>
-                        </div>
+                        {{ form.current_password|materializecss:"m4" }}
+                        {{ form.new_password_one|materializecss:"m4" }}
+                        {{ form.new_password_two|materializecss:"m4" }}
                     </div>
-                    <br />
                     <button type="submit" name="change_password" class="btn btn-warning">
                         {% trans "Update Password" %}
                     </button>

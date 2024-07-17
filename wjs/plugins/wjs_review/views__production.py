@@ -14,6 +14,7 @@ from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.states import BaseState
+from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
@@ -28,6 +29,7 @@ from .forms__production import (
     WriteToTypMessageForm,
 )
 from .logic import (
+    BeginPublication,
     states_when_article_is_considered_production_archived,
     states_when_article_is_considered_typesetter_pending,
     states_when_article_is_considered_typesetter_working_on,
@@ -42,6 +44,7 @@ from .logic__production import (
     RequestProofs,
     TogglePublishableFlag,
     TypesetterTestsGalleyGeneration,
+    finishpublication_wrapper,
 )
 from .models import ArticleWorkflow
 from .permissions import (
@@ -326,7 +329,7 @@ class WriteToTyp(UserPassesTestMixin, LoginRequiredMixin, FormView):
             .values(
                 "typesetter__pk",
             )
-            .order_by("round__number")
+            .order_by("round__round_number")
             .last()["typesetter__pk"]
         )
 
@@ -464,7 +467,7 @@ class ListAnnotatedFilesView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin,
         return self.render_to_response(self.get_context_data(form=form, pk=self.object.pk))
 
 
-class AuthorSendsCorrectionsView(UserPassesTestMixin, LoginRequiredMixin, TemplateView):
+class AuthorSendsCorrectionsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     """Author sends corrections to Typesetter."""
 
     model = TypesettingAssignment
@@ -582,14 +585,15 @@ class ReadyForPublicationView(UserPassesTestMixin, LoginRequiredMixin, TemplateV
         )
 
 
-def execute_galley_generation(
+def typesettertestsgalleygeneration_wrapper(
     assignment_id: int,
 ):
-    """Execute :py:class:`GalleyGeneration`."""
+    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for asyn processing."""
+    # See also logic__production.finishpublication_wrapper().
+
     # TODO: review me wrt
     # - wjs.jcom_profile.tests.conftest.fake_request and
     # - utils.management.commands.test_fire_event.create_fake_request
-    from utils.management.commands.test_fire_event import create_fake_request
 
     assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
     request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
@@ -617,7 +621,7 @@ class GalleyGenerationView(UserPassesTestMixin, LoginRequiredMixin, View):
         return is_article_typesetter(self.article.articleworkflow, self.request.user)
 
     def get(self, request, *args, **kwargs):
-        async_task(execute_galley_generation, self.kwargs["pk"])
+        async_task(typesettertestsgalleygeneration_wrapper, self.kwargs["pk"])
         return render(request, self.template_name, {"article": self.article})
 
 
@@ -718,3 +722,78 @@ class UpdateSectionOrder(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, Upd
 
     def form_invalid(self, form):
         return render(self.request, self.template_name, {"issue": self.object, "form": form})
+
+
+class BeginPublicationView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """EO publish a paper."""
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+        self.article = self.object.article
+
+    def test_func(self):
+        """Only EO can publish."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            self.object = BeginPublication(
+                workflow=self.object,
+                user=self.request.user,
+                request=self.request,
+            ).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_article_details",
+                    kwargs={"pk": self.object.pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Publication process started.")
+        return HttpResponseRedirect(self.object.article.url)
+
+
+class FinishPublicationView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """Finish (or retry) the publication process.
+
+    The second stage might be long (galley generation can last for even a minute) and could crash (most probably for
+    some infrastructure temporary issue).
+
+    This view allows an operator to retry the finishing if something went wrong.
+
+    """
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+        self.article = self.object.article
+
+    def test_func(self):
+        """Only EO can publish."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            async_task(
+                finishpublication_wrapper,
+                workflow_pk=self.object.pk,
+                user_pk=self.request.user.pk,
+            )
+        except ValueError as e:
+            messages.error(request=self.request, message=e)
+            return HttpResponseRedirect(
+                reverse(
+                    "wjs_article_details",
+                    kwargs={"pk": self.object.pk},
+                ),
+            )
+
+        messages.success(request=self.request, message="Galley generation started.")
+        return HttpResponseRedirect(self.object.article.url)

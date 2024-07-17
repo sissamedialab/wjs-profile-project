@@ -13,9 +13,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
+from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import ReviewAssignment
 from submission.models import Article
+
+from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from . import permissions
 from .communication_utils import get_eo_user
@@ -373,3 +376,75 @@ def can_edit_permissions(workflow: ArticleWorkflow, user: Account) -> str:
         return "You can edit permissions."
     else:
         return ""
+
+
+def journal_has_english_language(journal: Journal) -> bool:
+    """
+    Check if journal has english language in its available languages.
+
+    :param journal: The journal to check access to.
+    :type journal: Journal
+    :return True if the journal has english language, False otherwise.
+    :rtype: bool
+    """
+    journal_languages = get_journal_language_choices(journal)
+    return "en" in [lang[0] for lang in journal_languages]
+
+
+def journal_requires_english_content(journal: Journal) -> bool:
+    """
+    Check if journal requires english content.
+
+    :param journal: The journal to check access to.
+    :type journal: Journal
+    :return True if the journal has english language, False otherwise.
+    :rtype: bool
+    """
+    return journal.code in settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT
+
+
+def article_in_special_issue(workflow: ArticleWorkflow) -> bool:
+    """
+    Check if the article is in a special issue.
+
+    :param workflow: The workflow to check issue on.
+    :type workflow: ArticleWorkflow
+    :return True if the article is in a special issue, False otherwise.
+    :rtype: bool
+    """
+    try:
+        return workflow.article.primary_issue.issue_type.code == "collection"
+    except AttributeError:
+        return False
+
+
+def article_is_published_piecemeal(workflow: ArticleWorkflow) -> bool:
+    """
+    Check if the article is in an issue for which articles are published piecemeal.
+
+    FIXME: Currently this is a placeholder function negating :py:func:`article_in_special_issue`.
+
+    :param workflow: The workflow to check issue on.
+    :type workflow: ArticleWorkflow
+    :return True if the article is in a special issue, False otherwise.
+    :rtype: bool
+    """
+    return not article_in_special_issue(workflow)
+
+
+def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Tell if the article needs social media information.
+
+    Article does not need social media information if either:
+    - journal does not need english language extra content
+    - article is in an issue published piecemeal
+
+    :param workflow: The workflow to check access to.
+    :type workflow: ArticleWorkflow
+    :param user: The user requesting the information. Not used but required by the condition function signature.
+    :type user: Account
+    :return True if the article needs social media information, False otherwise.
+    :rtype: bool
+    """
+    return journal_requires_english_content(workflow.article.journal) or article_is_published_piecemeal(workflow)

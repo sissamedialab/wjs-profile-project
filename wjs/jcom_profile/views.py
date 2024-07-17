@@ -18,10 +18,8 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.mixins import PermissionRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.mail import send_mail
-from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.core.validators import validate_email
 from django.db import IntegrityError
-from django.db.models import Count
 from django.db.models.query import RawQuerySet
 from django.forms import modelformset_factory
 from django.http import Http404, HttpResponseRedirect
@@ -35,13 +33,13 @@ from django.views.generic import (
     CreateView,
     DetailView,
     FormView,
+    ListView,
     TemplateView,
     UpdateView,
 )
+from django.views.generic.edit import FormMixin
 from journal import decorators as journal_decorators
-from journal import logic as journal_logic
-from journal.forms import SEARCH_SORT_OPTIONS
-from journal.models import Issue
+from journal.models import Issue, PinnedArticle
 from repository import models as preprint_models
 from security.decorators import (
     article_edit_user_required,
@@ -53,7 +51,7 @@ from submission import decorators
 from submission import forms as submission_forms
 from submission import logic as submission_logic
 from submission import models as submission_models
-from submission.models import Article, Keyword, Section
+from submission.models import Keyword, Section
 from utils import setting_handler
 from utils.logger import get_logger
 
@@ -78,7 +76,7 @@ logger = get_logger(__name__)
 def edit_profile(request):
     """Edit profile view for wjs app."""
     user = JCOMProfile.objects.get(pk=request.user.id)
-    form = forms.JCOMProfileForm(instance=user)
+    form = forms.JCOMProfileForm(instance=user, journal=request.journal)
     # copied from core.views.py::edit_profile:358ss
 
     if request.POST:
@@ -123,7 +121,7 @@ def edit_profile(request):
                 messages.add_message(request, messages.WARNING, "Old password is not correct.")
 
         elif "edit_profile" in request.POST:
-            form = forms.JCOMProfileForm(request.POST, request.FILES, instance=user)
+            form = forms.JCOMProfileForm(request.POST, request.FILES, instance=user, journal=request.journal)
 
             if form.is_valid():
                 form.save()
@@ -152,10 +150,10 @@ def register(request):
     if token:
         token_obj = get_object_or_404(core_models.OrcidToken, token=token)
 
-    form = forms.JCOMRegistrationForm()
+    form = forms.JCOMRegistrationForm(journal=request.journal)
 
     if request.POST:
-        form = forms.JCOMRegistrationForm(request.POST)
+        form = forms.JCOMRegistrationForm(request.POST, journal=request.journal)
 
         password_policy_check = logic.password_policy_check(request)
 
@@ -1245,50 +1243,6 @@ def unsubscribe_newsletter(request, token):
     return HttpResponseRedirect(reverse("unsubscribe_newsletter_confirm"))
 
 
-def filter_articles(request, section=None, keyword=None, author=None):
-    """
-    Filter articles by section, author or keyword.
-
-    Section, author and keyword are provided in the url.
-    """
-    filters = {"stage": submission_models.STAGE_PUBLISHED}
-    title, paragraph, filtered_object = "", "", None
-    # Ref: https://gitlab.sissamedialab.it/wjs/specs/-/issues/381
-    # Check allows the view to skip filtering by journal when request is from the press domain
-    if request.journal:
-        filters["journal"] = request.journal
-    if section:
-        filters["section"] = section
-        title = _("Filter by section")
-        paragraph = _("Publications included in this section.")
-        filtered_object = get_object_or_404(Section, pk=section).name
-    if keyword:
-        filters["keywords__pk"] = keyword
-        title = _("Filter by keyword")
-        paragraph = _("Publications including this keyword are listed below.")
-        filtered_object = get_object_or_404(Keyword, pk=keyword).word
-    if author:
-        filters["frozenauthor__author"] = author
-        title = _("Filter by author")
-        paragraph = _("All author's publications are listed below.")
-        filtered_object = get_object_or_404(Account, pk=author).full_name()
-
-    filtered_articles = Article.objects.filter(**filters).order_by("-date_published")
-
-    paginator = Paginator(filtered_articles, 10)
-    page = request.GET.get("page")
-    try:
-        articles = paginator.page(page)
-    except PageNotAnInteger:
-        articles = paginator.page(1)
-    except EmptyPage:
-        articles = paginator.page(paginator.num_pages)
-
-    template = "journal/filtered_articles.html"
-    context = {"articles": articles, "title": title, "paragraph": paragraph, "filtered_object": filtered_object}
-    return render(request, template, context)
-
-
 @has_journal
 @journal_decorators.frontend_enabled
 def issues(request):
@@ -1308,125 +1262,134 @@ def issues(request):
     return render(request, template, context)
 
 
-@journal_decorators.frontend_enabled
-def search(request):
+class PublishedArticlesListView(FormMixin, ListView):
     """
-    Allow a user to search for articles by name or author name.
-
-    :param request: HttpRequest object
-    :return: HttpResponse object
+    A list of published articles that can be searched,
+    sorted, and filtered
     """
-    get_dict = request.GET.copy()
-    get_dict["sort"] = request.GET.get("sort", "-date_published")
-    request.GET = get_dict
-    search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
-    sort_options = {t[0] for t in SEARCH_SORT_OPTIONS}
-    if sort not in sort_options:
-        sort = "-date_published"
-    selected_sections = request.GET.getlist("sections", "")
-    selected_keywords = request.GET.getlist("keywords", "")
-    try:
-        show = int(request.GET.get("show", 10))
-    except ValueError:
-        show = 10
-    try:
-        page = int(request.GET.get("page", 1))
-    except ValueError:
-        page = 1
-    try:
-        year = int(request.GET.get("year", None))
-        if not year > 0:
-            year = None
-    except (TypeError, ValueError):
-        year = None
 
-    try:
-        # we must cast to int the resulting values because we are going to check
-        # if the section id is in the list in the template, and thus the type must match
-        selected_sections = list(map(int, selected_sections))
-    except ValueError:
-        selected_sections = [1]
+    model = submission_models.Article
+    template_name = "journal/search.html"
+    paginate_by = "25"
+    form_class = forms.SearchForm
+    context_object_name = "articles"
+    exclude_children = False
+    filter_by = None
 
-    if redir:
-        return redir
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.form = self.get_form(self.form_class)
+        self.form.is_valid()
 
-    articles = submission_models.Article.objects.filter(
-        journal=request.journal,
-        stage=submission_models.STAGE_PUBLISHED,
-        date_published__lte=timezone.now(),
-    )
-    if search_term:
-        escaped = re.escape(search_term)
-        # checks titles, keywords and subtitles first,
-        # then matches author based on below regex split search term.
-        split_term = [re.escape(word) for word in search_term.split(" ")]
-        split_term.append(escaped)
+    def get_form_kwargs(self):
+        """Return the keyword arguments for instantiating the form."""
+        kwargs = {
+            "initial": self.get_initial(),
+            "prefix": self.get_prefix(),
+            "data": self.request.GET,
+            "journal": self.request.journal,
+        }
+        return kwargs
 
-        form.is_valid()
-        articles = submission_models.Article.objects.search(
-            search_term,
-            form.get_search_filters(),
-            sort=form.cleaned_data.get("sort"),
-            site=request.site_object,
+    def get_paginate_by(self, queryset):
+        return self.form.cleaned_data.get("show", self.paginate_by)
+
+    def _get_filters(self):
+        """Collect constraints on the queryset.
+
+        Some limitations are from the search form (first batch),
+        some are from the filters (filter-by-kwd, etc.; second batch),
+        and the rest are common for this journal's published articles.
+        """
+        filters = {
+            "keywords__in": self.form.cleaned_data.get("keywords"),
+            "section__in": self.form.cleaned_data.get("sections"),
+            "date_published__year": self.form.cleaned_data.get("year", None),
+            "search_term": self.form.cleaned_data.get("article_search", None),
+            "section": self.kwargs.get("section", None),
+            "keywords__pk": self.kwargs.get("keyword", None),
+            "authors": self.kwargs.get("author", None),
+            "journal": self.request.journal,
+            "stage": submission_models.STAGE_PUBLISHED,
+            "date_published__lte": timezone.now(),
+        }
+        return {item: value for item, value in filters.items() if value}
+
+    def _get_pinned_articles(self):
+        return [pin.article for pin in PinnedArticle.objects.filter(journal=self.request.journal)]
+
+    def get_queryset(self):
+        filters = self._get_filters()
+        pinned_article_pks = [article.pk for article in self._get_pinned_articles()]
+
+        search_term = filters.pop("search_term", "")
+        if search_term:
+            escaped = re.escape(search_term)
+            # checks titles, keywords and subtitles first,
+            # then matches author based on below regex split search term.
+            split_term = [re.escape(word) for word in search_term.split(" ")]
+            split_term.append(escaped)
+
+            articles = self.model.objects.search(
+                search_term,
+                self.form.get_search_filters(),
+                sort=self.get_order_by(),
+                site=self.request.site_object,
+            )
+            if isinstance(articles, RawQuerySet):
+                articles_pk = [article.id for article in articles]
+                articles = self.model.objects.filter(pk__in=articles_pk)
+        else:
+            articles = self.model.objects.all()
+        articles = (
+            articles.filter(**filters)
+            .prefetch_related(
+                "frozenauthor_set",
+            )
+            .exclude(
+                pk__in=pinned_article_pks,
+            )
         )
-        if isinstance(articles, RawQuerySet):
-            articles_pk = [article.id for article in articles]
-            articles = submission_models.Article.objects.filter(pk__in=articles_pk)
 
-    if selected_keywords:
-        articles = articles.filter(
-            keywords__word__in=selected_keywords,
-        )
+        if self.exclude_children:
+            articles = articles.exclude(
+                ancestors__isnull=False,
+            )
 
-    if selected_sections:
-        articles = articles.filter(
-            section__id__in=selected_sections,
-        )
+        if search_term:
+            # if text search is used, articles are already ordered
+            return articles
+        return articles.order_by(self.get_order_by())
 
-    if year:
-        articles = articles.filter(
-            date_published__year=year,
-        )
+    def get_order_by(self):
+        return self.form.cleaned_data.get("sort", "-date_published")
 
-    articles = articles.distinct().order_by(sort)
-    keywords = (
-        submission_models.Keyword.objects.filter(
-            article__journal=request.journal,
-            article__stage=submission_models.STAGE_PUBLISHED,
-            article__date_published__lte=timezone.now(),
-        )
-        .annotate(articles_count=Count("article"))
-        .order_by("word")
-    )
+    def get_filter_by_configuration(self):
+        if self.filter_by == "section":
+            return {
+                "title": _("Filter by section"),
+                "paragraph": _("Publications included in this section."),
+                "filtering_object": get_object_or_404(Section, pk=self.kwargs["section"]).name,
+            }
+        if self.filter_by == "keyword":
+            return {
+                "title": _("Filter by keyword"),
+                "paragraph": _("Publications including this keyword are listed below."),
+                "filtering_object": get_object_or_404(Keyword, pk=self.kwargs["keyword"]).word,
+            }
+        if self.filter_by == "author":
+            return {
+                "title": _("Filter by author"),
+                "paragraph": _("All author's publications are listed below."),
+                "filtering_object": get_object_or_404(Account, pk=self.kwargs["author"]).full_name(),
+            }
 
-    sections = submission_models.Section.objects.filter(
-        journal=request.journal,
-        is_filterable=True,
-    ).order_by("sequence", "name")
-
-    paginator = Paginator(articles, per_page=show)
-    try:
-        page_obj = paginator.page(page)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
-    template = "journal/search.html"
-
-    context = {
-        "articles": page_obj,
-        "article_search": search_term,
-        "selected_keywords": selected_keywords,
-        "selected_sections": selected_sections,
-        "year": year,
-        "form": form,
-        "sort": sort,
-        "show": show,
-        "keywords": keywords,
-        "sections": sections,
-    }
-
-    return render(request, template, context)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["form"] = self.form
+        context["filter_by"] = self.get_filter_by_configuration()
+        context["pinned_articles"] = self._get_pinned_articles()
+        return context
 
 
 @user_passes_test(lambda user: base_permissions.has_eo_role(user))

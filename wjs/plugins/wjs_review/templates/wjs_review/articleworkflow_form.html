@@ -1,0 +1,20 @@
+{% extends "wjs_review/base.html" %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
+{% block title %}
+  {% translate "Paper status and details" %}
+{% endblock title %}
+{% block content_header %}
+{% endblock content_header %}
+{% block left_column %}
+{% endblock left_column %}
+{% block center_column %}
+  <div class="container">
+    <form method="post" enctype="multipart/form-data" class="form">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      {% bootstrap_button button_type="submit" content="Save" %}
+    </form>
+  </div>
+{% endblock center_column %}
+{% block right_column %}
+{% endblock right_column %}

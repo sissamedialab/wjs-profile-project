@@ -295,8 +295,9 @@ def test_editor_assigns_themselves_as_reviewer(
 ):
     """An editor assigns themselves as reviewer of an article."""
     fake_request.user = section_editor.janeway_account
+    _now = localtime(now())
 
-    acceptance_due_date = now().date() + datetime.timedelta(days=7)
+    acceptance_due_date = _now.date() + datetime.timedelta(days=7)
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         # we must pass the Account object linked to the JCOMProfile instance, to ensure it
@@ -341,7 +342,7 @@ def test_editor_assigns_themselves_as_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == section_editor.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert assignment.date_accepted.date() == datetime.date.today()
+    assert assignment.date_accepted.date() == _now.date()
 
     message_subject = render_template_from_setting(
         setting_group_name="wjs_review",

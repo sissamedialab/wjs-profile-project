@@ -2,7 +2,7 @@
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{{ article.pk }}" class="text-nowrap">
+    <td data-order="{{ article.date_submitted|date:"U" }}" class="text-nowrap">
       <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
       <a title="{{ article.title }}"
          href="{% url 'wjs_article_details' workflow.id %}"
@@ -19,6 +19,9 @@
       {% elif view.table_configuration_options.table_type == "production" %}
         <span title="Accepted on {{ article.date_accepted }}">{{ article.date_accepted|date:"d-M" }}</span>
       {% endif %}
+
+      <br />
+    {{ article.date_submitted }}
       <br />
       {{ article.primary_issue|default:"—" }}
     </td>
@@ -34,8 +37,10 @@
     <td>
       {% with editor_assignment_data=article|article_current_editor %}
         {{ editor_assignment_data.editor }}
-        <br />
-        <span title="assigned">{{ editor_assignment_data.days_elapsed }} days</span>
+        {% if view.table_configuration_options.table_variant != "archive" %}
+          <br />
+          <span title="assigned">{{ editor_assignment_data.days_elapsed }} days</span>
+        {% endif %}
       {% endwith %}
     </td>
     <td>

@@ -50,6 +50,7 @@ from .filters import (
     WorkOnAPaperArticleWorkflowFilter,
 )
 from .forms import (
+    ArticleExtraInformationUpdateForm,
     ArticleReviewStateForm,
     AssignEoForm,
     DecisionForm,
@@ -77,7 +78,6 @@ from .logic import (
     states_when_article_is_considered_author_pending,
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
-    states_when_article_is_considered_missing_editor,
 )
 from .logic__visibility import PermissionChecker
 from .mixins import EditorRequiredMixin
@@ -250,7 +250,6 @@ class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixi
         "wjs_review_eo_pending": _("Pending preprints"),
         "wjs_review_eo_archived": _("Archived preprints"),
         "wjs_review_eo_production": _("Production"),
-        "wjs_review_eo_missing_editor": _("Preprints Missing editor"),
         "wjs_review_eo_workon": _("Search preprints"),
         "wjs_review_eo_issues_list": _("Pending Issues"),
     }
@@ -320,27 +319,22 @@ class EOProduction(EOPending):
         )
 
 
-class EOMissingEditor(EOPending):
-    title = _("Papers without an editor")
-
-    def _apply_base_filters(self, qs):
-        """
-        Get all articles that should be assigned to some editor to be reviewed.
-
-        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
-        sure to use the original method.
-        """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_missing_editor,
-        )
-
-
 class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
     """Search tool for EO."""
 
     title = _("Search preprints")
     filterset_class = WorkOnAPaperArticleWorkflowFilter
     filterset: WorkOnAPaperArticleWorkflowFilter
+    paginate_by = 100
+
+    def _apply_base_filters(self, qs):
+        """
+        Get all the articles in pending state.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).order_by("-article__date_submitted")
 
 
 class BaseWorkOnIssue(BaseRelatedViewsMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -414,7 +408,12 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
         "wjs_review_director_workon": _("Search preprints"),
         "wjs_review_director_issues_list": _("Pending Issues"),
     }
-    table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
+    table_configuration_options = {
+        "show_filter_editor": True,
+        "show_filter_reviewer": True,
+        "table_type": "review",
+        "table_variant": "pending",
+    }
     """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def test_func(self):
@@ -437,6 +436,7 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
 
 class DirectorArchived(DirectorPending):
     title = _("Archived preprints")
+    table_configuration_options = {**DirectorPending.table_configuration_options, "table_variant": "archive"}
 
     def _apply_base_filters(self, qs):
         """
@@ -458,6 +458,16 @@ class DirectorWorkOnAPaper(DirectorPending, LoginRequiredMixin, UserPassesTestMi
     title = _("Search preprints")
     filterset_class = WorkOnAPaperArticleWorkflowFilter
     filterset: WorkOnAPaperArticleWorkflowFilter
+    paginate_by = 100
+
+    def _apply_base_filters(self, qs):
+        """
+        Get all the articles in pending state.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).order_by("-article__date_submitted")
 
 
 class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -1886,3 +1896,25 @@ class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def get_success_url(self):
         """Point back to the paper's status page."""
         return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
+
+
+class DownloadAnythingDROPME(View):
+    """DROPME! UNSAFE!"""
+
+    def get(self, request, *args, **kwargs):
+        """Serve any File."""
+        attachment = core_models.File.objects.get(id=self.kwargs["file_id"])
+        article = Article.objects.get(id=self.kwargs["article_id"])
+        return core_files.serve_file(request, attachment, article, public=True)
+
+
+class ArticleExtraInformationUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = ArticleWorkflow
+    template_name = "wjs_review/articleworkflow_form.html"
+    form_class = ArticleExtraInformationUpdateForm
+
+    def test_func(self):
+        articleworkflow = self.get_object()
+        return permissions.is_article_author(articleworkflow, self.request.user) or permissions.has_eo_role_by_article(
+            articleworkflow, self.request.user
+        )

@@ -18,7 +18,7 @@ urlpatterns = [
         name="accept_gdpr",
     ),
     # Override journal search
-    path("search/", views.search, name="search"),
+    path("search/", views.PublishedArticlesListView.as_view(), name="search"),
     # Override submission's second step defined in submission.url ...
     # (remember that core.include_url adds a "prefix" to the pattern,
     # here "submit/")
@@ -118,9 +118,26 @@ urlpatterns = [
         views.unsubscribe_newsletter,
         name="unsubscribe_newsletter",
     ),
-    re_path(r"^articles/keyword/(?P<keyword>[\w.-]+)/$", views.filter_articles, name="articles_by_keyword"),
-    re_path(r"^articles/section/(?P<section>[\w.-]+)/$", views.filter_articles, name="articles_by_section"),
-    re_path(r"^articles/author/(?P<author>[\w.-]+)/$", views.filter_articles, name="articles_by_author"),
+    path(
+        "articles/",
+        views.PublishedArticlesListView.as_view(exclude_children=True),
+        name="journal_articles",
+    ),
+    re_path(
+        r"^articles/keyword/(?P<keyword>[\w.-]+)/$",
+        views.PublishedArticlesListView.as_view(filter_by="keyword"),
+        name="articles_by_keyword",
+    ),
+    re_path(
+        r"^articles/section/(?P<section>[\w.-]+)/$",
+        views.PublishedArticlesListView.as_view(filter_by="section"),
+        name="articles_by_section",
+    ),
+    re_path(
+        r"^articles/author/(?P<author>[\w.-]+)/$",
+        views.PublishedArticlesListView.as_view(filter_by="author"),
+        name="articles_by_author",
+    ),
     # Redirects - start
     # Drupal favicon
     re_path(

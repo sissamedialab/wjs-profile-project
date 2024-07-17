@@ -5,6 +5,7 @@ or "invited". The invited ones are said to be children of the
 introductory one.
 
 """
+
 import pytest
 from submission import models as submission_models
 

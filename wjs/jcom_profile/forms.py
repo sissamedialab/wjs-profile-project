@@ -6,14 +6,22 @@ from core import models as core_models
 from core.forms import EditAccountForm
 from django import forms
 from django.conf import settings
+from django.db.models import Count
 from django.forms import ModelForm, inlineformset_factory
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.functional import cached_property
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from easy_select2.widgets import Select2Multiple
+from journal.forms import SEARCH_SORT_OPTIONS
+from journal.forms import SearchForm as JanewaySearchForm
+from submission import models as submission_models
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
 from utils.forms import CaptchaForm
 from utils.logger import get_logger
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import (
     ArticleWrapper,
@@ -42,8 +50,34 @@ class AnonymousNewsletterSubscriptionAcceptanceForm(forms.Form):
     accepted_subscription = forms.BooleanField(initial=False, required=True)
 
 
+def _get_privacy_url(journal):
+    try:
+        privacy_url = get_setting(
+            "general",
+            "privacy_policy_url",
+            journal,
+            create=False,
+            default=True,
+        ).processed_value
+    except core_models.Setting.DoesNotExist:
+        privacy_url = None
+    if not privacy_url:
+        privacy_url = reverse("cms_page", args=("privacy",))
+    return privacy_url
+
+
 class JCOMProfileForm(EditAccountForm):
     """Additional fields of the JCOM profile."""
+
+    email = forms.EmailField(label=_("Email"), required=False)
+    current_password = forms.CharField(widget=forms.PasswordInput, label=_("Current Password"), required=False)
+    new_password_one = forms.CharField(widget=forms.PasswordInput, label=_("New Password"), required=False)
+    new_password_two = forms.CharField(widget=forms.PasswordInput, label=_("Repeat New Password"), required=False)
+    gdpr_checkbox = forms.BooleanField(
+        initial=False,
+        required=True,
+        label=_("By registering an account you agree to our Privacy Policy"),
+    )
 
     class Meta:
         model = JCOMProfile
@@ -64,6 +98,15 @@ class JCOMProfileForm(EditAccountForm):
             "invitation_token",
         )
 
+    def __init__(self, *args, **kwargs):
+        """Set the required fields."""
+        self.journal = kwargs.pop("journal")
+        super().__init__(*args, **kwargs)
+        privacy_url = _get_privacy_url(self.journal)
+        self.fields["gdpr_checkbox"].label = mark_safe(
+            _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
+        )
+
 
 class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
     """A form that creates a user.
@@ -74,7 +117,11 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
 
     password_1 = forms.CharField(widget=forms.PasswordInput, label=_("Password"))
     password_2 = forms.CharField(widget=forms.PasswordInput, label=_("Repeat Password"))
-    gdpr_checkbox = forms.BooleanField(initial=False, required=True)
+    gdpr_checkbox = forms.BooleanField(
+        initial=False,
+        required=True,
+        label=_("By registering an account you agree to our Privacy Policy"),
+    )
 
     class Meta:
         model = JCOMProfile
@@ -89,6 +136,15 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
             "country",
             "profession",
             "gdpr_checkbox",
+        )
+
+    def __init__(self, *args, **kwargs):
+        """Set the required fields."""
+        self.journal = kwargs.pop("journal")
+        super().__init__(*args, **kwargs)
+        privacy_url = _get_privacy_url(self.journal)
+        self.fields["gdpr_checkbox"].label = mark_safe(
+            _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )
 
     def clean_password_2(self):
@@ -417,3 +473,108 @@ class RegisterUserNewsletterForm(CaptchaForm):
     """Register an Anonymous user to a newsletter."""
 
     email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={"placeholder": _("Your email address")}))
+
+
+class SearchForm(JanewaySearchForm):
+    SEARCH_FILTERS = [
+        "title",
+        "abstract",
+        "authors",
+        "keywords__word",
+        "full_text",
+        "orcid",
+    ]
+
+    article_search = forms.CharField(
+        label=_("Search titles, keywords, and authors"),
+        min_length=3,
+        max_length=100,
+        required=False,
+    )
+    sections = forms.ModelMultipleChoiceField(
+        label=_("Filter by section"),
+        queryset=Section.objects.all(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    keywords = forms.ModelMultipleChoiceField(
+        label=_("Filter by keyword"),
+        queryset=Keyword.objects.all(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    year = forms.CharField(
+        label=_("Filter by year"),
+        required=False,
+        widget=forms.NumberInput(attrs={"placeholder": "YYYY", "min": 1990, "max": 2100}),
+    )
+    show = forms.ChoiceField(
+        label=_("Show"),
+        required=False,
+        choices=[(item, item) for item in (10, 25, 50, 100)],
+    )
+    page = forms.IntegerField(required=False, widget=forms.HiddenInput())
+
+    def __init__(self, *args, **kwargs):
+        """Populate the sections and keywords queryset."""
+        self.journal = kwargs.pop("journal")
+        kwargs["initial"] = kwargs.get("initial", {})
+        original_data = kwargs.get("data", {})
+        kwargs["data"] = original_data.copy()
+        kwargs["data"]["sections"] = kwargs["data"].getlist("sections", None)
+        kwargs["data"]["keywords"] = kwargs["data"].getlist("keywords", None)
+        kwargs["data"]["show"] = kwargs["data"].get("show", 10)
+        kwargs["data"]["sort"] = kwargs["data"].get("sort", "-date_published")
+        super().__init__(*args, **kwargs)
+        self.fields["sections"].queryset = Section.objects.filter(
+            journal=self.journal,
+            is_filterable=True,
+        ).order_by("sequence", "name")
+        self.fields["keywords"].queryset = (
+            Keyword.objects.filter(
+                article__journal=self.journal,
+                article__stage=submission_models.STAGE_PUBLISHED,
+                article__date_published__lte=timezone.now(),
+            )
+            .annotate(articles_count=Count("article"))
+            .order_by("word")
+        )
+
+    def get_search_filters(self):
+        """Generates a dictionary of search_filters from a search form"""
+        return {
+            "full_text": self.cleaned_data["article_search"],
+            "title": self.cleaned_data["article_search"],
+            "authors": self.cleaned_data["article_search"],
+            "abstract": self.cleaned_data["article_search"],
+            "keywords__word": self.cleaned_data["article_search"],
+            "orcid": self.cleaned_data["article_search"],
+        }
+
+    @cached_property
+    def has_filter(self):
+        """Determines if the user has selected at least one search filter
+        :return: Boolean indicating if there are any search filters selected
+        """
+        return self.data.get("article_search", "")
+
+    def clean_year(self):
+        """Check if the year is a valid year."""
+        year = self.cleaned_data.get("year")
+        if year and not year.isdigit():
+            raise forms.ValidationError("Please enter a valid year.")
+        return year
+
+    def clean_show(self):
+        """Check if the show is a valid number."""
+        show = self.cleaned_data.get("show")
+        if not show.isdigit():
+            raise forms.ValidationError("Please enter a valid number.")
+        return show
+
+    def clean_sort(self):
+        """Check if the sort is a valid sort."""
+        sort = self.cleaned_data.get("sort")
+        if sort not in dict(SEARCH_SORT_OPTIONS):
+            return "-date_published"
+        return sort

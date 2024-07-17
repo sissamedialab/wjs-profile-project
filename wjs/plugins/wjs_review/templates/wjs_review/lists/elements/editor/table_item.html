@@ -2,7 +2,8 @@
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{{ article.pk }}" class="text-nowrap"><a title="{{ article.title }}"
+    <td data-order="{{ article.date_submitted|date:"U" }}" class="text-nowrap">
+      <a title="{{ article.title }}"
          href="{% url 'wjs_article_details' workflow.id %}"
          class="fw-bold">{{ article|versioned_number }}</a><br><span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span></td>
     <td><span class="badge {{ article_classes.section }}">{{ article.section.name }}</span></td>

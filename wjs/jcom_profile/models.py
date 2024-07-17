@@ -1,4 +1,5 @@
 """The model for a field "profession" for JCOM authors."""
+
 from core.models import Account, AccountManager
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder

@@ -86,7 +86,8 @@ services:
       retries: 5
 
   janeway:
-    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+    # FIXME: This must be reverted to develop tag once 1.5.2 MR has been merged
+    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:1.5.2
     volumes:
       - /tmp:/host-tmp
       - .:/build/wjs/wjs-profile-project
