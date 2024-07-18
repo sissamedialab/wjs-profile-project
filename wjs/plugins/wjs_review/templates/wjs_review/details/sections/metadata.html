@@ -1,18 +1,18 @@
 {% load static wjs_review %}
 {% with attention_flag=workflow|article_requires_attention_tt:user %}
-  <div class="card border border-0 p-0">
-    <div class="card-header p-0">
+  <div class="card border p-0">
+    <div class="card-header d-flex align-items-center justify-content-between px-2 py-2">
       {% include "wjs_review/details/elements/metadata_header.html" %}
     </div>
     <div class="card-body p-0">
-      <div class="border-start pt-3 px-4 pb-4">
+      <div class="border-bottom pt-3 px-4 pb-4">
         <h4 class="card-title">{{ article.title }}</h4>
         <div>
           {% if has_full_access %}{% translate "Corresponding author" %}: {{ article.correspondence_author }}<br>{% endif %}
           {% translate "Submitted" %}: {{ article.date_submitted|date:"DATE_FORMAT" }}
         </div>
       </div>
-      <div class="accordion" id="metadata">
+      <div class="accordion accordion-flush" id="metadata">
         {% include "wjs_review/details/elements/metadata_abstract.html" %}
         {% include "wjs_review/details/elements/metadata_authors.html" %}
         {% include "wjs_review/details/elements/metadata_keywords.html" %}

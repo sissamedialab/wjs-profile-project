@@ -4,7 +4,7 @@ Keeping here also anything that we might want to test easily 🙂.
 """
 
 import datetime
-from typing import Union
+from typing import Optional, Union
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -24,6 +24,13 @@ from .models import Message, MessageRecipients, Reminder, WjsEditorAssignment
 
 Account = get_user_model()
 logger = get_logger(__name__)
+
+MESSAGE_TYPE_ICONS = {
+    Message.MessageTypes.SYSTEM: "bi-gear-fill",
+    Message.MessageTypes.HIJACK: "bi-gear-fill",
+    Message.MessageTypes.NOTE: "bi-pencil-fill",
+    None: "bi-chat-square-text",
+}
 
 
 def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Message]:
@@ -143,24 +150,6 @@ def get_director_user(obj: Union[Article, Journal]) -> Account:
         return get_eo_user(obj)
 
 
-def log_silent_operation(article: Article, message_body: str) -> Message:
-    """Create a Message to log a system operation.
-
-    The actor of the message will be wjs-support and recipients will be empty.
-    """
-    system_user = get_system_user()
-    content_type = ContentType.objects.get_for_model(article)
-    object_id = article.id
-    message = Message.objects.create(
-        actor=system_user,
-        body=message_body,
-        message_type=Message.MessageTypes.SILENT,
-        content_type=content_type,
-        object_id=object_id,
-    )
-    return message
-
-
 def log_operation(
     article: Article,
     message_subject: str,
@@ -169,7 +158,8 @@ def log_operation(
     hijacking_actor: Account = None,
     notify_actor: bool = False,
     recipients: list[Account] = None,
-    message_type: Message.MessageTypes = Message.MessageTypes.STD,
+    message_type: Message.MessageTypes = Message.MessageTypes.SYSTEM,
+    verbosity: Message.MessageVerbosity = Message.MessageVerbosity.FULL,
     flag_as_read: bool = False,
     flag_as_read_by_eo: bool = False,
 ) -> Message:
@@ -201,6 +191,7 @@ def log_operation(
         subject=message_subject,
         body=message_body,
         message_type=message_type,
+        verbosity=verbosity,
         content_type=content_type,
         object_id=object_id,
         hijacking_actor=hijacking_actor,
@@ -234,6 +225,7 @@ def log_operation(
             hijack_subject,
             hijack_body,
             recipients=[actor],
+            verbosity=verbosity,
             flag_as_read=True,
             flag_as_read_by_eo=True,
         )
@@ -308,3 +300,52 @@ def should_notify_actor():
     except AttributeError:
         # session might not be available in tests / non sync code, in this case we don't want notifications anyway
         return False
+
+
+def group_messages_by_version(
+    article: Article, messages: QuerySet[Message], filters: Optional[dict[str, str]] = None
+) -> dict[str, list[Message]]:
+    """
+    Group messages by version.
+
+    Version is determined by the date of the review round or typesetting round that the message is related to.
+
+    :param article: the article to which the messages refer
+    :type article: Article
+    :param messages: the messages to group
+    :type messages: QuerySet[Message]
+    :param filters: filters to apply to the messages
+    :type filters: dict[str, str]
+    :return: a dictionary where keys are review or typesetting rounds and values are lists of messages.
+        All existing versions are included, even if there are no messages related to them.
+    :rtype: dict[str, list[Message]]
+    """
+    if filters:
+        for filter_key, filter_value in filters.items():
+            if filter_value:
+                messages = messages.filter(**{filter_key: filter_value})
+    review_rounds = article.reviewround_set.all().order_by("-date_started")
+    typesetting_rounds = article.typesettinground_set.all().order_by("-date_created")
+    # Create a cumulative list of dates at which each review and typesetting round has stated and order them
+    cutoff_dates = {
+        **{tr.date_created: tr for tr in typesetting_rounds},
+        **{rr.date_started: rr for rr in review_rounds},
+    }
+    # Prepare a data structure to accomodate messages grouped by review-date
+    timeline = {cutoff_dates[d]: [] for d in list(cutoff_dates.keys())}
+
+    # Scan through the ordered messages. Accumulate them under the current date (head) until they become older than it.
+    # Then move to the next younger date and accumulate the messages under that one.
+    dates = iter(sorted(cutoff_dates.keys(), reverse=True))  # NB: dates are sorted: newest first
+    head = next(dates)
+    for message in messages.order_by("-created"):  # NB: sort messages also: newset first
+        if message.created >= head:
+            timeline[cutoff_dates[head]].append(message)
+        else:
+            try:
+                head = next(dates)
+            except StopIteration:
+                logger.debug(f"Message {message.pk} ({message.created}) is older that oldest round ({head})")
+            timeline[cutoff_dates[head]].append(message)
+
+    return timeline

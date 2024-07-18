@@ -41,7 +41,7 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 
 from . import permissions
-from .communication_utils import get_messages_related_to_me
+from .communication_utils import get_messages_related_to_me, group_messages_by_version
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
@@ -65,6 +65,7 @@ from .forms import (
     ReviewerSearchForm,
     SelectReviewerForm,
     SupervisorAssignEditorForm,
+    TimelineFilterForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
@@ -779,20 +780,11 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
             return super().form_invalid(form)
 
 
-class ArticleDetails(UserPassesTestMixin, DetailView):
+class ArticleDetails(UserPassesTestMixin, HtmxMixin, DetailView):
     model = ArticleWorkflow
     template_name = "wjs_review/details/articleworkflow_detail.html"
     context_object_name = "workflow"
-
-    @property
-    def extra_links(self):
-        preprintid = self.object.article.get_identifier("preprintid")
-        if not preprintid:
-            preprintid = self.object.article_id
-        return {
-            "javascript:history.back()": _("Back to list"),
-            reverse("wjs_article_details", kwargs={"pk": self.kwargs["pk"]}): preprintid,
-        }
+    form_class = TimelineFilterForm
 
     def test_func(self):
         """Allow access only one has permission on the article."""
@@ -807,6 +799,35 @@ class ArticleDetails(UserPassesTestMixin, DetailView):
             self.object.article,
             permission_type=PermissionAssignment.PermissionType.NO_NAMES,
         )
+
+    def get_template_names(self):
+        if self.htmx:
+            return ["wjs_review/details/sections/timeline.html"]
+        return super().get_template_names()
+
+    @property
+    def extra_links(self):
+        preprintid = self.object.article.get_identifier("preprintid")
+        if not preprintid:
+            preprintid = self.object.article_id
+        return {
+            "javascript:history.back()": _("Back to list"),
+            reverse("wjs_article_details", kwargs={"pk": self.kwargs["pk"]}): preprintid,
+        }
+
+    def get_form(self, data=None):
+        form = self.form_class(data)
+        form.is_valid()
+        return form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["form"] = self.get_form(self.request.GET)
+        messages = get_messages_related_to_me(self.request.user, self.object.article)
+        context["timeline_messages"] = group_messages_by_version(
+            self.object.article, messages, filters=context["form"].cleaned_data
+        )
+        return context
 
 
 class OpenReviewMixin(DetailView):
@@ -1251,12 +1272,6 @@ class ArticleMessages(LoginRequiredMixin, ListView):
         )
         eo_forms = {mr.id: ToggleMessageReadByEOForm(instance=mr) for mr in message_records}
         context["eo_forms"] = eo_forms
-        context["human_message_types"] = [
-            Message.MessageTypes.STD,
-            Message.MessageTypes.SILENT,
-            Message.MessageTypes.VERBOSE,
-            Message.MessageTypes.VERBINE,
-        ]
         return context
 
 
@@ -1341,7 +1356,10 @@ class WriteMessage(LoginRequiredMixin, CreateView):
         """Filter only messages related to a certain article and that the current user can see."""
         super().setup(request, *args, **kwargs)
         self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
-        self.recipient = get_object_or_404(Account, id=self.kwargs["recipient_id"])
+        if self.kwargs.get("recipient_id"):
+            self.recipient = get_object_or_404(Account, id=self.kwargs["recipient_id"])
+        else:
+            self.recipient = None
         messages = get_messages_related_to_me(user=self.request.user, article=self.article)
         self.messages = messages.filter(Q(recipients__in=[self.recipient]) | Q(actor=self.recipient))
 
@@ -1353,11 +1371,11 @@ class WriteMessage(LoginRequiredMixin, CreateView):
 
         """
         return {
-            "actor": self.request.user.id,
-            "recipient": self.recipient.id,
-            "content_type": ContentType.objects.get_for_model(self.article).id,
-            "object_id": self.article.id,
-            "message_type": Message.MessageTypes.VERBOSE,
+            "actor": self.request.user.pk,
+            "recipient": self.recipient.pk if self.recipient else None,
+            "content_type": ContentType.objects.get_for_model(self.article).pk,
+            "object_id": self.article.pk,
+            "message_type": Message.MessageTypes.USER,
         }
 
     def get_context_data(self, **kwargs):

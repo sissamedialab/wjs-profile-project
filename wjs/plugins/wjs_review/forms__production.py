@@ -85,7 +85,7 @@ class WriteToTypMessageForm(forms.Form):
         """Create and send the message for the typesetter."""
         message = Message.objects.create(
             actor=self.actor,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.USER,
             content_type=ContentType.objects.get_for_model(self.article),
             object_id=self.article.pk,
             subject=self.cleaned_data["subject"],

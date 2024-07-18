@@ -7,16 +7,17 @@
     {% user_has_access_to workflow=workflow user=request.user target=article permission_type="no_names" as has_blind_access %}
     <div class="container mb-3">
       <div class="row">
-        {% include "wjs_review/details/elements/title.html" %}
+        {% include "wjs_review/details/sections/title.html" %}
       </div>
     </div>
     <div class="container mb-3">
       <div class="row">
         <div class="col-sm-12 col-md-6">
-          {% include "wjs_review/details/elements/metadata.html" %}
+          {% include "wjs_review/details/sections/metadata.html" %}
         </div>
         <div class="col-sm-12 col-md-6">
-          {% include "wjs_review/details/elements/actions.html" %}
+          {% include "wjs_review/details/sections/actions.html" %}
+          {% include "wjs_review/details/sections/timeline.html" %}
         </div>
       </div>
     </div>

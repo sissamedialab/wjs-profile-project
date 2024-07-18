@@ -166,7 +166,7 @@ def test_post_message_form_with_attachment_creates_file(
             "actor": user.id,
             "content_type": ContentType.objects.get_for_model(article).id,
             "object_id": article.id,
-            "message_type": Message.MessageTypes.STD,
+            "message_type": Message.MessageTypes.USER,
             "recipientsFS-TOTAL_FORMS": "1",
             "recipientsFS-INITIAL_FORMS": "0",
             "recipientsFS-0-recipient": [user.id],

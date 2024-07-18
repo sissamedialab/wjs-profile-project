@@ -4,7 +4,7 @@ import pytest
 from core.models import File
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 
-from ..communication_utils import log_operation, log_silent_operation
+from ..communication_utils import log_operation
 from ..models import ProphyAccount, WjsEditorAssignment
 
 
@@ -372,11 +372,21 @@ def test_wjs_article_messages(assigned_article, client):
 
 
 @pytest.mark.django_db
+def test_wjs_message_write_to_user(assigned_article, eo_user, client):
+    client.force_login(eo_user)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/"
+        f"{assigned_article.articleworkflow.pk}/write/{assigned_article.correspondence_author.pk}/"
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
 def test_wjs_message_write(assigned_article, eo_user, client):
     client.force_login(eo_user)
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/"
-        f"{assigned_article.articleworkflow.pk}/{assigned_article.correspondence_author.pk}/"
+        f"{assigned_article.articleworkflow.pk}/write/"
     )
     assert response.status_code == 200
 
@@ -451,7 +461,7 @@ def test_wjs_message_forward(assigned_article, eo_user, client):
 @pytest.mark.django_db
 def test_wjs_message_forward_no_recipients(assigned_article, eo_user, client):
     client.force_login(eo_user)
-    message = log_silent_operation(assigned_article, "test")
+    message = log_operation(assigned_article, "test")
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/forward/{message.pk}/"
     )

@@ -17,7 +17,6 @@ from django.utils import timezone
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
 from plugins.typesetting.models import TypesettingRound
-from plugins.wjs_review.states import BaseState
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from submission.models import Article, Section
 from utils import models as janeway_utils_models
@@ -27,9 +26,16 @@ from utils.models import LogEntry
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
 from .. import communication_utils, states
+from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
 from ..custom_types import BootstrapButtonProps
 from ..logic import states_when_article_is_considered_in_review
-from ..models import ArticleWorkflow, EditorDecision, MessageThread, ProphyAccount
+from ..models import (
+    ArticleWorkflow,
+    EditorDecision,
+    Message,
+    MessageThread,
+    ProphyAccount,
+)
 from ..permissions import (
     has_director_role_by_article,
     has_typesetter_role_by_article,
@@ -40,6 +46,7 @@ from ..permissions import (
     is_one_of_the_authors,
 )
 from ..prophy import Prophy
+from ..states import BaseState
 
 register = template.Library()
 
@@ -222,10 +229,17 @@ def review_assignment_request_message(assignment: ReviewAssignment):
 
 
 @register.filter
-def article_messages(article: Article, user: Account):
+def article_messages(article: Article, user: Account) -> QuerySet[Message]:
     """Return all messages related to this article that the user can see."""
     messages = communication_utils.get_messages_related_to_me(user, article)
     return messages
+
+
+@register.simple_tag()
+def timeline_messages(article: Article, user: Account) -> Dict[str, List[Message]]:
+    """Return all messages related to this article that the user can see."""
+    messages = article_messages(article, user)
+    return dict(group_messages_by_version(article, messages))
 
 
 @register.filter
@@ -233,6 +247,18 @@ def article_requires_attention_tt(workflow: ArticleWorkflow, user: Account = Non
     """Inquire with the state-logic class relative to the current workflow state."""
     state_cls = getattr(states, workflow.state)
     return state_cls.article_requires_attention(article=workflow.article, user=user)
+
+
+@register.filter
+def message_type_icon(message: Message) -> str:
+    """Return the icon for the message type."""
+    return MESSAGE_TYPE_ICONS.get(message.message_type, MESSAGE_TYPE_ICONS[None])
+
+
+@register.filter
+def message_read_by_all(message: Message) -> bool:
+    """Return True if the message has been read by all recipients."""
+    return message.recipients.filter(messagerecipients__read=False).count() == 0
 
 
 @register.filter

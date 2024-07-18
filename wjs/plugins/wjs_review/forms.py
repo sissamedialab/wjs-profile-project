@@ -675,7 +675,7 @@ class MessageForm(forms.ModelForm):
                 "actor": self.actor,
                 "article": self.target,
             },
-            initial=[{"recipient": initial_recipient.id}],
+            initial=[{"recipient": initial_recipient.pk if initial_recipient else None}],
         )
 
     def _get_allowed_recipients(self):
@@ -697,7 +697,10 @@ class MessageForm(forms.ModelForm):
         clean_data["actor"] = self.actor
         clean_data["content_type"] = ContentType.objects.get_for_model(self.target)
         clean_data["object_id"] = self.target.pk
-        clean_data["message_type"] = Message.MessageTypes.VERBOSE
+        if clean_data["recipients"].count() == 1 and self.actor == clean_data["recipients"].first():
+            clean_data["message_type"] = Message.MessageTypes.NOTE
+        else:
+            clean_data["message_type"] = Message.MessageTypes.USER
         return clean_data
 
     # TODO: IMPORTANT: enforce security:
@@ -707,7 +710,6 @@ class MessageForm(forms.ModelForm):
         TODO: at the moment only attachments related to Article are managed! I.e. attachments for messages not related
         to a specific article are not managed.
         """
-        instance: Message = self.instance
         with transaction.atomic():
             instance = super().save()
             instance.recipients.set(self.cleaned_data["recipients"])
@@ -993,7 +995,7 @@ class ForwardMessageForm(forms.ModelForm):
         with transaction.atomic():
             message = Message.objects.create(
                 actor=self.actor,
-                message_type=Message.MessageTypes.VERBOSE,
+                message_type=Message.MessageTypes.USER,
                 content_type=ContentType.objects.get_for_model(self.article),
                 object_id=self.article.pk,
                 subject=self.cleaned_data["subject"],
@@ -1024,6 +1026,20 @@ class ForwardMessageForm(forms.ModelForm):
             )
 
             return message
+
+
+class TimelineFilterForm(forms.Form):
+    message_type = forms.ChoiceField(
+        required=False,
+        label=_("Filter by type"),
+        choices=(
+            ("", _("All")),
+            (Message.MessageTypes.USER, _("User")),
+            (Message.MessageTypes.NOTE, _("Notes")),
+            (Message.MessageTypes.SYSTEM, _("System")),
+        ),
+    )
+    current_version = forms.IntegerField(widget=forms.HiddenInput(), required=False)
 
 
 class ArticleExtraInformationUpdateForm(forms.ModelForm):

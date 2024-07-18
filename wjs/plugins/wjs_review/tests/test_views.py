@@ -275,7 +275,7 @@ def test_invite_function_creates_inactive_user(
     assert assigned_article.title in message_to_reviewer.subject
     assert "random message" in message_to_reviewer.body
     assert acceptance_url in message_to_reviewer.body
-    assert message_to_reviewer.message_type == "Verbose"
+    assert message_to_reviewer.message_type == Message.MessageTypes.SYSTEM
     assert message_to_reviewer.actor == section_editor
     assert list(message_to_reviewer.recipients.all()) == [invited_user.janeway_account]
 
