@@ -1,0 +1,13 @@
+{% load django_bootstrap5 %}
+{% translate "Close" as close_label %}
+
+<div class="modal fade" id="htmxModal" tabindex="-1" aria-labelledby="htmxModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div id="htmxModalContent"></div>
+      <div class="modal-footer">
+        {% bootstrap_button button_class="btn-secondary" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content=close_label %}
+      </div>
+    </div>
+  </div>
+</div>

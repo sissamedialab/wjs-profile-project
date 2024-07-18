@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
 from core import files as core_files
@@ -11,10 +11,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-from django.core.paginator import Page, Paginator
+from django.core.paginator import InvalidPage, Page, Paginator
 from django.db.models import Q, QuerySet
 from django.forms import models as model_forms
-from django.http import HttpResponse, HttpResponseRedirect, QueryDict
+from django.http import Http404, HttpResponse, HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.template import Context
 from django.urls import resolve, reverse, reverse_lazy
@@ -626,12 +626,17 @@ class EditorAssignsThemselvesAsReviewer(ArticleAssignedEditorMixin, EditorRequir
         return kwargs
 
 
-class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
+class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """
     View only checks the login status at view level because the permissions are checked by the queryset by using
     :py:class:`WjsEditorAssignment` relation with the current user.
     """
 
+    title = _("Select reviewer")
+    related_views = {
+        "wjs_review_list": _("Pending preprints"),
+        "wjs_review_archived_papers": _("Archived preprints"),
+    }
     model = ArticleWorkflow
     form_class = SelectReviewerForm
     context_object_name = "workflow"
@@ -665,25 +670,59 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
         """Select the template based on the request type."""
         if self.htmx:
             if self.request.POST.get("message"):
-                return ["wjs_review/elements/select_reviewer_message_preview.html"]
-            else:
-                return ["wjs_review/elements/select_reviewer.html"]
-        else:
-            return ["wjs_review/select_reviewer.html"]
+                return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
+            elif self.request.headers.get("Hx-Trigger-Name") == "assign-reviewer":
+                return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
+            elif self.request.headers.get("Hx-Trigger-Name") == "search-reviewer-form":
+                return ["wjs_review/select_reviewer/elements/reviewers_table.html"]
+        return ["wjs_review/select_reviewer/select_reviewer.html"]
 
-    def paginate(self, queryset: QuerySet) -> Page:
+    def paginate_queryset(self, queryset, page_size) -> Tuple[Paginator, Optional[Page], Optional[QuerySet], bool]:
         """
         Paginate the reviewers queryset.
 
         It's managed explicitly as the view is an UpdateView not a ListView.
         """
+        paginator = self.get_paginator(queryset, page_size, allow_empty_first_page=False)
+        page_kwarg = "page"
+        page = self.kwargs.get(page_kwarg) or self.request.GET.get(page_kwarg) or 1
         try:
-            page_number = int(self.request.GET.get("page", default=1))
+            page_number = int(page)
         except ValueError:
-            page_number = 1
-        review_lists_page_size = get_setting("wjs_review", "review_lists_page_size", self.object.article.journal)
-        paginator = Paginator(queryset, review_lists_page_size.process_value())
-        return paginator.get_page(page_number)
+            if page == "last":
+                page_number = paginator.num_pages
+            else:
+                raise Http404(_("Page is not “last”, nor can it be converted to an int."))
+        if paginator.count == 0:
+            return paginator, None, None, False
+        try:
+            page = paginator.page(page_number)
+            return paginator, page, page.object_list, page.has_other_pages()
+        except InvalidPage as e:
+            raise Http404(
+                _("Invalid page (%(page_number)s): %(message)s") % {"page_number": page_number, "message": str(e)}
+            )
+
+    def get_paginate_by(self, queryset) -> int:
+        """
+        Get the number of items to paginate by, or ``None`` for no pagination.
+        """
+        return get_setting("wjs_review", "review_lists_page_size", self.object.article.journal).processed_value
+
+    def get_paginator(self, queryset, per_page, orphans=0, allow_empty_first_page=True, **kwargs) -> Paginator:
+        """Return an instance of the paginator for this view."""
+        return Paginator(queryset, per_page, orphans=orphans, allow_empty_first_page=allow_empty_first_page)
+
+    def get_objects_list(self) -> List[Union[Account, Prophy]]:
+        """
+        Get the list of objects to paginate.
+        """
+        return list(
+            chain(
+                Account.objects.filter_reviewers(self.object, self.search_data),
+                Prophy(self.object.article).get_not_account_article_prophycandidates(self.search_data),
+            ),
+        )
 
     def _render_message_preview(self, form: SelectReviewerForm) -> str:
         logic_context = form.get_message_context()
@@ -701,13 +740,21 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
         context = super().get_context_data(**kwargs)
         context["htmx"] = self.htmx
         context["search_form"] = self.get_search_form()
-        context["reviewers"] = self.paginate(
-            list(
-                chain(
-                    Account.objects.filter_reviewers(self.object, self.search_data),
-                    Prophy(self.object.article).get_not_account_article_prophycandidates(self.search_data),
-                ),
-            ),
+        paginator, page, objects_list, is_paginated = self.paginate_queryset(
+            self.get_objects_list(), self.get_paginate_by(self.get_objects_list())
+        )
+        querystring = self.request.GET.copy()
+        if "page" in querystring:
+            del querystring["page"]
+        context.update(
+            {
+                "paginator": paginator,
+                "page_obj": page,
+                "is_paginated": is_paginated,
+                "object_list": objects_list,
+                "reviewers": objects_list,
+                "querystring": querystring,
+            }
         )
         context["reviewer"] = context["form"].data.get("reviewer")
         if context["form"].data.get("reviewer"):
@@ -738,7 +785,7 @@ class SelectReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin,
             return super().form_invalid(form)
 
 
-class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
+class InviteReviewer(HtmxMixin, LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
     """Invite external users as reviewers.
 
     The user is created as inactive and his/her account is marked
@@ -750,7 +797,7 @@ class InviteReviewer(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView)
     model = ArticleWorkflow
     form_class = InviteUserForm
     success_url = reverse_lazy("wjs_review_list")
-    template_name = "wjs_review/invite_external_reviewer.html"
+    template_name = "wjs_review/select_reviewer/invite_external_reviewer.html"
     context_object_name = "workflow"
 
     def get_success_url(self):
