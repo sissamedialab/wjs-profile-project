@@ -239,3 +239,13 @@ ul.itemize4 > li {
   list-style-type: circle;
   margin-left: 3.5rem;
 }
+
+article.row blockquote p {
+  color: color("grey", "darken-2");
+}
+
+blockquote blockquote {
+  border-left: 0;
+  margin: 0;
+  padding-left: 0;
+}
