@@ -148,43 +148,38 @@ def decide_galley_label(file_name: str, file_mimetype: str):
 
 
 def set_language(article, language):
-    """Set the article's language.
+    logger.critical("Function changed. Don't use me!")
 
-    Must map from Drupal's iso639-2 (two chars) to Janeway iso639-3 (three chars).
-    """
+
+# TODO: typehint correctly  -> pycountry.db.Language
+# but `Language` is generated dinamically...
+def map_language(language: str):
+    """Map language code from iso639-2 (two chars) to Janeway iso639-3 (three chars)."""
     # Some non-standard language codes have been used in JCOM through the years...
     language = FUNNY_LANGUAGE_CODES.get(language, language)
     lang_obj = pycountry.languages.get(alpha_2=language)
     if lang_obj is None:
         logger.error(
-            'Unknown language code "%s" for %s. Keeping default "English"',
-            language,
-            article.get_identifier("pubid"),
+            f'Non-standard language code "{language}". Keeping default "English"',
         )
-        return
+        return pycountry.languages.get(alpha_2="en")
+
     if lang_obj.alpha_3 not in JANEWAY_LANGUAGES_BY_CODE:
         logger.error(
-            'Unknown language "%s" (from "%s") for %s. Keeping default "English"',
-            lang_obj.alpha_3,
-            language,
-            article.get_identifier("pubid"),
+            f'Language "{lang_obj.alpha_3}" (from "{language}") is unknown to Janeway. Keeping default "English"',
         )
-        return
-
-    article.language = lang_obj.alpha_3
+        return pycountry.languages.get(alpha_2="en")
 
     # Small sanity check
     if lang_obj.name not in JANEWAY_LANGUAGES_BY_CODE.values():
         # We know about "Spanish" vs. "Spanish; Castilian" and it's ok to keep the latter.
         if lang_obj.name != "Spanish":
             logger.warning(
-                """ISO639 language for "%s" is "%s" and is different from Janeway's "%s" (using the latter) for %s""",
-                language,
-                lang_obj.name,
-                JANEWAY_LANGUAGES_BY_CODE[lang_obj.alpha_3],
-                article.get_identifier("pubid"),
+                f'ISO639 language for "{language}" is "{lang_obj.name}"'
+                f""" and is different from Janeway's "{JANEWAY_LANGUAGES_BY_CODE[lang_obj.alpha_3]}" """
+                "(using the latter)",
             )
-    article.save()
+    return lang_obj
 
 
 def set_language_specific_field(article, field, value, clear_en=False):
