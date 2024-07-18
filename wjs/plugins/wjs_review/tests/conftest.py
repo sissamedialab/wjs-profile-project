@@ -67,6 +67,23 @@ from .test_helpers import (
 TEST_FILES_EXTENSION = ".santaveronica"
 
 
+def pytest_addoption(parser):
+    """Allow for marking tests as "academic" and run them on demand only.
+
+    Tests marked with:
+    @pytest.mark.skipif("not config.getoption('--run-academic')")
+    will be run only if pytest is invoked as
+    pytest --run-academic ...
+    """
+    # see also https://jwodder.github.io/kbits/posts/pytest-mark-off/#option-2-use-pytest-mark-skipif
+    parser.addoption(
+        "--run-academic",
+        action="store_true",
+        default=False,
+        help="Run academic tests",
+    )
+
+
 def cleanup_notifications_side_effects():
     """Clean up messages and notifications."""
     mail.outbox = []
