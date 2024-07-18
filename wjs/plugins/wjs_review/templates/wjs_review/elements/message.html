@@ -1,5 +1,5 @@
 {% load wjs_review wjs_tags %}
-<div class="row" id="msg-{{ message.id }}">
+<div class="row" id="message-{{ message.id }}">
     <div class="col-10 p-2">
         <div class="d-flex align-items-center {% if message.actor != user %} text-right justify-content-end {% endif %}">
             {% comment %} TODO: find a way to set max-width=60% (I don't want mw-100 or w-75){% endcomment %}
@@ -38,7 +38,7 @@
     {% if user in message.recipients.all and not user == message.actor %}
         {% include "wjs_review/elements/toggle_message_read.html" with form=forms|keyvalue:message.id %}
     {% endif %}
-    {% if request.user|is_user_eo and message.message_type in human_message_types %}
+    {% if request.user|is_user_eo %}
         {% include "wjs_review/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.id %}
         {% include "wjs_review/elements/forward_message_btn.html" %}
     {% endif %}

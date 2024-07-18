@@ -1237,7 +1237,7 @@ class HandleEOSendBackToTypesetter:
         """Create and send the message for the typesetter."""
         message = Message.objects.create(
             actor=self.user,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             content_type=ContentType.objects.get_for_model(self.articleworkflow.article),
             object_id=self.articleworkflow.article.pk,
             subject=self.subject,

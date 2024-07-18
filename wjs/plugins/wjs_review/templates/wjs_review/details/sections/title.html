@@ -10,9 +10,9 @@
   </div>
   <div class="d-flex align-items-center gap-3">
     {% if workflow|is_user_director:request.user or request.user|is_user_eo %}
-      {% url "wjs_article_admin_decision" pk=article.pk as make_decision_url %}
+      {% url "wjs_article_admin_decision" pk=workflow.pk as make_decision_url %}
     {% elif workflow|is_user_article_editor:request.user %}
-      {% url "wjs_article_decision" pk=article.pk as make_decision_url %}
+      {% url "wjs_article_decision" pk=workflow.pk as make_decision_url %}
     {% endif %}
     {% if make_decision_url %}
       {% bootstrap_button "Make decision" href=make_decision_url button_class="btn-primary" %}

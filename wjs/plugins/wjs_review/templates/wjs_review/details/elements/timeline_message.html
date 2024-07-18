@@ -1,0 +1,29 @@
+{% load wjs_review %}
+<div class="d-flex align-items-start">
+  <div class="me-1" title="{{ message.message_type }}">
+    <i class="bi {{ message|message_type_icon }}"></i>
+  </div>
+  <div class="me-1 flex-grow-1">
+    {% if message.message_type == message.MessageTypes.NOTE %}
+      <a href="{% url "wjs_article_messages" article_id=workflow.article.pk %}#message-{{ message.id }}">
+        <b>{% translate "Personal note" %}</b>
+      </a>
+      <br>
+      {{ message.subject }}
+    {% elif message.message_type == message.MessageTypes.SYSTEM %}
+      <a href="{% url "wjs_article_messages" article_id=workflow.article.pk %}#message-{{ message.id }}">
+        {{ message.subject }}
+      </a>
+    {% else %}
+      <a href="{% url "wjs_article_messages" article_id=workflow.article.pk %}#message-{{ message.id }}">
+        {{ message.subject }}
+      </a>
+      <br>
+      <small><b>{{ message.actor }}</b> {% if message.recipients.exists %} -> <b>{{ message.recipients.all|join:", " }}</b>{% endif %}</small>
+    {% endif %}
+  </div>
+  <div class="align-self-start text-end" title="{{ message.created|date:DATETIME_FORMAT }}">
+    <small><i>{{ message.created|date:DATETIME_FORMAT }}</i></small><br>
+    <small title="{% translate "Message has been read by all the recipients" %}">{% if message|message_read_by_all %}<i class="bi bi-check2-all"></i>{% endif %}</small>
+  </div>
+</div>

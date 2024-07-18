@@ -163,7 +163,8 @@ urlpatterns = [
         name="wjs_upload_file",
     ),
     path("messages/<int:article_id>/", ArticleMessages.as_view(), name="wjs_article_messages"),
-    path("messages/<int:article_id>/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:article_id>/write/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:article_id>/write/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
     path(
         "messages/toggle_read_by_eo/<int:message_id>/",
         ToggleMessageReadByEOView.as_view(),

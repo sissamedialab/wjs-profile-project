@@ -703,28 +703,17 @@ class Message(TimeStampedModel):
     """
 
     class MessageTypes(models.TextChoices):
-        # generic system actions (STD & SILENT)
-        STD = "Standard", _("Standard message (notifications are sent)")
-        SILENT = "Silent", _("Silent message (no notification is sent)")
-
-        # Verbose notifications are useful for messages such as
-        # - editor removal,
-        # - reviewer removal,
-        # - acknowledgment / thank-you messages,
-        # etc., where the recipient is not required to do anything. So, having the full message in the notification
-        # email saves a click to web page just to see an uninteresting message.
-        VERBOSE = "Verbose", _("Write all the body in the notification email.")
-        # Used for
-        # - invite reviewer
-        # - request revision
-        # - ...
-        VERBINE = "Verbose ma non troppo", _("Add the first 10 lines of the body to the message")
-
         SYSTEM = "System log message", _("A system message")
         HIJACK = "User hijacked action log message", _("A hijacking notification message")
+        NOTE = "User note", _("Notes to self")
+        USER = "User message", _("User direct message")
 
-        # No need to replace `message_types` w/ some kind of numeric `message_length` (to indicate, for instance, the
-        # number of lines to include into the notification)
+    class MessageVerbosity(models.TextChoices):
+        # generic system actions (STD & SILENT)
+        FULL = "Full", _("Full message content is sent by email")
+        TIMELINE = "Timeline", _("Timeline only, no email sent")
+        EMAIL = "Email", _("Email only, not recorded in timeline")
+        REDUCED = "Reduced", _("Reduced message sent my email")
 
     actor = models.ForeignKey(
         Account,
@@ -772,9 +761,15 @@ class Message(TimeStampedModel):
     )
     message_type = models.TextField(
         choices=MessageTypes.choices,
-        default=MessageTypes.STD,
-        verbose_name="type",
-        help_text="The type of the message: std messages trigger notifications, silent ones do not.",
+        default=MessageTypes.SYSTEM,
+        verbose_name=_("Type"),
+        help_text=_("Define the message source / scope"),
+    )
+    verbosity = models.TextField(
+        choices=MessageVerbosity.choices,
+        default=MessageVerbosity.FULL,
+        verbose_name=_("Verbosity"),
+        help_text=_("Define the message verbosity: ie: the amount of content sent my email / set in the timeline"),
     )
     # Do we want to manage very detailed ACLs?
     # :START:
@@ -863,9 +858,6 @@ class Message(TimeStampedModel):
 
     def get_url(self, recipient: Account) -> str:
         """Return the URL to be embedded in the notification email for the given recipient."""
-        if self.message_type == Message.MessageTypes.SILENT:
-            logger.error(f"No need to get an URL for silent messages (requested for msg {self.id})")
-            return ""
 
         if self.content_type.model_class() == Journal:
             return reverse("wjs_my_messages")
@@ -895,7 +887,7 @@ class Message(TimeStampedModel):
         if getattr(settings, "NO_NOTIFICATION", None):
             return
 
-        if self.message_type == Message.MessageTypes.SILENT:
+        if self.verbosity == Message.MessageVerbosity.TIMELINE:
             return
 
         # TODO: move header and footer to journal setting?
@@ -905,7 +897,7 @@ class Message(TimeStampedModel):
         notification_subject = self.subject if self.subject else self.body[:111].replace("\n", " ")
         notification_subject = f"🦄 {self.get_subject_prefix()} {notification_subject}"
 
-        if self.message_type == Message.MessageTypes.VERBOSE:
+        if self.verbosity == Message.MessageVerbosity.FULL:
             notification_body = self.body
         else:
             notification_body = self.body[:111]

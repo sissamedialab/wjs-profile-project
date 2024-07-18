@@ -1,11 +1,11 @@
 {% load static %}
-      {% if article.primary_issue %}
-        <span class="badge">{{ article.primary_issue }}</span>
-      {% endif %}
-      {% if article.projected_issue %}
-        <span class="badge">{{ article.projected_issue }}</span>
-      {% endif %}
-      {% include "wjs_review/lists/elements/attention.html" %}
-      {% if article.language != "eng" %}
-        <img src="{% static 'img/languages/{{ article.language }}.png' %}" alt="{% translate "Flag for language" %} {{ article.language }}" title="{% translate "Article language" %}: {{ article.language }}" />
-      {% endif %}
+{% if article.primary_issue %}
+  <div class="badge text-bg-secondary">{{ article.primary_issue }}</div>
+{% endif %}
+{% if article.projected_issue %}
+  <div class="badge text-bg-secondary">{{ article.projected_issue }}</div>
+{% endif %}
+{% include "wjs_review/lists/elements/attention.html" %}
+{% if article.language != "eng" %}
+  <img src="{% static 'img/languages/{{ article.language }}.png' %}" alt="{% translate "Flag for language" %} {{ article.language }}" title="{% translate "Article language" %}: {{ article.language }}" />
+{% endif %}
