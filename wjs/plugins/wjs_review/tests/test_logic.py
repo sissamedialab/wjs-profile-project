@@ -342,7 +342,7 @@ def test_editor_assigns_themselves_as_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == section_editor.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert assignment.date_accepted.date() == _now.date()
+    assert localtime(assignment.date_accepted).date() == _now.date()
 
     message_subject = render_template_from_setting(
         setting_group_name="wjs_review",

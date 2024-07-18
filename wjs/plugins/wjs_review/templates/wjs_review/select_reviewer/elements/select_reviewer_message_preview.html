@@ -1,0 +1,11 @@
+{% load i18n %}
+{% if preview %}
+  <div class="card" id="reviewer-message-preview">
+    <div class="card-body">
+      <h5 class="card-title">{% translate "Preview" %}</h5>
+      <p class="card-text">
+        {{ preview|safe }}
+      </p>
+    </div>
+  </div>
+{% endif %}

@@ -1,0 +1,56 @@
+{% load django_bootstrap5 wjs_review %}
+{% url "wjs_select_reviewer" workflow.pk as wjs_select_reviewer %}
+{% for user in users %}
+  {% url "wjs_invite_reviewer_prophy" workflow.pk user.author_id as invite_reviewer_prophy %}
+  {% reviewer_btn_props user selected workflow as btn %}
+  <tr>
+    <td>
+      {% if user.wjs_is_only_prophy %}
+        <a href="{{ user.wjs_prophy_auth_url }}{{ user.author_id }}" title="{% translate "Candidate's details on Prophy" %}">{{ user.full_name }}</a>
+      {% else %}
+        {{ user.full_name }}
+      {% endif %}
+    </td>
+    <td>{{ user.email }}</td>
+    <td>
+      {% if user.wjs_is_author %}{% translate "Author of the paper" %}{% endif %}
+      {# TODO: user.is_active to be replaced by user.does_not_want_to_review_anything #}
+      {% if not user.is_active %}{% translate "Inactive user" %}{% endif %}
+      {% if user.wjs_is_active_reviewer %}
+        {% if user.wjs_has_declined_current_review_round %}
+          {% translate "Declined this round" %}
+        {% elif user.wjs_has_currently_completed_review %}
+          {% translate "Completed this round" %}
+        {% else %}
+          {% translate "Active reviewer/already selected" %}
+        {% endif %}
+      {% else %}
+        {# Show flags for previous rounds only if there is nothing for the current one. #}
+        {% if user.wjs_is_past_reviewer %}
+          {% if user.wjs_has_delined_previous_review_round %}
+            {% translate "Declined previous round" %}
+          {% elif user.wjs_has_previously_completed_review %}
+            {% translate "Completed previous round" %}
+          {% else %}
+            {% translate "Past reviewer (assignment not declined, but review never completed)" %}
+          {% endif %}
+        {% endif %}
+      {% endif %}
+      {% if user.wjs_is_prophy_candidate %}{% translate "Prophy candidate for the paper" %}{% endif %}
+    </td>
+    <td class="text-center">
+      <!-- djlint:off -->
+      {% translate "Invite new <i class=\"bi bi-person-plus-fill\"></i>" as invite_label %}
+      <!-- djlint:on -->
+      {% translate "Select" as select_label %}
+      {% comment %} Tooltips for .disabled or disabled elements must be triggered on a wrapper element. {% endcomment %}
+      {% if user.wjs_is_only_prophy %}
+        {% bootstrap_button name="invite-reviewer" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_vals=btn.value hx_get=invite_reviewer_prophy hx_target="#htmxModalContent" content=invite_label %}
+      {% else %}
+        <div class="d-inline-block" tabindex="0" data-toggle="tooltip" title="{{ btn.disabled_cause }}">
+          {% bootstrap_button name="assign-reviewer" disabled=btn.disabled data_bs_toggle="modal" data_bs_target="#htmxModal" button_class=btn.css_class hx_vals=btn.value hx_trigger="click" hx_post=wjs_select_reviewer hx_target="#htmxModalContent" data_toggle=btn.disabled_cause content=select_label %}
+        </div>
+      {% endif %}
+    </td>
+  </tr>
+{% endfor %}

@@ -1,0 +1,22 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Invite" as invite_label %}
+{% translate "Close" as close_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Invite Reviewer" %}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  <form method="post" action="{% url "wjs_invite_reviewer" pk=workflow.pk %}">
+    {% csrf_token %}
+    <div class="d-flex gap-2">
+      {% bootstrap_field form.first_name %}
+      {% bootstrap_field form.last_name %}
+      {% bootstrap_field form.email %}
+    </div>
+    {% bootstrap_field form.message %}
+    {% bootstrap_field form.author_note_visible %}
+    <div class="d-flex justify-content-end mt-3">
+      {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content=invite_label %}
+    </div>
+  </form>
+</div>

@@ -1,0 +1,39 @@
+{% load django_bootstrap5 static %}
+{% translate "Search" as search_label %}
+{% translate "Reset" as reset_label %}
+<!-- djlint:off -->
+{% translate "Invite new <i class=\"bi bi-person-plus-fill\"></i>" as invite_label %}
+<!-- djlint:on -->
+{% url "wjs_select_reviewer" workflow.pk as search_reviewer %}
+{% url "wjs_invite_reviewer" workflow.pk as invite_reviewer %}
+<div class="card">
+  <div class="card-body">
+    <form name="search-reviewer-form" hx-get="{{ search_reviewer }}" hx-trigger="submit" hx-target="#select-reviewer-table">
+      <h5>{% translate "Find reviewer" %}</h5>
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="d-flex gap-2 align-items-start">
+          {% bootstrap_field search_form.search show_label=False %}
+          {% bootstrap_field search_form.user_type show_label=False %}
+          {% bootstrap_button button_type=link button_class="btn-outline-secondary" href=request.path content=reset_label %}
+          {% bootstrap_button button_type="submit" content=search_label %}
+        </div>
+        {% bootstrap_button name="invite-reviewer" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=invite_reviewer hx_target="#htmxModalContent" content=invite_label %}
+      </div>
+    </form>
+    <table class="table table-hover table-striped table-bordered mt-4" id="reviewers">
+      <thead class="sticky-top bg-light">
+      <tr>
+        <th scope="col" class="col-3"
+            title="{% translate "Click to go user's profile-as-reviewer with name, orcid, affil, reviewer stats, workload-as-reviewer?, kwd-as-rev?, editor's personal notes on the rev.,..." %}">{% translate "Name" %}</th>
+        <th scope="col" class="col-4">{% translate "Email" %}</th>
+        <th scope="col" class="col-2" title="{% translate "Past | prophy | notes | declined-or-removed |" %}">{% translate "Flags" %}</th>
+        <th scope="col" class="col-1" title="{% translate "Gray out if already-assigned | author-of-paper | disabled" %}">{% translate "Action" %}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% include "wjs_review/select_reviewer/elements/reviewers_list.html" with users=reviewers selected=form.data.reviewer %}
+      </tbody>
+    </table>
+    {% include "wjs_review/base/elements/pagination.html" %}
+  </div>
+</div>

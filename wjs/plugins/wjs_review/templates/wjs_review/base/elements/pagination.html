@@ -5,7 +5,7 @@
       <ul class="pagination mb-0 mx-1">
         {% if page_obj.has_previous %}
           <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.previous_page_number }}" tabindex="-1"><</a>
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ querystring.urlencode }}" tabindex="-1"><</a>
           </li>
         {% else %}
           <li class="page-item disabled">
@@ -20,18 +20,18 @@
             </li>
           {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+              <a class="page-link" href="?page={{ num }}&{{ querystring.urlencode }}">{{ num }}</a>
             </li>
           {% elif num > page_obj.number|add:"-4" and num < page_obj.number|add:"4" %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ num }}">⋯</a>
+              <a class="page-link" href="?page={{ num }}&{{ querystring.urlencode }}">⋯</a>
             </li>
           {% endif %}
         {% endfor %}
 
         {% if page_obj.has_next %}
           <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.next_page_number }}">></a>
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ querystring.urlencode }}">></a>
           </li>
         {% else %}
           <li class="page-item disabled">

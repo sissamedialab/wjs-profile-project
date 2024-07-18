@@ -2,14 +2,25 @@ from typing import Iterable, Optional
 
 from core.models import AccountRole
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Exists, OuterRef, Q, QuerySet, Subquery, Value
+from django.db.models import (
+    Case,
+    Count,
+    Exists,
+    IntegerField,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
 from django.http import QueryDict
 from journal.models import Journal
 from review.models import ReviewAssignment
 from submission.models import Article, Keyword
 from utils.logger import get_logger
 
-from .models import ArticleWorkflow, ProphyCandidate
+from .models import ArticleWorkflow, ProphyCandidate, WjsEditorAssignment
 
 logger = get_logger(__name__)
 
@@ -63,6 +74,7 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
             | Q(reviewer__article__keywords__word__icontains=search_text),
         )
 
+    current_editor = WjsEditorAssignment.objects.get_current(workflow).editor
     # No need to exclude authors: the info is "annotated" `qs = self.exclude_authors(workflow)`
     qs = self.annotate_is_author(workflow.article)
 
@@ -71,6 +83,7 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
 
     qs = qs.annotate_has_currently_completed_review(workflow.article)
     qs = qs.annotate_has_previously_completed_review(workflow.article)
+    qs = qs.annotate_ordering_score(current_editor)
 
     qs = qs.annotate_declined_current_review_round(workflow.article)
     qs = qs.annotate_declined_previous_review_round(workflow.article)
@@ -80,9 +93,7 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
 
     if user_type := search_data.get("user_type"):
         if user_type == "known":
-            qs = qs.annotate_worked_with_me(
-                workflow.article.current_review_round_object().reviewassignment_set.first().editor,
-            )
+            qs = qs.annotate_worked_with_me(current_editor)
             qs = qs.filter(wjs_worked_with_me=True)
         if user_type == "past":
             qs = qs.filter(wjs_is_past_reviewer=True)
@@ -95,8 +106,14 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
 
     if q_filters:
         qs = qs.filter(q_filters)
-    # FIXME: Order must be updated once we have full annotation for user types
-    return qs.order_by("-is_active", "first_name")
+    if not search_data.get("search") and not search_data.get("user_type"):
+        qs = qs.filter(wjs_is_author=False)
+        qs = qs.filter(is_active=True)
+        qs = qs.filter(wjs_is_active_reviewer=False)
+        qs = qs.filter(ordering_score__gt=0)
+
+    qs = qs.order_by("-ordering_score", "last_name").distinct()
+    return qs
 
 
 def annotate_is_author(self, article: Article):
@@ -125,7 +142,7 @@ def annotate_is_active_reviewer(self, article: Article):
         article=article.id,
         reviewer=OuterRef("id"),
         review_round__round_number=current_round,
-        # this will be checed elsewhere date_declined__isnull=True,
+        # this will be checked elsewhere date_declined__isnull=True,
     )
 
     return self.annotate(
@@ -284,3 +301,14 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
         editor.matching_keywords = list(matching_keywords)
 
     return editors
+
+
+def annotate_ordering_score(self, current_editor: Account) -> QuerySet[Account]:
+    return self.annotate(
+        ordering_score=Case(
+            When(id=current_editor.id, then=Value(2)),
+            When(wjs_has_previously_completed_review=True, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    )

@@ -1,6 +1,6 @@
 {% load django_bootstrap5 press_url static %}
 {% url 'core_edit_profile' as core_edit_profile %}
-<header class="header-main bg-header pt-2 mb-4">
+<header class="header-main bg-header pt-2 mb-3">
   <div class="middle-header py-1">
     <div class="container">
       <div class="row">
@@ -33,7 +33,7 @@
                 {% if view.extra_links %}
                   {% for url, title in view.extra_links.items %}
                     <li class="nav-item">
-                      {% bootstrap_button button_type="link" button_class="btn-link" name="more" content=title href=url size="sm" extra_classes="mx-1" %}
+                      {% bootstrap_button button_type="link" button_class="btn-link ps-0" name="more" content=title href=url size="sm" extra_classes="mx-1" %}
                     </li>
                   {% endfor %}
                 {% endif %}

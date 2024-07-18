@@ -1,0 +1,30 @@
+{% load django_bootstrap5 i18n static %}
+{% translate "Past review notes" as review_notes %}
+{% translate "Close" as close_label %}
+{% url "wjs_article_details" workflow.pk as article_details %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Select Reviewer" %}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  <form method="post" action="{% url 'wjs_select_reviewer' workflow.pk %}">
+    {% csrf_token %}
+    {% bootstrap_form_errors form layout='inline' %}
+    {% bootstrap_form form %}
+    {% if workflow.article.comments_editor %}
+      {% bootstrap_button button_type="button" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#authorNotesCollapse" aria_expanded="false" aria_controls="authorNotesCollapse" content=review_notes %}
+      <div class="collapse mt-3" id="authorNotesCollapse">
+        <div class="card card-body">
+          {{ workflow.article.comments_editor }}
+        </div>
+      </div>
+    {% endif %}
+    <div class="d-flex justify-content-between mt-3">
+      {% bootstrap_button button_type="button" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#messagePreviewCollapse" aria_expanded="false" aria_controls="messagePreviewCollapse" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
+      {% bootstrap_button button_type="submit" content="Assign" %}
+    </div>
+    <div class="collapse mt-3" id="messagePreviewCollapse">
+      {% include "wjs_review/select_reviewer/elements/select_reviewer_message_preview.html" %}
+    </div>
+  </form>
+</div>

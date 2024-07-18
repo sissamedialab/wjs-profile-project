@@ -39,6 +39,7 @@ class WjsReviewConfig(AppConfig):
         AccountManager.annotate_worked_with_me = users.annotate_worked_with_me
         AccountManager.annotate_is_prophy_candidate = users.annotate_is_prophy_candidate
         AccountManager.annotate_is_only_prophy = users.annotate_is_only_prophy
+        AccountManager.annotate_ordering_score = users.annotate_ordering_score
 
         AccountQuerySet.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
         AccountQuerySet.annotate_has_previously_completed_review = users.annotate_has_previously_completed_review
@@ -47,6 +48,7 @@ class WjsReviewConfig(AppConfig):
         AccountQuerySet.annotate_worked_with_me = users.annotate_worked_with_me
         AccountQuerySet.annotate_is_prophy_candidate = users.annotate_is_prophy_candidate
         AccountQuerySet.annotate_is_only_prophy = users.annotate_is_only_prophy
+        AccountQuerySet.annotate_ordering_score = users.annotate_ordering_score
 
         self.register_events()
 
