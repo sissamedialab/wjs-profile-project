@@ -1,0 +1,29 @@
+{% load files %}
+<tr>
+  <th>{{ title }}</th>
+  <th>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
+      {% translate "Use this version" %}
+    </button>
+    {% translate "Confirm replace" as confirm_label %}
+    {% translate "Replace files" as replace_label %}
+    {% translate "Replace files with selected version" as replace_body %}
+    {% include "elements/modal.html" with id=modal_id url=url cta=confirm_label title=replace_label body=replace_body %}
+  </th>
+</tr>
+<tr>
+  <th>{% translate "Label" %}</th>
+  <th>{% translate "Filename" %}</th>
+  <th>{% translate "Uploaded" %}</th>
+  <th>{% translate "Size" %}</th>
+  <th>{% translate "Download" %}</th>
+</tr>
+{% for file in files %}
+  <tr>
+    <td>{{ file.label }}</td>
+    <td>{{ file.original_filename }}</td>
+    <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
+    <td>{% file_size file article %}</td>
+    <td><a href="?file_id={{ file.id }}">↓</a></td>
+  </tr>
+{% endfor %}

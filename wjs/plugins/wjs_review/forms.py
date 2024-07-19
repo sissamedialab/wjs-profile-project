@@ -582,6 +582,25 @@ class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
 
 
 class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
+    confirm_title = forms.BooleanField(
+        label=_("I confirm that title and abstract on this web page correspond to those written in the preprint file.")
+    )
+    confirm_styles = forms.BooleanField(
+        label=_(
+            "I confirm that this resubmission fulfills the stylistic guidelines of the Journal and its ethical policy "
+            "in all its aspects including use of AI, authorship, etc.."
+        )
+    )
+    confirm_blind = forms.BooleanField(
+        label=_("I confirm that the file does not contain any author information and has line numbering..")
+    )
+    confirm_cover = forms.BooleanField(
+        label=_(
+            "I confirm that the cover letter lists and describes clearly the changes implemented in the preprint "
+            "and motivates any modifications that have not been made.."
+        )
+    )
+
     class Meta:
         model = EditorRevisionRequest
         fields = ["author_note"]
@@ -615,6 +634,19 @@ class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+    def check_for_potential_errors(self):
+        """Check if the user has confirmed all the required fields."""
+        errors = []
+        if not self.cleaned_data.get("confirm_title", False):
+            errors.append(_("You must confirm that the title and abstract correspond to the preprint file."))
+        if not self.cleaned_data.get("confirm_styles", False):
+            errors.append(_("You must confirm that the resubmission fulfills the stylistic guidelines."))
+        if not self.cleaned_data.get("confirm_blind", False):
+            errors.append(_("You must confirm that the file does not contain any author information."))
+        if not self.cleaned_data.get("confirm_cover", False):
+            errors.append(_("You must confirm that the cover letter lists and describes the changes."))
+        return errors
 
 
 class MessageRecipientForm(forms.Form):
