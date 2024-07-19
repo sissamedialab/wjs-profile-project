@@ -37,9 +37,8 @@
     <td>
       {% with editor_assignment_data=article|article_current_editor %}
         {{ editor_assignment_data.editor }}
-        {% if view.table_configuration_options.table_variant != "archive" %}
-          <br />
-          <span title="assigned">{{ editor_assignment_data.days_elapsed }} days</span>
+        {% if not view.table_configuration_options.hide_editor_age and workflow.get_state_display == "Editor selected" %}
+          <div title="assigned">{{ editor_assignment_data.days_elapsed }} {% translate "days" %}</div>
         {% endif %}
       {% endwith %}
     </td>

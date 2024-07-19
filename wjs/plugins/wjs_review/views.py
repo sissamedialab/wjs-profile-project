@@ -436,7 +436,11 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
 
 class DirectorArchived(DirectorPending):
     title = _("Archived preprints")
-    table_configuration_options = {**DirectorPending.table_configuration_options, "table_variant": "archive"}
+    table_configuration_options = {
+        **DirectorPending.table_configuration_options,
+        "hide_editor_age": True,
+        "table_variant": "archive",
+    }
 
     def _apply_base_filters(self, qs):
         """
