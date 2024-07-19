@@ -1,0 +1,30 @@
+{% load static wjs_review %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="heading-additional-info">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-additional-info" aria-expanded="false" aria-controls="collapse-additional-info">
+      {% translate "Additional info" %}
+    </button>
+  </h2>
+  <div id="collapse-additional-info" class="accordion-collapse collapse" aria-labelledby="heading-additional-info" data-bs-parent="#metadata">
+    <div class="accordion-body">
+      <table class="table">
+        {% journal_with_language_content journal=article.journal as show_english_titles %}
+        {% if show_english_titles %}
+        <tr>
+          <td>{% translate "English title" %}</td><td>{{ article.title_en }}</td>
+        </tr>
+        <tr>
+          <td>{% translate "English abstract" %}</td><td>{{ article.abstract_en }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td>{% translate "Short description" %}</td><td>{{ article.articleworkflow.social_media_short_description }}</td>
+        </tr>
+        <tr>
+          <td>{% translate "Image" %}</td>
+          <td><img src="{{ article.meta_image.url }}" width="100"><br><a href="{{ article.meta_image.url }}"" target="_blank">Download image</a></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>

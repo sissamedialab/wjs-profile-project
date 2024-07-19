@@ -10,6 +10,7 @@ import json
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from django import template
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
@@ -444,3 +445,16 @@ def article_order(issue: Issue, section: Section, article: Article) -> int:
         return ArticleOrdering.objects.get(article=article, issue=issue, section=section).order
     except ArticleOrdering.DoesNotExist:
         return 0
+
+
+@register.simple_tag()
+def journal_with_language_content(journal: Journal) -> bool:
+    """
+    Check if journal requires english content.
+
+    :param journal: The journal to check access to.
+    :type journal: Journal
+    :return True if the journal has english language, False otherwise.
+    :rtype: bool
+    """
+    return journal.code in settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT
