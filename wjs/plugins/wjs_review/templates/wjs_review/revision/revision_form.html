@@ -1,0 +1,28 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static %}
+
+{% block title %}{% translate "Submit revision for" %} {{ revision_request.article.title }}{% endblock title %}
+
+{% block content_wrapper %}
+  BREADCRUMB TODO
+
+  <div class="container mb-3">
+    <h2>{{ view.title }}</h2>
+  </div>
+  <div class="container mb-3">
+    {% include "wjs_review/revision/elements/info.html" %}
+    {% include "wjs_review/revision/elements/meta_data.html" %}
+    {% include "wjs_review/revision/elements/past_revisions.html" %}
+    {% include "wjs_review/revision/elements/revision_files.html" %}
+    {% if form.modal %}
+      {% include "admin/elements/confirm_modal.html" with modal=form.modal form_id="do_revision" %}
+    {% endif %}
+  </div>
+{% endblock content_wrapper %}
+
+{% block bootstrap5_extra_head %}
+  {{ block.super }}
+  {% if form.modal %}
+    {% include "admin/elements/open_modal.html" with target=form.modal.id %}
+  {% endif %}
+{% endblock bootstrap5_extra_head %}

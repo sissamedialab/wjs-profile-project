@@ -1,0 +1,57 @@
+{% load django_bootstrap5 files %}
+<table class="table">
+  <tr>
+    <th>{% translate "Label" %}</th>
+    <th>{% translate "Filename" %}</th>
+    <th>{% translate "Type" %}</th>
+    <th>{% translate "Uploaded" %}</th>
+    <th>{% translate "Size" %}</th>
+    <th>{% translate "Download" %}</th>
+    {% if revision_request.type != "tech_revisions" %}
+      <th>{% translate "Upload Revised File" %}</th>
+      <th>{% translate "Delete" %}</th>
+    {% endif %}
+  </tr>
+  {% for file in article.manuscript_files.all %}
+    {% url "article_file_download" "id" article.pk file.pk as download_file_url %}
+    {% url "revisions_replace_file" article.pk revision_request.pk file.pk as replace_file_url %}
+    <tr>
+      <td>{{ file.label }}</td>
+      <td>{{ file.original_filename }}</td>
+      <td>{% translate "Manuscript" %}</td>
+      <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
+      <td>{% file_size file article %}</td>
+      <td>
+        {# djlint:off #}{% bootstrap_button button_class="btn-outline-primary btn-sm" href=download_file_url content="<i class=\"bi bi-cloud-arrow-down-fill\"></i>" %}{# djlint:on #}
+      </td>
+      {% if revision_request.type != "tech_revisions" %}
+        <td>
+          {# djlint:off #}{% bootstrap_button button_type="link" button_class="btn-outline-primary btn-sm" href=replace_file_url content="<i class=\"bi bi-cloud-arrow-up-fill\"></i>" %}{# djlint:on #}
+        </td>
+        <td>
+          {# djlint:off #}{% bootstrap_button name="delete" button_type="submit" button_class="btn-outline-primary btn-sm" value=file.pk onclick="return confirm('Are you sure you want to delete this item?');" content="<i class=\"bi bi-trash3-fill\"></i>" %}{# djlint:on #}
+        </td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  {% for file in article.data_figure_files.all %}
+    {% url "article_file_download" "id" article.pk file.pk as download_file_url %}
+    {% url "revisions_replace_file" article.pk revision_request.pk file.pk as replace_file_url %}
+    <tr>
+      <td>{{ file.label }}</td>
+      <td>{{ file.original_filename }}</td>
+      <td>{% translate "Data/Figure" %}</td>
+      <td>{{ file.date_uploaded|date:"Y-m-d G:i" }}</td>
+      <td>{% file_size file article %}</td>
+      <td>
+        {# djlint:off #}{% bootstrap_button button_type="link" button_class="btn-outline-primary btn-sm" href=download_file_url content="<i class=\"bi bi-cloud-arrow-down-fill\"></i>" %}{# djlint:on #}
+      </td>
+      <td>
+        {# djlint:off #}{% bootstrap_button button_type="link" button_class="btn-outline-primary btn-sm" href=replace_file_url content="<i class=\"bi bi-cloud-arrow-up-fill\"></i>" %}{# djlint:on #}
+      </td>
+      <td>
+        {# djlint:off #}{% bootstrap_button name="delete" button_type="submit" button_class="btn-outline-primary btn-sm" value=file.pk onclick="return confirm('Are you sure you want to delete this item?');" content="<i class=\"bi bi-trash3-fill\"></i>" %}{# djlint:on #}
+      </td>
+    </tr>
+  {% endfor %}
+</table>

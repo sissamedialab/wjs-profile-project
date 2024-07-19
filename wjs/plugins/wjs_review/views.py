@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import django_filters
 from core import files as core_files
 from core import models as core_models
-from django import forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -1510,9 +1509,10 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
     model = EditorRevisionRequest
     form_class = EditorRevisionRequestEditForm
     pk_url_kwarg = "revision_id"
-    template_name = "admin/review/revision/do_revision.html"
+    template_name = "wjs_review/revision/revision_form.html"
     context_object_name = "revision_request"
     meta_data_fields = ["title", "abstract"]
+    title = _("Submit Revision")
 
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
@@ -1539,24 +1539,16 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
         ).order_by("-review_round__round_number")
 
     def get_form_kwargs(self) -> Dict[str, Any]:
+        save_metadata = bool(self.request.POST.get("save_metadata"))
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
+        # when saving metadata form main view form must not be instatiated as submitted
+        # so we remove data / files to skip form instatiation and validation
+        if save_metadata:
+            del kwargs["data"]
+            del kwargs["files"]
         return kwargs
-
-    def _get_form_class(self) -> Type[model_forms.BaseModelForm]:
-        """Return EditorRevisionRequestEditForm or MetadataForm class depending on the POST submit button."""
-        if self.request.POST.get("save_metadata"):
-            return self._get_metadata_form_class()
-        else:
-            return super().get_form_class()
-
-    def _get_form(self, form_class: Optional[Type[forms.Form]] = None) -> model_forms.BaseModelForm:
-        """Return EditorRevisionRequestEditForm or MetadataForm instance depending on the POST submit button."""
-        if self.request.POST.get("save_metadata"):
-            return self._get_metadata_form()
-        else:
-            return super().get_form()
 
     def _get_metadata_form_class(self) -> Type[model_forms.BaseModelForm]:
         """Generate a MetadataForm class for the article."""
@@ -1568,11 +1560,9 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
 
         Form might be None if the article is not in a state where metadata can be edited.
         """
-        if self.object.type != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-            return None
         form_class = self._get_metadata_form_class()
 
-        if self.request.method == "POST" and self.request.POST.get("save_metadata"):
+        if self.request.POST.get("save_metadata"):
             meta_data_form = form_class(self.request.POST, instance=self.object.article)
             meta_data_form.is_valid()
             return meta_data_form
