@@ -11,18 +11,19 @@
         {% journal_with_language_content journal=article.journal as show_english_titles %}
         {% if show_english_titles %}
         <tr>
-          <td>{% translate "English title" %}</td><td>{{ article.title_en }}</td>
+          <td>{% translate "English title" %}</td><td>{{ article.title_en|default:"" }}</td>
         </tr>
         <tr>
-          <td>{% translate "English abstract" %}</td><td>{{ article.abstract_en }}</td>
+          <td>{% translate "English abstract" %}</td><td>{{ article.abstract_en|default:"" }}</td>
         </tr>
         {% endif %}
         <tr>
-          <td>{% translate "Short description" %}</td><td>{{ article.articleworkflow.social_media_short_description }}</td>
+          <td>{% translate "Short description" %}</td><td>{{ article.articleworkflow.social_media_short_description|default:"" }}</td>
         </tr>
+
         <tr>
           <td>{% translate "Image" %}</td>
-          <td><img src="{{ article.meta_image.url }}" width="100"><br><a href="{{ article.meta_image.url }}"" target="_blank">Download image</a></td>
+          <td>{% if article.meta_image %}<img src="{{ article.meta_image.url }}" title="{{ article }} cover image" width="100" alt="{% translate "Article cover image" %}"><br><a href="{{ article.meta_image.url }}"" target="_blank">Download image</a>{% endif %}</td>
         </tr>
       </table>
     </div>
