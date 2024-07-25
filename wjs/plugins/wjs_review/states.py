@@ -319,7 +319,7 @@ class BaseState:
         return None
 
 
-class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
+class EditorToBeSelected(BaseState):
     """Editor to be selected."""
 
     article_actions = BaseState.article_actions + (
@@ -337,7 +337,7 @@ class EditorToBeSelected(BaseState):  # noqa N801 CapWords convention
         return conditions.always(article)
 
 
-class EditorSelected(BaseState):  # noqa N801 CapWords convention
+class EditorSelected(BaseState):
     """Editor selected"""
 
     article_actions = BaseState.article_actions + (
@@ -510,31 +510,31 @@ class EditorSelected(BaseState):  # noqa N801 CapWords convention
         return ""
 
 
-class Submitted(BaseState):  # noqa N801 CapWords convention
+class Submitted(BaseState):
     """Submitted"""
 
 
-class Withdrawn(BaseState):  # noqa N801 CapWords convention
+class Withdrawn(BaseState):
     """Withdrawn"""
 
 
-class IncompleteSubmission(BaseState):  # noqa N801 CapWords convention
+class IncompleteSubmission(BaseState):
     """Incomplete submission"""
 
 
-class NotSuitable(BaseState):  # noqa N801 CapWords convention
+class NotSuitable(BaseState):
     """Not suitable"""
 
 
-class PaperHasEditorReport(BaseState):  # noqa N801 CapWords convention
+class PaperHasEditorReport(BaseState):
     """Paper has editor report"""
 
 
-class Accepted(BaseState):  # noqa N801 CapWords convention
+class Accepted(BaseState):
     """Accepted"""
 
 
-class ToBeRevised(BaseState):  # noqa N801 CapWords convention
+class ToBeRevised(BaseState):
     """To be revised"""
 
     article_actions = BaseState.article_actions + (
@@ -614,20 +614,33 @@ class ToBeRevised(BaseState):  # noqa N801 CapWords convention
         return ""
 
 
-class Rejected(BaseState):  # noqa N801 CapWords convention
+class Rejected(BaseState):
     """Rejected"""
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.has_admin_role_by_article,
-            name="opens appeal",
-            label="",
-            view_name="WRITEME!",
+            name="admin opens an appeal",
+            label="Open Appeal",
+            view_name="wjs_open_appeal",
         ),
     )
 
 
-class PaperMightHaveIssues(BaseState):  # noqa N801 CapWords convention
+class UnderAppeal(BaseState):
+    """Under appeal after rejection"""
+
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        """
+        Tell if the article requires attention by the EO.
+        """
+        if attention_flag := conditions.author_revision_is_late(article):
+            return attention_flag
+        return ""
+
+
+class PaperMightHaveIssues(BaseState):
     """Paper might have issues"""
 
     article_actions = BaseState.article_actions + (

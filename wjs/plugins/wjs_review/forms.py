@@ -27,7 +27,7 @@ from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
-from wjs.jcom_profile.constants import EO_GROUP
+from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
 
 from . import communication_utils, conditions
 from .logic import (
@@ -40,6 +40,7 @@ from .logic import (
     HandleEditorDeclinesAssignment,
     HandleMessage,
     InviteReviewer,
+    OpenAppeal,
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
@@ -512,6 +513,7 @@ class DecisionForm(forms.ModelForm):
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
             ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+            ArticleWorkflow.Decisions.OPEN_APPEAL,
         )
         self.hide_decision = kwargs["initial"].get("decision", None)
         if "initial" not in kwargs:
@@ -1111,3 +1113,40 @@ class ArticleExtraInformationUpdateForm(forms.ModelForm):
             instance.article.abstract_en = self.cleaned_data["english_abstract"]
             instance.article.save()
         return instance
+
+
+class OpenAppealForm(forms.ModelForm):
+    editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
+    state = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = ["state"]
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+        author_ids = self.instance.article.authors.values_list("id", flat=True)
+        self.fields["editor"].queryset = Account.objects.filter(
+            accountrole__role__slug=SECTION_EDITOR_ROLE,
+            accountrole__journal=self.instance.article.journal,
+        ).exclude(id__in=author_ids)
+        self.fields["editor"].initial = WjsEditorAssignment.objects.get_current(article=self.instance.article).editor
+
+    def get_logic_instance(self):
+        """Instantiate :py:class:`AssignToEditor` class."""
+        return OpenAppeal(
+            new_editor=self.cleaned_data["editor"],
+            article=self.instance.article,
+            request=self.request,
+        )
+
+    def save(self, commit=True):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance

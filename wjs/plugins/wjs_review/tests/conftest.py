@@ -186,6 +186,40 @@ def accepted_article(fake_request, assigned_article) -> Article:
     return _accept_article(fake_request, assigned_article)
 
 
+def _reject_article(article: Article, fake_request: HttpRequest) -> Article:
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.REJECT,
+        "decision_editor_report": "Some editor report",
+        "decision_internal_note": "Some internal note",
+        "withdraw_notice": "Some withdraw notice",
+    }
+    assert fake_request.user is not None
+    editor_decision = HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=fake_request.user,
+        request=fake_request,
+    ).run()
+    workflow = editor_decision.workflow
+    assert workflow.state == ArticleWorkflow.ReviewStates.REJECTED
+    cleanup_notifications_side_effects()
+    return workflow.article
+
+
+@pytest.fixture
+def rejected_article(fake_request, assigned_article) -> Article:
+    """Create and return a rejected article.
+
+    See notes about notifications in `assigned_article`.
+    """
+    if fake_request.user is None:
+        # This can happen when this fixture is called by other fixtures
+        # In this case it should be safe to assume that the editor assigned to the article is performing the rejection
+        # (which is the most common case)
+        fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    return _reject_article(assigned_article, fake_request)
+
+
 def _ready_for_typesetter_article(article: Article) -> Article:
     workflow = article.articleworkflow
     if workflow.state == ArticleWorkflow.ReviewStates.ACCEPTED:

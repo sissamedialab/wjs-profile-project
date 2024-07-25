@@ -53,7 +53,7 @@ from .logic__production import (  # noqa F401
     UploadFile,
     VerifyProductionRequirements,
 )
-from .permissions import is_article_editor
+from .permissions import has_any_editor_role_by_article, is_article_editor
 from .reminders.settings import (
     AuthorShouldSubmitMajorRevisionReminderManager,
     AuthorShouldSubmitMinorRevisionReminderManager,
@@ -111,6 +111,12 @@ states_when_article_is_considered_in_review = [
     ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
 ]
 
+# Editors should not see papers under appeal until the author submitted a revision,
+# but EO/director should see them always
+states_when_article_is_considered_in_review_for_eo_and_director = states_when_article_is_considered_in_review + [
+    ArticleWorkflow.ReviewStates.UNDER_APPEAL
+]
+
 # TODO: write me!
 states_when_article_is_considered_in_production = [
     ArticleWorkflow.ReviewStates.ACCEPTED,
@@ -132,6 +138,7 @@ states_when_article_is_considered_production_archived = [
 ]
 states_when_article_is_considered_author_pending = [
     ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+    ArticleWorkflow.ReviewStates.UNDER_APPEAL,
 ]
 
 
@@ -1215,6 +1222,7 @@ class HandleDecision:
         ArticleWorkflow.Decisions.REQUIRES_RESUBMISSION: "_requires_resubmission",
         ArticleWorkflow.Decisions.MINOR_REVISION: "_revision_article",
         ArticleWorkflow.Decisions.MAJOR_REVISION: "_revision_article",
+        ArticleWorkflow.Decisions.OPEN_APPEAL: "_revision_article",
         ArticleWorkflow.Decisions.TECHNICAL_REVISION: "_technical_revision_article",
     }
 
@@ -1238,7 +1246,10 @@ class HandleDecision:
         Checked states are different between admin and non-admin mode.
         """
         if admin_mode:
-            return workflow.state in (ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,)
+            return workflow.state in (
+                ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+                ArticleWorkflow.ReviewStates.REJECTED,
+            )
         else:
             return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
 
@@ -1599,19 +1610,21 @@ class HandleDecision:
         - Update workflow and article states
         - Creare EditorRevisionRequest
         """
-        self.workflow.editor_writes_editor_report()
-        self.workflow.editor_requires_a_revision()
+        if self.form_data["decision"] in [
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+        ]:
+            self.workflow.editor_writes_editor_report()
+            self.workflow.editor_requires_a_revision()
+        elif self.form_data["decision"] == ArticleWorkflow.Decisions.OPEN_APPEAL:
+            self.workflow.admin_opens_an_appeal()
         self.workflow.save()
         self.workflow.article.stage = STAGE_UNDER_REVISION
         self.workflow.article.save()
         revision = EditorRevisionRequest.objects.create(
             article=self.workflow.article,
             editor=self.user,
-            type=(
-                ArticleWorkflow.Decisions.MINOR_REVISION
-                if self.form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION
-                else ArticleWorkflow.Decisions.MAJOR_REVISION
-            ),
+            type=self.form_data["decision"],
             date_requested=timezone.now(),
             date_due=self.form_data["date_due"],
             editor_note=self.form_data["decision_editor_report"],
@@ -1621,7 +1634,13 @@ class HandleDecision:
         context = self._get_message_context(revision)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
-        self._log_revision_request(context=context, revision_type=revision.type)
+        if self.form_data["decision"] in [
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+        ]:
+            # For the decision OPEN_APPEAL, the logging of the operation has already been taken care of by the
+            # OpenAppeal logic.
+            self._log_revision_request(context=context, revision_type=revision.type)
         revision.refresh_from_db()
         if self.form_data["decision"] == ArticleWorkflow.Decisions.MINOR_REVISION:
             AuthorShouldSubmitMinorRevisionReminderManager(
@@ -2134,9 +2153,60 @@ class PostponeReviewerDueDate:
 
 
 @dataclasses.dataclass
+class BaseDeassignEditor:
+    """Base Editor deassignment logic. An editor is detached from an article."""
+
+    assignment: WjsEditorAssignment
+    editor: Account
+    request: HttpRequest
+
+    @staticmethod
+    def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
+        """Editor must be assigned to the article."""
+        return editor == assignment.editor
+
+    def check_conditions(self):
+        """Check if the conditions for the assignment are met."""
+        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
+        return editor_conditions
+
+    def _delete_assignment(self) -> PastEditorAssignment:
+        """
+        Delete the assignment and backup data to custom model.
+
+        All existing review rounds are link to PastEditorAssignment as the editor keeps visibility of the review
+        rounds.
+        """
+        self._delete_editor_reminders()
+        past = PastEditorAssignment.objects.create(
+            editor=self.assignment.editor,
+            article=self.assignment.article,
+            date_assigned=self.assignment.assigned,
+            date_unassigned=timezone.now(),
+        )
+        migrated_review_rounds = self.assignment.review_rounds.all()
+
+        past.review_rounds.add(*migrated_review_rounds)
+        self.assignment.delete()
+        return past
+
+    def _delete_editor_reminders(self):
+        """Delete all reminders for the editor."""
+        EditorShouldMakeDecisionReminderManager(self.assignment.article, self.assignment.editor).delete()
+        EditorShouldSelectReviewerReminderManager(self.assignment.article, self.assignment.editor).delete()
+
+    def run(self):
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            return self._delete_assignment()
+
+
+@dataclasses.dataclass
 class HandleEditorDeclinesAssignment:
     """
-    Handle disassociation of an editor from an article.
+    Handle disassociation of an editor from an article followed by a declination of editor assignment.
     """
 
     assignment: WjsEditorAssignment
@@ -2177,46 +2247,9 @@ class HandleEditorDeclinesAssignment:
             notify_actor=communication_utils.should_notify_actor(),
         )
 
-    @staticmethod
-    def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
-        """Editor must be assigned to the article."""
-        return editor == assignment.editor
-
-    def check_conditions(self):
-        """Check if the conditions for the assignment are met."""
-        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
-        return editor_conditions
-
     def _update_state(self):
         self.assignment.article.articleworkflow.ed_declines_assignment()
         self.assignment.article.articleworkflow.save()
-
-    def _delete_assignment(self) -> PastEditorAssignment:
-        """
-        Delete the assignment and backup data to custom model.
-
-        All existing review rounds are link to PastEditorAssignment as the editor keeps visibility of the review
-        rounds.
-        """
-        self._delete_editor_reminders()
-        self._create_director_reminder()
-        past = PastEditorAssignment.objects.create(
-            editor=self.assignment.editor,
-            article=self.assignment.article,
-            date_assigned=self.assignment.assigned,
-            date_unassigned=timezone.now(),
-        )
-        migrated_review_rounds = self.assignment.review_rounds.all()
-
-        past.review_rounds.add(*migrated_review_rounds)
-        self.assignment.delete()
-        self._update_state()
-        return past
-
-    def _delete_editor_reminders(self):
-        """Delete all reminders for the editor."""
-        EditorShouldMakeDecisionReminderManager(self.assignment.article, self.assignment.editor).delete()
-        EditorShouldSelectReviewerReminderManager(self.assignment.article, self.assignment.editor).delete()
 
     def _create_director_reminder(self):
         """Create a reminder for the director."""
@@ -2226,13 +2259,15 @@ class HandleEditorDeclinesAssignment:
 
     def run(self) -> PastEditorAssignment:
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
-                raise ValueError(_("Transition conditions not met"))
+            try:
+                past_assignment = BaseDeassignEditor(self.assignment, self.editor, self.request).run()
+            except ValueError:
+                raise
+            self._create_director_reminder()
+            self._update_state()
             self.director = communication_utils.get_director_user(self.assignment.article)
             if self.request.user == self.editor and self.director:
                 self._log_director()
-            past_assignment = self._delete_assignment()
             return past_assignment
 
 
@@ -2338,3 +2373,90 @@ class DeselectReviewer:
                 raise ValueError(_("Transition conditions not met"))
             success = self._withdraw_assignment()
             return success
+
+
+@dataclasses.dataclass
+class OpenAppeal:
+    new_editor: Account
+    article: Article
+    request: HttpRequest
+
+    @staticmethod
+    def _is_current_editor(article: Article, editor: Account) -> bool:
+        """Current editor must be article editor."""
+        return is_article_editor(article.articleworkflow, editor)
+
+    def _is_articles_author(self) -> bool:
+        """Check if selected Editor is the article's author."""
+        return self.article.authors.filter(id=self.new_editor.id).exists()
+
+    def check_conditions(self):
+        """Check if the selected editor is an actual editor for the article's journal."""
+        editor_conditions = has_any_editor_role_by_article(self.article.articleworkflow, self.new_editor)
+        return editor_conditions and not self._is_articles_author()
+
+    def _handle_decision(self):
+        """Instantiate HandleDecision to create the EditorRevisionRequest and the other collateral effects."""
+        form_data = {
+            "decision": ArticleWorkflow.Decisions.OPEN_APPEAL,
+            "decision_editor_report": "",
+            "decision_internal_note": None,
+            "acceptance_due_date": None,
+            "date_due": timezone.now() + datetime.timedelta(days=settings.REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD),
+        }
+        HandleDecision(
+            workflow=self.article.articleworkflow,
+            form_data=form_data,
+            user=self.request.user,
+            request=self.request,
+            admin_form=True,
+        ).run()
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "article": self.article,
+        }
+
+    def _log_author(self):
+        """Logs a message to the Author informing about the appeal."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="eo_opens_appeal_subject",
+            journal=self.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="eo_opens_appeal_body",
+            journal=self.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.new_editor,
+            recipients=[self.article.correspondence_author],
+        )
+
+    def deassign_current_editor(self):
+        """Deassigns the current editor using our existing logic."""
+        current_assignment = WjsEditorAssignment.objects.get_current(article=self.article)
+        BaseDeassignEditor(assignment=current_assignment, editor=current_assignment.editor, request=self.request).run()
+
+    def assign_new_editor(self):
+        """Assigns newly selected editor using our existing logic."""
+        BaseAssignToEditor(editor=self.new_editor, article=self.article, request=self.request).run()
+
+    def run(self):
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            if not self._is_current_editor(self.article, self.new_editor):
+                self.deassign_current_editor()
+                self.assign_new_editor()
+            self._handle_decision()
+            self._log_author()

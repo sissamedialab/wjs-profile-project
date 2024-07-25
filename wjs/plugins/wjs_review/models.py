@@ -103,6 +103,7 @@ class ArticleWorkflow(TimeStampedModel):
         READY_FOR_PUBLICATION = "ReadyForPublication", _("Ready for publication")
         SEND_TO_EDITOR_FOR_CHECK = "SendToEditorForCheck", _("Send to editor for check")
         PUBLICATION_IN_PROGRESS = "PublicationInProgress", _("Publication in progress")
+        UNDER_APPEAL = "UnderAppeal", _("Under appeal")
 
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
@@ -116,6 +117,7 @@ class ArticleWorkflow(TimeStampedModel):
         TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
         REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
+        OPEN_APPEAL = "open_appeal", _("Open appeal")
 
         @classmethod
         @property
@@ -472,7 +474,7 @@ class ArticleWorkflow(TimeStampedModel):
     @transition(
         field=state,
         source=ReviewStates.REJECTED,
-        target=ReviewStates.TO_BE_REVISED,
+        target=ReviewStates.UNDER_APPEAL,
         permission=permissions.has_admin_role_by_article,
         # TODO: conditions=[],
     )

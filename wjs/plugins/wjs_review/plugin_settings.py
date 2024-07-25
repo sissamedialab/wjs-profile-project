@@ -1544,6 +1544,59 @@ def set_default_plugin_settings(force: bool = False):
             editor_deassign_reviewer_system_setting["name"],
         )
 
+    def eo_opens_appeal_message():
+        subject_eo_opens_appeal: SettingParams = {
+            "name": "eo_opens_appeal_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for EO opening an appeal."),
+            "description": _(
+                "The subject of the notification that is sent to the author when EO opens an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        subject_eo_opens_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("{{ article.journal }} {{ article.id }} appeal granted."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_eo_opens_appeal,
+            subject_eo_opens_appeal_setting_value,
+            subject_eo_opens_appeal["name"],
+        )
+        eo_opens_appeal_setting: SettingParams = {
+            "name": "eo_opens_appeal_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for EO opening an appeal."),
+            "description": _(
+                "The body of the notification that is sent to the author when EO opens an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        eo_opens_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ article.correspondence_author.full_name }},
+            you can now submit your appeal from your pages.
+
+            Please visit:
+            {% url "wjs_article_details" article.id %}
+
+            Best regards,
+            EO
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            eo_opens_appeal_setting,
+            eo_opens_appeal_setting_value,
+            eo_opens_appeal_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1571,6 +1624,7 @@ def set_default_plugin_settings(force: bool = False):
     author_sends_corrections_message()
     typesetting_generated_galleys_message()
     editor_deassign_reviewer_messages()
+    eo_opens_appeal_message()
 
 
 def ensure_workflow_elements():

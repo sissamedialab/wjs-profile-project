@@ -60,6 +60,7 @@ from .forms import (
     ForwardMessageForm,
     InviteUserForm,
     MessageForm,
+    OpenAppealForm,
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
@@ -77,6 +78,7 @@ from .logic import (
     states_when_article_is_considered_author_pending,
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
+    states_when_article_is_considered_in_review_for_eo_and_director,
 )
 from .logic__visibility import PermissionChecker
 from .mixins import EditorRequiredMixin
@@ -281,7 +283,7 @@ class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixi
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_in_review,
+            state__in=states_when_article_is_considered_in_review_for_eo_and_director,
         )
 
 
@@ -428,7 +430,7 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
         """
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_in_review)
+            .filter(state__in=states_when_article_is_considered_in_review_for_eo_and_director)
             .exclude(article__authors=self.request.user)
         )
 
@@ -1950,3 +1952,32 @@ class ArticleExtraInformationUpdateView(LoginRequiredMixin, UserPassesTestMixin,
         return permissions.is_article_author(articleworkflow, self.request.user) or permissions.has_eo_role_by_article(
             articleworkflow, self.request.user
         )
+
+
+class AdminOpensAppealView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """A view to move a paper to under appeal state.
+
+    This passage can only be triggered by the EO.
+    """
+
+    model = ArticleWorkflow
+    form_class = OpenAppealForm
+    template_name = "wjs_review/eo_select_editor.html"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+    def get_success_url(self):
+        """Point back to the paper's status page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.object.pk})
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        kwargs["instance"] = self.object
+        return kwargs
