@@ -755,7 +755,9 @@ def test_publication_with_fake_galley_generation(
 
     # TODO: patch core.files.save_file_to_article so that a core.File is generated, but no file arrives on the
     # filesystem
-    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+    with override_settings(
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+    ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
@@ -804,7 +806,9 @@ def test_publication_multiple_articles(
         date_published=timezone.now(),
     )
     _jump_article_to_rfp(a1, typ, fake_request)
-    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+    with override_settings(
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+    ):
         service = BeginPublication(workflow=a1.articleworkflow, user=typ, request=fake_request)
         service.run()
     a1.refresh_from_db()
@@ -819,7 +823,9 @@ def test_publication_multiple_articles(
         date_published=timezone.now(),
     )
     _jump_article_to_rfp(a2, typ, fake_request)
-    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/server_error"):
+    with override_settings(
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error"
+    ):
         #                                                            ⮴ 💩 ⮵
         service = BeginPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         with pytest.raises(ValueError):
@@ -840,7 +846,9 @@ def test_publication_multiple_articles(
         date_published=timezone.now(),
     )
     _jump_article_to_rfp(a3, typ, fake_request)
-    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+    with override_settings(
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+    ):
         service = BeginPublication(workflow=a3.articleworkflow, user=typ, request=fake_request)
         service.run()
     a3.refresh_from_db()
@@ -848,7 +856,9 @@ def test_publication_multiple_articles(
     assert a3.get_identifier("pubid").endswith("A03")
 
     # retry a2: expect change in the state, but not in the pubid etc.
-    with override_settings(JCOMASSISTANT_URL="http://localhost:2702/good_galleys"):
+    with override_settings(
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+    ):
         service = FinishPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         #    ⚠  Finish! (not "Begin")
         service.run()
@@ -859,7 +869,7 @@ def test_publication_multiple_articles(
 
 @pytest.mark.skip(reason="Only tests the helper server.")
 def test_good_galleys(http_server: ThreadedHTTPServer, tmp_path):
-    url = "http://localhost:2702/good_galleys"
+    url = f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
     response = requests.post(url)
     assert response.status_code == 200
     assert len(response.content) > 0
@@ -874,6 +884,6 @@ def test_good_galleys(http_server: ThreadedHTTPServer, tmp_path):
 
 @pytest.mark.skip(reason="Only tests the helper server.")
 def test_http_server_root(http_server):
-    url = "http://localhost:2702/"
+    url = f"http://{http_server.server.server_name}:{http_server.server.server_port}/"
     response = requests.get(url)
     assert response.status_code == 200

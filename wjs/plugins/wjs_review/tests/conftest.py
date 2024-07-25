@@ -1,6 +1,7 @@
 import glob
 import io
 import os
+import random
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -457,7 +458,9 @@ def rfp_article(
 
 @pytest.fixture(scope="session")
 def http_server():
-    server = ThreadedHTTPServer("localhost", 2702)  # ⇠ my birthday 🎂
+    # we need a random port to avoid concurrency issues
+    random_port = random.randint(2702, 12702)  # ⇠ my birthday 🎂
+    server = ThreadedHTTPServer("localhost", random_port)
     server.start()
     yield server
     server.stop()
