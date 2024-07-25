@@ -79,7 +79,7 @@ def test_search(editor, published_articles, press, admin, sections, keywords, jo
     client = Client()
     kwargs = {"article_search": "Searchme", "sort": "relevance"}
     if filter_field == "section":
-        active_sections = Section.objects.filter(pk__in=published_articles.values_list("section", flat=True))
+        active_sections = Section.objects.filter(pk__in=articles.values_list("section", flat=True))
         section = random.choice(active_sections)
         kwargs["sections"] = section.pk
         filtered = articles.filter(section=section)
@@ -90,7 +90,7 @@ def test_search(editor, published_articles, press, admin, sections, keywords, jo
             f.index_full_text()
             f.save()
     elif filter_field == "keyword":
-        active_keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
+        active_keywords = Keyword.objects.filter(pk__in=articles.values_list("keywords", flat=True))
         keyword = random.choice(active_keywords)
         kwargs["keywords"] = keyword.pk
         filtered = articles.filter(keywords=keyword)
