@@ -33,6 +33,7 @@ from ..events.handlers import (
 from ..forms import (
     AssignEoForm,
     EditorRevisionRequestEditForm,
+    OpenAppealForm,
     ReportForm,
     SupervisorAssignEditorForm,
 )
@@ -3010,3 +3011,30 @@ def test_assign_new_editor(
     article.refresh_from_db()
     assignment = WjsEditorAssignment.objects.get_current(article.articleworkflow)
     assert assignment.editor == normal_user.janeway_account
+
+
+@pytest.mark.django_db
+def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest):
+    """EO opens an appeal."""
+    normal_user.add_account_role("section-editor", rejected_article.journal)
+    form_data = {
+        "editor": normal_user.pk,
+        "state": rejected_article.articleworkflow.state,
+    }
+    fake_request.user = eo_user
+    form = OpenAppealForm(
+        data=form_data,
+        request=fake_request,
+        instance=rejected_article.articleworkflow,
+    )
+    rejected_article.authors.add(normal_user.janeway_account)
+    assert normal_user.janeway_account not in form.fields["editor"].queryset
+    rejected_article.authors.remove(normal_user.janeway_account)
+    form.is_valid()
+    form.save()
+    rejected_article.refresh_from_db()
+    assert rejected_article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    assignment = WjsEditorAssignment.objects.get_current(rejected_article.articleworkflow)
+    revision_request = EditorRevisionRequest.objects.filter(article=rejected_article).last()
+    assert assignment.editor == normal_user.janeway_account
+    assert revision_request.editor == eo_user.janeway_account

@@ -602,3 +602,13 @@ def test_wjs_additional_info(assigned_article, typesetter, eo_user, client):
         f"additional_info/{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_wjs_open_appeal(assigned_article, eo_user, client):
+    client.force_login(eo_user)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/open_appeal/"
+        f"{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200

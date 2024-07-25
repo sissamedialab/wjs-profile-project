@@ -2,6 +2,7 @@ from django.urls import path
 
 from .plugin_settings import MANAGER_URL
 from .views import (
+    AdminOpensAppealView,
     ArticleAdminDecision,
     ArticleAdminDispatchAssignment,
     ArticleDecision,
@@ -233,4 +234,5 @@ urlpatterns = [
         DownloadAnythingDROPME.as_view(),
         name="download_anything_dropme",
     ),
+    path("open_appeal/<int:pk>/", AdminOpensAppealView.as_view(), name="wjs_open_appeal"),
 ]
