@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("wjs_review", "0027_alter_articleworkflow_supplementary_files_at_acceptance_and_more"),
+        ("wjs_review", "0028_author_note_naming"),
     ]
 
     operations = [
