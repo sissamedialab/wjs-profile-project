@@ -1,0 +1,52 @@
+{% load django_bootstrap5 files %}
+{% translate "Submit revision" as submit_label %}
+<form method="post" id="do_revision">
+  {% csrf_token %}
+  <div class="card my-4">
+    <div class="card-body">
+      <h3 class="card-title">{% translate "Files" %}</h3>
+      {% blocktranslate %}
+        <p>
+          Your article files are listed below. You can use the 'Upload
+          Revised
+          File' button next to each
+          file to upload a new version of the file, or use the 'Upload New
+          File' button to upload a new
+          file.
+        </p>
+      {% endblocktranslate %}
+      {% if revision_request.type != "tech_revisions" %}
+        <a href="{% url 'revisions_upload_new_file' article.pk revision_request.pk %}" class="btn btn-primary">{% translate "Upload New File" %}</a>
+      {% endif %}
+      {% include "wjs_review/revision/elements/update_versions_files.html" %}
+      {% bootstrap_form_errors form layout='inline' %}
+      {% bootstrap_field form.author_note %}
+
+      {% if revision_request.editorrevisionrequest.cover_letter_file %}
+        <a href="{% url 'wjs_upload_file' revision_request.article_id revision_request.pk %}" class="btn btn-primary">Replace Cover letter</a>
+        <a href="{{ revision_request.editorrevisionrequest.cover_letter_file.url }}">Download current ↓</a>
+      {% else %}
+        <a href="{% url 'wjs_upload_file' revision_request.article_id revision_request.pk %}" class="btn btn-primary">Upload Cover letter</a>
+      {% endif %}
+      <p>If you want to save your cover letter and come back later,
+        click
+        the 'Save Cover Letter' button below. Once you are ready to
+        send
+        your letter, see the 'Finishing Up' section below.</p>
+      {% bootstrap_button button_class="btn-secondary" button_type="submit" name="save" value=1 content="Save Cover Letter" %}
+    </div>
+  </div>
+
+  <div class="card my-4">
+    <div class="card-body">
+      <h3 class="card-title">{% translate "Finishing Up" %}</h3>
+      <p>{% trans "When you have completed your revision and finished writing your cover letter, click the 'Submit Revision' button below to finish. Please note that you will not be able to make any further changes to your letter or revision once you click 'Submit Revision'" %}</p>
+
+      {% bootstrap_field form.confirm_title %}
+      {% bootstrap_field form.confirm_styles %}
+      {% bootstrap_field form.confirm_blind %}
+      {% bootstrap_field form.confirm_cover %}
+      {% bootstrap_button button_type="submit" name=form.CONFIRMABLE_BUTTON_NAME value=1 content=submit_label %}
+    </div>
+  </div>
+</form>

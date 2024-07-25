@@ -1,4 +1,10 @@
-"""Data migration POC."""
+"""Import published articles from wjapp."""
+
+# Examples (remember that you need data on the staging site!):
+# - JCOM with translation: JCOM_001CR_0524 / JCOM_2305_2024_R01
+#                                            JCOM_2301_2024_R01
+# - JCOM with images: JCOM_018A_0523 / JCOM_2305_2024_A04
+# - JCOM with images and ESM: JCOM_001N_0923 / JCOM_2305_2024_N02
 
 import datetime
 import os
@@ -18,21 +24,18 @@ from django.db.models import Count, Q, QuerySet
 from identifiers import models as identifiers_models
 from identifiers.models import Identifier
 from journal import models as journal_models
-from plugins.wjs_review.logic__production import AttachGalleys, JcomAssistantClient
-from production.logic import save_galley, save_supp_file
+from production.logic import save_supp_file
 from submission import models as submission_models
 from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
     admin_fake_request,
-    decide_galley_label,
     drop_existing_galleys,
-    drop_render_galley,
+    map_language,
     publish_article,
     query_wjapp_by_pubid,
     set_author_country,
-    set_language,
 )
 from wjs.jcom_profile.management.commands.import_from_drupal import (
     JOURNALS_DATA,
@@ -42,6 +45,7 @@ from wjs.jcom_profile.management.commands.import_from_drupal import (
 from wjs.jcom_profile.utils import from_pubid_to_eid, generate_doi
 
 from ...models import Recipient
+from ...refugium_peccatorum import AttachGalleys, JcomAssistantClient
 
 # Map wjapp article types to Janeway section names
 SECTIONS_MAPPING = {
@@ -159,62 +163,105 @@ class Command(BaseCommand):
         # reference to the newly created article) and manually set the galleys.
         attach_service = AttachGalleys(archive_with_galleys=response.content, article=None, request=fake_request)
         folder_with_unpacked_files = attach_service.unpack_targz_from_jcomassistant()
+        if not attach_service.reemit_info_and_up():
+            logger.error("Errors during galley generation (see above). Aborting.")
+            return
 
         ja_files = os.listdir(folder_with_unpacked_files)
+        xml_files_with_metadata = [f for f in ja_files if f.endswith(".xml")]
+        # If we have more that one XML file, we are probably working with a translation.
+        # All files (pdf, epub, html and the image folder) are doubled.
+        # NB: the XML file of the "translation" is in JATS format.
+        num_papers = len(xml_files_with_metadata)
+        assert num_papers <= 2
+        if num_papers == 1:
+            main_wjapp_xml_filename = xml_files_with_metadata[0]
+            translation_jats_xml_filename = None
+        else:
+            # The file that starts with <root> is the main one (in wjapp style)
+            # the other should start with <article> and be a JATS
+            tree = lxml.etree.parse(folder_with_unpacked_files / xml_files_with_metadata[0])
+            root_tagname = tree.getroot().tag
+            if root_tagname == "root":
+                main_wjapp_xml_filename = xml_files_with_metadata[0]
+                translation_jats_xml_filename = xml_files_with_metadata[1]
+            else:
+                main_wjapp_xml_filename = xml_files_with_metadata[1]
+                translation_jats_xml_filename = xml_files_with_metadata[0]
 
-        wjapp_xml_filename = [f for f in ja_files if f.endswith(".xml")][0]
-        xml_obj = lxml.etree.parse(folder_with_unpacked_files / wjapp_xml_filename)
+        main_xml_obj = lxml.etree.parse(folder_with_unpacked_files / main_wjapp_xml_filename)
 
         if self.options["only_regenerate_html_galley"]:
             logger.error("Not yet implemented")
             return
-            self.regen_html_galley(xml_obj)
+            self.regen_html_galley(main_xml_obj)
             # Cleanup
             shutil.rmtree(tmpdir)
             return
 
         # extract pubid, create article
-        article, pubid = self.create_article(xml_obj)
-        self.set_keywords(article, xml_obj, pubid)
-        issue = self.set_issue(article, xml_obj, pubid)
-        self.set_section(article, xml_obj, pubid, issue)
-        self.set_authors(article, xml_obj)
+        article, pubid = self.create_article(main_xml_obj)
+        self.set_keywords(article, main_xml_obj, pubid)
+        issue = self.set_issue(article, main_xml_obj, pubid)
+        self.set_section(article, main_xml_obj, pubid, issue)
+        self.set_authors(article, main_xml_obj)
         self.set_license(article)
         self.set_doi(article)
-
-        self.set_pdf_galleys(article, xml_obj, pubid, workdir)
         self.set_supplementary_material(article, pubid, workdir)
 
+        # Attach galleys (PDF, HTML, EPUB, etc.)
         try:
             attach_service.article = article
-            attach_service.save_epub()
-            attach_service.save_html()
+
+            main_basefilename = main_wjapp_xml_filename.replace(".xml", "")
+            main_lang = map_language(main_xml_obj.find("//document").get("lang"))
+            main_xml_obj.find("//document").get("lang")
+            if num_papers > 1:
+                label_suffix = f" ({main_lang.alpha_2})"
+            else:
+                label_suffix = ""
+            attach_service.save_pdf(
+                filename=f"{main_basefilename}.pdf",
+                label=f"PDF{label_suffix}",
+                language=main_lang.alpha_3,
+            )
+            attach_service.save_html(
+                filename=f"{main_basefilename}.html",
+                label=f"HTML{label_suffix}",
+                language=main_lang.alpha_3,
+            )
+            attach_service.save_epub(
+                filename=f"{main_basefilename}.epub",
+                label=f"EPUB{label_suffix}",
+                language=main_lang.alpha_3,
+            )
+
+            if num_papers > 1:
+                # We have a "translation"
+                logger.debug(
+                    "Multilingual paper - "
+                    f"main: {main_wjapp_xml_filename}; translation: {translation_jats_xml_filename}",
+                )
+                translation_basefilename = translation_jats_xml_filename.replace(".xml", "")
+                translation_xml_obj = lxml.etree.parse(folder_with_unpacked_files / translation_jats_xml_filename)
+                translation_lang = map_language(translation_xml_obj.getroot().get("lang"))
+                label_suffix = f" ({translation_lang.alpha_2})"
+                attach_service.save_pdf(
+                    filename=f"{translation_basefilename}.pdf",
+                    label=f"PDF{label_suffix}",
+                    language=main_lang.alpha_3,
+                )
+                attach_service.save_epub(
+                    filename=f"{translation_basefilename}.epub",
+                    label=f"EPUB{label_suffix}",
+                    language=main_lang.alpha_3,
+                )
 
         except Exception as exception:
-            logger.error(f"Generation of HTML and EPUB galleys fails: {exception}")
-
-        if len([f for f in ja_files if f.endswith(".pdf")]) > 0:  # FIXME!!!
-            logger.critical("Multilingual not implemented. See specs#774")
-            # specs#774 try:
-            # specs#774     for translation_tex_filename in tex_filenames[1:]:
-            # specs#774         correct_translation(translation_tex_filename, tex_filename)
-
-            # specs#774         translation_html_galley_filename = make_xhtml.make(translation_tex_filename)
-            # specs#774         # TODO: verify if Janeway can manage tranlastions of HTML galley
-
-            # specs#774         translation_tex_data = read_tex(translation_tex_filename)
-            # specs#774         translation_epub_galley_filename = make_epub.make(
-            # specs#774             translation_html_galley_filename,
-            # specs#774             tex_data=translation_tex_data,
-            # specs#774         )
-            # specs#774         self.set_epub_galley(article, translation_epub_galley_filename, pubid)
-
-            # specs#774 except Exception as exception:
-            # specs#774     logger.error(
-            # specs#774         f"Generation of HTML and EPUB failed for {translation_tex_filename}: {exception}",
-            # specs#774     )
+            logger.error(f"Setup of galleys failed: {exception}")
 
         publish_article(article)
+
         # Cleanup
         shutil.rmtree(tmpdir)
 
@@ -222,17 +269,6 @@ class Command(BaseCommand):
         """Regenerate only the render-galley."""
         logger.critical("Not implemented!")
         return
-
-        # extract pubid, get article
-        pubid = xml_obj.find("//document/articleid").text
-        journal = journal_models.Journal.objects.get(code=self.options["journal-code"])
-        logger.debug(f"getting {pubid}")
-        article = submission_models.Article.get_article(
-            journal=journal,
-            identifier_type="pubid",
-            identifier=pubid,
-        )
-        drop_render_galley(article)
 
     def set_authors(self, article, xml_obj):
         """Find and set the article's authors, creating them if necessary."""
@@ -506,58 +542,6 @@ class Command(BaseCommand):
         article.license = submission_models.Licence.objects.get(short_name="CC BY-NC-ND 4.0", journal=article.journal)
         article.save()
 
-    def set_pdf_galleys(self, article, xml_obj, pubid, workdir):
-        """Set the PDF galleys: original language and tranlastion."""
-        # PDF galleys
-        # Should find one file (common case) or two files (original language + english translation)
-        pdf_files = list(workdir.glob("*.pdf"))
-        sanity_check_pdf_filenames(pdf_files)
-
-        # Set default language to English. This will be overridden
-        # later if we find a non-English galley.
-        #
-        # I'm not sure that it is correct to set a language different
-        # from English when the doi points to English-only metadata
-        # (even if there are two PDF files). But see #194.
-        article.language = "eng"
-        article.save()
-
-        if len(pdf_files) == 0:
-            logger.critical(f"No PDF file found in {workdir}. Doing nothing.")
-
-        elif len(pdf_files) == 1:
-            drop_existing_galleys(article)
-            set_pdf_galley(article, pdf_files[0], pubid)
-
-        elif len(pdf_files) == 2:
-            logger.critical("Found 2 PDF galleys. Might be multilingual. Not implemented! See specs#774")
-
-            # I'm working under these assumptions:
-            #
-            # - the file whose name ends in _en.pdf is probably correct
-            #   (i.e. it includes DOI, publication date etc.), but the
-            #   language is undecided (probably really English if it comes
-            #   from JCOM, but something else if it comes from JCOMAL)
-            #
-            # - the file whose name ends in _xx.pdf (not _en.pdf) is
-            #   probably in the language suggested by the name, but the
-            #   content is wrong (missing DOI, etc.). This file should be
-            #   dropped and re-created from the corresponding tex source
-            #   found, but only _after_ the tex source has been corrected
-            #   to include the missing content.
-
-            # specs#774 drop_existing_galleys(article)
-            # specs#774 main_pdf_filename, translation_pdf_filename = find_and_rename_main_galley(pdf_files)
-            # specs#774 set_pdf_galley(article, main_pdf_filename, pubid)
-
-            # specs#774 translation_pdf_file, translation_label, translation_language = rebuild_translation_galley(
-            # specs#774     translation_pdf_filename,
-            # specs#774     main_pdf_filename,
-            # specs#774 )
-            # specs#774 set_translation_galley(translation_pdf_file, translation_label, article)
-        else:
-            logger.critical(f"Found {len(pdf_files)} PDF galleys. Doing nothing.")
-
     def create_article(self, xml_obj):
         """Create the article."""
         pubid = xml_obj.find("//document/articleid").text
@@ -573,10 +557,13 @@ class Command(BaseCommand):
             # means that the article has been already imported and
             # that we are re-importing.
             logger.warning(f"Re-importing existing article {pubid} at {article.id}")
+            drop_existing_galleys(article)
         else:
             article = submission_models.Article.objects.create(
                 journal=journal,
             )
+
+        article.language = map_language(xml_obj.find("//document").get("lang")).alpha_3
         article.title = xml_obj.find("//document/title").text
         article.abstract = xml_obj.find("//document/abstract").text
         article.imported = True
@@ -655,56 +642,6 @@ class Command(BaseCommand):
                 article=article,
                 id_type="doi",
             )
-
-
-def set_pdf_galley(article, file_path, pubid):
-    """Set a pdf galley onto the given article.
-
-    Infer and set the galley's label, including the language code.
-    Set the article's language.
-    """
-    file_name = os.path.basename(file_path)
-    file_mimetype = "application/pdf"  # I just know it! (sry :)
-    uploaded_file = File(open(file_path, "rb"), file_name)
-    label, language = decide_galley_label(file_name=file_name, file_mimetype=file_mimetype)
-    # We can have 2 non-English galleys (PDF and EPUB),
-    # they are supposed to be of the same language. Not checking.
-    #
-    # If the article language is different from
-    # english, this means that a non-English galley has
-    # already been processed and there is no need to
-    # set the language again.
-    if language and language != "en":
-        if article.language != "eng":
-            pass
-        else:
-            set_language(article, language)
-    save_galley(
-        article,
-        request=fake_request,
-        uploaded_file=uploaded_file,
-        is_galley=True,
-        label=label,
-        save_to_disk=True,
-        public=True,
-    )
-    logger.debug(f"PDF galley {label} set onto {pubid}")
-
-
-def set_translation_galley(pdf_file, label, article):
-    """Set the given file as galley for the given article, using the given language and label."""
-    file_name = os.path.basename(pdf_file)
-    uploaded_file = File(open(pdf_file, "rb"), file_name)
-    save_galley(
-        article,
-        request=fake_request,
-        uploaded_file=uploaded_file,
-        is_galley=True,
-        label=label,
-        save_to_disk=True,
-        public=True,
-    )
-    logger.debug(f"PDF galley {label} set onto {article}")
 
 
 def check_mappings(

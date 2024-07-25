@@ -120,4 +120,15 @@ table.table-bordered.dataTable .table-borderless td {
   cursor: grab;
 }
 
+.breadcrumbs .nav-item {
+  &:after {
+    content: "/";
+    margin-right: map-get($spacers, 2);
+  }
+
+  &:last-child:after {
+    content: "";
+  }
+}
+
 @import "bootstrap/scss/bootstrap";

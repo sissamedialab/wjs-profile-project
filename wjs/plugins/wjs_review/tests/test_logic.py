@@ -343,7 +343,7 @@ def test_editor_assigns_themselves_as_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == section_editor.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert assignment.date_accepted.date() == _now.date()
+    assert localtime(assignment.date_accepted).date() == _now.date()
 
     message_subject = render_template_from_setting(
         setting_group_name="wjs_review",
@@ -2147,6 +2147,10 @@ def test_author_handle_revision(
 
         form_data = {
             "author_note": "author_note",
+            "confirm_title": "on",
+            "confirm_styles": "on",
+            "confirm_blind": "on",
+            "confirm_cover": "on",
         }
         form = EditorRevisionRequestEditForm(data=form_data, instance=revision)
         assert form.is_valid()
@@ -2165,6 +2169,57 @@ def test_author_handle_revision(
         else:
             assert assigned_article.current_review_round() == original_review_round + 1
         assert revision.author_note == "author_note"
+
+
+@pytest.mark.parametrize(
+    "decision",
+    (
+        ArticleWorkflow.Decisions.MINOR_REVISION,
+        ArticleWorkflow.Decisions.MAJOR_REVISION,
+        ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+    ),
+)
+@pytest.mark.django_db
+def test_author_submit_checklist(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+    decision: str,
+):
+    """
+    Author must submit the checklist before submitting a revision.
+    """
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    fake_request.user = editor
+    form_data = {
+        "decision": decision,
+        "decision_editor_report": "random message",
+        "decision_internal_note": "random internal message",
+        "withdraw_notice": "notice",
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
+    }
+    handle = HandleDecision(
+        workflow=assigned_article.articleworkflow,
+        form_data=form_data,
+        user=WjsEditorAssignment.objects.get_current(assigned_article).editor,
+        request=fake_request,
+    )
+    handle.run()
+    assigned_article.refresh_from_db()
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+
+    base_form_data = {
+        "author_note": "author_note",
+        "confirm_title": "on",
+        "confirm_styles": "on",
+        "confirm_blind": "on",
+        "confirm_cover": "on",
+    }
+    for field in ["confirm_title", "confirm_styles", "confirm_blind", "confirm_cover"]:
+        form_data = base_form_data.copy()
+        form_data.pop(field)
+        form = EditorRevisionRequestEditForm(data=form_data, instance=revision)
+        assert not form.is_valid()
+        assert form.check_for_potential_errors()
 
 
 @pytest.mark.parametrize(
@@ -2227,6 +2282,10 @@ def test_handle_multiple_revision_request_with_author_submission(
 
     form_data = {
         "author_note": "author_note",
+        "confirm_title": "on",
+        "confirm_styles": "on",
+        "confirm_blind": "on",
+        "confirm_cover": "on",
     }
     form = EditorRevisionRequestEditForm(data=form_data, instance=revision)
     assert form.is_valid()

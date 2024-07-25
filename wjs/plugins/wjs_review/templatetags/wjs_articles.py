@@ -119,17 +119,20 @@ def article_current_editor(article):
 
     try:
         editor_assignment = WjsEditorAssignment.objects.get_current(article)
+    except WjsEditorAssignment.DoesNotExist:
+        editor_assignment = None
+    if editor_assignment:
         return {
             "editor": editor_assignment.editor,
-            "days_elapsed": (timezone.now() - editor_assignment.assigned).days,
+            "days_elapsed": (timezone.now() - editor_assignment.assigned).days if editor_assignment.assigned else "",
         }
-    except WjsEditorAssignment.DoesNotExist:
+    else:
         return {
             "editor": "Not assigned",
             # NB: this might not be accurate if there was a previous assignment that has been rejected, but the
             # importance of the delay can be comparable with more common situations (i.e. older papers are _usually_
             # more urgent).
-            "days_elapsed": (timezone.now() - article.date_submitted).days,
+            "days_elapsed": (timezone.now() - article.date_submitted).days if article.date_submitted else "",
         }
 
 

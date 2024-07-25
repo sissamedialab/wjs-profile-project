@@ -1299,8 +1299,8 @@ class EditorDecisionAction(BaseActionManager):
         #     the EDREP is visible for the author on revision request page
         #        the view is ArticleRevisionUpdate based on model EditorRevisionRequest
         #         the templates are
-        #            "wjs/themes/JCOM-theme/templates/admin/review/revision/do_revision.
-        #            --> wjs_review/elements/revision_author_info.html
+        #            "wjs_review/revision/revision_form.html.
+        #            --> wjs_review/revision/elements/info.html
         #
         # - for ED_REJ_DOC the EDREP is NOT visible for the author
         #

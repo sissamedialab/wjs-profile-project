@@ -53,6 +53,7 @@ class Command(BaseCommand):
                 "mmizzaro@medialab.sissa.it",
                 "s.petronici@nephila.digital",
                 "wjs-support@medialab.sissa.it",
+                "fracarossi@medialab.sissa.it",
             ),
         )
         anonymize_users(accounts)

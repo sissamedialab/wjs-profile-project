@@ -1,0 +1,41 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static %}
+
+{% block breadcrumbs %}
+  {% url "wjs_article_details" pk=workflow.pk as status_url %}
+  {% translate "Select reviewer" as select_reviewer_label %}
+  {% include "wjs_review/base/elements/breadcrumb_items.html" with url=status_url title=workflow %}
+  {% include "wjs_review/base/elements/breadcrumb_items.html" with title=select_reviewer_label current=True %}
+{% endblock breadcrumbs %}
+
+{% block bootstrap5_extra_head %}
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
+  <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
+{% endblock bootstrap5_extra_head %}
+
+{% block content_wrapper %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h1>{{ view.title }}</h1>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mb-3" id="select-reviewer-table">
+    {% include "wjs_review/select_reviewer/elements/reviewers_table.html" %}
+  </div>
+
+  <!--Columns ordering-->
+  <script>
+    new DataTable("#reviewers", {
+      info: false,
+      searching: false,
+      ordering: true,
+      paging: false,
+      order: [],
+      columns: [null, null, null, { orderable: false }],
+    });
+  </script>
+{% endblock content_wrapper %}

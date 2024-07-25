@@ -1,0 +1,39 @@
+{% if revisions.exists %}
+  <div class="card my-4">
+    <div class="card-body">
+      <h3 class="card-title">{% translate "Past versions" %}</h3>
+      <div class="accordion" id="accordionRevision">
+        {% for revision in revisions %}
+          <div class="accordion-item">
+            <h5 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRevision{{ revision.review_round.round_number }}" aria-expanded="true" aria-controls="collapseRevision{{ revision.review_round.round_number }}">
+                {% translate "Version" %}: {{ revision.review_round.round_number }}
+              </button>
+            </h5>
+            {% with round_str=revision.review_round.round_number|stringformat:"s" %}
+              <div id="collapseRevision{{ round_str }}" class="accordion-collapse {% if forloop.last %}show{% endif %} collapse">
+                <div class="accordion-body">
+                  <h6>{% translate "Version files" %}</h6>
+                  <table class="small scroll">
+                    {% if revision.manuscript_files.exists %}
+                      {% url 'revisions_use_files' revision_request.article.pk revision_request.pk file_type as manuscript_url %}
+                      {% include "wjs_review/revision/elements/past_versions_files.html" with title="Manuscript files" url=manuscript_url modal_id="manuscriptModal"|add:round_str files=revision.manuscript_files.all %}
+                    {% endif %}
+                    {% if revision.data_figure_files.exists %}
+                      {% url 'revisions_use_files' revision_request.article.pk revision_request.pk file_type as manuscript_url %}
+                      {% include "wjs_review/revision/elements/past_versions_files.html" with title="Data figure files" url=manuscript_url modal_id="manuscriptModal"|add:round_str files=revision.data_figure_files.all %}
+                    {% endif %}
+                    {% if revision.supplementary_files.exists %}
+                      {% url 'revisions_use_files' revision_request.article.pk revision_request.pk file_type as manuscript_url %}
+                      {% include "wjs_review/revision/elements/past_versions_files.html" with title="Supplementary files" url=manuscript_url modal_id="supplementaryModal"|add:round_str files=revision.supplementary_files.all %}
+                    {% endif %}
+                  </table>
+                </div>
+              </div>
+            {% endwith %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endif %}

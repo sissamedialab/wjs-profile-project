@@ -46,7 +46,6 @@ nav {
     align-items: flex-end;
     display: flex;
     flex-direction: column;
-    margin: $margin-half 0;
   }
 }
 
@@ -60,6 +59,51 @@ nav {
 
     ul {
       float: none;
+    }
+  }
+}
+
+.language-select {
+  height: 56px;
+  display: flex;
+  justify-content: flex-end;
+
+  @media screen and (max-width: 1023px) {
+    justify-content: center;
+  }
+
+  &__wrapper {
+    align-items: center;
+    display: flex;
+    margin: 0.9rem 0;
+
+    &:after {
+      content: " ";
+      border-right: 2px solid color("journal-color", "lighten-2");
+      height: 0.7rem;
+      margin: 0.5rem;
+    }
+  }
+
+  &__button {
+    background: transparent;
+    border: none;
+    color: color("shades", "black");
+    font-size: 0.8rem;
+    margin: 0 0.5rem;
+    text-transform: uppercase;
+
+    &:focus {
+      background-color: transparent;
+    }
+
+    &:hover {
+      color: color("journal-color", "accent-1");
+    }
+
+    &--selected {
+      font-weight: 500;
+      color: color("journal-color", "base");
     }
   }
 }

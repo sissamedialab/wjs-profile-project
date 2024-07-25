@@ -97,11 +97,13 @@ class ArticleReviewStateForm(forms.ModelForm):
 
 
 class SelectReviewerForm(forms.ModelForm):
-    reviewer = forms.ModelChoiceField(queryset=Account.objects.none(), widget=forms.HiddenInput, required=False)
-    message = forms.CharField(widget=forms.Textarea(), required=False)
-    acceptance_due_date = forms.DateField(required=False)
+    reviewer = forms.ModelChoiceField(
+        label=_("Reviewer"), queryset=Account.objects.none(), widget=forms.HiddenInput, required=False
+    )
+    message = forms.CharField(label=_("Message"), widget=forms.Textarea(), required=False)
+    acceptance_due_date = forms.DateField(label=_("Acceptance due date"), required=False)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
-    author_note_visible = forms.BooleanField(required=False)
+    author_note_visible = forms.BooleanField(label=_("Author cover letter"), required=False)
 
     class Meta:
         model = ArticleWorkflow
@@ -131,6 +133,9 @@ class SelectReviewerForm(forms.ModelForm):
         c_data = self.data.copy()
         c_data["state"] = self.instance.state
         self.data = c_data
+
+        if not self.instance.article.comments_editor:
+            self.fields["author_note_visible"].widget = forms.HiddenInput()
 
         # When loading during an htmx request fields are not required because we're only preseeding the reviewer
         # When loading during a normal request (ie: submitting the form) fields are required
@@ -266,7 +271,7 @@ class ReviewerSearchForm(forms.Form):
     user_type = forms.ChoiceField(
         required=False,
         choices=[
-            ("", "Tutti"),
+            ("", "All"),
             ("past", "R. who have already worked on this paper"),
             ("known", "R. w/ whom I've already worked"),
             ("declined", "R. who declined previous assignments (for this paper)"),
@@ -278,12 +283,12 @@ class ReviewerSearchForm(forms.Form):
 class InviteUserForm(forms.Form):
     """Used by staff to invite external users for review activities."""
 
-    first_name = forms.CharField()
-    last_name = forms.CharField()
-    suffix = forms.CharField()
-    email = forms.EmailField()
-    message = forms.CharField(widget=forms.Textarea)
-    author_note_visible = forms.BooleanField(required=False)
+    first_name = forms.CharField(label=_("First name"))
+    last_name = forms.CharField(label=_("Last name"))
+    suffix = forms.CharField(widget=forms.HiddenInput(), required=False)
+    email = forms.EmailField(label=_("Email"))
+    message = forms.CharField(label=_("Message"), widget=forms.Textarea, required=False)
+    author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
@@ -293,6 +298,8 @@ class InviteUserForm(forms.Form):
         if "prophy_account_id" in kwargs:
             prophy_account = ProphyAccount.objects.filter(author_id=kwargs.pop("prophy_account_id"))[0]
         super().__init__(*args, **kwargs)
+        if not self.instance.article.comments_editor:
+            self.fields["author_note_visible"].widget = forms.HiddenInput()
         if prophy_account:
             self.initial = {
                 "first_name": f"{prophy_account.first_name} {prophy_account.middle_name}",
@@ -575,6 +582,25 @@ class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
 
 
 class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
+    confirm_title = forms.BooleanField(
+        label=_("I confirm that title and abstract on this web page correspond to those written in the preprint file.")
+    )
+    confirm_styles = forms.BooleanField(
+        label=_(
+            "I confirm that this resubmission fulfills the stylistic guidelines of the Journal and its ethical policy "
+            "in all its aspects including use of AI, authorship, etc.."
+        )
+    )
+    confirm_blind = forms.BooleanField(
+        label=_("I confirm that the file does not contain any author information and has line numbering..")
+    )
+    confirm_cover = forms.BooleanField(
+        label=_(
+            "I confirm that the cover letter lists and describes clearly the changes implemented in the preprint "
+            "and motivates any modifications that have not been made.."
+        )
+    )
+
     class Meta:
         model = EditorRevisionRequest
         fields = ["author_note"]
@@ -608,6 +634,19 @@ class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+    def check_for_potential_errors(self):
+        """Check if the user has confirmed all the required fields."""
+        errors = []
+        if not self.cleaned_data.get("confirm_title", False):
+            errors.append(_("You must confirm that the title and abstract correspond to the preprint file."))
+        if not self.cleaned_data.get("confirm_styles", False):
+            errors.append(_("You must confirm that the resubmission fulfills the stylistic guidelines."))
+        if not self.cleaned_data.get("confirm_blind", False):
+            errors.append(_("You must confirm that the file does not contain any author information."))
+        if not self.cleaned_data.get("confirm_cover", False):
+            errors.append(_("You must confirm that the cover letter lists and describes the changes."))
+        return errors
 
 
 class MessageRecipientForm(forms.Form):
