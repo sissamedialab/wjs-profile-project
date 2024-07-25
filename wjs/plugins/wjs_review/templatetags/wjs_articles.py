@@ -68,7 +68,7 @@ def last_user_note(context, target, user=None):
         content_type=ContentType.objects.get_for_model(target),
         object_id=target.pk,
         actor=user,
-        recipients=user,  # do not use `__in=[user]`: we want a note written _only_ to the user themselves
+        recipients=user,
         message_type=Message.MessageTypes.NOTE,
     ).order_by("-created")
     return personal_notes.last() or ""
@@ -84,7 +84,7 @@ def last_eo_note(target):
         content_type=ContentType.objects.get_for_model(target),
         object_id=target.pk,
         actor__groups__name=EO_GROUP,
-        message_type=Message.MessageTypes.SYSTEM,
+        message_type=Message.MessageTypes.NOTE,
     ).order_by("-created")
     return eo_notes.last() or ""
 

@@ -15,6 +15,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.timezone import localtime, now
 from faker import Faker
+from plugins.wjs_review.templatetags.wjs_articles import last_eo_note, last_user_note
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, Keyword
@@ -3039,3 +3040,122 @@ def test_write_new_note(
     assert form.is_valid()
     msg = form.save()
     assert msg.message_type == Message.MessageTypes.NOTE
+
+
+@pytest.mark.django_db
+def test_last_user_note(
+    article: Article,
+    normal_user: JCOMProfile,
+    section_editor: JCOMProfile,
+    eo_user: Account,
+    create_note: Callable,
+    create_user_message: Callable,
+    fake_request,
+):
+    """last_user_note templatetag only returns notes ignoring messages."""
+    note = create_note(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="normal_user note",
+        body="body",
+    )
+    editor_note = create_note(
+        actor=section_editor.janeway_account,
+        target=article,
+        subject="section_editor note",
+        body="body",
+    )
+    create_user_message(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="subject",
+        body="body",
+        recipients=[eo_user],
+        message_type=Message.MessageTypes.USER,
+    )
+    create_user_message(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="subject",
+        body="body",
+        recipients=[eo_user],
+        message_type=Message.MessageTypes.SYSTEM,
+    )
+    create_user_message(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="subject",
+        body="body",
+        recipients=[eo_user],
+        message_type=Message.MessageTypes.NOTE,
+    )
+    fake_request.user = normal_user.janeway_account
+    context = {
+        "request": fake_request,
+    }
+    assert last_user_note(context, article) == note
+    assert last_user_note(context, article, normal_user.janeway_account) == note
+    assert not last_user_note(context, article, eo_user)
+
+    fake_request.user = section_editor.janeway_account
+    context = {
+        "request": fake_request,
+    }
+    assert last_user_note(context, article) == editor_note
+    assert last_user_note(context, article, section_editor.janeway_account) == editor_note
+    assert not last_user_note(context, article, eo_user)
+
+
+@pytest.mark.django_db
+def test_last_eo_note(
+    article: Article,
+    normal_user: JCOMProfile,
+    section_editor: JCOMProfile,
+    eo_user: Account,
+    create_note: Callable,
+    create_user_message: Callable,
+):
+    """last_eo_note templatetag only returns eo notes ignoring messages and other user messages."""
+    create_note(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="normal_user note",
+        body="body",
+    )
+    create_note(
+        actor=section_editor.janeway_account,
+        target=article,
+        subject="section_editor note",
+        body="body",
+    )
+    eo_note = create_note(
+        actor=eo_user,
+        target=article,
+        subject="eo_user note",
+        body="body",
+    )
+    create_user_message(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="subject",
+        body="body",
+        recipients=[eo_user],
+        message_type=Message.MessageTypes.USER,
+    )
+    create_user_message(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="subject",
+        body="body",
+        recipients=[eo_user],
+        message_type=Message.MessageTypes.SYSTEM,
+    )
+    create_user_message(
+        actor=normal_user.janeway_account,
+        target=article,
+        subject="subject",
+        body="body",
+        recipients=[eo_user],
+        message_type=Message.MessageTypes.NOTE,
+    )
+    assert last_eo_note(article) == eo_note
