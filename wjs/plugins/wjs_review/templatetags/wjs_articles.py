@@ -10,7 +10,7 @@ from typing import Optional
 from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import OuterRef, QuerySet
+from django.db.models import Case, IntegerField, OuterRef, QuerySet, When
 from django.utils import timezone
 from django.utils.text import slugify
 from journal.models import ArticleOrdering, Issue
@@ -49,10 +49,22 @@ def review_assignments_of_current_round(article):
     Useful in the editor (and other) main page.
     """
     current_round = article.current_review_round_object()
-    return article.reviewassignment_set.filter(
-        review_round=current_round,
-        date_declined__isnull=True,
-    ).order_by("-date_requested")
+
+    return (
+        article.reviewassignment_set.filter(
+            review_round=current_round,
+            date_declined__isnull=True,
+        )
+        .annotate(
+            ordering_score=Case(
+                When(date_complete__isnull=False, then=0),
+                When(date_accepted__isnull=False, then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("-ordering_score", "-date_requested")
+    )
 
 
 @register.simple_tag(takes_context=True)
