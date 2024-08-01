@@ -637,6 +637,16 @@ class Rejected(BaseState):
 class UnderAppeal(BaseState):
     """Under appeal after rejection"""
 
+    article_actions = BaseState.article_actions + (
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="author submits appeal",
+            label="Submit appeal",
+            view_name="do_revisions",
+            custom_get_url=get_do_revision_url,
+        ),
+    )
+
     @classmethod
     def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
         """

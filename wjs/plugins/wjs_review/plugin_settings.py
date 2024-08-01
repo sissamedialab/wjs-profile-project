@@ -1691,6 +1691,57 @@ def set_default_plugin_settings(force: bool = False):
             preprint_withdrawn_setting["name"],
         )
 
+    def author_submits_appeal_message():
+        subject_author_submits_appeal: SettingParams = {
+            "name": "author_submits_appeal_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author submitting an appeal."),
+            "description": _(
+                "The subject of the notification that is sent to the editor when author submits an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        subject_author_submits_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Appeal submitted for {{ article.journal }} {{ article.id }}."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_author_submits_appeal,
+            subject_author_submits_appeal_setting_value,
+            subject_author_submits_appeal["name"],
+        )
+        author_submits_appeal_setting: SettingParams = {
+            "name": "author_submits_appeal_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for when author submits an appeal."),
+            "description": _(
+                "The body of the notification that is sent to the editor when author submits an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        author_submits_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ appeal_editor.full_name }},
+            the author of "{{ article.title }} (ID: {{ article.id }})" has appealed against rejection. Please connect to
+            the preprint web page and handle the appeal within 5 days.
+
+            Thank you and best regards,
+            JCOM Editorial Office
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            author_submits_appeal_setting,
+            author_submits_appeal_setting_value,
+            author_submits_appeal_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1721,6 +1772,7 @@ def set_default_plugin_settings(force: bool = False):
     author_withdraws_preprint_message()
     preprint_withdrawn_system_message()
     eo_opens_appeal_message()
+    author_submits_appeal_message()
 
 
 def ensure_workflow_elements():

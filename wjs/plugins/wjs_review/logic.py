@@ -1120,12 +1120,18 @@ class AuthorHandleRevision:
         events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
 
     def _get_revision_submission_message_context(self) -> Dict[str, Any]:
+        self.appeal_editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
         return {
             "article": self.revision.article,
             "request": self.request,
             "skip": False,
             "revision": self.revision,
+            "appeal_editor": self.appeal_editor,
         }
+
+    def _was_under_appeal(self) -> bool:
+        """Returns True if the paper was under appeal"""
+        return self.revision.type == ArticleWorkflow.Decisions.OPEN_APPEAL
 
     def _notify_reviewers(self):
         """
@@ -1188,10 +1194,37 @@ class AuthorHandleRevision:
             notify_actor=communication_utils.should_notify_actor(),
         )
 
+    def _notify_editor_with_appeal(self):
+        """Send notification to the editor informing that the paper was under appeal."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_submits_appeal_subject",
+            journal=self.revision.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_submits_appeal_body",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.revision.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[self.appeal_editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
     def _log_operation(self):
         """Send notifications to editor and reviewers."""
+        if self._was_under_appeal():
+            self._notify_editor_with_appeal()
+        else:
+            self._notify_editor()
         self._notify_reviewers()
-        self._notify_editor()
 
     def _save_author_note(self):
         self.revision.author_note = self.form_data.get("author_note", "")

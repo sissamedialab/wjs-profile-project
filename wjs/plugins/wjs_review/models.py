@@ -492,6 +492,16 @@ class ArticleWorkflow(TimeStampedModel):
     def author_submits_again(self):
         pass
 
+    @transition(
+        field=state,
+        source=ReviewStates.UNDER_APPEAL,
+        target=ReviewStates.EDITOR_SELECTED,
+        permission=permissions.is_article_author,
+        # TODO: conditions=[],
+    )
+    def author_submits_appeal(self):
+        pass
+
     # admin deems paper not suitable
     @transition(
         field=state,
