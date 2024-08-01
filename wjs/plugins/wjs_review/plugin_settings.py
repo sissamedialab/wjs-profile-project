@@ -1597,6 +1597,100 @@ def set_default_plugin_settings(force: bool = False):
             eo_opens_appeal_setting["name"],
         )
 
+    def author_withdraws_preprint_message():
+        subject_author_withdraws_preprint: SettingParams = {
+            "name": "author_withdraws_preprint_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author withdrawing a preprint."),
+            "description": _(
+                "The subject of the notification that is sent to the EO/Editor when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        subject_author_withdraws_preprint_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Withdrawn preprint {{ article.id }}"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_author_withdraws_preprint,
+            subject_author_withdraws_preprint_setting_value,
+            subject_author_withdraws_preprint["name"],
+        )
+        author_withdraws_preprint_setting: SettingParams = {
+            "name": "author_withdraws_preprint_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author withdrawing a preprint."),
+            "description": _(
+                "The body of the notification that is sent to the EO/Editor when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        author_withdraws_preprint_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ supervisor.full_name }}, I'm withdrawing the preprint {{ article.id }}.
+
+            {{ article.correspondence_author.full_name }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            author_withdraws_preprint_setting,
+            author_withdraws_preprint_setting_value,
+            author_withdraws_preprint_setting["name"],
+        )
+
+    def preprint_withdrawn_system_message():
+        subject_preprint_withdrawn_preprint: SettingParams = {
+            "name": "preprint_withdrawn_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author withdrawing a preprint."),
+            "description": _(
+                "The subject of the notification that is sent to the reviewers/typesetter when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        subject_preprint_withdrawn_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Assignments closed for preprint {{ article.id }}"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_preprint_withdrawn_preprint,
+            subject_preprint_withdrawn_setting_value,
+            subject_preprint_withdrawn_preprint["name"],
+        )
+        preprint_withdrawn_setting: SettingParams = {
+            "name": "preprint_withdrawn_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author withdrawing a preprint."),
+            "description": _(
+                "The body of the notification that is sent to the reviewers/typesetter when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        preprint_withdrawn_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ recipient.full_name }}, thanks for your involvements.
+
+            Your assignment has been closed for the preprint {{ article.id }}.
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            preprint_withdrawn_setting,
+            preprint_withdrawn_setting_value,
+            preprint_withdrawn_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1624,6 +1718,8 @@ def set_default_plugin_settings(force: bool = False):
     author_sends_corrections_message()
     typesetting_generated_galleys_message()
     editor_deassign_reviewer_messages()
+    author_withdraws_preprint_message()
+    preprint_withdrawn_system_message()
     eo_opens_appeal_message()
 
 

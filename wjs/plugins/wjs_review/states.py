@@ -272,6 +272,13 @@ class BaseState:
             label="Assign / Reassign EO in charge",
             view_name="wjs_assign_eo",
         ),
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="withdraw preprint",
+            label="Withdraw",
+            view_name="wjs_author_withdraw_preprint",
+            condition=conditions.can_withdraw_preprint,
+        ),
     )
     review_assignment_actions = ()
 

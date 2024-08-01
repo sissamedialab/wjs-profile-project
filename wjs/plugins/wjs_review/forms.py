@@ -44,6 +44,7 @@ from .logic import (
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
+    WithdrawPreprint,
     render_template_from_setting,
 )
 from .models import (
@@ -1139,6 +1140,36 @@ class OpenAppealForm(forms.ModelForm):
             new_editor=self.cleaned_data["editor"],
             article=self.instance.article,
             request=self.request,
+        )
+
+    def save(self, commit=True):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class WithdrawPreprintForm(forms.Form):
+    """Form used by an author who wants to withdraw a preprint."""
+
+    notification_subject = forms.CharField(label=_("Subject"))
+    notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop("instance")
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> WithdrawPreprint:
+        """Instantiate :py:class:`WithdrawPreprint` class."""
+        return WithdrawPreprint(
+            workflow=self.instance,
+            request=self.request,
+            form_data=self.data,
         )
 
     def save(self, commit=True):

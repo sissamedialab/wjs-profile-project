@@ -36,6 +36,7 @@ from ..forms import (
     OpenAppealForm,
     ReportForm,
     SupervisorAssignEditorForm,
+    WithdrawPreprintForm,
 )
 from ..logic import (
     AdminActions,
@@ -3038,3 +3039,50 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
     revision_request = EditorRevisionRequest.objects.filter(article=rejected_article).last()
     assert assignment.editor == normal_user.janeway_account
     assert revision_request.editor == eo_user.janeway_account
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "fixture_article",
+    [
+        "article",
+        "assigned_article",
+        "accepted_article",
+        "ready_for_typesetter_article",
+        "assigned_to_typesetter_article",
+        "stage_proofing_article",
+        "rfp_article",
+    ],
+)
+def test_author_withdraws_preprint(
+    fixture_article,
+    request,
+    fake_request: HttpRequest,
+    review_settings,
+):
+    """Check if author can withdraw preprint in different scenarios."""
+    article = request.getfixturevalue(fixture_article)
+    incomplete_submission = article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+    fake_request.user = article.correspondence_author
+    form_data = {
+        "notification_subject": "Test subject",
+        "notification_body": "Test body",
+    }
+    form = WithdrawPreprintForm(
+        data=form_data,
+        request=fake_request,
+        instance=article.articleworkflow,
+    )
+
+    form.is_valid()
+    form.save()
+    article.refresh_from_db()
+    if incomplete_submission:
+        assert WjsEditorAssignment.objects.get_all(article).count() == 0
+    else:
+        assert WjsEditorAssignment.objects.get_all(article).count() == 1
+
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
+
+    for assignment in article.reviewassignment_set.all():
+        assert assignment.is_complete

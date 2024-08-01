@@ -624,6 +624,31 @@ class ArticleWorkflow(TimeStampedModel):
     def system_verifies_production_requirements(self):
         pass
 
+    @transition(
+        field=state,
+        source=(
+            ReviewStates.EDITOR_TO_BE_SELECTED,
+            ReviewStates.EDITOR_SELECTED,
+            ReviewStates.SUBMITTED,
+            ReviewStates.TO_BE_REVISED,
+            ReviewStates.INCOMPLETE_SUBMISSION,
+            ReviewStates.PAPER_HAS_EDITOR_REPORT,
+            ReviewStates.ACCEPTED,
+            ReviewStates.TYPESETTER_SELECTED,
+            ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ReviewStates.PROOFREADING,
+            ReviewStates.READY_FOR_TYPESETTER,
+            ReviewStates.READY_FOR_PUBLICATION,
+            ReviewStates.SEND_TO_EDITOR_FOR_CHECK,
+            ReviewStates.PUBLICATION_IN_PROGRESS,
+        ),
+        target=ReviewStates.WITHDRAWN,
+        permission=permissions.is_article_author,
+        # TODO: conditions=[],
+    )
+    def author_withdraws_preprint(self):
+        pass
+
     # EO initiates publication
     @transition(
         field=state,

@@ -30,6 +30,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
+from plugins.typesetting.models import TypesettingAssignment
 from review.logic import assign_editor, quick_assign
 from review.models import ReviewRound
 from review.views import upload_review_file
@@ -1206,6 +1207,55 @@ class AuthorHandleRevision:
 
 
 @dataclasses.dataclass
+class WithdrawReviewRequests:
+    """
+    Mark review requests as withdrawn and log a personalized message.
+    """
+
+    article: Article
+    request: HttpRequest
+    subject_name: str
+    body_name: str
+    context: Dict[str, Any]
+    user: Account = None
+
+    def run(self):
+        for assignment in self.article.reviewassignment_set.filter(is_complete=False):
+            assignment.withdraw()
+
+            self._log_review_withdraw(reviewer=assignment.reviewer)
+
+    def _log_review_withdraw(self, reviewer: Account):
+        self.context["recipient"] = reviewer
+        review_withdraw_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name=self.subject_name,
+            journal=self.article.journal,
+            request=self.request,
+            context=self.context,
+            template_is_setting=True,
+        )
+        review_withdraw_message = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name=self.body_name,
+            journal=self.article.journal,
+            request=self.request,
+            context=self.context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=self.user,
+            article=self.article,
+            message_subject=review_withdraw_subject,
+            recipients=[reviewer],
+            message_body=review_withdraw_message,
+            message_type=Message.MessageTypes.VERBOSE,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+
+@dataclasses.dataclass
 class HandleDecision:
     workflow: ArticleWorkflow
     form_data: Dict[str, Any]
@@ -1465,34 +1515,6 @@ class HandleDecision:
             notify_actor=communication_utils.should_notify_actor(),
         )
 
-    def _log_review_withdraw(self, context: Dict[str, str], reviewer: Account):
-        review_withdraw_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_withdraw_subject",
-            journal=self.workflow.article.journal,
-            request=self.request,
-            context=context,
-            template_is_setting=True,
-        )
-        review_withdraw_message = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_withdraw_body",
-            journal=self.workflow.article.journal,
-            request=self.request,
-            context=context,
-            template_is_setting=True,
-        )
-        communication_utils.log_operation(
-            actor=self.user,
-            article=self.workflow.article,
-            message_subject=review_withdraw_subject,
-            recipients=[reviewer],
-            message_body=review_withdraw_message,
-            message_type=Message.MessageTypes.VERBOSE,
-            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
-            notify_actor=communication_utils.should_notify_actor(),
-        )
-
     def _accept_article(self) -> Article:
         """
         Accept article.
@@ -1674,9 +1696,15 @@ class HandleDecision:
         """
         Mark unfinished review requests as withdrawn.
         """
-        for assignment in self.workflow.article.reviewassignment_set.filter(is_complete=False):
-            assignment.withdraw()
-            self._log_review_withdraw(context=email_context, reviewer=assignment.reviewer)
+        service = WithdrawReviewRequests(
+            article=self.workflow.article,
+            request=self.request,
+            subject_name="review_withdraw_subject",
+            body_name="review_withdraw_body",
+            context=email_context,
+            user=self.user,
+        )
+        service.run()
 
     def _store_decision(self) -> EditorDecision:
         """Store decision information."""
@@ -2450,3 +2478,119 @@ class OpenAppeal:
                 self.assign_new_editor()
             self._handle_decision()
             self._log_author()
+
+
+@dataclasses.dataclass
+class WithdrawPreprint:
+    """Withdraw preprint."""
+
+    workflow: ArticleWorkflow
+    request: HttpRequest
+    form_data: Dict[str, Any]
+
+    def _check_user_conditions(self) -> bool:
+        """Check if the user is the correspondence author."""
+        return self.workflow.article.correspondence_author == self.request.user
+
+    def _check_state_conditions(self) -> bool:
+        """Check if the FSM transition can be made."""
+        return can_proceed(self.workflow.author_withdraws_preprint)
+
+    def _check_past_rejection_conditions(self) -> bool:
+        """Check if the article wasn't already rejected one time."""
+        return not EditorDecision.objects.filter(
+            workflow=self.workflow,
+            decision=ArticleWorkflow.Decisions.REJECT,
+        ).exists()
+
+    def _check_conditions(self) -> bool:
+        """Check if the conditions for the withdrawal are met."""
+        return (
+            self._check_user_conditions()
+            and self._check_state_conditions()
+            and self._check_past_rejection_conditions()
+        )
+
+    def _close_review_assignments(self):
+        """Close all the review assignments and log reviewers."""
+        service = WithdrawReviewRequests(
+            article=self.workflow.article,
+            request=self.request,
+            subject_name="preprint_withdrawn_subject",
+            body_name="preprint_withdrawn_body",
+            context={"article": self.workflow.article},
+        )
+        service.run()
+
+    def _update_state(self):
+        """Run FSM transition."""
+        self.workflow.author_withdraws_preprint()
+        self.workflow.save()
+
+    def _log_supervisor(self):
+        """Logs a message to editor or EO containing information about the motivation of the withdrawal."""
+        try:
+            current_editor = WjsEditorAssignment.objects.get_current(self.workflow.article).editor
+        except WjsEditorAssignment.DoesNotExist:
+            current_editor = None
+        communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=self.form_data.get("notification_subject"),
+            message_body=self.form_data.get("notification_body"),
+            actor=self.workflow.article.correspondence_author,
+            recipients=[
+                (current_editor if current_editor else communication_utils.get_eo_user(self.workflow.article))
+            ],
+        )
+
+    def _check_typesetter_conditions(self) -> bool:
+        """Check if there is an active TypesettingAssignment for the article."""
+        return (
+            TypesettingAssignment.objects.filter(
+                round__article=self.workflow.article,
+                completed__isnull=True,
+            )
+            .order_by("round__round_number")
+            .last()
+        )
+
+    def _get_typesetter_context(self, assignment: TypesettingAssignment) -> Dict[str, Any]:
+        return {
+            "article": self.workflow.article,
+            "recipient": assignment.typesetter,
+        }
+
+    def _log_typesetter(self, assignment: TypesettingAssignment):
+        """Logs a message to the typesetter containing information about the withdrawal."""
+        context = self._get_typesetter_context(assignment)
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="preprint_withdrawn_subject",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="preprint_withdrawn_body",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[assignment.typesetter],
+        )
+
+    def run(self):
+        with transaction.atomic():
+            conditions = self._check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            self._close_review_assignments()
+            self._update_state()
+            self._log_supervisor()
+            if assignment := self._check_typesetter_conditions():
+                self._log_typesetter(assignment)
+            return
