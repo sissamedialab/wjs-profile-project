@@ -259,7 +259,11 @@ def pending_revision_request(workflow: ArticleWorkflow, user: Account) -> Option
     pending_revision_requests = EditorRevisionRequest.objects.filter(
         article_id=workflow.article_id,
         date_completed__isnull=True,
-        type__in=[ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION],
+        type__in=[
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.OPEN_APPEAL,
+        ],
     ).order_by()
     if pending_revision_requests.exists():
         return pending_revision_requests.last()

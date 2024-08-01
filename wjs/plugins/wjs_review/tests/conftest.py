@@ -40,6 +40,7 @@ from ..logic import (
     AssignTypesetter,
     AuthorSendsCorrections,
     HandleDecision,
+    OpenAppeal,
     ReadyForPublication,
     RequestProofs,
     UploadFile,
@@ -218,6 +219,23 @@ def rejected_article(fake_request, assigned_article) -> Article:
         # (which is the most common case)
         fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
     return _reject_article(assigned_article, fake_request)
+
+
+def _under_appeal_article(
+    article: Article, fake_request: HttpRequest, eo_user: Account, section_editor: Account
+) -> Article:
+    fake_request.user = eo_user.janeway_account
+
+    OpenAppeal(section_editor, article, fake_request).run()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    cleanup_notifications_side_effects()
+    return article
+
+
+@pytest.fixture
+def under_appeal_article(fake_request, rejected_article, eo_user, section_editor) -> Article:
+    """Return an under appeal article."""
+    return _under_appeal_article(rejected_article, fake_request, eo_user, section_editor)
 
 
 def _ready_for_typesetter_article(article: Article) -> Article:

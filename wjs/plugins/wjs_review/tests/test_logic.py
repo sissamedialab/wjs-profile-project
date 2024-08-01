@@ -3086,3 +3086,37 @@ def test_author_withdraws_preprint(
 
     for assignment in article.reviewassignment_set.all():
         assert assignment.is_complete
+
+
+@pytest.mark.django_db
+def test_author_submits_after_appeal(under_appeal_article: Article, fake_request: HttpRequest):
+    """An author can submit a new version after an appeal."""
+    fake_request.user = under_appeal_article.correspondence_author
+
+    revision_request = EditorRevisionRequest.objects.get(article=under_appeal_article)
+    assignment = WjsEditorAssignment.objects.get_current(article=under_appeal_article)
+    form_data = {
+        "author_note": "author_note",
+        "confirm_title": "on",
+        "confirm_styles": "on",
+        "confirm_blind": "on",
+        "confirm_cover": "on",
+    }
+
+    service = AuthorHandleRevision(
+        revision=revision_request,
+        form_data=form_data,
+        user=fake_request.user,
+        request=fake_request,
+    )
+    service.run()
+    under_appeal_article.refresh_from_db()
+    assert under_appeal_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    content_type = ContentType.objects.get_for_model(under_appeal_article)
+
+    messages = Message.objects.filter(
+        content_type=content_type, object_id=under_appeal_article.pk, recipients=assignment.editor
+    )
+    assert messages.count() == 1
+    assert "has appealed against rejection" in messages[0].body
