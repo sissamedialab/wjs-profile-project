@@ -15,6 +15,7 @@ from .views import (
     AssignEoToArticle,
     AuthorArchived,
     AuthorPending,
+    AuthorWithdrawPreprint,
     DeselectReviewer,
     DirectorArchived,
     DirectorPending,
@@ -235,4 +236,5 @@ urlpatterns = [
         name="download_anything_dropme",
     ),
     path("open_appeal/<int:pk>/", AdminOpensAppealView.as_view(), name="wjs_open_appeal"),
+    path("withdraw/<int:pk>/", AuthorWithdrawPreprint.as_view(), name="wjs_author_withdraw_preprint"),
 ]

@@ -612,3 +612,14 @@ def test_wjs_open_appeal(assigned_article, eo_user, client):
         f"{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_author_withdraw_preprint(assigned_article, client):
+    """Author withdraws a preprint."""
+    client.force_login(assigned_article.correspondence_author)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/"
+        f"withdraw/{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200

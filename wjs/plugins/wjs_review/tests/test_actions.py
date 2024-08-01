@@ -165,16 +165,20 @@ def test_pending_edit_metadata_request(
 @pytest.mark.parametrize(
     "decision,user_type,actions",
     (
-        (ArticleWorkflow.Decisions.ACCEPT, "author", []),
+        (ArticleWorkflow.Decisions.ACCEPT, "author", ["withdraw preprint"]),
         (ArticleWorkflow.Decisions.ACCEPT, "editor", []),
         (ArticleWorkflow.Decisions.ACCEPT, "other", []),
-        (ArticleWorkflow.Decisions.MINOR_REVISION, "author", ["submits new version", "confirms previous manuscript"]),
+        (
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            "author",
+            ["submits new version", "confirms previous manuscript", "withdraw preprint"],
+        ),
         (ArticleWorkflow.Decisions.MINOR_REVISION, "editor", ["postpone author revision deadline"]),
         (ArticleWorkflow.Decisions.MINOR_REVISION, "other", []),
         (
             ArticleWorkflow.Decisions.TECHNICAL_REVISION,
             "author",
-            ["edit metadata"],
+            ["edit metadata", "withdraw preprint"],
         ),
         (
             ArticleWorkflow.Decisions.TECHNICAL_REVISION,

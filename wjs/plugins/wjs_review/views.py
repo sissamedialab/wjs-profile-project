@@ -40,7 +40,7 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 
 from . import permissions
-from .communication_utils import get_messages_related_to_me
+from .communication_utils import get_eo_user, get_messages_related_to_me
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
@@ -69,6 +69,7 @@ from .forms import (
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
     UploadRevisionAuthorCoverLetterFileForm,
+    WithdrawPreprintForm,
 )
 from .logic import (
     AdminActions,
@@ -1981,3 +1982,52 @@ class AdminOpensAppealView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
         return kwargs
+
+
+class AuthorWithdrawPreprint(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """View for author to withdraw preprint."""
+
+    model = ArticleWorkflow
+    form_class = WithdrawPreprintForm
+    success_url = reverse_lazy("wjs_review_author_archived")
+    template_name = "wjs_review/withdraw_preprint.html"
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        return self.model.objects.filter(
+            pk=self.kwargs["pk"],
+            article__correspondence_author=self.request.user,
+        ).exists()
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["instance"] = self.object
+        kwargs["request"] = self.request
+        return kwargs
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        current_editor = WjsEditorAssignment.objects.get_current(self.object.article).editor
+        return {
+            "supervisor": current_editor if current_editor is not None else get_eo_user(self.object.article),
+            "article": self.object.article,
+        }
+
+    def get_initial(self):
+        initial = super().get_initial()
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_withdraws_preprint_subject",
+            journal=self.object.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_withdraws_preprint_body",
+            journal=self.object.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        initial["notification_subject"] = message_subject
+        initial["notification_body"] = message_body
+        return initial
