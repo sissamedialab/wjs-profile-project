@@ -142,6 +142,28 @@ states_when_article_is_considered_author_pending = [
 ]
 
 
+def handle_reviewer_deassignment_reminders(assignment: WorkflowReviewAssignment):
+    """Create reminders for the editor.
+
+    When, for the current review round, this is the last reviewer from whom the Editor is expecting an action:
+    if at least another review was completed (not declined) -> EditorShouldMakeDecisionReminderManager
+    if no other review was completed -> EditorShouldSelectReviewerReminderManager
+
+    """
+    other_assignments = get_other_review_assignments_for_this_round(assignment)
+    if not other_assignments.filter(is_complete=False, date_declined__isnull=True).exists():
+        if other_assignments.filter(is_complete=True, date_declined__isnull=True).exists():
+            EditorShouldMakeDecisionReminderManager(
+                article=assignment.article,
+                editor=assignment.editor,
+            ).create()
+        else:
+            EditorShouldSelectReviewerReminderManager(
+                article=assignment.article,
+                editor=assignment.editor,
+            ).create()
+
+
 @dataclasses.dataclass
 class CreateReviewRound:
     assignment: WjsEditorAssignment
@@ -651,29 +673,9 @@ class EvaluateReview:
         self._janeway_logic_handle_decline()
         self._log_decline()
         self._delete_reviewevaluate_reminders()
-        self._create_editor_reminders_maybe()
+        handle_reviewer_deassignment_reminders(self.assignment)
         if self.assignment.date_declined:
             return False
-
-    def _create_editor_reminders_maybe(self):
-        """Create reminders for the editor.
-
-        When, for the current review round,
-        - at least one completed review exists ⮕ create editor-should-make-decision reminders
-        - no completed or pending review exist ⮕ create editor-should-assign-reviewer reminders
-
-        """
-        other_assignments = get_other_review_assignments_for_this_round(self.assignment)
-        if other_assignments.filter(is_complete=True, date_declined__isnull=True).exists():
-            EditorShouldMakeDecisionReminderManager(
-                article=self.assignment.article,
-                editor=self.assignment.editor,
-            ).create()
-        elif not other_assignments.filter(is_complete=False, date_declined__isnull=True).exists():
-            EditorShouldSelectReviewerReminderManager(
-                article=self.assignment.article,
-                editor=self.assignment.editor,
-            ).create()
 
     def _delete_reviewevaluate_reminders(self):
         """Delete reminders related to the evaluation of this review request."""
@@ -2342,7 +2344,7 @@ class DeselectReviewer:
         Withdraw the assignment
         """
         self._delete_reviewer_reminders()
-        self._create_editor_reminder()
+        handle_reviewer_deassignment_reminders(self.assignment)
         if self.send_reviewer_notification:
             self._log_reviewer()
         self._log_system()
@@ -2353,18 +2355,6 @@ class DeselectReviewer:
         """Delete all reminders for the deassigned reviewer."""
         ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).delete()
         ReviewerShouldWriteReviewReminderManager(self.assignment).delete()
-
-    def _must_create_reminders(self) -> bool:
-        """Check if there are no more reviewers for the article."""
-        assignments = WorkflowReviewAssignment.objects.valid(
-            self.assignment.article, self.assignment.review_round
-        ).exclude(pk=self.assignment.pk)
-        return not assignments.exists()
-
-    def _create_editor_reminder(self):
-        """Create reminders for the editor, is there is no more  for the director."""
-        if self._must_create_reminders():
-            EditorShouldSelectReviewerReminderManager(article=self.assignment.article, editor=self.editor).create()
 
     def run(self) -> bool:
         with transaction.atomic():
