@@ -371,7 +371,6 @@ class EOWorkOnIssue(BaseWorkOnIssue):
         "wjs_review_eo_pending": _("Pending"),
         "wjs_review_eo_archived": _("Archived"),
         "wjs_review_eo_production": _("Production"),
-        "wjs_review_eo_missing_editor": _("Missing editor"),
         "wjs_review_eo_workon": _("Work on a paper"),
         "wjs_review_eo_issues_list": _("Pending Issues"),
     }
