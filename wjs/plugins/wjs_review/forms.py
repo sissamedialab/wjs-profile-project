@@ -103,7 +103,7 @@ class SelectReviewerForm(forms.ModelForm):
         label=_("Reviewer"), queryset=Account.objects.none(), widget=forms.HiddenInput, required=False
     )
     message = forms.CharField(label=_("Message"), widget=forms.Textarea(), required=False)
-    acceptance_due_date = forms.DateField(label=_("Acceptance due date"), required=False)
+    acceptance_due_date = forms.DateField(label=_("Reviewer should accept/decline invite by"), required=False)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
     author_note_visible = forms.BooleanField(label=_("Author cover letter"), required=False)
 
@@ -269,15 +269,16 @@ class SelectReviewerForm(forms.ModelForm):
 
 
 class ReviewerSearchForm(forms.Form):
-    search = forms.CharField(required=False)
+    search = forms.CharField(required=False, label=_("Name"))
     user_type = forms.ChoiceField(
         required=False,
         choices=[
-            ("", "All"),
-            ("past", "R. who have already worked on this paper"),
-            ("known", "R. w/ whom I've already worked"),
-            ("declined", "R. who declined previous assignments (for this paper)"),
-            ("prophy", "R. who is a prophy suggestion (for this paper)"),
+            ("", "---"),
+            ("all", "All"),
+            ("past", "Reviewed previous version"),
+            ("known", "My reviewer archive"),
+            ("declined", "Declined/removed from previous version"),
+            ("prophy", "Suggested by Prophy"),
         ],
     )
 
@@ -289,7 +290,7 @@ class InviteUserForm(forms.Form):
     last_name = forms.CharField(label=_("Last name"))
     suffix = forms.CharField(widget=forms.HiddenInput(), required=False)
     email = forms.EmailField(label=_("Email"))
-    message = forms.CharField(label=_("Message"), widget=forms.Textarea, required=False)
+    message = forms.CharField(label=_("Personal notes for the reviewer"), widget=forms.Textarea, required=False)
     author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
 
     def __init__(self, *args, **kwargs):

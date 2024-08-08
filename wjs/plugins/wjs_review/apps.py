@@ -22,7 +22,7 @@ class WjsReviewConfig(AppConfig):
         AccountManager.exclude_authors = users.exclude_authors
         AccountManager.annotate_is_author = users.annotate_is_author
         AccountManager.annotate_is_active_reviewer = users.annotate_is_active_reviewer
-        AccountManager.annotate_is_past_reviewer = users.annotate_is_past_reviewer
+        AccountManager.annotate_is_last_round_reviewer = users.annotate_is_last_round_reviewer
 
         AccountQuerySet.filter_reviewers = users.filter_reviewers
         AccountQuerySet.get_reviewers_choices = users.get_reviewers_choices
@@ -30,21 +30,25 @@ class WjsReviewConfig(AppConfig):
         AccountQuerySet.exclude_authors = users.exclude_authors
         AccountQuerySet.annotate_is_author = users.annotate_is_author
         AccountQuerySet.annotate_is_active_reviewer = users.annotate_is_active_reviewer
-        AccountQuerySet.annotate_is_past_reviewer = users.annotate_is_past_reviewer
+        AccountQuerySet.annotate_is_last_round_reviewer = users.annotate_is_last_round_reviewer
 
         AccountManager.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
-        AccountManager.annotate_has_previously_completed_review = users.annotate_has_previously_completed_review
+        AccountManager.annotate_has_completed_review_in_the_previous_round = (
+            users.annotate_has_completed_review_in_the_previous_round
+        )
         AccountManager.annotate_declined_current_review_round = users.annotate_declined_current_review_round
-        AccountManager.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
+        AccountManager.annotate_declined_the_previous_review_round = users.annotate_declined_the_previous_review_round
         AccountManager.annotate_worked_with_me = users.annotate_worked_with_me
         AccountManager.annotate_is_prophy_candidate = users.annotate_is_prophy_candidate
         AccountManager.annotate_is_only_prophy = users.annotate_is_only_prophy
         AccountManager.annotate_ordering_score = users.annotate_ordering_score
 
         AccountQuerySet.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
-        AccountQuerySet.annotate_has_previously_completed_review = users.annotate_has_previously_completed_review
+        AccountQuerySet.annotate_has_completed_review_in_the_previous_round = (
+            users.annotate_has_completed_review_in_the_previous_round
+        )
         AccountQuerySet.annotate_declined_current_review_round = users.annotate_declined_current_review_round
-        AccountQuerySet.annotate_declined_previous_review_round = users.annotate_declined_previous_review_round
+        AccountQuerySet.annotate_declined_the_previous_review_round = users.annotate_declined_the_previous_review_round
         AccountQuerySet.annotate_worked_with_me = users.annotate_worked_with_me
         AccountQuerySet.annotate_is_prophy_candidate = users.annotate_is_prophy_candidate
         AccountQuerySet.annotate_is_only_prophy = users.annotate_is_only_prophy

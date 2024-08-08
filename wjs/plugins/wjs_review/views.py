@@ -678,6 +678,8 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
                 return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
             elif self.request.headers.get("Hx-Trigger-Name") == "assign-reviewer":
                 return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
+            elif self.request.headers.get("Hx-Trigger-Name") == "editor-assign-themselves":
+                return ["wjs_review/editor_assigns_themselves_as_reviewer.html"]
             elif self.request.headers.get("Hx-Trigger-Name") == "search-reviewer-form":
                 return ["wjs_review/select_reviewer/elements/reviewers_table.html"]
         return ["wjs_review/select_reviewer/select_reviewer.html"]
@@ -1230,11 +1232,14 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
     @property
     def submitted_reviews(self) -> QuerySet[ReviewAssignment]:
         """Return the submitted reviews for the current review round."""
-        return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False)
+        return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False).exclude(
+            decision="withdrawn"
+        )
 
     @property
     def declined_reviews(self) -> QuerySet[ReviewAssignment]:
         """Return the declined reviews for the current review round."""
+        # Attention: this does not return withdrawn reviews, is this what's intended?
         return self.current_reviews.filter(date_declined__isnull=False)
 
     @property

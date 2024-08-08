@@ -313,9 +313,9 @@ class Prophy:
             wjs_is_active_reviewer=Value(False),
             wjs_has_declined_current_review_round=Value(False),
             wjs_has_currently_completed_review=Value(False),
-            wjs_is_past_reviewer=Value(False),
-            wjs_has_delined_previous_review_round=Value(False),
-            wjs_has_previously_completed_review=Value(False),
+            wjs_is_last_round_reviewer=Value(False),
+            wjs_has_delined_the_previous_review_round=Value(False),
+            wjs_has_completed_review_in_the_previous_round=Value(False),
             wjs_is_prophy_candidate=Value(True),
             wjs_is_only_prophy=Value(True),
             wjs_prophy_auth_url=Value(settings.PROPHY_AUTH),
@@ -329,7 +329,7 @@ class Prophy:
         if q_filters:
             prophy_accounts_candidates = prophy_accounts_candidates.filter(q_filters)
 
-        return prophy_accounts_candidates.order_by("-is_active", "name")
+        return prophy_accounts_candidates.order_by("-is_active", "-prophycandidate__score", "name")
 
     def get_prophy_upload_enabled(self):
         prophy_upload_enabled_value = get_setting(
