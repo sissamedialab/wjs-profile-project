@@ -659,6 +659,24 @@ class ArticleWorkflow(TimeStampedModel):
     def author_withdraws_preprint(self):
         pass
 
+    @transition(
+        field=state,
+        source=(
+            ReviewStates.EDITOR_TO_BE_SELECTED,
+            ReviewStates.EDITOR_SELECTED,
+            ReviewStates.SUBMITTED,
+            ReviewStates.TO_BE_REVISED,
+            ReviewStates.PAPER_HAS_EDITOR_REPORT,
+            ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ReviewStates.UNDER_APPEAL,
+        ),
+        target=ReviewStates.REJECTED,
+        permission=permissions.is_article_author,
+        # TODO: conditions=[],
+    )
+    def author_withdraws_preprint_after_a_rejection(self):
+        pass
+
     # EO initiates publication
     @transition(
         field=state,

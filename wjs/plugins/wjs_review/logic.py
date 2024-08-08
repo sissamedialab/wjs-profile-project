@@ -2445,10 +2445,19 @@ class OpenAppeal:
         """Check if selected Editor is the article's author."""
         return self.article.authors.filter(id=self.new_editor.id).exists()
 
+    def _has_another_past_rejection(self) -> bool:
+        return (
+            EditorDecision.objects.filter(
+                workflow=self.article.articleworkflow,
+                decision=ArticleWorkflow.Decisions.REJECT,
+            ).count()
+            > 1
+        )
+
     def check_conditions(self):
         """Check if the selected editor is an actual editor for the article's journal."""
         editor_conditions = has_any_editor_role_by_article(self.article.articleworkflow, self.new_editor)
-        return editor_conditions and not self._is_articles_author()
+        return editor_conditions and not self._is_articles_author() and not self._has_another_past_rejection()
 
     def _handle_decision(self):
         """Instantiate HandleDecision to create the EditorRevisionRequest and the other collateral effects."""
@@ -2529,24 +2538,26 @@ class WithdrawPreprint:
         """Check if the user is the correspondence author."""
         return self.workflow.article.correspondence_author == self.request.user
 
-    def _check_state_conditions(self) -> bool:
-        """Check if the FSM transition can be made."""
-        return can_proceed(self.workflow.author_withdraws_preprint)
-
-    def _check_past_rejection_conditions(self) -> bool:
-        """Check if the article wasn't already rejected one time."""
-        return not EditorDecision.objects.filter(
+    def _has_past_rejection(self) -> bool:
+        """Check if the article was already rejected one time."""
+        return EditorDecision.objects.filter(
             workflow=self.workflow,
             decision=ArticleWorkflow.Decisions.REJECT,
         ).exists()
 
+    def _check_state_conditions(self) -> bool:
+        """Check if the FSM transition can be made."""
+        withdraw_without_rejection = (
+            can_proceed(self.workflow.author_withdraws_preprint) and not self._has_past_rejection()
+        )
+        withdraw_after_a_rejection = (
+            can_proceed(self.workflow.author_withdraws_preprint_after_a_rejection) and self._has_past_rejection()
+        )
+        return withdraw_without_rejection or withdraw_after_a_rejection
+
     def _check_conditions(self) -> bool:
         """Check if the conditions for the withdrawal are met."""
-        return (
-            self._check_user_conditions()
-            and self._check_state_conditions()
-            and self._check_past_rejection_conditions()
-        )
+        return self._check_user_conditions() and self._check_state_conditions()
 
     def _close_review_assignments(self):
         """Close all the review assignments and log reviewers."""
@@ -2561,7 +2572,10 @@ class WithdrawPreprint:
 
     def _update_state(self):
         """Run FSM transition."""
-        self.workflow.author_withdraws_preprint()
+        if self._has_past_rejection() and can_proceed(self.workflow.author_withdraws_preprint_after_a_rejection):
+            self.workflow.author_withdraws_preprint_after_a_rejection()
+        else:
+            self.workflow.author_withdraws_preprint()
         self.workflow.save()
 
     def _log_supervisor(self):

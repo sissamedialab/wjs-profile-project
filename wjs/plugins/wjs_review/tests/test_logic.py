@@ -3052,6 +3052,7 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
         "assigned_to_typesetter_article",
         "stage_proofing_article",
         "rfp_article",
+        "under_appeal_article",
     ],
 )
 def test_author_withdraws_preprint(
@@ -3063,6 +3064,7 @@ def test_author_withdraws_preprint(
     """Check if author can withdraw preprint in different scenarios."""
     article = request.getfixturevalue(fixture_article)
     incomplete_submission = article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+    under_appeal_state = article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
     fake_request.user = article.correspondence_author
     form_data = {
         "notification_subject": "Test subject",
@@ -3081,8 +3083,10 @@ def test_author_withdraws_preprint(
         assert WjsEditorAssignment.objects.get_all(article).count() == 0
     else:
         assert WjsEditorAssignment.objects.get_all(article).count() == 1
-
-    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
+    if under_appeal_state:
+        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.REJECTED
+    else:
+        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
 
     for assignment in article.reviewassignment_set.all():
         assert assignment.is_complete
