@@ -136,7 +136,7 @@ def all_assignments_completed(article: Article) -> str:
     assignments = ReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
         & Q(is_complete=True, date_declined__isnull=True),  # completed reviews
-    )
+    ).exclude(decision="withdrawn")
     pending_assignments = ReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
         & Q(is_complete=False, date_declined__isnull=True),  # active reviews

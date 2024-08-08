@@ -2,6 +2,7 @@
 {% url "wjs_select_reviewer" workflow.pk as wjs_select_reviewer %}
 {% for user in users %}
   {% url "wjs_invite_reviewer_prophy" workflow.pk user.author_id as invite_reviewer_prophy %}
+  {% url "wjs_editor_assigns_themselves_as_reviewer" workflow.pk as editor_assigns_themselves %}
   {% reviewer_btn_props user selected workflow as btn %}
   <tr>
     <td>
@@ -13,30 +14,30 @@
     </td>
     <td>{{ user.email }}</td>
     <td>
-      {% if user.wjs_is_author %}{% translate "Author of the paper" %}{% endif %}
+      {% if user.wjs_is_author %}{% translate "Author of this preprint" %}{% endif %}
       {# TODO: user.is_active to be replaced by user.does_not_want_to_review_anything #}
-      {% if not user.is_active %}{% translate "Inactive user" %}{% endif %}
+      {% if not user.is_active %}{% translate "Unavailable as reviewer" %}{% endif %}
       {% if user.wjs_is_active_reviewer %}
         {% if user.wjs_has_declined_current_review_round %}
-          {% translate "Declined this round" %}
+          {% translate "Declined/removed from current version" %}
         {% elif user.wjs_has_currently_completed_review %}
-          {% translate "Completed this round" %}
+          {% translate "Review already available" %}
         {% else %}
-          {% translate "Active reviewer/already selected" %}
+          {% translate "Already selected" %}
         {% endif %}
       {% else %}
         {# Show flags for previous rounds only if there is nothing for the current one. #}
-        {% if user.wjs_is_past_reviewer %}
-          {% if user.wjs_has_delined_previous_review_round %}
-            {% translate "Declined previous round" %}
-          {% elif user.wjs_has_previously_completed_review %}
-            {% translate "Completed previous round" %}
+        {% if user.wjs_is_last_round_reviewer %}
+          {% if user.wjs_has_delined_the_previous_review_round %}
+            {% translate "Declined/removed from previous version" %}
+          {% elif user.wjs_has_completed_review_in_the_previous_round %}
+            {% translate "Reviewed previous version" %}
           {% else %}
-            {% translate "Past reviewer (assignment not declined, but review never completed)" %}
+            {% translate "Did not send requested review (previous version)" %}
           {% endif %}
         {% endif %}
       {% endif %}
-      {% if user.wjs_is_prophy_candidate %}{% translate "Prophy candidate for the paper" %}{% endif %}
+      {% if user.wjs_is_prophy_candidate %}{% translate "Suggested by Prophy" %}{% endif %}
     </td>
     <td class="text-center">
       <!-- djlint:off -->
@@ -46,6 +47,8 @@
       {% comment %} Tooltips for .disabled or disabled elements must be triggered on a wrapper element. {% endcomment %}
       {% if user.wjs_is_only_prophy %}
         {% bootstrap_button name="invite-reviewer" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_vals=btn.value hx_get=invite_reviewer_prophy hx_target="#htmxModalContent" content=invite_label %}
+      {% elif workflow|is_user_article_editor:user  %}
+        {% bootstrap_button name="editor-assign-themselves" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_vals=btn.value hx_get=editor_assigns_themselves hx_target="#htmxModalContent" content=select_label %}
       {% else %}
         <div class="d-inline-block" tabindex="0" data-toggle="tooltip" title="{{ btn.disabled_cause }}">
           {% bootstrap_button name="assign-reviewer" disabled=btn.disabled data_bs_toggle="modal" data_bs_target="#htmxModal" button_class=btn.css_class hx_vals=btn.value hx_trigger="click" hx_post=wjs_select_reviewer hx_target="#htmxModalContent" data_toggle=btn.disabled_cause content=select_label %}
@@ -53,4 +56,8 @@
       {% endif %}
     </td>
   </tr>
+{% empty %}
+    <tr>
+       No user found
+    </tr>
 {% endfor %}

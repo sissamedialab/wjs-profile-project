@@ -79,14 +79,14 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
     qs = self.annotate_is_author(workflow.article)
 
     qs = qs.annotate_is_active_reviewer(workflow.article)
-    qs = qs.annotate_is_past_reviewer(workflow.article)
+    qs = qs.annotate_is_last_round_reviewer(workflow.article)
 
     qs = qs.annotate_has_currently_completed_review(workflow.article)
-    qs = qs.annotate_has_previously_completed_review(workflow.article)
+    qs = qs.annotate_has_completed_review_in_the_previous_round(workflow.article)
     qs = qs.annotate_ordering_score(current_editor)
 
     qs = qs.annotate_declined_current_review_round(workflow.article)
-    qs = qs.annotate_declined_previous_review_round(workflow.article)
+    qs = qs.annotate_declined_the_previous_review_round(workflow.article)
 
     qs = qs.annotate_is_prophy_candidate(workflow.article)
     qs = qs.annotate_is_only_prophy()
@@ -96,17 +96,20 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
             qs = qs.annotate_worked_with_me(current_editor)
             qs = qs.filter(wjs_worked_with_me=True)
         if user_type == "past":
-            qs = qs.filter(wjs_is_past_reviewer=True)
+            qs = qs.filter(wjs_has_completed_review_in_the_previous_round=True)
         if user_type == "declined":
-            qs = qs.filter(wjs_has_delined_previous_review_round=True)
+            qs = qs.filter(wjs_has_delined_the_previous_review_round=True)
         if user_type == "prophy":
             qs = qs.filter(wjs_is_prophy_candidate=True)
+        if user_type == "all":
+            pass
         else:
             logger.warning(f'Unknown (or not yet implemented) user_type "{user_type}"')
 
     if q_filters:
         qs = qs.filter(q_filters)
-    if not search_data.get("search") and not search_data.get("user_type"):
+
+    if not search_data.get("search") and not search_data.get("user_type") and not user_type == "all":
         qs = qs.filter(wjs_is_author=False)
         qs = qs.filter(is_active=True)
         qs = qs.filter(wjs_is_active_reviewer=False)
@@ -150,38 +153,39 @@ def annotate_is_active_reviewer(self, article: Article):
     )
 
 
-def annotate_is_past_reviewer(self, article: Article):
-    """Annotate Accounts, indicating if the person has been a reviewer of the given Article in a previous round.
+def annotate_is_last_round_reviewer(self, article: Article):
+    """Annotate Accounts, indicating if the person has been a reviewer of the given Article in the previous round.
 
     By past reviewer we mean that the person
     - has a ReviewAssignment on this Article
-    - the assignment if for on of the previous rounds (`< current_review_round`)
+    - the assignment is on the previous round
     """
     current_round = article.current_review_round()
     _filter = ReviewAssignment.objects.filter(
         article=article.id,
         reviewer=OuterRef("id"),
-        review_round__round_number__lt=current_round,
+        review_round__round_number=current_round - 1,
     )
 
     return self.annotate(
-        wjs_is_past_reviewer=Exists(_filter),
+        wjs_is_last_round_reviewer=Exists(_filter),
     )
 
 
-def annotate_has_previously_completed_review(self, article: Article):
-    """Annotate Accounts, indicating if the person has at least one completed review."""
+def annotate_has_completed_review_in_the_previous_round(self, article: Article):
+    """Annotate Accounts, indicating if the person has completed a review in the previous round."""
     current_round = article.current_review_round()
     did_review_previously = ReviewAssignment.objects.filter(
         article=article.id,
         reviewer=OuterRef("id"),
-        review_round__round_number__lt=current_round,
+        review_round__round_number=current_round - 1,
         date_complete__isnull=False,
         # no need for `date_declined__isnull=True`, it's redundant when date_complete is not null
-    )
+        # need this because the withdraw() janeway logic sets date_complete=now()
+    ).exclude(decision="withdraw")
 
     return self.annotate(
-        wjs_has_previously_completed_review=Exists(did_review_previously),
+        wjs_has_completed_review_in_the_previous_round=Exists(did_review_previously),
     )
 
 
@@ -194,25 +198,22 @@ def annotate_has_currently_completed_review(self, article: Article):
         review_round__round_number=current_round,
         date_complete__isnull=False,
         # no need for `date_declined__isnull=True`, it's redundant when date_complete is not null
-    )
+    ).exclude(decision="withdraw")
 
     return self.annotate(
         wjs_has_currently_completed_review=Exists(did_review_previously),
     )
 
 
-def annotate_declined_previous_review_round(self, article: Article):
-    """Annotate Accounts, indicating if the person has declined an assignment in a previous review round."""
+def annotate_declined_the_previous_review_round(self, article: Article):
+    """Annotate Accounts, indicating if the person has declined an assignment in the previous review round."""
     current_round = article.current_review_round()
     _filter = ReviewAssignment.objects.filter(
-        article=article.id,
-        reviewer=OuterRef("id"),
-        review_round__round_number__lt=current_round,
-        date_declined__isnull=False,
-    )
+        article=article.id, reviewer=OuterRef("id"), review_round__round_number=current_round - 1
+    ).filter(Q(date_declined__isnull=False) | Q(decision="withdraw"))
 
     return self.annotate(
-        wjs_has_delined_previous_review_round=Exists(_filter),
+        wjs_has_delined_the_previous_review_round=Exists(_filter),
     )
 
 
@@ -220,11 +221,8 @@ def annotate_declined_current_review_round(self, article: Article):
     """Annotate Accounts, indicating if the person has declined an assignment in the current review round."""
     current_round = article.current_review_round()
     _filter = ReviewAssignment.objects.filter(
-        article=article.id,
-        reviewer=OuterRef("id"),
-        review_round__round_number=current_round,
-        date_declined__isnull=False,
-    )
+        article=article.id, reviewer=OuterRef("id"), review_round__round_number=current_round
+    ).filter(Q(date_declined__isnull=False) | Q(decision="withdraw"))
 
     return self.annotate(
         wjs_has_declined_current_review_round=Exists(_filter),
@@ -236,10 +234,8 @@ def annotate_worked_with_me(self, editor: Account):
 
     At least one assignement must not be declined.
     """
-    _filter = ReviewAssignment.objects.filter(
-        editor=editor,
-        reviewer=OuterRef("id"),
-        date_declined__isnull=True,
+    _filter = ReviewAssignment.objects.filter(editor=editor, reviewer=OuterRef("id")).filter(
+        Q(date_declined__isnull=True) & ~Q(decision="withdraw")
     )
 
     return self.annotate(
@@ -307,7 +303,7 @@ def annotate_ordering_score(self, current_editor: Account) -> QuerySet[Account]:
     return self.annotate(
         ordering_score=Case(
             When(id=current_editor.id, then=Value(2)),
-            When(wjs_has_previously_completed_review=True, then=Value(1)),
+            When(wjs_has_completed_review_in_the_previous_round=True, then=Value(1)),
             default=Value(0),
             output_field=IntegerField(),
         )

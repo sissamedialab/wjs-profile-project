@@ -148,7 +148,7 @@ class WorkflowReviewAssignmentQuerySet(models.QuerySet):
         return self.filter(
             Q(article=article, review_round=review_round)
             & Q(
-                Q(is_complete=False, date_declined__isnull=True)  # active reviews
-                | Q(is_complete=True, date_declined__isnull=True),  # completed reviews
+                Q(is_complete=False)  # active reviews
+                | (Q(is_complete=True) & Q(date_declined__isnull=True) & ~Q(decision="withdraw")),  # completed reviews
             ),
         )
