@@ -25,7 +25,6 @@ from .communication_utils import get_eo_user
 from .logic import states_when_article_is_considered_archived
 from .models import (
     ArticleWorkflow,
-    EditorDecision,
     EditorRevisionRequest,
     Message,
     Reminder,
@@ -459,8 +458,4 @@ def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) ->
 def can_withdraw_preprint(workflow: ArticleWorkflow, user: Account) -> bool:
     """Returns True if the preprint can be withdrawn."""
     state_condition = workflow.state not in states_when_article_is_considered_archived
-    past_rejection = EditorDecision.objects.filter(
-        workflow=workflow,
-        decision=ArticleWorkflow.Decisions.REJECT,
-    ).exists()
-    return state_condition and not past_rejection
+    return state_condition
