@@ -1,0 +1,22 @@
+{% load django_bootstrap5 static %}
+{% translate "Search" as search_label %}
+{% translate "Reset" as reset_label %}
+
+<div class="card">
+  <div class="card-body">
+    <table class="table table-hover table-striped table-bordered mt-4" id="editors">
+      <thead class="bg-light">
+      <tr>
+        <th scope="col" class="col-3">{% translate "Name" %}</th>
+        <th scope="col" class="col-4">{% translate "Keywords" %}</th>
+        <th scope="col" class="col-2">{% translate "N. Matching Keywords" %}</th>
+        <th scope="col" class="col-1">{% translate "Action" %}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% include "wjs_review/assign_editor/elements/editor_list.html" with users=editors_with_keywords %}
+      </tbody>
+    </table>
+    {% include "wjs_review/base/elements/pagination.html" %}
+  </div>
+</div>
