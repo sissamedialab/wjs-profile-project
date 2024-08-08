@@ -1,11 +1,19 @@
 <a id="target-{{ action.name|slugify }}"
   {% if action.is_htmx %}
-   hx-target="#target-{{ action.name|slugify }}"
-   hx-post="{{ action.url }}"
-   hx-swap="outerHTML"
+    {% if action.is_modal %}
+      data-bs-toggle="modal"
+      data-bs-target="#htmxModal"
+      hx-trigger="click"
+      hx-get="{{ action.url }}"
+      hx-target="#htmxModalContent"
+    {% else %}
+      hx-target="#target-{{ action.name|slugify }}"
+      hx-post="{{ action.url }}"
+      hx-swap="outerHTML"
+    {% endif %}
   {% endif %}
    class="nav-link {% if action.disabled %}disabled{% endif %} {% if action.url == '#' %}disabled{% endif %}"
-   href="{{ action.url }}"
+   {% if action.is_htmx %}href="#"{% else %}href="{{ action.url }}"{% endif %}
    {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %}>
   {% if action.label %}
     {{ action.label }}
