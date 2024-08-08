@@ -332,9 +332,9 @@ class EditorToBeSelected(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_supervisor,
-            name="assigns editor",
+            name="assign editor",
             label="Assign Editor",
-            view_name="wjs_assigns_editor",
+            view_name="wjs_assign_editor",
         ),
     )
 
@@ -356,9 +356,9 @@ class EditorSelected(BaseState):
         ),
         ArticleAction(
             permission=permissions.is_article_supervisor,
-            name="assigns different editor",
+            name="assign different editor",
             label="Assign different Editor",
-            view_name="wjs_assigns_editor",
+            view_name="wjs_assign_editor",
         ),
         ArticleAction(
             permission=permissions.is_article_editor,

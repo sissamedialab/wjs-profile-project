@@ -1812,7 +1812,9 @@ class SupervisorAssignEditor(LoginRequiredMixin, UserPassesTestMixin, UpdateView
 
     model = ArticleWorkflow
     form_class = SupervisorAssignEditorForm
-    template_name = "wjs_review/supervisor_assign_editor.html"
+    template_name = "wjs_review/assign_editor/select_editor.html"
+    title = _("Assign Editor")
+    context_object_name = "workflow"
 
     def test_func(self):
         """

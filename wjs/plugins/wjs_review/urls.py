@@ -114,9 +114,9 @@ urlpatterns = [
         name="wjs_deselect_reviewer",
     ),
     path(
-        "assigns_editor/<int:pk>/",
+        "assign_editor/<int:pk>/",
         SupervisorAssignEditor.as_view(),
-        name="wjs_assigns_editor",
+        name="wjs_assign_editor",
     ),
     path("postpone_duedate/<int:pk>/", UpdateReviewerDueDate.as_view(), name="wjs_postpone_reviewer_due_date"),
     path(

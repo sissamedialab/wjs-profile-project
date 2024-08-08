@@ -198,10 +198,10 @@ def test_wjs_deselect_reviewer(review_assignment, client):
 
 
 @pytest.mark.django_db
-def test_wjs_assigns_editor(assigned_article, eo_user, client):
+def test_wjs_assign_editor(assigned_article, eo_user, client):
     client.force_login(eo_user)
     response = client.get(
-        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/assigns_editor/"
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/assign_editor/"
         f"{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200
