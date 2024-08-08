@@ -101,8 +101,8 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
     section = SectionFilterFilter(
         field_name="article__section",
         queryset=Section.objects.all(),
-        label=_("Preprint type"),
-        empty_label=_("Preprint types: All"),
+        label=_("Article type"),
+        empty_label=_("Article types: All"),
     )
     special_issue = SpecialIssueFilter(
         field_name="article__primary_issue",
