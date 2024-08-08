@@ -1,0 +1,13 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Assign" as assign_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Assign EO in charge" %}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  <form method="post" action="{% url "wjs_assign_eo" workflow.pk %}">
+    {% csrf_token %}
+    {% bootstrap_form form %}
+    {% bootstrap_button name="assign-eo" content=assign_label %}
+  </form>
+</div>

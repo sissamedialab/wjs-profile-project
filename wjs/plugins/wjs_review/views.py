@@ -1121,10 +1121,11 @@ class ReviewSubmit(EvaluateReviewRequest):
             return super().form_valid(form)
 
 
-class AssignEoToArticle(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class AssignEoToArticle(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = ArticleWorkflow
     form_class = AssignEoForm
-    template_name = "wjs_review/elements/eo_assign_eo.html"
+    template_name = "wjs_review/assign_eo/assign_eo.html"
+    context_object_name = "workflow"
 
     def test_func(self):
         """Verify that only staff can access."""

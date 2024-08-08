@@ -166,6 +166,7 @@ class ArticleAction:
     view_name: str
     tag: str = None
     is_htmx: bool = False
+    is_modal: bool = False
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
@@ -178,6 +179,10 @@ class ArticleAction:
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
 
+    def __post_init__(self):
+        if self.is_modal:
+            self.is_htmx = True
+
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
         return {
@@ -188,6 +193,7 @@ class ArticleAction:
             "tag": self.tag,
             "css_class": self.custom_get_css_class(self, workflow, user) if self.custom_get_css_class else None,
             "is_htmx": self.is_htmx,
+            "is_modal": self.is_modal,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
         }
 
@@ -231,8 +237,14 @@ class ReviewAssignmentAction:
     tag: str = None
     order: int = 0
     tooltip: str = None
+    is_htmx: bool = False
+    is_modal: bool = False
     querystring_params: dict = None
     custom_get_url: Optional[Callable] = None
+
+    def __post_init__(self):
+        if self.is_modal:
+            self.is_htmx = True
 
     def as_dict(self, assignment: "ReviewAssignment", user: Account):
         """Return parameters needed to build the action button."""
@@ -246,6 +258,8 @@ class ReviewAssignmentAction:
             "label": self.label,
             "tooltip": self.tooltip,
             "url": url,
+            "is_htmx": self.is_htmx,
+            "is_modal": self.is_modal,
         }
 
     def get_url(self, assignment: "ReviewAssignment", user: Account) -> str:
@@ -271,6 +285,7 @@ class BaseState:
             name="assign eo",
             label="Assign / Reassign EO in charge",
             view_name="wjs_assign_eo",
+            is_modal=True,
         ),
     )
     review_assignment_actions = ()
