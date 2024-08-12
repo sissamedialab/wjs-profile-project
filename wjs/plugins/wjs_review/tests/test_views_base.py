@@ -198,10 +198,10 @@ def test_wjs_deselect_reviewer(review_assignment, client):
 
 
 @pytest.mark.django_db
-def test_wjs_assigns_editor(assigned_article, eo_user, client):
+def test_wjs_assign_editor(assigned_article, eo_user, client):
     client.force_login(eo_user)
     response = client.get(
-        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/assigns_editor/"
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/assign_editor/"
         f"{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200
@@ -610,5 +610,26 @@ def test_wjs_additional_info(assigned_article, typesetter, eo_user, client):
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/"
         f"additional_info/{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_wjs_open_appeal(assigned_article, eo_user, client):
+    client.force_login(eo_user)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/open_appeal/"
+        f"{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_author_withdraw_preprint(assigned_article, client):
+    """Author withdraws a preprint."""
+    client.force_login(assigned_article.correspondence_author)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/"
+        f"withdraw/{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200

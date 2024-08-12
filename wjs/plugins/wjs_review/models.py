@@ -103,6 +103,7 @@ class ArticleWorkflow(TimeStampedModel):
         READY_FOR_PUBLICATION = "ReadyForPublication", _("Ready for publication")
         SEND_TO_EDITOR_FOR_CHECK = "SendToEditorForCheck", _("Send to editor for check")
         PUBLICATION_IN_PROGRESS = "PublicationInProgress", _("Publication in progress")
+        UNDER_APPEAL = "UnderAppeal", _("Under appeal")
 
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
@@ -116,6 +117,7 @@ class ArticleWorkflow(TimeStampedModel):
         TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
         REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
+        OPEN_APPEAL = "open_appeal", _("Open appeal")
 
         @classmethod
         @property
@@ -472,7 +474,7 @@ class ArticleWorkflow(TimeStampedModel):
     @transition(
         field=state,
         source=ReviewStates.REJECTED,
-        target=ReviewStates.TO_BE_REVISED,
+        target=ReviewStates.UNDER_APPEAL,
         permission=permissions.has_admin_role_by_article,
         # TODO: conditions=[],
     )
@@ -488,6 +490,16 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: conditions=[],
     )
     def author_submits_again(self):
+        pass
+
+    @transition(
+        field=state,
+        source=ReviewStates.UNDER_APPEAL,
+        target=ReviewStates.EDITOR_SELECTED,
+        permission=permissions.is_article_author,
+        # TODO: conditions=[],
+    )
+    def author_submits_appeal(self):
         pass
 
     # admin deems paper not suitable
@@ -620,6 +632,49 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: conditions=[],
     )
     def system_verifies_production_requirements(self):
+        pass
+
+    @transition(
+        field=state,
+        source=(
+            ReviewStates.EDITOR_TO_BE_SELECTED,
+            ReviewStates.EDITOR_SELECTED,
+            ReviewStates.SUBMITTED,
+            ReviewStates.TO_BE_REVISED,
+            ReviewStates.INCOMPLETE_SUBMISSION,
+            ReviewStates.PAPER_HAS_EDITOR_REPORT,
+            ReviewStates.ACCEPTED,
+            ReviewStates.TYPESETTER_SELECTED,
+            ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ReviewStates.PROOFREADING,
+            ReviewStates.READY_FOR_TYPESETTER,
+            ReviewStates.READY_FOR_PUBLICATION,
+            ReviewStates.SEND_TO_EDITOR_FOR_CHECK,
+            ReviewStates.PUBLICATION_IN_PROGRESS,
+        ),
+        target=ReviewStates.WITHDRAWN,
+        permission=permissions.is_article_author,
+        # TODO: conditions=[],
+    )
+    def author_withdraws_preprint(self):
+        pass
+
+    @transition(
+        field=state,
+        source=(
+            ReviewStates.EDITOR_TO_BE_SELECTED,
+            ReviewStates.EDITOR_SELECTED,
+            ReviewStates.SUBMITTED,
+            ReviewStates.TO_BE_REVISED,
+            ReviewStates.PAPER_HAS_EDITOR_REPORT,
+            ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+            ReviewStates.UNDER_APPEAL,
+        ),
+        target=ReviewStates.REJECTED,
+        permission=permissions.is_article_author,
+        # TODO: conditions=[],
+    )
+    def author_withdraws_preprint_after_a_rejection(self):
         pass
 
     # EO initiates publication

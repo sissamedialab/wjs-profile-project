@@ -22,6 +22,7 @@ from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from . import permissions
 from .communication_utils import get_eo_user
+from .logic import states_when_article_is_considered_archived
 from .models import (
     ArticleWorkflow,
     EditorRevisionRequest,
@@ -134,7 +135,7 @@ def all_assignments_completed(article: Article) -> str:
     assignments = ReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
         & Q(is_complete=True, date_declined__isnull=True),  # completed reviews
-    )
+    ).exclude(decision="withdrawn")
     pending_assignments = ReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
         & Q(is_complete=False, date_declined__isnull=True),  # active reviews
@@ -257,7 +258,11 @@ def pending_revision_request(workflow: ArticleWorkflow, user: Account) -> Option
     pending_revision_requests = EditorRevisionRequest.objects.filter(
         article_id=workflow.article_id,
         date_completed__isnull=True,
-        type__in=[ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION],
+        type__in=[
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+            ArticleWorkflow.Decisions.OPEN_APPEAL,
+        ],
     ).order_by()
     if pending_revision_requests.exists():
         return pending_revision_requests.last()
@@ -448,3 +453,9 @@ def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) ->
     :rtype: bool
     """
     return journal_requires_english_content(workflow.article.journal) or article_is_published_piecemeal(workflow)
+
+
+def can_withdraw_preprint(workflow: ArticleWorkflow, user: Account) -> bool:
+    """Returns True if the preprint can be withdrawn."""
+    state_condition = workflow.state not in states_when_article_is_considered_archived
+    return state_condition

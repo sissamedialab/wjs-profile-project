@@ -2,6 +2,7 @@ from django.urls import path
 
 from .plugin_settings import MANAGER_URL
 from .views import (
+    AdminOpensAppealView,
     ArticleAdminDecision,
     ArticleAdminDispatchAssignment,
     ArticleDecision,
@@ -14,6 +15,7 @@ from .views import (
     AssignEoToArticle,
     AuthorArchived,
     AuthorPending,
+    AuthorWithdrawPreprint,
     DeselectReviewer,
     DirectorArchived,
     DirectorPending,
@@ -112,9 +114,9 @@ urlpatterns = [
         name="wjs_deselect_reviewer",
     ),
     path(
-        "assigns_editor/<int:pk>/",
+        "assign_editor/<int:pk>/",
         SupervisorAssignEditor.as_view(),
-        name="wjs_assigns_editor",
+        name="wjs_assign_editor",
     ),
     path("postpone_duedate/<int:pk>/", UpdateReviewerDueDate.as_view(), name="wjs_postpone_reviewer_due_date"),
     path(
@@ -234,4 +236,6 @@ urlpatterns = [
         DownloadAnythingDROPME.as_view(),
         name="download_anything_dropme",
     ),
+    path("open_appeal/<int:pk>/", AdminOpensAppealView.as_view(), name="wjs_open_appeal"),
+    path("withdraw/<int:pk>/", AuthorWithdrawPreprint.as_view(), name="wjs_author_withdraw_preprint"),
 ]

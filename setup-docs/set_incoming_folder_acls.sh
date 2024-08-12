@@ -14,6 +14,16 @@
 # So we create a folder "incoming" in wjs' home and setup another user
 # "wjs-upload" that has write access to that dir _only_
 
+# For additional security, we want to limit what the "wjs-upload" user can do.
+# We do so by configuring the sshd daemon.
+# Please see these files on wjs-prod or wjs-test:
+# - /etc/ssh/sshd_config.d/user-wjs-upload.conf
+#   limit the options for user wjs-upload (e.g. "PermitTTY no")
+#   and force the only command that wjs-upload can issue ("ForceCommand /etc/ssh/validate-rsync")
+#
+# - /etc/ssh/validate-rsync
+#   run rsync in server mode
+
 
 # Before running me, ensure we have the correct users:
 # useradd -s /bin/bash -m -d /home/wjs-upload -c "WJS rsync upload-only user" wjs-upload

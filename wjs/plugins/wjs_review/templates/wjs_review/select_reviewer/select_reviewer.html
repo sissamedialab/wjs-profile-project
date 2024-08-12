@@ -24,6 +24,27 @@
   </div>
 
   <div class="container mb-3" id="select-reviewer-table">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">{% translate "About this page" %}</h5>
+        <div class="card-text">
+          {% blocktranslate %}
+            <p>
+              This page provides a search tool to freely search for reviewers of your choice to select registered reviewers or to invite non-registered ones.<br>
+              A list of possible reviewers is already available for your consideration.<br>
+            </p>
+            <p>
+              This tutorial provides information about Prophy and how to use it in JCOM.<br>
+              See the complete list of suggested reviewers for this preprint.<br>
+            </p>
+            <p>
+              Please keep in mind that Prophy suggestions might include authors of this preprint;<br>
+              Any reviewer suggested by Prophy is ordered by suitability for this preprint.<br>
+            </p>
+          {% endblocktranslate %}
+        </div>
+      </div>
+    </div>
     {% include "wjs_review/select_reviewer/elements/reviewers_table.html" %}
   </div>
 

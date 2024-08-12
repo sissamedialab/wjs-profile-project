@@ -10,7 +10,7 @@ from typing import Optional
 from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import OuterRef, QuerySet
+from django.db.models import Case, IntegerField, OuterRef, Q, QuerySet, When
 from django.utils import timezone
 from django.utils.text import slugify
 from journal.models import ArticleOrdering, Issue
@@ -49,10 +49,24 @@ def review_assignments_of_current_round(article):
     Useful in the editor (and other) main page.
     """
     current_round = article.current_review_round_object()
-    return article.reviewassignment_set.filter(
-        review_round=current_round,
-        date_declined__isnull=True,
-    ).order_by("-date_requested")
+
+    return (
+        article.reviewassignment_set.filter(
+            review_round=current_round,
+        )
+        .filter(
+            Q(date_declined__isnull=True) & ~Q(decision="withdraw"),
+        )
+        .annotate(
+            ordering_score=Case(
+                When(date_complete__isnull=False, then=0),
+                When(date_accepted__isnull=False, then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("-ordering_score", "-date_requested")
+    )
 
 
 @register.simple_tag(takes_context=True)
@@ -239,8 +253,11 @@ def article_completed_review_by_user(article: Article, user: Account) -> Optiona
     """Get completed review assignment if user is reviewer of the last review round of the article."""
     try:
         return (
+            # Removed date_declined__isnull=True because for declined assignment we have date_complete__isnull=True
             WorkflowReviewAssignment.objects.filter(
-                article=article, reviewer=user, date_complete__isnull=False, date_declined__isnull=True
+                article=article,
+                reviewer=user,
+                date_complete__isnull=False,
             )
             .exclude(decision="withdraw")
             .latest("date_complete")
@@ -253,7 +270,9 @@ def article_completed_review_by_user(article: Article, user: Account) -> Optiona
 def article_pending_review_by_user(article: Article, user: Account) -> Optional[WorkflowReviewAssignment]:
     """Get pending review assignment if user is reviewer of the last review round of the article."""
     try:
-        return WorkflowReviewAssignment.objects.filter(article=article, reviewer=user, date_complete__isnull=True)
+        return WorkflowReviewAssignment.objects.filter(
+            article=article, reviewer=user, date_complete__isnull=True, date_declined__isnull=True
+        )
     except WorkflowReviewAssignment.DoesNotExist:
         pass
 

@@ -12,6 +12,8 @@
                 <div class="cms-page-content card-content">
                     {% if tag.text == "call" %}
                         <h1 class="main-title">{% trans "Call for papers" %}</h1>
+                    {% elif tag.text == "archived-calls" %}
+                        <h1 class="main-title">{% trans "Call for papers" %}</h1>
                     {% else %}
                         <h1 class="main-title">{{ journal_settings.news.news_title }}</h1>
                         {% if tag %}

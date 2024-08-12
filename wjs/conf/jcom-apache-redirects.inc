@@ -140,3 +140,7 @@ RewriteRule "^/archive/?(\d{2}/?)?$" "/issues/" [R=301,L]
 # In the end it became unreliable because of corner cases related to custom bots
 # that dirtied the data anyway.
 # Was: "^/archive/.*/(JCOM[^/]+_ATTACH_[^/]+)$" /dl-tracker/download.php [NC,L,E=virtual:/sites/default/files/documents/additional_file/$1]
+
+# Redirect ...pubid/jcom_... to ...pubid/JCOM_... - specs#891
+RewriteMap uc int:toupper
+RewriteRule ^/article/pubid/(jcom_[0-9]{4}_[0-9]{4}_[a-z][0-9]{0,2})/?(.*)$ /article/pubid/${uc:$1}/$2 [R=301,L]

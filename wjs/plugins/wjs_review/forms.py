@@ -27,7 +27,7 @@ from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
-from wjs.jcom_profile.constants import EO_GROUP
+from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
 
 from . import communication_utils, conditions
 from .logic import (
@@ -40,9 +40,11 @@ from .logic import (
     HandleEditorDeclinesAssignment,
     HandleMessage,
     InviteReviewer,
+    OpenAppeal,
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
+    WithdrawPreprint,
     render_template_from_setting,
 )
 from .models import (
@@ -101,7 +103,7 @@ class SelectReviewerForm(forms.ModelForm):
         label=_("Reviewer"), queryset=Account.objects.none(), widget=forms.HiddenInput, required=False
     )
     message = forms.CharField(label=_("Message"), widget=forms.Textarea(), required=False)
-    acceptance_due_date = forms.DateField(label=_("Acceptance due date"), required=False)
+    acceptance_due_date = forms.DateField(label=_("Reviewer should accept/decline invite by"), required=False)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
     author_note_visible = forms.BooleanField(label=_("Author cover letter"), required=False)
 
@@ -267,15 +269,16 @@ class SelectReviewerForm(forms.ModelForm):
 
 
 class ReviewerSearchForm(forms.Form):
-    search = forms.CharField(required=False)
+    search = forms.CharField(required=False, label=_("Name"))
     user_type = forms.ChoiceField(
         required=False,
         choices=[
-            ("", "All"),
-            ("past", "R. who have already worked on this paper"),
-            ("known", "R. w/ whom I've already worked"),
-            ("declined", "R. who declined previous assignments (for this paper)"),
-            ("prophy", "R. who is a prophy suggestion (for this paper)"),
+            ("", "---"),
+            ("all", "All"),
+            ("past", "Reviewed previous version"),
+            ("known", "My reviewer archive"),
+            ("declined", "Declined/removed from previous version"),
+            ("prophy", "Suggested by Prophy"),
         ],
     )
 
@@ -287,7 +290,7 @@ class InviteUserForm(forms.Form):
     last_name = forms.CharField(label=_("Last name"))
     suffix = forms.CharField(widget=forms.HiddenInput(), required=False)
     email = forms.EmailField(label=_("Email"))
-    message = forms.CharField(label=_("Message"), widget=forms.Textarea, required=False)
+    message = forms.CharField(label=_("Personal notes for the reviewer"), widget=forms.Textarea, required=False)
     author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
 
     def __init__(self, *args, **kwargs):
@@ -512,6 +515,7 @@ class DecisionForm(forms.ModelForm):
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
             ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+            ArticleWorkflow.Decisions.OPEN_APPEAL,
         )
         self.hide_decision = kwargs["initial"].get("decision", None)
         if "initial" not in kwargs:
@@ -1127,3 +1131,70 @@ class ArticleExtraInformationUpdateForm(forms.ModelForm):
             instance.article.abstract_en = self.cleaned_data["english_abstract"]
             instance.article.save()
         return instance
+
+
+class OpenAppealForm(forms.ModelForm):
+    editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
+    state = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    class Meta:
+        model = ArticleWorkflow
+        fields = ["state"]
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+        author_ids = self.instance.article.authors.values_list("id", flat=True)
+        self.fields["editor"].queryset = Account.objects.filter(
+            accountrole__role__slug=SECTION_EDITOR_ROLE,
+            accountrole__journal=self.instance.article.journal,
+        ).exclude(id__in=author_ids)
+        self.fields["editor"].initial = WjsEditorAssignment.objects.get_current(article=self.instance.article).editor
+
+    def get_logic_instance(self):
+        """Instantiate :py:class:`AssignToEditor` class."""
+        return OpenAppeal(
+            new_editor=self.cleaned_data["editor"],
+            article=self.instance.article,
+            request=self.request,
+        )
+
+    def save(self, commit=True):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class WithdrawPreprintForm(forms.Form):
+    """Form used by an author who wants to withdraw a preprint."""
+
+    notification_subject = forms.CharField(label=_("Subject"))
+    notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop("instance")
+        self.request = kwargs.pop("request")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> WithdrawPreprint:
+        """Instantiate :py:class:`WithdrawPreprint` class."""
+        return WithdrawPreprint(
+            workflow=self.instance,
+            request=self.request,
+            form_data=self.data,
+        )
+
+    def save(self, commit=True):
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance

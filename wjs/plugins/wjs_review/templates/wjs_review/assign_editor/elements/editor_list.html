@@ -1,0 +1,15 @@
+{% load django_bootstrap5 wjs_review %}
+{% translate "Select" as select_label %}
+<form method="post">
+  {% csrf_token %}
+  {% for user in users %}
+    <tr>
+      <td>{{ user.get_full_name }}</td>
+      <td>{{ user.matching_keywords|join:", " }}</td>
+      <td>{{ user.num_shared_kwds }}</td>
+      <td class="text-center">
+        {% bootstrap_button name="editor" content=select_label value=user.pk %}
+      </td>
+    </tr>
+  {% endfor %}
+</form>

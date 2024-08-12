@@ -1544,6 +1544,204 @@ def set_default_plugin_settings(force: bool = False):
             editor_deassign_reviewer_system_setting["name"],
         )
 
+    def eo_opens_appeal_message():
+        subject_eo_opens_appeal: SettingParams = {
+            "name": "eo_opens_appeal_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for EO opening an appeal."),
+            "description": _(
+                "The subject of the notification that is sent to the author when EO opens an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        subject_eo_opens_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("{{ article.journal }} {{ article.id }} appeal granted."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_eo_opens_appeal,
+            subject_eo_opens_appeal_setting_value,
+            subject_eo_opens_appeal["name"],
+        )
+        eo_opens_appeal_setting: SettingParams = {
+            "name": "eo_opens_appeal_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for EO opening an appeal."),
+            "description": _(
+                "The body of the notification that is sent to the author when EO opens an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        eo_opens_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ article.correspondence_author.full_name }},
+            you can now submit your appeal from your pages.
+
+            Please visit:
+            {% url "wjs_article_details" article.id %}
+
+            Best regards,
+            EO
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            eo_opens_appeal_setting,
+            eo_opens_appeal_setting_value,
+            eo_opens_appeal_setting["name"],
+        )
+
+    def author_withdraws_preprint_message():
+        subject_author_withdraws_preprint: SettingParams = {
+            "name": "author_withdraws_preprint_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author withdrawing a preprint."),
+            "description": _(
+                "The subject of the notification that is sent to the EO/Editor when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        subject_author_withdraws_preprint_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Withdrawn preprint {{ article.id }}"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_author_withdraws_preprint,
+            subject_author_withdraws_preprint_setting_value,
+            subject_author_withdraws_preprint["name"],
+        )
+        author_withdraws_preprint_setting: SettingParams = {
+            "name": "author_withdraws_preprint_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author withdrawing a preprint."),
+            "description": _(
+                "The body of the notification that is sent to the EO/Editor when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        author_withdraws_preprint_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ supervisor.full_name }}, I'm withdrawing the preprint {{ article.id }}.
+
+            {{ article.correspondence_author.full_name }}
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            author_withdraws_preprint_setting,
+            author_withdraws_preprint_setting_value,
+            author_withdraws_preprint_setting["name"],
+        )
+
+    def preprint_withdrawn_system_message():
+        subject_preprint_withdrawn_preprint: SettingParams = {
+            "name": "preprint_withdrawn_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author withdrawing a preprint."),
+            "description": _(
+                "The subject of the notification that is sent to the reviewers/typesetter when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        subject_preprint_withdrawn_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Assignments closed for preprint {{ article.id }}"),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_preprint_withdrawn_preprint,
+            subject_preprint_withdrawn_setting_value,
+            subject_preprint_withdrawn_preprint["name"],
+        )
+        preprint_withdrawn_setting: SettingParams = {
+            "name": "preprint_withdrawn_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author withdrawing a preprint."),
+            "description": _(
+                "The body of the notification that is sent to the reviewers/typesetter when a preprint is withdrawn.",
+            ),
+            "is_translatable": False,
+        }
+        preprint_withdrawn_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ recipient.full_name }}, thanks for your involvements.
+
+            Your assignment has been closed for the preprint {{ article.id }}.
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            preprint_withdrawn_setting,
+            preprint_withdrawn_setting_value,
+            preprint_withdrawn_setting["name"],
+        )
+
+    def author_submits_appeal_message():
+        subject_author_submits_appeal: SettingParams = {
+            "name": "author_submits_appeal_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author submitting an appeal."),
+            "description": _(
+                "The subject of the notification that is sent to the editor when author submits an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        subject_author_submits_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Appeal submitted for {{ article.journal }} {{ article.id }}."),
+            "translations": {},
+        }
+        create_customization_setting(
+            subject_author_submits_appeal,
+            subject_author_submits_appeal_setting_value,
+            subject_author_submits_appeal["name"],
+        )
+        author_submits_appeal_setting: SettingParams = {
+            "name": "author_submits_appeal_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for when author submits an appeal."),
+            "description": _(
+                "The body of the notification that is sent to the editor when author submits an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        author_submits_appeal_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ appeal_editor.full_name }},
+            the author of "{{ article.title }} (ID: {{ article.id }})" has appealed against rejection. Please connect to
+            the preprint web page and handle the appeal within 5 days.
+
+            Thank you and best regards,
+            JCOM Editorial Office
+            """,
+            "translations": {},
+        }
+        create_customization_setting(
+            author_submits_appeal_setting,
+            author_submits_appeal_setting_value,
+            author_submits_appeal_setting["name"],
+        )
+
     acceptance_due_date()
     review_lists_page_size()
     review_invitation_message()
@@ -1571,6 +1769,10 @@ def set_default_plugin_settings(force: bool = False):
     author_sends_corrections_message()
     typesetting_generated_galleys_message()
     editor_deassign_reviewer_messages()
+    author_withdraws_preprint_message()
+    preprint_withdrawn_system_message()
+    eo_opens_appeal_message()
+    author_submits_appeal_message()
 
 
 def ensure_workflow_elements():

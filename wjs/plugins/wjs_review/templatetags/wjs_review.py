@@ -176,16 +176,19 @@ def reviewer_btn_props(
     disabled_cause = ""
     if other_reviewer:
         disabled = True
-        disabled_cause = "Another reviewer is beeing selected"
+        disabled_cause = "Another reviewer is being selected"
     elif not reviewer.is_active:
         disabled = True
-        disabled_cause = "This person is not active in the system"
+        disabled_cause = "User is not available to review temporarily or permanently"
     elif reviewer.wjs_is_author:
         disabled = True
-        disabled_cause = "This person is one of the authors"
+        disabled_cause = "User is in the preprint author list"
+    elif reviewer.wjs_has_currently_completed_review:
+        disabled = True
+        disabled_cause = "User has already sent a review for this version"
     elif reviewer.wjs_is_active_reviewer:
         disabled = True
-        disabled_cause = "This person is already a reviewer of this paper"
+        disabled_cause = "User has already been selected as reviewer for this version"
 
     data: BootstrapButtonProps = {
         "value": json.dumps({"reviewer": reviewer.pk}) if no_reviewer_or_not_matching else "",

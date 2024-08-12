@@ -76,7 +76,10 @@ def on_revision_complete(**kwargs) -> None:
     State is reset to EDITOR_SELECTED and a new review round is created unless the revision is a technical revision.
     """
     article = kwargs["revision"].article
-    article.articleworkflow.author_submits_again()
+    if article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL:
+        article.articleworkflow.author_submits_appeal()
+    else:
+        article.articleworkflow.author_submits_again()
     if kwargs["revision"].type != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
         assignment = WjsEditorAssignment.objects.get_current(article)
         CreateReviewRound(assignment=assignment).run()

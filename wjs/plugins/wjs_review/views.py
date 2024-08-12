@@ -40,7 +40,11 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 
 from . import permissions
-from .communication_utils import get_messages_related_to_me, group_messages_by_version
+from .communication_utils import (
+    get_eo_user,
+    get_messages_related_to_me,
+    group_messages_by_version,
+)
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
@@ -60,6 +64,7 @@ from .forms import (
     ForwardMessageForm,
     InviteUserForm,
     MessageForm,
+    OpenAppealForm,
     ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
@@ -69,6 +74,7 @@ from .forms import (
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
     UploadRevisionAuthorCoverLetterFileForm,
+    WithdrawPreprintForm,
 )
 from .logic import (
     AdminActions,
@@ -78,6 +84,7 @@ from .logic import (
     states_when_article_is_considered_author_pending,
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
+    states_when_article_is_considered_in_review_for_eo_and_director,
 )
 from .logic__visibility import PermissionChecker
 from .mixins import EditorRequiredMixin
@@ -282,7 +289,7 @@ class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixi
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_in_review,
+            state__in=states_when_article_is_considered_in_review_for_eo_and_director,
         )
 
 
@@ -369,7 +376,6 @@ class EOWorkOnIssue(BaseWorkOnIssue):
         "wjs_review_eo_pending": _("Pending"),
         "wjs_review_eo_archived": _("Archived"),
         "wjs_review_eo_production": _("Production"),
-        "wjs_review_eo_missing_editor": _("Missing editor"),
         "wjs_review_eo_workon": _("Work on a paper"),
         "wjs_review_eo_issues_list": _("Pending Issues"),
     }
@@ -429,7 +435,7 @@ class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTe
         """
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_in_review)
+            .filter(state__in=states_when_article_is_considered_in_review_for_eo_and_director)
             .exclude(article__authors=self.request.user)
         )
 
@@ -677,6 +683,8 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
                 return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
             elif self.request.headers.get("Hx-Trigger-Name") == "assign-reviewer":
                 return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
+            elif self.request.headers.get("Hx-Trigger-Name") == "editor-assign-themselves":
+                return ["wjs_review/editor_assigns_themselves_as_reviewer.html"]
             elif self.request.headers.get("Hx-Trigger-Name") == "search-reviewer-form":
                 return ["wjs_review/select_reviewer/elements/reviewers_table.html"]
         return ["wjs_review/select_reviewer/select_reviewer.html"]
@@ -1259,11 +1267,14 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
     @property
     def submitted_reviews(self) -> QuerySet[ReviewAssignment]:
         """Return the submitted reviews for the current review round."""
-        return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False)
+        return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False).exclude(
+            decision="withdrawn"
+        )
 
     @property
     def declined_reviews(self) -> QuerySet[ReviewAssignment]:
         """Return the declined reviews for the current review round."""
+        # Attention: this does not return withdrawn reviews, is this what's intended?
         return self.current_reviews.filter(date_declined__isnull=False)
 
     @property
@@ -1838,7 +1849,9 @@ class SupervisorAssignEditor(LoginRequiredMixin, UserPassesTestMixin, UpdateView
 
     model = ArticleWorkflow
     form_class = SupervisorAssignEditorForm
-    template_name = "wjs_review/supervisor_assign_editor.html"
+    template_name = "wjs_review/assign_editor/select_editor.html"
+    title = _("Assign Editor")
+    context_object_name = "workflow"
 
     def test_func(self):
         """
@@ -1978,3 +1991,81 @@ class ArticleExtraInformationUpdateView(LoginRequiredMixin, UserPassesTestMixin,
         return permissions.is_article_author(articleworkflow, self.request.user) or permissions.has_eo_role_by_article(
             articleworkflow, self.request.user
         )
+
+
+class AdminOpensAppealView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """A view to move a paper to under appeal state.
+
+    This passage can only be triggered by the EO.
+    """
+
+    model = ArticleWorkflow
+    form_class = OpenAppealForm
+    template_name = "wjs_review/eo_select_editor.html"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+    def get_success_url(self):
+        """Point back to the paper's status page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.object.pk})
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        kwargs["instance"] = self.object
+        return kwargs
+
+
+class AuthorWithdrawPreprint(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """View for author to withdraw preprint."""
+
+    model = ArticleWorkflow
+    form_class = WithdrawPreprintForm
+    success_url = reverse_lazy("wjs_review_author_archived")
+    template_name = "wjs_review/withdraw_preprint.html"
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        return self.model.objects.filter(
+            pk=self.kwargs["pk"],
+            article__correspondence_author=self.request.user,
+        ).exists()
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["instance"] = self.object
+        kwargs["request"] = self.request
+        return kwargs
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        current_editor = WjsEditorAssignment.objects.get_current(self.object.article).editor
+        return {
+            "supervisor": current_editor if current_editor is not None else get_eo_user(self.object.article),
+            "article": self.object.article,
+        }
+
+    def get_initial(self):
+        initial = super().get_initial()
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_withdraws_preprint_subject",
+            journal=self.object.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_withdraws_preprint_body",
+            journal=self.object.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        initial["notification_subject"] = message_subject
+        initial["notification_body"] = message_body
+        return initial

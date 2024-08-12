@@ -35,8 +35,10 @@ from ..forms import (
     AssignEoForm,
     EditorRevisionRequestEditForm,
     MessageForm,
+    OpenAppealForm,
     ReportForm,
     SupervisorAssignEditorForm,
+    WithdrawPreprintForm,
 )
 from ..logic import (
     AdminActions,
@@ -3015,147 +3017,256 @@ def test_assign_new_editor(
 
 
 @pytest.mark.django_db
-def test_write_new_note(
-    article: Article,
-    normal_user: JCOMProfile,
-    eo_user: Account,
-):
-    """Messages sent to themselves has message_type forced to MessageTypes.NOTE."""
-    article_type = ContentType.objects.get_for_model(article)
-
-    form = MessageForm(
-        actor=normal_user.janeway_account,
-        target=article,
-        initial_recipient=normal_user,
-        data={
-            "actor": normal_user.janeway_account,
-            "content_type": article_type,
-            "object_id": article.pk,
-            "message_type": Message.MessageTypes.USER,
-            "subject": "subject",
-            "body": "body",
-            "recipients": [normal_user.pk],
-        },
+def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest):
+    """EO opens an appeal."""
+    normal_user.add_account_role("section-editor", rejected_article.journal)
+    form_data = {
+        "editor": normal_user.pk,
+        "state": rejected_article.articleworkflow.state,
+    }
+    fake_request.user = eo_user
+    form = OpenAppealForm(
+        data=form_data,
+        request=fake_request,
+        instance=rejected_article.articleworkflow,
     )
-    assert form.is_valid()
-    msg = form.save()
-    assert msg.message_type == Message.MessageTypes.NOTE
+    rejected_article.authors.add(normal_user.janeway_account)
+    assert normal_user.janeway_account not in form.fields["editor"].queryset
+    rejected_article.authors.remove(normal_user.janeway_account)
+    form.is_valid()
+    form.save()
+    rejected_article.refresh_from_db()
+    assert rejected_article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    assignment = WjsEditorAssignment.objects.get_current(rejected_article.articleworkflow)
+    revision_request = EditorRevisionRequest.objects.filter(article=rejected_article).last()
+    assert assignment.editor == normal_user.janeway_account
+    assert revision_request.editor == eo_user.janeway_account
 
 
 @pytest.mark.django_db
-def test_last_user_note(
-    article: Article,
-    normal_user: JCOMProfile,
-    section_editor: JCOMProfile,
-    eo_user: Account,
-    create_note: Callable,
-    create_user_message: Callable,
-    fake_request,
+@pytest.mark.parametrize(
+    "fixture_article",
+    [
+        "article",
+        "assigned_article",
+        "accepted_article",
+        "ready_for_typesetter_article",
+        "assigned_to_typesetter_article",
+        "stage_proofing_article",
+        "rfp_article",
+        "under_appeal_article",
+    ],
+)
+def test_author_withdraws_preprint(
+    fixture_article,
+    request,
+    fake_request: HttpRequest,
+    review_settings,
 ):
-    """last_user_note templatetag only returns notes ignoring messages."""
-    note = create_note(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="normal_user note",
-        body="body",
-    )
-    editor_note = create_note(
-        actor=section_editor.janeway_account,
-        target=article,
-        subject="section_editor note",
-        body="body",
-    )
-    create_user_message(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="subject",
-        body="body",
-        recipients=[eo_user],
-        message_type=Message.MessageTypes.USER,
-    )
-    create_user_message(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="subject",
-        body="body",
-        recipients=[eo_user],
-        message_type=Message.MessageTypes.SYSTEM,
-    )
-    create_user_message(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="subject",
-        body="body",
-        recipients=[eo_user],
-        message_type=Message.MessageTypes.NOTE,
-    )
-    fake_request.user = normal_user.janeway_account
-    context = {
-        "request": fake_request,
+    """Check if author can withdraw preprint in different scenarios."""
+    article = request.getfixturevalue(fixture_article)
+    incomplete_submission = article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+    under_appeal_state = article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    fake_request.user = article.correspondence_author
+    form_data = {
+        "notification_subject": "Test subject",
+        "notification_body": "Test body",
     }
-    assert last_user_note(context, article) == note
-    assert last_user_note(context, article, normal_user.janeway_account) == note
-    assert not last_user_note(context, article, eo_user)
+    form = WithdrawPreprintForm(
+        data=form_data,
+        request=fake_request,
+        instance=article.articleworkflow,
+    )
 
-    fake_request.user = section_editor.janeway_account
-    context = {
-        "request": fake_request,
-    }
-    assert last_user_note(context, article) == editor_note
-    assert last_user_note(context, article, section_editor.janeway_account) == editor_note
-    assert not last_user_note(context, article, eo_user)
+    form.is_valid()
+    form.save()
+    article.refresh_from_db()
+    if incomplete_submission:
+        assert WjsEditorAssignment.objects.get_all(article).count() == 0
+    else:
+        assert WjsEditorAssignment.objects.get_all(article).count() == 1
+    if under_appeal_state:
+        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.REJECTED
+    else:
+        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
+
+    for assignment in article.reviewassignment_set.all():
+        assert assignment.is_complete
 
 
 @pytest.mark.django_db
-def test_last_eo_note(
-    article: Article,
-    normal_user: JCOMProfile,
-    section_editor: JCOMProfile,
-    eo_user: Account,
-    create_note: Callable,
-    create_user_message: Callable,
-):
-    """last_eo_note templatetag only returns eo notes ignoring messages and other user messages."""
-    create_note(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="normal_user note",
-        body="body",
+def test_author_submits_after_appeal(under_appeal_article: Article, fake_request: HttpRequest):
+    """An author can submit a new version after an appeal."""
+    fake_request.user = under_appeal_article.correspondence_author
+
+    revision_request = EditorRevisionRequest.objects.get(article=under_appeal_article)
+    assignment = WjsEditorAssignment.objects.get_current(article=under_appeal_article)
+    form_data = {
+        "author_note": "author_note",
+        "confirm_title": "on",
+        "confirm_styles": "on",
+        "confirm_blind": "on",
+        "confirm_cover": "on",
+    }
+
+    service = AuthorHandleRevision(
+        revision=revision_request,
+        form_data=form_data,
+        user=fake_request.user,
+        request=fake_request,
     )
-    create_note(
-        actor=section_editor.janeway_account,
-        target=article,
-        subject="section_editor note",
-        body="body",
+    service.run()
+    under_appeal_article.refresh_from_db()
+    assert under_appeal_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    content_type = ContentType.objects.get_for_model(under_appeal_article)
+
+    messages = Message.objects.filter(
+        content_type=content_type, object_id=under_appeal_article.pk, recipients=assignment.editor
     )
-    eo_note = create_note(
-        actor=eo_user,
-        target=article,
-        subject="eo_user note",
-        body="body",
-    )
-    create_user_message(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="subject",
-        body="body",
-        recipients=[eo_user],
-        message_type=Message.MessageTypes.USER,
-    )
-    create_user_message(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="subject",
-        body="body",
-        recipients=[eo_user],
-        message_type=Message.MessageTypes.SYSTEM,
-    )
-    create_user_message(
-        actor=normal_user.janeway_account,
-        target=article,
-        subject="subject",
-        body="body",
-        recipients=[eo_user],
-        message_type=Message.MessageTypes.NOTE,
-    )
-    assert last_eo_note(article) == eo_note
+    assert messages.count() == 1
+    assert "has appealed against rejection" in messages[0].body
+
+    @pytest.mark.django_db
+    def test_write_new_note(
+        article: Article,
+        normal_user: JCOMProfile,
+        eo_user: Account,
+    ):
+        """Messages sent to themselves has message_type forced to MessageTypes.NOTE."""
+        article_type = ContentType.objects.get_for_model(article)
+
+        form = MessageForm(
+            actor=normal_user.janeway_account,
+            target=article,
+            initial_recipient=normal_user,
+            data={
+                "actor": normal_user.janeway_account,
+                "content_type": article_type,
+                "object_id": article.pk,
+                "message_type": Message.MessageTypes.USER,
+                "subject": "subject",
+                "body": "body",
+                "recipients": [normal_user.pk],
+            },
+        )
+        assert form.is_valid()
+        msg = form.save()
+        assert msg.message_type == Message.MessageTypes.NOTE
+
+    @pytest.mark.django_db
+    def test_last_user_note(
+        article: Article,
+        normal_user: JCOMProfile,
+        section_editor: JCOMProfile,
+        eo_user: Account,
+        create_note: Callable,
+        create_user_message: Callable,
+        fake_request,
+    ):
+        """last_user_note templatetag only returns notes ignoring messages."""
+        note = create_note(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="normal_user note",
+            body="body",
+        )
+        editor_note = create_note(
+            actor=section_editor.janeway_account,
+            target=article,
+            subject="section_editor note",
+            body="body",
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.USER,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.NOTE,
+        )
+        fake_request.user = normal_user.janeway_account
+        context = {
+            "request": fake_request,
+        }
+        assert last_user_note(context, article) == note
+        assert last_user_note(context, article, normal_user.janeway_account) == note
+        assert not last_user_note(context, article, eo_user)
+
+        fake_request.user = section_editor.janeway_account
+        context = {
+            "request": fake_request,
+        }
+        assert last_user_note(context, article) == editor_note
+        assert last_user_note(context, article, section_editor.janeway_account) == editor_note
+        assert not last_user_note(context, article, eo_user)
+
+    @pytest.mark.django_db
+    def test_last_eo_note(
+        article: Article,
+        normal_user: JCOMProfile,
+        section_editor: JCOMProfile,
+        eo_user: Account,
+        create_note: Callable,
+        create_user_message: Callable,
+    ):
+        """last_eo_note templatetag only returns eo notes ignoring messages and other user messages."""
+        create_note(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="normal_user note",
+            body="body",
+        )
+        create_note(
+            actor=section_editor.janeway_account,
+            target=article,
+            subject="section_editor note",
+            body="body",
+        )
+        eo_note = create_note(
+            actor=eo_user,
+            target=article,
+            subject="eo_user note",
+            body="body",
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.USER,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.NOTE,
+        )
+        assert last_eo_note(article) == eo_note
