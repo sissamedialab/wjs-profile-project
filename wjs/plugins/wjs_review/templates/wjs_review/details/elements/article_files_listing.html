@@ -1,29 +1,88 @@
 <ul class="list-group mb-3">
-  <li class="list-group-item fw-bold">{% translate "Manuscript Files" %}</li>
-  {% for file in article.manuscript_files.all %}
-    <li class="list-group-item">
-      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
-    </li>
-  {% endfor %}
+  {% if production %}
+    {% if article.galley_set.exists %}
+      <li class="list-group-item fw-bold">
+        {% translate "Rendered Galleys" %}
+        <ul class="list-group mb-1">
+          {% for file in article.galley_set.all %}
+            {% if galley.file_id %}
+              <li class="list-group-item">
+                <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk galley.file_id %}" target="_blank">{{ galley.file.original_filename }} {{ galley.label }}</a>
+              </li>
+            {% endif %}
+            {% empty %}
+            <li class="list-group-item">
+              {% translate "no galleys yet" %}
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
 
-  <li class="list-group-item fw-bold">{% translate "Data Figure Files" %}</li>
-  {% for file in article.data_figure_files.all %}
-    <li class="list-group-item">
-      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
-    </li>
-  {% endfor %}
+    {% if article.source_files.exists %}
+      <li class="list-group-item fw-bold">
+        {% translate "Source Files" %}
+        <ul class="list-group mb-1">
+          {% for file in article.source_files.all %}
+            <li class="list-group-item">
+              <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
 
-  <li class="list-group-item fw-bold">{% translate "Supplementary Files" %}</li>
-  {% for file in article.supplementary_files.all %}
-    <li class="list-group-item d-flex justify-content-between align-items-center">
-      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file.file }}</a>
-    </li>
-  {% endfor %}
+    {% if version.round.article.articleworkflow.supplementary_files_at_acceptance.exists %}
+      <li class="list-group-item fw-bold">
+        {% translate "Supplementary files at acceptance" %}
+        <ul class="list-group mb-1">
+          {% for file in version.round.article.articleworkflow.supplementary_files_at_acceptance.all %}
+            <li class="list-group-item"><a href="{% url 'article_file_download' 'id' version.round.article.pk file.pk %}">{{ file.file.original_filename }}</a></li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
 
-  <li class="list-group-item fw-bold">{% translate "Source Files" %}</li>
-  {% for file in article.source_files.all %}
-    <li class="list-group-item">
-      <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+    <li class="list-group-item fw-bold">
+      {% translate "Submitted contribution" %}
+      <ul class="list-group mb-1">
+        <li class="list-group-item">
+          <a class="btn btn-link" href="{% url 'download_revision_files' pk=workflow.pk %}" target="_blank">{% translate "Download revision files" %}</a>
+        </li>
+      </ul>
     </li>
-  {% endfor %}
+  {% endif %}
+
+  <li class="list-group-item fw-bold">
+    {% translate "Manuscript Files" %}
+    <ul class="list-group mb-1">
+      {% for file in article.manuscript_files.all %}
+        <li class="list-group-item">
+          <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.name }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </li>
+
+  <li class="list-group-item fw-bold">
+    {% translate "Data Figure Files" %}
+    <ul class="list-group mb-1">
+      {% for file in article.data_figure_files.all %}
+        <li class="list-group-item">
+          <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.name }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </li>
+
+  <li class="list-group-item fw-bold">
+    {% translate "Supplementary Files" %}
+    <ul class="list-group mb-1">
+      {% for file in article.supplementary_files.all %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.file.original_filename }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </li>
 </ul>

@@ -5,6 +5,7 @@ from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
 
 from wjs.jcom_profile import permissions as base_permissions
+from wjs.jcom_profile.templatetags.wjs_tags import is_user_eo
 
 if TYPE_CHECKING:
     from .models import ArticleWorkflow
@@ -389,3 +390,49 @@ def is_article_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
     :rtype: bool
     """
     return TypesettingAssignment.objects.filter(round__article=instance.article, typesetter=user).exists()
+
+
+def is_article_typesetter_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is the typesetter or eo.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+    :param user: The user to check for role.
+    :type user: Account
+    :return: True if the user is the article typesetter
+    :rtype: bool
+    """
+    return is_user_eo(user) or is_article_typesetter(instance, user)
+
+
+def is_article_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is the editor or eo.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+    :param user: The user to check for role.
+    :type user: Account
+    :return: True if the user is the article typesetter
+    :rtype: bool
+    """
+    return is_article_editor(instance, user) or is_article_supervisor(instance, user)
+
+
+def is_person_working_on_article(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is a person working on the article (editor, reviewer, staff).
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+    :param user: The user to check for role.
+    :type user: Account
+    :return: True if the user is the article typesetter
+    :rtype: bool
+    """
+    return (
+        is_article_editor(instance, user)
+        or is_article_supervisor(instance, user)
+        or is_article_reviewer(instance, user)
+    )

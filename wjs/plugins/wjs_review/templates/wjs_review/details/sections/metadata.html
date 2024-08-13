@@ -1,14 +1,11 @@
-{% load static wjs_review %}
+{% load static wjs_review wjs_tags %}
 {% with attention_flag=workflow|article_requires_attention_tt:user %}
   <div class="card border p-0">
     {% include "wjs_review/details/elements/metadata_header.html" %}
     <div class="card-body p-0">
       <div class="border-bottom pt-3 px-4 pb-4">
         <h4 class="card-title">{{ article.title }}</h4>
-        <div>
-          {% if has_full_access %}{% translate "Corresponding author" %}: {{ article.correspondence_author }}<br>{% endif %}
-          {% translate "Submitted" %}: {{ article.date_submitted|date:"DATE_FORMAT" }}
-        </div>
+        {% include "wjs_review/details/elements/metadata_main.html" %}
       </div>
       <div class="accordion accordion-flush" id="metadata">
         {% include "wjs_review/details/elements/metadata_abstract.html" %}

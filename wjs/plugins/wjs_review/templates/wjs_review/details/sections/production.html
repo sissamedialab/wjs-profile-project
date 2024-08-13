@@ -1,10 +1,12 @@
 {% load django_bootstrap5 i18n wjs_review %}
-{% if production %}
+{% if production and production_versions %}
 <div id="production" class="card border border-1 mt-4">
   <h5 class="card-header fw-bolder">{% translate "Production" %}</h5>
   <div class="card-body">
     <div class="accordion" id="production-accordion">
-
+      {% for version in production_versions %}
+        {% include "wjs_review/details/elements/production_version.html" %}
+      {% endfor %}
     </div>
   </div>
 </div>

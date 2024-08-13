@@ -133,6 +133,7 @@ def decide_galley_label(file_name: str, file_mimetype: str):
     lang_match = re.search(r"_([a-z]{2,3})(?:-pulito)?\.", file_name)
     mime_to_extension = {
         "application/pdf": "PDF",
+        "application/pdf+zip": "PDF",
         "application/epub+zip": "EPUB",
     }
     label = mime_to_extension.get(file_mimetype, None)

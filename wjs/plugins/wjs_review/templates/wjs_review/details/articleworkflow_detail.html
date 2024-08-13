@@ -14,8 +14,12 @@
       <div class="row">
         <div class="col-sm-12 col-md-6">
           {% include "wjs_review/details/sections/metadata.html" %}
-          {% include "wjs_review/details/sections/review.html" %}
-          {% include "wjs_review/details/sections/production.html" %}
+          {% if production %}
+            {% include "wjs_review/details/sections/production.html" %}
+            {% include "wjs_review/details/sections/review.html" %}
+          {% else %}
+            {% include "wjs_review/details/sections/review.html" %}
+          {% endif %}
         </div>
         <div class="col-sm-12 col-md-6">
           {% include "wjs_review/details/sections/actions.html" %}

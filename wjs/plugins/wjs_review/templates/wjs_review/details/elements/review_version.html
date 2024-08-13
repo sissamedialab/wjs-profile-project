@@ -1,12 +1,12 @@
 {% load django_bootstrap5 %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="review-{{ version.number }}">
-    <button class="accordion-button {% if not version.latest %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-{{ version.number }}"
+    <button class="accordion-button {% if not version.latest or production %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-{{ version.number }}"
             aria-expanded="{% if version.latest %} true{% else %}false{% endif %}" aria-controls="collapse-review-{{ version.numberj }}">
-      {% translate "Version" %} {{ version.review_round.round_number }}
+      {% translate "Version" %} {{ version.number }}
     </button>
   </h2>
-  <div id="collapse-review-{{ version.number }}" class="accordion-collapse collapse{% if version.latest %} show{% endif %}" aria-labelledby="heading-review-{{ version }}">
+  <div id="collapse-review-{{ version.number }}" class="accordion-collapse collapse{% if version.latest and not production %} show{% endif %}" aria-labelledby="heading-review-{{ version }}">
     <div class="accordion-body d-flex flex-column gap-4">
       <div class="vstack gap-3">
         <div>

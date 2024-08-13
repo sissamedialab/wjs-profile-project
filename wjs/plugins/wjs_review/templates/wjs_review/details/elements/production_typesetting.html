@@ -1,0 +1,28 @@
+{% load django_bootstrap5 %}
+<h4 id="typesetting-assignment-{{ version.number }}">{% translate "Version files" %}</h4>
+<div class="container">
+<div class="row">
+  {% if version.assignment.galleys_created.exists %}
+    <div class="col-4">
+      <h5><i class="bi bi-journals pe-2"></i> {% translate "Galleys" %}</h5>
+      <ul class="list-group mb-0">
+        {% for galley in version.assignment.galleys_created.all %}
+          {% if galley.file.label == "PDF" %}
+            <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'article_file_download' 'id' galley.article.pk galley.file.pk %}">{{ galley.file.original_filename }}</a></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+  {% if version.assignment.files_to_typeset.exists %}
+    <div class="col-4">
+      <h5><i class="bi bi-journals pe-2"></i> {% translate "Source files" %}</h5>
+      <ul class="list-group mb-0">
+        {% for file in version.assignment.files_to_typeset.all %}
+          <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}">{{ file.original_filename }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+</div>
+</div>

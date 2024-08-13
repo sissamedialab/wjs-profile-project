@@ -1,0 +1,24 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Upload File" as upload_label %}
+{% translate "Delete" as delete_label %}
+{% translate "Are you sure you want to delete this file?" as confirm_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Manage supplementary files" %}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  <ul id="supplementary-files-list" class="list-group mb-3">
+    {% for file in article.supplementary_files.all %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.file }}</a>
+        {% url "delete_supplementary_file" file_id=file.pk as delete_esm_url %}
+        {% bootstrap_button name="delete-file" button_class="btn-danger btn-sm" hx_post=delete_esm_url hx_confirm=confirm_label hx_target="#htmxModalContent" content=delete_label %}
+      </li>
+    {% endfor %}
+  </ul>
+  <form id="upload-esm" hx-encoding="multipart/form-data" hx-post="{% url "create_supplementary_file" article_id=article.pk %}" hx-target="#htmxModalContent">
+    {% csrf_token %}
+    {% bootstrap_form form %}
+    {% bootstrap_button name="upload-file" content=upload_label %}
+  </form>
+</div>

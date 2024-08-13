@@ -1,0 +1,17 @@
+{% load wjs_review %}
+{% spaceless %}
+  {% if workflow|is_user_article_typesetter:request.user or workflow|is_user_article_supervisor:request.user %}
+    <div class="hstack gap-1">
+    <span
+      title="{% if workflow.production_flag_no_queries %}{% translate "No queries set on the article" %}{% else %}{% translate "Queries set on the article" %}{% endif %}"
+      class="badge {% if workflow.production_flag_no_queries %}text-bg-success{% else %}text-bg-danger{% endif %}"
+    >{% translate "Queries" %}</span>
+    <span
+      title="{{ workflow.get_production_flag_galleys_ok_display }}"
+      class="badge {% if workflow.production_flag_galleys_ok %}text-bg-success{% else %}text-bg-danger{% endif %}">{% translate "Galleys" %}</span>
+    <span
+      title="{% if workflow.production_flag_no_checks_needed %}{% translate "No additional checks needed" %}{% else %}{% translate "Additional checks needed" %}{% endif %}"
+      class="badge {% if workflow.production_flag_no_checks_needed %}text-bg-success{% else %}text-bg-danger{% endif %}">{% translate "Checks" %}</span>
+    </div>
+  {% endif %}
+{% endspaceless %}
