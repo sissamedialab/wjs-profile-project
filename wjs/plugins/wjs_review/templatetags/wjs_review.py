@@ -17,7 +17,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
-from plugins.typesetting.models import TypesettingRound
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from submission.models import Article, Section
 from utils import models as janeway_utils_models
@@ -36,6 +36,7 @@ from ..models import (
     Message,
     MessageThread,
     ProphyAccount,
+    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 from ..permissions import (
@@ -44,6 +45,7 @@ from ..permissions import (
     is_article_author,
     is_article_editor,
     is_article_reviewer,
+    is_article_supervisor,
     is_article_typesetter,
     is_one_of_the_authors,
 )
@@ -281,6 +283,12 @@ def is_user_director(article: ArticleWorkflow, user: Account) -> bool:
 
 
 @register.filter
+def is_user_article_supervisor(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is the article supervisor Director."""
+    return is_article_supervisor(article, user)
+
+
+@register.filter
 def is_user_article_reviewer(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Reviewer for the article."""
     return is_article_reviewer(article, user)
@@ -448,3 +456,17 @@ def journal_with_language_content(journal: Journal) -> bool:
     :rtype: bool
     """
     return journal.code in settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT
+
+
+@register.simple_tag()
+def current_typesetting_assignment(article: Article) -> Optional[TypesettingRound]:
+    """Return the current typesetting assignment for the given article."""
+    return TypesettingAssignment.objects.filter(round__article=article).order_by("-round__round_number").last()
+
+
+@register.simple_tag()
+def current_editor_assigment(article: Article) -> Optional[TypesettingRound]:
+    """Return the current editor assignment for the given article."""
+    return WjsEditorAssignment.objects.filter(
+        article=article, review_rounds=article.current_review_round_object()
+    ).first()

@@ -184,10 +184,10 @@ def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow
 class ArticleAction:
     """An action that can be done on an Article."""
 
-    permission: callable
     name: str
     label: str
     view_name: str
+    permission: Optional[Callable] = None
     tag: str = None
     is_htmx: bool = False
     is_modal: bool = False
@@ -253,10 +253,10 @@ class ArticleAction:
 class ReviewAssignmentAction:
     """An action that can be done on an ReviewAssignment."""
 
-    condition: callable
     name: str
     label: str
     view_name: str
+    condition: Optional[Callable] = None
     tag: str = None
     order: int = 0
     tooltip: str = None
@@ -510,14 +510,13 @@ class EditorSelected(BaseState):
     )
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
-            condition=conditions.always,
+            permission=permissions.is_person_working_on_article,
             name="see review",
             label="Details",
             view_name="wjs_assign_permission",
             custom_get_url=get_review_url,
         ),
         ReviewAssignmentAction(
-            condition=conditions.always,
             permission=permissions.is_article_supervisor,
             name="bypass reviewer",
             label="See as reviewer",
@@ -525,19 +524,21 @@ class EditorSelected(BaseState):
             custom_get_url=get_review_url_with_code,
         ),
         ReviewAssignmentAction(
+            permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="postpone reviewer due date",
             label="Change Reviewer due date",
             view_name="wjs_postpone_reviewer_due_date",
         ),
         ReviewAssignmentAction(
-            condition=conditions.review_not_done,
             permission=permissions.is_article_supervisor,
+            condition=conditions.review_not_done,
             name="disable reminders",
             label="Disable reminders",
             view_name="WRITEME!",
         ),
         ReviewAssignmentAction(
+            permission=permissions.is_article_supervisor,
             condition=conditions.review_not_done,
             name="set visibility",
             label='Set visibility rights <i class="bi bi-sliders"></i>',
@@ -545,6 +546,7 @@ class EditorSelected(BaseState):
             custom_get_url=get_edit_permissions_url_review_assignment,
         ),
         ReviewAssignmentAction(
+            permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
             label="Deselect reviewer",
@@ -836,10 +838,11 @@ class TypesetterSelected(BaseState):
             custom_get_url=get_url_with_typesetting_assignment_pk,
         ),
         ArticleAction(
-            permission=permissions.is_article_typesetter,
+            permission=permissions.is_article_typesetter_or_eo,
             name="CRUD attachments",
-            label="Manage supllementary material",  # CRUD Article.supplementary_files
-            view_name="WRITEME!",
+            label="Manage supplementary material",
+            view_name="wjs_article_esm_files",
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,

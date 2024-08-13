@@ -1,0 +1,27 @@
+{% load django_bootstrap5 wjs_review %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="review-{{ version.number }}">
+    <button class="accordion-button {% if not version.latest %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-production-{{ version.number }}"
+            aria-expanded="{% if version.latest %} true{% else %}false{% endif %}" aria-controls="collapse-production-{{ version.numberj }}">
+      {% translate "Version" %} {{ version.number }}
+    </button>
+  </h2>
+  <div id="collapse-production-{{ version.number }}" class="accordion-collapse collapse{% if version.latest %} show{% endif %}" aria-labelledby="heading-review-{{ version }}">
+    <div class="accordion-body d-flex flex-column gap-4">
+      {% if version.has_typesetter_files %}
+        <div class="vstack">
+          {% if workflow|is_user_article_typesetter:request.user or workflow|is_user_article_supervisor:request.user %}
+            {% include "wjs_review/details/elements/production_typesetting.html" %}
+            <hr>
+            {% include "wjs_review/details/elements/production_galleyproofing.html" %}
+          {% endif %}
+          {% if workflow|is_user_article_author:request.user and version.has_proofing_files %}
+            {% include "wjs_review/details/elements/production_galleyproofing.html" %}
+          {% endif %}
+        </div>
+      {% else %}
+        <h6>{% translate "No file uploaded yet" %}</h6>
+      {% endif %}
+    </div>
+  </div>
+</div>

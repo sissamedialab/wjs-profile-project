@@ -19,7 +19,7 @@ from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -94,6 +94,15 @@ def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
 
 @dataclasses.dataclass
 class Version:
+    """
+    Collects all the elements related to a version of an article.
+
+    Mostly a convenience class to easily access all the elements related to a version of an article and to clarify
+    all the involved elements.
+    """
+
+    label = _("Version")
+
     review_round: ReviewRound
     """
     review_round is the defining attribute of a version.
@@ -127,6 +136,10 @@ class Version:
     """
 
     @property
+    def round(self) -> ReviewRound:  # noqa: A003
+        return self.review_round
+
+    @property
     def started_on(self) -> Optional[timezone.datetime]:
         return self.review_round.date_started
 
@@ -158,6 +171,57 @@ class Version:
             if latest.type in (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION):
                 return latest
         return None
+
+
+@dataclasses.dataclass
+class TypesettingVersion:
+    """
+    Collects all the elements related to a typesetting version of an article.
+
+    Mostly a convenience class to easily access all the elements related to a version of an article and to clarify
+    all the involved elements.
+    """
+
+    label = _("Production version")
+
+    typesetting_round: TypesettingRound
+    """
+    typesetting_round is the defining attribute of a version.
+    """
+    assignment: TypesettingAssignment
+    """
+    Assignment linked to the version
+    """
+    latest: bool = False
+    """
+    Flag to mark the latest version of the article.
+    """
+
+    @property
+    def round(self) -> TypesettingRound:  # noqa: A003
+        return self.typesetting_round
+
+    @property
+    def started_on(self) -> Optional[timezone.datetime]:
+        return self.typesetting_round.date_created
+
+    @property
+    def number(self) -> int:
+        return self.typesetting_round.round_number
+
+    @property
+    def galleyproofing(self):
+        return self.typesetting_round.galleyproofing_set.first()
+
+    @property
+    def has_proofing_files(self) -> bool:
+        if self.galleyproofing:
+            return self.galleyproofing.proofed_files.exists() or self.galleyproofing.annotated_files.exists()
+        return False
+
+    @property
+    def has_typesetter_files(self) -> bool:
+        return self.assignment.files_to_typeset.exists()
 
 
 class ArticleWorkflow(TimeStampedModel):
@@ -206,9 +270,9 @@ class ArticleWorkflow(TimeStampedModel):
             ]
 
     class GalleysStatus(models.IntegerChoices):
-        NOT_TESTED = 1, _("Not tested")
-        TEST_FAILED = 2, _("Test failed")
-        TEST_SUCCEEDED = 3, _("Test succeeded")
+        NOT_TESTED = 1, _("Galleys not tested")
+        TEST_FAILED = 2, _("Galleys generation failed")
+        TEST_SUCCEEDED = 3, _("Galleys generation succeeded")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
@@ -782,22 +846,77 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: WRITEME!
         pass
 
-    def get_review_versions(self) -> list[Version]:
-        """Generates the list of version for the current article"""
+    def get_review_versions(self, user: Account) -> list[Version]:
+        """
+        Generates the list of version for the current article.
+
+        Versions are checked against the user's permissions to ensure that only the versions the user has rights on are
+        returned.
+
+        :param user: The user for which the versions are generated.
+        :type user: Account
+        :return: The list of versions the user has rights on.
+        :rtype: list[Version]
+        """
+        from .logic__visibility import PermissionChecker
+
+        versions = []
         for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
-            version = Version(
-                review_round=review_round,
-                latest=index == 0,
-                decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
-                revision_requests=list(
-                    EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
-                ),
-                editor_assignment=WjsEditorAssignment.objects.get(article=self.article, review_rounds=review_round),
-                review_assignments=list(
-                    WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
-                ),
+            has_permission = PermissionChecker()(
+                self,
+                user,
+                self,
+                review_round=review_round.round_number,
+                permission_type=PermissionAssignment.PermissionType.NO_NAMES,
             )
-            yield version
+            if has_permission:
+                version = Version(
+                    review_round=review_round,
+                    latest=index == 0,
+                    decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
+                    revision_requests=list(
+                        EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
+                    ),
+                    editor_assignment=WjsEditorAssignment.objects.get(
+                        article=self.article, review_rounds=review_round
+                    ),
+                    review_assignments=list(
+                        WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
+                    ),
+                )
+                versions.append(version)
+        return versions
+
+    def get_production_versions(self, user: Account) -> list[TypesettingVersion]:
+        """
+        Generates the list of typesetting version for the current article.
+
+        Versions are checked against the user's roles to ensure that only the versions the user has rights on are
+        returned.
+
+        :param user: The user for which the versions are generated.
+        :type user: Account
+        :return: The list of versions the user has rights on.
+        :rtype: list[TypesettingVersion]
+        """
+        rounds = []
+        versions = []
+        if permissions.is_article_author(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.all().order_by("-round_number")
+        elif permissions.is_article_supervisor(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.all().order_by("-round_number")
+        elif permissions.is_article_typesetter(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.filter(typesettingassignment__typesetter=user).order_by(
+                "-round_number"
+            )
+        for index, typesetting_round in enumerate(rounds):
+            version = TypesettingVersion(
+                typesetting_round=typesetting_round,
+                latest=index == 0,
+                assignment=typesetting_round.typesettingassignment,
+            )
+            versions.append(version)
+        return versions
 
 
 class EditorDecision(TimeStampedModel):

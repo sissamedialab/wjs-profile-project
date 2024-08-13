@@ -1,6 +1,8 @@
+{% if assignments %}
 <div>
   <h6 class="fw-bold mb-3"><i class="{{ stage.css_class }} me-1"></i>{% translate stage.label %}</h6>
   {% for assignment in assignments %}
     {% include "wjs_review/details/elements/review_assignment.html" %}
   {% endfor %}
 </div>
+{% endif %}

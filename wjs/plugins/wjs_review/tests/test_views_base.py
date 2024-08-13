@@ -485,6 +485,17 @@ def test_wjs_journal_editors(journal, eo_user, client):
 
 
 @pytest.mark.django_db
+def test_wjs_typesetter_esm_files(assigned_to_typesetter_article_with_files_to_typeset, client):
+    assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
+    client.force_login(assignment.typesetter)
+    response = client.get(
+        f"/{assigned_to_typesetter_article_with_files_to_typeset.journal.code}/"
+        f"plugins/wjs-review-articles/esm_files/{assignment.pk}/"
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
 def test_wjs_typesetter_upload_files(assigned_to_typesetter_article_with_files_to_typeset, client):
     assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
     client.force_login(assignment.typesetter)

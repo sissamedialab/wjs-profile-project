@@ -7,9 +7,17 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
+from django.template import RequestContext
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import FormView, ListView, TemplateView, UpdateView, View
+from django.views.generic import (
+    DetailView,
+    FormView,
+    ListView,
+    TemplateView,
+    UpdateView,
+    View,
+)
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -22,7 +30,7 @@ from wjs.jcom_profile.mixins import HtmxMixin
 from .communication_utils import get_eo_user
 from .forms__production import (
     EOSendBackToTypesetterForm,
-    FileForm,
+    EsmFileForm,
     SectionOrderForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
@@ -37,7 +45,6 @@ from .logic import (
 from .logic__production import (
     AssignTypesetter,
     AuthorSendsCorrections,
-    HandleCreateSupplementaryFile,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
     ReadyForPublication,
@@ -50,6 +57,7 @@ from .models import ArticleWorkflow
 from .permissions import (
     has_typesetter_role_by_article,
     is_article_author,
+    is_article_supervisor,
     is_article_typesetter,
 )
 from .views import ArticleWorkflowBaseMixin
@@ -230,46 +238,88 @@ class ReadyForProofreadingView(UserPassesTestMixin, LoginRequiredMixin, Template
         )
 
 
+class ListSupplementaryFileView(UserPassesTestMixin, LoginRequiredMixin, DetailView):
+    """View to allow the typesetter to upload supplementary files."""
+
+    model = ArticleWorkflow
+    template_name = "wjs_review/details/esm_files_list.html"
+    form_class = EsmFileForm
+    context_object_name = "workflow"
+
+    def setup(self, request, *args, **kwargs):
+        """Store a reference to the article and object for easier processing."""
+        super().setup(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """User must be the article's typesetter"""
+        return is_article_typesetter(self.object, self.request.user) or is_article_supervisor(
+            self.object, self.request.user
+        )
+
+    @property
+    def extra_links(self):
+        preprintid = self.object.article.get_identifier("preprintid")
+        if not preprintid:
+            preprintid = self.object.article_id
+        return {
+            "javascript:history.back()": _("Back to list"),
+            reverse("wjs_article_details", kwargs={"pk": self.kwargs["pk"]}): preprintid,
+            reverse("wjs_article_esm_files", kwargs={"pk": self.kwargs["pk"]}): preprintid,
+        }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["extra_links"] = self.extra_links
+        context["article"] = self.object.article
+        context["form"] = self.form_class(
+            user=self.request.user,
+            instance=self.object,
+        )
+        return context
+
+
 class CreateSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, FormView):
     """View to allow the typesetter to upload supplementary files."""
 
     model = File
-    form_class = FileForm
-    template_name = "wjs_review/elements/article_files_listing.html"
+    form_class = EsmFileForm
+    template_name = "wjs_review/details/esm_files_list.html"
 
     def setup(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""
         super().setup(request, *args, **kwargs)
         self.articleworkflow = get_object_or_404(ArticleWorkflow, article_id=self.kwargs["article_id"])
 
-    def test_func(self):
+    def test_func(self) -> bool:
         """Typesetter can upload files."""
-        return is_article_typesetter(self.articleworkflow, self.request.user)
-
-    def get_logic_instance(self) -> HandleCreateSupplementaryFile:
-        """Instantiate :py:class:`HandleCreateSupplementaryFile` class."""
-        return HandleCreateSupplementaryFile(
-            request=self.request,
-            article=self.articleworkflow.article,
+        return is_article_typesetter(self.articleworkflow, self.request.user) or is_article_supervisor(
+            self.object, self.request.user
         )
 
-    def post(self, request, *args, **kwargs):
-        try:
-            service = self.get_logic_instance()
-            self.article = service.run()
-        except ValidationError as e:
-            context = {"error": str(e)}
-        else:
-            self.article.refresh_from_db()
-            context = {"article": self.article}
-        return render(request, self.template_name, context)
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["instance"] = self.articleworkflow
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form) -> HttpResponse:
+        self.articleworkflow = form.save()
+        return self.get(self.request, *self.args, **self.kwargs)
+
+    def get_context_data(self, **kwargs) -> RequestContext:
+        context = super().get_context_data(**kwargs)
+        context["articleworkflow"] = self.articleworkflow
+        context["article"] = self.articleworkflow.article
+        return context
 
 
-class DeleteSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, View):
+class DeleteSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredMixin, TemplateView):
     """View to allow the typesetter to delete supplementary files."""
 
     model = SupplementaryFile
-    template_name = "wjs_review/elements/article_files_listing.html"
+    form_class = EsmFileForm
+    template_name = "wjs_review/details/esm_files_list.html"
 
     def setup(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""
@@ -279,12 +329,14 @@ class DeleteSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredM
 
     def test_func(self):
         """Ensure only typesetters can delete files."""
-        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+        return is_article_typesetter(self.article.articleworkflow, self.request.user) or is_article_supervisor(
+            self.article.articleworkflow, self.request.user
+        )
 
     def get_logic_instance(self) -> HandleDeleteSupplementaryFile:
         """Instantiate :py:class:`HandleDeleteSupplementaryFile` class."""
         return HandleDeleteSupplementaryFile(
-            request=self.request,
+            user=self.request.user,
             supplementary_file=self.supplementary_file,
             article=self.article,
         )
@@ -294,10 +346,18 @@ class DeleteSupplementaryFileView(HtmxMixin, UserPassesTestMixin, LoginRequiredM
             service = self.get_logic_instance()
             service.run()
         except ValidationError as e:
-            context = {"error": str(e)}
-        else:
-            context = {"article": self.article}
-        return render(request, self.template_name, context)
+            kwargs["error"] = e
+        return self.get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs) -> RequestContext:
+        context = super().get_context_data(**kwargs)
+        context["articleworkflow"] = self.article.articleworkflow
+        context["article"] = self.article
+        context["form"] = self.form_class(
+            user=self.request.user,
+            instance=self.article.articleworkflow,
+        )
+        return context
 
 
 class WriteToTyp(UserPassesTestMixin, LoginRequiredMixin, FormView):
