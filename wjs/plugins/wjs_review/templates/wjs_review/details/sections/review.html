@@ -1,0 +1,13 @@
+{% load django_bootstrap5 i18n wjs_review %}
+{% if review %}
+<div id="review" class="card border border-1 mt-4">
+  <h5 class="card-header fw-bolder">{% translate "Review" %}</h5>
+  <div class="card-body">
+    <div class="accordion" id="review-accordion">
+      {% for version in review_versions %}
+        {% include "wjs_review/details/elements/review_version.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}

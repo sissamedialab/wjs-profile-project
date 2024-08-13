@@ -1,6 +1,7 @@
 """WJS Review and related models."""
 
-from typing import Optional
+import dataclasses
+from typing import TYPE_CHECKING, Optional
 
 from core import models as core_models
 from django.conf import settings
@@ -12,6 +13,7 @@ from django.db import models
 from django.db.models import BLANK_CHOICE_DASH, QuerySet
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
@@ -38,6 +40,13 @@ from .managers import (
     WjsEditorAssignmentQuerySet,
     WorkflowReviewAssignmentQuerySet,
 )
+
+if TYPE_CHECKING:
+    from .custom_types import (
+        ReviewAssignmentActionConfiguration,
+        ReviewAssignmentAttentionCondition,
+        ReviewAssignmentStatus,
+    )
 
 logger = get_logger(__name__)
 
@@ -81,6 +90,74 @@ def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
         return workflow.ReviewStates.EDITOR_TO_BE_SELECTED
     else:
         return workflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
+
+
+@dataclasses.dataclass
+class Version:
+    review_round: ReviewRound
+    """
+    review_round is the defining attribute of a version.
+    """
+    decisions: list["EditorDecision"]
+    """
+    A version can contain multiple decisions, because we can have multiple technical review for each round, plus the
+    decision at the end of the round.
+    """
+    revision_requests: list["EditorRevisionRequest"]
+    """
+    A version can contain multiple revision requests, because we can have multiple technical review for each round,
+    plus the decision at the end of the round.
+    """
+    editor_assignment: "WjsEditorAssignment"
+    """
+    Each version has an editor assignment, which is the editor in charge of the round.
+
+    In case of editor changes, we can retrieve past assignments by using :py:attr:`review_round` attribute, as it's not
+    likely, we dont' have to store them in the version from the beginning.
+    """
+    review_assignments: list["WorkflowReviewAssignment"]
+    """
+    All review assignment for the round.
+
+    While they can be retrieved from the round, it's useful to have them here for quick access.
+    """
+    latest: bool = False
+    """
+    Flag to mark the latest version of the article.
+    """
+
+    @property
+    def started_on(self) -> Optional[timezone.datetime]:
+        return self.review_round.date_started
+
+    @property
+    def number(self) -> int:
+        return self.review_round.round_number
+
+    def assignments_by_stage(self) -> dict["ReviewAssignmentStatus", list["WorkflowReviewAssignment"]]:
+        """Group the review assignment of the version by status."""
+
+        from .custom_types import ReviewAssignmentStatus
+
+        stack = {ReviewAssignmentStatus(code=status): [] for status in WorkflowReviewAssignment.statuses.values()}
+        for assignment in self.review_assignments:
+            stack[assignment.status].append(assignment)
+        return stack
+
+    @property
+    def main_revision(self) -> Optional["EditorRevisionRequest"]:
+        """
+        Return the main revision request for the version.
+
+        As the list of revision requests is ordered by reveres date, picks the latest one if it's a major or minor
+        revision request, if not return None. As Major and Minor revision requests are the "final" ones, there cannot
+        be technical reviews after one of those.
+        """
+        if self.revision_requests:
+            latest = self.revision_requests[0]
+            if latest.type in (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION):
+                return latest
+        return None
 
 
 class ArticleWorkflow(TimeStampedModel):
@@ -705,16 +782,22 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: WRITEME!
         pass
 
-    # TODO: manage special transition from * to WITHDRAWN # NOQA E800
-    # TBV # @transition(                                  # NOQA E800
-    # TBV #     field=state,                              # NOQA E800
-    # TBV #     source=ReviewStates.WITHDRAWN,            # NOQA E800
-    # TBV #     target=ReviewStates.FINAL,                # NOQA E800
-    # TBV #     # TODO: permission=,                      # NOQA E800
-    # TBV #     # TODO: conditions=[],                    # NOQA E800
-    # TBV # )                                             # NOQA E800
-    # TBV # def UNNAMED_TRANSITION(self):                 # NOQA E800
-    # TBV #     pass                                      # NOQA E800
+    def get_review_versions(self) -> list[Version]:
+        """Generates the list of version for the current article"""
+        for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
+            version = Version(
+                review_round=review_round,
+                latest=index == 0,
+                decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
+                revision_requests=list(
+                    EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
+                ),
+                editor_assignment=WjsEditorAssignment.objects.get(article=self.article, review_rounds=review_round),
+                review_assignments=list(
+                    WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
+                ),
+            )
+            yield version
 
 
 class EditorDecision(TimeStampedModel):
@@ -1076,6 +1159,15 @@ class WorkflowReviewAssignment(ReviewAssignment):
 
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
 
+    # Map janeway's statuses to an ordered dict to map to our own statuses
+    statuses = {
+        "wait": "wait",
+        "accept": "accept",
+        "complete": "complete",
+        "declined": "declined",
+        "withdrawn": "declined",
+    }
+
     @property
     def permission_label(self) -> str:
         return _(f"Reviewer {self.reviewer}'s report")
@@ -1089,6 +1181,54 @@ class WorkflowReviewAssignment(ReviewAssignment):
             article=self.article,
             round_number=self.review_round.round_number - 1,
         ).first()
+
+    @property
+    def status(self) -> "ReviewAssignmentStatus":
+        from .custom_types import ReviewAssignmentStatus
+
+        status = super().status
+        return ReviewAssignmentStatus(
+            self.statuses.get(status["code"], status["code"]),
+        )
+
+    def get_actions_for_user(self, user: Account, tag: str) -> list["ReviewAssignmentActionConfiguration"]:
+        from .states import BaseState
+
+        state_class = BaseState.get_state_class(self.article.articleworkflow)
+        if state_class and state_class.review_assignment_actions:
+            return [
+                action.as_dict(self, user)
+                for action in state_class.review_assignment_actions
+                if action.is_available(self, user, tag)
+            ]
+
+    def unsent_reminders(self) -> QuerySet["Reminder"]:
+        return Reminder.objects.filter(
+            object_id=self.pk,
+            content_type=ContentType.objects.get_for_model(self),
+            date_sent__isnull=True,
+        )
+
+    @property
+    def attention_condition(self) -> Optional["ReviewAssignmentAttentionCondition"]:
+        """Provide details if the review assignment needs attention by the staff."""
+        from .custom_types import ReviewAssignmentAttentionCondition
+
+        if self.is_complete:
+            return
+
+        if self.date_due < timezone.now().date():
+            return ReviewAssignmentAttentionCondition(
+                code="late",
+                message=_("No feedback after %s day(s).") % (timezone.now().date() - self.date_due).days,
+                style="border border-danger",
+                icon_value='<span class="ra-condition-icon"><i class="bi bi-clock-fill"></i></span>',
+            )
+        if self.date_accepted and not self.is_complete:
+            return ReviewAssignmentAttentionCondition(
+                code="pending",
+                message=_("Report deadline: %s") % date_format(self.date_due, settings.DATE_FORMAT),
+            )
 
 
 class ProphyAccount(models.Model):

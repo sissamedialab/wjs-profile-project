@@ -1,0 +1,44 @@
+{% load static wjs_review %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="heading-revision-{{ version.number }}">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-revision-{{ version.number }}" aria-expanded="false" aria-controls="collapse-revision-{{ version.number }}">
+      <i class="bi bi-journals pe-2"></i> {% translate "Version files" %}
+    </button>
+  </h2>
+  <div id="collapse-revision-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-revision-{{ version.number }}" data-bs-parent="#metadata">
+    <div class="accordion-body">
+      <div class="vstack gap-3">
+        {% if article_info.manuscript_files.exists %}
+          <div class="py-2 px-1">
+            <h6 class="fw-bold">{% translate "Files" %}</h6>
+            <ul class="list-group">
+              {% for file in article_info.manuscript_files.all %}
+                <li class="list-group-item"><a href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.name }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+        {% if article_info.data_figure_files.exists %}
+          <div class="py-2 px-1">
+            <h6 class="fw-bold">{% translate "Data / Figures" %}</h6>
+            <ul class="list-group">
+              {% for file in article_info.data_figure_files.all %}
+                <li class="list-group-item"><a href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.name }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+        {% if article_info.supplementary_files.exists %}
+          <div class="py-2 px-1">
+            <h6 class="fw-bold">{% translate "Supplementary files" %}</h6>
+            <ul class="list-group">
+              {% for file in article_info.supplementary_files.all %}
+                <li class="list-group-item"><a href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.name }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

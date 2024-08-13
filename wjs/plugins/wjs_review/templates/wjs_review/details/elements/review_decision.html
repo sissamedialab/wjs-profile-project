@@ -1,0 +1,29 @@
+{% load static wjs_review %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="heading-editor-decision-{{ version.number }}">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-editor-decision-{{ version.number }}" aria-expanded="false" aria-controls="collapse-editor-decision-{{ version.number }}">
+      <i class="bi bi-file-earmark-check pe-2"></i> {% translate "Editor review" %}
+    </button>
+  </h2>
+  <div id="collapse-editor-decision-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-editor-decision-{{ version.number }}" data-bs-parent="#metadata">
+    <div class="accordion-body">
+      <table class="table">
+        <tr>
+          <td>{% translate "Decision" %}</td><td>{{ decision.get_decision_display }}</td>
+        </tr>
+        <tr>
+          <td colspan="2">{% translate "Editor Report" %}</td>
+        </tr>
+        <tr>
+          <td colspan="2">{{ decision.decision_editor_report|safe }}</td>
+        </tr>
+        <tr>
+          <td colspan="2">{% translate "Internal note" %}</td>
+        </tr>
+        <tr>
+          <td colspan="2">{{ decision.decision_internal_note|safe }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>

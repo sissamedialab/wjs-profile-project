@@ -1,11 +1,15 @@
 {% load static %}
-{% if article.primary_issue %}
-  <div class="badge text-bg-secondary">{{ article.primary_issue }}</div>
-{% endif %}
-{% if article.projected_issue %}
-  <div class="badge text-bg-secondary">{{ article.projected_issue }}</div>
-{% endif %}
-{% include "wjs_review/lists/elements/attention.html" %}
-{% if article.language != "eng" %}
-  <img src="{% static 'img/languages/{{ article.language }}.png' %}" alt="{% translate "Flag for language" %} {{ article.language }}" title="{% translate "Article language" %}: {{ article.language }}" />
+{% if article.primary_issue or article.projected_issue or article.language != "eng" or attention_flag %}
+  <div class="card-header d-flex align-items-center justify-content-between px-2 py-2">
+    {% if article.primary_issue %}
+      <div class="badge text-bg-secondary">{{ article.primary_issue }}</div>
+    {% endif %}
+    {% if article.projected_issue %}
+      <div class="badge text-bg-secondary">{{ article.projected_issue }}</div>
+    {% endif %}
+    {% include "wjs_review/lists/elements/attention.html" %}
+    {% if article.language != "eng" %}
+      <img src="{% static 'img/languages/{{ article.language }}.png' %}" alt="{% translate "Flag for language" %} {{ article.language }}" title="{% translate "Article language" %}: {{ article.language }}" />
+    {% endif %}
+  </div>
 {% endif %}

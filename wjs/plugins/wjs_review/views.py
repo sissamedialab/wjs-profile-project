@@ -885,6 +885,13 @@ class ArticleDetails(UserPassesTestMixin, HtmxMixin, DetailView):
         context["timeline_messages"] = group_messages_by_version(
             self.object.article, messages, filters=context["form"].cleaned_data
         )
+        if self.object.state in states_when_article_is_considered_in_review:
+            context["review_versions"] = self.object.get_review_versions()
+            context["review"] = True
+        if self.object.state in states_when_article_is_considered_in_production:
+            context["review_versions"] = self.object.get_review_versions()
+            context["production_versions"] = self.object.get_review_versions()
+            context["production"] = True
         return context
 
 

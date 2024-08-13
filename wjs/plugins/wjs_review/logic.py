@@ -1284,7 +1284,7 @@ class WithdrawReviewRequests:
             message_subject=review_withdraw_subject,
             recipients=[reviewer],
             message_body=review_withdraw_message,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
