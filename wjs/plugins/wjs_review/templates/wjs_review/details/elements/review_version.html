@@ -1,0 +1,41 @@
+{% load django_bootstrap5 %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="review-{{ version.number }}">
+    <button class="accordion-button {% if not version.latest or production %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-{{ version.number }}"
+            aria-expanded="{% if version.latest %} true{% else %}false{% endif %}" aria-controls="collapse-review-{{ version.numberj }}">
+      {% translate "Version" %} {{ version.number }}
+    </button>
+  </h2>
+  <div id="collapse-review-{{ version.number }}" class="accordion-collapse collapse{% if version.latest and not production %} show{% endif %}" aria-labelledby="heading-review-{{ version }}">
+    <div class="accordion-body d-flex flex-column gap-4">
+      <div class="vstack gap-3">
+        <div>
+          {% for decision in version.decisions %}
+            {% include "wjs_review/details/elements/review_decision.html" %}
+          {% endfor %}
+        </div>
+        <div>
+          {% for revision in version.revision_requests %}
+            {% include "wjs_review/details/elements/review_revision.html" with article_info=revision %}
+          {% empty %}
+            {% include "wjs_review/details/elements/review_revision.html" with article_info=workflow.article %}
+          {% endfor %}
+        </div>
+        {% if version.main_revision and version.main_revision.author_note %}
+          <div>
+            {% include "wjs_review/details/elements/review_cover.html" %}
+          </div>
+        {% elif version.numer == 1 and article.comments_for_editor %}
+          <div>
+            {% include "wjs_review/details/elements/review_cover.html" %}
+          </div>
+        {% endif %}
+        <div class="vstack gap-4">
+          {% for stage, assignments in version.assignments_by_stage.items %}
+            {% include "wjs_review/details/elements/review_assignment_list.html" %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

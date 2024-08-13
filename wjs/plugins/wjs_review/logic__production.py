@@ -495,15 +495,16 @@ class HandleDownloadRevisionFiles:
 class HandleCreateSupplementaryFile:
     """Handle the creation and upload of supplementary files."""
 
-    request: HttpRequest
+    file: File
     article: Article
+    user: Account
 
     def _create_file_instance(self):
-        file_instance = save_file_to_article(self.request.FILES["file"], self.article, self.request.user)
+        file_instance = save_file_to_article(self.file, self.article, self.user)
         return file_instance
 
     def _check_typesetter_condition(self):
-        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+        return is_article_typesetter(self.article.articleworkflow, self.user)
 
     def run(self):
         with transaction.atomic():
@@ -525,12 +526,12 @@ class HandleCreateSupplementaryFile:
 class HandleDeleteSupplementaryFile:
     """Handle the deletion of supplementary files."""
 
-    request: HttpRequest
     supplementary_file: SupplementaryFile
     article: Article
+    user: Account
 
     def _check_typesetter_condition(self):
-        return is_article_typesetter(self.article.articleworkflow, self.request.user)
+        return is_article_typesetter(self.article.articleworkflow, self.user)
 
     # We don't check for archival model references, we disassociate the file from the article. In the article's status
     # page we still show a list of supplementary files at acceptance.
@@ -672,11 +673,14 @@ class AuthorSendsCorrections:
 
     def _log_operation(self, context) -> Message:
         """Log the operation."""
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="author_sends_corrections_subject",
             journal=self.article.journal,
-        ).processed_value
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="author_sends_corrections_body",
@@ -1042,6 +1046,38 @@ class TypesetterTestsGalleyGeneration:
         )
         return message
 
+    def _mock_jcom_assistant_client(self, path_to_mock_file):
+        """
+        Invoke :py:class:`AttachGalleys` with a mock JCOM Assistant response file to run the class without access
+        to JCOM Assistant endpoint.
+        """
+        with open(path_to_mock_file, "rb") as f:
+            response = f.read()
+        return AttachGalleys(
+            archive_with_galleys=response,
+            article=self.assignment.round.article,
+            request=self.request,
+        ).run()
+
+    def _get_galleys_from_jcom_assistant(self):
+        """
+        Use Jcom Assistent to render the galleys and attach them to the article.
+
+        If settings.JCOMASSISTANT_MOCK is set, use the path as a mock response file instead of contacting
+        the JCOM Assistant service.
+        """
+        # TODO: wrap in try/except and contact typ on errors
+        # e.g. ConnectionError janeway-services.ud.sissamedialab.it Name or service not known
+        if settings.JCOMASSISTANT_MOCK_FILE:
+            return self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK)
+        response = self._jcom_assistant_client()
+        galleys_created = AttachGalleys(
+            archive_with_galleys=response.content,
+            article=self.assignment.round.article,
+            request=self.request,
+        ).run()
+        return galleys_created
+
     def _generate_and_attach_galleys(self):
         """Generate galleys.
 
@@ -1049,14 +1085,7 @@ class TypesetterTestsGalleyGeneration:
         - attach generated galleys to TA (and article)
         - record success/failure of the generation
         """
-        # TODO: wrap in try/except and contact typ on errors
-        # e.g. ConnectionError janeway-services.ud.sissamedialab.it Name or service not known
-        response = self._jcom_assistant_client()
-        galleys_created = AttachGalleys(
-            archive_with_galleys=response.content,
-            article=self.assignment.round.article,
-            request=self.request,
-        ).run()
+        galleys_created = self._get_galleys_from_jcom_assistant()
         self.assignment.galleys_created.set(galleys_created)
         # This flag is set by AttachGalleys that we have just run
         if (
@@ -1237,7 +1266,7 @@ class HandleEOSendBackToTypesetter:
         """Create and send the message for the typesetter."""
         message = Message.objects.create(
             actor=self.user,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             content_type=ContentType.objects.get_for_model(self.articleworkflow.article),
             object_id=self.articleworkflow.article.pk,
             subject=self.subject,

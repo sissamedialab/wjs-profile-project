@@ -318,7 +318,7 @@ class AssignToEditor:
             message_body=message_body,
             actor=actor,
             recipients=[self.editor],
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -501,14 +501,12 @@ class AssignToReviewer:
 
     def _log_operation(self, context: Dict[str, Any]):
         if self.reviewer == self.editor:
-            # TODO: review me after specs#606
-            # Do not send email when editor selects themselves as reviewer: specs#584
-            message_type = Message.MessageTypes.SILENT
+            message_type = Message.MessageTypes.SYSTEM
             message_subject_setting = "wjs_editor_i_will_review_message_subject"
             message_body_setting = "wjs_editor_i_will_review_message_body"
             message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
         else:
-            message_type = Message.MessageTypes.VERBOSE
+            message_type = Message.MessageTypes.SYSTEM
             message_subject_setting = "subject_review_assignment"
             message_body_setting = "review_assignment"
             message_subject_setting_group_name = "email_subject"
@@ -1017,7 +1015,7 @@ class SubmitReview:
         if self.assignment.reviewer == self.assignment.editor:
             message_type = Message.MessageTypes.SYSTEM
         else:
-            message_type = Message.MessageTypes.VERBOSE
+            message_type = Message.MessageTypes.SYSTEM
         communication_utils.log_operation(
             # no actor as it's a system message
             article=self.assignment.article,
@@ -1157,7 +1155,7 @@ class AuthorHandleRevision:
             context=self._get_revision_submission_message_context(),
             template_is_setting=True,
         )
-        message_type = Message.MessageTypes.VERBOSE
+        message_type = Message.MessageTypes.SYSTEM
 
         for assignment in self.revision.article.active_revision_requests():
             communication_utils.log_operation(
@@ -1186,7 +1184,7 @@ class AuthorHandleRevision:
             context=self._get_revision_submission_message_context(),
             template_is_setting=True,
         )
-        message_type = Message.MessageTypes.VERBOSE
+        message_type = Message.MessageTypes.SYSTEM
         communication_utils.log_operation(
             actor=self.user,
             article=self.revision.article,
@@ -1286,7 +1284,7 @@ class WithdrawReviewRequests:
             message_subject=review_withdraw_subject,
             recipients=[reviewer],
             message_body=review_withdraw_message,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1407,7 +1405,7 @@ class HandleDecision:
             message_body=accept_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1435,7 +1433,7 @@ class HandleDecision:
             message_body=decline_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1463,7 +1461,7 @@ class HandleDecision:
             message_body=not_suitable_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1491,7 +1489,7 @@ class HandleDecision:
             message_body=requires_resubmission_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1519,7 +1517,7 @@ class HandleDecision:
             message_subject=revision_request_message_subject,
             recipients=[self.workflow.article.correspondence_author],
             message_body=revision_request_message_body,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1547,7 +1545,7 @@ class HandleDecision:
             message_subject=technical_revision_subject,
             recipients=[self.workflow.article.correspondence_author],
             message_body=technical_revision_body,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.SYSTEM,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -2002,7 +2000,7 @@ class HandleMessage:
             raise ValidationError("Cannot write to this recipient. Please contact EO.")
 
         with transaction.atomic():
-            self.message.message_type = Message.MessageTypes.VERBOSE
+            self.message.message_type = Message.MessageTypes.SYSTEM
             self.message.save()
             self.message.recipients.add(recipient)
             if self.form_data["attachment"]:

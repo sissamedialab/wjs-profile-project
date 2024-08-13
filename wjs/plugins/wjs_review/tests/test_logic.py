@@ -15,6 +15,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.timezone import localtime, now
 from faker import Faker
+from plugins.wjs_review.templatetags.wjs_articles import last_eo_note, last_user_note
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, Keyword
@@ -33,6 +34,7 @@ from ..events.handlers import (
 from ..forms import (
     AssignEoForm,
     EditorRevisionRequestEditForm,
+    MessageForm,
     OpenAppealForm,
     ReportForm,
     SupervisorAssignEditorForm,
@@ -196,7 +198,7 @@ def test_assign_to_editor(
     )
     assert message_to_editor.body == editor_assignment_message
     assert review_in_review_url in message_to_editor.body
-    assert message_to_editor.message_type == "Verbose"
+    assert message_to_editor.message_type == Message.MessageTypes.SYSTEM
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
     if current_user_editor:
         assert message_to_editor.actor == get_system_user()
@@ -368,7 +370,7 @@ def test_editor_assigns_themselves_as_reviewer(
     assert message.subject == message_subject
     # Check that the message body passed via form is ignored, and that the setting's text is used
     assert message.body == message_body
-    assert message.message_type == Message.MessageTypes.SILENT
+    assert message.message_type == Message.MessageTypes.SYSTEM
     assert message.actor == section_editor.janeway_account
     assert list(message.recipients.all()) == [section_editor.janeway_account]
 
@@ -461,7 +463,7 @@ def test_assign_to_reviewer(
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
     assert "You have been invited" not in message_to_invited_user.body
-    assert message_to_invited_user.message_type == "Verbose"
+    assert message_to_invited_user.message_type == Message.MessageTypes.SYSTEM
     assert message_to_invited_user.actor == section_editor.janeway_account
     assert list(message_to_invited_user.recipients.all()) == [normal_user.janeway_account]
 
@@ -556,7 +558,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     message_to_correspondence_author = Message.objects.get()
     assert message_to_correspondence_author.subject == revision_request_message_subject
     assert message_to_correspondence_author.body == revision_request_message_body
-    assert message_to_correspondence_author.message_type == "Verbose"
+    assert message_to_correspondence_author.message_type == Message.MessageTypes.SYSTEM
     assert message_to_correspondence_author.actor == section_editor.janeway_account
     assert list(message_to_correspondence_author.recipients.all()) == [assigned_article.correspondence_author]
     # Check email
@@ -855,7 +857,7 @@ def test_invite_reviewer(
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
     assert "is a diamond open access" in message_to_invited_user.body
-    assert message_to_invited_user.message_type == "Verbose"
+    assert message_to_invited_user.message_type == Message.MessageTypes.SYSTEM
     assert message_to_invited_user.actor == section_editor.janeway_account
     assert list(message_to_invited_user.recipients.all()) == [invited_user.janeway_account]
 
@@ -1210,7 +1212,7 @@ def test_invite_reviewer_but_user_already_exists(
     assert Message.objects.count() == 1
     message_to_reviewer = Message.objects.get(subject__startswith="Request to review")
     assert "random message" in message_to_reviewer.body
-    assert message_to_reviewer.message_type == "Verbose"
+    assert message_to_reviewer.message_type == Message.MessageTypes.SYSTEM
     assert message_to_reviewer.actor == section_editor.janeway_account
     assert list(message_to_reviewer.recipients.all()) == [normal_user.janeway_account]
 
@@ -1308,7 +1310,7 @@ def test_submit_review_messages(
     )
     assert message_to_the_reviewer.subject == reviewer_message_subject
     assert message_to_the_reviewer.body == reviewer_message_body
-    assert message_to_the_reviewer.message_type == Message.MessageTypes.VERBOSE
+    assert message_to_the_reviewer.message_type == Message.MessageTypes.SYSTEM
     message_to_the_editor = Message.objects.get(recipients__pk=review_assignment.editor.pk)
     editor_message_subject = get_setting(
         setting_group_name="email_subject",
@@ -1328,7 +1330,7 @@ def test_submit_review_messages(
         template_is_setting=True,
     )
     assert message_to_the_editor.body == editor_message_body
-    assert message_to_the_editor.message_type == Message.MessageTypes.VERBOSE
+    assert message_to_the_editor.message_type == Message.MessageTypes.SYSTEM
 
 
 @pytest.mark.parametrize(
@@ -1843,7 +1845,7 @@ def test_handle_editor_decision(
         withdrawn_review_message = Message.objects.order_by("created").first()
         assert withdrawn_review_message.subject == review_withdraw_message_subject
         assert withdrawn_review_message.body == review_withdraw_message_body
-        assert withdrawn_review_message.message_type == Message.MessageTypes.VERBOSE
+        assert withdrawn_review_message.message_type == Message.MessageTypes.SYSTEM
         assert len(mail.outbox) == 2
         withdrawn_review_mail = mail.outbox[0]
         assert review_withdraw_message_subject in withdrawn_review_mail.subject
@@ -1900,7 +1902,7 @@ def test_handle_editor_decision(
         revision_request_message = Message.objects.order_by("created").last()
         assert revision_request_message.subject == revision_request_message_subject
         assert revision_request_message.body == revision_request_message_body
-        assert revision_request_message.message_type == Message.MessageTypes.VERBOSE
+        assert revision_request_message.message_type == Message.MessageTypes.SYSTEM
         # Check the emails - withdraw message testsed above
         assert len(mail.outbox) == 1
         revision_request_mail = mail.outbox[0]
@@ -1938,7 +1940,7 @@ def test_handle_editor_decision(
         assert list(accept_message.recipients.all()) == [assigned_article.correspondence_author]
         assert accept_message.subject == accept_message_subject
         assert accept_message.body == accept_message_body
-        assert accept_message.message_type == Message.MessageTypes.VERBOSE
+        assert accept_message.message_type == Message.MessageTypes.SYSTEM
         # Check that one email is sent by us (and not by Janeway)
         assert len(mail.outbox) == 1
         accept_mail = mail.outbox[0]
@@ -2013,7 +2015,7 @@ def test_handle_editor_decision(
         assert list(reject_message.recipients.all()) == [assigned_article.correspondence_author]
         assert reject_message.subject == reject_message_subject
         assert reject_message.body == reject_message_body
-        assert reject_message.message_type == Message.MessageTypes.VERBOSE
+        assert reject_message.message_type == Message.MessageTypes.SYSTEM
         # Check that one email is sent by us (and not by Janeway)
         assert len(mail.outbox) == 1
         reject_mail = mail.outbox[0]
@@ -2051,7 +2053,7 @@ def test_handle_editor_decision(
         assert list(technical_revision_message.recipients.all()) == [assigned_article.correspondence_author]
         assert technical_revision_message.subject == technical_revision_message_subject
         assert technical_revision_message.body == technical_revision_message_body
-        assert technical_revision_message.message_type == Message.MessageTypes.VERBOSE
+        assert technical_revision_message.message_type == Message.MessageTypes.SYSTEM
         # Check that one email is sent by us (and not by Janeway)
         assert len(mail.outbox) == 1
         reject_mail = mail.outbox[0]
@@ -3124,3 +3126,147 @@ def test_author_submits_after_appeal(under_appeal_article: Article, fake_request
     )
     assert messages.count() == 1
     assert "has appealed against rejection" in messages[0].body
+
+    @pytest.mark.django_db
+    def test_write_new_note(
+        article: Article,
+        normal_user: JCOMProfile,
+        eo_user: Account,
+    ):
+        """Messages sent to themselves has message_type forced to MessageTypes.NOTE."""
+        article_type = ContentType.objects.get_for_model(article)
+
+        form = MessageForm(
+            actor=normal_user.janeway_account,
+            target=article,
+            initial_recipient=normal_user,
+            data={
+                "actor": normal_user.janeway_account,
+                "content_type": article_type,
+                "object_id": article.pk,
+                "message_type": Message.MessageTypes.USER,
+                "subject": "subject",
+                "body": "body",
+                "recipients": [normal_user.pk],
+            },
+        )
+        assert form.is_valid()
+        msg = form.save()
+        assert msg.message_type == Message.MessageTypes.NOTE
+
+    @pytest.mark.django_db
+    def test_last_user_note(
+        article: Article,
+        normal_user: JCOMProfile,
+        section_editor: JCOMProfile,
+        eo_user: Account,
+        create_note: Callable,
+        create_user_message: Callable,
+        fake_request,
+    ):
+        """last_user_note templatetag only returns notes ignoring messages."""
+        note = create_note(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="normal_user note",
+            body="body",
+        )
+        editor_note = create_note(
+            actor=section_editor.janeway_account,
+            target=article,
+            subject="section_editor note",
+            body="body",
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.USER,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.NOTE,
+        )
+        fake_request.user = normal_user.janeway_account
+        context = {
+            "request": fake_request,
+        }
+        assert last_user_note(context, article) == note
+        assert last_user_note(context, article, normal_user.janeway_account) == note
+        assert not last_user_note(context, article, eo_user)
+
+        fake_request.user = section_editor.janeway_account
+        context = {
+            "request": fake_request,
+        }
+        assert last_user_note(context, article) == editor_note
+        assert last_user_note(context, article, section_editor.janeway_account) == editor_note
+        assert not last_user_note(context, article, eo_user)
+
+    @pytest.mark.django_db
+    def test_last_eo_note(
+        article: Article,
+        normal_user: JCOMProfile,
+        section_editor: JCOMProfile,
+        eo_user: Account,
+        create_note: Callable,
+        create_user_message: Callable,
+    ):
+        """last_eo_note templatetag only returns eo notes ignoring messages and other user messages."""
+        create_note(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="normal_user note",
+            body="body",
+        )
+        create_note(
+            actor=section_editor.janeway_account,
+            target=article,
+            subject="section_editor note",
+            body="body",
+        )
+        eo_note = create_note(
+            actor=eo_user,
+            target=article,
+            subject="eo_user note",
+            body="body",
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.USER,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.SYSTEM,
+        )
+        create_user_message(
+            actor=normal_user.janeway_account,
+            target=article,
+            subject="subject",
+            body="body",
+            recipients=[eo_user],
+            message_type=Message.MessageTypes.NOTE,
+        )
+        assert last_eo_note(article) == eo_note

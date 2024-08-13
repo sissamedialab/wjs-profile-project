@@ -10,14 +10,14 @@ import json
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from django import template
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
-from plugins.typesetting.models import TypesettingRound
-from plugins.wjs_review.states import BaseState
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.models import EditorAssignment, ReviewAssignment, ReviewRound
 from submission.models import Article, Section
 from utils import models as janeway_utils_models
@@ -27,19 +27,30 @@ from utils.models import LogEntry
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
 from .. import communication_utils, states
-from ..custom_types import BootstrapButtonProps
+from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
+from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
 from ..logic import states_when_article_is_considered_in_review
-from ..models import ArticleWorkflow, EditorDecision, MessageThread, ProphyAccount
+from ..models import (
+    ArticleWorkflow,
+    EditorDecision,
+    Message,
+    MessageThread,
+    ProphyAccount,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 from ..permissions import (
     has_director_role_by_article,
     has_typesetter_role_by_article,
     is_article_author,
     is_article_editor,
     is_article_reviewer,
+    is_article_supervisor,
     is_article_typesetter,
     is_one_of_the_authors,
 )
 from ..prophy import Prophy
+from ..states import BaseState
 
 register = template.Library()
 
@@ -78,29 +89,15 @@ def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag:
         return None
 
 
-# TODO: this templatetag is not currently used and could be dropped
-# It is superseded by get_review_assignments which returns all assignments and their actions.
-# Keeping anyway because it might be useful for a reviewer's view of his own assignement.
 @register.simple_tag(takes_context=True)
 def get_review_assignment_actions(
     context: Dict[str, Any],
-    assignment: ReviewAssignment,
+    assignment: WorkflowReviewAssignment,
     tag: Union[str, None] = None,
-) -> List[str]:
-    """Get the available actions on a review assignement."""
-    article = assignment.article
-    workflow = article.articleworkflow
+) -> list[ReviewAssignmentActionConfiguration]:
+    """Get the available actions on a review assignment."""
     user = context["request"].user
-    state_class = BaseState.get_state_class(workflow)
-    if state_class is not None and state_class.review_assignment_actions is not None:
-        return [
-            action.as_dict(workflow, user)
-            for action in state_class.review_assignment_actions
-            if action.condition_is_met(assignment, user)
-            # if action.has_permission(workflow, user) and action.tag == tag
-        ]
-    else:
-        return None
+    return assignment.get_actions_for_user(user, tag)
 
 
 @register.simple_tag(takes_context=True)
@@ -225,10 +222,17 @@ def review_assignment_request_message(assignment: ReviewAssignment):
 
 
 @register.filter
-def article_messages(article: Article, user: Account):
+def article_messages(article: Article, user: Account) -> QuerySet[Message]:
     """Return all messages related to this article that the user can see."""
     messages = communication_utils.get_messages_related_to_me(user, article)
     return messages
+
+
+@register.simple_tag()
+def timeline_messages(article: Article, user: Account) -> Dict[str, List[Message]]:
+    """Return all messages related to this article that the user can see."""
+    messages = article_messages(article, user)
+    return dict(group_messages_by_version(article, messages))
 
 
 @register.filter
@@ -236,6 +240,18 @@ def article_requires_attention_tt(workflow: ArticleWorkflow, user: Account = Non
     """Inquire with the state-logic class relative to the current workflow state."""
     state_cls = getattr(states, workflow.state)
     return state_cls.article_requires_attention(article=workflow.article, user=user)
+
+
+@register.filter
+def message_type_icon(message: Message) -> str:
+    """Return the icon for the message type."""
+    return MESSAGE_TYPE_ICONS.get(message.message_type, MESSAGE_TYPE_ICONS[None])
+
+
+@register.filter
+def message_read_by_all(message: Message) -> bool:
+    """Return True if the message has been read by all recipients."""
+    return message.recipients.filter(messagerecipients__read=False).count() == 0
 
 
 @register.filter
@@ -264,6 +280,12 @@ def is_user_article_editor(article: ArticleWorkflow, user: Account) -> bool:
 def is_user_director(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Director."""
     return has_director_role_by_article(article, user)
+
+
+@register.filter
+def is_user_article_supervisor(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is the article supervisor Director."""
+    return is_article_supervisor(article, user)
 
 
 @register.filter
@@ -421,3 +443,30 @@ def article_order(issue: Issue, section: Section, article: Article) -> int:
         return ArticleOrdering.objects.get(article=article, issue=issue, section=section).order
     except ArticleOrdering.DoesNotExist:
         return 0
+
+
+@register.simple_tag()
+def journal_with_language_content(journal: Journal) -> bool:
+    """
+    Check if journal requires english content.
+
+    :param journal: The journal to check access to.
+    :type journal: Journal
+    :return True if the journal has english language, False otherwise.
+    :rtype: bool
+    """
+    return journal.code in settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT
+
+
+@register.simple_tag()
+def current_typesetting_assignment(article: Article) -> Optional[TypesettingRound]:
+    """Return the current typesetting assignment for the given article."""
+    return TypesettingAssignment.objects.filter(round__article=article).order_by("-round__round_number").last()
+
+
+@register.simple_tag()
+def current_editor_assigment(article: Article) -> Optional[TypesettingRound]:
+    """Return the current editor assignment for the given article."""
+    return WjsEditorAssignment.objects.filter(
+        article=article, review_rounds=article.current_review_round_object()
+    ).first()

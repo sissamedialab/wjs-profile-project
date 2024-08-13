@@ -1,0 +1,18 @@
+{% load django_bootstrap5 i18n wjs_review %}
+<div class="card border border-1">
+  <h5 class="card-header fw-bolder">{% translate "Actions" %}</h5>
+  <div class="card-body">
+    {% get_article_actions workflow "" as actions %}
+    <ul class="nav flex-column nav--blue-dot">
+      {% for action in actions %}
+        <li class="nav-item">{% include "wjs_review/details/elements/actions_button.html" %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card-footer">
+    {% url "wjs_message_write" article_id=article.pk recipient_id=request.user.pk as add_note %}
+    {% url "wjs_message_write" article_id=article.pk as add_message %}
+    {% bootstrap_button 'Add a note <i class="bi bi-pencil"></i>' href=add_note title="Add a personale node" button_class="btn-primary" %}
+    {% bootstrap_button 'Write a message <i class="bi bi-chat-square-text"></i>' href=add_message title="Send message" button_class="btn-secondary" %}
+  </div>
+</div>

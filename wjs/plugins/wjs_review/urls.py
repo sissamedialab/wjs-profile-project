@@ -62,6 +62,7 @@ from .views__production import (  # noqa F401
     FinishPublicationView,
     GalleyGenerationView,
     ListAnnotatedFilesView,
+    ListSupplementaryFileView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
     TogglePublishableFlagView,
@@ -165,7 +166,8 @@ urlpatterns = [
         name="wjs_upload_file",
     ),
     path("messages/<int:article_id>/", ArticleMessages.as_view(), name="wjs_article_messages"),
-    path("messages/<int:article_id>/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:article_id>/write/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:article_id>/write/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
     path(
         "messages/toggle_read_by_eo/<int:message_id>/",
         ToggleMessageReadByEOView.as_view(),
@@ -198,8 +200,9 @@ urlpatterns = [
     ),
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders
-    path("article/<int:article_id>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
+    path("status/<int:article_id>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
     path("journal_editors/", JournalEditorsView.as_view(), name="wjs_journal_editors"),
+    path("esm_files/<int:pk>/", ListSupplementaryFileView.as_view(), name="wjs_article_esm_files"),
     path("upload_files/<int:pk>/", TypesetterUploadFiles.as_view(), name="wjs_typesetter_upload_files"),
     path("download_revision_files/<int:pk>/", DownloadRevisionFiles.as_view(), name="download_revision_files"),
     path("ready_for_proofreading/<int:pk>/", ReadyForProofreadingView.as_view(), name="wjs_ready_for_proofreading"),

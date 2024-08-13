@@ -1,0 +1,24 @@
+{% if has_full_access %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="heading-authors">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-authors" aria-expanded="false" aria-controls="collapse-authors">
+      {% translate "Authors" %}
+    </button>
+  </h2>
+  <div id="collapse-authors" class="accordion-collapse collapse" aria-labelledby="heading-authors" data-bs-parent="#metadata">
+    <div class="accordion-body">
+      <ul class="list-unstyled">
+        {% for author in article.authors.all %}
+          <li>
+            {% if article.correspondence_author == author %}
+              {% include "wjs_review/base/elements/author.html" with author=author corresponding=True %}
+            {% else %}
+              {% include "wjs_review/base/elements/author.html" with author=author %}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}

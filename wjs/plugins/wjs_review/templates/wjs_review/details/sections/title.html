@@ -1,0 +1,22 @@
+{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% get_article_classes workflow as article_classes %}
+
+<div class="d-flex justify-content-between">
+  <div class="d-flex align-items-center gap-3">
+    <h1>
+      {% translate "Article" %} {{ article|preprintid }} - {{ article.pk }}
+    </h1>
+    <h5><span class="badge {{ article_classes.state }}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span></h5>
+  </div>
+  <div class="d-flex align-items-center gap-3">
+    {% if workflow|is_user_director:request.user or request.user|is_user_eo %}
+      {% url "wjs_article_admin_decision" pk=workflow.pk as make_decision_url %}
+    {% elif workflow|is_user_article_editor:request.user %}
+      {% url "wjs_article_decision" pk=workflow.pk as make_decision_url %}
+    {% endif %}
+    {% if make_decision_url %}
+      {% bootstrap_button "Make decision" href=make_decision_url button_class="btn-primary" %}
+    {% endif %}
+    {% bootstrap_button '<i class="bi bi-info-circle"></i> Help' href="#" button_class="btn-outline-primary" %}
+  </div>
+</div>

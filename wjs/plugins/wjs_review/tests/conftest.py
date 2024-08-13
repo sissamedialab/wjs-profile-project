@@ -19,6 +19,7 @@ from core.models import (
     Workflow,
     WorkflowElement,
 )
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.files import File as DjangoFile
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -831,6 +832,58 @@ def zip_with_tex_with_query() -> Callable:
 @pytest.fixture
 def zip_with_tex_without_query() -> Callable:
     return _zip_with_tex_without_query
+
+
+@pytest.fixture
+def create_note() -> Callable[[Account, Article, str, str], Message]:
+    """Return a function to create a personal note."""
+
+    def _create_note(
+        actor: Account,
+        target: Article,
+        subject: str,
+        body: str,
+    ) -> Message:
+        article_type = ContentType.objects.get_for_model(target)
+        message = Message.objects.create(
+            actor=actor,
+            content_type=article_type,
+            object_id=target.pk,
+            message_type=Message.MessageTypes.NOTE,
+            subject=subject,
+            body=body,
+        )
+        message.recipients.add(actor)
+        return message
+
+    return _create_note
+
+
+@pytest.fixture
+def create_user_message() -> Callable[[Account, Article, str, str, list[Account], Message.MessageTypes], Message]:
+    """Return a function to create a user message."""
+
+    def _create_message(
+        actor: Account,
+        target: Article,
+        subject: str,
+        body: str,
+        recipients: list[Account],
+        message_type: Message.MessageTypes = Message.MessageTypes.USER,
+    ) -> Message:
+        article_type = ContentType.objects.get_for_model(target)
+        message = Message.objects.create(
+            actor=actor,
+            content_type=article_type,
+            object_id=target.pk,
+            message_type=message_type,
+            subject=subject,
+            body=body,
+        )
+        message.recipients.set(recipients)
+        return message
+
+    return _create_message
 
 
 def _jump_article_to_rfp(article: Article, typesetter: Account, request: HttpRequest) -> Article:

@@ -90,12 +90,11 @@ def get_edit_permissions_url_review_assignment(
     assignment: ReviewAssignment,
     user: Account,
 ) -> str:
-    """Return the URL of the view that is the entry point to manage the action."""
+    """Return the URL of the view to customize the permissions of the review assignment reviewer."""
     url = reverse(
         action.view_name,
         kwargs={
-            "object_id": assignment.pk,
-            "object_type": "reviewassignment",
+            "user_id": user.pk,
             "pk": assignment.article.articleworkflow.pk,
         },
     )
@@ -103,6 +102,31 @@ def get_edit_permissions_url_review_assignment(
         url += "?"
         url += urllib.parse.urlencode(action.querystring_params)
     return url
+
+
+def get_review_url(action: "ReviewAssignmentAction", assignment: ReviewAssignment, user: Account) -> str:
+    """
+    Return the URL of the view that shows the review assignment details.
+
+    URL is selected according to the review assignment state.
+    """
+
+    if assignment.is_complete and assignment.decision == "withdrawn":
+        return reverse("wjs_review_end", kwargs={"assignment_id": assignment.pk})
+    elif assignment.date_accepted and assignment.is_complete:
+        return reverse("wjs_review_end", kwargs={"assignment_id": assignment.pk})
+    elif assignment.date_accepted:
+        return reverse("wjs_review_review", kwargs={"assignment_id": assignment.pk})
+    elif assignment.date_declined:
+        return reverse("wjs_declined_review", kwargs={"assignment_id": assignment.pk})
+    else:
+        return reverse("wjs_evaluate_review", kwargs={"assignment_id": assignment.pk})
+
+
+def get_review_url_with_code(action: "ReviewAssignmentAction", assignment: ReviewAssignment, user: Account) -> str:
+    """Return the URL of the view that shows the review assignment details."""
+    url = get_review_url(action, assignment, user)
+    return f"{url}?code={assignment.access_code}"
 
 
 def get_do_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
@@ -160,12 +184,13 @@ def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow
 class ArticleAction:
     """An action that can be done on an Article."""
 
-    permission: callable
     name: str
     label: str
     view_name: str
+    permission: Optional[Callable] = None
     tag: str = None
     is_htmx: bool = False
+    is_modal: bool = False
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
@@ -178,6 +203,10 @@ class ArticleAction:
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
 
+    def __post_init__(self):
+        if self.is_modal:
+            self.is_htmx = True
+
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
         return {
@@ -188,6 +217,7 @@ class ArticleAction:
             "tag": self.tag,
             "css_class": self.custom_get_css_class(self, workflow, user) if self.custom_get_css_class else None,
             "is_htmx": self.is_htmx,
+            "is_modal": self.is_modal,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
         }
 
@@ -212,8 +242,7 @@ class ArticleAction:
         """
         if self.condition is None:
             return True
-        else:
-            return self.condition(workflow=workflow, user=user)
+        return self.condition(workflow=workflow, user=user)
 
     def _has_permission(self, workflow: "ArticleWorkflow", user: Account) -> bool:
         """Return true if the user has permission to run this action, given the current status of the article."""
@@ -224,15 +253,22 @@ class ArticleAction:
 class ReviewAssignmentAction:
     """An action that can be done on an ReviewAssignment."""
 
-    condition: callable
     name: str
     label: str
     view_name: str
+    condition: Optional[Callable] = None
     tag: str = None
     order: int = 0
     tooltip: str = None
+    is_htmx: bool = False
+    is_modal: bool = False
     querystring_params: dict = None
     custom_get_url: Optional[Callable] = None
+    permission: Optional[Callable] = None
+
+    def __post_init__(self):
+        if self.is_modal:
+            self.is_htmx = True
 
     def as_dict(self, assignment: "ReviewAssignment", user: Account):
         """Return parameters needed to build the action button."""
@@ -246,6 +282,8 @@ class ReviewAssignmentAction:
             "label": self.label,
             "tooltip": self.tooltip,
             "url": url,
+            "is_htmx": self.is_htmx,
+            "is_modal": self.is_modal,
         }
 
     def get_url(self, assignment: "ReviewAssignment", user: Account) -> str:
@@ -258,9 +296,56 @@ class ReviewAssignmentAction:
             url += urllib.parse.urlencode(self.querystring_params)
         return url
 
-    def condition_is_met(self, assignment: "ReviewAssignment", user: Account) -> bool:
-        """TODO: examples..."""
+    def is_available(self, assignment: "ReviewAssignment", user: Account, tag: str) -> bool:
+        """
+        Check if the action is available for the user on the given Review assignment.
+
+        :param assignment: the review assignment to check
+        :type assignment: ReviewAssignment
+        :param user: the current user to check for availability
+        :type user: Account
+        :param tag: tag (currently unused because not required by the designs) to filter actions in different contexts
+        :type tag: str
+        :return: True if the action is available
+        :rtype: bool
+        """
+        return self._has_permission(assignment, user) and self._condition_is_met(assignment, user)
+
+    def _condition_is_met(self, assignment: "ReviewAssignment", user: Account) -> bool:
+        """
+        Check if the review assignment meets the condition checked by :py:attr:`condition` callable.
+
+        It's not meant to check user permissions (see :py:meth:`_has_permission`).
+
+        If :py:attr:`condition` is not set, it defaults to True.
+
+        :param assignment: the review assignment to check
+        :type assignment: ReviewAssignment
+        :param user: the current user used to match the conditions critera
+        :type user: Account
+        :return: True if the condition is met
+        :rtype: bool
+        """
+        if self.condition is None:
+            return True
         return self.condition(assignment, user)
+
+    def _has_permission(self, assignment: "ReviewAssignment", user: Account) -> bool:
+        """
+        Check if the user has permission to run this action according to the current status of the article.
+
+        If :py:attr:`permission` is not set, it defaults to True.
+
+        :param assignment: the review assignment to check
+        :type assignment: ReviewAssignment
+        :param user: the current user to check for permissions
+        :type user: Account
+        :return: True if the user has permission to run this action
+        :rtype: bool
+        """
+        if self.permission is None:
+            return True
+        return self.permission(assignment.article.articleworkflow, user)
 
 
 # Actions organized by states
@@ -271,6 +356,7 @@ class BaseState:
             name="assign eo",
             label="Assign / Reassign EO in charge",
             view_name="wjs_assign_eo",
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_author,
@@ -424,17 +510,48 @@ class EditorSelected(BaseState):
     )
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
+            permission=permissions.is_person_working_on_article,
+            name="see review",
+            label="Details",
+            view_name="wjs_assign_permission",
+            custom_get_url=get_review_url,
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_supervisor,
+            name="bypass reviewer",
+            label="See as reviewer",
+            view_name="wjs_assign_permission",
+            custom_get_url=get_review_url_with_code,
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_editor_or_eo,
+            condition=conditions.review_not_done,
+            name="postpone reviewer due date",
+            label="Change Reviewer due date",
+            view_name="wjs_postpone_reviewer_due_date",
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_supervisor,
+            condition=conditions.review_not_done,
+            name="disable reminders",
+            label="Disable reminders",
+            view_name="WRITEME!",
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_supervisor,
+            condition=conditions.review_not_done,
+            name="set visibility",
+            label='Set visibility rights <i class="bi bi-sliders"></i>',
+            view_name="wjs_assign_permission",
+            custom_get_url=get_edit_permissions_url_review_assignment,
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
             label="Deselect reviewer",
             view_name="wjs_deselect_reviewer",
             tooltip="Withdraw review assignment",
-        ),
-        ReviewAssignmentAction(
-            condition=conditions.review_not_done,
-            name="postpone reviewer due date",
-            label="Postpone Reviewer due date",
-            view_name="wjs_postpone_reviewer_due_date",
         ),
     )
 
@@ -721,10 +838,11 @@ class TypesetterSelected(BaseState):
             custom_get_url=get_url_with_typesetting_assignment_pk,
         ),
         ArticleAction(
-            permission=permissions.is_article_typesetter,
+            permission=permissions.is_article_typesetter_or_eo,
             name="CRUD attachments",
-            label="Manage supllementary material",  # CRUD Article.supplementary_files
-            view_name="WRITEME!",
+            label="Manage supplementary material",
+            view_name="wjs_article_esm_files",
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,

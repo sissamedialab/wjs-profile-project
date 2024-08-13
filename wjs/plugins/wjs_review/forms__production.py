@@ -13,11 +13,12 @@ from submission import models as submission_models
 
 from .logic__production import (
     HandleCreateAnnotatedFile,
+    HandleCreateSupplementaryFile,
     HandleDeleteAnnotatedFile,
     HandleEOSendBackToTypesetter,
     UploadFile,
 )
-from .models import Message
+from .models import ArticleWorkflow, Message
 
 Account = get_user_model()
 
@@ -59,8 +60,34 @@ class TypesetterUploadFilesForm(forms.ModelForm):
         return self.instance
 
 
-class FileForm(forms.Form):
-    file = forms.FileField()
+class EsmFileForm(forms.Form):
+    file = forms.FileField(
+        label=_("Select supplementary file"),
+        required=True,
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop("instance")
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self) -> HandleCreateSupplementaryFile:
+        """Instantiate :py:class:`HandleCreateSupplementaryFile` class."""
+        return HandleCreateSupplementaryFile(
+            file=self.files["file"],
+            article=self.instance.article,
+            user=self.user,
+        )
+
+    def save(self, commit=True) -> ArticleWorkflow:
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
 
 
 class WriteToTypMessageForm(forms.Form):
@@ -85,7 +112,7 @@ class WriteToTypMessageForm(forms.Form):
         """Create and send the message for the typesetter."""
         message = Message.objects.create(
             actor=self.actor,
-            message_type=Message.MessageTypes.VERBOSE,
+            message_type=Message.MessageTypes.USER,
             content_type=ContentType.objects.get_for_model(self.article),
             object_id=self.article.pk,
             subject=self.cleaned_data["subject"],

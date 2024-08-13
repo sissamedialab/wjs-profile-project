@@ -1,0 +1,19 @@
+{% load static wjs_review wjs_tags %}
+{% with attention_flag=workflow|article_requires_attention_tt:user %}
+  <div class="card border p-0">
+    {% include "wjs_review/details/elements/metadata_header.html" %}
+    <div class="card-body p-0">
+      <div class="border-bottom pt-3 px-4 pb-4">
+        <h4 class="card-title">{{ article.title }}</h4>
+        {% include "wjs_review/details/elements/metadata_main.html" %}
+      </div>
+      <div class="accordion accordion-flush" id="metadata">
+        {% include "wjs_review/details/elements/metadata_abstract.html" %}
+        {% include "wjs_review/details/elements/metadata_authors.html" %}
+        {% include "wjs_review/details/elements/metadata_keywords.html" %}
+        {% include "wjs_review/details/elements/metadata_preprint_files.html" %}
+        {% include "wjs_review/details/elements/metadata_additional_info.html" %}
+      </div>
+    </div>
+  </div>
+{% endwith %}

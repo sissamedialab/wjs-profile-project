@@ -78,16 +78,13 @@ def last_user_note(context, target, user=None):
     if not user:
         user = context["request"].user
 
-    personal_notes = (
-        Message.objects.filter(
-            content_type=ContentType.objects.get_for_model(target),
-            object_id=target.pk,
-            actor=user,
-            recipients=user,  # do not use `__in=[user]`: we want a note written _only_ to the user themselves
-        )
-        .exclude(message_type=Message.MessageTypes.SYSTEM)
-        .order_by("-created")
-    )
+    personal_notes = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.pk,
+        actor=user,
+        recipients=user,
+        message_type=Message.MessageTypes.NOTE,
+    ).order_by("-created")
     return personal_notes.last() or ""
 
 
@@ -97,15 +94,12 @@ def last_eo_note(target):
 
     Useful in the EO main page.
     """
-    eo_notes = (
-        Message.objects.filter(
-            content_type=ContentType.objects.get_for_model(target),
-            object_id=target.pk,
-            actor__groups__name=EO_GROUP,
-        )
-        .exclude(message_type=Message.MessageTypes.SYSTEM)
-        .order_by("-created")
-    )
+    eo_notes = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.pk,
+        actor__groups__name=EO_GROUP,
+        message_type=Message.MessageTypes.NOTE,
+    ).order_by("-created")
     return eo_notes.last() or ""
 
 

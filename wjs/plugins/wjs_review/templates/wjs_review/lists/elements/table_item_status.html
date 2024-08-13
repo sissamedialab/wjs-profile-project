@@ -21,6 +21,6 @@
     {% if details %}
       <div title="Current version: {{ workflow.article.current_review_round }}">Version {{ workflow.article.current_review_round }}</div>
     {% endif %}
-    {% include "wjs_review/lists/elements/attention.html" %}
+    {% include "wjs_review/lists/elements/attention.html" with details=True %}
   </div>
 {% endif %}

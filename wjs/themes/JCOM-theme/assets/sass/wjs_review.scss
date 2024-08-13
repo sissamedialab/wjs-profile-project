@@ -13,8 +13,37 @@ div.required-field > .form-label {
   color: red; /* Or any other styling you wish to apply */
 }
 
-.nav-item .dropdown {
-  z-index: 1100;
+.nav-item {
+  a {
+    text-decoration: underline;
+  }
+
+  .dropdown {
+    z-index: 1100;
+  }
+}
+
+.nav--blue-dot {
+  .nav-link {
+    position: relative;
+    padding: 0.25rem 1rem;
+
+    a {
+      margin: 10px;
+    }
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0.25rem;
+      width: 0.25rem;
+      height: 0.25rem;
+      background-color: $blue;
+      border-radius: 50%;
+      transform: translateY(-50%);
+    }
+  }
 }
 
 $utilities: map-merge(
@@ -54,6 +83,7 @@ table.table-bordered.dataTable .table-borderless td {
   &:last-child {
     border-right: 0;
   }
+
   &:first-child {
     border-left: 0;
   }
@@ -61,6 +91,14 @@ table.table-bordered.dataTable .table-borderless td {
 
 .header-main {
   box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
+}
+
+.fs-7 {
+  font-size: 0.85rem;
+}
+
+.fs-8 {
+  font-size: 0.75rem;
 }
 
 .col-size-5 {
@@ -92,6 +130,41 @@ table.table-bordered.dataTable .table-borderless td {
   &:last-child:after {
     content: "";
   }
+}
+
+.dot {
+  height: 0.85rem;
+  width: 0.85rem;
+  background-color: #bbb;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot {
+  &--pending {
+    background: #ffb92e;
+  }
+
+  &--accepted {
+    background: #00c3eb;
+  }
+
+  &--declined {
+    background: #606a71;
+  }
+
+  &--submitted {
+    background: #007c4c;
+  }
+}
+
+.ra-condition-icon {
+  @extend .bg-danger;
+  @extend .text-white;
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  position: absolute;
+  right: 3rem;
 }
 
 @import "bootstrap/scss/bootstrap";

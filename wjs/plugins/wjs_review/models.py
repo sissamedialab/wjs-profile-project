@@ -1,6 +1,7 @@
 """WJS Review and related models."""
 
-from typing import Optional
+import dataclasses
+from typing import TYPE_CHECKING, Optional
 
 from core import models as core_models
 from django.conf import settings
@@ -12,12 +13,13 @@ from django.db import models
 from django.db.models import BLANK_CHOICE_DASH, QuerySet
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -38,6 +40,13 @@ from .managers import (
     WjsEditorAssignmentQuerySet,
     WorkflowReviewAssignmentQuerySet,
 )
+
+if TYPE_CHECKING:
+    from .custom_types import (
+        ReviewAssignmentActionConfiguration,
+        ReviewAssignmentAttentionCondition,
+        ReviewAssignmentStatus,
+    )
 
 logger = get_logger(__name__)
 
@@ -81,6 +90,138 @@ def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
         return workflow.ReviewStates.EDITOR_TO_BE_SELECTED
     else:
         return workflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
+
+
+@dataclasses.dataclass
+class Version:
+    """
+    Collects all the elements related to a version of an article.
+
+    Mostly a convenience class to easily access all the elements related to a version of an article and to clarify
+    all the involved elements.
+    """
+
+    label = _("Version")
+
+    review_round: ReviewRound
+    """
+    review_round is the defining attribute of a version.
+    """
+    decisions: list["EditorDecision"]
+    """
+    A version can contain multiple decisions, because we can have multiple technical review for each round, plus the
+    decision at the end of the round.
+    """
+    revision_requests: list["EditorRevisionRequest"]
+    """
+    A version can contain multiple revision requests, because we can have multiple technical review for each round,
+    plus the decision at the end of the round.
+    """
+    editor_assignment: "WjsEditorAssignment"
+    """
+    Each version has an editor assignment, which is the editor in charge of the round.
+
+    In case of editor changes, we can retrieve past assignments by using :py:attr:`review_round` attribute, as it's not
+    likely, we dont' have to store them in the version from the beginning.
+    """
+    review_assignments: list["WorkflowReviewAssignment"]
+    """
+    All review assignment for the round.
+
+    While they can be retrieved from the round, it's useful to have them here for quick access.
+    """
+    latest: bool = False
+    """
+    Flag to mark the latest version of the article.
+    """
+
+    @property
+    def round(self) -> ReviewRound:  # noqa: A003
+        return self.review_round
+
+    @property
+    def started_on(self) -> Optional[timezone.datetime]:
+        return self.review_round.date_started
+
+    @property
+    def number(self) -> int:
+        return self.review_round.round_number
+
+    def assignments_by_stage(self) -> dict["ReviewAssignmentStatus", list["WorkflowReviewAssignment"]]:
+        """Group the review assignment of the version by status."""
+
+        from .custom_types import ReviewAssignmentStatus
+
+        stack = {ReviewAssignmentStatus(code=status): [] for status in WorkflowReviewAssignment.statuses.values()}
+        for assignment in self.review_assignments:
+            stack[assignment.status].append(assignment)
+        return stack
+
+    @property
+    def main_revision(self) -> Optional["EditorRevisionRequest"]:
+        """
+        Return the main revision request for the version.
+
+        As the list of revision requests is ordered by reveres date, picks the latest one if it's a major or minor
+        revision request, if not return None. As Major and Minor revision requests are the "final" ones, there cannot
+        be technical reviews after one of those.
+        """
+        if self.revision_requests:
+            latest = self.revision_requests[0]
+            if latest.type in (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION):
+                return latest
+        return None
+
+
+@dataclasses.dataclass
+class TypesettingVersion:
+    """
+    Collects all the elements related to a typesetting version of an article.
+
+    Mostly a convenience class to easily access all the elements related to a version of an article and to clarify
+    all the involved elements.
+    """
+
+    label = _("Production version")
+
+    typesetting_round: TypesettingRound
+    """
+    typesetting_round is the defining attribute of a version.
+    """
+    assignment: TypesettingAssignment
+    """
+    Assignment linked to the version
+    """
+    latest: bool = False
+    """
+    Flag to mark the latest version of the article.
+    """
+
+    @property
+    def round(self) -> TypesettingRound:  # noqa: A003
+        return self.typesetting_round
+
+    @property
+    def started_on(self) -> Optional[timezone.datetime]:
+        return self.typesetting_round.date_created
+
+    @property
+    def number(self) -> int:
+        return self.typesetting_round.round_number
+
+    @property
+    def galleyproofing(self):
+        return self.typesetting_round.galleyproofing_set.first()
+
+    @property
+    def has_proofing_files(self) -> bool:
+        if self.galleyproofing:
+            return self.galleyproofing.proofed_files.exists() or self.galleyproofing.annotated_files.exists()
+        return False
+
+    @property
+    def has_typesetter_files(self) -> bool:
+        return self.assignment.files_to_typeset.exists()
 
 
 class ArticleWorkflow(TimeStampedModel):
@@ -129,9 +270,9 @@ class ArticleWorkflow(TimeStampedModel):
             ]
 
     class GalleysStatus(models.IntegerChoices):
-        NOT_TESTED = 1, _("Not tested")
-        TEST_FAILED = 2, _("Test failed")
-        TEST_SUCCEEDED = 3, _("Test succeeded")
+        NOT_TESTED = 1, _("Galleys not tested")
+        TEST_FAILED = 2, _("Galleys generation failed")
+        TEST_SUCCEEDED = 3, _("Galleys generation succeeded")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
@@ -705,16 +846,77 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: WRITEME!
         pass
 
-    # TODO: manage special transition from * to WITHDRAWN # NOQA E800
-    # TBV # @transition(                                  # NOQA E800
-    # TBV #     field=state,                              # NOQA E800
-    # TBV #     source=ReviewStates.WITHDRAWN,            # NOQA E800
-    # TBV #     target=ReviewStates.FINAL,                # NOQA E800
-    # TBV #     # TODO: permission=,                      # NOQA E800
-    # TBV #     # TODO: conditions=[],                    # NOQA E800
-    # TBV # )                                             # NOQA E800
-    # TBV # def UNNAMED_TRANSITION(self):                 # NOQA E800
-    # TBV #     pass                                      # NOQA E800
+    def get_review_versions(self, user: Account) -> list[Version]:
+        """
+        Generates the list of version for the current article.
+
+        Versions are checked against the user's permissions to ensure that only the versions the user has rights on are
+        returned.
+
+        :param user: The user for which the versions are generated.
+        :type user: Account
+        :return: The list of versions the user has rights on.
+        :rtype: list[Version]
+        """
+        from .logic__visibility import PermissionChecker
+
+        versions = []
+        for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
+            has_permission = PermissionChecker()(
+                self,
+                user,
+                self,
+                review_round=review_round.round_number,
+                permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+            )
+            if has_permission:
+                version = Version(
+                    review_round=review_round,
+                    latest=index == 0,
+                    decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
+                    revision_requests=list(
+                        EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
+                    ),
+                    editor_assignment=WjsEditorAssignment.objects.get(
+                        article=self.article, review_rounds=review_round
+                    ),
+                    review_assignments=list(
+                        WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
+                    ),
+                )
+                versions.append(version)
+        return versions
+
+    def get_production_versions(self, user: Account) -> list[TypesettingVersion]:
+        """
+        Generates the list of typesetting version for the current article.
+
+        Versions are checked against the user's roles to ensure that only the versions the user has rights on are
+        returned.
+
+        :param user: The user for which the versions are generated.
+        :type user: Account
+        :return: The list of versions the user has rights on.
+        :rtype: list[TypesettingVersion]
+        """
+        rounds = []
+        versions = []
+        if permissions.is_article_author(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.all().order_by("-round_number")
+        elif permissions.is_article_supervisor(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.all().order_by("-round_number")
+        elif permissions.is_article_typesetter(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.filter(typesettingassignment__typesetter=user).order_by(
+                "-round_number"
+            )
+        for index, typesetting_round in enumerate(rounds):
+            version = TypesettingVersion(
+                typesetting_round=typesetting_round,
+                latest=index == 0,
+                assignment=typesetting_round.typesettingassignment,
+            )
+            versions.append(version)
+        return versions
 
 
 class EditorDecision(TimeStampedModel):
@@ -758,28 +960,17 @@ class Message(TimeStampedModel):
     """
 
     class MessageTypes(models.TextChoices):
-        # generic system actions (STD & SILENT)
-        STD = "Standard", _("Standard message (notifications are sent)")
-        SILENT = "Silent", _("Silent message (no notification is sent)")
-
-        # Verbose notifications are useful for messages such as
-        # - editor removal,
-        # - reviewer removal,
-        # - acknowledgment / thank-you messages,
-        # etc., where the recipient is not required to do anything. So, having the full message in the notification
-        # email saves a click to web page just to see an uninteresting message.
-        VERBOSE = "Verbose", _("Write all the body in the notification email.")
-        # Used for
-        # - invite reviewer
-        # - request revision
-        # - ...
-        VERBINE = "Verbose ma non troppo", _("Add the first 10 lines of the body to the message")
-
         SYSTEM = "System log message", _("A system message")
         HIJACK = "User hijacked action log message", _("A hijacking notification message")
+        NOTE = "User note", _("Notes to self")
+        USER = "User message", _("User direct message")
 
-        # No need to replace `message_types` w/ some kind of numeric `message_length` (to indicate, for instance, the
-        # number of lines to include into the notification)
+    class MessageVerbosity(models.TextChoices):
+        # generic system actions (STD & SILENT)
+        FULL = "Full", _("Full message content is sent by email")
+        TIMELINE = "Timeline", _("Timeline only, no email sent")
+        EMAIL = "Email", _("Email only, not recorded in timeline")
+        REDUCED = "Reduced", _("Reduced message sent my email")
 
     actor = models.ForeignKey(
         Account,
@@ -827,9 +1018,15 @@ class Message(TimeStampedModel):
     )
     message_type = models.TextField(
         choices=MessageTypes.choices,
-        default=MessageTypes.STD,
-        verbose_name="type",
-        help_text="The type of the message: std messages trigger notifications, silent ones do not.",
+        default=MessageTypes.SYSTEM,
+        verbose_name=_("Type"),
+        help_text=_("Define the message source / scope"),
+    )
+    verbosity = models.TextField(
+        choices=MessageVerbosity.choices,
+        default=MessageVerbosity.FULL,
+        verbose_name=_("Verbosity"),
+        help_text=_("Define the message verbosity: ie: the amount of content sent my email / set in the timeline"),
     )
     # Do we want to manage very detailed ACLs?
     # :START:
@@ -918,9 +1115,6 @@ class Message(TimeStampedModel):
 
     def get_url(self, recipient: Account) -> str:
         """Return the URL to be embedded in the notification email for the given recipient."""
-        if self.message_type == Message.MessageTypes.SILENT:
-            logger.error(f"No need to get an URL for silent messages (requested for msg {self.id})")
-            return ""
 
         if self.content_type.model_class() == Journal:
             return reverse("wjs_my_messages")
@@ -950,7 +1144,7 @@ class Message(TimeStampedModel):
         if getattr(settings, "NO_NOTIFICATION", None):
             return
 
-        if self.message_type == Message.MessageTypes.SILENT:
+        if self.verbosity == Message.MessageVerbosity.TIMELINE:
             return
 
         # TODO: move header and footer to journal setting?
@@ -960,7 +1154,7 @@ class Message(TimeStampedModel):
         notification_subject = self.subject if self.subject else self.body[:111].replace("\n", " ")
         notification_subject = f"🦄 {self.get_subject_prefix()} {notification_subject}"
 
-        if self.message_type == Message.MessageTypes.VERBOSE:
+        if self.verbosity == Message.MessageVerbosity.FULL:
             notification_body = self.body
         else:
             notification_body = self.body[:111]
@@ -1084,6 +1278,15 @@ class WorkflowReviewAssignment(ReviewAssignment):
 
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
 
+    # Map janeway's statuses to an ordered dict to map to our own statuses
+    statuses = {
+        "wait": "wait",
+        "accept": "accept",
+        "complete": "complete",
+        "declined": "declined",
+        "withdrawn": "declined",
+    }
+
     @property
     def permission_label(self) -> str:
         return _(f"Reviewer {self.reviewer}'s report")
@@ -1097,6 +1300,54 @@ class WorkflowReviewAssignment(ReviewAssignment):
             article=self.article,
             round_number=self.review_round.round_number - 1,
         ).first()
+
+    @property
+    def status(self) -> "ReviewAssignmentStatus":
+        from .custom_types import ReviewAssignmentStatus
+
+        status = super().status
+        return ReviewAssignmentStatus(
+            self.statuses.get(status["code"], status["code"]),
+        )
+
+    def get_actions_for_user(self, user: Account, tag: str) -> list["ReviewAssignmentActionConfiguration"]:
+        from .states import BaseState
+
+        state_class = BaseState.get_state_class(self.article.articleworkflow)
+        if state_class and state_class.review_assignment_actions:
+            return [
+                action.as_dict(self, user)
+                for action in state_class.review_assignment_actions
+                if action.is_available(self, user, tag)
+            ]
+
+    def unsent_reminders(self) -> QuerySet["Reminder"]:
+        return Reminder.objects.filter(
+            object_id=self.pk,
+            content_type=ContentType.objects.get_for_model(self),
+            date_sent__isnull=True,
+        )
+
+    @property
+    def attention_condition(self) -> Optional["ReviewAssignmentAttentionCondition"]:
+        """Provide details if the review assignment needs attention by the staff."""
+        from .custom_types import ReviewAssignmentAttentionCondition
+
+        if self.is_complete:
+            return
+
+        if self.date_due < timezone.now().date():
+            return ReviewAssignmentAttentionCondition(
+                code="late",
+                message=_("No feedback after %s day(s).") % (timezone.now().date() - self.date_due).days,
+                style="border border-danger",
+                icon_value='<span class="ra-condition-icon"><i class="bi bi-clock-fill"></i></span>',
+            )
+        if self.date_accepted and not self.is_complete:
+            return ReviewAssignmentAttentionCondition(
+                code="pending",
+                message=_("Report deadline: %s") % date_format(self.date_due, settings.DATE_FORMAT),
+            )
 
 
 class ProphyAccount(models.Model):

@@ -1,0 +1,16 @@
+{% load django_bootstrap5 i18n wjs_review %}
+<div id="timeline" class="card border border-1 mt-4">
+  <h5 class="card-header fw-bolder">{% translate "Timeline" %}</h5>
+  <div class="card-body">
+    <div class="mb-2 text-end">
+      {% include "wjs_review/details/elements/filter_by_type.html" %}
+    </div>
+    <div class="accordion" id="timeline-accordion">
+      {% for version, messages in timeline_messages.items %}
+        {% include "wjs_review/details/elements/timeline_version.html" with version=version messages=messages %}
+      {% empty %}
+        {% translate "No message available" %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
