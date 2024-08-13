@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
-from core.models import SettingGroup
+from core.models import Setting, SettingGroup, SettingValue
 from django.utils.translation import gettext_lazy as _
 from utils import plugins
 from utils.logger import get_logger
@@ -11,6 +11,7 @@ from wjs.jcom_profile.custom_settings_utils import (
     SettingParams,
     SettingValueParams,
     create_customization_setting,
+    export_to_csv_manager,
     get_group,
     patch_setting,
 )
@@ -82,7 +83,7 @@ def set_default_plugin_settings(force: bool = False):
     email_subject_settings_group = get_group("email_subject")
     general_group = get_group("general")
 
-    def acceptance_due_date():
+    def acceptance_due_date() -> tuple[SettingValue, ...]:
         acceptance_days_setting: SettingParams = {
             "name": "acceptance_due_date_days",
             "group": wjs_review_settings_group,
@@ -99,11 +100,13 @@ def set_default_plugin_settings(force: bool = False):
             "value": 7,
             "translations": {},
         }
-        create_customization_setting(
-            acceptance_days_setting, acceptance_days_setting_value, acceptance_days_setting["name"], force=force
+        return (
+            create_customization_setting(
+                acceptance_days_setting, acceptance_days_setting_value, acceptance_days_setting["name"], force=force
+            ),
         )
 
-    def review_lists_page_size():
+    def review_lists_page_size() -> tuple[SettingValue, ...]:
         review_lists_page_size_setting: SettingParams = {
             "name": "review_lists_page_size",
             "group": wjs_review_settings_group,
@@ -120,14 +123,16 @@ def set_default_plugin_settings(force: bool = False):
             "value": 40,
             "translations": {},
         }
-        create_customization_setting(
-            review_lists_page_size_setting,
-            review_lists_page_size_setting_value,
-            review_lists_page_size_setting["name"],
-            force=force,
+        return (
+            create_customization_setting(
+                review_lists_page_size_setting,
+                review_lists_page_size_setting_value,
+                review_lists_page_size_setting["name"],
+                force=force,
+            ),
         )
 
-    def review_invitation_message():
+    def review_invitation_message() -> tuple[SettingValue, ...]:
         review_invitation_message_setting: SettingParams = {
             "name": "review_invitation_message",
             "group": wjs_review_settings_group,
@@ -156,14 +161,16 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
-            review_invitation_message_setting,
-            review_invitation_message_setting_value,
-            review_invitation_message_setting["name"],
-            force=force,
+        return (
+            create_customization_setting(
+                review_invitation_message_setting,
+                review_invitation_message_setting_value,
+                review_invitation_message_setting["name"],
+                force=force,
+            ),
         )
 
-    def declined_review_message():
+    def declined_review_message() -> tuple[SettingValue, ...]:
         declined_review_message_setting: SettingParams = {
             "name": "declined_review_message",
             "group": wjs_review_settings_group,
@@ -180,14 +187,16 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Thanks for the time to evaluate the review."),
             "translations": {},
         }
-        create_customization_setting(
-            declined_review_message_setting,
-            declined_review_message_setting_value,
-            declined_review_message_setting["name"],
-            force=force,
+        return (
+            create_customization_setting(
+                declined_review_message_setting,
+                declined_review_message_setting_value,
+                declined_review_message_setting["name"],
+                force=force,
+            ),
         )
 
-    def do_review_message():
+    def do_review_message() -> tuple[SettingValue, ...]:
         do_review_message_setting: SettingParams = {
             "name": "do_review_message",
             "group": wjs_review_settings_group,
@@ -204,14 +213,16 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("To submit the review do this and this."),
             "translations": {},
         }
-        create_customization_setting(
-            do_review_message_setting,
-            do_review_message_setting_value,
-            do_review_message_setting["name"],
-            force=force,
+        return (
+            create_customization_setting(
+                do_review_message_setting,
+                do_review_message_setting_value,
+                do_review_message_setting["name"],
+                force=force,
+            ),
         )
 
-    def review_decision_revision_request_message():
+    def review_decision_revision_request_message() -> tuple[SettingValue, ...]:
         subject_review_decision_revision_request_setting: SettingParams = {
             "name": "review_decision_revision_request_subject",
             "group": wjs_review_settings_group,
@@ -230,7 +241,7 @@ def set_default_plugin_settings(force: bool = False):
             ),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_review_decision_revision_request_setting,
             subject_review_decision_revision_request_setting_value,
             subject_review_decision_revision_request_setting["name"],
@@ -258,14 +269,15 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             review_decision_revision_request_setting,
             review_decision_revision_request_setting_value,
             review_decision_revision_request_setting["name"],
             force=force,
         )
+        return setting_1, setting_2
 
-    def review_decision_not_suitable_message():
+    def review_decision_not_suitable_message() -> tuple[SettingValue, ...]:
         subject_review_decision_not_suitable_setting: SettingParams = {
             "name": "review_decision_not_suitable_subject",
             "group": wjs_review_settings_group,
@@ -282,7 +294,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Article is deemed not suitable"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_review_decision_not_suitable_setting,
             subject_review_decision_not_suitable_setting_value,
             subject_review_decision_not_suitable_setting["name"],
@@ -310,14 +322,15 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             review_decision_not_suitable_setting,
             review_decision_not_suitable_setting_value,
             review_decision_not_suitable_setting["name"],
             force=force,
         )
+        return setting_1, setting_2
 
-    def revision_request_postpone_date_due_messages():
+    def revision_request_postpone_date_due_messages() -> tuple[SettingValue, ...]:
         revision_request_date_due_postponed_subject_setting: SettingParams = {
             "name": "revision_request_date_due_postponed_subject",
             "group": wjs_review_settings_group,
@@ -334,7 +347,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Revision due date is postponed"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             revision_request_date_due_postponed_subject_setting,
             revision_request_date_due_postponed_subject_setting_value,
             revision_request_date_due_postponed_subject_setting["name"],
@@ -360,7 +373,7 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             revision_request_date_due_postponed_body_setting,
             revision_request_date_due_postponed_body_setting_value,
             revision_request_date_due_postponed_body_setting["name"],
@@ -382,7 +395,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Revision request due date is postponed too far in the future"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_3 = create_customization_setting(
             revision_request_date_due_far_future_subject_setting,
             revision_request_date_due_far_future_subject_setting_value,
             revision_request_date_due_far_future_subject_setting["name"],
@@ -411,13 +424,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_4 = create_customization_setting(
             revision_request_date_due_far_future_body_setting,
             revision_request_date_due_far_future_body_setting_value,
             revision_request_date_due_far_future_body_setting["name"],
         )
+        return setting_1, setting_2, setting_3, setting_4
 
-    def withdraw_review_message():
+    def withdraw_review_message() -> tuple[SettingValue, ...]:
         withdraw_review_subject_setting: SettingParams = {
             "name": "review_withdraw_subject",
             "group": wjs_review_settings_group,
@@ -434,7 +448,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Review withdraw notice"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             withdraw_review_subject_setting,
             withdraw_review_subject_setting_value,
             withdraw_review_subject_setting["name"],
@@ -458,7 +472,7 @@ def set_default_plugin_settings(force: bool = False):
             ),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             withdraw_review_message_setting,
             withdraw_review_message_setting_value,
             withdraw_review_message_setting["name"],
@@ -480,14 +494,15 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Provide context for the decision."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_3 = create_customization_setting(
             withdraw_notice_setting,
             withdraw_notice_setting_value,
             withdraw_notice_setting["name"],
             force=force,
         )
+        return setting_1, setting_2, setting_3
 
-    def technical_revision_body():
+    def technical_revision_body() -> tuple[SettingValue, ...]:
         technical_revision_subject_setting: SettingParams = {
             "name": "technical_revision_subject",
             "group": wjs_review_settings_group,
@@ -504,7 +519,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Technical revision request"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             technical_revision_subject_setting,
             technical_revision_subject_setting_value,
             technical_revision_subject_setting["name"],
@@ -525,13 +540,14 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Editor has requested a technical revision, you can now edit article metadata."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             technical_revision_body_setting,
             technical_revision_body_setting_value,
             technical_revision_body_setting["name"],
         )
+        return setting_1, setting_2
 
-    def author_submits_revision_message():
+    def author_submits_revision_message() -> tuple[SettingValue, ...]:
         revision_submission_subject_setting: SettingParams = {
             "name": "revision_submission_subject",
             "group": wjs_review_settings_group,
@@ -548,7 +564,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Author revision submission"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             revision_submission_subject_setting,
             revision_submission_subject_setting_value,
             revision_submission_subject_setting["name"],
@@ -569,13 +585,14 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Author has submitted a revision of their article, you can now check edited content."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             revision_submission_message_setting,
             revision_submission_message_setting_value,
             revision_submission_message_setting["name"],
         )
+        return setting_1, setting_2
 
-    def admin_deems_unimportant():
+    def admin_deems_unimportant() -> tuple[SettingValue, ...]:
         requeue_article_subject_setting: SettingParams = {
             "name": "requeue_article_subject",
             "group": wjs_review_settings_group,
@@ -592,7 +609,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Article issues deemed not important"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             requeue_article_subject_setting,
             requeue_article_subject_setting_value,
             requeue_article_subject_setting["name"],
@@ -613,13 +630,14 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("EO has deemed paper issues not important."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             requeue_article_message_setting,
             requeue_article_message_setting_value,
             requeue_article_message_setting["name"],
         )
+        return setting_1, setting_2
 
-    def admin_requires_resubmission():
+    def admin_requires_resubmission() -> tuple[SettingValue, ...]:
         requires_resubmission_subject_setting: SettingParams = {
             "name": "review_decision_requires_resubmission_subject",
             "group": wjs_review_settings_group,
@@ -636,7 +654,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Article issues requires resubmission"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             requires_resubmission_subject_setting,
             requires_resubmission_subject_setting_value,
             requires_resubmission_subject_setting["name"],
@@ -657,13 +675,14 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("EO has deemed article requires resubmission."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             requires_resubmission_message_setting,
             requires_resubmission_message_setting_value,
             requires_resubmission_message_setting["name"],
         )
+        return setting_1, setting_2
 
-    def hijack_notification_message():
+    def hijack_notification_message() -> tuple[SettingValue, ...]:
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
             "group": wjs_review_settings_group,
@@ -680,7 +699,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("User {{ hijacker }} executed {{ original_subject }}"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             hijack_notification_subject,
             hijack_notification_subject_value,
             hijack_notification_subject["name"],
@@ -702,14 +721,15 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("User {{ hijacker }} executed {{ original_subject }} impersonating you."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             hijack_notification_body,
             hijack_notification_body_value,
             hijack_notification_body["name"],
             force=force,
         )
+        return setting_1, setting_2
 
-    def patch_review_settings():
+    def patch_review_settings() -> tuple[SettingValue, ...]:
         editor_assignment_subject_setting: SettingParams = {
             "name": "subject_editor_assignment",
             "group": email_subject_settings_group,
@@ -727,7 +747,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": "{{ article.id }} assigned",
             "translations": {},
         }
-        patch_setting(editor_assignment_subject_setting, editor_assignment_subject_setting_value)
+        setting_1 = patch_setting(editor_assignment_subject_setting, editor_assignment_subject_setting_value)
         editor_assignment_body_setting: SettingParams = {
             "name": "editor_assignment",
             "group": email_settings_group,
@@ -756,7 +776,7 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        patch_setting(editor_assignment_body_setting, editor_assignment_body_setting_value)
+        setting_2 = patch_setting(editor_assignment_body_setting, editor_assignment_body_setting_value)
         save_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_assignment",
@@ -817,7 +837,7 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        patch_setting(review_message_email_setting, review_message_setting_value)
+        setting_3 = patch_setting(review_message_email_setting, review_message_setting_value)
         default_review_days_setting: SettingParams = {
             "name": "default_review_days",
             "group": general_group,
@@ -835,7 +855,7 @@ def set_default_plugin_settings(force: bool = False):
             "translations": {},
         }
         if force:
-            patch_setting(default_review_days_setting, default_review_days_setting_value)
+            setting_4 = patch_setting(default_review_days_setting, default_review_days_setting_value)
         default_editor_assign_reviewer_days_setting: SettingParams = {
             "name": "default_editor_assign_reviewer_days",
             "group": wjs_review_settings_group,
@@ -852,7 +872,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": 5,
             "translations": {},
         }
-        create_customization_setting(
+        setting_5 = create_customization_setting(
             default_editor_assign_reviewer_days_setting,
             default_editor_assign_review_days_setting_value,
             default_editor_assign_reviewer_days_setting["name"],
@@ -874,7 +894,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": 5,
             "translations": {},
         }
-        create_customization_setting(
+        setting_6 = create_customization_setting(
             default_editor_make_decision_days_setting,
             default_editor_make_decision_days_setting_value,
             default_editor_make_decision_days_setting["name"],
@@ -896,7 +916,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": 60,
             "translations": {},
         }
-        create_customization_setting(
+        setting_7 = create_customization_setting(
             default_author_major_revision_days_setting,
             default_author_major_revision_days_setting_value,
             default_author_major_revision_days_setting["name"],
@@ -918,7 +938,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": 30,
             "translations": {},
         }
-        create_customization_setting(
+        setting_8 = create_customization_setting(
             default_author_minor_revision_days_setting,
             default_author_minor_revision_days_setting_value,
             default_author_minor_revision_days_setting["name"],
@@ -940,14 +960,15 @@ def set_default_plugin_settings(force: bool = False):
             "value": 2,
             "translations": {},
         }
-        create_customization_setting(
+        setting_9 = create_customization_setting(
             default_author_technical_revision_days_setting,
             default_author_technical_revision_days_setting_value,
             default_author_technical_revision_days_setting["name"],
             force=force,
         )
+        return setting_1, setting_2, setting_3, setting_5, setting_6, setting_7, setting_8, setting_9
 
-    def author_can_contact_director():
+    def author_can_contact_director() -> tuple[SettingValue, ...]:
         author_can_contact_director_setting: SettingParams = {
             "name": "author_can_contact_director",
             "group": wjs_review_settings_group,
@@ -964,14 +985,16 @@ def set_default_plugin_settings(force: bool = False):
             "value": "",
             "translations": {},
         }
-        create_customization_setting(
-            author_can_contact_director_setting,
-            author_can_contact_director_setting_value,
-            author_can_contact_director_setting["name"],
-            force=force,
+        return (
+            create_customization_setting(
+                author_can_contact_director_setting,
+                author_can_contact_director_setting_value,
+                author_can_contact_director_setting["name"],
+                force=force,
+            ),
         )
 
-    def prophy_settings():
+    def prophy_settings() -> tuple[SettingValue, ...]:
         prophy_journal_setting: SettingParams = {
             "name": "prophy_journal",
             "group": wjs_prophy_settings_group,
@@ -988,7 +1011,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": "",
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             prophy_journal_setting,
             prophy_journal_setting_value,
             prophy_journal_setting["name"],
@@ -1009,13 +1032,14 @@ def set_default_plugin_settings(force: bool = False):
             "value": False,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             prophy_upload_enabled_setting,
             prophy_upload_enabled_setting_value,
             prophy_upload_enabled_setting["name"],
         )
+        return setting_1, setting_2
 
-    def due_date_postpone_message():
+    def due_date_postpone_message() -> tuple[SettingValue, ...]:
         subject_due_date_postpone_setting: SettingParams = {
             "name": "due_date_postpone_subject",
             "group": wjs_review_settings_group,
@@ -1032,7 +1056,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Reviewer report due date is postponed"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_due_date_postpone_setting,
             subject_due_date_postpone_setting_value,
             subject_due_date_postpone_setting["name"],
@@ -1059,13 +1083,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             due_date_postpone_setting,
             due_date_postpone_setting_value,
             due_date_postpone_setting["name"],
         )
+        return setting_1, setting_2
 
-    def due_date_far_future_message():
+    def due_date_far_future_message() -> tuple[SettingValue, ...]:
         subject_due_date_far_future_setting: SettingParams = {
             "name": "due_date_far_future_subject",
             "group": wjs_review_settings_group,
@@ -1082,7 +1107,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Editor postpones reviewer report due date far in the future."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_due_date_far_future_setting,
             subject_due_date_far_future_setting_value,
             subject_due_date_far_future_setting["name"],
@@ -1110,13 +1135,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             due_date_far_future_setting,
             due_date_far_future_setting_value,
             due_date_far_future_setting["name"],
         )
+        return setting_1, setting_2
 
-    def editor_decline_assignment_message():
+    def editor_decline_assignment_message() -> tuple[SettingValue, ...]:
         subject_editor_decline_assignment_setting: SettingParams = {
             "name": "editor_decline_assignment_subject",
             "group": wjs_review_settings_group,
@@ -1133,7 +1159,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Editor assignment is declined"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_editor_decline_assignment_setting,
             subject_editor_decline_assignment_setting_value,
             subject_editor_decline_assignment_setting["name"],
@@ -1160,13 +1186,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             editor_decline_assignment_setting,
             editor_decline_assignment_setting_value,
             editor_decline_assignment_setting["name"],
         )
+        return setting_1, setting_2
 
-    def editor_assigns_themselves_as_reviewer_message():
+    def editor_assigns_themselves_as_reviewer_message() -> tuple[SettingValue, ...]:
         wjs_editor_i_will_review_message_subject_setting: SettingParams = {
             "name": "wjs_editor_i_will_review_message_subject",
             "group": wjs_review_settings_group,
@@ -1183,7 +1210,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Editor selects self as reviewer"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             wjs_editor_i_will_review_message_subject_setting,
             wjs_editor_i_will_review_message_subject_setting_value,
             wjs_editor_i_will_review_message_subject_setting["name"],
@@ -1204,13 +1231,14 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Article {{ article.id }} assigned to editor for a review."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             wjs_editor_i_will_review_message_body_setting,
             wjs_editor_i_will_review_message_body_setting_value,
             wjs_editor_i_will_review_message_body_setting["name"],
         )
+        return setting_1, setting_2
 
-    def typesetter_is_assigned_message():
+    def typesetter_is_assigned_message() -> tuple[SettingValue, ...]:
         subject_typesetting_assignment: SettingParams = {
             "name": "typesetting_assignment_subject",
             "group": wjs_review_settings_group,
@@ -1227,7 +1255,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Typesetter is assigned to an article"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_typesetting_assignment,
             subject_typesetting_assignment_setting_value,
             subject_typesetting_assignment["name"],
@@ -1252,13 +1280,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             typesetter_is_assigned_setting,
             typesetter_is_assigned_setting_value,
             typesetter_is_assigned_setting["name"],
         )
+        return setting_1, setting_2
 
-    def eo_is_assigned_message():
+    def eo_is_assigned_message() -> tuple[SettingValue, ...]:
         subject_eo_assignment: SettingParams = {
             "name": "eo_assignment_subject",
             "group": wjs_review_settings_group,
@@ -1275,7 +1304,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("eo is assigned to an article"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_eo_assignment,
             subject_eo_assignment_setting_value,
             subject_eo_assignment["name"],
@@ -1300,14 +1329,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             eo_is_assigned_setting,
             eo_is_assigned_setting_value,
             eo_is_assigned_setting["name"],
         )
+        return setting_1, setting_2
 
-    # FIXME: Please correct subject and body contents
-    def article_requires_proofreading_message():
+    def article_requires_proofreading_message() -> tuple[SettingValue, ...]:
         subject_proofreading_request: SettingParams = {
             "name": "proofreading_request_subject",
             "group": wjs_review_settings_group,
@@ -1325,7 +1354,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Article {{ article.pk }} ready for proofreading."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_proofreading_request,
             subject_proofreading_request_setting_value,
             subject_proofreading_request["name"],
@@ -1352,13 +1381,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             proofreading_request_setting,
             proofreading_request_setting_value,
             proofreading_request_setting["name"],
         )
+        return setting_1, setting_2
 
-    def author_sends_corrections_message():
+    def author_sends_corrections_message() -> tuple[SettingValue, ...]:
         subject_author_sends_corrections: SettingParams = {
             "name": "author_sends_corrections_subject",
             "group": wjs_review_settings_group,
@@ -1375,7 +1405,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Corrections for article {{ article.id }} are ready."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_author_sends_corrections,
             subject_author_sends_corrections_setting_value,
             subject_author_sends_corrections["name"],
@@ -1400,13 +1430,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             author_sends_corrections_setting,
             author_sends_correction_setting_value,
             author_sends_corrections_setting["name"],
         )
+        return setting_1, setting_2
 
-    def typesetting_generated_galleys_message():
+    def typesetting_generated_galleys_message() -> tuple[SettingValue, ...]:
         subject_typesetting_generated_galleys: SettingParams = {
             "name": "typesetting_generated_galleys_subject",
             "group": wjs_review_settings_group,
@@ -1423,7 +1454,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Galleys for article {{ article.id }} are ready."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_typesetting_generated_galleys,
             subject_typesetting_generated_galleys_setting_value,
             subject_typesetting_generated_galleys["name"],
@@ -1448,13 +1479,14 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             typesetting_generated_galleys_setting,
             typesetting_generated_galleys_setting_value,
             typesetting_generated_galleys_setting["name"],
         )
+        return setting_1, setting_2
 
-    def editor_deassign_reviewer_messages():
+    def editor_deassign_reviewer_messages() -> tuple[SettingValue, ...]:
         subject_editor_deassign_reviewer: SettingParams = {
             "name": "editor_deassign_reviewer_subject",
             "group": wjs_review_settings_group,
@@ -1471,7 +1503,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Review assignment has been deassigned"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_editor_deassign_reviewer,
             subject_editor_deassign_reviewer_setting_value,
             subject_editor_deassign_reviewer["name"],
@@ -1495,7 +1527,7 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             editor_deassign_reviewer_setting,
             editor_deassign_reviewer_setting_value,
             editor_deassign_reviewer_setting["name"],
@@ -1516,7 +1548,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Review assignment has been deassigned"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_3 = create_customization_setting(
             subject_editor_deassign_reviewer_system,
             subject_editor_deassign_reviewer_system_setting_value,
             subject_editor_deassign_reviewer_system["name"],
@@ -1538,11 +1570,12 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_4 = create_customization_setting(
             editor_deassign_reviewer_system_setting,
             editor_deassign_reviewer_system_setting_value,
             editor_deassign_reviewer_system_setting["name"],
         )
+        return setting_1, setting_2, setting_3, setting_4
 
     def eo_opens_appeal_message():
         subject_eo_opens_appeal: SettingParams = {
@@ -1561,7 +1594,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("{{ article.journal }} {{ article.id }} appeal granted."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_eo_opens_appeal,
             subject_eo_opens_appeal_setting_value,
             subject_eo_opens_appeal["name"],
@@ -1591,11 +1624,12 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             eo_opens_appeal_setting,
             eo_opens_appeal_setting_value,
             eo_opens_appeal_setting["name"],
         )
+        return setting_1, setting_2
 
     def author_withdraws_preprint_message():
         subject_author_withdraws_preprint: SettingParams = {
@@ -1614,7 +1648,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Withdrawn preprint {{ article.id }}"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_author_withdraws_preprint,
             subject_author_withdraws_preprint_setting_value,
             subject_author_withdraws_preprint["name"],
@@ -1638,11 +1672,12 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             author_withdraws_preprint_setting,
             author_withdraws_preprint_setting_value,
             author_withdraws_preprint_setting["name"],
         )
+        return setting_1, setting_2
 
     def preprint_withdrawn_system_message():
         subject_preprint_withdrawn_preprint: SettingParams = {
@@ -1661,7 +1696,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Assignments closed for preprint {{ article.id }}"),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_preprint_withdrawn_preprint,
             subject_preprint_withdrawn_setting_value,
             subject_preprint_withdrawn_preprint["name"],
@@ -1685,11 +1720,12 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             preprint_withdrawn_setting,
             preprint_withdrawn_setting_value,
             preprint_withdrawn_setting["name"],
         )
+        return setting_1, setting_2
 
     def author_submits_appeal_message():
         subject_author_submits_appeal: SettingParams = {
@@ -1708,7 +1744,7 @@ def set_default_plugin_settings(force: bool = False):
             "value": _("Appeal submitted for {{ article.journal }} {{ article.id }}."),
             "translations": {},
         }
-        create_customization_setting(
+        setting_1 = create_customization_setting(
             subject_author_submits_appeal,
             subject_author_submits_appeal_setting_value,
             subject_author_submits_appeal["name"],
@@ -1736,43 +1772,45 @@ def set_default_plugin_settings(force: bool = False):
             """,
             "translations": {},
         }
-        create_customization_setting(
+        setting_2 = create_customization_setting(
             author_submits_appeal_setting,
             author_submits_appeal_setting_value,
             author_submits_appeal_setting["name"],
         )
+        return setting_1, setting_2
 
-    acceptance_due_date()
-    review_lists_page_size()
-    review_invitation_message()
-    declined_review_message()
-    do_review_message()
-    patch_review_settings()
-    review_decision_revision_request_message()
-    review_decision_not_suitable_message()
-    revision_request_postpone_date_due_messages()
-    withdraw_review_message()
-    technical_revision_body()
-    author_can_contact_director()
-    hijack_notification_message()
-    author_submits_revision_message()
-    admin_deems_unimportant()
-    admin_requires_resubmission()
-    prophy_settings()
-    due_date_postpone_message()
-    due_date_far_future_message()
-    editor_decline_assignment_message()
-    editor_assigns_themselves_as_reviewer_message()
-    typesetter_is_assigned_message()
-    article_requires_proofreading_message()
-    eo_is_assigned_message()
-    author_sends_corrections_message()
-    typesetting_generated_galleys_message()
-    editor_deassign_reviewer_messages()
-    author_withdraws_preprint_message()
-    preprint_withdrawn_system_message()
-    eo_opens_appeal_message()
-    author_submits_appeal_message()
+    with export_to_csv_manager("wjs_review") as csv_writer:
+        csv_writer.write_settings(acceptance_due_date())
+        csv_writer.write_settings(review_lists_page_size())
+        csv_writer.write_settings(review_invitation_message())
+        csv_writer.write_settings(declined_review_message())
+        csv_writer.write_settings(do_review_message())
+        csv_writer.write_settings(patch_review_settings())
+        csv_writer.write_settings(review_decision_revision_request_message())
+        csv_writer.write_settings(review_decision_not_suitable_message())
+        csv_writer.write_settings(revision_request_postpone_date_due_messages())
+        csv_writer.write_settings(withdraw_review_message())
+        csv_writer.write_settings(technical_revision_body())
+        csv_writer.write_settings(author_can_contact_director())
+        csv_writer.write_settings(hijack_notification_message())
+        csv_writer.write_settings(author_submits_revision_message())
+        csv_writer.write_settings(admin_deems_unimportant())
+        csv_writer.write_settings(admin_requires_resubmission())
+        csv_writer.write_settings(prophy_settings())
+        csv_writer.write_settings(due_date_postpone_message())
+        csv_writer.write_settings(due_date_far_future_message())
+        csv_writer.write_settings(editor_decline_assignment_message())
+        csv_writer.write_settings(editor_assigns_themselves_as_reviewer_message())
+        csv_writer.write_settings(typesetter_is_assigned_message())
+        csv_writer.write_settings(article_requires_proofreading_message())
+        csv_writer.write_settings(eo_is_assigned_message())
+        csv_writer.write_settings(author_sends_corrections_message())
+        csv_writer.write_settings(typesetting_generated_galleys_message())
+        csv_writer.write_settings(editor_deassign_reviewer_messages())
+        csv_writer.write_settings(eo_opens_appeal_message())
+        csv_writer.write_settings(author_withdraws_preprint_message())
+        csv_writer.write_settings(preprint_withdrawn_system_message())
+        csv_writer.write_settings(author_submits_appeal_message())
 
 
 def ensure_workflow_elements():

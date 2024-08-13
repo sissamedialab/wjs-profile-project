@@ -1,10 +1,14 @@
-from typing import Optional, TypedDict, Union
+import csv
+from contextlib import contextmanager
+from typing import Any, Optional, TypedDict, Union
 
 from core.models import Setting, SettingGroup, SettingValue
 from django.conf import settings
 from django.utils.translation import gettext as _
 from journal.models import Journal
+from plugins.wjs_review.reminders.settings import ReminderManager, ReminderSetting
 from utils.logger import get_logger
+from utils.setting_handler import get_setting
 
 logger = get_logger(__name__)
 
@@ -40,7 +44,7 @@ class SettingValueParams(TypedDict):
     translations: dict
 
 
-def patch_setting(setting_params: SettingParams, settingvalue_params: SettingValueParams):
+def patch_setting(setting_params: SettingParams, settingvalue_params: SettingValueParams) -> SettingValue:
     setting = Setting.objects.get(group=setting_params["group"], name=setting_params["name"])
     setting_value = SettingValue.objects.get(journal=None, setting=setting)
     setting_value.journal = settingvalue_params["journal"]
@@ -48,6 +52,7 @@ def patch_setting(setting_params: SettingParams, settingvalue_params: SettingVal
     for field, value in settingvalue_params["translations"].items():
         setattr(setting_value, field, value)
     setting_value.save()
+    return setting_value
 
 
 # refs https://gitlab.sissamedialab.it/wjs/specs/-/issues/366
@@ -56,7 +61,7 @@ def create_customization_setting(
     settingvalue_params: SettingValueParams,
     name_for_messages: str,
     force=False,
-):
+) -> SettingValue:
     """
     Command to create a Setting, with its SettingValue
     """
@@ -64,10 +69,10 @@ def create_customization_setting(
     name_for_messages_capitalized = name_for_messages[0].upper() + name_for_messages[1:]
     setting, setting_created = Setting.objects.get_or_create(**setting_params)
     try:
-        SettingValue.objects.get(journal=None, setting=setting)
+        setting = SettingValue.objects.get(journal=None, setting=setting)
         if force:
             if settings.DEBUG:
-                patch_setting(setting_params, settingvalue_params)
+                setting = patch_setting(setting_params, settingvalue_params)
                 logger.warning(f"Overwriting {name_for_messages_capitalized} as requested.")
             else:
                 logger.warning(
@@ -80,11 +85,12 @@ def create_customization_setting(
         translations = settingvalue_params.pop("translations")
         settingvalue_params.update(translations)
         settingvalue_params["setting"] = setting
-        SettingValue.objects.create(**settingvalue_params)
+        setting = SettingValue.objects.create(**settingvalue_params)
         logger.info(f"Successfully created {name_for_messages} setting.")
+    return setting
 
 
-def add_submission_figures_data_title():
+def add_submission_figures_data_title() -> tuple[SettingValue, ...]:
     styling_settings_group = get_group(name="styling")
 
     setting_params: SettingParams = {
@@ -107,10 +113,14 @@ def add_submission_figures_data_title():
             "value_nl": "Figuren en gegevensbestanden",
         },
     }
-    create_customization_setting(setting_params, settingvalue_params, "submission title of figures and data files")
+    return (
+        create_customization_setting(
+            setting_params, settingvalue_params, "submission title of figures and data files"
+        ),
+    )
 
 
-def add_coauthors_submission_email_settings():
+def add_coauthors_submission_email_settings() -> tuple[SettingValue, ...]:
     email_settings_group = get_group("email")
     email_subject_settings_group = get_group("email_subject")
 
@@ -141,7 +151,7 @@ Please feel free to check or update your personal data
 Regards,<br>""",
         },
     }
-    create_customization_setting(
+    setting_1 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "email for coauthors submission notification",
@@ -162,14 +172,15 @@ Regards,<br>""",
             "value_en": "Coauthor - Article Submission",
         },
     }
-    create_customization_setting(
+    setting_2 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "email subject for coauthors submission notification",
     )
+    return setting_1, setting_2
 
 
-def add_user_as_main_author_setting():
+def add_user_as_main_author_setting() -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
     setting_params: SettingParams = {
         "name": "user_automatically_main_author",
@@ -188,10 +199,10 @@ def add_user_as_main_author_setting():
         "value": "",
         "translations": {},
     }
-    create_customization_setting(setting_params, settingvalue_params, "user as main author")
+    return (create_customization_setting(setting_params, settingvalue_params, "user as main author"),)
 
 
-def add_publication_alert_settings():
+def add_publication_alert_settings() -> tuple[SettingValue, ...]:
     email_settings_group = get_group("email")
     setting_params: SettingParams = {
         "name": "publication_alert_subscription_email_body",
@@ -231,7 +242,7 @@ JCOM - Journal of Science Communication
 """,
         "translations": {},
     }
-    create_customization_setting(
+    setting_1 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "publication alert anonymous subscription email body",
@@ -250,7 +261,7 @@ JCOM - Journal of Science Communication
         "value": "Publication alert subscription",
         "translations": {},
     }
-    create_customization_setting(
+    setting_2 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "publication alert anonymous subscription email subject",
@@ -286,7 +297,7 @@ JCOM - Journal of Science Communication
 """,
         "translations": {},
     }
-    create_customization_setting(
+    setting_3 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "publication alert anonymous reminder email body",
@@ -305,7 +316,7 @@ JCOM - Journal of Science Communication
         "value": "Your subscription to JCOM publication alert",
         "translations": {},
     }
-    create_customization_setting(
+    setting_4 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "publication alert anonymous reminder email subject",
@@ -324,7 +335,7 @@ JCOM - Journal of Science Communication
         "value": "See current news",
         "translations": {},
     }
-    create_customization_setting(
+    setting_5 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "publication alert email intro message",
@@ -343,14 +354,15 @@ JCOM - Journal of Science Communication
         "value": "Publication alert subscription",
         "translations": {},
     }
-    create_customization_setting(
+    setting_6 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "publication alert email subject",
     )
+    return setting_1, setting_2, setting_3, setting_4, setting_5, setting_6
 
 
-def add_generic_analytics_code_setting():
+def add_generic_analytics_code_setting() -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
     setting_params: SettingParams = {
         "name": "analytics_code",
@@ -369,15 +381,17 @@ def add_generic_analytics_code_setting():
         "value": "",
         "translations": {},
     }
-    create_customization_setting(
-        setting_params,
-        settingvalue_params,
-        "generic analytics tracking code",
+    return (
+        create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "generic analytics tracking code",
+        ),
     )
 
 
 # refs specs#640
-def add_general_facebook_handle_setting():
+def add_general_facebook_handle_setting() -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
     setting_params: SettingParams = {
         "name": "facebook_handle",
@@ -393,8 +407,148 @@ def add_general_facebook_handle_setting():
         "value": "",
         "translations": {},
     }
-    create_customization_setting(
-        setting_params,
-        settingvalue_params,
-        "journal's facebook handle",
+    return (
+        create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "journal's facebook handle",
+        ),
     )
+
+
+class SettingsCSVWrapper:
+    settings_fields = [
+        "setting name",
+        "setting group",
+        "usage",
+        "value",
+        "verbosity",
+        "auto mark as read",
+        "auto mark as read by eo",
+    ]
+    names_fields = ["group", "name"]
+
+    def __init__(self, writer: Optional[csv.DictWriter]):
+        self.csv_writer = writer
+        self.discovered_settings = []
+        self.journal = []
+
+    def _get_setting_data(self, setting_value: SettingValue):
+        self.discovered_settings.append(
+            {"name": setting_value.setting.name, "group": setting_value.setting.group.name}
+        )
+        return {
+            "setting name": setting_value.setting.name,
+            "setting group": setting_value.setting.group.name,
+            "value": setting_value.processed_value,
+            "usage": "",
+            "verbosity": "",
+            "auto mark as read": "",
+            "auto mark as read by eo": "",
+        }
+
+    def write_settings(self, settings_list: tuple[SettingValue, ...]):
+        if self.csv_writer:
+            for setting_value in settings_list:
+                self.csv_writer.writerow(self._get_setting_data(setting_value))
+
+    def export_settings(self, journal: Journal, settings_list: tuple[dict[str, Any], ...]):
+        if self.csv_writer:
+            for setting in settings_list:
+                try:
+                    setting_value = get_setting(
+                        setting_group_name=setting["group"], setting_name=setting["name"], journal=journal
+                    )
+                    self.csv_writer.writerow(self._get_setting_data(setting_value))
+                except (SettingValue.DoesNotExist, Setting.DoesNotExist):
+                    logger.warning(f"{setting['name']} setting does not exist.")
+                    continue
+
+
+class RemindersCSVWrapper:
+    settings_fields = [
+        "reminder code",
+        "reminder",
+        "subject",
+        "body",
+        "actor",
+        "recipient",
+        "days_after",
+    ]
+
+    def __init__(self, writer: Optional[csv.DictWriter]):
+        self.csv_writer = writer
+        self.discovered_settings = []
+        self.journal = []
+
+    def _get_setting_data(self, reminder_setting: ReminderSetting):
+        return {
+            "reminder code": reminder_setting.code,
+            "reminder": reminder_setting.code.label,
+            "subject": reminder_setting.subject,
+            "body": reminder_setting.body,
+            "actor": reminder_setting.actor,
+            "recipient": reminder_setting.recipient,
+            "days_after": reminder_setting.days_after,
+        }
+
+    def export_reminders(self, journal: Journal):
+        if self.csv_writer:
+            for reminder_class in ReminderManager.__subclasses__():
+                for reminder_setting in reminder_class.reminders.values():
+                    self.csv_writer.writerow(self._get_setting_data(reminder_setting))
+
+
+@contextmanager
+def export_to_csv_manager(application):
+    """
+    Export settings to a CSV file.
+
+    It must be invoked as a context manager in commands and functions that create settings.
+
+    The context manager is only active in DEBUG mode. In production, it does nothing.
+
+    The settings values returned by the function that creates the settings must be processed by the CSVWrapper instance
+    using :py:meth:`write_settings` method.
+
+    It creates two files:
+    - settings_{application}.csv: contains the list of settings and their values.
+    - settings_names_{application}.csv: contains names and groups of each setting, it's meant to be passed to
+        `export_settings` command.
+
+    Example:
+
+        with export_to_csv_manager("jcom_profile") as wrapper:
+            wrapper.write_settings(add_submission_figures_data_title())
+
+    """
+
+    if settings.DEBUG:
+        with open(f"settings_{application}.csv", "w") as f:
+            csv_writer = csv.DictWriter(f, fieldnames=SettingsCSVWrapper.settings_fields)
+            csv_writer.writeheader()
+            wrapper = SettingsCSVWrapper(csv_writer)
+            yield wrapper
+        with open(f"settings_names_{application}.csv", "w") as f:
+            csv_writer = csv.DictWriter(f, fieldnames=SettingsCSVWrapper.names_fields)
+            csv_writer.writeheader()
+            csv_writer.writerows(wrapper.discovered_settings)
+    else:
+        wrapper = SettingsCSVWrapper(None)
+        yield wrapper
+
+
+def export_to_csv(application: str, journal: Journal, settings_list: tuple[dict[str, Any], ...]):
+    with open(f"settings_{application}.csv", "w") as f:
+        csv_writer = csv.DictWriter(f, fieldnames=SettingsCSVWrapper.settings_fields)
+        csv_writer.writeheader()
+        wrapper = SettingsCSVWrapper(csv_writer)
+        wrapper.export_settings(journal, settings_list)
+
+
+def export_reminders(journal: Journal):
+    with open("settings_reminders.csv", "w") as f:
+        csv_writer = csv.DictWriter(f, fieldnames=RemindersCSVWrapper.settings_fields)
+        csv_writer.writeheader()
+        wrapper = RemindersCSVWrapper(csv_writer)
+        wrapper.export_reminders(journal)
