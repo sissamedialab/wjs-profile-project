@@ -472,7 +472,7 @@ def test_wjs_message_forward_no_recipients(assigned_article, eo_user, client):
 def test_wjs_article_reminders(assigned_article, eo_user, client):
     client.force_login(eo_user)
     response = client.get(
-        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/article/{assigned_article.pk}/reminders/"
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/status/{assigned_article.pk}/reminders/"
     )
     assert response.status_code == 200
 

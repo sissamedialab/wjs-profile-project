@@ -28,7 +28,7 @@ from wjs.jcom_profile.models import EditorAssignmentParameters
 
 from .. import communication_utils, states
 from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
-from ..custom_types import BootstrapButtonProps
+from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
 from ..logic import states_when_article_is_considered_in_review
 from ..models import (
     ArticleWorkflow,
@@ -36,6 +36,7 @@ from ..models import (
     Message,
     MessageThread,
     ProphyAccount,
+    WorkflowReviewAssignment,
 )
 from ..permissions import (
     has_director_role_by_article,
@@ -86,29 +87,15 @@ def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag:
         return None
 
 
-# TODO: this templatetag is not currently used and could be dropped
-# It is superseded by get_review_assignments which returns all assignments and their actions.
-# Keeping anyway because it might be useful for a reviewer's view of his own assignement.
 @register.simple_tag(takes_context=True)
 def get_review_assignment_actions(
     context: Dict[str, Any],
-    assignment: ReviewAssignment,
+    assignment: WorkflowReviewAssignment,
     tag: Union[str, None] = None,
-) -> List[str]:
-    """Get the available actions on a review assignement."""
-    article = assignment.article
-    workflow = article.articleworkflow
+) -> list[ReviewAssignmentActionConfiguration]:
+    """Get the available actions on a review assignment."""
     user = context["request"].user
-    state_class = BaseState.get_state_class(workflow)
-    if state_class is not None and state_class.review_assignment_actions is not None:
-        return [
-            action.as_dict(workflow, user)
-            for action in state_class.review_assignment_actions
-            if action.condition_is_met(assignment, user)
-            # if action.has_permission(workflow, user) and action.tag == tag
-        ]
-    else:
-        return None
+    return assignment.get_actions_for_user(user, tag)
 
 
 @register.simple_tag(takes_context=True)
