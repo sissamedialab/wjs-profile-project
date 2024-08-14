@@ -93,6 +93,18 @@ WHERE
 EOF
 
 
+
+read -p "Do you want to enable submission? (y/n): " answer
+if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+    psql --quiet -U $j_test_db_user -h $j_test_db_host --no-password --dbname $j_test_db_name <<EOF
+update core_settingvalue v set value = 'on' from core_setting s where v.setting_id=s.id and s.name='disable_journal_submission' and v.journal_id is not null;
+update journal_journal set nav_sub=true;
+EOF
+    echo "Submission enabled for all journals; \"Start submission\" button available."
+fi
+
+
+
 if [[ $can_delete_pgpass == yes ]]
 then
     rm -f $pgpass
