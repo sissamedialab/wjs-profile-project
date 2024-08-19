@@ -373,6 +373,7 @@ def set_general_settings():
         add_publication_alert_settings()
         add_user_as_main_author_setting()
         add_submission_figures_data_title()
+        # see also fixture `coauthors_setting`
 
 
 def _journal_factory(code, press, domain=None):

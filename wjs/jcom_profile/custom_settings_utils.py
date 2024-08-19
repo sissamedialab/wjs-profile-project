@@ -90,7 +90,7 @@ def create_customization_setting(
     return setting
 
 
-def add_submission_figures_data_title() -> tuple[SettingValue, ...]:
+def add_submission_figures_data_title(force: bool = False) -> tuple[SettingValue, ...]:
     styling_settings_group = get_group(name="styling")
 
     setting_params: SettingParams = {
@@ -103,29 +103,32 @@ def add_submission_figures_data_title() -> tuple[SettingValue, ...]:
     }
     settingvalue_params: SettingValueParams = {
         "journal": None,
-        "value": "Figures and Data Files",
+        "value": "Additional Files",
         "setting": None,
         "translations": {
-            "value_cy": "Ffigurau a Ffeiliau Data",
-            "value_de": "Abbildungen und Datenfiles",
-            "value_en": "Figures and Data Files",
-            "value_fr": "Figures et dossiers de données",
-            "value_nl": "Figuren en gegevensbestanden",
+            "value_cy": "Ffeiliau Ychwanegol",
+            "value_de": "Zusätzliche Dateien",
+            "value_en": "Additional Files",
+            "value_fr": "Fichiers supplémentaires",
+            "value_nl": "Extra bestanden",
         },
     }
     return (
         create_customization_setting(
-            setting_params, settingvalue_params, "submission title of figures and data files"
+            setting_params,
+            settingvalue_params,
+            "submission title of figures and data files",
+            force=force,
         ),
     )
 
 
-def add_coauthors_submission_email_settings() -> tuple[SettingValue, ...]:
+def add_coauthors_submission_email_settings(force: bool = False) -> tuple[SettingValue, ...]:
     email_settings_group = get_group("email")
     email_subject_settings_group = get_group("email_subject")
 
     setting_params: SettingParams = {
-        "name": "submission_coauthors_acknowledgment",
+        "name": "submission_coauthors_acknowledgement_body",
         "group": email_settings_group,
         "types": "rich-text",
         "pretty_name": _("Submission Coauthors Acknowledgement"),
@@ -135,29 +138,37 @@ def add_coauthors_submission_email_settings() -> tuple[SettingValue, ...]:
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": """Dear {{ author.full_name}}, <br><br>
-Thank you for submitting "{{ article }}" to {{ article.journal }} as coauthor.<br><br>
-Your work will now be reviewed by an editor and we will be in touch as the peer-review process progresses.<br><br>
-Please feel free to check or update your personal data
-<a href="{% journal_base_url article.journal %}{% url 'core_edit_profile' %}">here</a>.<br><br>
-Regards,<br>
+        "value": """Dear Dr. {{ author.full_name}},<br>
+<br>
+This is to confirm that Dr. {{ article.correspondence_author.full_name }} has submitted
+the {{ article.section.name }} "{{ article.title }}" to {{ article.journal.code }}
+including you among the co-authors.<br>
+<br>
+To access the preprint web page, please go to your preprint web page. The page allows you <...> to view all information
+and files. Communications, on the other hand, will be sent to the corresponding author,
+Dr. {{ article.correspondence_author.full_name }}.<br>
+<br>
+To confirm authorship of this paper, please mark this message as read.<br>
+<br>
+In case you are receiving this email by mistake and you are not a co-author of the preprint in question, please send an
+email to {{ support_email }} urgently.<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ article.journal.code }} Editorial Office<br>
+{{ article.journal.name }}<br>
+{{ article.journal.site_url }}
 """,
-        "translations": {
-            "value_en": """Dear {{ author.full_name}}, <br><br>
-Thank you for submitting "{{ article }}" to {{ article.journal }} as coauthor.<br><br>
-Your work will now be reviewed by an editor and we will be in touch as the peer-review process progresses.<br><br>
-Please feel free to check or update your personal data
-<a href="{% journal_base_url article.journal %}{% url 'core_edit_profile' %}">here</a>.<br><br>
-Regards,<br>""",
-        },
+        "translations": {},
     }
     setting_1 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "email for coauthors submission notification",
+        force=force,
     )
     setting_params: SettingParams = {
-        "name": "subject_submission_coauthors_acknowledgement",
+        "name": "submission_coauthors_acknowledgement_subject",
         "group": email_subject_settings_group,
         "types": "text",
         "pretty_name": _("Submission Subject Coauthors Acknowledgement"),
@@ -167,20 +178,19 @@ Regards,<br>""",
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": "Coauthor - Article Submission",
-        "translations": {
-            "value_en": "Coauthor - Article Submission",
-        },
+        "value": "Your preprint has been submitted",
+        "translations": {},
     }
     setting_2 = create_customization_setting(
         setting_params,
         settingvalue_params,
         "email subject for coauthors submission notification",
+        force=force,
     )
     return setting_1, setting_2
 
 
-def add_user_as_main_author_setting() -> tuple[SettingValue, ...]:
+def add_user_as_main_author_setting(force: bool = False) -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
     setting_params: SettingParams = {
         "name": "user_automatically_main_author",
@@ -196,13 +206,20 @@ def add_user_as_main_author_setting() -> tuple[SettingValue, ...]:
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": "",
+        "value": "on",
         "translations": {},
     }
-    return (create_customization_setting(setting_params, settingvalue_params, "user as main author"),)
+    return (
+        create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "user as main author",
+            force=force,
+        ),
+    )
 
 
-def add_publication_alert_settings() -> tuple[SettingValue, ...]:
+def add_publication_alert_settings(force: bool = False) -> tuple[SettingValue, ...]:
     email_settings_group = get_group("email")
     setting_params: SettingParams = {
         "name": "publication_alert_subscription_email_body",
@@ -246,6 +263,7 @@ JCOM - Journal of Science Communication
         setting_params,
         settingvalue_params,
         "publication alert anonymous subscription email body",
+        force=force,
     )
     setting_params: SettingParams = {
         "name": "publication_alert_subscription_email_subject",
@@ -265,6 +283,7 @@ JCOM - Journal of Science Communication
         setting_params,
         settingvalue_params,
         "publication alert anonymous subscription email subject",
+        force=force,
     )
     setting_params: SettingParams = {
         "name": "publication_alert_reminder_email_body",
@@ -301,6 +320,7 @@ JCOM - Journal of Science Communication
         setting_params,
         settingvalue_params,
         "publication alert anonymous reminder email body",
+        force=force,
     )
     setting_params: SettingParams = {
         "name": "publication_alert_reminder_email_subject",
@@ -320,6 +340,7 @@ JCOM - Journal of Science Communication
         setting_params,
         settingvalue_params,
         "publication alert anonymous reminder email subject",
+        force=force,
     )
     setting_params: SettingParams = {
         "name": "publication_alert_email_intro_message",
@@ -339,6 +360,7 @@ JCOM - Journal of Science Communication
         setting_params,
         settingvalue_params,
         "publication alert email intro message",
+        force=force,
     )
     setting_params: SettingParams = {
         "name": "publication_alert_email_subject",
@@ -358,11 +380,12 @@ JCOM - Journal of Science Communication
         setting_params,
         settingvalue_params,
         "publication alert email subject",
+        force=force,
     )
     return setting_1, setting_2, setting_3, setting_4, setting_5, setting_6
 
 
-def add_generic_analytics_code_setting() -> tuple[SettingValue, ...]:
+def add_generic_analytics_code_setting(force: bool = False) -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
     setting_params: SettingParams = {
         "name": "analytics_code",
@@ -386,12 +409,13 @@ def add_generic_analytics_code_setting() -> tuple[SettingValue, ...]:
             setting_params,
             settingvalue_params,
             "generic analytics tracking code",
+            force=force,
         ),
     )
 
 
 # refs specs#640
-def add_general_facebook_handle_setting() -> tuple[SettingValue, ...]:
+def add_general_facebook_handle_setting(force: bool = False) -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
     setting_params: SettingParams = {
         "name": "facebook_handle",
@@ -412,6 +436,7 @@ def add_general_facebook_handle_setting() -> tuple[SettingValue, ...]:
             setting_params,
             settingvalue_params,
             "journal's facebook handle",
+            force=force,
         ),
     )
 

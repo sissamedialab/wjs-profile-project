@@ -1,9 +1,11 @@
 import io
 import pathlib
+import re
 import tarfile
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
+import html2text
 from core.models import Workflow, WorkflowElement
 from django.http import HttpRequest
 from journal.models import Journal
@@ -128,3 +130,12 @@ class ThreadedHTTPServer:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join()
+
+
+def raw(string: str) -> str:
+    """Simplify the given string.
+
+    - apply html2text
+    - drop whitespace
+    """
+    return re.sub(r"\s+", "", html2text.html2text(string))

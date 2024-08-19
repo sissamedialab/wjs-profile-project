@@ -618,6 +618,7 @@ def create_set_of_articles_with_assignments(
     journal: journal_models.Journal,  # noqa
     director: Account,
     review_settings,
+    coauthors_setting,
 ):
     """
     Create a set of articles with assignments using scenario_review command.
