@@ -3,6 +3,7 @@
 import dataclasses
 from typing import TYPE_CHECKING, Optional
 
+import html2text
 from core import models as core_models
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -1160,17 +1161,22 @@ class Message(TimeStampedModel):
             notification_body = self.body[:111]
 
         for recipient in self.recipients.all():
-            send_mail(
-                notification_subject,
+            notification_body = (
                 notification_header
                 + notification_body
                 + notification_footer.format(
                     url=self.get_url(recipient),
-                ),
+                )
+            )
+            notification_body_text = html2text.html2text(notification_body)
+            send_mail(
+                notification_subject,
+                notification_body_text,
                 # TODO: use fake "no-reply": the mailbox should be real, but with an autoresponder
                 from_email,
                 [recipient.email],
                 fail_silently=False,
+                html_message=notification_body,
             )
 
 

@@ -601,6 +601,7 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
     article,
     coauthors_setting,
     director_role,
+    fake_request: HttpRequest,
 ):
     client = Client()
     client.force_login(admin)
@@ -613,8 +614,18 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
     assert response.status_code == 302
     assert len(mail.outbox) == article.authors.count()
 
+    subject_of_message_to_coauthors = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="submission_coauthors_acknowledgement_subject",
+        journal=article.journal,
+        request=fake_request,
+        context={"article": article},
+        template_is_setting=True,
+    )
     for m in mail.outbox:
-        if m.subject == f"[{article.journal.code}] Coauthor - Article Submission":
+        # Remember that emails' subjects have a prefix automatically added,
+        # so we need to use `in` instead of `==`
+        if subject_of_message_to_coauthors in m.subject:
             assert m.to == coauthors_email
         else:
             assert m.to == [article.correspondence_author.email]

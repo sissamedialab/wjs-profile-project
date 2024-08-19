@@ -1,15 +1,15 @@
 """Events-related functions."""
 
 from django.urls import reverse
-from utils import notify_helpers
 from utils.logger import get_logger
+
+from wjs.jcom_profile.utils import render_template_from_setting
 
 logger = get_logger(__name__)
 
 
 def notify_coauthors_article_submission(**kwargs):
     """Notify co-authors of submission."""
-    logger.debug("CALLED!!!")
     # FIXME: This logic is intended to be insert in janeway; this is a copy-paste of janeway
     #  src/utils/transitional_email.send_submission_acknowledgement function, with the difference that we want to
     #  notify coauthors
@@ -25,26 +25,36 @@ def notify_coauthors_article_submission(**kwargs):
         ),
     )
 
-    log_dict = {
-        "level": "Info",
-        "action_text": "A new article {} was submitted".format(article.title),
-        "types": "New Submission Acknowledgement",
-        "target": article,
-    }
+    # FIXME: We are introducing a dependency between jcom_profile and wjs_review!!!
+    from plugins.wjs_review.communication_utils import log_operation
 
-    # send to coauthors
-    for coauthor in coauthors:
-        context = {
-            "article": article,
-            "request": request,
-            "author": coauthor,
-            "review_unassigned_article_url": review_unassigned_article_url,
-        }
-        notify_helpers.send_email_with_body_from_setting_template(
-            request,
-            "submission_coauthors_acknowledgment",
-            "subject_submission_coauthors_acknowledgement",
-            [coauthor.email],
-            context,
-            log_dict=log_dict,
-        )
+    context = {
+        "article": article,
+        "request": request,
+        "review_unassigned_article_url": review_unassigned_article_url,
+    }
+    message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="submission_coauthors_acknowledgement_subject",
+        journal=article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+    message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="submission_coauthors_acknowledgement_body",
+        journal=article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+
+    log_operation(
+        article=article,
+        message_subject=message_subject,
+        message_body=message_body,
+        recipients=coauthors,
+        flag_as_read=False,
+        flag_as_read_by_eo=True,
+    )

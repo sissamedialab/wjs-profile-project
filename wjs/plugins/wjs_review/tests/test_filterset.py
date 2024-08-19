@@ -102,6 +102,7 @@ def test_articleworkflowfilter_filter_status(
     ("none", "Accepted", "EditorSelected"),
 )
 def test_articleworkflowfilter_status_choices(
+    coauthors_setting,
     fake_request: HttpRequest,
     eo_user: Account,  # noqa
     journal: journal_models.Journal,  # noqa

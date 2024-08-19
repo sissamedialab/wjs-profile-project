@@ -490,7 +490,7 @@ def test_wjs_typesetter_esm_files(assigned_to_typesetter_article_with_files_to_t
     client.force_login(assignment.typesetter)
     response = client.get(
         f"/{assigned_to_typesetter_article_with_files_to_typeset.journal.code}/"
-        f"plugins/wjs-review-articles/esm_files/{assignment.pk}/"
+        f"plugins/wjs-review-articles/esm_files/{assigned_to_typesetter_article_with_files_to_typeset.pk}/"
     )
     assert response.status_code == 200
 
