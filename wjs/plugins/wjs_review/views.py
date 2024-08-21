@@ -1756,7 +1756,7 @@ class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
 
     def get_success_url(self):
         """Point back to the article's detail page."""
-        return reverse("wjs_article_details", kwargs={"pk": self.article.pk})
+        return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
 
 
 class EditorDeclineAssignmentView(UserPassesTestMixin, View):
@@ -1814,7 +1814,7 @@ class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             messages.SUCCESS,
             "Reviewer deassigned successfully.",
         )
-        return reverse("wjs_article_details", args=(self.object.pk,))
+        return reverse("wjs_article_details", args=(self.object.article.articleworkflow.pk,))
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
