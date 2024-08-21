@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     LatexPreamble,
     ProphyAccount,
     ProphyCandidate,
@@ -48,3 +49,11 @@ class WjsSectionAdmin(admin.ModelAdmin):
     list_display = ["section", "pubid_and_tex_sectioncode", "doi_sectioncode"]
     list_filter = ["section"]
     search_fields = ["section__name"]
+
+
+@admin.register(EditorDecision)
+class EditorDecisionAdmin(admin.ModelAdmin):
+    """Helper class to "admin" EditorDecision."""
+
+    list_display = ["workflow", "decision", "decision_internal_note", "decision_editor_report"]
+    list_filter = ["decision"]

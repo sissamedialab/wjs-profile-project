@@ -11,6 +11,7 @@ from core import files
 from core.middleware import GlobalRequestMiddleware
 from core.models import Account
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.files import File as DjangoFile
 from django.core.management.base import BaseCommand
 from django.db.models import Q
@@ -32,6 +33,7 @@ from plugins.wjs_review.logic import (
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     EditorDecision,
+    Message,
     WjsEditorAssignment,
 )
 from review.models import (
@@ -139,6 +141,7 @@ class Command(BaseCommand):
             return
         setting = f"WJAPP_{self.journal.code.upper()}_IMPORT_CONNECTION_PARAMS"
         connection_parameters = getattr(settings, setting, None)
+
         if connection_parameters is None:
             logger.error(
                 f'Missing connection parameters for {self.journal.code}. Please ensure "{setting}" exists in settings.'
@@ -171,6 +174,7 @@ class Command(BaseCommand):
 
         # create article and section
         article, preprintid, main_author = self.create_article(row)
+
         self.set_section(article, section)
 
         # article keywords
@@ -212,6 +216,21 @@ class Command(BaseCommand):
                     ).run()
                 else:
                     logger.warning(f"Action {action['actionID']} not yet managed.")
+
+            # set_authors bios
+            self.set_authors_bios(row["authorsBio"], article)
+
+            ImportCorrespondenceManager(
+                connection=self.connection,
+                session=session,
+                journal=self.journal,
+                preprintid=preprintid,
+                article=article,
+                imported_version_num=imported_version_num,
+                imported_version_cod=imported_version_cod,
+                importfiles=self.options["importfiles"],
+                imported_document_layer_cod_list=self.imported_document_layer_cod_list,
+            ).run()
 
         self.connection.close()
 
@@ -260,7 +279,8 @@ u1.email AS author_email,
 v.versionCod,
 v.versionNumber,
 v.versionTitle,
-v.versionAbstract
+v.versionAbstract,
+v.authorsBio
 FROM Document d
 LEFT JOIN User u1 ON (d.authorCod=u1.userCod)
 LEFT JOIN Version v ON (v.documentCod=d.documentCod)
@@ -375,16 +395,24 @@ ORDER BY ah.actionDate
             for rr in ReviewRound.objects.filter(article=article):
                 EditorDecision.objects.filter(review_round=rr).delete()
 
+            # necessary to delete
+            Message.objects.filter(object_id=article.id).delete()
+
             article.manuscript_files.all().delete()
             article.data_figure_files.all().delete()
             article.supplementary_files.all().delete()
             article.source_files.all().delete()
             article.galley_set.all().delete()
+
+            # after delete the id is lost
+            article_id_check = article.id
+
             article.delete()
 
-            assert RevisionRequest.objects.filter(article=article).count() == 0
-            assert ReviewAssignment.objects.filter(article=article).count() == 0
-            assert ReviewRound.objects.filter(article=article).count() == 0
+            # check deleted when article is deleted
+            assert RevisionRequest.objects.filter(article__id=article_id_check).count() == 0
+            assert ReviewAssignment.objects.filter(article__id=article_id_check).count() == 0
+            assert ReviewRound.objects.filter(article__id=article_id_check).count() == 0
 
         article = submission_models.Article.objects.create(
             journal=self.journal,
@@ -418,6 +446,70 @@ ORDER BY ah.actionDate
         logger.debug(f"Set preprintid {preprintid} onto {article.pk}")
         article.refresh_from_db()
         return (article, preprintid, main_author)
+
+    def set_authors_bios(self, bios_text: str, article: submission_models.Article):
+        "Sets authors bios if found."
+
+        # bios from wjapp is a unique text field with paragraphs starting with
+        # the full name of the author and separated by two newlines ex: JCOM_004A_0124 JCOM_003N_0324
+        #
+        # in some cases there is only the bio of the main author
+        # without the full name at the beginning ex: JCOM_018A_0624
+        #
+        # examples of other cases with format no standard:
+        # JCOM_005A_0224 JCOM_003A_0424 JCOM_004Y_0424 JCOM_021A_0424 JCOM_001N_0524
+        # names match problem: JCOM_028A_0724
+        #
+        # TODO: if there are maintenance on wjapp with changes in coauthors
+        # without actions in the history, better to check also the db with
+        # a direct query? The actions must be managed the same for the timeline.
+        #
+        # NOTE: decison from jcom-eo: import only bios with name at the beginning. In any case
+        #       the authors will check/correct/enter their bio after migration
+        # TODO: name match can be improved
+        authors_bios = bios_text.split("\r\n\r\n")
+
+        if len(authors_bios) != article.authors.count():
+            logger.warning(
+                f"Authors bios paragraphs: {len(authors_bios)}, article authors: {article.authors.count()}",
+            )
+
+        for author in article.authors.all():
+            bios_found = self.get_author_bio_by_name(authors_bios, author)
+            if len(bios_found) != 1:
+                logger.warning(
+                    f"Found {len(bios_found)} bios for author {author.full_name()}.",
+                )
+
+            # saved first bio found or let unchanged
+            if bios_found:
+                # TODO: add always to article frozen author frozen biography
+
+                logger.debug(
+                    f"Updated bio for author {author.full_name()}.",
+                )
+                # save only if not present or the article is the last submitted
+                # for the author
+                if not author.biography or self.last_submitted_for_author(author, article):
+                    author.biography = bios_found[0]
+                    author.save()
+
+    def last_submitted_for_author(self, author, article):
+        "Last submitted article for the author"
+
+        return not submission_models.Article.objects.filter(
+            authors__in=[author],
+            date_submitted__gt=article.date_submitted,
+        ).exists()
+
+    def get_author_bio_by_name(self, authors_bios, author):
+        "Get author bio from authors bios list by name."
+
+        bios_found = []
+        for bio in authors_bios:
+            if bio.startswith(author.full_name()):
+                bios_found.append(bio)
+        return bios_found
 
     def set_section(self, article, section_name):
         """Set the section."""
@@ -532,13 +624,158 @@ def account_get_or_create_check_correspondence(source, user_cod, last_name, firs
 
 
 @dataclass
+class ImportCorrespondenceManager:
+    """Data class that manages the import of all the correspondence of the wjapp imported version."""
+
+    connection: mariadb.Connection
+    session: requests.sessions.Session
+    journal: Journal
+    preprintid: str
+    article: submission_models.Article
+    imported_version_num: int
+    imported_version_cod: int
+    importfiles: bool
+    imported_document_layer_cod_list: list
+
+    def run(self):
+        """Import wjapp correspondence for the imported_version."""
+
+        # TODO: now only EMAIL type, others to be added
+
+        all_messages = self.read_all_messages()
+        for m in all_messages:
+            logger.debug(f"message {m['documentLayerCod']}")
+            message_recipients = self.read_message_recipients(m["documentLayerCod"])
+
+            author = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                m["authorCod"],
+                m["authorLastname"],
+                m["authorFirstname"],
+                m["authorEmail"],
+            )
+            with freezegun.freeze_time(
+                rome_timezone.localize(m["submissionDate"]),
+            ):
+                msg = Message.objects.create(
+                    actor=author,
+                    subject=m["documentLayerSubject"],
+                    body=m["documentLayerText"],
+                    content_type=ContentType.objects.get_for_model(self.article),
+                    object_id=self.article.id,
+                )
+                logger.debug(f"created message {m['documentLayerSubject']}  {author.last_name=}")
+                # TBV: message userType "recipient" is only one, the other have different userTypes
+                #      the other have different meaning CC BCC etc.
+                for msg_rec in message_recipients:
+                    recipient = account_get_or_create_check_correspondence(
+                        self.journal.code.lower(),
+                        msg_rec["userCod"],
+                        msg_rec["lastname"],
+                        msg_rec["firstname"],
+                        msg_rec["email"],
+                    )
+                    msg.recipients.add(recipient)
+                    logger.debug(f"created message recipient {m['documentLayerSubject']}  {recipient.last_name=}")
+
+        # TODO: remove warning when the funcion is implemented
+        logger.warning(f"import correspondence type EMAIL for {self.preprintid} WIP")
+
+    def read_all_messages(self):
+        """Read all the messages of the imported version with message author."""
+
+        cursor_all_messages = self.connection.cursor(
+            buffered=True,
+            dictionary=True,
+        )
+
+        # read all EMAIL messages with author from User_Rights
+        # TODO: add others message types in the query condition
+        query_all_messages = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerSubject,
+dl.documentLayerText,
+dl.documentLayerOnlyTex,
+dl.submissionDate,
+ur.userCod AS authorCod,
+u.lastname AS authorLastname,
+u.firstname AS authorFirstname,
+u.email AS authorEmail
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND dl.documentLayerCod NOT IN (%(imported_document_layer_cod_list)s)
+AND dl.documentLayerType='EMAIL'
+AND ur.userType='author'
+ORDER BY dl.submissionDate
+"""
+        cursor_all_messages.execute(
+            query_all_messages,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "imported_document_layer_cod_list": ",".join(str(x) for x in self.imported_document_layer_cod_list),
+            },
+        )
+        if cursor_all_messages.rowcount == 0:
+            logger.warning(f"Found 0 messages for {self.preprintid}/{self.imported_version_num}")
+            all_messages = []
+        else:
+            all_messages = cursor_all_messages.fetchall()
+
+        cursor_all_messages.close()
+        return all_messages
+
+    def read_message_recipients(self, document_layer_cod):
+        """Read all the recipients of a message."""
+
+        cursor_all_message_recipients = self.connection.cursor(
+            buffered=True,
+            dictionary=True,
+        )
+
+        query_all_message_recipients = """
+SELECT
+ur.documentLayerCod,
+ur.userCod,
+ur.userType,
+u.lastname,
+u.firstname,
+u.email
+FROM User_Rights ur
+LEFT JOIN User u USING (userCod)
+WHERE
+    ur.documentLayerCod = (%(document_layer_cod)s)
+AND ur.userType!='author'
+"""
+        cursor_all_message_recipients.execute(
+            query_all_message_recipients,
+            {
+                "document_layer_cod": document_layer_cod,
+            },
+        )
+        if cursor_all_message_recipients.rowcount == 0:
+            logger.error(
+                f"Found {cursor_all_message_recipients.rowcount} messages for imported version: {self.preprintid}"
+            )
+            all_message_recipients = []
+        else:
+            all_message_recipients = cursor_all_message_recipients.fetchall()
+
+        cursor_all_message_recipients.close()
+        return all_message_recipients
+
+
+@dataclass
 class BaseActionManager:
     """Data class that manages one action."""
 
     # one of the records returned by of the read_history_data() / action-history
     # item (agent, target, version_code, etc.)
     action: dict
-    connection: mariadb.connection
+    connection: mariadb.Connection
     session: requests.sessions.Session
     journal: Journal
     preprintid: str
@@ -602,6 +839,8 @@ class BaseActionManager:
         """Format Document_Layer message read from wjapp."""
         # TBV: format other new-line styles?
         #      Document_Layer messages/report from jcom jcomal are text message
+        if not message:
+            return ""
         return message.replace("\r\n", "<br/>")
 
 
@@ -1092,12 +1331,16 @@ ORDER BY dl.submissionDate
         # We create versions (and RAs) in a serial fashion, i.e. one after the other,
         # respecting the temporal order in which they have been originally created;
         # so we are always working on the latest/current version/review-round.
-        review_assignment = WorkflowReviewAssignment.objects.get(
+
+        # replaced "get()"" with "filter last()" to fix case JCOM_013A_0524:
+        # more review assignment for the same referee in the same wjapp
+        # version (same wjs review round)
+        review_assignment = WorkflowReviewAssignment.objects.filter(
             reviewer=reviewer,
             article=self.article,
             editor=self.get_current_editor(),
             review_round=self.article.current_review_round_object(),
-        )
+        ).last()
 
         with freezegun.freeze_time(
             rome_timezone.localize(reviewer_declines_date),
@@ -1131,6 +1374,13 @@ class GT1_REF_REF(ReviewerDeclineAction):  # noqa N801
 
 class REF_REF(ReviewerDeclineAction):  # noqa N801
     """Manages wjapp action REF_REF."""
+
+
+class REF_ACC(BaseActionManager):  # noqa N801
+    """Reviewer send report management: wjapp action REF_SENDS_REP."""
+
+    def run(self):
+        logger.warning("REF_ACC managed in ReviewAssignmentAction but without reviewer confirmation message")
 
 
 class REF_SENDS_REP(BaseActionManager):  # noqa N801
@@ -1208,12 +1458,13 @@ ORDER BY dl.submissionDate
             reviewer_email,
         )
 
-        review_assignment = WorkflowReviewAssignment.objects.get(
+        # filter and last() not get() to manage JCOM_008A_0324 with 2 review assignments
+        review_assignment = WorkflowReviewAssignment.objects.filter(
             reviewer=reviewer,
             article=self.article,
             editor=self.get_current_editor(),
             review_round=self.article.current_review_round_object(),
-        )
+        ).last()
         request = create_fake_request(user=None, journal=self.journal)
         request.user = reviewer
         submit_final = True
@@ -1373,6 +1624,7 @@ ORDER BY dl.submissionDate
 
         # the (current) default review form element for editor report
         # has a rich-text/html widget.  Text from wjapp formatted to html
+        # ex. JCOM_027Y_0215 has the cover letter but not the report file
         wjapp_editor_report_message = self.newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
 
         request = create_fake_request(user=None, journal=self.journal)
@@ -1448,6 +1700,32 @@ class ED_REJ_DOC(EditorDecisionAction):  # noqa N801
         self.revision_interval_days = 0
 
 
+@dataclass
+class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
+    """Manages wjapp action ED_CON_NOT_SUIT: editor considers not suitable."""
+
+    def __post_init__(self):
+        self.editor_decision = ArticleWorkflow.Decisions.NOT_SUITABLE
+        self.requires_revision = False
+        self.revision_interval_days = 0
+
+
+# TBV: DEBUG 2024-06-02 11:00:33,000 M:logic: No XML galleys found for crossref citation extraction
+# TO FIX: exeception
+@dataclass
+class ED_ACC_DOC(EditorDecisionAction):  # noqa N801
+    """Manages wjapp action ED_ACC_DOC: editor accepts."""
+
+    def __post_init__(self):  # noqa
+        self.editor_decision = ArticleWorkflow.Decisions.ACCEPT
+        self.requires_revision = False
+        self.revision_interval_days = 0
+
+    # TODO: fix execution and remove this run()
+    def run(self):
+        logger.warning(f"ERROR to be fixed action {self.action['actionID']} not yet implemented")
+
+
 class AuthorSubmitRevisionAction(BaseActionManager):
     """Author submit revision management."""
 
@@ -1491,3 +1769,46 @@ class AU_SUB_REV(AuthorSubmitRevisionAction):  # noqa N801
 
 class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action AU_SUB_REV_WMC."""
+
+
+class SelectCoauthorAction(BaseActionManager):
+    """Coauthor selection management."""
+
+    def run(self):
+
+        # coauthor is the target of the wjapp action
+        coauthor_cod = self.action["targetCod"]
+        coauthor_lastname = self.action["targetLastname"]
+        coauthor_firstname = self.action["targetFirstname"]
+        coauthor_email = self.action["targetEmail"]
+        coauthor_assign_date = self.action["actionDate"]
+
+        # coauthor data
+        coauthor = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            coauthor_cod,
+            coauthor_lastname,
+            coauthor_firstname,
+            coauthor_email,
+        )
+        logger.debug(f"Creating coauthor of {self.article.id} user: {coauthor}")
+
+        # NOTE: the wjapp message related to select coauthor acion is imported to wjs
+        # as general correspondence
+        with freezegun.freeze_time(
+            rome_timezone.localize(coauthor_assign_date),
+        ):
+            if not coauthor.check_role(self.journal, "author"):
+                coauthor.add_account_role("author", self.journal)
+            self.article.authors.add(coauthor)
+            self.article.save()
+
+        return
+
+
+class AU_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
+    """Manages wjapp action AU_SELECTS_COAUT."""
+
+
+class ADMIN_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
+    """Manages wjapp action ADMIN_SELECTS_COAUT."""
