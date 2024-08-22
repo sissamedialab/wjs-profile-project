@@ -1333,7 +1333,7 @@ class PublishedArticlesListView(FormMixin, ListView):
             articles = self.model.objects.search(
                 search_term,
                 self.form.get_search_filters(),
-                sort=self.get_order_by(),
+                sort=self.get_order_by(search_term),
                 site=self.request.site_object,
             )
             if isinstance(articles, RawQuerySet):
@@ -1359,10 +1359,13 @@ class PublishedArticlesListView(FormMixin, ListView):
         if search_term:
             # if text search is used, articles are already ordered
             return articles
-        return articles.order_by(self.get_order_by())
+        return articles.order_by(self.get_order_by(search_term))
 
-    def get_order_by(self):
-        return self.form.cleaned_data.get("sort", "-date_published")
+    def get_order_by(self, search_term):
+        sort = self.form.cleaned_data.get("sort", "-date_published")
+        if sort == "relevance" and not search_term:
+            return "-date_published"
+        return sort
 
     def get_filter_by_configuration(self):
         if self.filter_by == "section":
