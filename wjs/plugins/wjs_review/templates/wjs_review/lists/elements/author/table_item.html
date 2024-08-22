@@ -21,7 +21,7 @@
       {% include "wjs_review/lists/elements/table_item_status.html" with brief=True %}
     </td>
     <td>
-      {{ article.articlewrapper.special_issue|default_if_none:"" }}
+      {{ article.primary_issue|default_if_none:"" }}
     </td>
     {% if table.table_configuration_options.show_author_due_date %}
       <td>

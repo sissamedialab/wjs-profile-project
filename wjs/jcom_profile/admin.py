@@ -15,7 +15,6 @@ from wjs.jcom_profile.models import (
     EditorKeyword,
     JCOMProfile,
     Recipient,
-    SpecialIssue,
 )
 
 admin.site.unregister(Account)
@@ -44,11 +43,6 @@ class CorrespondenceAdmin(admin.ModelAdmin):
 
     list_filter = ("source",)
     search_fields = ["account__last_name", "email", "account__email"]
-
-
-@admin.register(SpecialIssue)
-class SpecialIssueAdmin(admin.ModelAdmin):
-    """Helper class to "admin" special issues."""
 
 
 @admin.register(EditorAssignmentParameters)

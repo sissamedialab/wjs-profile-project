@@ -41,14 +41,14 @@ class TestSIInvitees:
         assert not open_special_issue.invitees.exists()
 
         # visit the correct page
-        url = reverse("submit_info", args=(article.pk,))
+        url = reverse("submit_issue", args=(article.pk,))
         response = client.get(url)
         assert response.status_code == 200
 
         # The page I'm visiting is the one that lets me choose the SI
         html = lxml.html.fromstring(response.content.decode())
         # we must user regexps because template reformatting may change renderend content whitespaces
-        assert html.xpath(".//h1[re:test(text(), '.*Submission Destination.*', 'i')]", namespaces={"re": regexpNS})
+        assert html.xpath(".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]", namespaces={"re": regexpNS})
 
         # The SI is among the choices
         # NB: don't just `assert <Element...>`: elements are False if they don't have children
@@ -78,11 +78,11 @@ class TestSIInvitees:
         assert admin not in open_special_issue.invitees.all()
 
         # visit the correct page
-        url = reverse("submit_info", args=(article.pk,))
+        url = reverse("submit_issue", args=(article.pk,))
         response = client.get(url)
         assert response.status_code == 302
         assert response.url == reverse(
-            "submit_info_original",
+            "submit_info",
             args=(article.pk,),
         )
 
@@ -108,13 +108,13 @@ class TestSIInvitees:
         assert admin.janeway_account in open_special_issue.invitees.all()
 
         # visit the correct page
-        url = reverse("submit_info", args=(article.pk,))
+        url = reverse("submit_issue", args=(article.pk,))
         response = client.get(url)
         assert response.status_code == 200
 
         # The page I'm visiting is the one that lets me choose the SI
         html = lxml.html.fromstring(response.content.decode())
-        assert html.xpath(".//h1[re:test(text(), '.*Submission Destination.*', 'i')]", namespaces={"re": regexpNS})
+        assert html.xpath(".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]", namespaces={"re": regexpNS})
 
         # The SI is among the choices
         assert html.find(f".//input[@value='{open_special_issue.id}']") is not None
@@ -138,32 +138,32 @@ class TestSIInvitees:
         client.force_login(admin)
         client.get(f"/{journal.code}/")
 
-        si_no_invitees = SpecialIssueFactory(open_date=yesterday(), journal=journal)
+        si_no_invitees = SpecialIssueFactory(date_open=yesterday(), journal=journal)
         si_no_invitees.invitees.clear()
 
         # Korpiklaani
-        si_vodka = SpecialIssueFactory(open_date=yesterday(), journal=journal)
+        si_vodka = SpecialIssueFactory(date_open=yesterday(), journal=journal)
         si_vodka.invitees.set([admin])
 
         # Elio e le storie tese
-        si_lafestadellemedie = SpecialIssueFactory(open_date=yesterday(), journal=journal)
+        si_lafestadellemedie = SpecialIssueFactory(date_open=yesterday(), journal=journal)
         si_lafestadellemedie.invitees.set([existing_user])
 
         assert admin.janeway_account in si_vodka.invitees.all()
         assert admin.janeway_account not in si_lafestadellemedie.invitees.all()
 
         # visit the correct page
-        url = reverse("submit_info", args=(article.pk,))
+        url = reverse("submit_issue", args=(article.pk,))
         client.force_login(admin)
         response = client.get(url)
         assert response.status_code == 200
 
         # The page I'm visiting is the one that lets me choose the SI
         html = lxml.html.fromstring(response.content.decode())
-        assert html.xpath(".//h1[re:test(text(), '.*Submission Destination.*', 'i')]", namespaces={"re": regexpNS})
+        assert html.xpath(".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]", namespaces={"re": regexpNS})
 
         # I can see the expected SIs
         assert html.find(f".//input[@value='{si_no_invitees.id}']") is not None
         assert html.find(f".//input[@value='{si_vodka.id}']") is not None
         assert html.find(f".//input[@value='{si_lafestadellemedie.id}']") is None
-        assert len(html.findall(".//input[@name='special_issue']")) == 3  # 2 SIs + normal submission
+        assert len(html.findall(".//input[@name='primary_issue']")) == 3  # 2 SIs + normal submission

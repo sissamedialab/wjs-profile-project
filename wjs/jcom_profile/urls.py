@@ -9,7 +9,6 @@ from wjs.jcom_profile import experimental_views, views
 from wjs.jcom_profile.newsletter import views as newsletter_views
 
 urlpatterns = [
-    re_path(r"^(?P<type>[-\w.]+)/start/$", views.start, name="submission_start"),
     path("profile/", views.edit_profile, name="core_edit_profile"),
     path("register/step/1/", views.register, name="core_register"),
     re_path(
@@ -19,22 +18,6 @@ urlpatterns = [
     ),
     # Override journal search
     path("search/", views.PublishedArticlesListView.as_view(), name="search"),
-    # Override submission's second step defined in submission.url ...
-    # (remember that core.include_url adds a "prefix" to the pattern,
-    # here "submit/")
-    path(
-        "submit/<int:article_id>/info/",
-        views.SpecialIssues.as_view(),
-        name="submit_info",
-    ),
-    # ... and "rename" it (i.e. the submission's second step) to be
-    # able to get back in the loop
-    path(
-        "submit/<int:article_id>/info-metadata/",
-        # was submission_views.submit_info, but I'm also overriding this part:
-        views.submit_info,
-        name="submit_info_original",
-    ),
     path(
         "update/parameters/",
         views.EditorAssignmentParametersUpdate.as_view(),
@@ -44,26 +27,6 @@ urlpatterns = [
         "update/parameters/<int:editor_pk>/",
         views.DirectorEditorAssignmentParametersUpdate.as_view(),
         name="assignment_parameters",
-    ),
-    # Special Issues mgmt
-    #     add, view, update
-    path("manage/si/new", views.SICreate.as_view(template_name="admin/core/si_new.html"), name="si-create"),
-    path("si/<int:pk>/", views.SIDetails.as_view(template_name="si_details.html"), name="si-details"),
-    path(
-        "manage/si/<int:pk>/edit",
-        views.SIUpdate.as_view(template_name="admin/core/si_update.html"),
-        name="si-update",
-    ),
-    #     files (aka documents; upload & download)
-    re_path(
-        r"^si/(?P<special_issue_id>\d+)/file/(?P<file_id>\d+)/",
-        views.serve_special_issue_file,
-        name="special_issue_file_download",
-    ),
-    re_path(
-        r"^si_file_upload/(?P<special_issue_id>\d+)/",
-        views.SIFileUpload.as_view(),
-        name="special_issue_file_upload",
     ),
     #
     # IMU - Insert Many Users

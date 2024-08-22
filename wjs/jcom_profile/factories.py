@@ -11,7 +11,7 @@ from faker.providers import lorem
 from journal.models import Issue, IssueType, Journal
 from submission.models import Article, Keyword, Section
 
-from wjs.jcom_profile.models import JCOMProfile, Newsletter, Recipient, SpecialIssue
+from wjs.jcom_profile.models import JCOMProfile, Newsletter, Recipient
 
 factory.Faker.add_provider(lorem)
 
@@ -139,19 +139,31 @@ class SpecialIssueFactory(factory.django.DjangoModelFactory):
     """Special issues."""
 
     class Meta:
-        model = SpecialIssue
+        model = Issue
 
-    name = factory.Faker("sentence", nb_words=5)
+    issue_title = factory.Faker("sentence", nb_words=5)
     short_name = factory.Faker("slug")
     description = factory.Faker("paragraph", nb_sentences=5)
-    open_date = factory.LazyFunction(yesterday)
+    date_open = factory.LazyFunction(yesterday)
+    issue_type = factory.LazyAttribute(lambda x: IssueType.objects.get_or_create(code="collection")[0])
     # wrong:
     # ... = factory.LazyAttribute(lambda x: factory.Iterator(Journal.objects.all()))
     # gives:
     # ValueError: Cannot assign "<factory.declarations.Iterator object at ...>":
     # "SpecialIssue.journal" must be a "Journal" instance.
-
     journal = factory.LazyAttribute(lambda x: Journal.objects.first())
+
+    @factory.post_generation
+    def allowed_sections(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            # Simple build, or nothing to add, do nothing.
+            return
+
+        if not extracted:
+            extracted = Section.objects.filter(journal=Journal.objects.first()).order_by("?")[:2]
+
+        # Add the iterable of groups using bulk addition
+        self.allowed_sections.set(extracted)
 
 
 class IssueFactory(factory.django.DjangoModelFactory):

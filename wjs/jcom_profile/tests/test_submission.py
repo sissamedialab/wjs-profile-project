@@ -9,13 +9,13 @@ from django.core.handlers.base import BaseHandler
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
+from journal.models import Issue
 from submission import logic
 from submission.models import Article, Section
+from submission.views import submit_info
 from utils import setting_handler
 
-from wjs.jcom_profile import views
 from wjs.jcom_profile.factories import yesterday
-from wjs.jcom_profile.models import SpecialIssue
 
 # generic lxml regexp namespace used in tests
 regexpNS = "http://exslt.org/regular-expressions"  # noqa: N816
@@ -43,7 +43,7 @@ class TestFilesStage:
         article = Article.objects.create(
             journal=journal,
             title="A title",
-            current_step=3,
+            current_step=4,
             owner=jcom_user.janeway_account,
             correspondence_author=jcom_user.janeway_account,
         )
@@ -104,71 +104,63 @@ class TestSIStage:
         client = Client()
         client.force_login(admin)
         # visit the correct page
-        url = reverse("submit_info", args=(article.pk,))
+        url = reverse("submit_issue", args=(article.pk,))
         response = client.get(url)
         assert response.status_code == 302
         assert response.url == reverse(
-            "submit_info_original",
+            "submit_info",
             args=(article.pk,),
         )
 
     @pytest.mark.django_db
-    def test_choose_si_skipped_when_no_open_si(self, admin, article):
+    def test_choose_si_skipped_when_no_open_si(self, admin, article, special_issue):
         """Test that the SI-choosing page just redirects if there are
         SIs with open date in the future and no close date."""
+        special_issue.date_open = timezone.now() + timezone.timedelta(1)
+        special_issue.save()
         client = Client()
         client.force_login(admin)
-        tomorrow = timezone.now() + timezone.timedelta(1)
-        SpecialIssue.objects.create(name="Test SI", journal=article.journal, open_date=tomorrow)
-        assert not SpecialIssue.objects.open_for_submission().exists()
-        url = reverse("submit_info", args=(article.pk,))
+        assert not Issue.objects.for_submission(user=admin, journal=article.journal).exists()
+        url = reverse("submit_issue", args=(article.pk,))
         response = client.get(url)
         assert response.status_code == 302
-        assert response.url == reverse("submit_info_original", args=(article.pk,))
+        assert response.url == reverse("submit_info", args=(article.pk,))
 
     @pytest.mark.django_db
-    def test_choose_si_shown_when_si_open(self, admin, article):
+    def test_choose_si_shown_when_si_open(self, admin, article, special_issue):
         """Test that the SI-choosing page is shown if there are SIs
         with open date in the past and no close date."""
         client = Client()
         client.force_login(admin)
-        SpecialIssue.objects.create(name="Test SI", journal=article.journal, open_date=yesterday())
-        assert SpecialIssue.objects.open_for_submission().exists()
+        assert Issue.objects.for_submission(user=admin, journal=article.journal).exists()
         # visit the correct page
-        url = f"/{article.journal.code}/submit/{article.pk}/info/"
+        url = f"/{article.journal.code}/submit/{article.pk}/issue/"
         response = client.get(url)
 
         assert response.status_code == 200
         targets = (
-            ".//h1[re:test(text(), '.*Submission Destination.*', 'i')]",
-            "//*[re:test(text(), '.*Choose Submission Destination.*', 'i')]",
+            ".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]",
+            "//*[re:test(text(), '.*Select Issue.*', 'i')]",
         )
         html = lxml.html.fromstring(response.content.decode())
         for target in targets:
             assert html.xpath(target, namespaces={"re": regexpNS})
 
     @pytest.mark.django_db
-    def test_choose_si_shown_when_si_open_and_not_yet_closed(self, admin, article):
+    def test_choose_si_shown_when_si_open_and_not_yet_closed(self, admin, article, special_issue):
         """Test that the SI-choosing page is shown if there are SIs
         with open date in the past and close date in the future."""
         client = Client()
         client.force_login(admin)
-        tomorrow = timezone.now() + timezone.timedelta(1)
-        SpecialIssue.objects.create(
-            name="Test SI",
-            journal=article.journal,
-            open_date=yesterday(),
-            close_date=tomorrow,
-        )
-        assert SpecialIssue.objects.open_for_submission().exists()
+        assert Issue.objects.for_submission(user=admin, journal=article.journal).exists()
         # visit the correct page
-        url = f"/{article.journal.code}/submit/{article.pk}/info/"
+        url = f"/{article.journal.code}/submit/{article.pk}/issue/"
         response = client.get(url)
 
         assert response.status_code == 200
         targets = (
-            ".//h1[re:test(text(), '.*Submission Destination.*', 'i')]",
-            "//*[re:test(text(), '.*Choose Submission Destination.*', 'i')]",
+            ".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]",
+            "//*[re:test(text(), '.*Select Issue.*', 'i')]",
         )
         html = lxml.html.fromstring(response.content.decode())
         for target in targets:
@@ -193,12 +185,12 @@ def journal_with_three_sections(journal):
 def special_issue_with_all_sections(journal_with_three_sections):
     """Make a special issue that allows all journal's "section"s."""
     sections = journal_with_three_sections.section_set.all()
-    special_issue = SpecialIssue.objects.create(
+    special_issue = Issue.objects.create(
         journal=journal_with_three_sections,
-        name="Special Issue One Section",
+        issue_title="Special Issue One Section",
         description="SIONE description",
         short_name="SIONE",
-        open_date=yesterday(),
+        date_open=yesterday(),
     )
     special_issue.allowed_sections.set(sections)
     special_issue.save()
@@ -214,12 +206,12 @@ def special_issue_with_two_sections(journal_with_three_sections):
         Section.objects.get(name="Article", journal=journal_with_three_sections, public_submissions=True),
         Section.objects.get(name="Editorial", journal=journal_with_three_sections, public_submissions=False),
     )
-    special_issue = SpecialIssue.objects.create(
+    special_issue = Issue.objects.create(
         journal=journal_with_three_sections,
-        name="Special Issue Two Sections",
+        issue_title="Special Issue Two Sections",
         description="SITWO description",
         short_name="SITWO",
-        open_date=yesterday(),
+        date_open=yesterday(),
     )
     special_issue.allowed_sections.set(sections)
     special_issue.save()
@@ -254,7 +246,7 @@ class TestInfoStage:
         self.simulate_middleware(request, user=admin, journal=journal_with_three_sections)
 
         # NB: do NOT use unnamed args as in ...submit_info(request, article.id)!!!
-        response = views.submit_info(request, article_id=article.id)
+        response = submit_info(request, article_id=article.id)
         assert response.status_code == 200
         got = self.sections_in_the_form(response)
 
@@ -287,7 +279,7 @@ class TestInfoStage:
         request = rf.get(url)
         self.simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
 
-        response = views.submit_info(request, article_id=fb_article.id)
+        response = submit_info(request, article_id=fb_article.id)
         assert response.status_code == 200
         got = self.sections_in_the_form(response)
 
@@ -310,22 +302,21 @@ class TestInfoStage:
             journal=journal_with_three_sections,
             owner=coauthor.janeway_account,
         )
-        article.articlewrapper.special_issue = special_issue_with_all_sections
-        article.articlewrapper.save()
+        article.primary_issue = special_issue_with_all_sections
+        article.save()
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
         self.simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
 
-        response = views.submit_info(request, article_id=article.id)
+        response = submit_info(request, article_id=article.id)
         assert response.status_code == 200
         got = self.sections_in_the_form(response)
 
         # double check: si's sections must be the same as the journal's sections
         assert (
             len(
-                set(article.articlewrapper.special_issue.allowed_sections.all())
-                - set(journal_with_three_sections.section_set.all()),
+                set(article.primary_issue.allowed_sections.all()) - set(journal_with_three_sections.section_set.all()),
             )
             == 0
         )
@@ -349,14 +340,14 @@ class TestInfoStage:
             journal=journal_with_three_sections,
             owner=admin,
         )
-        article.articlewrapper.special_issue = special_issue_with_two_sections
-        article.articlewrapper.save()
+        article.primary_issue = special_issue_with_two_sections
+        article.save()
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
         self.simulate_middleware(request, user=admin, journal=journal_with_three_sections)
 
-        response = views.submit_info(request, article_id=article.id)
+        response = submit_info(request, article_id=article.id)
         assert response.status_code == 200
         got = self.sections_in_the_form(response)
 
@@ -379,14 +370,14 @@ class TestInfoStage:
             journal=journal_with_three_sections,
             owner=coauthor.janeway_account,
         )
-        article.articlewrapper.special_issue = special_issue_with_two_sections
-        article.articlewrapper.save()
+        article.primary_issue = special_issue_with_two_sections
+        article.save()
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
         self.simulate_middleware(request, user=coauthor.janeway_account, journal=journal_with_three_sections)
 
-        response = views.submit_info(request, article_id=article.id)
+        response = submit_info(request, article_id=article.id)
         assert response.status_code == 200
         got = self.sections_in_the_form(response)
 
@@ -446,8 +437,6 @@ def test_normal_issue_article_show_normal_issue_type_in_article_info(admin, arti
 def test_special_issue_article_show_issue_name_in_article_info(admin, article, coauthors_setting, special_issue):
     client = Client()
     client.force_login(admin)
-    # TODO: Rework this using speical_issue fixture from #84!
-
     url = reverse("submit_review", args=(article.pk,))
 
     response = client.get(url)
@@ -455,6 +444,6 @@ def test_special_issue_article_show_issue_name_in_article_info(admin, article, c
 
     html = lxml.html.fromstring(response.content.decode())
     article_info_table = html.get_element_by_id(id="article-info-table")
-    assert special_issue.name in [
+    assert str(special_issue) in [
         td.text.strip() for td in (e.find("td") for e in article_info_table.findall("tr")) if td is not None
     ]

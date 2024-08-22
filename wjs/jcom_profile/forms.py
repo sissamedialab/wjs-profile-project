@@ -16,6 +16,7 @@ from django.utils.translation import gettext_lazy as _
 from easy_select2.widgets import Select2Multiple
 from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
+from journal.models import Issue
 from submission import models as submission_models
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
@@ -24,12 +25,10 @@ from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import (
-    ArticleWrapper,
     EditorAssignmentParameters,
     EditorKeyword,
     JCOMProfile,
     Recipient,
-    SpecialIssue,
 )
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
@@ -173,55 +172,6 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         return user
 
 
-class SIForm(forms.ModelForm):
-    """Used to choose the destination special issue during submission."""
-
-    class Meta:
-        model = ArticleWrapper
-        fields = ("special_issue",)
-
-    special_issue = forms.ModelChoiceField(
-        queryset=None,
-        required=False,
-        blank=True,
-        empty_label="Normal Issue",
-        widget=forms.RadioSelect(),
-    )
-
-    def __init__(self, *args, **kwargs):
-        """Init the query set now, otherwise we are missing a current_journal."""
-        # https://docs.djangoproject.com/en/4.1/ref/forms/fields/#fields-which-handle-relationships
-        super().__init__(*args, **kwargs)
-        self.fields["special_issue"].queryset = (
-            SpecialIssue.objects.current_journal().open_for_submission().current_user()
-        )
-
-    # TODO: how do I represent the "no special issue" case?
-    # - A1 keep a special issue called "normal submission" always open
-    # - A2 dynamically attach a choice called "normal submission" that is not a s.i. and deal with it in the form
-    # - A3 add a field called "normal submission" to the form
-    # - A4 use a radio-button widget (+reset button) and organize the
-    #   submission form as follows:
-    #    +--------------------------------------------------+
-    #    |     If your submission is not related to any     |
-    #    |     special issue, click here to continue        |
-    #    |                 +------------+                   |
-    #    |                 |  Continue  |                   |
-    #    |                 +------------+                   |
-    #    |                                                  |
-    #    |   ----------------Special Issues---------------  |
-    #    |   +---+                                          |
-    #    |   |   |   Special Issue 1                        |
-    #    |   +---+                                          |
-    #    |   +---+                                          |
-    #    |   |   |   Special Issue 2                        |
-    #    |   +---+                                          |
-    #    |   +---+                                          |
-    #    |   |   |   Special Issue 3                        |
-    #    |   +---+                                          |
-    #    +--------------------------------------------------+
-
-
 class UpdateAssignmentParametersForm(forms.ModelForm):
     keywords = forms.ModelMultipleChoiceField(
         label=_("Keywords"),
@@ -341,8 +291,11 @@ class IMUForm(forms.Form):
         special_issue_id = kwargs.pop("special_issue_id")
         super().__init__(*args, **kwargs)
         if not self.data.get("type_of_new_articles", None):
-            special_issue = SpecialIssue.objects.get(pk=special_issue_id)
-            queryset = special_issue.allowed_sections.all()
+            special_issue = Issue.objects.get(pk=special_issue_id)
+            if special_issue.allowed_sections.exists():
+                queryset = special_issue.allowed_sections.all()
+            else:
+                queryset = Section.objects.filter(journal=special_issue.journal)
             self.fields["type_of_new_articles"].queryset = queryset
             self.fields["type_of_new_articles"].initial = queryset.first()
         else:
@@ -393,21 +346,6 @@ class IMUHelperForm(forms.Form):
         empty_value=None,
     )
     title = forms.CharField(max_length=999, required=False, strip=True, empty_value=None)
-
-
-class SIUpdateForm(forms.ModelForm):
-    class Meta:
-        model = SpecialIssue
-        # same fields as SICreate; do not add "documents": they are dealt with "manually"
-
-        fields = ["name", "short_name", "description", "open_date", "close_date", "journal", "allowed_sections"]
-
-    def __init__(self, *args, **kwargs):
-        """Filter sections to show only sections of the special issue's journal."""
-        super().__init__(*args, **kwargs)
-        self.fields["allowed_sections"].queryset = Section.objects.filter(
-            journal=self.instance.journal,
-        )
 
 
 class NewsletterTopicForm(forms.ModelForm):

@@ -8,9 +8,8 @@ profile instance must be created as well.
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from submission.models import Article
 
-from wjs.jcom_profile.models import ArticleWrapper, JCOMProfile
+from wjs.jcom_profile.models import JCOMProfile
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
@@ -24,11 +23,3 @@ def create_profile_handler(sender, instance, created, **kwargs):
     # It ensures no django magic is applied because we are basically creating a duplicate of the original data.
     # https://stackoverflow.com/questions/9821935/django-model-inheritance-create-a-subclass-using-existing-super-class
     return JCOMProfile(janeway_account=instance).save_base(raw=True)
-
-
-@receiver(post_save, sender=Article)
-def create_articlewrapper_handler(sender, instance, created, **kwargs):
-    """Create a record in our ArticleWrapper when any Article is newly created."""
-    if not created:
-        return
-    ArticleWrapper.objects.get_or_create(janeway_article=instance)

@@ -21,7 +21,7 @@
       {% include "wjs_review/lists/elements/table_item_status.html" with publish_status=True %}
     </td>
     <td>
-      {{ article.articlewrapper.special_issue|default_if_none:"" }}
+      {{ article.primary_issue|default_if_none:"" }}
     </td>
     <td title="latest personal note">
       {% last_user_note target=workflow.article as note %}

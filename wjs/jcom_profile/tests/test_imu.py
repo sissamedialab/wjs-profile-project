@@ -47,11 +47,11 @@ def test_si_imu_upload_one_existing_one_new(
     client,
     admin,
     existing_user,
-    fb_special_issue,
+    special_issue,
 ):
     """Upload a sheet with one-existing / one-new authors."""
     client.force_login(admin)
-    url = reverse("si-imu-1", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-1", kwargs={"pk": special_issue.id})
 
     # foglio 1: "Main session" + 2 contributi diversi (diversi autori e
     # titolo). Il primo autore è già presente nel DB.
@@ -72,7 +72,7 @@ def test_si_imu_upload_one_existing_one_new(
         "data_file": ods,
         "create_articles_on_import": "on",
         "match_euristic": "optimistic",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
     }
     response = client.post(url, data)
 
@@ -106,14 +106,14 @@ def test_si_imu_upload_two_identical_lines(
     client,
     admin,
     existing_user,
-    fb_special_issue,
+    special_issue,
 ):
     """Detect two identical contributions (same title and author).
 
     Refuse to process the second.
     """
     client.force_login(admin)
-    url = reverse("si-imu-1", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-1", kwargs={"pk": special_issue.id})
 
     # foglio 2: "Main session" + 2 contributi uguali tra loro (stesso
     # autore e titolo). L'autore è già presente nel DB.
@@ -141,7 +141,7 @@ def test_si_imu_upload_two_identical_lines(
         "data_file": ods,
         "create_articles_on_import": "on",
         "match_euristic": "optimistic",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
     }
     response = client.post(url, data)
 
@@ -178,7 +178,7 @@ def test_si_imu_upload_iequal_emails(
     client,
     admin,
     existing_user,
-    fb_special_issue,
+    special_issue,
 ):
     """Suggestions based on email should be case-insensitive.
 
@@ -187,7 +187,7 @@ def test_si_imu_upload_iequal_emails(
     (uppercase/lowercase).
     """
     client.force_login(admin)
-    url = reverse("si-imu-1", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-1", kwargs={"pk": special_issue.id})
 
     case_changed_email = existing_user.email.upper()
     foglio = (
@@ -207,7 +207,7 @@ def test_si_imu_upload_iequal_emails(
         "data_file": ods,
         "create_articles_on_import": "on",
         "match_euristic": "optimistic",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
     }
     response = client.post(url, data)
 
@@ -240,7 +240,7 @@ def test_si_imu_upload_new_author_two_contributions(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue,
 ):
     """Two different contribution from the same author not present in the DB.
 
@@ -251,7 +251,7 @@ def test_si_imu_upload_new_author_two_contributions(
     is checked elsewhere.
     """
     client.force_login(admin)
-    url = reverse("si-imu-1", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-1", kwargs={"pk": special_issue.id})
 
     foglio = (
         ("Main session", None, None, None, None, None),
@@ -263,7 +263,7 @@ def test_si_imu_upload_new_author_two_contributions(
         "data_file": ods,
         "create_articles_on_import": "on",
         "match_euristic": "optimistic",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
     }
     response = client.post(url, data)
 
@@ -296,7 +296,7 @@ def test_si_imu_upload_new_author_two_contributions_iequal_emails(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue,
 ):
     """Two different contribution from the same author not present in the DB.
 
@@ -308,7 +308,7 @@ def test_si_imu_upload_new_author_two_contributions_iequal_emails(
     is checked elsewhere.
     """
     client.force_login(admin)
-    url = reverse("si-imu-1", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-1", kwargs={"pk": special_issue.id})
 
     foglio = (
         ("Main session", None, None, None, None, None),
@@ -320,7 +320,7 @@ def test_si_imu_upload_new_author_two_contributions_iequal_emails(
         "data_file": ods,
         "create_articles_on_import": "on",
         "match_euristic": "optimistic",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
     }
     response = client.post(url, data)
 
@@ -363,7 +363,7 @@ def test_si_imu_upload_two_authors_same_email_different_metadata(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue,
     wrong_data,
 ):
     """Two different contribution from the same author not present in the DB.
@@ -373,7 +373,7 @@ def test_si_imu_upload_two_authors_same_email_different_metadata(
     process the second.
     """
     client.force_login(admin)
-    url = reverse("si-imu-1", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-1", kwargs={"pk": special_issue.id})
 
     foglio = [
         ("Main session", None, None, None, None, None),
@@ -387,7 +387,7 @@ def test_si_imu_upload_two_authors_same_email_different_metadata(
         "data_file": ods,
         "create_articles_on_import": "on",
         "match_euristic": "optimistic",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
     }
     response = client.post(url, data)
 
@@ -424,15 +424,15 @@ def test_si_imu_new_author_and_contribution(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue,
 ):
     """Create new account and contribution."""
     client.force_login(admin)
-    url = reverse("si-imu-2", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-2", kwargs={"pk": special_issue.id})
     data = {
         "tot_lines": "1",
         "create_articles_on_import": "on",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
         "first_name_0": "Novicius",
         "middle_name_0": "",
         "last_name_0": "Fabulator",
@@ -447,9 +447,14 @@ def test_si_imu_new_author_and_contribution(
     # The new user has been created
     author = Account.objects.get(email=data["email_0"])
 
-    # The new article has been created, the new user is the owner
-    article = Article.objects.first()
+    response_content = response.content.decode()
+    html = lxml.html.fromstring(response_content)
+    # extract article id from the page output;
+    # new articles are listed as ...NEW - 4 - Title...
+    article_id = html.xpath('substring-before(substring-after(., "NEW - "), " - ")')
 
+    # The new article has been created, the existing user is the owner
+    article = Article.objects.get(pk=article_id)
     assert article.owner == author
 
 
@@ -458,16 +463,16 @@ def test_si_imu_new_author_same_as_exising(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue,
     existing_user,
 ):
     """Choose "new" for an account with the same email as an existing one is the same as choosing "DB"."""
     client.force_login(admin)
-    url = reverse("si-imu-2", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-2", kwargs={"pk": special_issue.id})
     data = {
         "tot_lines": "1",
         "create_articles_on_import": "on",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
         "first_name_0": existing_user.first_name,
         "middle_name_0": existing_user.middle_name or "",
         "last_name_0": existing_user.last_name,
@@ -482,8 +487,13 @@ def test_si_imu_new_author_same_as_exising(
     # The new user has been created
     author = Account.objects.get(email=data["email_0"])
 
-    # The new article has been created, the new user is the owner
-    article = Article.objects.first()
+    response_content = response.content.decode()
+    html = lxml.html.fromstring(response_content)
+    # extract article id from the page output
+    article_id = html.xpath('substring-before(substring-after(., "NEW - "), " - ")')
+
+    # The new article has been created, the existing user is the owner
+    article = Article.objects.get(pk=article_id)
     assert article.owner == author
 
 
@@ -494,12 +504,12 @@ def test_si_imu_new_author_same_as_exising_but_different_data(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue_without_articles,
     existing_user,
 ):
     """Choosing "new" for an account with the same email as an existing but with some different data causes error."""
     client.force_login(admin)
-    url = reverse("si-imu-2", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-2", kwargs={"pk": special_issue_without_articles.id})
     messedup_data = [
         existing_user.first_name,
         existing_user.middle_name,
@@ -511,7 +521,7 @@ def test_si_imu_new_author_same_as_exising_but_different_data(
     data = {
         "tot_lines": "1",
         "create_articles_on_import": "on",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue_without_articles.allowed_sections.first().id,
         "first_name_0": messedup_data[0],
         "middle_name_0": messedup_data[1] or "",
         "last_name_0": messedup_data[2],
@@ -549,7 +559,7 @@ def test_si_imu_edit_exising(
     journal,
     client,
     admin,
-    fb_special_issue,
+    special_issue,
     existing_user,
     modified_data,
 ):
@@ -557,7 +567,7 @@ def test_si_imu_edit_exising(
 
     The existing user is not yet modified."""
     client.force_login(admin)
-    url = reverse("si-imu-2", kwargs={"pk": fb_special_issue.id})
+    url = reverse("si-imu-2", kwargs={"pk": special_issue.id})
     new_data = [
         existing_user.first_name,
         existing_user.middle_name,
@@ -569,7 +579,7 @@ def test_si_imu_edit_exising(
     data = {
         "tot_lines": "1",
         "create_articles_on_import": "on",
-        "type_of_new_articles": fb_special_issue.allowed_sections.first().id,
+        "type_of_new_articles": special_issue.allowed_sections.first().id,
         "first_name_0": new_data[0],
         "middle_name_0": new_data[1] or "",
         "last_name_0": new_data[2],
@@ -600,8 +610,10 @@ def test_si_imu_edit_exising(
     expected_text = existing_user_data[modified_data.where]
     if expected_text is not None:
         assert html.xpath(f".//td[text()='{expected_text}']")
+    # extract article id from the page output
+    article_id = html.xpath('substring-before(substring-after(., "EDIT - "), " - ")')
 
     # The new article has been created, the existing user is the owner
-    article = Article.objects.first()
+    article = Article.objects.get(pk=article_id)
     # NB: existing_user is a JCOMProfile, not a core.Account!
     assert article.owner == existing_user.janeway_account
