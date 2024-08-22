@@ -88,3 +88,5 @@ Q_CLUSTER = {
     "timeout": 60,
     "sync": True,
 }
+
+JCOMASSISTANT_MOCK_FILE = ""

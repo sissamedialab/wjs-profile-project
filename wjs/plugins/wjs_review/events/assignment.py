@@ -29,10 +29,11 @@ def get_special_issue_parameters(article):
     :param article: The assigned article.
     :return: The Editor assignment parameters for a special issue article.
     """
-    return EditorAssignmentParameters.objects.filter(
-        journal=article.journal,
-        editor__in=article.articlewrapper.special_issue.editors.all(),
-    )
+    if article.primary_issue:
+        return EditorAssignmentParameters.objects.filter(
+            journal=article.journal,
+            editor__in=article.primary_issue.editors.all(),
+        )
 
 
 def default_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]:
@@ -40,7 +41,7 @@ def default_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignmen
     from ..logic import BaseAssignToEditor
 
     article = kwargs["article"]
-    if article.articlewrapper.special_issue and article.articlewrapper.special_issue.editors:
+    if article.primary_issue and article.primary_issue.editors:
         parameters = get_special_issue_parameters(article)
     else:
         editors = AccountRole.objects.filter(
@@ -63,7 +64,7 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
 
     article = kwargs["article"]
 
-    if article.articlewrapper.special_issue and article.articlewrapper.special_issue.editors:
+    if article.primary_issue and article.primary_issue.editors:
         parameters = get_special_issue_parameters(article)
     else:
         directors = AccountRole.objects.filter(

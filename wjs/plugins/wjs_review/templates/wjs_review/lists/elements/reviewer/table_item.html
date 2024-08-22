@@ -30,7 +30,7 @@
       {% endif %}
     </td>
     <td>
-      {{ article.articlewrapper.special_issue|default_if_none:"" }}
+      {{ article.primary_issue|default_if_none:"" }}
     </td>
     <td class="align-bottom position-relative {% if attention_flag %}fw-bolder{% endif %}">
       {% if review %}

@@ -72,8 +72,8 @@
                         </tr>
                         <tr>
                             <td colspan="3">
-                                {% if article.articlewrapper.special_issue.name %}
-                                    {{ article.articlewrapper.special_issue }}
+                                {% if article.primary_issue %}
+                                    {{ article.primary_issue }}
                                 {% else %}
                                     Normal Issue
                                 {% endif %}

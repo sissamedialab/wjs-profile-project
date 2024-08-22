@@ -24,6 +24,7 @@ from journal import models as journal_models
 from journal.models import Issue, IssueType
 from press.models import Press
 from submission import models as submission_models
+from submission.models import Section
 from utils import setting_handler
 from utils.install import (
     update_emails,
@@ -58,11 +59,9 @@ from wjs.jcom_profile.factories import (
     yesterday,
 )
 from wjs.jcom_profile.models import (
-    ArticleWrapper,
     EditorAssignmentParameters,
     EditorKeyword,
     JCOMProfile,
-    SpecialIssue,
 )
 from wjs.jcom_profile.utils import create_rich_fake_request, generate_token
 
@@ -712,19 +711,25 @@ def editors(roles, journal):
 
 
 @pytest.fixture
-def special_issue(article, editors, journal, director_role):
-    special_issue = SpecialIssue.objects.create(
-        name="Special issue",
+def special_issue(article, special_issue_without_articles):
+    article.primary_issue = special_issue_without_articles
+    article.save()
+
+    return special_issue_without_articles
+
+
+@pytest.fixture
+def special_issue_without_articles(editors, journal, director_role, sections):
+    special_issue = Issue.objects.create(
+        issue_title="Special issue",
         short_name="special-issue",
         journal=journal,
-        open_date=timezone.now(),
-        close_date=timezone.now() + timezone.timedelta(1),
+        date_open=timezone.now() - timezone.timedelta(days=1),
+        date_close=timezone.now() + timezone.timedelta(days=1),
+        issue_type=IssueType.objects.get(journal=journal, code="collection"),
     )
+    special_issue.allowed_sections.set(Section.objects.filter(journal=journal).order_by("?")[:3])
     special_issue.editors.set(editors)
-
-    article_wrapper = ArticleWrapper.objects.get(janeway_article=article)
-    article_wrapper.special_issue = special_issue
-    article_wrapper.save()
 
     return special_issue
 
@@ -801,8 +806,8 @@ pytest_factoryboy.register(SpecialIssueFactory, "fb_special_issue")
 pytest_factoryboy.register(
     SpecialIssueFactory,
     "open_special_issue",
-    open_date=factory.LazyFunction(yesterday),
-    close_date=None,
+    date_open=factory.LazyFunction(yesterday),
+    date_close=None,
 )
 pytest_factoryboy.register(IssueFactory, "fb_issue")
 pytest_factoryboy.register(SectionFactory)

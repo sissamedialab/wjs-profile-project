@@ -196,6 +196,7 @@ def test_gdpr_acceptance_for_non_existing_user(admin, journal):
     assert response.context.get("error")
 
 
+@pytest.mark.xfail(reason="user_automatically_main_author setting must be implemented in janeway")
 @pytest.mark.parametrize("user_as_main_author", (True, False))
 @pytest.mark.django_db
 def test_submitting_user_is_main_author_when_setting_is_on(

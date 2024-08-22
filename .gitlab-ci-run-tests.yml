@@ -1,7 +1,6 @@
 .run-tests:
   stage: test
-  # FIXME: This must be reverted to develop tag once 1.6.0 MR has been merged
-  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:1.6.0-20240623
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
 
   # NB: Must match with test_settings.DATABASES
   variables:

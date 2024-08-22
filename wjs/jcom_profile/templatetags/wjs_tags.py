@@ -3,44 +3,22 @@
 import pycountry
 from core.models import Account
 from django import template
-from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
-from journal import logic as journal_logic
 from journal.models import Issue
-from submission.models import STAGE_PUBLISHED, Article, Keyword
 
-from wjs.jcom_profile.models import SpecialIssue
 from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
 register = template.Library()
 
 
-@register.simple_tag
-def journal_has_open_si(journal):
-    """Return true if this journal has any special issue open for submission."""
-    # The timeline.html template should show/hide the SI step as
-    # necessary.
-    has_open_si = SpecialIssue.objects.current_journal().open_for_submission().current_user().exists()
-    return has_open_si
-
-
 @register.filter
 def keyvalue(dictionary, key):
     """Return the value of dict[key]."""
     return dictionary[key]
-
-
-@register.filter
-def article(article_wrapper):
-    """Return the article wrapped by the given article_wrapper."""
-    # I don't know why, but simply calling
-    # `article_wrapper.janeway_article` results in an error
-    # `'ArticleWrapper' object has no attribute 'id'`
-    return Article.objects.get(pk=article_wrapper.janeway_article_id)
 
 
 @register.filter
@@ -151,25 +129,6 @@ def description(article):
     # To avoid truncated words at the end of the string, drop the characters after the last space
     # This splits shorter_abstract on spaces into words, takes all but the last word, and rejoins them with spaces.
     return " ".join(shorter_abstract.split(" ")[:-1])
-
-
-@register.simple_tag(takes_context=True)
-def search_form(context):
-    request = context["request"]
-
-    keyword_limit = 20
-    popular_keywords = (
-        Keyword.objects.filter(
-            article__journal=request.journal,
-            article__stage=STAGE_PUBLISHED,
-            article__date_published__lte=timezone.now(),
-        )
-        .annotate(articles_count=Count("article"))
-        .order_by("-articles_count")[:keyword_limit]
-    )
-
-    search_term, keyword, sort, form, redir = journal_logic.handle_search_controls(request)
-    return {"form": form, "all_keywords": popular_keywords}
 
 
 @register.filter
