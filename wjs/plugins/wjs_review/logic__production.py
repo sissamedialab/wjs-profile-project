@@ -1063,13 +1063,13 @@ class TypesetterTestsGalleyGeneration:
         """
         Use Jcom Assistent to render the galleys and attach them to the article.
 
-        If settings.JCOMASSISTANT_MOCK is set, use the path as a mock response file instead of contacting
+        If settings.JCOMASSISTANT_MOCK_FILE is set, use the path as a mock response file instead of contacting
         the JCOM Assistant service.
         """
         # TODO: wrap in try/except and contact typ on errors
         # e.g. ConnectionError janeway-services.ud.sissamedialab.it Name or service not known
         if settings.JCOMASSISTANT_MOCK_FILE:
-            return self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK)
+            return self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
         response = self._jcom_assistant_client()
         galleys_created = AttachGalleys(
             archive_with_galleys=response.content,
