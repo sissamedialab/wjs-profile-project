@@ -1,4 +1,4 @@
 {% extends "django_bootstrap5/bootstrap5.html" %}
 {% block bootstrap5_title %}
-    {% block title %}{% endblock title %}
+    {% block title %}{% firstof view.page_title view.title %}{% endblock title %} - {{ journal.name }}
 {% endblock bootstrap5_title %}

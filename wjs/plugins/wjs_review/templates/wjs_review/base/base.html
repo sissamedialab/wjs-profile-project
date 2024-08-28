@@ -20,6 +20,15 @@
       <nav class="container mb-3">
         <ul class="nav breadcrumbs">
           {% block breadcrumbs %}
+            {% if view.breadcrumbs %}
+              {% for link in view.breadcrumbs %}
+                {% include "wjs_review/base/elements/breadcrumb_items.html" with url=link.url title=link.title current=link.current %}
+              {% endfor %}
+            {% else %}
+              <div class="text-bg-warning">
+                DEFINE <span class="font-monospace">block breadcrumbs</span> in {{ view.template_name }}
+              </div>
+            {% endif %}
           {% endblock breadcrumbs %}
         </ul>
       </nav>

@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
 from core import files as core_files
@@ -106,6 +106,10 @@ from .models import (
 )
 from .prophy import Prophy
 
+if TYPE_CHECKING:
+    from .custom_types import BreadcrumbItem
+
+
 logger = get_logger(__name__)
 Account = get_user_model()
 
@@ -120,23 +124,60 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return base_permissions.has_eo_role(self.request.user)
 
 
-class BaseRelatedViewsMixin:
-    related_views: Dict[str, str] = {}
+class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
+    related_views: Dict[str, Dict[str, str]] = {
+        "eo": {
+            "wjs_review_eo_pending": _("Pending preprints"),
+            "wjs_review_eo_archived": _("Archived preprints"),
+            "wjs_review_eo_production": _("Production"),
+            "wjs_review_eo_workon": _("Search preprints"),
+            "wjs_review_eo_issues_list": _("Pending Issues"),
+        },
+        "director": {
+            "wjs_review_director_pending": _("Pending preprints"),
+            "wjs_review_director_archived": _("Archived preprints"),
+            "wjs_review_director_workon": _("Search preprints"),
+            "wjs_review_director_issues_list": _("Pending Issues"),
+        },
+        "editor": {
+            "wjs_review_list": _("Pending preprints"),
+            "wjs_review_archived_papers": _("Archived preprints"),
+            "wjs_review_editor_issues_list": _("Pending Issues"),
+        },
+        "author": {
+            "wjs_review_author_pending": _("Pending preprints"),
+            "wjs_review_author_archived": _("Archived preprints"),
+        },
+        "reviewer": {
+            "wjs_review_reviewer_pending": _("Pending preprints"),
+            "wjs_review_reviewer_archived": _("Archived preprints"),
+        },
+        "typesetter": {
+            "wjs_review_typesetter_pending": _("Pending preprints"),
+            "wjs_review_typesetter_workingon": _("Working on"),
+            "wjs_review_typesetter_archived": _("Archived preprints"),
+        },
+    }
     extra_links: Dict[str, str]
+    role = None
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
-        self.extra_links = {
-            reverse(view_name): title
-            for view_name, title in self.related_views.items()
-            if not self._check_current_view(self.request.journal, view_name, self.request)
-        }
+        if self.role:
+            request.session["role"] = self.role
+        current_role = request.session.get("role", self.role)
+        if current_role:
+            self.extra_links = {
+                reverse(view_name): title
+                for view_name, title in self.related_views[current_role].items()
+                if self._is_available_related_view(self.request.journal, view_name, self.request)
+            }
+        else:
+            self.extra_links = {}
 
-    def _check_current_view(self, journal: Journal, view_name: str, request: HttpRequest) -> bool:
+    def _is_available_related_view(self, journal: Journal, view_name: str, request: HttpRequest) -> bool:
         """
-        Check if the current view is the one passed as argument.
-
-        We don't use request.resolver_match to make tests easier
+        Check if the related view is accessible by the user (and it's not the current one).
         """
         url = reverse(view_name)
         if settings.URL_CONFIG == "path":
@@ -146,16 +187,15 @@ class BaseRelatedViewsMixin:
         # Using __class__ instead of isinstance because derived views are always instances of the base (pending) view
         # and we want to check the exact class.
         view_matches_current_url = self.__class__ == view_class
-        if hasattr(view_class, "test_func"):
-            view_object = view_class()
-            view_object.request = request
-            user_has_permission = view_object.test_func()
-        else:
-            user_has_permission = True
-        return view_matches_current_url and user_has_permission
+        view_object = view_class()
+        view_object.request = self.request
+        view_object.kwargs = self.kwargs
+        view_object.args = self.args
+        user_has_permission = view_object.test_func()
+        return not view_matches_current_url and user_has_permission
 
 
-class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin):
+class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
     model = ArticleWorkflow
     filterset_class = None
     filterset: Optional[django_filters.FilterSet]
@@ -206,22 +246,21 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin):
         return context
 
 
-class EditorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, ListView):
+class EditorPending(ArticleWorkflowBaseMixin):
     """Editor's main page."""
 
     title = _("Pending preprints")
-    role = _("Editor")
+    role = "editor"
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/editor/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
-    related_views = {
-        "wjs_review_list": _("Pending preprints"),
-        "wjs_review_archived_papers": _("Archived preprints"),
-        "wjs_review_editor_issues_list": _("Pending Issues"),
-    }
     table_configuration_options = {"show_filter_editor": False, "show_filter_reviewer": True, "table_type": "review"}
     """See :py:attr:`EOPending.table_configuration_options` for details."""
+
+    def test_func(self):
+        """Allow access only for Editors of this Journal"""
+        return base_permissions.has_section_editor_role(self.request.journal, self.request.user)
 
     def _apply_base_filters(self, qs):
         """
@@ -257,23 +296,16 @@ class EditorArchived(EditorPending):
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(state_past | past_assignment)
 
 
-class EOPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class EOPending(ArticleWorkflowBaseMixin):
     """EO's main page."""
 
     title = _("Pending preprints")
-    role = _("EO")
+    role = "eo"
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/eo/table.html"
     filterset_class = EOArticleWorkflowFilter
     filterset: EOArticleWorkflowFilter
     ordering = ["-article__date_submitted"]
-    related_views = {
-        "wjs_review_eo_pending": _("Pending preprints"),
-        "wjs_review_eo_archived": _("Archived preprints"),
-        "wjs_review_eo_production": _("Production"),
-        "wjs_review_eo_workon": _("Search preprints"),
-        "wjs_review_eo_issues_list": _("Pending Issues"),
-    }
     table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
     """
     Configuration options for the table.
@@ -340,7 +372,7 @@ class EOProduction(EOPending):
         )
 
 
-class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class EOWorkOnAPaper(EOPending):
     """Search tool for EO."""
 
     title = _("Search preprints")
@@ -358,7 +390,7 @@ class EOWorkOnAPaper(EOPending, LoginRequiredMixin, UserPassesTestMixin, ListVie
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).order_by("-article__date_submitted")
 
 
-class BaseWorkOnIssue(BaseRelatedViewsMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
     """View to list pending issues.
 
     "Pending" here means that the date of the issue if greater of equal to today.
@@ -369,7 +401,7 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, LoginRequiredMixin, UserPassesTestM
     """
 
     title = _("Pending Issues")
-    role = _("Director")
+    role = "director"
     model = Issue
     template_name = "wjs_review/lists/issue_list.html"
     template_table = "wjs_review/lists/elements/issue/table.html"
@@ -385,14 +417,7 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, LoginRequiredMixin, UserPassesTestM
 
 
 class EOWorkOnIssue(BaseWorkOnIssue):
-    role = _("EO")
-    related_views = {
-        "wjs_review_eo_pending": _("Pending"),
-        "wjs_review_eo_archived": _("Archived"),
-        "wjs_review_eo_production": _("Production"),
-        "wjs_review_eo_workon": _("Work on a paper"),
-        "wjs_review_eo_issues_list": _("Pending Issues"),
-    }
+    role = "eo"
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -400,13 +425,7 @@ class EOWorkOnIssue(BaseWorkOnIssue):
 
 
 class DirectorWorkOnIssue(BaseWorkOnIssue):
-    role = _("Director")
-    related_views = {
-        "wjs_review_director_pending": _("Pending"),
-        "wjs_review_director_archived": _("Archived"),
-        "wjs_review_director_workon": _("Work on a paper"),
-        "wjs_review_director_issues_list": _("Pending Issues"),
-    }
+    role = "director"
 
     def test_func(self):
         """Allow access only to director."""
@@ -414,12 +433,7 @@ class DirectorWorkOnIssue(BaseWorkOnIssue):
 
 
 class EditorWorkOnIssue(BaseWorkOnIssue):
-    role = _("Editor")
-    related_views = {
-        "wjs_review_list": _("Pending"),
-        "wjs_review_archived_papers": _("Archived"),
-        "wjs_review_editor_issues_list": _("Pending Issues"),
-    }
+    role = "editor"
 
     def test_func(self):
         """Allow access only to director."""
@@ -431,21 +445,15 @@ class EditorWorkOnIssue(BaseWorkOnIssue):
         return queryset
 
 
-class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class DirectorPending(ArticleWorkflowBaseMixin):
     """Director's main page."""
 
     title = _("Pending preprints")
-    role = _("Director")
+    role = "director"
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/director/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
-    related_views = {
-        "wjs_review_director_pending": _("Pending preprints"),
-        "wjs_review_director_archived": _("Archived preprints"),
-        "wjs_review_director_workon": _("Search preprints"),
-        "wjs_review_director_issues_list": _("Pending Issues"),
-    }
     table_configuration_options = {
         "show_filter_editor": True,
         "show_filter_reviewer": True,
@@ -494,7 +502,7 @@ class DirectorArchived(DirectorPending):
         )
 
 
-class DirectorWorkOnAPaper(DirectorPending, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class DirectorWorkOnAPaper(DirectorPending):
     """Search tool for Director."""
 
     title = _("Search preprints")
@@ -512,19 +520,15 @@ class DirectorWorkOnAPaper(DirectorPending, LoginRequiredMixin, UserPassesTestMi
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).order_by("-article__date_submitted")
 
 
-class AuthorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class AuthorPending(ArticleWorkflowBaseMixin):
     """Author's main page."""
 
     title = _("Pending preprints")
-    role = _("Author")
+    role = "author"
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/author/table.html"
     filterset_class = AuthorArticleWorkflowFilter
     filterset: AuthorArticleWorkflowFilter
-    related_views = {
-        "wjs_review_author_pending": _("Pending preprints"),
-        "wjs_review_author_archived": _("Archived preprints"),
-    }
     show_filters = False
     table_configuration_options = {}
     """See :py:attr:`EOPending.table_configuration_options` for details."""
@@ -569,19 +573,15 @@ class AuthorArchived(AuthorPending):
         )
 
 
-class ReviewerPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class ReviewerPending(ArticleWorkflowBaseMixin):
     """Reviewer's main page."""
 
     title = _("Pending preprints")
-    role = _("Reviewer")
+    role = "reviewer"
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/reviewer/table.html"
     filterset_class = ReviewerArticleWorkflowFilter
     filterset: ReviewerArticleWorkflowFilter
-    related_views = {
-        "wjs_review_reviewer_pending": _("Pending preprints"),
-        "wjs_review_reviewer_archived": _("Archived preprints"),
-    }
     show_filters = False
     table_configuration_options = {"reviewer_status": True, "show_filter_editor": True, "show_filter_author": False}
     """See :py:attr:`EOPending.table_configuration_options` for details."""
@@ -623,6 +623,7 @@ class ReviewerArchived(ReviewerPending):
         )
 
 
+# FIXME: Drop this, no longer needed
 class UpdateState(LoginRequiredMixin, UpdateView):
     model = ArticleWorkflow
     form_class = ArticleReviewStateForm
@@ -675,13 +676,24 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
     """
 
     title = _("Select reviewer")
-    related_views = {
-        "wjs_review_list": _("Pending preprints"),
-        "wjs_review_archived_papers": _("Archived preprints"),
-    }
     model = ArticleWorkflow
     form_class = SelectReviewerForm
     context_object_name = "workflow"
+
+    @property
+    def page_title(self):
+        return f"{self.title} for {self.object.article.title}"
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(
+                url=reverse("wjs_select_reviewer", kwargs={"pk": self.object.pk}), title=self.title, current=True
+            ),
+        ]
 
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.pk,))
@@ -870,7 +882,8 @@ class InviteReviewer(HtmxMixin, LoginRequiredMixin, ArticleAssignedEditorMixin, 
             return super().form_invalid(form)
 
 
-class ArticleDetails(UserPassesTestMixin, HtmxMixin, DetailView):
+class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
+    title = _("Article status")
     model = ArticleWorkflow
     template_name = "wjs_review/details/articleworkflow_detail.html"
     context_object_name = "workflow"
@@ -890,20 +903,14 @@ class ArticleDetails(UserPassesTestMixin, HtmxMixin, DetailView):
             permission_type=PermissionAssignment.PermissionType.NO_NAMES,
         )
 
+    @property
+    def page_title(self):
+        return f"{self.title}: {self.object.article.title}"
+
     def get_template_names(self):
         if self.htmx:
             return ["wjs_review/details/sections/timeline.html"]
         return super().get_template_names()
-
-    @property
-    def extra_links(self):
-        preprintid = self.object.article.get_identifier("preprintid")
-        if not preprintid:
-            preprintid = self.object.article_id
-        return {
-            "javascript:history.back()": _("Back to list"),
-            reverse("wjs_article_details", kwargs={"pk": self.kwargs["pk"]}): preprintid,
-        }
 
     def get_form(self, data=None):
         form = self.form_class(data)
@@ -1583,14 +1590,14 @@ class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixi
         return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
 
 
-class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
+    title = _("Submit Revision")
     model = EditorRevisionRequest
     form_class = EditorRevisionRequestEditForm
     pk_url_kwarg = "revision_id"
     template_name = "wjs_review/revision/revision_form.html"
     context_object_name = "revision_request"
     meta_data_fields = ["title", "abstract"]
-    title = _("Submit Revision")
 
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
@@ -1603,6 +1610,29 @@ class ArticleRevisionUpdate(UserPassesTestMixin, LoginRequiredMixin, UpdateView)
             pk=self.kwargs[self.pk_url_kwarg],
             article__correspondence_author=self.request.user,
         ).exists()
+
+    @property
+    def page_title(self):
+        return f"{self.title} for {self.object.article.title}"
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}),
+                title=self.object.article.articleworkflow,
+            ),
+            BreadcrumbItem(
+                url=reverse(
+                    "do_revisions",
+                    kwargs={"article_id": self.object.article.articleworkflow.pk, "revision_id": self.object.pk},
+                ),
+                title=self.title,
+                current=True,
+            ),
+        ]
 
     def _get_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         return WorkflowReviewAssignment.objects.filter(
@@ -1881,7 +1911,7 @@ class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return initial
 
 
-class SupervisorAssignEditor(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
     """
     If the user is an editor of a special issue, they will be able to assign the paper to a different editor
     """

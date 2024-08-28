@@ -127,3 +127,16 @@ class ReviewAssignmentAttentionCondition:
     def icon(self, value):
         """Set the icon value to the internal attribute."""
         self.icon_value = value
+
+
+class BreadcrumbItem(NamedTuple):
+    """
+    Breadcrumb item.
+    """
+
+    url: str
+    """URL of the breadcrumb item."""
+    title: str
+    """Title of the breadcrumb item."""
+    current: bool = False
+    """If breadcrumb is the current view."""
