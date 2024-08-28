@@ -800,7 +800,7 @@ class AttachGalleys:
         self.path = unpack_dir
         return self.path
 
-    def reemit_info_and_up(self, unpack_dir: Path) -> None:
+    def reemit_info_and_up(self, unpack_dir: Path) -> bool:
         """Emit as log messages lines read from the given log file.
 
         Expect the logfile to contain log-formatted lines suchs as:
@@ -808,7 +808,7 @@ class AttachGalleys:
 
         Re-emit only info, wraning, error and critical.
 
-        Also return if any error or critical was found.
+        Also return if any error or critical was found (return True if all is good).
         """
         has_error_or_critical = False
         # log files are called something like
@@ -819,6 +819,8 @@ class AttachGalleys:
         srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
         if len(srvc_log_files) != 1:
             logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
+            if len(srvc_log_files) == 0:
+                return True
         srvc_log_file = srvc_log_files[0]
         with open(srvc_log_file) as log_file:
             for line in log_file:
@@ -987,7 +989,6 @@ class AttachGalleys:
             galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
 
         else:
-            import ipdb; ipdb.set_trace()
             galleys_created = [self.save_epub(), self.save_html(), self.save_pdf()]
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
             self.article.articleworkflow.save()
