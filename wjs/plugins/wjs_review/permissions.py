@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 
 from django.contrib.auth import get_user_model
+from django.utils.timezone import now
+from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
 
@@ -350,10 +352,41 @@ def is_special_issue_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     :return: True if the user is the editor of the special issue.
     :rtype: bool
     """
-    is_article_special_issue = instance.article.issues.filter(issue_type__code="collection").exists()
-    # FIXME: This is wrong, but first we must set up the special issues properly
-    is_special_issue_editor = is_article_editor(instance, user)
-    return is_article_special_issue and is_special_issue_editor
+
+    is_special_issue_editor = instance.article.issues.filter(managing_editors=user).exists()
+    return is_special_issue_editor
+
+
+def is_any_special_issue_editor(journal: Journal, user: Account) -> bool:
+    """
+    Check if the user is the editor of any special issue.
+
+    :param journal: An instance of the Journal to check for special issues
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is the editor of any special issue.
+    :rtype: bool
+    """
+    return journal.issues.filter(managing_editors=user).exists()
+
+
+def is_any_open_special_issue_editor(journal: Journal, user: Account) -> bool:
+    """
+    Check if the user is the editor of any unpublished special issue.
+
+    :param journal: An instance of the Journal to check for special issues
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is the editor of any special issue.
+    :rtype: bool
+    """
+    return journal.issues.filter(managing_editors=user, date__lte=now()).exists()
 
 
 def has_typesetter_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:

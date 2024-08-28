@@ -7,25 +7,7 @@
   </h2>
   <div id="collapse-additional-info" class="accordion-collapse collapse" aria-labelledby="heading-additional-info" data-bs-parent="#metadata">
     <div class="accordion-body">
-      <table class="table">
-        {% journal_with_language_content journal=article.journal as show_english_titles %}
-        {% if show_english_titles %}
-        <tr>
-          <td>{% translate "English title" %}</td><td>{{ article.title_en|default:"" }}</td>
-        </tr>
-        <tr>
-          <td>{% translate "English abstract" %}</td><td>{{ article.abstract_en|default:"" }}</td>
-        </tr>
-        {% endif %}
-        <tr>
-          <td>{% translate "Short description" %}</td><td>{{ article.articleworkflow.social_media_short_description|default:"" }}</td>
-        </tr>
-
-        <tr>
-          <td>{% translate "Image" %}</td>
-          <td>{% if article.meta_image %}<img src="{{ article.meta_image.url }}" title="{{ article }} cover image" width="100" alt="{% translate "Article cover image" %}"><br><a href="{{ article.meta_image.url }}"" target="_blank">Download image</a>{% endif %}</td>
-        </tr>
-      </table>
+      {% include "wjs_review/shared/elements/article_additional_social_files.html" %}
     </div>
   </div>
 </div>

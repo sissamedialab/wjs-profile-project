@@ -1,0 +1,22 @@
+<table class="table table-striped">
+  <tr>
+    <th>{% translate "Image" %}</th>
+    <td>{% if issue.cover_image %}<img src="{{ issue.cover_image.url }}" alt="" title="{% translate "Cover image" %}">{% endif %}</td>
+  </tr>
+  <tr>
+    <th>{% translate "Description" %}</th>
+    <td>{{ issue_description|safe }}</td>
+  </tr>
+  <tr>
+  <th>{% translate "Others" %}</th>
+  <td>
+    <ul class="list-group">
+      {% for file in issue.documents.all %}
+        <li class="list-group-item">
+          <a href="{% url 'journal_issue_download_document' issue.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </td>
+  </tr>
+</table>

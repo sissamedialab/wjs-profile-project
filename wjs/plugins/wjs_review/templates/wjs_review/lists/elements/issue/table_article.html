@@ -1,42 +1,56 @@
-{% load wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% translate "Issue Files" as modal_title_label %}
 {% if article.articleworkflow.pk %}
   {% get_article_classes article.articleworkflow as article_classes %}
-  <div>
-    <tr class="article">
-      <td>
-        <input type="hidden" name="articles[]" value="{{ article.pk }}" />
-        <div class="d-flex">
-          {% if issue.issue_type.code == "collection" %}
-            <i class="bi bi-grip-vertical sort-grip"></i>
-          {% endif %}
-          <div>
-            <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
-            <br />
-            <a title="{{ article.title }}"
-               href="{% url 'wjs_article_details' article.articleworkflow.pk %}"
-               class="fw-bold">{{ article.pk }}</a>
-          </div>
+  <tr class="article">
+    <td>
+      <input type="hidden" name="articles[]" value="{{ article.pk }}" />
+      <div class="d-flex">
+        {% if issue.issue_type.code == "collection" %}
+          <i class="bi bi-grip-vertical sort-grip"></i>
+        {% endif %}
+        <div>
+          <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
+          <br />
+          <a title="{{ article.title }}"
+             href="{% url 'wjs_article_details' article.articleworkflow.pk %}"
+             class="fw-bold">{{ article.pk }}</a>
         </div>
-      </td>
-      <td>
-        {% include "wjs_review/lists/elements/corresponding_author.html" with workflow=article.articleworkflow %}
-      </td>
-      <td>
-        {{ article.title|truncatewords:6 }}
-      </td>
-      <td>
-        {% with editor_assignment_data=article|article_current_editor %}
-          {{ editor_assignment_data.editor }}
+      </div>
+    </td>
+    <td>
+      {% include "wjs_review/lists/elements/corresponding_author.html" with workflow=article.articleworkflow %}
+    </td>
+    <td>
+      {{ article.title|truncatewords:6 }}
+    </td>
+    <td>
+      {% with editor_assignment_data=article|article_current_editor %}
+        {{ editor_assignment_data.editor }}
+      {% endwith %}
+    </td>
+    <td>
+      <span class="badge {% if publish_status %}{{ article_classes.publishable }}{% else %}{{ article_classes.state }}{% endif %}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span>
+    </td>
+    <td>
+      {{ article.date_published|date:DATE_FORMAT }}
+    </td>
+    <td>
+      {% article_needs_extra_article_information article request.user as need_extra_information %}
+      {% article_has_extra_article_information article as has_extra_information %}
+      {% if need_extra_information %}
+        {# FIXME: Updated code to use implementation in https://gitlab.sissamedialab.it/wjs/specs/-/issues/874 #}
+        {% with modal_id="article_files_modal-"|concat:article.pk modal_target="#article_files_modal-"|concat:article.pk %}
+          <!-- djlint:off -->
+          {% if has_extra_information %}
+            {% bootstrap_button type="button" button_class="btn-outline-primary border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder\"></i>" %}
+          {% else %}
+            {% bootstrap_button type="button" button_class="btn-outline-warning border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder\"></i>" %}
+          {% endif %}
+          <!-- djlint:on -->
+          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=modal_title_label include_path="wjs_review/shared/elements/article_additional_social_files.html" %}
         {% endwith %}
-      </td>
-      <td>
-        <span class="badge {% if publish_status %}{{ article_classes.publishable }}{% else %}{{ article_classes.state }}{% endif %}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span>
-      </td>
-      <td>
-        {{ article.date_published|date:DATE_FORMAT }}
-      </td>
-      <td>
-      </td>
-    </tr>
-  </div>
+      {% endif %}
+    </td>
+  </tr>
 {% endif %}

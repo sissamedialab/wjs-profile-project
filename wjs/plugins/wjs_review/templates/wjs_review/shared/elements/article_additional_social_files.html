@@ -1,0 +1,19 @@
+{% load static wjs_review %}
+<table class="table">
+  {% journal_with_language_content journal=article.journal as show_english_titles %}
+  {% if show_english_titles %}
+  <tr>
+    <th>{% translate "English title" %}</th><td>{{ article.title_en|default:"" }}</td>
+  </tr>
+  <tr>
+    <th>{% translate "English abstract" %}</th><td>{{ article.abstract_en|default:"" }}</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <th>{% translate "Short description" %}</th><td>{{ article.articleworkflow.social_media_short_description|default:"" }}</td>
+  </tr>
+  <tr>
+    <th>{% translate "Image" %}</th>
+    <td>{% if article.meta_image %}<img src="{{ article.meta_image.url }}" title="{{ article }} cover image" width="100" alt="{% translate "Article cover image" %}"><br><a href="{{ article.meta_image.url }}"" target="_blank">Download image</a>{% endif %}</td>
+  </tr>
+</table>
