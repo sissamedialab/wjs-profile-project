@@ -766,9 +766,7 @@ class AttachGalleys:
     path: Path = dataclasses.field(init=False)  # path of the tmpdir where the upack method unpacked the received files
 
     def unpack_targz_from_jcomassistant(self) -> Path:
-        """Unpack an archive received from jcomassistant.
-
-        Accept the archive in the form of a bytes string.
+        """Unpack a tar.gz.
 
         Create and use a temporary folder.
         The caller should clean up if necessary.
@@ -780,6 +778,22 @@ class AttachGalleys:
             with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
                 # Extract all contents into the unpack directory
                 tar.extractall(path=unpack_dir)
+        unpack_dir = Path(unpack_dir)
+
+        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
+        self.path = unpack_dir
+        return self.path
+
+    def unpack_zip_from_jcomassistant(self) -> Path:
+        """Unpack a zip
+
+        Create and use a temporary folder.
+        The caller should clean up if necessary.
+        """
+        unpack_dir = tempfile.mkdtemp()
+        with zipfile.ZipFile(BytesIO(self.archive_with_galleys)) as archive:
+            archive.extractall(unpack_dir)
+
         unpack_dir = Path(unpack_dir)
 
         logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
@@ -956,7 +970,8 @@ class AttachGalleys:
 
     def run(self):
         # TODO: review me with specs#774: missing management of multilingual papers and PDF compilation
-        self.path = self.unpack_targz_from_jcomassistant()
+        # TODO: if targz: -> self.unpack_targz_from_jcomassistant()
+        self.path = self.unpack_zip_from_jcomassistant()
         green_light, reason = self._check_conditions()
         if not green_light:
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
@@ -972,6 +987,7 @@ class AttachGalleys:
             galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
 
         else:
+            import ipdb; ipdb.set_trace()
             galleys_created = [self.save_epub(), self.save_html(), self.save_pdf()]
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
             self.article.articleworkflow.save()
