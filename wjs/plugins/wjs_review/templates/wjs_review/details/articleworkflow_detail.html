@@ -1,6 +1,8 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static wjs_permissions %}
 
+{% block breadcrumbs %}{% endblock breadcrumbs %}
+
 {% block content_wrapper %}
   {% with article=workflow.article %}
     {% user_has_access_to workflow=workflow user=request.user target=article permission_type="all" as has_full_access %}

@@ -1,6 +1,8 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static %}
 
+{% block breadcrumbs %}{% endblock breadcrumbs %}
+
 {% block bootstrap5_extra_head %}
     {{ block.super }}
     <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />

@@ -10,14 +10,7 @@ from django.shortcuts import get_object_or_404, render
 from django.template import RequestContext
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import (
-    DetailView,
-    FormView,
-    ListView,
-    TemplateView,
-    UpdateView,
-    View,
-)
+from django.views.generic import DetailView, FormView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -65,21 +58,16 @@ from .views import ArticleWorkflowBaseMixin
 Account = get_user_model()
 
 
-class TypesetterPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):
+class TypesetterPending(ArticleWorkflowBaseMixin):
     """A view showing all paper that a typesetter could take in charge.
 
     AKA "codone" :)
     """
 
     title = _("Pending papers")
-    role = _("Typesetter")
+    role = "typesetter"
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/typesetter/table.html"
-    related_views = {
-        "wjs_review_typesetter_pending": _("Pending"),
-        "wjs_review_typesetter_workingon": _("Working on"),
-        "wjs_review_typesetter_archived": _("Archived"),
-    }
     model = ArticleWorkflow
 
     def test_func(self):

@@ -1,7 +1,7 @@
 {% load django_bootstrap5 %}
 <li class="nav-item">
   {% if current %}
-    {% bootstrap_button button_type="link" button_class="btn-link ps-0 pe-1 text-decoration-none" disabled=current content=title href=url size="sm" %}
+    {% bootstrap_button button_type="link" button_class="btn-link ps-0 pe-1 text-decoration-none" disabled=current content=title size="sm" %}
   {% else %}
     {% bootstrap_button button_type="link" button_class="btn-link ps-0 pe-1" content=title href=url size="sm" %}
   {% endif %}
