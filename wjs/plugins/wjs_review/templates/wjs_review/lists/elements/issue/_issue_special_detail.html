@@ -1,0 +1,86 @@
+{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% translate "Issue Files" as modal_title_label %}
+{% translate "Notes" as notes_title_label %}
+<tr>
+  <th class="text-bg-light" rowspan="2" scope="col">{% translate "Name" %}</th>
+  <th class="text-bg-light" rowspan="2" scope="col">{% translate "Title" %}</th>
+  <th class="text-bg-light" rowspan="2" scope="col">{% translate "Editors" %}</th>
+  <th class="text-bg-light" colspan="3" scope="col">{% translate "Dates" %}</th>
+  <th class="text-bg-light" colspan="4" scope="col">{% translate "Papers" %}</th>
+  <th class="text-bg-light" rowspan="2" scope="col">{% translate "Files" %}</th>
+  <th class="text-bg-light" rowspan="2" scope="col">{% translate "Notes" %}</th>
+  <th class="text-bg-light" rowspan="2" scope="col"></th>
+</tr>
+<tr>
+  <th class="text-bg-light" scope="col">Subm.</th>
+  <th class="text-bg-light" scope="col">Close</th>
+  <th class="text-bg-light" scope="col">Publish</th>
+  <th class="text-bg-light" scope="col">Expected</th>
+  <th class="text-bg-light" scope="col">Pending</th>
+  <th class="text-bg-light" scope="col">Published</th>
+  <th class="text-bg-light" scope="col">Other</th>
+</tr>
+<tr>
+  <td>
+    {{ issue.short_name }}
+    {% if request.user|is_user_eo %}
+      <a href="{% url 'manage_issues_id' issue.pk %}" target="_blank"><i class="bi bi-gear"></i></a>
+    {% endif %}
+  </td>
+  <td>
+    {{ issue.issue_title }}
+  </td>
+  <td>
+    {{ issue.managing_editors.all|join:", " }}
+  </td>
+  <td>
+    {{ issue.date_open|date:DATE_FORMAT }}
+  </td>
+  <td>
+    {{ issue.date_close|date:DATE_FORMAT }}
+  </td>
+  <td>
+    {{ issue.date|date:DATE_FORMAT }}
+  </td>
+  <td class="text-center">
+    {{ issue.articles.count }}
+  </td>
+  <td class="text-center">
+    {% special_issue_paper_pending issue %}
+  </td>
+  <td class="text-center">
+    {% special_issue_paper_published issue %}
+  </td>
+  <td class="text-center">
+    {% special_issue_paper_others issue %}
+  </td>
+  <td>
+    {% with modal_id="special_issue_files_modal-"|concat:issue.pk modal_target="#special_issue_files_modal-"|concat:issue.pk %}
+      <!-- djlint:off -->
+      {% bootstrap_button button_class="btn-outline-primary border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder\"></i>" %}
+      <!-- djlint:on -->
+      {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=modal_title_label include_path="wjs_review/lists/elements/issue/_issue_files_modal.html" %}
+    {% endwith %}
+  </td>
+  <td class="text-center">
+    {% if request.user|is_user_eo %}
+      {% last_eo_note target=issue as note %}
+    {% else %}
+      {% last_user_note target=issue as note %}
+    {% endif %}
+    {% if note %}
+      <!-- djlint:off -->
+      {% with note_label=note.body|truncatechars_html:7|striptags|concat:"<i class=\"bi bi-card-text\"></i>" modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
+        <!-- djlint:on -->
+        {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=note_label %}
+        {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body %}
+      {% endwith %}
+    {% endif %}
+    <a href="#"><i class="bi bi-pencil"></i></a>
+  </td>
+  <td>
+    <button class="btn btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#articles-{{ issue.pk }}" aria-expanded="false" aria-controls="articles-{{ issue.pk }}">
+      <i class="bi bi-chevron-double-down"></i>
+    </button>
+  </td>
+</tr>

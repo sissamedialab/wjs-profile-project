@@ -28,8 +28,12 @@ from wjs.jcom_profile.models import EditorAssignmentParameters
 
 from .. import communication_utils, states
 from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
+from ..conditions import needs_extra_article_information
 from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
-from ..logic import states_when_article_is_considered_in_review
+from ..logic import (
+    states_when_article_is_considered_in_review,
+    states_when_article_is_considered_in_review_for_eo_and_director,
+)
 from ..models import (
     ArticleWorkflow,
     EditorDecision,
@@ -459,6 +463,35 @@ def journal_with_language_content(journal: Journal) -> bool:
 
 
 @register.simple_tag()
+def article_needs_extra_article_information(article: Article, user: Account) -> bool:
+    """
+    Check if article needs extra information.
+
+    :param article: The article to check presence of extra information to.
+    :type article: Article
+    :param user: Unused.
+    :type user: Account
+    :return True if the article needs extra information, False otherwise.
+    :rtype: bool
+    """
+    return needs_extra_article_information(article.articleworkflow, user)
+
+
+@register.simple_tag()
+def article_has_extra_article_information(article: Article) -> bool:
+    """
+    Tell if article has all extra information.
+
+    :param article: The article to check presence of extra information to.
+    :type article: Article
+    :return True if the article has extra information, False otherwise.
+    :rtype: bool
+    """
+    # FIXME: Replace this basic check with condition in https://gitlab.sissamedialab.it/wjs/specs/-/issues/874
+    return bool(article.meta_image and article.articleworkflow.social_media_short_description)
+
+
+@register.simple_tag()
 def current_typesetting_assignment(article: Article) -> Optional[TypesettingRound]:
     """Return the current typesetting assignment for the given article."""
     return TypesettingAssignment.objects.filter(round__article=article).order_by("-round__round_number").last()
@@ -470,3 +503,23 @@ def current_editor_assigment(article: Article) -> Optional[TypesettingRound]:
     return WjsEditorAssignment.objects.filter(
         article=article, review_rounds=article.current_review_round_object()
     ).first()
+
+
+@register.simple_tag()
+def special_issue_paper_pending(issue: Issue) -> int:
+    """Return the number of articles still in review in the issue."""
+    return issue.articles.filter(
+        articleworkflow__state__in=states_when_article_is_considered_in_review_for_eo_and_director
+    ).count()
+
+
+@register.simple_tag()
+def special_issue_paper_published(issue: Issue) -> int:
+    """Return the number of articles already published in the issue."""
+    return issue.articles.filter(articleworkflow__state__in=[ArticleWorkflow.ReviewStates.PUBLISHED]).count()
+
+
+@register.simple_tag()
+def special_issue_paper_others(issue: Issue) -> int:
+    """Return the number of articles in non-interesting states in the issue."""
+    return issue.articles.count() - special_issue_paper_pending(issue) - special_issue_paper_published(issue)

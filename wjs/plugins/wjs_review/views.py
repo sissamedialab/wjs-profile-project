@@ -13,7 +13,13 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
 from django.db.models import Q, QuerySet
 from django.forms import models as model_forms
-from django.http import Http404, HttpResponse, HttpResponseRedirect, QueryDict
+from django.http import (
+    Http404,
+    HttpRequest,
+    HttpResponse,
+    HttpResponseRedirect,
+    QueryDict,
+)
 from django.shortcuts import get_object_or_404, render
 from django.template import Context
 from django.urls import resolve, reverse, reverse_lazy
@@ -123,10 +129,10 @@ class BaseRelatedViewsMixin:
         self.extra_links = {
             reverse(view_name): title
             for view_name, title in self.related_views.items()
-            if not self._check_current_view(self.request.journal, view_name)
+            if not self._check_current_view(self.request.journal, view_name, self.request)
         }
 
-    def _check_current_view(self, journal: Journal, view_name: str) -> bool:
+    def _check_current_view(self, journal: Journal, view_name: str, request: HttpRequest) -> bool:
         """
         Check if the current view is the one passed as argument.
 
@@ -139,7 +145,14 @@ class BaseRelatedViewsMixin:
         view_class = import_string(resolved._func_path)
         # Using __class__ instead of isinstance because derived views are always instances of the base (pending) view
         # and we want to check the exact class.
-        return self.__class__ == view_class
+        view_matches_current_url = self.__class__ == view_class
+        if hasattr(view_class, "test_func"):
+            view_object = view_class()
+            view_object.request = request
+            user_has_permission = view_object.test_func()
+        else:
+            user_has_permission = True
+        return view_matches_current_url and user_has_permission
 
 
 class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin):
@@ -205,6 +218,7 @@ class EditorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, ListView):
     related_views = {
         "wjs_review_list": _("Pending preprints"),
         "wjs_review_archived_papers": _("Archived preprints"),
+        "wjs_review_editor_issues_list": _("Pending Issues"),
     }
     table_configuration_options = {"show_filter_editor": False, "show_filter_reviewer": True, "table_type": "review"}
     """See :py:attr:`EOPending.table_configuration_options` for details."""
@@ -397,6 +411,24 @@ class DirectorWorkOnIssue(BaseWorkOnIssue):
     def test_func(self):
         """Allow access only to director."""
         return base_permissions.has_director_role(self.request.journal, self.request.user)
+
+
+class EditorWorkOnIssue(BaseWorkOnIssue):
+    role = _("Editor")
+    related_views = {
+        "wjs_review_list": _("Pending"),
+        "wjs_review_archived_papers": _("Archived"),
+        "wjs_review_editor_issues_list": _("Pending Issues"),
+    }
+
+    def test_func(self):
+        """Allow access only to director."""
+        return permissions.is_any_open_special_issue_editor(self.request.journal, self.request.user)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        queryset = queryset.filter(managing_editors=self.request.user)
+        return queryset
 
 
 class DirectorPending(ArticleWorkflowBaseMixin, LoginRequiredMixin, UserPassesTestMixin, ListView):

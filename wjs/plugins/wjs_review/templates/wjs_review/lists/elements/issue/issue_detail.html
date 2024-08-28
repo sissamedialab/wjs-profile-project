@@ -1,0 +1,61 @@
+{% load wjs_articles wjs_tags %}
+{% if issue.issue_type.code == "collection" %}
+  {% include "wjs_review/lists/elements/issue/_issue_special_detail.html" %}
+{% else %}
+  {% include "wjs_review/lists/elements/issue/_issue_plain_detail.html" %}
+{% endif %}
+<tr>
+  <td colspan="13">
+    <div id="issues-list-content">
+      {% include "wjs_review/lists/elements/issue/issue_articles_list.html" %}
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="pb-6" colspan="13">&nbsp;</td>
+</tr>
+{% block js %}
+  <!-- jsDelivr :: Sortable :: Latest (https://www.jsdelivr.com/package/npm/sortablejs) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <script>
+    htmx.onLoad(function(content) {
+      const sortables = content.querySelectorAll(".sortable");
+      for (let i = 0; i < sortables.length; i++) {
+        let sortable = sortables[i];
+        let sortableInstance = new Sortable(sortable, {
+          animation: 150,
+          ghostClass: "blue-background-class",
+          handle: ".sort-grip",
+          draggable: ".article",
+          // Make the `.htmx-indicator` unsortable
+          filter: ".htmx-indicator",
+          onMove: function(evt) {
+            return evt.related.className.indexOf("htmx-indicator") === -1;
+          },
+
+          // Disable sorting on the `end` event
+          onEnd: function(evt) {
+            this.option("disabled", true);
+          },
+        });
+
+        // Re-enable sorting on the `htmx:afterSwap` event
+        sortableInstance.el.parentElement.parentElement.addEventListener("htmx:afterSwap", function() {
+          sortableInstance.option("disabled", false);
+        });
+      }
+    });
+    document.body.addEventListener("htmx:beforeSwap", function(evt) {
+      try {
+        const response = JSON.parse(evt.detail.serverResponse);
+        if (response.status !== "okay") {
+          evt.detail.serverResponse = response.status;
+          evt.target.classList.remove("d-none");
+          evt.target.classList.add("bg-danger");
+        }
+      } catch (e) {
+        console.log(e);
+      }
+    });
+  </script>
+{% endblock js %}

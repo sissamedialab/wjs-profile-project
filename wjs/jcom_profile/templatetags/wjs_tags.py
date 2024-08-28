@@ -22,6 +22,12 @@ def keyvalue(dictionary, key):
 
 
 @register.filter
+def concat(base_string, suffix):
+    """Concatenate two strings (non string items will be casted to strings)."""
+    return f"{base_string}{suffix}"
+
+
+@register.filter
 def article_has_children(article):
     """Return if article has children articles (commentary items)."""
     try:

@@ -1,0 +1,43 @@
+{% load django_bootstrap5 wjs_articles wjs_tags %}
+  <tr>
+    <th class="text-bg-light" colspan="3" scope="col">{% translate "Name" %}</th>
+    <th class="text-bg-light" colspan="3" scope="col">{% translate "Date" %}</th>
+    <th class="text-bg-light" colspan="4" scope="col">{% translate "Papers" %}</th>
+    <th class="text-bg-light" colspan="2" scope="col">{% translate "Notes" %}</th>
+    <th class="text-bg-light" scope="col"></th>
+  </tr>
+<tr>
+  <td colspan="3">
+    {{ issue.display_title }}
+    {% if request.user|is_user_eo %}
+      <a href="{% url 'manage_issues_id' issue.pk %}" target="_blank"><i class="bi bi-gear"></i></a>
+    {% endif %}
+  </td>
+  <td colspan="3">
+    {{ issue.date|date:DATE_FORMAT }}
+  </td>
+  <td class="text-center" colspan="4">
+    {{ issue.articles.count }}
+  </td>
+  <td class="text-center" colspan="2">
+    {% if request.user|is_user_eo %}
+      {% last_eo_note target=issue as note %}
+    {% else %}
+      {% last_user_note target=issue as note %}
+    {% endif %}
+    {% if note %}
+      <!-- djlint:off -->
+      {% with note_label=note.body|truncatechars_html:7|striptags|concat:"<i class=\"bi bi-card-text\"></i>" modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
+        <!-- djlint:on -->
+        {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=note_label %}
+        {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body %}
+      {% endwith %}
+    {% endif %}
+    <a href="#"><i class="bi bi-pencil"></i></a>
+  </td>
+  <td>
+    <button class="btn btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#articles-{{ issue.pk }}" aria-expanded="false" aria-controls="articles-{{ issue.pk }}">
+      <i class="bi bi-chevron-double-down"></i>
+    </button>
+  </td>
+</tr>
