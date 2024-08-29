@@ -153,6 +153,7 @@ def test_can_open_article_assigned_reviewer(
 ):
     """Assigned reviewers can open the article status page, normal reviewers can't."""
     normal_user.add_account_role("reviewer", assigned_article.journal)
+    fake_request.user = normal_user.janeway_account
     view_obj = ArticleDetails()
 
     view_obj.setup(fake_request, pk=assigned_article.pk)
@@ -501,15 +502,16 @@ def test_permission_form_view_setup_reviewer(
     # 1 editor revision request
     # 2 review assignments (normal_user review is not included because there is no need to set permissions for it)
     # 1 editor revision request for author notes
+    # (remember that objects are returned in reverse order for more ergonomic display)
     assert len(objs) == 5
-    assert objs[0].object == assigned_article.articleworkflow
-    # remember that "real" rounds start at 1; consider round 0 as the "initial submission"
-    assert objs[0].round == -1
+    assert objs[-1].object == assigned_article.articleworkflow
+    assert objs[-1].round == -1
     assert isinstance(objs[1].object, EditorRevisionRequest)
     assert objs[1].round == 1
     # EditorRevisionRequest is "duplicated" in next review round for selecting author notes
-    assert isinstance(objs[-1].object, EditorRevisionRequest)
-    assert objs[-1].round == 2
+    # remember that "real" rounds start at 1; consider round 0 as the "initial submission"
+    assert isinstance(objs[0].object, EditorRevisionRequest)
+    assert objs[0].round == 2
     for obj in objs[2:-1]:
         assert obj.round == 1
         assert isinstance(obj.object, WorkflowReviewAssignment)
@@ -522,17 +524,20 @@ def test_permission_form_view_setup_reviewer(
         assert item["object_type"] == object_type.pk
         assert item["object_id"] == objs[index].object.pk
         # Remember that we are looking at the default permissions of a reviewer (normal_user is the first reviewer)
-        if index == 0:
+        if index in (4,):
             assert item["permission"] == PermissionAssignment.PermissionType.NO_NAMES
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        elif index in (1, 4):
+        elif index in (
+            0,
+            1,
+        ):
             assert item["permission"] == PermissionAssignment.PermissionType.NO_NAMES
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
-        elif index == 3:
+        elif index in (3,):
             # this is the review for which we created a custom permission (see above)
             assert item["permission"] == PermissionAssignment.PermissionType.NO_NAMES
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        else:
+        elif index in (2,):
             assert item["permission"] == PermissionAssignment.PermissionType.DENY
             assert item["permission_secondary"] == PermissionAssignment.PermissionType.DENY
 
@@ -609,27 +614,27 @@ def test_permission_form_view_setup_editor(
     # 6 review assignments
     # 2 editor revision request for author notes
     assert len(objs) == 11
-    assert objs[0].object == assigned_article.articleworkflow
-    assert objs[0].round == -1
-    assert isinstance(objs[1].object, EditorRevisionRequest)
-    assert objs[1].round == 1
-    assert not objs[1].author_notes
+    assert isinstance(objs[0].object, EditorRevisionRequest)
+    assert objs[0].round == 3
+    assert objs[0].author_notes
     # EditorRevisionRequest is "duplicated" in next review round for selecting author notes
-    assert isinstance(objs[-1].object, EditorRevisionRequest)
-    assert objs[-1].round == 3
-    assert objs[-1].author_notes
-    for obj in objs[2:5]:
-        assert obj.round == 1
-        assert isinstance(obj.object, WorkflowReviewAssignment)
-    assert isinstance(objs[5].object, EditorRevisionRequest)
-    assert objs[5].round == 2
-    assert not objs[5].author_notes
+    assert isinstance(objs[1].object, EditorRevisionRequest)
+    assert objs[1].round == 2
+    assert not objs[1].author_notes
+    assert isinstance(objs[2].object, EditorRevisionRequest)
+    assert objs[2].round == 2
+    assert objs[2].author_notes
     assert isinstance(objs[6].object, EditorRevisionRequest)
-    assert objs[6].round == 2
-    assert objs[6].author_notes
-    for obj in objs[7:-1]:
+    assert objs[6].round == 1
+    assert not objs[6].author_notes
+    for obj in objs[3:6]:
         assert obj.round == 2
         assert isinstance(obj.object, WorkflowReviewAssignment)
+    for obj in objs[7:-1]:
+        assert obj.round == 1
+        assert isinstance(obj.object, WorkflowReviewAssignment)
+    assert objs[-1].object == assigned_article.articleworkflow
+    assert objs[-1].round == -1
 
     # Permissions for current user
     fake_request.user = normal_user.janeway_account
@@ -643,11 +648,11 @@ def test_permission_form_view_setup_editor(
         if index == 0:
             assert item["permission"] == PermissionAssignment.PermissionType.ALL
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        elif index in (1, 2, 3, 4, 6):
+        elif index in (2, 6, 7, 8, 9):
             # Objects of the previous review round
             assert item["permission"] == PermissionAssignment.PermissionType.DENY
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
-        elif index in (5, 7, 8, 9, 10):
+        elif index in (1, 3, 4, 5, 10):
             # Objects of the current review round
             assert item["permission"] == PermissionAssignment.PermissionType.ALL
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
@@ -664,13 +669,13 @@ def test_permission_form_view_setup_editor(
         assert item["object_type"] == object_type.pk
         assert item["object_id"] == objs[index].object.pk
         if index == 0:
-            assert item["permission"] == PermissionAssignment.PermissionType.ALL
-            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        elif index in (1, 2, 3, 4, 6):
+            assert item["permission"] == PermissionAssignment.PermissionType.DENY
+            assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
+        elif index in (2, 6, 7, 8, 9, 10):
             # Objects of the previous review round
             assert item["permission"] == PermissionAssignment.PermissionType.ALL
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        elif index in (5, 7, 8, 9, 10):
+        elif index in (1, 3, 4, 5):
             # Objects of the current review round
             assert item["permission"] == PermissionAssignment.PermissionType.DENY
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY

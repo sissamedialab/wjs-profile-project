@@ -8,6 +8,8 @@ from typing import Callable, Optional, Type
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils.translation import gettext as _
+from faker.utils.text import slugify
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import ReviewAssignment
 from submission.models import Article
@@ -168,6 +170,11 @@ def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", 
     return "Mark as publishable"
 
 
+def cannot_be_set_rfp_or_galleys_not_present(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return true if the article can be set ready for publication."""
+    return not can_be_set_rfp_wrapper(workflow) or galleys_cannot_be_tested(action, workflow, user)
+
+
 def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the files needed to generate the latest galleys are missing."""
     typesetting_assignment = (
@@ -184,6 +191,7 @@ def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow
 class ArticleAction:
     """An action that can be done on an Article."""
 
+    # see templates/wjs_review/details/elements/actions_button.html to see what the attributes are for 🙂
     name: str
     label: str
     view_name: str
@@ -191,6 +199,7 @@ class ArticleAction:
     tag: str = None
     is_htmx: bool = False
     is_modal: bool = False
+    is_post: bool = False
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
@@ -199,6 +208,7 @@ class ArticleAction:
     custom_get_css_class: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
     condition: Optional[Callable] = None
+    confirm: Optional[str] = ""
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
@@ -211,6 +221,7 @@ class ArticleAction:
         """Return parameters needed to build the action button."""
         return {
             "name": self.name,
+            "slug": slugify(self.name),
             "label": self.custom_get_label(self, workflow, user) if self.custom_get_label else self.label,
             "tooltip": self.tooltip,
             "url": self.custom_get_url(self, workflow, user) if self.custom_get_url else self.get_url(workflow, user),
@@ -218,7 +229,10 @@ class ArticleAction:
             "css_class": self.custom_get_css_class(self, workflow, user) if self.custom_get_css_class else None,
             "is_htmx": self.is_htmx,
             "is_modal": self.is_modal,
+            "is_post": self.is_post,
+            "confirm": self.confirm,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
+            "id": id(self),
         }
 
     def get_url(self, workflow: "ArticleWorkflow", user: Account) -> str:
@@ -262,9 +276,11 @@ class ReviewAssignmentAction:
     tooltip: str = None
     is_htmx: bool = False
     is_modal: bool = False
+    is_post: bool = False
     querystring_params: dict = None
     custom_get_url: Optional[Callable] = None
     permission: Optional[Callable] = None
+    confirm: Optional[str] = ""
 
     def __post_init__(self):
         if self.is_modal:
@@ -278,12 +294,16 @@ class ReviewAssignmentAction:
             url = self.get_url(assignment, user)
         return {
             "assignment": assignment,
+            "slug": slugify(self.name),
             "name": self.name,
             "label": self.label,
             "tooltip": self.tooltip,
             "url": url,
             "is_htmx": self.is_htmx,
             "is_modal": self.is_modal,
+            "is_post": self.is_post,
+            "confirm": self.confirm,
+            "id": id(self),
         }
 
     def get_url(self, assignment: "ReviewAssignment", user: Account) -> str:
@@ -439,6 +459,7 @@ class EditorSelected(BaseState):
             name="declines assignment",
             label="Decline Assignment",
             view_name="wjs_unassign_assignment",
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_supervisor,
@@ -495,11 +516,13 @@ class EditorSelected(BaseState):
             querystring_params={"decision": ArticleWorkflow.Decisions.MAJOR_REVISION},
         ),
         ArticleAction(
+            condition=conditions.user_can_be_assigned_as_reviewer,
             permission=permissions.is_article_editor,
             name="assigns self as reviewer",
             label="I will review",
             tooltip="Assign myself as reviewer",
             view_name="wjs_editor_assigns_themselves_as_reviewer",
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -529,6 +552,7 @@ class EditorSelected(BaseState):
             name="postpone reviewer due date",
             label="Change Reviewer due date",
             view_name="wjs_postpone_reviewer_due_date",
+            is_modal=True,
         ),
         ReviewAssignmentAction(
             permission=permissions.is_article_supervisor,
@@ -669,6 +693,7 @@ class ToBeRevised(BaseState):
             label="",
             view_name="wjs_postpone_revision_request",
             custom_get_url=get_url_with_last_editor_revision_request_pk,
+            is_modal=True,
         ),
         ArticleAction(
             condition=conditions.pending_edit_metadata_request,
@@ -677,6 +702,7 @@ class ToBeRevised(BaseState):
             label="",
             view_name="wjs_postpone_revision_request",
             custom_get_url=get_url_with_last_editor_revision_request_pk,
+            is_modal=True,
         ),
         ArticleAction(
             condition=conditions.pending_revision_request,
@@ -828,6 +854,7 @@ class TypesetterSelected(BaseState):
             label="Upload sources",
             view_name="wjs_typesetter_upload_files",
             custom_get_url=get_url_with_typesetting_assignment_pk,
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -836,6 +863,7 @@ class TypesetterSelected(BaseState):
             view_name="wjs_typesetter_galley_generation",
             disabled=galleys_cannot_be_tested,
             custom_get_url=get_url_with_typesetting_assignment_pk,
+            is_post=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter_or_eo,
@@ -849,9 +877,9 @@ class TypesetterSelected(BaseState):
             name="toggle paper non-publishable flag",
             label="Mark Unpublishable",
             view_name="wjs_toggle_publishable",
-            is_htmx=True,
-            custom_get_css_class=get_unpulishable_css_class,
             custom_get_label=get_publishable_label,
+            confirm=_("Are you sure you want to mark the paper as unpublishable?"),
+            is_post=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -859,6 +887,8 @@ class TypesetterSelected(BaseState):
             label="Send to Author",
             view_name="wjs_ready_for_proofreading",
             custom_get_url=get_url_with_typesetting_assignment_pk,
+            confirm=_("Are you sure you want to send the paper to the author?"),
+            is_post=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -883,7 +913,9 @@ class TypesetterSelected(BaseState):
             name="typesetter_deems_paper_ready_for_publication",
             label="Paper is ready for publication",
             view_name="wjs_review_rfp",
-            condition=can_be_set_rfp_wrapper,
+            disabled=cannot_be_set_rfp_or_galleys_not_present,
+            confirm=_("Are you sure you want to set the paper ready for publication?"),
+            is_post=True,
         ),
     )
 
@@ -956,6 +988,7 @@ class Proofreading(BaseState):
             label="Paper is ready for publication",
             view_name="wjs_review_rfp",
             condition=can_be_set_rfp_wrapper,
+            is_post=True,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
@@ -1022,6 +1055,8 @@ class ReadyForPublication(BaseState):
             label="Publish",
             tooltip="Begin the publication process",
             view_name="wjs_review_begin_publication",
+            confirm=_("Are you sure you want to start the publication process?"),
+            is_post=True,
         ),
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
@@ -1043,8 +1078,10 @@ class PublicationInProgress(BaseState):
             permission=permissions.has_eo_role_by_article,
             name="finish publication",
             label="Finish publication",
-            tooltip="Retry to terminate the publication process",
+            tooltip="Retry the publication process",
             view_name="wjs_review_finish_publication",
+            confirm=_("Are you sure you want to retry the publication process?"),
+            is_post=True,
         ),
     )
 

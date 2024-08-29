@@ -148,6 +148,11 @@ class SelectReviewerForm(forms.ModelForm):
         if self.editor_assigns_themselves_as_reviewer:
             self.fields["message"].widget = forms.HiddenInput()
             self.fields["author_note_visible"].widget = forms.HiddenInput()
+            self.fields["acceptance_due_date"].label = _("I will review by")
+            self.fields["acceptance_due_date"].help_text = _(
+                "the system will use this date to help you remind of the deadline."
+                " You can always postpone it at your leisure"
+            )
         # If the reviewer is not set, other fields are disabled, because we need the reviewer to be set first
         elif not self.data.get("reviewer"):
             self.fields["acceptance_due_date"].widget.attrs["disabled"] = True
@@ -789,6 +794,8 @@ class ToggleMessageReadByEOForm(forms.ModelForm):
 
 
 class UpdateReviewerDueDateForm(forms.ModelForm):
+    date_due = forms.DateField(label=_("Date due"), required=True, widget=forms.DateInput(attrs={"type": "date"}))
+
     class Meta:
         model = ReviewAssignment
         fields = ["date_due"]
@@ -919,9 +926,9 @@ class AssignEoForm(forms.ModelForm):
 
 
 class DeselectReviewerForm(forms.Form):
-    send_notification = forms.BooleanField(label=_("Send notification to the reviewer"), required=False, initial=True)
     notification_subject = forms.CharField(label=_("Subject"))
     notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+    send_notification = forms.BooleanField(label=_("Send notification to the reviewer"), required=False, initial=True)
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
@@ -1123,6 +1130,10 @@ class ArticleExtraInformationUpdateForm(forms.ModelForm):
         instance = super().save(commit)
         if self.cleaned_data.get("social_media_image"):
             instance.article.meta_image = self.cleaned_data["social_media_image"]
+            instance.article.save()
+        if self.data.get("social_media_image-clear") == "on":
+            instance.article.meta_image.delete()
+            instance.article.meta_image = None
             instance.article.save()
         # this step is entirely skipped if the journal doesn't need english content, so there is no risk to overwrite
         # the original title and abstract

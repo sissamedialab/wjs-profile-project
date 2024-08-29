@@ -1,4 +1,4 @@
-{% load wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>
@@ -13,9 +13,6 @@
     </td>
     <td>
       <span title="Last status change TODO workflow.date_last_transition">{{ workflow.latest_state_change|timesince }} since last state change</span>
-      {% if workflow.get_state_display == "Ready for typesetter" %}
-        <a class="btn btn-primary" href="{% url 'wjs_typ_take_in_charge' workflow.id %}">Take in charge</a>
-      {% endif %}
     </td>
     <td class="align-bottom position-relative {% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" with publish_status=True %}
@@ -28,6 +25,15 @@
       {% if note %}
         <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#note_modal">{{ note.body|truncatechars_html:7|striptags }} <i class="bi bi-card-text"></i></button>
         {% include "wjs_review/base/elements/modal.html" with modal_id="note_modal" modal_title="Notes" modal_body_title=note.subject modal_body=note.body %}
+      {% endif %}
+    </td>
+    <td>
+      {% if workflow.get_state_display == "Ready for typesetter" %}
+        <form id="{{ action.slug }}" action="{% url 'wjs_typ_take_in_charge' workflow.id %}" method="post">
+          {% csrf_token %}
+          {% translate "Take in charge" as take_label %}
+          {% bootstrap_button button_type="submit" name="take-charge" value=1 content=take_label %}
+        </form>
       {% endif %}
     </td>
   </tr>

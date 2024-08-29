@@ -1,0 +1,26 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static wjs_permissions %}
+
+{% block content_wrapper %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h1>{{ view.title }}</h1>
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">{% translate "About this page" %}</h5>
+        <div class="card-text">{% blocktranslate %}<p>Provide information</p>{% endblocktranslate %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+    <div id="proofing-notes">
+      {% include "wjs_review/details/elements/typesetting_annotate_files.html" %}
+    </div>
+  </div>
+{% endblock content_wrapper %}

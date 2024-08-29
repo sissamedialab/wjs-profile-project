@@ -1,0 +1,25 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Upload File" as upload_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{{ view.title }}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  {% if assignment.files_to_typeset.exists %}
+    <p>{% translate "Currently uploaded file" %}:</p>
+    <ul id="upload-sources" class="list-group mb-3">
+      {% for file in object.files_to_typeset.all %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">{{ file.original_filename }}</li>
+      {% endfor %}
+    </ul>
+    <p>{% translate "Upload a new file to replace the existing one." %}</p>
+  {% else %}
+    <p>{% translate "Please upload the typesetting files." %}</p>
+  {% endif %}
+  <form id="upload-typeset" hx-encoding="multipart/form-data" hx-post="{% url "wjs_typesetter_upload_files" pk=assignment.pk %}" hx-target="#htmxModalContent">
+    {% csrf_token %}
+    {% bootstrap_form_errors form layout='inline' type="non_fields" %}
+    {% bootstrap_field form.file_to_upload %}
+    {% bootstrap_button button_type="submit" name="replacement" value=1 content=upload_label %}
+  </form>
+</div>

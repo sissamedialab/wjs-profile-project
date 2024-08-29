@@ -23,6 +23,7 @@ from core.models import Galley, SupplementaryFile
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.mail import send_mail
 from django.db import transaction
@@ -395,6 +396,9 @@ class UploadFile:
     def _check_typesetter_condition(self):
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
 
+    def _check_file_condition(self):
+        return self.file_to_upload and self.file_to_upload.content_type in ["application/zip"]
+
     def _remove_file_from_assignment(self):
         """Empties the files_to_typeset field of TypesettingAssignment."""
         self.assignment.files_to_typeset.clear()
@@ -423,14 +427,19 @@ class UploadFile:
         with transaction.atomic():
             if not self._check_typesetter_condition():
                 raise ValueError("Invalid state transition")
+            if not self._check_file_condition():
+                raise ValueError("Invalid file upload")
             # Check if there are any files already associated
             if self.assignment.files_to_typeset.exists():
                 self._delete_core_files_record()
                 self._remove_file_from_assignment()
 
             uploaded_file = save_file_to_article(self.file_to_upload, self.assignment.round.article, self.typesetter)
-            self._update_typesetting_assignment(uploaded_file)
-            self._look_for_queries_in_archive()
+            try:
+                self._update_typesetting_assignment(uploaded_file)
+                self._look_for_queries_in_archive()
+            except Exception as e:
+                raise ValidationError(str(e)) from e
         return self.assignment.round.article
 
 

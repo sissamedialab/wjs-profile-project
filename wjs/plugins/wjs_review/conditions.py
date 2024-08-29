@@ -209,6 +209,17 @@ def editor_as_reviewer_is_late(article: Article) -> str:
         return ""
 
 
+def user_can_be_assigned_as_reviewer(workflow: ArticleWorkflow, user: Account) -> str:
+    """Tell if the user is already set as reviewer of the current round."""
+    article = workflow.article
+    review_round = article.current_review_round_object()
+    has_reviews = ReviewAssignment.objects.filter(review_round=review_round, reviewer=user).exists()
+    if has_reviews:
+        return ""
+    else:
+        return "The editor has already been assigned as reviewer."
+
+
 def any_reviewer_is_late_after_reminder(article: Article) -> str:
     """Tell if the all reviewer's reminder for a specific condition has expired for more than a set number of days."""
     # new review round is started.

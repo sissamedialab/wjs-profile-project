@@ -9,16 +9,16 @@
     <div class="accordion-body">
       <table class="table">
         <tr>
-          <td>{% translate "Decision" %}</td><td>{{ decision.get_decision_display }}</td>
+          <th>{% translate "Decision" %}</th><td>{{ decision.get_decision_display }}</td>
         </tr>
         <tr>
-          <td colspan="2">{% translate "Editor Report" %}</td>
+          <th colspan="2">{% translate "Editor Report" %}</th>
         </tr>
         <tr>
           <td colspan="2">{{ decision.decision_editor_report|safe }}</td>
         </tr>
         <tr>
-          <td colspan="2">{% translate "Internal note" %}</td>
+          <th colspan="2">{% translate "Internal note" %}</th>
         </tr>
         <tr>
           <td colspan="2">{{ decision.decision_internal_note|safe }}</td>

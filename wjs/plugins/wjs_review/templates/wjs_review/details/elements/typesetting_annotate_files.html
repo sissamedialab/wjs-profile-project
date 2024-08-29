@@ -1,0 +1,56 @@
+{% load django_bootstrap5 wjs_tags %}
+
+{% translate "Send Corrections" as send_label %}
+{% translate "Delete" as delete_label %}
+{% translate "Are you sure you want to delete this file?" as confirm_label %}
+{% translate "Upload File" as upload_label %}
+{% translate "Add Notes" as add_notes_label %}
+{% url 'wjs_list_annotated_files' pk=object.pk as update_files_url %}
+{% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
+<form method="post" action="{{ update_files_url }}" enctype="multipart/form-data">
+  {% csrf_token %}
+  {% bootstrap_form_errors form type="non_fields" %}
+  <div class="mb-3" id="error-messages">
+  </div>
+  <div class="mb-3">
+    <ul class="list-group mb-3">
+      <h5>{% translate "Annotated Files" %}</h5>
+      {% for file in galleyproofing.annotated_files.all %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <a class="btn btn-link annotation-files" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
+          <button
+            hx-post="{{ update_files_url }}" hx-confirm="{{ confirm_label }}" hx-target="#proofing-notes" hx-vals='{"file_to_delete": {{ file.pk }} }'
+            class="btn btn-danger btn-sm" name="action" value="delete_file">
+            {{ delete_label }}
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+    <div class="input-group mb-3">
+    {% bootstrap_field form.file wrapper_class="" layout="horizontal" addon_before=form.file.label %}
+    {% bootstrap_button name="action" value="upload_file" button_class="btn-outline-secondary" content=upload_label %}
+    </div>
+  </div>
+  <div class="mb-3">
+    {% bootstrap_field form.notes onchange="enableSendCorrections()" %}
+  </div>
+  <div class="mb-3">
+    {% bootstrap_button name="action" value="send_corrections" content=send_label disabled=disable_send_corrections %}
+  </div>
+</form>
+
+<script>
+  /**
+   * Enable the send corrections button if notes or annotated files are provided.
+   *
+   * Function is meant to be called on page load or when the notes field is changed.
+   */
+  const enableSendCorrections = () => {
+    const annotationFiles = document.querySelectorAll('.annotation-files');
+    const notes = document.querySelector('#id_notes');
+    const sendButton = document.querySelector('button[name="action"][value="send_corrections"]');
+    sendButton.disabled = notes.value.trim() === '' && annotationFiles.length === 0;
+  };
+  document.querySelector('#id_notes').addEventListener('change', enableSendCorrections);
+  document.addEventListener('DOMContentLoaded', enableSendCorrections);
+</script>

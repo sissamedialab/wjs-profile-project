@@ -25,7 +25,7 @@ Account = get_user_model()
 
 class TypesetterUploadFilesForm(forms.ModelForm):
     file_to_upload = forms.FileField(
-        label="Select a file",
+        label=_("Select file to upload"),
         required=True,
     )
 
@@ -40,6 +40,13 @@ class TypesetterUploadFilesForm(forms.ModelForm):
         self.request = kwargs.pop("request")
         super().__init__(*args, **kwargs)
 
+    def clean_file_to_upload(self):
+        # TODO: in the future allow for tar.gz and also single tex files
+        file = self.cleaned_data["file_to_upload"]
+        if file and file.content_type not in ["application/zip"]:
+            raise ValidationError(_("Only ZIP files are allowed"))
+        return file
+
     def get_logic_instance(self) -> UploadFile:
         """Instantiate :py:class:`UploadFile` class."""
         return UploadFile(
@@ -49,12 +56,13 @@ class TypesetterUploadFilesForm(forms.ModelForm):
             file_to_upload=self.cleaned_data["file_to_upload"],
         )
 
-    def save(self):
+    def save(self, commit=True) -> TypesettingAssignment:
         try:
             service = self.get_logic_instance()
             service.run()
         except ValidationError as e:
-            self.add_error(None, e)
+            # this is only possible because we have a single field, so it makes sense to assign all errors to it
+            self.add_error("file_to_upload", e)
             raise
         self.instance.refresh_from_db()
         return self.instance
@@ -141,7 +149,11 @@ class UploadAnnotatedFilesForm(forms.ModelForm):
     notes = forms.CharField(widget=forms.Textarea, required=False)
     action = forms.ChoiceField(
         required=False,
-        choices=(("upload_file", "Upload file"), ("add_notes", "Add notes"), ("delete_file", "Delete file")),
+        choices=(
+            ("upload_file", "Upload file"),
+            ("send_corrections", "Send corrections"),
+            ("delete_file", "Delete file"),
+        ),
     )
 
     class Meta:
@@ -169,6 +181,21 @@ class UploadAnnotatedFilesForm(forms.ModelForm):
             galleyproofing=self.galleyproofing,
             user=self.request.user,
         )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("action"):
+            raise ValidationError(_("No action selected"))
+        if self.cleaned_data["action"] == "upload_file":
+            if not cleaned_data.get("file"):
+                self.add_error("file", ValidationError(_("No file provided")))
+        if (
+            cleaned_data["action"] == "send_corrections"
+            and not cleaned_data.get("notes")
+            and not self.galleyproofing.annotated_files.exists()
+        ):
+            self.add_error("notes", ValidationError(_("No correction provided")))
+        return cleaned_data
 
     def save(self, commit=True) -> GalleyProofing:
         if self.cleaned_data["action"] == "upload_file":

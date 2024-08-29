@@ -20,7 +20,7 @@ from django.http import (
     HttpResponseRedirect,
     QueryDict,
 )
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.template import Context
 from django.urls import resolve, reverse, reverse_lazy
 from django.utils import timezone
@@ -163,6 +163,8 @@ class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
+        if not self.request.user or self.request.user.is_anonymous:
+            raise Http404(_("You are not allowed to access this page."))
         if self.role:
             request.session["role"] = self.role
         current_role = request.session.get("role", self.role)
@@ -647,19 +649,25 @@ class ArticleAssignedEditorMixin:
 
 
 # refs #584
-# Make it similar to SelectReviewer, but way simpler
-class EditorAssignsThemselvesAsReviewer(ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
+class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """
-    View where the logged in Editor assigns themselves as a reviewer.
+    Editor assigns themselves as a reviewer.
     """
 
     model = ArticleWorkflow
     form_class = SelectReviewerForm
     context_object_name = "workflow"
-    template_name = "wjs_review/editor_assigns_themselves_as_reviewer.html"
+    template_name = "wjs_review/details/editor_assigns_themselves_as_reviewer.html"
+
+    def form_valid(self, form):
+        super().form_valid(form)
+        messages.success(self.request, _("You have been assigned as a reviewer."))
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
 
     def get_success_url(self):
-        return reverse("wjs_article_details", args=(self.object.id,))
+        return reverse("wjs_article_details", args=(self.object.pk,))
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -1029,15 +1037,16 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
             return super().form_invalid(form)
 
 
-class PostponeRevisionRequestDueDate(UserPassesTestMixin, UpdateView):
+class PostponeRevisionRequestDueDate(HtmxMixin, UserPassesTestMixin, UpdateView):
     """
     View to postpone the date_due of a revision request (done by the editor)
     """
 
+    title = _("Postpone revision request due date")
     model = EditorRevisionRequest
     form_class = EditorRevisionRequestDueDateForm
-    context_object_name = "workflow"
-    template_name = "wjs_review/elements/editor_revision_request_date_due_form.html"
+    template_name = "wjs_review/details/editor_revision_request_date_due_form.html"
+    context_object_name = "revision_request"
 
     def test_func(self):
         """
@@ -1045,6 +1054,16 @@ class PostponeRevisionRequestDueDate(UserPassesTestMixin, UpdateView):
         """
         self.article = self.get_object().article.articleworkflow
         return permissions.is_article_editor(self.article, self.request.user)
+
+    def form_valid(self, form):
+        """
+        Executed when EditorRevisionRequestDueDateForm is valid
+        """
+        form.save()
+        messages.success(self.request, _("The due date has been postponed."))
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
 
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.article.articleworkflow.id,))
@@ -1791,14 +1810,16 @@ class ArticleReminders(UserPassesTestMixin, ListView):
         return context
 
 
-class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
+class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """
     View to allow the Editor to postpone Reviewer Report due date.
     """
 
+    title = _("Update Reviewer Due Date")
     model = ReviewAssignment
     form_class = UpdateReviewerDueDateForm
-    template_name = "wjs_review/elements/update_reviewer_due_date.html"
+    template_name = "wjs_review/details/update_reviewer_due_date.html"
+    context_object_name = "assignment"
 
     def setup(self, request, *args, **kwargs):
         """Fetch the ReviewAssignment instance for easier processing."""
@@ -1816,13 +1837,20 @@ class UpdateReviewerDueDate(UserPassesTestMixin, UpdateView):
         kwargs["request"] = self.request
         return kwargs
 
+    def form_valid(self, form):
+        super().form_valid(form)
+        messages.success(self.request, _("Due date updated successfully."))
+        response = HttpResponse("ok")
+        response.headers["HX-Redirect"] = self.get_success_url()
+        return response
+
     def get_success_url(self):
         """Point back to the article's detail page."""
         return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
 
 
-class EditorDeclineAssignmentView(UserPassesTestMixin, View):
-    template_name = "wjs_review/elements/editor_rejects_assignment.html"
+class EditorDeclineAssignmentView(HtmxMixin, UserPassesTestMixin, DetailView):
+    template_name = "wjs_review/details/editor_rejects_assignment.html"
     model = ArticleWorkflow
 
     def setup(self, request, *args, **kwargs):
@@ -1843,26 +1871,35 @@ class EditorDeclineAssignmentView(UserPassesTestMixin, View):
         )
         return service
 
-    def get(self, request, *args, **kwargs):
-        """Delete declined WjsEditorAssignment using :py:class:`HandleEditorDeclinesAssignment`."""
+    def post(self, request, *args, **kwargs):
+        """
+        Delete declined WjsEditorAssignment using :py:class:`HandleEditorDeclinesAssignment`.
+
+        If the service raises a ValidationError, the error is passed to the template.
+        If the action is successful, a success message is attached and the user is redirected to the article list page.
+        """
         try:
             service = self.get_logic_instance()
             service.run()
+            messages.success(request, _("Assignment declined successfully."))
+            response = HttpResponse("ok")
+            response.headers["HX-Redirect"] = reverse("wjs_review_list")
+            return response
         except ValidationError as e:
-            context = {"error": str(e)}
-        else:
-            context = {"object": self.object}
-        return render(request, self.template_name, context)
+            kwargs["error"] = e
+        return self.get(request, *args, **kwargs)
 
 
-class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
     """
     The editor can withdraw a pending review assignment
     """
 
+    title = _("Deselect Reviewer")
     model = WorkflowReviewAssignment
     form_class = DeselectReviewerForm
-    template_name = "wjs_review/deselect_reviewer.html"
+    template_name = "wjs_review/details/deselect_reviewer.html"
+    context_object_name = "assignment"
 
     def test_func(self):
         """
@@ -1874,9 +1911,18 @@ class DeselectReviewer(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         messages.add_message(
             self.request,
             messages.SUCCESS,
-            "Reviewer deassigned successfully.",
+            _("Reviewer deassigned successfully."),
         )
         return reverse("wjs_article_details", args=(self.object.article.articleworkflow.pk,))
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -2050,10 +2096,20 @@ class DownloadAnythingDROPME(View):
         return core_files.serve_file(request, attachment, article, public=True)
 
 
-class ArticleExtraInformationUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
+    title = _("Update Article Information")
     model = ArticleWorkflow
-    template_name = "wjs_review/articleworkflow_form.html"
+    template_name = "wjs_review/details/articleworkflow_form.html"
     form_class = ArticleExtraInformationUpdateForm
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
 
     def test_func(self):
         articleworkflow = self.get_object()
@@ -2091,13 +2147,14 @@ class AdminOpensAppealView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return kwargs
 
 
-class AuthorWithdrawPreprint(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
     """View for author to withdraw preprint."""
 
+    title = _("Withdraw Preprint")
     model = ArticleWorkflow
     form_class = WithdrawPreprintForm
     success_url = reverse_lazy("wjs_review_author_archived")
-    template_name = "wjs_review/withdraw_preprint.html"
+    template_name = "wjs_review/details/withdraw_preprint.html"
 
     def test_func(self):
         """User must be corresponding author of the article."""
@@ -2105,6 +2162,15 @@ class AuthorWithdrawPreprint(LoginRequiredMixin, UserPassesTestMixin, UpdateView
             pk=self.kwargs["pk"],
             article__correspondence_author=self.request.user,
         ).exists()
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -2122,11 +2188,14 @@ class AuthorWithdrawPreprint(LoginRequiredMixin, UserPassesTestMixin, UpdateView
 
     def get_initial(self):
         initial = super().get_initial()
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="author_withdraws_preprint_subject",
             journal=self.object.article.journal,
-        ).processed_value
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="author_withdraws_preprint_body",
