@@ -328,7 +328,11 @@ class ArticleWorkflow(TimeStampedModel):
         return authors
 
     def __str__(self):
-        return f"{self.article.id}-{self.state}"
+        return self.preprint_id
+
+    @property
+    def preprint_id(self):
+        return f"{self.article.journal.code}_{self.article_id}"
 
     @property
     def permission_label(self) -> str:
@@ -878,9 +882,9 @@ class ArticleWorkflow(TimeStampedModel):
                     revision_requests=list(
                         EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
                     ),
-                    editor_assignment=WjsEditorAssignment.objects.get(
+                    editor_assignment=WjsEditorAssignment.objects.filter(
                         article=self.article, review_rounds=review_round
-                    ),
+                    ).first(),
                     review_assignments=list(
                         WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
                     ),
@@ -1402,15 +1406,15 @@ class PermissionAssignment(TimeStampedModel):
     class PermissionType(models.TextChoices):
         """Full set of permissions."""
 
-        ALL = "all", _("Allow")
-        NO_NAMES = "no_names", _("Hide names")
-        DENY = "deny", _("Deny")
+        ALL = "all", _("visible (editor's and reviewer's identity revealed)")
+        NO_NAMES = "no_names", _("visible (editor’s identity NOT revealed)")
+        DENY = "deny", _("not visibile")
 
     class BinaryPermissionType(models.TextChoices):
         """Subset of PermissionType for basic allow / deny check."""
 
-        ALL = "all", _("Allow")
-        DENY = "deny", _("Deny")
+        ALL = "all", _("visible")
+        DENY = "deny", _("not visibile")
 
     user = models.ForeignKey(Account, verbose_name=_("User"), on_delete=models.CASCADE)
     content_type = models.ForeignKey(

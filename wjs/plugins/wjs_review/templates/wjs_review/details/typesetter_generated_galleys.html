@@ -1,0 +1,26 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static wjs_permissions %}
+
+{% block content_wrapper %}
+  {% url "wjs_article_details" pk=workflow.pk as back_url %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h1>{{ view.title }}</h1>
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="card-text">
+          {% blocktranslate %}
+            <p>Error with generating galleys for {{ workflow }}.</p>
+            <p>{{ error }}</p>
+          {% endblocktranslate %}
+        </div>
+        <a href="{{ back_url }}" class="btn btn-primary">{% translate "Back to the paper" %}</a>
+      </div>
+    </div>
+  </div>
+{% endblock content_wrapper %}

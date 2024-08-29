@@ -9,6 +9,34 @@ from . import constants
 Account = get_user_model()
 
 
+def main_role(journal: Journal, user: Account) -> str:
+    """
+    Return the main role of the user.
+
+    :param journal: An instance of the Journal class.
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: The main role of the user.
+    :rtype: str
+    """
+    if has_eo_role(user):
+        return constants.EO_GROUP
+    elif has_director_role(journal, user):
+        # We do have both a "director" and "main director" roles, but they are functionally equivalent
+        return constants.DIRECTOR_ROLE
+    elif has_typesetter_role_on_any_journal(user):
+        return constants.TYPESETTER_ROLE
+    elif has_section_editor_role(journal, user):
+        return constants.SECTION_EDITOR_ROLE
+    elif has_reviewer_role(journal, user):
+        return constants.REVIEWER_ROLE
+    elif has_author_role(journal, user):
+        return constants.AUTHOR_ROLE
+
+
 def has_eo_role(user: Account) -> bool:
     """
     Check if the given user is part of the EO group.

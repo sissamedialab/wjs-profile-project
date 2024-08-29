@@ -90,7 +90,7 @@ def test_wjs_review_author_archived(assigned_article, client):
 @pytest.mark.django_db
 def test_wjs_review_rfp_author(assigned_article, client):
     client.force_login(assigned_article.correspondence_author)
-    response = client.get(
+    response = client.post(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/author/rfp/"
         f"{assigned_article.articleworkflow.pk}/"
     )
@@ -148,7 +148,7 @@ def test_wjs_review_typesetter_archived(assigned_to_typesetter_article_with_file
 def test_wjs_review_rfp2(assigned_to_typesetter_article_with_files_to_typeset, client):
     assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
     client.force_login(assignment.typesetter)
-    response = client.get(
+    response = client.post(
         f"/{assigned_to_typesetter_article_with_files_to_typeset.journal.code}/"
         f"plugins/wjs-review-articles/typesetter/rfp/{assigned_to_typesetter_article_with_files_to_typeset.pk}/"
     )
@@ -510,7 +510,7 @@ def test_wjs_typesetter_upload_files(assigned_to_typesetter_article_with_files_t
 def test_wjs_ready_for_proofreading(assigned_to_typesetter_article_with_files_to_typeset, client):
     assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
     client.force_login(assignment.typesetter)
-    response = client.get(
+    response = client.post(
         f"/{assigned_to_typesetter_article_with_files_to_typeset.journal.code}/"
         f"plugins/wjs-review-articles/ready_for_proofreading/{assignment.pk}/"
     )
@@ -525,16 +525,6 @@ def test_wjs_list_annotated_files(stage_proofing_article, client):
         f"/{stage_proofing_article.journal.code}/plugins/wjs-review-articles/annotated_files/{proofing.pk}/"
     )
     assert response.status_code == 200
-
-
-@pytest.mark.django_db
-def test_wjs_author_sends_corrections(stage_proofing_article, client):
-    assignment = TypesettingAssignment.objects.get(round__article=stage_proofing_article)
-    client.force_login(stage_proofing_article.correspondence_author)
-    response = client.get(
-        f"/{stage_proofing_article.journal.code}/plugins/wjs-review-articles/send_corrections/{assignment.pk}/"
-    )
-    assert response.status_code == 302
 
 
 @pytest.mark.django_db
@@ -584,7 +574,7 @@ def test_wjs_send_back_to_typ(assigned_to_typesetter_article_with_files_to_types
 @pytest.mark.django_db
 def test_wjs_typ_take_in_charge(assigned_article, typesetter, client):
     client.force_login(typesetter)
-    response = client.get(
+    response = client.post(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/take_in_charge/"
         f"{assigned_article.articleworkflow.pk}/"
     )
@@ -596,7 +586,7 @@ def test_wjs_typ_take_in_charge(assigned_article, typesetter, client):
 def test_wjs_review_begin_publication(rfp_article, eo_user, client):
     client.force_login(eo_user)
     with patch("plugins.wjs_review.logic__production.FinishPublication.run"):
-        response = client.get(
+        response = client.post(
             f"/{rfp_article.journal.code}/plugins/wjs-review-articles/begin_publication/"
             f"{rfp_article.articleworkflow.pk}/",
         )
@@ -607,7 +597,7 @@ def test_wjs_review_begin_publication(rfp_article, eo_user, client):
 def test_wjs_review_finish_publication(rfp_article, eo_user, client):
     # A bit lame: condition fails on check for status...
     client.force_login(eo_user)
-    response = client.get(
+    response = client.post(
         f"/{rfp_article.journal.code}/plugins/wjs-review-articles/finish_publication/"
         f"{rfp_article.articleworkflow.pk}/",
     )

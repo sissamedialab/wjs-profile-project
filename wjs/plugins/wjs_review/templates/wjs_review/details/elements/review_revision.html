@@ -1,4 +1,28 @@
 {% load static wjs_review %}
+
+{% if not revision.date_completed and article_info.type %}
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="heading-author-revision-{{ version.number }}">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-author-revision-{{ version.number }}" aria-expanded="false" aria-controls="collapse-author-revision-{{ version.number }}">
+        <i class="bi bi-journals pe-2"></i> {% translate "Pending author revision" %}
+      </button>
+    </h2>
+    <div id="collapse-author-revision-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-author-revision-{{ version.number }}" data-bs-parent="#metadata">
+      <div class="accordion-body">
+        <table class="table">
+          <tr>
+            <th>{% translate "Revision type" %}</th>
+            <td>{{ article_info.get_type_display }}</td>
+          </tr>
+          <tr>
+            <th>{% translate "Due date" %}</th>
+            <td>{{ article_info.date_due|date:DATE_FORMAT }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endif %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading-revision-{{ version.number }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-revision-{{ version.number }}" aria-expanded="false" aria-controls="collapse-revision-{{ version.number }}">

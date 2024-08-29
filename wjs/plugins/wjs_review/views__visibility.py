@@ -1,13 +1,13 @@
 from operator import attrgetter
-from typing import Type, Union, cast
+from typing import TYPE_CHECKING, List, Type, Union, cast
 
 from core.models import Account
 from django import forms
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
 from django.forms import formset_factory
 from django.urls import reverse
+from django.utils.translation import gettext as _
 from django.views.generic import FormView
 
 from .custom_types import (
@@ -25,21 +25,42 @@ from .models import (
     WorkflowReviewAssignment,
 )
 from .permissions import is_article_editor, is_article_supervisor
+from .views import BaseRelatedViewsMixin
+
+if TYPE_CHECKING:
+    from .custom_types import BreadcrumbItem
 
 
-class EditUserPermissions(LoginRequiredMixin, UserPassesTestMixin, FormView):
+class EditUserPermissions(BaseRelatedViewsMixin, FormView):
+    base_title = _("Set visibility rights for")
     model = ArticleWorkflow
-    template_name = "wjs_review/assign_permission.html"
+    template_name = "wjs_review/edit_permissions/assign_permission.html"
+    context_object_name = "workflow"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.workflow = self.model.objects.get(pk=kwargs["pk"])
+        self.user = Account.objects.get(pk=kwargs["user_id"])
 
     def test_func(self):
         return is_article_editor(self.workflow, self.request.user) or is_article_supervisor(
             self.workflow, self.request.user
         )
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
-        self.workflow = self.model.objects.get(pk=kwargs["pk"])
-        self.user = Account.objects.get(pk=kwargs["user_id"])
+    @property
+    def title(self):
+        return f"{self.base_title} {self.user}"
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.workflow.pk}), title=self.workflow),
+            BreadcrumbItem(
+                url=reverse("wjs_select_reviewer", kwargs={"pk": self.workflow.pk}), title=self.title, current=True
+            ),
+        ]
 
     def get_form_class(self) -> Type[Union[forms.Form, forms.BaseFormSet]]:
         return formset_factory(
@@ -112,7 +133,7 @@ class EditUserPermissions(LoginRequiredMixin, UserPassesTestMixin, FormView):
                 for obj in review_assignments
             ]
         )
-        return sorted(target_objects, key=attrgetter("round"))
+        return sorted(target_objects, key=attrgetter("round"), reverse=True)
 
     def _check_current_permission(
         self,

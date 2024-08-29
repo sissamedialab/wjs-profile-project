@@ -10,15 +10,26 @@
       hx-target="#target-{{ action.name|slugify }}"
       hx-post="{{ action.url }}"
       hx-swap="outerHTML"
+      {% if action.confirm %}hx-confirm="{{ action.confirm }}"{% endif %}
     {% endif %}
   {% endif %}
-   class="nav-link {% if action.disabled %}disabled{% endif %} {% if action.url == '#' %}disabled{% endif %}"
-   {% if action.is_htmx %}href="#"{% else %}href="{{ action.url }}"{% endif %}
+   class="{% if is_button %}btn btn-primary{% else %}nav-link{% endif %} {% if action.disabled %}disabled{% endif %} {% if action.url == '#' %}disabled{% endif %}"
+   {% if action.is_htmx %}href="#"{% elif action.is_post %}href="#" onclick="sendPost{{ action.id }}()"{% else %}href="{{ action.url }}"{% endif %}
    {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %}>
   {% if action.label %}
-    {{ action.label }}
+    {{ action.label|safe }}
   {% else %}
-    {{ action.name }}
+    {{ action.name|safe }}
   {% endif %}
   {{ error|default:'' }}
 </a>
+{% if action.is_post %}
+  <script>
+    const sendPost{{ action.id }} = () => {
+      {% if action.confirm %}if(confirm("{{ action.confirm }}")) document.getElementById('{{ action.slug }}').submit();
+      {% else %}document.getElementById('{{ action.slug }}').submit();{% endif %}
+      return false;
+    }
+  </script>
+  <form id="{{ action.slug }}" action="{{ action.url }}" method="post">{% csrf_token %}</form>
+{% endif %}

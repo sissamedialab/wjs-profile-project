@@ -1,0 +1,14 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Decline" as decline_label %}
+{% translate "Close" as close_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Editor assigns themselves as reviewer" %}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  <p>{% translate "Do you confirm to assign your self as reviewer of" %} {{ workflow }}.</p>
+  <form id="decline-assignment" hx-post="{% url "wjs_editor_assigns_themselves_as_reviewer" pk=workflow.pk %}" hx-target="#htmxModalContent">
+    {% csrf_token %}
+    {% bootstrap_form_errors form layout='inline' %}{% bootstrap_form form %}{% bootstrap_button button_type="submit" content="Assign" %}
+  </form>
+</div>

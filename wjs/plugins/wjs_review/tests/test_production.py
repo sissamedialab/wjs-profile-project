@@ -370,8 +370,6 @@ def test_author_sends_corrections(
 ):
     stage_proofing_article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
     stage_proofing_article.articleworkflow.save()
-    typesetting_assignment = stage_proofing_article.typesettinground_set.first().typesettingassignment
-    url = reverse("wjs_author_sends_corrections", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(stage_proofing_article.correspondence_author)
     galleyproofing = (
         GalleyProofing.objects.filter(
@@ -380,16 +378,16 @@ def test_author_sends_corrections(
         .order_by("round__round_number")
         .last()
     )
-    response = client.get(url)
-    assert response.status_code == 302
-    messages = list(get_messages(response.wsgi_request))
-    assert any("Data not provided" in message.message for message in messages)
+    url = reverse("wjs_list_annotated_files", kwargs={"pk": galleyproofing.pk})
+    response = client.post(url, data={"action": "send_corrections"})
+    assert response.status_code == 200
+    assert not response.context["form"].is_valid()
+    assert response.context["form"].errors["notes"] == ["No correction provided"]
 
-    galleyproofing.notes = "Some notes"
-    galleyproofing.save()
-    galleyproofing.refresh_from_db()
-    response = client.get(url)
+    response = client.post(url, data={"action": "send_corrections", "notes": "Some notes"})
     assert response.status_code == 302
+    galleyproofing.refresh_from_db()
+    assert galleyproofing.notes == "Some notes"
     messages = list(get_messages(response.wsgi_request))
     assert any("Corrections have been dispatched" in message.message for message in messages)
 
@@ -431,12 +429,13 @@ def test_typesetter_galley_generation(
     )
     url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
-    response = client.get(url)
+    response = client.post(url)
 
     assert mock_jcomassistant_post.call_args.kwargs["url"] == settings.JCOMASSISTANT_URL
-    assert response.status_code == 200
-    assert "article" in response.context
-    assert response.context["article"] == assigned_to_typesetter_article_with_files_to_typeset
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "wjs_article_details", kwargs={"pk": assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}
+    )
 
     galleys_created = typesetting_assignment.galleys_created.all()
     assert galleys_created.count() == 3
@@ -512,7 +511,7 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
 
     # even if the author manages to run the action, the process ends in a well-behaved error
     url = reverse("wjs_review_rfp", kwargs={"pk": stage_proofing_article.articleworkflow.pk})
-    response = client.get(url)
+    response = client.post(url)
     assert response.status_code == 302
 
     messages = list(get_messages(response.wsgi_request))
@@ -526,7 +525,7 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
     workflow.save()
     assert workflow.can_be_set_rfp() is True
 
-    response = client.get(url)
+    response = client.post(url)
     assert response.status_code == 302
 
     workflow.refresh_from_db()
@@ -600,7 +599,7 @@ def test_production_flag_galleys_ok(
     ):
         url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
-        response = client.get(url)
+        response = client.post(url)
         assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
         assert (
             assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
@@ -631,7 +630,7 @@ def test_production_flag_galleys_ok(
     ):
         url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
-        client.get(url)
+        client.post(url)
         assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
         assert (
             assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
@@ -648,7 +647,7 @@ def test_typesetter_takes_in_charge(
     assert ready_for_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
     url = reverse("wjs_typ_take_in_charge", kwargs={"pk": ready_for_typesetter_article.articleworkflow.pk})
     client.force_login(typesetter.janeway_account)
-    response = client.get(url)
+    response = client.post(url)
     assert response.status_code == 302
     ready_for_typesetter_article.refresh_from_db()
     assert ready_for_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED

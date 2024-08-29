@@ -1,0 +1,13 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Update" as update_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{{ view.title }}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  <form id="update-date" hx-post="{% url "wjs_postpone_reviewer_due_date" pk=assignment.pk %}" hx-target="#htmxModalContent">
+  {% csrf_token %}
+        {% bootstrap_form form %}
+  {% bootstrap_button name="decline" content=update_label %}
+</form>
+</div>

@@ -1,0 +1,31 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static wjs_permissions %}
+
+{% block content_wrapper %}
+  {% translate "Save" as save_label %}
+  {% translate "Back" as back_label %}
+  {% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h1>{{ view.title }}</h1>
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">{% translate "About this page" %}</h5>
+        <div class="card-text">{% blocktranslate %}<p>Please provide image and text suitable for a social-media post.</p>{% endblocktranslate %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% bootstrap_form form %}
+        {% bootstrap_button name="save" content=save_label %}
+    </form>
+  </div>
+{% endblock content_wrapper %}
