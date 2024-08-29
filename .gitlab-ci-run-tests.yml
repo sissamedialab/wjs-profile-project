@@ -21,12 +21,17 @@
   services:
     - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
       alias: db
+      command: [
+      "postgres",
+      "-c", "max_locks_per_transaction=2048"
+      ]
+
 
   script:
     - cp setup_environment /usr/local/bin/
     - setup_environment
     - cd /janeway/src
-    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -n 4 --reverse -m "not fix_labels" --create-db
+    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -n 12 --reverse -m "not fix_labels" --create-db
 
 
 # lintme:
