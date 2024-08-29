@@ -1,5 +1,5 @@
 .deploy:
-  image: python:3.9
+  image: python:3.11
   stage: deploy
 
   # Need to find defined the server (and ssh user) to deploy to and the deploy command.
