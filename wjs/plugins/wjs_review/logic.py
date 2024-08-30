@@ -8,18 +8,20 @@ action in a method named "run()".
 import dataclasses
 import datetime
 from copy import copy
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
 from core import models as core_models
 from core.models import AccountRole, Role
 from dateutil.parser import parse
+from django import forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest
@@ -35,6 +37,7 @@ from review.logic import assign_editor, quick_assign
 from review.models import ReviewRound
 from review.views import upload_review_file
 from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
+from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 import wjs.jcom_profile.permissions
@@ -54,6 +57,16 @@ from .logic__production import (  # noqa F401
     UploadFile,
     VerifyProductionRequirements,
 )
+from .models import (
+    ArticleWorkflow,
+    EditorDecision,
+    EditorRevisionRequest,
+    Message,
+    PastEditorAssignment,
+    Reminder,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 from .permissions import has_any_editor_role_by_article, is_article_editor
 from .reminders.settings import (
     AuthorShouldSubmitMajorRevisionReminderManager,
@@ -66,22 +79,6 @@ from .reminders.settings import (
     ReviewerShouldWriteReviewReminderManager,
 )
 from .utils import get_other_review_assignments_for_this_round
-
-if TYPE_CHECKING:
-    from .forms import ReportForm
-
-from utils.logger import get_logger
-
-from .models import (
-    ArticleWorkflow,
-    EditorDecision,
-    EditorRevisionRequest,
-    Message,
-    PastEditorAssignment,
-    Reminder,
-    WjsEditorAssignment,
-    WorkflowReviewAssignment,
-)
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -436,10 +433,12 @@ class AssignToReviewer:
             #    WorkflowReviewAssignment instance or original ReviewAssignment object and the access the linked
             #    object through the workflowreviewassignment field
             default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
+            default_report_form_answers = {}
             assignment_id = assignment.pk
             assignment.__class__ = WorkflowReviewAssignment
             assignment.reviewassignment_ptr_id = assignment_id
             assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
+            assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -934,7 +933,7 @@ class InviteReviewer:
 @dataclasses.dataclass
 class SubmitReview:
     assignment: WorkflowReviewAssignment
-    form: "ReportForm"
+    form: forms.Form
     submit_final: bool
     request: HttpRequest
 
@@ -942,18 +941,22 @@ class SubmitReview:
     def _upload_files(assignment: WorkflowReviewAssignment, request: HttpRequest) -> WorkflowReviewAssignment:
         """Upload the files for the review."""
         if request.FILES:
-            assignment = upload_review_file(request, assignment_id=assignment.pk)
+            upload_review_file(request, assignment_id=assignment.pk)
+            assignment.refresh_from_db()
         return assignment
 
     @staticmethod
-    def _save_report_form(assignment: WorkflowReviewAssignment, form: "ReportForm") -> WorkflowReviewAssignment:
+    def _save_report_form(assignment: WorkflowReviewAssignment, form: forms.Form) -> WorkflowReviewAssignment:
         """
         Save the report form.
 
         Run for draft and final review.
         """
-        assignment.save_review_form(form, assignment)
-        assignment.refresh_from_db()
+        for field_name, field_value in form.cleaned_data.items():
+            if isinstance(field_value, UploadedFile):
+                continue
+            assignment.report_form_answers[field_name] = field_value
+        assignment.save()
         return assignment
 
     @staticmethod

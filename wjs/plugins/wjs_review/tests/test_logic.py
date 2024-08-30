@@ -36,7 +36,6 @@ from ..forms import (
     EditorRevisionRequestEditForm,
     MessageForm,
     OpenAppealForm,
-    ReportForm,
     SupervisorAssignEditorForm,
     WithdrawPreprintForm,
 )
@@ -72,8 +71,14 @@ from ..reminders.settings import (
     ReviewerShouldEvaluateAssignmentReminderManager,
     ReviewerShouldWriteReviewReminderManager,
 )
+from ..utils import get_report_form
 from ..views import ArticleRevisionUpdate
-from .test_helpers import _create_review_assignment, _submit_review, raw
+from .test_helpers import (
+    _create_review_assignment,
+    _submit_review,
+    jcom_report_form_data,
+    raw,
+)
 
 fake_factory = Faker()
 
@@ -541,7 +546,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         request=fake_request,
         context={
             "article": assigned_article,
-            "request": None,  # should produce emtpy signature: simplyfy message-body comparison
+            "request": None,
             "revision": revision,
             "decision": form_data["decision"],
             "user_message_content": form_data["decision_editor_report"],
@@ -565,6 +570,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     # Check email
     assert len(mail.outbox) == 1
     mail_to_correspondence_author = mail.outbox[0]
+    assert revision_request_message_subject in mail_to_correspondence_author.subject
     # If message must be split, check that the first part is in the email body
     if Message.SPLIT_MARKER in revision_request_message_body:
         assert revision_request_message_body.partition(Message.SPLIT_MARKER)[0] in raw(
@@ -2933,7 +2939,10 @@ def test_deassign_reviewer_existing_assignment(
             token="",
         ).run()
     elif extra_assignment_state == "completed":
-        rf = ReportForm(data={str(review_form.pk): "random report"}, review_assignment=extra_assignment)
+        report_form = get_report_form(fake_request.journal.code)
+        rf = report_form(
+            data=jcom_report_form_data, review_assignment=extra_assignment, request=fake_request, submit_final=True
+        )
         assert rf.is_valid()
         SubmitReview(
             assignment=extra_assignment,

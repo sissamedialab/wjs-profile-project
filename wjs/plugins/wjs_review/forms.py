@@ -1240,3 +1240,110 @@ class WithdrawPreprintForm(forms.Form):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class JCOMReportForm(forms.Form):
+    EVALUATION_CHOICES = [
+        ("", "---"),
+        ("Poor", "Poor"),
+        ("Acceptable", "Acceptable"),
+        ("Good", "Good"),
+        ("Excellent", "Excellent"),
+    ]
+    RECOMMENDATION_CHOICES = [
+        ("", "---"),
+        ("publish", "It can be published in this form."),
+        (
+            "revise_minor",
+            "There are some weaknesses or errors. The author(s) should revise the paper, taking the reviewers` "
+            "comments into account.",
+        ),
+        (
+            "revise_major",
+            "There are major weaknesses or errors. The author(s) should rewrite the paper, along the lines indicated "
+            "by the reviewers` comments.",
+        ),
+        ("reject", "The paper is not to be published."),
+    ]
+    FOLLOWUP_CHOICES = [
+        ("", "---"),
+        ("no_review", "I don't think it will be necessary for me to review the article again."),
+        ("second_review", "Send me back the revised paper for a second review."),
+        ("another_reviewer", "Send the paper for review to another reviewer."),
+    ]
+    no_conflict_of_interest = forms.BooleanField(required=True, label="No conflict of interest")
+    # EVALUATION
+    structure_and_writing_style = forms.ChoiceField(
+        choices=EVALUATION_CHOICES, label="Structure and Writing Style", required=True
+    )
+    originality = forms.ChoiceField(choices=EVALUATION_CHOICES, label="Originality", required=True)
+    scope_and_methods = forms.ChoiceField(choices=EVALUATION_CHOICES, label="Scope and Methods", required=True)
+    argument_and_discussion = forms.ChoiceField(
+        choices=EVALUATION_CHOICES, label="Argument and Discussion", required=True
+    )
+    # RECOMMENDATION
+    recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label="Recommendation", required=True)
+    # FOLLOW-UP ACTIONS
+    follow_up_action = forms.ChoiceField(choices=FOLLOWUP_CHOICES, label="Follow-up Action", required=False)
+    suggested_reviewers = forms.CharField(
+        label="Suggested Name(s)/Email(s) of other Reviewer(s)",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "name/email"}),
+    )
+    editor_cover_letter = forms.CharField(label="Review", required=True, widget=SummernoteWidget())
+    author_review = forms.CharField(label="Review (to be sent to Authors)", required=False, widget=SummernoteWidget())
+    author_file_title = forms.CharField(label="File Title (to be sent to Authors)", required=False)
+    # This is saved in ReviewAssignment.review_file
+    review_file = forms.FileField(
+        label="File (to be sent to Authors)", required=False, widget=forms.ClearableFileInput()
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop("review_assignment", None)
+        self.submit_final = kwargs.pop("submit_final", None)
+        self.request = kwargs.pop("request", None)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        no_conflict_of_interest = cleaned_data.get("no_conflict_of_interest")
+        recommendation = cleaned_data.get("recommendation")
+        follow_up_action = cleaned_data.get("follow_up_action")
+        author_review = cleaned_data.get("author_review")
+        author_file = cleaned_data.get("author_file")
+        # follow_up_action is required only if recommendation is to revise_minor or revise_major
+        if not no_conflict_of_interest:
+            self.add_error("no_conflict_of_interest", "This field is required.")
+        if recommendation in ["revise_minor", "revise_major"]:
+            if not follow_up_action:
+                self.add_error("follow_up_action", "This field is required if the recommendation is to revise.")
+        if not author_review and not author_file:
+            raise forms.ValidationError(
+                'At least one of "Review (to be sent to Authors)" or "Files (to be sent to Authors)" must be provided.'
+            )
+        return cleaned_data
+
+    def get_logic_instance(self) -> SubmitReview:
+        """Instantiate :py:class:`SubmitReview` class."""
+        service = SubmitReview(
+            assignment=self.instance.workflowreviewassignment,
+            form=self,
+            submit_final=self.submit_final,
+            request=self.request,
+        )
+        return service
+
+    def save(self, commit: bool = True) -> ReviewAssignment:
+        """
+        Change the state of the review using :py:class:`SubmitReview`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
