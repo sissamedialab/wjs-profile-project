@@ -1180,7 +1180,7 @@ ORDER BY dl.submissionDate
             else:
                 message = render_template_from_setting(
                     setting_group_name="wjs_review",
-                    setting_name="review_invitation_message",
+                    setting_name="review_invitation_message_body",
                     journal=self.journal,
                     request=request,
                     context={

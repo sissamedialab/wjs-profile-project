@@ -259,8 +259,8 @@ def test_invite_function_creates_inactive_user(
     assert invited_user.invitation_token == invitation_token
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="email_subject",
-        setting_name="subject_review_assignment",
+        setting_group_name="wjs_review",
+        setting_name="review_invitation_message_subject",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -272,7 +272,6 @@ def test_invite_function_creates_inactive_user(
     assert Message.objects.count() == 1
     message_to_reviewer = Message.objects.first()
     assert review_assignment_subject == message_to_reviewer.subject
-    assert assigned_article.title in message_to_reviewer.subject
     assert "random message" in message_to_reviewer.body
     assert acceptance_url in message_to_reviewer.body
     assert message_to_reviewer.message_type == Message.MessageTypes.SYSTEM

@@ -349,6 +349,7 @@ def test_eo_forwards_msg(
     client.force_login(eo_user.janeway_account)
     response = client.post(url, data=data)
     assert response.status_code == 302  # POST redirects to "details" page
+    assert response.headers["Location"] == reverse("wjs_article_details", kwargs={"pk": object_id})
     assert "/login" not in response.url
 
     messages = Message.objects.filter(content_type=content_type, object_id=object_id).order_by("created")

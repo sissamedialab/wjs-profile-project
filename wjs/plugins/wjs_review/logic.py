@@ -275,18 +275,19 @@ class AssignToEditor:
         )
 
     def _get_message_context(self) -> Dict[str, Any]:
-        review_in_review_url = self.request.journal.site_url(
-            path=reverse(
-                "review_in_review",
-                kwargs={"article_id": self.article.pk},
-            ),
-        )
         return {
             "article": self.workflow.article,
             "request": self.request,
             "editor_assigment": self.assignment,
             "editor": self.editor,
-            "review_in_review_url": review_in_review_url,
+            # We could pass along the request, which has all journal settings linked to it,
+            # instead of hitting the DB for a specific setting,
+            # but we prefer to decouple logic and request
+            "default_editor_assign_reviewer_days": get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_editor_assign_reviewer_days",
+                journal=self.workflow.article.journal,
+            ).processed_value,
         }
 
     def _log_operation(self, context: Dict[str, Any]):
@@ -294,9 +295,9 @@ class AssignToEditor:
             actor = self.request.user
         else:
             actor = None
-        editor_assignment_subject = render_template_from_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_editor_assignment",
+        message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="wjs_editor_assignment_subject",
             journal=self.workflow.article.journal,
             request=self.request,
             context={
@@ -305,8 +306,8 @@ class AssignToEditor:
             template_is_setting=True,
         )
         message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="editor_assignment",
+            setting_group_name="wjs_review",
+            setting_name="wjs_editor_assignment_body",
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -314,11 +315,11 @@ class AssignToEditor:
         )
         communication_utils.log_operation(
             article=self.workflow.article,
-            message_subject=editor_assignment_subject,
+            message_subject=message_subject,
             message_body=message_body,
             actor=actor,
             recipients=[self.editor],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -452,7 +453,7 @@ class AssignToReviewer:
         Provides:
         - major_revision: True if we are requesting the review for a major revision
         - minor_revision: True if we are requesting the review for a minor revision
-        - already_reviewed: True if the reviewer has already been assigned to this article
+        - already_reviewed: True if the reviewer has already been assigned to this article and completed a review
         - article: Article instance
         - journal: Journal instance
         - request: Request object
@@ -466,10 +467,15 @@ class AssignToReviewer:
             review_round = self.workflow.article.reviewround_set.get(
                 round_number=self.workflow.article.current_review_round() - 1,
             )
+            # Consider that a reviewer has "already reviewed" this article only if
+            # he completed a review (i.e. not he declined or was withdrawn)
+            # See also conditions.review_done() and specs#875
             already_reviewed = (
                 WorkflowReviewAssignment.objects.filter(
                     article=self.workflow.article,
                     reviewer=self.reviewer,
+                    date_accepted__isnull=False,
+                    is_complete=True,
                 )
                 .exclude(review_round=self.workflow.article.current_review_round_object())
                 .exists()
@@ -501,16 +507,15 @@ class AssignToReviewer:
 
     def _log_operation(self, context: Dict[str, Any]):
         if self.reviewer == self.editor:
-            message_type = Message.MessageTypes.SYSTEM
+            message_verbosity = Message.MessageVerbosity.TIMELINE
             message_subject_setting = "wjs_editor_i_will_review_message_subject"
             message_body_setting = "wjs_editor_i_will_review_message_body"
             message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
         else:
-            message_type = Message.MessageTypes.SYSTEM
-            message_subject_setting = "subject_review_assignment"
-            message_body_setting = "review_assignment"
-            message_subject_setting_group_name = "email_subject"
-            message_body_setting_group_name = "email"
+            message_verbosity = Message.MessageVerbosity.FULL
+            message_subject_setting = "review_invitation_message_subject"
+            message_body_setting = "review_invitation_message_body"
+            message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
 
         review_assignment_subject = render_template_from_setting(
             setting_group_name=message_subject_setting_group_name,
@@ -534,10 +539,11 @@ class AssignToReviewer:
             message_body=message_body,
             actor=self.editor,
             recipients=[self.reviewer],
-            message_type=message_type,
+            verbosity=message_verbosity,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read=self.reviewer == self.editor,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _create_reviewevaluate_reminders(self) -> None:
@@ -762,6 +768,7 @@ class EvaluateReview:
             article=article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.EMAIL,
             recipients=[communication_utils.get_eo_user(article)],
         )
 
@@ -1013,16 +1020,16 @@ class SubmitReview:
             template_is_setting=True,
         )
         if self.assignment.reviewer == self.assignment.editor:
-            message_type = Message.MessageTypes.SYSTEM
+            verbosity = Message.MessageVerbosity.FULL
         else:
-            message_type = Message.MessageTypes.SYSTEM
+            verbosity = Message.MessageVerbosity.EMAIL
         communication_utils.log_operation(
             # no actor as it's a system message
             article=self.assignment.article,
             message_subject=reviewer_message_subject,
             message_body=reviewer_message_body,
             recipients=[self.assignment.reviewer],
-            message_type=message_type,
+            verbosity=verbosity,
         )
         # Message to the editor
         editor_message_subject = render_template_from_setting(
@@ -1047,7 +1054,7 @@ class SubmitReview:
             message_subject=editor_message_subject,
             message_body=editor_message_body,
             recipients=[self.assignment.editor],
-            message_type=message_type,
+            verbosity=verbosity,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1149,13 +1156,12 @@ class AuthorHandleRevision:
         ).processed_value
         reviewer_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="revision_submission_message",
+            setting_name="revision_submission_body",
             journal=self.revision.article.journal,
             request=self.request,
             context=self._get_revision_submission_message_context(),
             template_is_setting=True,
         )
-        message_type = Message.MessageTypes.SYSTEM
 
         for assignment in self.revision.article.active_revision_requests():
             communication_utils.log_operation(
@@ -1164,9 +1170,11 @@ class AuthorHandleRevision:
                 message_subject=reviewer_message_subject,
                 message_body=reviewer_message_body,
                 recipients=[assignment.reviewer],
-                message_type=message_type,
+                verbosity=Message.MessageVerbosity.FULL,
                 hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
                 notify_actor=communication_utils.should_notify_actor(),
+                flag_as_read=False,
+                flag_as_read_by_eo=True,
             )
 
     def _notify_editor(self):
@@ -1178,22 +1186,23 @@ class AuthorHandleRevision:
         ).processed_value
         reviewer_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="revision_submission_message",
+            setting_name="revision_submission_body",
             journal=self.revision.article.journal,
             request=self.request,
             context=self._get_revision_submission_message_context(),
             template_is_setting=True,
         )
-        message_type = Message.MessageTypes.SYSTEM
         communication_utils.log_operation(
             actor=self.user,
             article=self.revision.article,
             message_subject=reviewer_message_subject,
             message_body=reviewer_message_body,
             recipients=[self.revision.editor],
-            message_type=message_type,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
         )
 
     def _notify_editor_with_appeal(self):
@@ -1284,9 +1293,11 @@ class WithdrawReviewRequests:
             message_subject=review_withdraw_subject,
             recipients=[reviewer],
             message_body=review_withdraw_message,
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
 
@@ -1405,7 +1416,7 @@ class HandleDecision:
             message_body=accept_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1433,7 +1444,7 @@ class HandleDecision:
             message_body=decline_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1461,9 +1472,11 @@ class HandleDecision:
             message_body=not_suitable_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _log_requires_resubmission(self, context):
@@ -1477,7 +1490,7 @@ class HandleDecision:
         )
         requires_resubmission_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="review_decision_requires_resubmission_message",
+            setting_name="review_decision_requires_resubmission_body",
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -1489,7 +1502,7 @@ class HandleDecision:
             message_body=requires_resubmission_message_body,
             actor=self.user,
             recipients=[self.workflow.article.correspondence_author],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1517,9 +1530,10 @@ class HandleDecision:
             message_subject=revision_request_message_subject,
             recipients=[self.workflow.article.correspondence_author],
             message_body=revision_request_message_body,
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_technical_revision_request(self, context: Dict[str, str]):
@@ -1545,9 +1559,11 @@ class HandleDecision:
             message_subject=technical_revision_subject,
             recipients=[self.workflow.article.correspondence_author],
             message_body=technical_revision_body,
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
         )
 
     def _accept_article(self) -> Article:
@@ -1828,6 +1844,7 @@ class PostponeRevisionRequestDueDate:
             article=self.revision_request.article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.EMAIL,
             recipients=[communication_utils.get_eo_user(self.revision_request.article)],
         )
 
@@ -1850,9 +1867,12 @@ class PostponeRevisionRequestDueDate:
             article=self.revision_request.article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
             recipients=[self.revision_request.article.correspondence_author],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _save_date_due(self):
@@ -2000,7 +2020,8 @@ class HandleMessage:
             raise ValidationError("Cannot write to this recipient. Please contact EO.")
 
         with transaction.atomic():
-            self.message.message_type = Message.MessageTypes.SYSTEM
+            self.message.message_type = Message.MessageTypes.USER
+            self.message.verbosity = Message.MessageVerbosity.FULL
             self.message.save()
             self.message.recipients.add(recipient)
             if self.form_data["attachment"]:
@@ -2067,7 +2088,7 @@ class AdminActions:
         )
         requeue_article_message = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="requeue_article_message",
+            setting_name="requeue_article_body",
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -2078,9 +2099,11 @@ class AdminActions:
             article=self.workflow.article,
             message_subject=requeue_article_subject,
             message_body=requeue_article_message,
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.TIMELINE,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _queue_for_assignment(self) -> ArticleWorkflow:
@@ -2155,10 +2178,13 @@ class PostponeReviewerDueDate:
             article=self.assignment.article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
             actor=self.assignment.editor,
             recipients=[self.assignment.reviewer],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _log_eo_far_future_date(self) -> None:
@@ -2181,6 +2207,7 @@ class PostponeReviewerDueDate:
             article=self.assignment.article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.EMAIL,
             recipients=[communication_utils.get_eo_user(self.assignment.article)],
         )
 
@@ -2296,7 +2323,7 @@ class HandleEditorDeclinesAssignment:
         ).processed_value
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="editor_decline_assignment_body",
+            setting_name="editor_decline_assignment_default",
             journal=self.assignment.article.journal,
             request=self.request,
             context=self._get_message_context(),
@@ -2306,10 +2333,13 @@ class HandleEditorDeclinesAssignment:
             article=self.assignment.article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
             actor=self.editor,
             recipients=[self.director],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
         )
 
     def _update_state(self):
@@ -2361,10 +2391,13 @@ class DeselectReviewer:
             article=self.assignment.article,
             message_subject=self.form_data.get("notification_subject"),
             message_body=self.form_data.get("notification_body"),
+            verbosity=Message.MessageVerbosity.FULL,
             actor=self.editor,
             recipients=[self.assignment.reviewer],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _log_system(self):
@@ -2387,7 +2420,7 @@ class DeselectReviewer:
             message_subject=message_subject,
             message_body=message_body,
             actor=self.editor,
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.EMAIL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -2410,7 +2443,8 @@ class DeselectReviewer:
         handle_reviewer_deassignment_reminders(self.assignment)
         if self.send_reviewer_notification:
             self._log_reviewer()
-        self._log_system()
+        else:
+            self._log_system()
         self.assignment.withdraw()
         return True
 

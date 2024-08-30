@@ -105,7 +105,7 @@ def log_author_uploads_revision(**kwargs) -> Message:
         message_body=revision_request.author_note,
         actor=actor,
         recipients=[editor],
-        message_type=Message.MessageTypes.SYSTEM,
+        verbosity=Message.MessageVerbosity.FULL,
         hijacking_actor=base_permissions.get_hijacker(),
         notify_actor=communication_utils.should_notify_actor(),
     )

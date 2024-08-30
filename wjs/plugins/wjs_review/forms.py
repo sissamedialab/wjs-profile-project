@@ -167,7 +167,7 @@ class SelectReviewerForm(forms.ModelForm):
                 if not self.data.get("message", None):
                     default_message_rendered = render_template_from_setting(
                         setting_group_name="wjs_review",
-                        setting_name="review_invitation_message",
+                        setting_name="review_invitation_message_default",
                         journal=self.instance.article.journal,
                         request=self.request,
                         context=self.get_message_context(),
@@ -527,7 +527,7 @@ class DecisionForm(forms.ModelForm):
             kwargs["initial"] = {}
         kwargs["initial"]["withdraw_notice"] = get_setting(
             "wjs_review",
-            "review_withdraw_notice",
+            "review_withdraw_default",
             self.request.journal,
         ).processed_value
         super().__init__(*args, **kwargs)
@@ -899,7 +899,7 @@ class AssignEoForm(forms.ModelForm):
             request=self.request,
             context={
                 "article": self.instance.article,
-                "eo_in_charge": self.instance.eo_in_charge,
+                "eo": self.instance.eo_in_charge,
             },
             template_is_setting=True,
         )
@@ -908,6 +908,7 @@ class AssignEoForm(forms.ModelForm):
             article=self.instance.article,
             message_subject=message_subject,
             message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
             recipients=[self.instance.eo_in_charge],
         )
 

@@ -123,7 +123,7 @@ class VerifyProductionRequirements:
             recipients=[
                 communication_utils.get_eo_user(self.articleworkflow.article),
             ],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
         )
         return message
 
@@ -252,7 +252,9 @@ class AssignTypesetter:
             recipients=[
                 self.typesetter,
             ],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
         )
         return message
 
@@ -365,7 +367,9 @@ class RequestProofs:
             recipients=[
                 self.proofreader,
             ],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
         )
         return message
 
@@ -706,7 +710,9 @@ class AuthorSendsCorrections:
             recipients=[
                 self.old_assignment.typesetter,
             ],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
         )
         return message
 
@@ -1051,7 +1057,9 @@ class TypesetterTestsGalleyGeneration:
             recipients=[
                 self.assignment.typesetter,
             ],
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
         return message
 
@@ -1275,7 +1283,7 @@ class HandleEOSendBackToTypesetter:
         """Create and send the message for the typesetter."""
         message = Message.objects.create(
             actor=self.user,
-            message_type=Message.MessageTypes.SYSTEM,
+            verbosity=Message.MessageVerbosity.FULL,
             content_type=ContentType.objects.get_for_model(self.articleworkflow.article),
             object_id=self.articleworkflow.article.pk,
             subject=self.subject,
