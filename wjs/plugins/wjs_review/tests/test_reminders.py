@@ -129,6 +129,11 @@ def test_create_a_reminder(
     assert reminders.count() == 1
     assert reminders.first() == reminder_obj
 
+    # Somewhat weak test that the subject has been rendered
+    reminder_setting = ReviewerShouldEvaluateAssignmentReminderManager.get_settings(reminder_obj)
+    # Needs coercion to string because the subject is a lazy translation
+    assert str(reminder_setting.subject) in reminder_obj.message_subject
+
     assert reminder_obj.recipient == service.reviewer
     assert reminder_obj.actor == section_editor.janeway_account
 
@@ -914,6 +919,27 @@ def test_paper_assignment_create_reminders_for_editor(
     assert r_3.actor == get_eo_user(assigned_article.journal)
     assert r_3.recipient == director.janeway_account
     assert r_3.date_due == create_date + datetime.timedelta(days=(r_3_days_after + r_3_base_days))
+
+
+@pytest.mark.django_db
+def test_create_message_from_esr1_reminders(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    director: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """Message created from ESR reminder correctly creates message body."""
+    # The `assigned_article` fixture already performed the assignment, so we just check the reminders
+    editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article, editor=section_editor)
+    reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(editor_assignment),
+        object_id=editor_assignment.id,
+    )
+    assert reminders.count() == 3
+    reminder = reminders.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1)
+    message = reminder.create_message()
+    assert section_editor.full_name() in message.body
 
 
 @pytest.mark.django_db

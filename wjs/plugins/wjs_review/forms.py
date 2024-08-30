@@ -720,6 +720,8 @@ class MessageForm(forms.ModelForm):
         self.fields["recipients"].queryset = self._get_allowed_recipients()  # used at validation
         if self.hide_recipients:
             self.fields["recipients"].widget = forms.widgets.HiddenInput()
+        if self.note:
+            self.fields["recipients"].required = False
         initial_recipients = []
         if self.initial.get("recipients"):
             initial_recipients = [{"recipient": recipient} for recipient in self.initial["recipients"]]

@@ -174,12 +174,9 @@ urlpatterns = [
         WriteMessage.as_view(to_typesetter=True),
         name="wjs_message_write_to_typ",
     ),
-    path("messages/<int:pk>/note/<int:recipient_id>/", WriteMessage.as_view(note=True), name="wjs_message_note"),
+    path("messages/<int:pk>/note/", WriteMessage.as_view(note=True), name="wjs_message_note"),
     path(
         "messages/<int:article_id>/reply/<int:original_message_pk>/", WriteMessage.as_view(), name="wjs_message_reply"
-    ),
-    path(
-        "messages/<int:article_id>/note/<int:recipient_id>/", WriteMessage.as_view(note=True), name="wjs_message_note"
     ),
     path(
         "messages/toggle_read_by_eo/<int:message_id>/",

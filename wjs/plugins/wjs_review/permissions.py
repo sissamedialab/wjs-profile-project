@@ -14,6 +14,39 @@ if TYPE_CHECKING:
 Account = get_user_model()
 
 
+def can_see_other_user_name(instance: "ArticleWorkflow", sender: Account, recipient: Account) -> bool:
+    """
+    Check if the user can see other user's name.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param recipient: The user to check permissions for.
+    :type recipient: Account
+
+    :param sender: The user should user to check for role.
+    :type sender: Account
+
+    :return: True if recipient can see the sender's name, False otherwise.
+    :rtype: bool
+    """
+    recipient_is_author = is_one_of_the_authors(instance, recipient)
+    recipient_is_reviewer = is_article_reviewer(instance, recipient)
+    sender_is_editor = is_article_editor(instance, sender)
+    sender_is_typesetter = is_article_typesetter(instance, sender)
+    sender_is_reviewer = is_article_reviewer(instance, sender)
+    sender_is_author = is_one_of_the_authors(instance, sender)
+    if sender_is_reviewer and recipient_is_author:
+        return False
+    elif sender_is_author and recipient_is_reviewer:
+        return False
+    elif sender_is_editor and recipient_is_author:
+        return False
+    elif sender_is_typesetter and recipient_is_author:
+        return False
+    return True
+
+
 def has_section_editor_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the given user has the section editor role for the journal associated with the given ArticleWorkflow.
@@ -310,6 +343,28 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     is_correspondence_author = instance.article.correspondence_author == user
     is_any_author = instance.article.authors.filter(pk=user.pk).exists()
     return is_correspondence_author | is_any_author
+
+
+def is_article_manager(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is responsible for managing any phase of the article review / production
+
+    USer is editor, typesetter, director or EO.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has section editor or reviewer role on the journal, False otherwise.
+    :rtype: bool
+    """
+    return (
+        is_article_supervisor(instance, user)
+        or is_article_typesetter(instance, user)
+        or is_article_editor(instance, user)
+    )
 
 
 def is_article_supervisor(instance: "ArticleWorkflow", user: Account) -> bool:

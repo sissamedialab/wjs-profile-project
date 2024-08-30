@@ -26,7 +26,7 @@ from utils.models import LogEntry
 
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
-from .. import communication_utils, states
+from .. import communication_utils, permissions, states
 from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
 from ..conditions import needs_extra_article_information
 from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
@@ -43,16 +43,6 @@ from ..models import (
     ProphyAccount,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
-)
-from ..permissions import (
-    has_director_role_by_article,
-    has_typesetter_role_by_article,
-    is_article_author,
-    is_article_editor,
-    is_article_reviewer,
-    is_article_supervisor,
-    is_article_typesetter,
-    is_one_of_the_authors,
 )
 from ..prophy import Prophy
 from ..states import BaseState
@@ -285,7 +275,7 @@ def role_for_article_tt(article: Article, user: Account) -> str:
 def is_user_article_manager(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is an Editor/Typesetter/Director/EO for the article."""
     return (
-        is_article_editor(article, user)
+        permissions.is_article_editor(article, user)
         or is_user_article_supervisor(article, user)
         or is_user_article_typesetter(article, user)
     )
@@ -294,49 +284,49 @@ def is_user_article_manager(article: ArticleWorkflow, user: Account) -> bool:
 @register.filter
 def is_user_article_editor(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is an Editor for the article."""
-    return is_article_editor(article, user)
+    return permissions.is_article_editor(article, user)
 
 
 @register.filter
 def is_user_director(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Director."""
-    return has_director_role_by_article(article, user)
+    return permissions.has_director_role_by_article(article, user)
 
 
 @register.filter
 def is_user_article_supervisor(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is the article supervisor Director."""
-    return is_article_supervisor(article, user)
+    return permissions.is_article_supervisor(article, user)
 
 
 @register.filter
 def is_user_article_reviewer(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Reviewer for the article."""
-    return is_article_reviewer(article, user)
+    return permissions.is_article_reviewer(article, user)
 
 
 @register.filter
 def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is an Author for the article."""
-    return is_article_author(article, user)
+    return permissions.is_article_author(article, user)
 
 
 @register.filter
 def is_user_one_of_the_authors(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is one of the Article's authors."""
-    return is_one_of_the_authors(article, user)
+    return permissions.is_one_of_the_authors(article, user)
 
 
 @register.filter
 def is_user_typesetter(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Typesetter for the article."""
-    return has_typesetter_role_by_article(article, user)
+    return permissions.has_typesetter_role_by_article(article, user)
 
 
 @register.filter
 def is_user_article_typesetter(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Typesetter for the article."""
-    return is_article_typesetter(article, user)
+    return permissions.is_article_typesetter(article, user)
 
 
 @register.filter
@@ -395,15 +385,17 @@ def hide_real_name(context, actor_or_recipient: Account, to: Account, on: Articl
     article = on
 
     real_name = str(actor_or_recipient)
-    if is_article_author(instance=article.articleworkflow, user=user):
-        if is_article_typesetter(instance=article.articleworkflow, user=actor_or_recipient):
+    if permissions.can_see_other_user_name(
+        instance=article.articleworkflow, sender=actor_or_recipient, recipient=user
+    ):
+        return real_name
+    else:
+        if permissions.is_article_typesetter(instance=article.articleworkflow, user=actor_or_recipient):
             return "typesetter"
-        elif is_article_editor(instance=article.articleworkflow, user=actor_or_recipient):
+        elif permissions.is_article_editor(instance=article.articleworkflow, user=actor_or_recipient):
             return "editor"
         else:
             return real_name
-    else:
-        return real_name
 
 
 @register.filter

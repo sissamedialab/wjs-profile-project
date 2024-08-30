@@ -107,7 +107,14 @@ class ReminderSetting:
         if workflow := getattr(target, "workflow", None):
             template_context.setdefault("article", workflow.article)
             template_context.setdefault("journal", workflow.article.journal)
-        template_context.setdefault("recipient", self.recipient)
+        elif workflow := getattr(target, "articleworkflow", None):
+            template_context.setdefault("article", workflow.article)
+            template_context.setdefault("journal", workflow.article.journal)
+        elif article := getattr(target, "article", None):
+            workflow = article.articleworkflow
+            template_context.setdefault("article", article)
+            template_context.setdefault("journal", article.journal)
+        template_context.setdefault("recipient", self.get_recipient(target, workflow.article.journal))
         if self.extracontext:
             for extracontext_string in self.extracontext:
                 if extracontext_string == "assigned":
@@ -127,7 +134,11 @@ class ReminderSetting:
 
         return template_context
 
-    def get_rendered_body(self, target) -> str:
+    def get_rendered_subject(self, target):
+        context = self.build_context(target)
+        return render_template(self.subject, context)
+
+    def get_rendered_body(self, target):
         context = self.build_context(target)
         return render_template(self.body, context)
 
@@ -139,7 +150,7 @@ class ReminderSetting:
                 journal,
             ).processed_value
 
-    def get_date_due(self, target, journal):
+    def get_date_due(self, target, journal: Journal):
         base_date = timezone.now()
         if offset_days := self._get_date_base_setting(journal):
             base_date += timezone.timedelta(days=offset_days)
@@ -147,7 +158,7 @@ class ReminderSetting:
         date_due += timezone.timedelta(days=self.days_after)
         return date_due
 
-    def get_actor(self, target, journal):
+    def get_actor(self, target, journal: Journal):
         if self.actor == "EO":
             actor = get_eo_user(journal)
         elif self.actor == "director":
@@ -156,7 +167,7 @@ class ReminderSetting:
             actor = getattr(target, self.actor)
         return actor
 
-    def get_recipient(self, target, journal):
+    def get_recipient(self, target, journal: Journal):
         if self.recipient == "EO":
             recipient = get_eo_user(journal)
         elif self.recipient == "director":
@@ -192,14 +203,15 @@ class ReminderManager(abc.ABC):
         # TBD: the current solution means that, in case of a configuration problem (i.e. missing the configuration for some
         # reminder), the reminder is _not_ created, we log an error and proceed. We could also raise an exception, but this
         # would disrupt the experience of the user operating the system (e.g. an editor taking a decision).
+        subject = reminder.get_rendered_subject(self.target)
+        body = reminder.get_rendered_body(self.target)
         date_due = reminder.get_date_due(self.target, self.journal)
         actor = reminder.get_actor(self.target, self.journal)
         recipient = reminder.get_recipient(self.target, self.journal)
-        body = reminder.get_rendered_body(self.target)
 
         reminder = Reminder.objects.create(
             code=reminder.code,
-            message_subject=reminder.subject,
+            message_subject=subject,
             message_body=body,
             content_type=ContentType.objects.get_for_model(self.target),
             object_id=self.target.id,
@@ -220,6 +232,20 @@ class ReminderManager(abc.ABC):
             object_id=self.target.pk,
             content_type=ContentType.objects.get_for_model(self.target),
         ).delete()
+
+    @classmethod
+    def get_settings(cls, reminder: Reminder):
+        if cls == ReminderManager:
+            mgr = cls.get_manager(reminder)
+        else:
+            mgr = cls
+        return mgr.reminders[reminder.code]
+
+    @classmethod
+    def get_manager(cls, reminder: Reminder):
+        for subcls in cls.__subclasses__():
+            if reminder.code in subcls.reminders:
+                return subcls
 
 
 class EditorShouldSelectReviewerReminderManager(ReminderManager):
