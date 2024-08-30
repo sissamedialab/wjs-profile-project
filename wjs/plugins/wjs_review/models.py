@@ -1,6 +1,7 @@
 """WJS Review and related models."""
 
 import dataclasses
+import datetime
 from typing import TYPE_CHECKING, Optional
 
 import html2text
@@ -1100,6 +1101,11 @@ class Message(TimeStampedModel):
         # Including recipients here may give max-recursion error if recipients.add is called before self is saved in DB
         # Was `return ... '; '.join([str(x) for x in self.recipients.all()])`
         return f"{self.actor} {self.notification_line}"
+
+    @property
+    def date(self) -> datetime.date:
+        """Return the date object of the message creation datetime."""
+        return self.created.date()
 
     @property
     def notification_line(self):

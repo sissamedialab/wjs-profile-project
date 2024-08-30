@@ -1,0 +1,42 @@
+{% load wjs_review wjs_tags %}
+<div id="message-item-{{ message.id }}" class="d-flex align-items-center mb-4 {% if message.actor == user %}{% else %}justify-content-end{% endif %}">
+  <div class="card w-75">
+    <div class="position-absolute top-0 end-0 p-2">
+      {% if user in message.recipients.all and not user == message.actor %}
+        {% include "wjs_review/article_messages/elements/toggle_message_read.html" with form=forms|keyvalue:message.pk %}
+      {% endif %}
+      {% if request.user|is_user_eo %}
+        {% include "wjs_review/article_messages/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.pk %}
+      {% endif %}
+    </div>
+    <div class="card-body {% if message.actor == user %}background-blue-100{% else %}{% endif %}">
+      <div class="text-black-50 mb-2">
+        <small><i class="bi bi-clock"></i> <i>{{ message.created|time }}</i></small>
+        {% if message.actor != user %}
+          {% translate "From" %}: {% hide_real_name message.actor to=user on=article %}
+        {% endif %} -
+        {% translate "To" %}:
+        {% for recipient in message.recipients.all %}
+          {# djlint:off #}{% hide_real_name recipient to=user on=article %}{% if not forloop.last %},{% endif %}{# djlint:on #}
+        {% endfor %}
+      </div>
+      <h6>{% translate "Subject" %}: <b>{{ message.subject }}</b></h6>
+      <div class="body">{{ message.body|safe }}</div>
+      {% if message.attachments.exists %}
+        <div class="d-flex mt-1">
+          {% for attachment in message.attachments.all %}
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'wjs_message_download_attachment' message_id=message.id attachment_id=attachment.id %}"><i class="bi bi-file-earmark-text"></i> {{ attachment.original_filename }}</a>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <div class="d-flex justify-content-end mt-3">
+        {% url "wjs_message_reply" pk=workflow.pk original_message_pk=message.pk as reply_url %}
+        <a class="btn btn-outline-primary ms-1 btn-sm" href="{{ reply_url }}"><i class="bi bi-arrow-90deg-left"></i> {% translate "Reply" %}</a>
+        {% if request.user|is_user_eo and message|should_message_be_forwarded %}
+          {% url "wjs_message_forward" original_message_pk=message.pk as forward_url %}
+          <a class="btn btn-outline-primary ms-1 btn-sm" href="{{ forward_url }}"><i class="bi bi-arrow-90deg-right"></i> {% translate "Forward" %}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

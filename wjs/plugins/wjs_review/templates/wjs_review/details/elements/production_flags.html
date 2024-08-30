@@ -8,7 +8,7 @@
     >{% translate "Queries" %}</span>
     <span
       title="{{ workflow.get_production_flag_galleys_ok_display }}"
-      class="badge {% if workflow.production_flag_galleys_ok %}text-bg-success{% else %}text-bg-danger{% endif %}">{% translate "Galleys" %}</span>
+      class="badge {% if workflow.get_production_flag_galleys_ok_display == 'Galleys generation succeeded' %}text-bg-success{% elif workflow.get_production_flag_galleys_ok_display == 'Galleys not tested' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{% translate "Galleys" %}</span>
     <span
       title="{% if workflow.production_flag_no_checks_needed %}{% translate "No additional checks needed" %}{% else %}{% translate "Additional checks needed" %}{% endif %}"
       class="badge {% if workflow.production_flag_no_checks_needed %}text-bg-success{% else %}text-bg-danger{% endif %}">{% translate "Checks" %}</span>

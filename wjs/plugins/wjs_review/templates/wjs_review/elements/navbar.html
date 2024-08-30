@@ -24,7 +24,7 @@
                            href="{% url 'wjs_article_details' workflow.id %}">Status</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" title="Paper's communication: contact author, reviewer, etc." href="{% url 'wjs_article_messages' article_id=workflow.article.id %}">Communications</a>
+                        <a class="nav-link" title="Paper's communication: contact author, reviewer, etc." href="{% url 'wjs_article_messages' pk=workflow.pk %}">Communications</a>
                     </li>
                     {% endif %}
                 </ul>

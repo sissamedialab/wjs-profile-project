@@ -692,6 +692,7 @@ class MessageForm(forms.ModelForm):
             "content_type",
             "object_id",
             "message_type",
+            "to_be_forwarded_to",
         ]
         widgets = {
             "subject": forms.TextInput(),
@@ -700,35 +701,56 @@ class MessageForm(forms.ModelForm):
             "content_type": forms.widgets.HiddenInput(),
             "object_id": forms.widgets.HiddenInput(),
             "message_type": forms.widgets.HiddenInput(),
+            "to_be_forwarded_to": forms.widgets.HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):
         """Set subject and body as required and store actor and target gotten from the view."""
-        self.actor = kwargs.pop("actor", None)
+        self.actor = kwargs.pop("actor")
         self.target = kwargs.pop("target")
-        initial_recipient = kwargs.pop("initial_recipient")
+        self.note = kwargs.pop("note", False)
+        self.hide_recipients = kwargs.pop("hide_recipients", False)
         super().__init__(*args, **kwargs)
         self.fields["subject"].required = True
         self.fields["body"].required = True
+        self.fields["actor"].required = False
+        self.fields["content_type"].required = False
+        self.fields["object_id"].required = False
+        self.fields["message_type"].required = False
         self.fields["recipients"].queryset = self._get_allowed_recipients()  # used at validation
-        self.MessageRecipientsFormSet = formset_factory(  # noqa N806
-            MessageRecipientForm,
-            can_delete=True,
-            min_num=1,
-            extra=0,
-        )
-        self.recipients_formset = self.MessageRecipientsFormSet(
+        if self.hide_recipients:
+            self.fields["recipients"].widget = forms.widgets.HiddenInput()
+        initial_recipients = []
+        if self.initial.get("recipients"):
+            initial_recipients = [{"recipient": recipient} for recipient in self.initial["recipients"]]
+        self.recipients_formset = self.get_formset_class()(
             prefix="recipientsFS",
             form_kwargs={
                 "actor": self.actor,
                 "article": self.target,
             },
-            initial=[{"recipient": initial_recipient.pk if initial_recipient else None}],
+            initial=initial_recipients,
+        )
+
+    @classmethod
+    def get_formset_class(cls):
+        return formset_factory(
+            MessageRecipientForm,
+            can_delete=True,
+            min_num=1,
+            extra=0,
         )
 
     def _get_allowed_recipients(self):
-        """Use a logic class to return a queryset of allowed recipients for the current actor/article combination."""
+        """
+        Use a logic class to return a queryset of allowed recipients for the current actor/article combination.
+
+        It only applies if :py:attr:`hide_recipients` is False. If it's True, we dont' apply any restrictions
+        as it means recipient is forced by the system.
+        """
         # TODO: see the note about refactoring this part in HandleMessage code
+        if self.hide_recipients:
+            return Account.objects.all()
         allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=self.actor, article=self.target)
         return allowed_recipients
 
@@ -745,10 +767,16 @@ class MessageForm(forms.ModelForm):
         clean_data["actor"] = self.actor
         clean_data["content_type"] = ContentType.objects.get_for_model(self.target)
         clean_data["object_id"] = self.target.pk
-        if clean_data["recipients"].count() == 1 and self.actor == clean_data["recipients"].first():
+        if self.initial.get("to_be_forwarded_to"):
+            # to_be_forwarded_to cannot be customized by the user, so we always inject the initial value
+            clean_data["to_be_forwarded_to"] = self.initial["to_be_forwarded_to"]
+        if self.note:
             clean_data["message_type"] = Message.MessageTypes.NOTE
+            clean_data["recipients"] = [self.actor]
         else:
             clean_data["message_type"] = Message.MessageTypes.USER
+        if self.hide_recipients:
+            clean_data["recipients"] = self.initial["recipients"]
         return clean_data
 
     # TODO: IMPORTANT: enforce security:
@@ -1021,7 +1049,7 @@ class ForwardMessageForm(forms.ModelForm):
     class Meta:
         model = Message
         fields = ["subject", "body", "attachment"]
-        widgets = {"body": SummernoteWidget()}
+        widgets = {"body": SummernoteWidget(), "subject": forms.TextInput()}
 
     attachment = forms.FileField(required=False, label=_("Optional attachment"))
 

@@ -41,7 +41,6 @@ class TypesetterUploadFilesForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
     def clean_file_to_upload(self):
-        # TODO: in the future allow for tar.gz and also single tex files
         file = self.cleaned_data["file_to_upload"]
         if file and file.content_type not in ["application/zip"]:
             raise ValidationError(_("Only ZIP files are allowed"))
@@ -217,36 +216,17 @@ class EOSendBackToTypesetterForm(forms.Form):
     body = forms.CharField(required=True, label="Body", widget=SummernoteWidget())
 
     def __init__(self, *args, **kwargs):
-        """Store away user and article."""
+        """Store away user, article and typesetter assignement."""
         self.user = kwargs.pop("user")
-        self.instance = kwargs.pop("articleworkflow")
-        # TBD: need to retrieve last typ assignment here AND in the logic class because I need the typesetter here.
-        # Still prefer not to pass It to the logic class to keep it slim.
-        typesetter = (
-            TypesettingAssignment.objects.filter(
-                round__article=self.instance.article,
-            )
-            .order_by("round__round_number")
-            .last()
-            .typesetter
-        )
-
-        initial = kwargs.get("initial", {})
-        initial["subject"] = f"Article {self.instance.article.id} back to typesetter"
-        initial["body"] = (
-            f"Dear {typesetter.full_name()},<br>"
-            "please ...<br>"
-            f'<a href="{self.instance.article.url}">{self.instance.article.url}</a><br><br>'
-            "Thank you,<br>"
-            f"{self.user.full_name()}<br>"
-        )
-
+        self.instance = kwargs.pop("workflow")
+        self.assignment = kwargs.pop("assignment")
         super().__init__(*args, **kwargs)
 
     def get_logic_instance(self) -> HandleEOSendBackToTypesetter:
         """Instantiate :py:class:`HandleEOSendBackToTypesetter` class."""
         return HandleEOSendBackToTypesetter(
-            articleworkflow=self.instance,
+            workflow=self.instance,
+            old_assignment=self.assignment,
             user=self.user,
             body=self.cleaned_data["body"],
             subject=self.cleaned_data["subject"],

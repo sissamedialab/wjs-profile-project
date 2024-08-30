@@ -1,0 +1,24 @@
+{% load django_bootstrap5 %}
+{% translate "Search" as filter_label %}
+{% url "wjs_article_messages" as filter_url %}
+<div id="messages-list">
+  <div class="container mb-3">
+    <div class="d-flex justify-content-between">
+      <h1 class="page-title">{{ view.title }}</h1>
+      <form class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
+        <div class="d-flex justify-content-end">
+          {% bootstrap_field filter.form.actor_recipients show_label=False wrapper_class="me-3" addon_before='<i class="bi bi-funnel"></i>' %}
+          {% bootstrap_field filter.form.content show_label=False wrapper_class="me-3" %}
+          {% bootstrap_button name="filter" content=filter_label wrapper_class="me-3" %}
+        </div>
+      </form>
+    </div>
+  </div>
+  {% regroup messages_list by date as messages_by_day %}
+  {% for by_day in messages_by_day %}
+    <h6 class="text-center"><b>{{ by_day.grouper }}</b></h6>
+    {% for message in by_day.list %}
+      {% include "wjs_review/article_messages/elements/message.html" %}
+    {% endfor %}
+  {% endfor %}
+</div>

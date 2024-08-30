@@ -22,7 +22,6 @@ from core.models import File as JanewayFile
 from core.models import Galley, SupplementaryFile
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.mail import send_mail
@@ -1236,36 +1235,29 @@ class ReadyForPublication:
 
 @dataclasses.dataclass
 class HandleEOSendBackToTypesetter:
-    articleworkflow: ArticleWorkflow
+    workflow: ArticleWorkflow
     user: Account
+    old_assignment: TypesettingAssignment
     body: str
     subject: str
 
     def _check_conditions(self) -> bool:
         is_user_eo = has_eo_role(self.user)
-        check_state = self.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+        check_state = self.workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
         return is_user_eo and check_state
 
     def _update_state(self):
         """Run FSM transition."""
-        self.articleworkflow.admin_sends_back_to_typ()
-        self.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
-        self.articleworkflow.save()
-        self.articleworkflow.article.stage = STAGE_TYPESETTING
-        self.articleworkflow.article.save()
+        self.workflow.admin_sends_back_to_typ()
+        self.workflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
+        self.workflow.save()
+        self.workflow.article.stage = STAGE_TYPESETTING
+        self.workflow.article.save()
 
     def _create_typesetting_round(self):
         """Create a new typesetting round."""
-        self.old_assignment = (
-            TypesettingAssignment.objects.filter(
-                round__article=self.articleworkflow.article,
-            )
-            .order_by("round__round_number")
-            .last()
-        )
-
         typesetting_round, _ = TypesettingRound.objects.get_or_create(
-            article=self.articleworkflow.article,
+            article=self.workflow.article,
             round_number=self.old_assignment.round.round_number + 1,
         )
         return typesetting_round
@@ -1279,18 +1271,19 @@ class HandleEOSendBackToTypesetter:
             due=timezone.now() + timezone.timedelta(days=settings.TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS),
         )
 
-    def _create_message(self):
-        """Create and send the message for the typesetter."""
-        message = Message.objects.create(
-            actor=self.user,
-            verbosity=Message.MessageVerbosity.FULL,
-            content_type=ContentType.objects.get_for_model(self.articleworkflow.article),
-            object_id=self.articleworkflow.article.pk,
-            subject=self.subject,
-            body=self.body,
+    def _log_operation(self) -> Message:
+        """Log the operation."""
+        message = communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=self.subject,
+            message_body=self.body,
+            actor=None,
+            recipients=[
+                self.old_assignment.typesetter,
+            ],
+            message_type=Message.MessageTypes.SYSTEM,
         )
-        message.recipients.add(self.old_assignment.typesetter)
-        message.emit_notification()
+        return message
 
     def run(self):
         with transaction.atomic():
@@ -1298,8 +1291,8 @@ class HandleEOSendBackToTypesetter:
                 raise ValueError("Invalid state transition")
             self._update_state()
             self._create_typesetting_assignment()
-            self._create_message()
-            return self.articleworkflow
+            self._log_operation()
+            return self.workflow
 
 
 @dataclasses.dataclass

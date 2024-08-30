@@ -72,8 +72,6 @@ from .views__production import (  # noqa F401
     TypesetterUploadFiles,
     TypesetterWorkingOn,
     UpdateSectionOrder,
-    WriteToAuWithModeration,
-    WriteToTyp,
 )
 from .views__visibility import EditUserPermissions
 
@@ -166,9 +164,17 @@ urlpatterns = [
         UploadRevisionAuthorCoverLetterFile.as_view(),
         name="wjs_upload_file",
     ),
-    path("messages/<int:article_id>/", ArticleMessages.as_view(), name="wjs_article_messages"),
-    path("messages/<int:article_id>/write/", WriteMessage.as_view(), name="wjs_message_write"),
-    path("messages/<int:article_id>/write/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:pk>/", ArticleMessages.as_view(), name="wjs_article_messages"),
+    path("messages/<int:pk>/write/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:pk>/write/<int:recipient_id>/", WriteMessage.as_view(), name="wjs_message_write"),
+    path("messages/<int:pk>/reply/<int:original_message_pk>/", WriteMessage.as_view(), name="wjs_message_reply"),
+    path("messages/<int:pk>/write_to_author/", WriteMessage.as_view(to_author=True), name="wjs_message_write_to_auwm"),
+    path(
+        "messages/<int:pk>/write_to_typesetter/",
+        WriteMessage.as_view(to_typesetter=True),
+        name="wjs_message_write_to_typ",
+    ),
+    path("messages/<int:pk>/note/<int:recipient_id>/", WriteMessage.as_view(note=True), name="wjs_message_note"),
     path(
         "messages/toggle_read_by_eo/<int:message_id>/",
         ToggleMessageReadByEOView.as_view(),
@@ -185,23 +191,13 @@ urlpatterns = [
         name="wjs_message_download_attachment",
     ),
     path(
-        "messages/writetotyp/<int:pk>/",
-        WriteToTyp.as_view(),
-        name="wjs_message_write_to_typ",
-    ),
-    path(
-        "messages/writetoau/<int:pk>/",
-        WriteToAuWithModeration.as_view(),
-        name="wjs_message_write_to_auwm",
-    ),
-    path(
         "messages/forward/<int:original_message_pk>/",
         ForwardMessage.as_view(),
         name="wjs_message_forward",
     ),
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders
-    path("status/<int:article_id>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
+    path("status/<int:pk>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
     path("journal_editors/", JournalEditorsView.as_view(), name="wjs_journal_editors"),
     path("esm_files/<int:pk>/", ListSupplementaryFileView.as_view(), name="wjs_article_esm_files"),
     path("upload_files/<int:pk>/", TypesetterUploadFiles.as_view(), name="wjs_typesetter_upload_files"),

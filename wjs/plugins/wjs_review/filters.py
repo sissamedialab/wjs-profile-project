@@ -13,7 +13,7 @@ from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from .communication_utils import get_eo_user
 from .managers import ArticleWorkflowQuerySet
-from .models import ArticleWorkflow
+from .models import ArticleWorkflow, Message
 
 
 class SpecialIssueFilterField(ModelChoiceField):
@@ -341,4 +341,36 @@ class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):
             filters = Q(**{f"{name}__title__icontains": value})
             filters |= Q(**{f"{name}__abstract__icontains": value})
             return queryset.filter(filters)
+        return queryset
+
+
+class MessageFilter(django_filters.FilterSet):
+    actor_recipients = django_filters.ModelChoiceFilter(
+        method="filter_actor_recipients",
+        label=_("Filter by sender/recipient"),
+        empty_label=_("Filter by sender/recipient"),
+    )
+    content = django_filters.CharFilter(
+        method="filter_content",
+        label=_("Search on subject / body"),
+    )
+
+    class Meta:
+        model = Message
+        fields = ["actor_recipients"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        actors = self.queryset.values_list("actor", flat=True)
+        recipients = self.queryset.values_list("messagerecipients__recipient", flat=True)
+        self.filters["actor_recipients"].queryset = Account.objects.filter(Q(pk__in=actors) | Q(pk__in=recipients))
+
+    def filter_content(self, queryset: QuerySet, name: str, value: str):
+        if value:
+            queryset = queryset.filter(Q(subject__icontains=value) | Q(body__icontains=value))
+        return queryset
+
+    def filter_actor_recipients(self, queryset: QuerySet, name: str, value: str):
+        if value:
+            queryset = queryset.filter(Q(actor=value) | Q(messagerecipients__recipient=value))
         return queryset

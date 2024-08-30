@@ -1862,6 +1862,57 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def eo_send_back_to_typesetting_message():
+        subject_eo_send_back_to_typesetting: SettingParams = {
+            "name": "eo_send_back_to_typesetting_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for EO send the paper back to the typesetter."),
+            "description": _(
+                "The subject of the notification that is sent to the typesetter when EO send the paper back.",
+            ),
+            "is_translatable": False,
+        }
+        subject_eo_send_back_to_typesetting_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": _("Article sent back submitted for {{ article.journal }} {{ article.id }}"),
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_eo_send_back_to_typesetting,
+            subject_eo_send_back_to_typesetting_setting_value,
+            subject_eo_send_back_to_typesetting["name"],
+        )
+        eo_send_back_to_typesetting_setting: SettingParams = {
+            "name": "eo_send_back_to_typesetting_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for EO send the paper back to the typesetter."),
+            "description": _(
+                "The body of the notification that is sent to the typesetter when EO send the paper back.",
+            ),
+            "is_translatable": False,
+        }
+        eo_send_back_to_typesetting_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+            Dear {{ typesetter.full_name }},
+            the EO bla bla for "{{ article.title }} (ID: {{ article.id }})".
+
+            Thank you and best regards,
+            JCOM Editorial Office
+            """,
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            eo_send_back_to_typesetting_setting,
+            eo_send_back_to_typesetting_setting_value,
+            eo_send_back_to_typesetting_setting["name"],
+        )
+        return setting_1, setting_2
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -1894,6 +1945,7 @@ Thank you and best regards,
         csv_writer.write_settings(author_withdraws_preprint_message())
         csv_writer.write_settings(preprint_withdrawn_system_message())
         csv_writer.write_settings(author_submits_appeal_message())
+        csv_writer.write_settings(eo_send_back_to_typesetting_message())
 
 
 def ensure_workflow_elements():

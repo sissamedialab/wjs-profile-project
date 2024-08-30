@@ -265,7 +265,8 @@ def test_au_writes_to_typ(
         object_id=object_id,
     ).exists()
 
-    url = reverse("wjs_message_write_to_typ", kwargs={"pk": assigned_to_typesetter_article.pk})
+    workflow = assigned_to_typesetter_article.articleworkflow
+    url = reverse("wjs_message_write_to_typ", kwargs={"pk": workflow.pk})
     data = {
         "subject": "A subject",
         "body": "A body",
@@ -295,7 +296,8 @@ def test_typ_writes_to_au(
         object_id=object_id,
     ).exists()
 
-    url = reverse("wjs_message_write_to_auwm", kwargs={"pk": assigned_to_typesetter_article.pk})
+    workflow = assigned_to_typesetter_article.articleworkflow
+    url = reverse("wjs_message_write_to_auwm", kwargs={"pk": workflow.pk})
     data = {
         "subject": "A subject",
         "body": "A body",

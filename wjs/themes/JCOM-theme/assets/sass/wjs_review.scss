@@ -167,4 +167,21 @@ table.table-bordered.dataTable .table-borderless td {
   right: 3rem;
 }
 
+.delete-row {
+  color: $warning;
+}
+
+.add-row {
+  color: $success;
+}
+
+.page-title {
+  @extend .h3;
+  @extend .fw-bold;
+}
+
+.background-blue-100 {
+  background-color: $blue-100;
+}
+
 @import "bootstrap/scss/bootstrap";
