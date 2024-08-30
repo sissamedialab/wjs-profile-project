@@ -2,7 +2,7 @@
 {% get_article_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{% if view.table_configuration_options.table_type == "review" %}{{ article.pk }}{% elif view.table_configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
+    <td data-order="{% if view.table_configuration_options.table_type == "review" %}{{ article.date_submitted|date:"U" }}{% elif view.table_configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
       <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
       <a title="{{ article.title }}"
          href="{% url 'wjs_article_details' workflow.id %}"
