@@ -1,0 +1,11 @@
+{% spaceless %}
+  <p>
+    {% if system %}{% blocktranslate %}This is an automatic notification sent through the {{ code }} System{% endblocktranslate %}{% else %}
+      {% blocktranslate %}This email has been sent through the {{ code }} System{% endblocktranslate %}{% endif %}
+  </p>
+  <p>
+    Confidentiality Statement:<br>
+    This e-mail is confidential and subject to copyright. Any unauthorised use or disclosure of its contents is prohibited. If you have received this email in error please notify the Editorial Office at <a
+    href="mailto:{{ eo_user.email }}">{{ eo_user.email }}</a>.
+  </p>
+{% endspaceless %}

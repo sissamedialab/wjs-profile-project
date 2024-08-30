@@ -4,12 +4,15 @@ import datetime
 from io import BytesIO, StringIO
 from typing import Callable, Optional
 
+import html2text
 import pytest
 from core import files as core_files
 from core.middleware import GlobalRequestMiddleware
 from core.models import Account
 from django.contrib.auth import login
+from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
+from django.core import mail
 from django.core.files import File as DjangoFile
 from django.core.handlers.base import BaseHandler
 from django.http import HttpRequest
@@ -55,6 +58,209 @@ def test_user_sees_article_generic_messages(
     assert messages.first() == msg
 
 
+@pytest.mark.parametrize(
+    "message_type,sent",
+    (
+        (Message.MessageTypes.SYSTEM, True),
+        (Message.MessageTypes.USER, True),
+        (Message.MessageTypes.NOTE, False),
+    ),
+)
+@pytest.mark.django_db
+def test_emit_message_email_by_types(
+    article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    message_type,
+    sent,
+    eo_group: Group,
+):
+    """Test email emitted from a message of different types contains full generated subject if sent."""
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body="CIAOOONE",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+        message_type=message_type,
+    )
+    msg.recipients.add(tuvok)
+    msg.emit_notification()
+    if sent:
+        email = mail.outbox[0]
+        assert email.subject.startswith(f"[{article.journal.code}] ")
+        assert str(article.pk) in email.subject
+        assert str(article.section) in email.subject
+    else:
+        assert len(mail.outbox) == 0
+
+
+@pytest.mark.parametrize(
+    "message_verbosity,sent",
+    (
+        (Message.MessageVerbosity.FULL, True),
+        (Message.MessageVerbosity.TIMELINE, False),
+        (Message.MessageVerbosity.EMAIL, True),
+        (Message.MessageVerbosity.REDUCED, True),
+    ),
+)
+@pytest.mark.django_db
+def test_emit_message_email_by_verbosity(
+    article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    message_verbosity,
+    sent,
+    eo_group: Group,
+):
+    """Test email emitted from a message of different verbosity contains full generated subject if sent."""
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body="CIAOOONE",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+        verbosity=message_verbosity,
+    )
+    msg.recipients.add(tuvok)
+    msg.emit_notification()
+    if sent:
+        email = mail.outbox[0]
+        assert email.subject.startswith(f"[{article.journal.code}] ")
+        assert str(article.pk) in email.subject
+        assert str(article.section) in email.subject
+    else:
+        assert len(mail.outbox) == 0
+
+
+@pytest.mark.parametrize("has_marker", (True, False))
+@pytest.mark.django_db
+def test_emit_message_email_reduced(
+    article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    has_marker: bool,
+    eo_group: Group,
+):
+    """Test email message is truncated on marker depending on message content."""
+
+    msg1 = "<p>First paragraph</p>"
+    msg2 = "<p>Second paragraph</p>"
+    if has_marker:
+        msg = f"{msg1}{Message.SPLIT_MARKER}{msg2}"
+    else:
+        msg = f"{msg1}{msg2}"
+
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body=msg,
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+    )
+    msg.recipients.add(tuvok)
+    msg.emit_notification()
+    email = mail.outbox[0]
+    html_body = email.alternatives[0][0]
+    workflow = article.articleworkflow
+    workflow_url = article.journal.site_url(workflow.get_absolute_url())
+    if has_marker:
+        assert "Read more" in html_body
+        assert "Read more" in email.body
+        assert msg1 in html_body
+        assert msg2 not in html_body
+        assert html2text.html2text(msg1) in email.body
+        assert html2text.html2text(msg2) not in email.body
+        assert Message.SPLIT_MARKER not in html_body
+        # Split marker is preserved in Django Message instance body
+        assert Message.SPLIT_MARKER in msg.body
+        assert workflow_url in html_body.replace("\n", "")
+        assert workflow_url in email.body.replace("\n", "")
+        assert f"message-{msg.pk}" in html_body
+        assert f"message-{msg.pk}" in email.body
+        assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) in html_body.replace(
+            "\n", ""
+        )
+        assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) in email.body.replace(
+            "\n", ""
+        )
+    else:
+        assert "Read more" not in html_body
+        assert "Read more" not in email.body
+        assert msg1 in html_body
+        assert msg2 in html_body
+        assert html2text.html2text(f"{msg1}{msg2}") in email.body
+        assert Message.SPLIT_MARKER not in html_body
+        assert Message.SPLIT_MARKER not in msg.body
+        # Link to the article status page
+        assert workflow_url in html_body.replace("\n", "")
+        assert workflow_url in email.body.replace("\n", "")
+        assert f"message-{msg.pk}" not in html_body
+        assert f"message-{msg.pk}" not in email.body
+        assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) not in html_body.replace(
+            "\n", ""
+        )
+        assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) not in email.body.replace(
+            "\n", ""
+        )
+
+
+@pytest.mark.parametrize("can_see_names", (True, False))
+@pytest.mark.django_db
+def test_emit_message_email_header_footer(
+    review_settings,
+    assigned_article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    can_see_names: bool,
+):
+    """Test email message contains header / footer."""
+
+    msg1 = "<p>First paragraph</p>"
+
+    chakotay = create_jcom_user("Chakotay")
+    if can_see_names:
+        assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+        recipient = assignment.editor
+    else:
+        recipient = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body=msg1,
+        content_type=ContentType.objects.get_for_model(assigned_article),
+        object_id=assigned_article.pk,
+    )
+    msg.recipients.add(recipient)
+    msg.emit_notification()
+    email = mail.outbox[0]
+    html_body = email.alternatives[0][0]
+    journal = assigned_article.journal
+    workflow = assigned_article.articleworkflow
+    assert "Go to web page" in html_body
+    assert "Go to web page" in email.body
+    assert msg1 in html_body
+    assert html2text.html2text(msg1) in email.body
+    assert journal.site_url(workflow.get_absolute_url()) in html_body
+    # text body can be split in multiple lines by text wrapping
+    assert journal.site_url(workflow.get_absolute_url()) in email.body.replace("\n", "")
+    assert str(assigned_article.section) in html_body
+    assert str(assigned_article.section) in email.body
+    assert str(assigned_article.pk) in html_body
+    assert str(assigned_article.pk) in email.body
+    assert assigned_article.title in html_body
+    assert assigned_article.title in email.body
+    for author in assigned_article.authors.all():
+        if can_see_names:
+            assert author.full_name() in html_body
+            assert author.full_name() in email.body
+        else:
+            assert author.full_name() not in html_body
+            assert author.full_name() not in email.body
+
+
 @pytest.mark.django_db
 def test_user_sees_authored_messages(
     article: submission_models.Article,
@@ -76,6 +282,35 @@ def test_user_sees_authored_messages(
     messages = get_messages_related_to_me(chakotay, article)
     assert messages.count() == 1
     assert messages.first() == msg
+
+
+@pytest.mark.django_db
+def test_user_create_personal_note(
+    assigned_article: submission_models.Article,
+):
+    """User can create a note."""
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_message_note", kwargs={"pk": assigned_article.articleworkflow.pk})
+    client = Client()
+    client.force_login(editor)
+    response = client.post(
+        url,
+        data={
+            "subject": "subject",
+            "body": "body",
+            "actor": editor.pk,
+            "content_type": ContentType.objects.get_for_model(assigned_article).id,
+            "object_id": assigned_article.pk,
+            "message_type": Message.MessageTypes.NOTE,
+        },
+    )
+    assert response.status_code == 302
+    assert Message.objects.count() == 1
+    msg = Message.objects.first()
+    assert msg.actor == editor
+    assert msg.subject == "subject"
+    assert msg.body == "body"
+    assert msg.message_type == Message.MessageTypes.NOTE
 
 
 @pytest.mark.django_db

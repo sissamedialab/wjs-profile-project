@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db import models
 from django.db.models import BLANK_CHOICE_DASH, QuerySet
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
@@ -35,6 +36,7 @@ from utils.logger import get_logger
 
 from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.models import Correspondence
+from wjs.jcom_profile.utils import render_template
 
 from . import permissions
 from .managers import (
@@ -971,6 +973,8 @@ class Message(TimeStampedModel):
 
     """
 
+    SPLIT_MARKER = "<...>"
+
     class MessageTypes(models.TextChoices):
         SYSTEM = "System log message", _("A system message")
         HIJACK = "User hijacked action log message", _("A hijacking notification message")
@@ -1112,24 +1116,6 @@ class Message(TimeStampedModel):
         """Return a string suitable to be shown in a notification."""
         return self.subject if self.subject else self.body[: Message.verbine_lenght]
 
-    def to_timeline_line(self, anonymous=False):
-        """Return a string suitable to be shown in a timeline."""
-        # TODO: better here or in a template?
-        # TODO: return a dict? a rendered template? mia nona in cariola?
-        message = self.subject if self.subject else self.body[:111]
-        if anonymous:
-            return {
-                "from": "",
-                "to": "",
-                "message": message,
-            }
-        else:
-            return {
-                "from": self.actor,
-                "to": ",".join(self.recipients),
-                "message": message,
-            }
-
     def get_url(self, recipient: Account) -> str:
         """Return the URL to be embedded in the notification email for the given recipient."""
 
@@ -1140,12 +1126,91 @@ class Message(TimeStampedModel):
         # TODO: hmmm... recipient not used at the moment...
         return self.target.url
 
-    def get_subject_prefix(self) -> str:
+    def get_absolute_url(self):
+        """Return the URL to the message."""
+        if self.content_type.model_class() == Article:
+            return f'{reverse("wjs_article_messages", args=[self.target.articleworkflow.pk])}#message-{self.pk}'
+
+    @property
+    def journal(self) -> Journal:
+        if isinstance(self.target, Article):
+            return self.target.journal
+        return self.target
+
+    @property
+    def subject_prefix(self) -> str:
         """Get a prefix string for the notification subject (e.g. [JCOM])."""
         if isinstance(self.target, Article):
-            return f"[{self.target.journal.code}]"
+            return f"[{self.journal.code}] {self.target.section} {self.target.pk}"
         else:
-            return f"[{self.target.code}]"
+            return f"[{self.journal.code}]"
+
+    def render_subject(self, recipient: Account) -> str:
+        notification_subject = self.subject if self.subject else self.body[:20].replace("\n", " ")
+        notification_subject = f"{self.subject_prefix} {notification_subject}"
+        return notification_subject
+
+    def _get_header_context(self, recipient: Account) -> dict:
+        """Return the context for the header template."""
+        from .communication_utils import get_eo_user
+
+        message_url = self.get_absolute_url()
+        message_url = self.journal.site_url(message_url)
+        context = {
+            "message": self,
+            "recipient": recipient,
+            "system": self.message_type == Message.MessageTypes.SYSTEM,
+            "message_url": message_url,
+            "code": self.journal.code,
+            "eo_user": get_eo_user(self.journal),
+        }
+        if isinstance(self.target, Article):
+            workflow = self.target.articleworkflow
+            status_url = self.journal.site_url(workflow.get_absolute_url())
+            show_authors = permissions.is_article_manager(workflow, recipient) or permissions.is_one_of_the_authors(
+                workflow, recipient
+            )
+            context["article"] = self.target
+            context["show_authors"] = show_authors
+            context["status_url"] = status_url
+        return context
+
+    def _render_read_more(self, recipient: Account) -> str:
+        """Render the "read more" link for the given recipient."""
+        context = self._get_header_context(recipient)
+        return render_to_string("wjs_review/write_message/elements/read_more.html", context)
+
+    def _render_header(self, recipient: Account) -> str:
+        """Render the header for the given recipient."""
+        if isinstance(self.target, Article):
+            context = self._get_header_context(recipient)
+            return render_to_string("wjs_review/write_message/elements/header.html", context)
+        return ""
+
+    def _render_footer(self, recipient: Account) -> str:
+        """Render the header for the given recipient."""
+        context = self._get_header_context(recipient)
+        return render_to_string("wjs_review/write_message/elements/footer.html", context)
+
+    def render_message(self, recipient: Account) -> dict[str, str]:
+        """Render the message content for the given recipient."""
+        notification_body = self.body
+
+        header = self._render_header(recipient)
+        footer = self._render_footer(recipient)
+
+        notification_body = f"{header}{notification_body}{footer}"
+
+        if self.message_type == Message.MessageTypes.SYSTEM and self.SPLIT_MARKER in notification_body:
+            notification_body, __ = notification_body.split(self.SPLIT_MARKER)
+            notification_body = f"{notification_body} {self._render_read_more(recipient)}"
+
+        notification_body_text = html2text.html2text(notification_body)
+
+        return {
+            "html": notification_body,
+            "text": notification_body_text,
+        }
 
     def emit_notification(self, from_email=None):
         """Send a notification.
@@ -1154,45 +1219,25 @@ class Message(TimeStampedModel):
         DEFAULT_FROM_EMAIL is used).
 
         """
-        # TODO: add to the create function of a custom manager? overkill?
-        # TODO: use src/utils/notify.py::notification ?
-        # (see also notify_hook loaded per-plugin in src/core/include_urls.py)
-
         if getattr(settings, "NO_NOTIFICATION", None):
             return
 
         if self.verbosity == Message.MessageVerbosity.TIMELINE:
             return
-
-        # TODO: move header and footer to journal setting?
-        notification_header = _("This is an automatic notification. Please do not reply.\n\n")
-        notification_footer = _("\n\nPlease visit {url}\n")
-
-        notification_subject = self.subject if self.subject else self.body[:111].replace("\n", " ")
-        notification_subject = f"🦄 {self.get_subject_prefix()} {notification_subject}"
-
-        if self.verbosity == Message.MessageVerbosity.FULL:
-            notification_body = self.body
-        else:
-            notification_body = self.body[:111]
+        if self.message_type == Message.MessageTypes.NOTE:
+            return
 
         for recipient in self.recipients.all():
-            notification_body = (
-                notification_header
-                + notification_body
-                + notification_footer.format(
-                    url=self.get_url(recipient),
-                )
-            )
-            notification_body_text = html2text.html2text(notification_body)
+            body = self.render_message(recipient)
+            subject = self.render_subject(recipient)
             send_mail(
-                notification_subject,
-                notification_body_text,
+                subject,
+                body["text"],
                 # TODO: use fake "no-reply": the mailbox should be real, but with an autoresponder
                 from_email,
                 [recipient.email],
                 fail_silently=False,
-                html_message=notification_body,
+                html_message=body["html"],
             )
 
 
@@ -1609,13 +1654,20 @@ class Reminder(models.Model):
         return self.code
 
     def get_from_email(self) -> str:
-        """Compute the "From:" header for the notifcation email.
+        """
+        Compute the "From:" header for the actor email.
+
+        Name must be hidden if the user cannot see the actor name.
 
         The email is always the same, but the name part changes.
         E.g.
         From: Matteo Gamboz <wjs-support@medialab.sissa.it>
         """
-        # TODO: hide name sometimes
+        if self.get_related_article():
+            if not permissions.can_see_other_user_name(
+                instance=self.get_related_article().articleworkflow, sender=self.actor, recipient=self.recipient
+            ):
+                return settings.DEFAULT_FROM_EMAIL
         name = self.actor.full_name()
         email = settings.DEFAULT_FROM_EMAIL
         from_header = f"{name} <{email}>"
@@ -1632,6 +1684,36 @@ class Reminder(models.Model):
     def reminder_level(self):
         """Return the order of the reminder among the same classes."""
         return self.code[-1]
+
+    def render_subject(self) -> str:
+        """Render the reminder message subject."""
+        return render_template(self.message_subject, {"reminder": self, "article": self.get_related_article()})
+
+    def render_body(self) -> str:
+        """Render the reminder message body."""
+        return render_template(self.message_body, {"reminder": self, "article": self.get_related_article()})
+
+    def create_message(self) -> Message:
+        """Create a message from the reminder."""
+        from .communication_utils import log_operation
+        from .reminders.settings import ReminderManager
+
+        reminder_article = self.get_related_article()
+        if reminder_article is None:
+            raise ValueError(f"Unknown article for reminder {self.id} ({self.code})")
+        setting = ReminderManager.get_settings(self)
+
+        message = log_operation(
+            article=reminder_article,
+            actor=self.actor,
+            recipients=[self.recipient],
+            message_subject=self.message_subject,
+            message_body=self.message_body,
+            message_type=Message.MessageTypes.SYSTEM,
+            flag_as_read_by_eo=setting.flag_as_read_by_eo,
+            flag_as_read=setting.flag_as_read,
+        )
+        return message
 
 
 class LatexPreamble(models.Model):

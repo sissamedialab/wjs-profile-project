@@ -284,7 +284,7 @@ def test_assign_to_reviewer_hijacked(
     assert len(user_emails) == 1
     assert len(editor_emails) == 1
     assert review_assignment_subject in user_emails[0].subject
-    # FIXME: assigned_article.articleworkflow.preprint_id in user_emails[0].subject
+    assert assigned_article.journal.code in user_emails[0].subject
     assert f"User {eo_user} executed {review_assignment_subject}" in editor_emails[0].subject
 
 
@@ -451,7 +451,7 @@ def test_assign_to_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
-    # FIXME: assert assigned_article.articleworkflow.preprint_id in emails[0].subject
+    assert assigned_article.journal.code in emails[0].subject
     assert "You have been invited" not in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
@@ -565,7 +565,13 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     # Check email
     assert len(mail.outbox) == 1
     mail_to_correspondence_author = mail.outbox[0]
-    assert revision_request_message_body in raw(mail_to_correspondence_author.body)
+    # If message must be split, check that the first part is in the email body
+    if Message.SPLIT_MARKER in revision_request_message_body:
+        assert revision_request_message_body.partition(Message.SPLIT_MARKER)[0] in raw(
+            mail_to_correspondence_author.body
+        )
+    else:
+        assert revision_request_message_body in raw(mail_to_correspondence_author.body)
     assert mail_to_correspondence_author.from_email == settings.DEFAULT_FROM_EMAIL
     assert mail_to_correspondence_author.from_email != section_editor.email
     assert list(mail_to_correspondence_author.recipients()) == [assigned_article.correspondence_author.email]
@@ -850,7 +856,7 @@ def test_invite_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
-    # FIXME: assert assigned_article.articleworkflow.preprint_id in emails[0].subject
+    assert assigned_article.journal.code in emails[0].subject
     assert "is a diamond open access" in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
@@ -1877,7 +1883,11 @@ def test_handle_editor_decision(
         assert len(mail.outbox) == 2
         withdrawn_review_mail = mail.outbox[0]
         assert review_withdraw_message_subject in withdrawn_review_mail.subject
-        assert review_withdraw_message_body in raw(withdrawn_review_mail.body)
+        # If message must be split, check that the first part is in the email body
+        if Message.SPLIT_MARKER in review_withdraw_message_body:
+            assert review_withdraw_message_body.partition(Message.SPLIT_MARKER)[0] in raw(withdrawn_review_mail.body)
+        else:
+            assert review_withdraw_message_body in raw(withdrawn_review_mail.body)
 
         Message.objects.get(subject=review_withdraw_message_subject).delete()
         for message in mail.outbox:
@@ -1937,7 +1947,11 @@ def test_handle_editor_decision(
         assert len(mail.outbox) == 1
         revision_request_mail = mail.outbox[0]
         assert revision_request_message_subject in revision_request_mail.subject
-        assert revision_request_message_body in raw(revision_request_mail.body)
+        # If message must be split, check that the first part is in the email body
+        if Message.SPLIT_MARKER in revision_request_message_body:
+            assert revision_request_message_body.partition(Message.SPLIT_MARKER)[0] in raw(revision_request_mail.body)
+        else:
+            assert revision_request_message_body in raw(revision_request_mail.body)
     elif decision == ArticleWorkflow.Decisions.ACCEPT:
         assert assigned_article.stage == submission_models.STAGE_ACCEPTED
         assert assigned_article.articleworkflow.state == final_state
@@ -1977,7 +1991,11 @@ def test_handle_editor_decision(
         assert len(mail.outbox) == 1
         accept_mail = mail.outbox[0]
         assert accept_message_subject in accept_mail.subject
-        assert accept_message_body in raw(accept_mail.body)
+        # If message must be split, check that the first part is in the email body
+        if Message.SPLIT_MARKER in accept_message_body:
+            assert accept_message_body.partition(Message.SPLIT_MARKER)[0] in raw(accept_mail.body)
+        else:
+            assert accept_message_body in raw(accept_mail.body)
     elif decision == ArticleWorkflow.Decisions.NOT_SUITABLE:
         assert assigned_article.stage == submission_models.STAGE_REJECTED
         assert assigned_article.articleworkflow.state == final_state
@@ -2016,7 +2034,11 @@ def test_handle_editor_decision(
         assert len(mail.outbox) == 1
         not_suitable_mail = mail.outbox[0]
         assert not_suitable_message_subject in not_suitable_mail.subject
-        assert not_suitable_message_body in raw(not_suitable_mail.body)
+        # If message must be split, check that the first part is in the email body
+        if Message.SPLIT_MARKER in not_suitable_message_body:
+            assert not_suitable_message_body.partition(Message.SPLIT_MARKER)[0] in raw(not_suitable_mail.body)
+        else:
+            assert not_suitable_message_body in raw(not_suitable_mail.body)
     elif decision == ArticleWorkflow.Decisions.REJECT:
         assert assigned_article.stage == submission_models.STAGE_REJECTED
         assert assigned_article.articleworkflow.state == final_state
@@ -2056,7 +2078,11 @@ def test_handle_editor_decision(
         assert len(mail.outbox) == 1
         reject_mail = mail.outbox[0]
         assert reject_message_subject in reject_mail.subject
-        assert reject_message_body in raw(reject_mail.body)
+        # If message must be split, check that the first part is in the email body
+        if Message.SPLIT_MARKER in reject_message_body:
+            assert reject_message_body.partition(Message.SPLIT_MARKER)[0] in raw(reject_mail.body)
+        else:
+            assert reject_message_body in raw(reject_mail.body)
     elif decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
         assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
         assert assigned_article.articleworkflow.state == final_state
@@ -2096,7 +2122,11 @@ def test_handle_editor_decision(
         assert len(mail.outbox) == 1
         reject_mail = mail.outbox[0]
         assert technical_revision_message_subject in reject_mail.subject
-        assert technical_revision_message_body in raw(reject_mail.body)
+        # If message must be split, check that the first part is in the email body
+        if Message.SPLIT_MARKER in technical_revision_message_body:
+            assert technical_revision_message_body.partition(Message.SPLIT_MARKER)[0] in raw(reject_mail.body)
+        else:
+            assert technical_revision_message_body in raw(reject_mail.body)
 
     if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
         # All review assignments are marked as complete; the one that was pending when the editor decision was take is
