@@ -1,5 +1,5 @@
 default:
-  image: python:3.9
+  image: python:3.11
   # Runner must be inside Inasset's farm
   tags:
     - inasset
