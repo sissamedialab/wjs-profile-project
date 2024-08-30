@@ -150,7 +150,7 @@ def test_post_message_form_with_attachment_creates_file(
     """Test that when a user writes a message with an attachment, the attachment is saved in the article's folder."""
     user = article.owner
     client.force_login(user)  # logged-in user will be the "actor"
-    url = reverse("wjs_message_write", kwargs={"article_id": article.id, "recipient_id": user.id})
+    url = reverse("wjs_message_write", kwargs={"pk": article.articleworkflow.pk, "recipient_id": user.id})
     # Django doc: https://docs.djangoproject.com/en/dev/topics/testing/tools/#django.test.Client.post
     attachment = StringIO("Sono un file!")
     attachment.name = f"fake-file{conftest.TEST_FILES_EXTENSION}"
@@ -380,22 +380,22 @@ def test_recipient_can_toggle_read(
 
     url = reverse("wjs_message_toggle_read", kwargs={"message_id": msg.id, "recipient_id": tuvok.id})
     client.force_login(chakotay)
-    response = client.post(url, data={"read": True})
+    response = client.post(url, data={f"toggle-{mr.pk}-read": True})
     assert response.status_code == 403
 
     client.force_login(tuvok)
-    response = client.post(url, data={"read": True})
+    response = client.post(url, data={f"toggle-{mr.pk}-read": True})
     assert response.status_code == 200
     mr.refresh_from_db()
     assert mr.read is True
-    response = client.post(url, data={"read": False})
+    response = client.post(url, data={f"toggle-{mr.pk}-read": False})
     assert response.status_code == 200
     mr.refresh_from_db()
     assert mr.read is False
 
     assert eo_user.janeway_account.is_active
     client.force_login(eo_user.janeway_account)
-    response = client.post(url, data={"read": True})
+    response = client.post(url, data={f"toggle-{mr.pk}-read": True})
     assert response.status_code == 403
     mr.refresh_from_db()
     assert mr.read is False

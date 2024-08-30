@@ -425,11 +425,12 @@ def test_wjs_message_download_attachment(assigned_article, eo_user, client):
 
 
 @pytest.mark.django_db
-def test_wjs_message_write_to_typ(assigned_to_typesetter_article_with_files_to_typeset, eo_user, client):
-    client.force_login(eo_user)
+def test_wjs_message_write_to_typ(assigned_to_typesetter_article_with_files_to_typeset, client):
+    client.force_login(assigned_to_typesetter_article_with_files_to_typeset.correspondence_author)
+    code = assigned_to_typesetter_article_with_files_to_typeset.journal.code
     response = client.get(
-        f"/plugins/wjs-review-articles/messages/writetotyp/"
-        f"{assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}/"
+        f"/{code}/plugins/wjs-review-articles/messages/"
+        f"{assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}/write_to_typesetter/"
     )
     assert response.status_code == 200
 
@@ -438,9 +439,10 @@ def test_wjs_message_write_to_typ(assigned_to_typesetter_article_with_files_to_t
 def test_wjs_message_write_to_auwm(assigned_to_typesetter_article_with_files_to_typeset, client):
     assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
     client.force_login(assignment.typesetter)
+    code = assigned_to_typesetter_article_with_files_to_typeset.journal.code
     response = client.get(
-        f"/{assigned_to_typesetter_article_with_files_to_typeset.journal.code}/plugins/wjs-review-articles/messages/"
-        f"writetoau/{assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}/"
+        f"/{code}/plugins/wjs-review-articles/messages/"
+        f"{assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}/write_to_author/"
     )
     assert response.status_code == 200
 

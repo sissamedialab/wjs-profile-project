@@ -1,9 +1,7 @@
 {% load django_bootstrap5 %}
-<div id="read-toggle-{{ message.id }}-{{ user.id }}" class="col-1">
-    <form hx-target="#read-toggle-{{ message.id }}-{{ user.id }}"
-          hx-post="{% url "wjs_message_toggle_read" message_id=message.id recipient_id=user.id %}"
-          hx-trigger="click"
-          hx-swap="outerHTML">
-        {% bootstrap_form form show_help=False %}
-    </form>
+{% url "wjs_message_toggle_read" message_id=message.id recipient_id=user.id as toggle_read_url %}
+<div id="read-toggle-{{ message.id }}-{{ user.id }}" >
+  <form hx-target="#read-toggle-{{ message.id }}-{{ user.id }}" hx-post=toggle_read_url hx-trigger="click" hx-swap="outerHTML">
+    {% bootstrap_form form show_help=False %}
+  </form>
 </div>

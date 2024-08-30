@@ -34,7 +34,9 @@ from django.views.generic import (
     UpdateView,
     View,
 )
+from django_filters.views import FilterView
 from journal.models import Issue, Journal
+from plugins.typesetting.models import TypesettingAssignment
 from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission import models as submission_models
@@ -42,6 +44,7 @@ from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 
@@ -54,6 +57,7 @@ from .communication_utils import (
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
+    MessageFilter,
     ReviewerArticleWorkflowFilter,
     StaffArticleWorkflowFilter,
     WorkOnAPaperArticleWorkflowFilter,
@@ -126,33 +130,33 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
     related_views: Dict[str, Dict[str, str]] = {
-        "eo": {
+        constants.EO_GROUP: {
             "wjs_review_eo_pending": _("Pending preprints"),
             "wjs_review_eo_archived": _("Archived preprints"),
             "wjs_review_eo_production": _("Production"),
             "wjs_review_eo_workon": _("Search preprints"),
             "wjs_review_eo_issues_list": _("Pending Issues"),
         },
-        "director": {
+        constants.DIRECTOR_ROLE: {
             "wjs_review_director_pending": _("Pending preprints"),
             "wjs_review_director_archived": _("Archived preprints"),
             "wjs_review_director_workon": _("Search preprints"),
             "wjs_review_director_issues_list": _("Pending Issues"),
         },
-        "editor": {
+        constants.SECTION_EDITOR_ROLE: {
             "wjs_review_list": _("Pending preprints"),
             "wjs_review_archived_papers": _("Archived preprints"),
             "wjs_review_editor_issues_list": _("Pending Issues"),
         },
-        "author": {
+        constants.AUTHOR_ROLE: {
             "wjs_review_author_pending": _("Pending preprints"),
             "wjs_review_author_archived": _("Archived preprints"),
         },
-        "reviewer": {
+        constants.REVIEWER_ROLE: {
             "wjs_review_reviewer_pending": _("Pending preprints"),
             "wjs_review_reviewer_archived": _("Archived preprints"),
         },
-        "typesetter": {
+        constants.TYPESETTER_ROLE: {
             "wjs_review_typesetter_pending": _("Pending preprints"),
             "wjs_review_typesetter_workingon": _("Working on"),
             "wjs_review_typesetter_archived": _("Archived preprints"),
@@ -168,6 +172,8 @@ class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
         if self.role:
             request.session["role"] = self.role
         current_role = request.session.get("role", self.role)
+        if not current_role:
+            current_role = base_permissions.main_role(self.request.journal, self.request.user)
         if current_role:
             self.extra_links = {
                 reverse(view_name): title
@@ -195,6 +201,10 @@ class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
         view_object.args = self.args
         user_has_permission = view_object.test_func()
         return not view_matches_current_url and user_has_permission
+
+    @property
+    def role_label(self):
+        return constants.LABELS.get(self.role, self.role)
 
 
 class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
@@ -252,7 +262,7 @@ class EditorPending(ArticleWorkflowBaseMixin):
     """Editor's main page."""
 
     title = _("Pending preprints")
-    role = "editor"
+    role = constants.SECTION_EDITOR_ROLE
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/editor/table.html"
     filterset_class = StaffArticleWorkflowFilter
@@ -302,7 +312,7 @@ class EOPending(ArticleWorkflowBaseMixin):
     """EO's main page."""
 
     title = _("Pending preprints")
-    role = "eo"
+    role = constants.EO_GROUP
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/eo/table.html"
     filterset_class = EOArticleWorkflowFilter
@@ -403,7 +413,7 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
     """
 
     title = _("Pending Issues")
-    role = "director"
+    role = constants.DIRECTOR_ROLE
     model = Issue
     template_name = "wjs_review/lists/issue_list.html"
     template_table = "wjs_review/lists/elements/issue/table.html"
@@ -419,7 +429,7 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
 
 
 class EOWorkOnIssue(BaseWorkOnIssue):
-    role = "eo"
+    role = constants.EO_GROUP
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
@@ -427,7 +437,7 @@ class EOWorkOnIssue(BaseWorkOnIssue):
 
 
 class DirectorWorkOnIssue(BaseWorkOnIssue):
-    role = "director"
+    role = constants.DIRECTOR_ROLE
 
     def test_func(self):
         """Allow access only to director."""
@@ -435,11 +445,11 @@ class DirectorWorkOnIssue(BaseWorkOnIssue):
 
 
 class EditorWorkOnIssue(BaseWorkOnIssue):
-    role = "editor"
+    role = constants.SECTION_EDITOR_ROLE
 
     def test_func(self):
         """Allow access only to director."""
-        return permissions.is_any_open_special_issue_editor(self.request.journal, self.request.user)
+        return permissions.is_any_special_issue_editor(self.request.journal, self.request.user)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -451,7 +461,7 @@ class DirectorPending(ArticleWorkflowBaseMixin):
     """Director's main page."""
 
     title = _("Pending preprints")
-    role = "director"
+    role = constants.DIRECTOR_ROLE
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/director/table.html"
     filterset_class = StaffArticleWorkflowFilter
@@ -526,7 +536,7 @@ class AuthorPending(ArticleWorkflowBaseMixin):
     """Author's main page."""
 
     title = _("Pending preprints")
-    role = "author"
+    role = constants.AUTHOR_ROLE
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/author/table.html"
     filterset_class = AuthorArticleWorkflowFilter
@@ -579,7 +589,7 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
     """Reviewer's main page."""
 
     title = _("Pending preprints")
-    role = "reviewer"
+    role = constants.REVIEWER_ROLE
     template_name = "wjs_review/lists/articleworkflow_list.html"
     template_table = "wjs_review/lists/elements/reviewer/table.html"
     filterset_class = ReviewerArticleWorkflowFilter
@@ -1224,7 +1234,7 @@ class ArticleAdminDispatchAssignment(LoginRequiredMixin, UserPassesTestMixin, Vi
     def setup(self, request, *args, **kwargs):
         """Set current article on object for convenience."""
         super().setup(request, *args, **kwargs)
-        self.articleworkflow = get_object_or_404(self.model, id=self.kwargs["pk"])
+        self.articleworkflow = get_object_or_404(self.model, pk=self.kwargs["pk"])
 
     def get(self, *args, **kwargs):
         """Dispatch the assignment."""
@@ -1359,19 +1369,52 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
         return context
 
 
-class ArticleMessages(LoginRequiredMixin, ListView):
-    """All messages of a certain user that are related to an article.
-
-    Probably only write-to-eo / write-to-directore message.
+class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
+    """
+    All messages of a certain user that are related to an article.
     """
 
+    title = _("Messages")
     model = Message
-    template_name = "wjs_review/article_messages.html"
+    template_name = "wjs_review/article_messages/article_messages.html"
+    context_object_name = "messages_list"
+    filterset_class = MessageFilter
 
     def setup(self, request, *args, **kwargs):
         """Filter only messages related to a certain article and that the current user can see."""
         super().setup(request, *args, **kwargs)
-        self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+        self.article = self.workflow.article
+
+    def test_func(self):
+        """Allow access only one has permission on the article."""
+
+        if not self.request.user or not self.request.user.is_authenticated:
+            return False
+
+        return PermissionChecker()(
+            self.article.articleworkflow,
+            self.request.user,
+            self.article,
+            permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+        )
+
+    def get_template_names(self):
+        if self.htmx:
+            return ["wjs_review/article_messages/elements/messages_list.html"]
+        return super().get_template_names()
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk}),
+                title=str(self.article.articleworkflow),
+            ),
+            BreadcrumbItem(url=self.request.path, title=_("Messages"), current=True),
+        ]
 
     def get_queryset(self):
         """Return the list of messages that the user is entitled to see for this article."""
@@ -1390,14 +1433,19 @@ class ArticleMessages(LoginRequiredMixin, ListView):
             message__in=self.get_queryset(),
             recipient=self.request.user,
         )
-        forms = {mr.message.id: ToggleMessageReadForm(instance=mr) for mr in messagerecipients_records}
+        forms = {
+            mr.message.pk: ToggleMessageReadForm(instance=mr, prefix=f"toggle-{mr.pk}")
+            for mr in messagerecipients_records
+        }
         context["forms"] = forms
         # The following is context to allow the EO to mark messages as read
         # TODO Refactor ArticleMessages to not create a form for each message. Issue 55
         message_records = Message.objects.filter(
             id__in=self.get_queryset(),
         )
-        eo_forms = {mr.id: ToggleMessageReadByEOForm(instance=mr) for mr in message_records}
+        eo_forms = {
+            mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}") for mr in message_records
+        }
         context["eo_forms"] = eo_forms
         return context
 
@@ -1420,21 +1468,160 @@ class MessageAttachmentDownloadView(UserPassesTestMixin, DetailView):
 
     def get(self, request, *args, **kwargs):
         """Serve the attachment file."""
-        attachment = core_models.File.objects.get(id=self.kwargs["attachment_id"])
+        attachment = core_models.File.objects.get(pk=self.kwargs["attachment_id"])
         article = self.get_object().target
         # Here, public=True means that the downloaded file will have a human-readable name, not the uuid
         return core_files.serve_file(request, attachment, article, public=True)
 
 
-class WriteMessage(LoginRequiredMixin, CreateView):
+class WriteMessage(BaseRelatedViewsMixin, CreateView):
     """A view to let the user write a new message.
 
     The view also lists all messages of a certain article that the user can see.
     """
 
     model = Message
-    template_name = "wjs_review/write_message.html"
+    template_name = "wjs_review/write_message/write_messages.html"
     form_class = MessageForm
+    note = False
+    to_author = False
+    to_typesetter = False
+    source_message = None
+    "The message we are replying to"
+
+    def setup(self, request, *args, **kwargs):
+        """Filter only messages related to a certain article and that the current user can see."""
+        super().setup(request, *args, **kwargs)
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+        self.article = self.workflow.article
+        if self.kwargs.get("original_message_pk"):
+            self.source_message = get_object_or_404(Message, pk=self.kwargs["original_message_pk"])
+            is_actor_author = permissions.is_article_author(self.workflow, self.source_message.actor)
+            is_actor_typesetter = permissions.is_article_typesetter(self.workflow, self.source_message.actor)
+            is_current_author = permissions.is_article_author(self.workflow, self.request.user)
+            is_current_typesetter = permissions.is_article_typesetter(self.workflow, self.request.user)
+            if is_actor_author and is_current_typesetter:
+                self.to_author = True
+            elif is_actor_typesetter and is_current_author:
+                self.to_typesetter = True
+        else:
+            self.source_message = None
+        if self.kwargs.get("recipient_id"):
+            self.recipient = get_object_or_404(Account, pk=self.kwargs["recipient_id"])
+        else:
+            self.recipient = None
+        messages = get_messages_related_to_me(user=self.request.user, article=self.article)
+        self.messages = messages.filter(Q(recipients__in=[self.recipient]) | Q(actor=self.recipient))
+
+    def test_func(self):
+        """
+        Allow access if specific permissions are met.
+
+        - Generic message: any permission on the article
+        - Note to self: any permission on the article
+        - Reply to message: any permission on the article
+        - Message Typesetter -> Author: Must be a typesetter
+        - Message Author -> Typesetter: Must be an author
+        """
+        if self.to_author:
+            return permissions.is_article_typesetter(
+                self.workflow,
+                self.request.user,
+            )
+        if self.to_typesetter:
+            return permissions.is_article_author(
+                self.workflow,
+                self.request.user,
+            )
+
+        if not self.request.user or not self.request.user.is_authenticated:
+            return False
+
+        return PermissionChecker()(
+            self.article.articleworkflow,
+            self.request.user,
+            self.article,
+            permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+        )
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk}),
+                title=str(self.article.articleworkflow),
+            ),
+            BreadcrumbItem(
+                url=reverse("wjs_article_messages", kwargs={"pk": self.article.articleworkflow.pk}),
+                title=_("Messages"),
+            ),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
+
+    @property
+    def title(self):
+        if self.note:
+            return _("Write a personal note")
+        if self.source_message:
+            return _('Reply to message "%s"') % self.source_message.subject
+        if self.to_author:
+            return _("Write a message to the author")
+        if self.to_typesetter:
+            return _("Write a message to the typesetter")
+        return _("Write a message")
+
+    def get_default_recipients(self):
+        """Return the default recipients for the message."""
+        if self.source_message:
+            recipients = list(self.source_message.messagerecipients_set.all().values_list("recipient", flat=True)) + [
+                self.source_message.actor.pk
+            ]
+            return list(filter(lambda x: x != self.request.user.pk, recipients))
+        if self.to_author:
+            # If the message is directly to the author, the EO is the default recipient
+            # (used, for instance, when typ writes to au with EO moderation)
+            return [get_eo_user(self.workflow.article).pk]
+        if self.to_typesetter:
+            # If the message is to the typesetter, the typesetter is the default recipient
+            return [
+                TypesettingAssignment.objects.filter(
+                    round__article=self.workflow.article,
+                )
+                .order_by("round__round_number")
+                .last()
+                .typesetter.pk
+            ]
+
+        return [self.recipient] if self.recipient else []
+
+    def get_to_be_forwarded_to(self) -> Account | None:
+        """
+        Return the final recipient of the message.
+        """
+        if self.to_author:
+            return self.workflow.article.correspondence_author
+
+    def get_recipients_from_formset(self):
+        """
+        Get the recipients from the formset.
+
+        It allows to inject the recipients from the formset (which is only used to build the UI) into the form.
+        """
+        recipients_formset = self.get_form_class().get_formset_class()(
+            prefix="recipientsFS",
+            form_kwargs={
+                "actor": self.request.user,
+                "article": self.article,
+            },
+            data=self.request.POST,
+        )
+        if recipients_formset.is_valid():
+            recipients = [f.cleaned_data["recipient"].id for f in recipients_formset if "recipient" in f.cleaned_data]
+            if recipients:
+                return recipients
+        return []
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         """Add article (target) to the form's kwargs.
@@ -1442,53 +1629,22 @@ class WriteMessage(LoginRequiredMixin, CreateView):
         Actor will be evinced by the form directly from the request.
         """
         kwargs = super().get_form_kwargs()
+        if "data" in kwargs:
+            cloned_data = kwargs["data"].copy()
+            if self.source_message:
+                cloned_data["recipients"] = self.get_default_recipients()
+            elif self.to_author:
+                cloned_data["recipients"] = self.get_default_recipients()
+            elif self.to_typesetter:
+                cloned_data["recipients"] = self.get_default_recipients()
+            else:
+                cloned_data["recipients"] = self.get_recipients_from_formset()
+            kwargs["data"] = cloned_data
         kwargs["actor"] = self.request.user
         kwargs["target"] = self.article
-        kwargs["initial_recipient"] = self.recipient
+        kwargs["note"] = self.note
+        kwargs["hide_recipients"] = self.note or self.to_author or self.to_typesetter
         return kwargs
-
-    def post(self, request, *args, **kwargs):
-        """Complete the message form.
-
-        Bind the recipients formset to POST data and use the recipients_formset's cleaned_data to populate the
-        "recipients" field of the main form.
-
-        """
-        form = self.get_form()
-        recipients_formset = form.MessageRecipientsFormSet(
-            prefix="recipientsFS",
-            form_kwargs={
-                "actor": request.user,
-                "article": self.article,
-            },
-            data=request.POST,
-        )
-        if recipients_formset.is_valid():
-            request_post_copy = request.POST.copy()
-            # It is possible that the user leaves some formset uncompleted.
-            # This is not a problem as long as there is at least one recipient.
-            request_post_copy["recipients"] = [
-                f.cleaned_data["recipient"].id for f in recipients_formset if "recipient" in f.cleaned_data
-            ]
-            if len(request_post_copy["recipients"]) < 1:
-                raise ValidationError(_("At least one recipient is necessary"), code="missing_recipient")
-            request.POST = request_post_copy
-        return super().post(request, *args, **kwargs)
-
-    def get_success_url(self):
-        """Point back to the article's detail page."""
-        return reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk})
-
-    def setup(self, request, *args, **kwargs):
-        """Filter only messages related to a certain article and that the current user can see."""
-        super().setup(request, *args, **kwargs)
-        self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
-        if self.kwargs.get("recipient_id"):
-            self.recipient = get_object_or_404(Account, id=self.kwargs["recipient_id"])
-        else:
-            self.recipient = None
-        messages = get_messages_related_to_me(user=self.request.user, article=self.article)
-        self.messages = messages.filter(Q(recipients__in=[self.recipient]) | Q(actor=self.recipient))
 
     def get_initial(self):
         """Populate the hidden fields.
@@ -1497,35 +1653,51 @@ class WriteMessage(LoginRequiredMixin, CreateView):
         we include the correct values here also for good practice.
 
         """
+        default_subject = f"Re: {self.source_message.subject}" if self.source_message else ""
+        to_be_forwarded_to = self.get_to_be_forwarded_to()
         return {
             "actor": self.request.user.pk,
             "recipient": self.recipient.pk if self.recipient else None,
             "content_type": ContentType.objects.get_for_model(self.article).pk,
             "object_id": self.article.pk,
             "message_type": Message.MessageTypes.USER,
+            "recipients": self.get_default_recipients(),
+            "subject": default_subject,
+            "to_be_forwarded_to": to_be_forwarded_to,
         }
+
+    def get_success_url(self):
+        """Point back to the article's detail page."""
+        return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
 
     def get_context_data(self, **kwargs):
         """Add the article and the recipient to the context."""
         context = super().get_context_data(**kwargs)
-        context["workflow"] = self.article.articleworkflow
+        context["workflow"] = self.workflow
         context["article"] = self.article
         context["recipient"] = self.recipient
         context["message_list"] = self.messages
+        context["note"] = self.note
+        context["hide_recipients"] = self.note or self.to_author or self.to_typesetter
         return context
 
 
-class ToggleMessageReadView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class ToggleMessageReadView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """A view to let the user toggle read/unread flag on a message."""
 
     model = MessageRecipients
     form_class = ToggleMessageReadForm
-    template_name = "wjs_review/elements/toggle_message_read.html"
+    template_name = "wjs_review/article_messages/elements/toggle_message_read.html"
     context_object_name = "message"
 
     def test_func(self):
         """User must be the recipient."""
-        return self.request.user.id == self.kwargs["recipient_id"]
+        return self.request.user.pk == self.kwargs["recipient_id"]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["prefix"] = f"toggle-{self.object.pk}"
+        return kwargs
 
     def get_object(self, queryset=None):
         """Return the object the view is displaying.
@@ -1554,21 +1726,27 @@ class ToggleMessageReadView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         return self.render_to_response(self.get_context_data(form=form, message=self.object.message))
 
 
-class ToggleMessageReadByEOView(UserPassesTestMixin, UpdateView):
+class ToggleMessageReadByEOView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """A view to let the EO toggle read/unread flag on a message by other two actors."""
 
     model = Message
     form_class = ToggleMessageReadByEOForm
-    template_name = "wjs_review/elements/toggle_message_read_by_eo.html"
+    template_name = "wjs_review/article_messages/elements/toggle_message_read_by_eo.html"
+    context_object_name = "message"
 
     def test_func(self):
         """User must be part of the EO."""
         return base_permissions.has_eo_role(self.request.user)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["prefix"] = f"toggle-eo-{self.object.pk}"
+        return kwargs
+
     def get_object(self, queryset=None):
         return get_object_or_404(
             Message,
-            id=self.kwargs["message_id"],
+            pk=self.kwargs["message_id"],
         )
 
     def form_valid(self, form):
@@ -1621,7 +1799,7 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = get_object_or_404(self.model, id=self.kwargs[self.pk_url_kwarg])
+        self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
 
     def test_func(self):
         """User must be corresponding author of the article."""
@@ -1771,30 +1949,47 @@ class ArticleRevisionFileUpdate(UserPassesTestMixin, LoginRequiredMixin, View):
         )
 
 
-class ArticleReminders(UserPassesTestMixin, ListView):
+class ArticleReminders(BaseRelatedViewsMixin, ListView):
     """All reminders related to an article."""
 
+    title = _("Scheduled reminders")
     model = Message
-    template_name = "wjs_review/article_reminders.html"
+    template_name = "wjs_review/reminders/article_reminders.html"
 
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.article = get_object_or_404(submission_models.Article, id=self.kwargs["article_id"])
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
 
     def test_func(self):
         """Let's show reminders only to EO or staff."""
         return base_permissions.has_admin_role(self.request.journal, self.request.user)
 
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.workflow.pk}),
+                title=self.workflow,
+            ),
+            BreadcrumbItem(
+                url=self.request.path,
+                title=self.title,
+                current=True,
+            ),
+        ]
+
     def get_queryset(self):
         """Get reminders related to an article via ReviewAssignment or WjsEditorAssignment or similar."""
         # TODO: optimize
-        review_assignments = ReviewAssignment.objects.filter(article=self.article).values_list("id")
+        review_assignments = ReviewAssignment.objects.filter(article=self.workflow.article).values_list("pk")
         reviewer_reminders = Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(ReviewAssignment),
             object_id__in=review_assignments,
         )
-        editor_assignments = WjsEditorAssignment.objects.filter(article=self.article).values_list("id")
+        editor_assignments = WjsEditorAssignment.objects.filter(article=self.workflow.article).values_list("pk")
         editor_reminders = Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
             object_id__in=editor_assignments,
@@ -1805,8 +2000,8 @@ class ArticleReminders(UserPassesTestMixin, ListView):
     def get_context_data(self, **kwargs):
         """Add the article to the context."""
         context = super().get_context_data(**kwargs)
-        context["workflow"] = self.article.articleworkflow
-        context["article"] = self.article
+        context["workflow"] = self.workflow
+        context["article"] = self.workflow.article
         return context
 
 
@@ -1824,7 +2019,7 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
     def setup(self, request, *args, **kwargs):
         """Fetch the ReviewAssignment instance for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = get_object_or_404(self.model, id=self.kwargs[self.pk_url_kwarg])
+        self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
 
     def test_func(self):
         """User must be the article's editor"""
@@ -1856,7 +2051,7 @@ class EditorDeclineAssignmentView(HtmxMixin, UserPassesTestMixin, DetailView):
     def setup(self, request, *args, **kwargs):
         """Fetch the ArticleWorkflow instance for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
+        self.object = get_object_or_404(self.model, pk=self.kwargs["pk"])
 
     def test_func(self):
         """User must be the article's Editor and must be assigned to the article."""
@@ -2037,17 +2232,14 @@ class JournalEditorsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return qs
 
 
-class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class ForwardMessage(BaseRelatedViewsMixin, CreateView):
     """Forward a Message.
 
     See ForwardMessageForm for details on the forwarded message.
     """
 
     model = Message
-    # The template "write_message_to_typ.html" is very generic:
-    # if has title + optional intro + form
-    # so that we use it here also
-    template_name = "wjs_review/write_message_to_typ.html"
+    template_name = "wjs_review/write_message/write_messages.html"
     form_class = ForwardMessageForm
     pk_url_kwarg = "original_message_pk"
 
@@ -2060,6 +2252,26 @@ class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         super().setup(request, *args, **kwargs)
         self.original_message = self.get_object()
         self.workflow = self.original_message.target.articleworkflow
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.workflow.pk}),
+                title=str(self.workflow),
+            ),
+            BreadcrumbItem(
+                url=reverse("wjs_article_messages", kwargs={"pk": self.workflow.pk}),
+                title=_("Messages"),
+            ),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
+
+    @property
+    def title(self):
+        return _('Forward message "%s"') % self.original_message.subject
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -2078,8 +2290,9 @@ class ForwardMessage(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         """Add the workflow."""
         context = super().get_context_data(**kwargs)
         context["workflow"] = self.workflow
-        context["title"] = _("Forward a message")
         context["introduction"] = _("Please check this message before forwarding it.")
+        context["forward"] = self.original_message.to_be_forwarded_to
+        context["hide_recipients"] = True
         return context
 
     def get_success_url(self):
@@ -2092,8 +2305,8 @@ class DownloadAnythingDROPME(View):
 
     def get(self, request, *args, **kwargs):
         """Serve any File."""
-        attachment = core_models.File.objects.get(id=self.kwargs["file_id"])
-        article = Article.objects.get(id=self.kwargs["article_id"])
+        attachment = core_models.File.objects.get(pk=self.kwargs["file_id"])
+        article = Article.objects.get(pk=self.kwargs["article_id"])
         return core_files.serve_file(request, attachment, article, public=True)
 
 
@@ -2156,6 +2369,7 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
     form_class = WithdrawPreprintForm
     success_url = reverse_lazy("wjs_review_author_archived")
     template_name = "wjs_review/details/withdraw_preprint.html"
+    context_object_name = "workflow"
 
     def test_func(self):
         """User must be corresponding author of the article."""

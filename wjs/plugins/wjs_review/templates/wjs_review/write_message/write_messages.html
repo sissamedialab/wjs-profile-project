@@ -1,0 +1,142 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static wjs_permissions wjs_tags %}
+
+{% block breadcrumbs_right %}
+  {% translate "Go to messages history" as list_label %}
+  {% url "wjs_article_messages" pk=workflow.pk as list_url %}
+  <div class="nav">
+    {% include "wjs_review/base/elements/breadcrumb_items.html" with url=list_url title=list_label %}
+  </div>
+{% endblock breadcrumbs_right %}
+
+{% block bootstrap5_extra_head %}
+  {{ block.super }}
+  <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+  <script type="text/javascript" src="{% static '/js/jquery.formset.js' %}"></script>
+  <script type="text/javascript">
+    function update_selectable_options(event) {
+      // find all currently selected values
+      const all_selects = $(".recipient_form_container select");
+      const selected_values = [];
+      for (const select_element of all_selects) {
+        // NB: calling  "value" on a <select> gives the value of the selected <option>
+        selected_values.push(select_element.value);
+      }
+      // "disable" all currently selected values in all select elements
+      // (except for the selected option in each select)
+      for (const select_element of all_selects) {
+        for (const option of select_element) {
+          if (option.selected) continue;
+          if (selected_values.includes(option.value)) {
+            option.disabled = true;
+            continue;
+          }
+          option.disabled = false;
+        }
+      }
+    }
+
+    function added_callback(row) {
+      // add a callback to the select input
+      const select_input = row.find("select")[0];
+      select_input.addEventListener("change", update_selectable_options);
+      update_selectable_options(null);
+    }
+
+    function removed_callback(row) {
+      // when a form is removed, if there was an option selected, add it back to all <select>s
+      update_selectable_options(null);
+    }
+
+    $(function() {
+      $(".recipient_form_container").formset(
+        {
+          prefix: "recipientsFS",
+          formTemplate: $("#recipients_formset_template").contents()[0],
+          addText: "<i class=\"bi bi-person-plus-fill\"></i>",
+          deleteText: "<i class=\"bi bi-person-dash-fill\"></i>",
+          added: added_callback,
+          removed: removed_callback,
+        });
+      // Do not forget to add the event listener to the first select also
+      const first_select = $(".recipient_form_container select")[0];
+      first_select.addEventListener("change", update_selectable_options);
+    });
+  </script>
+{% endblock bootstrap5_extra_head %}
+
+{% block content_wrapper %}
+  {% translate "Send" as send_label %}
+  {% translate "Back" as back_label %}
+  {% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h1 class="page-title">{{ view.title }}</h1>
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+    <div class="card mb-3">
+      <div class="card-body">
+        {% if introduction %}
+            <h5 class="card-title">{% translate "Message will be forwarded to" %}: {{ forward }}</h5>
+          <div class="card-text">
+            <p>{{ introduction }}</p>
+          </div>
+        {% else %}
+            <h5 class="card-title">{% translate "Extra info here" %}</h5>
+          <div class="card-text">{% blocktranslate %}<p>Provide information</p>{% endblocktranslate %}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="container mb-3">
+    {% if forward %}
+    {% endif %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% bootstrap_form_errors form type="non_field" %}
+      {% if not note and not hide_recipients and form.recipients_formset %}
+        {{ form.recipients_formset.management_form }}
+        {% bootstrap_formset_errors form.recipients_formset %}
+        <div class="col">
+          <label class="mb-2">{% translate "Recipient" %}</label>
+          <div id="recipients_formset_container" class="d-flex align-items-center mb-3">
+            {% for recipient_form in form.recipients_formset %}
+              {% bootstrap_form_errors recipient_form %}
+              <div class="recipient_form_container d-flex align-items-center me-3">
+                {% bootstrap_field recipient_form.recipient wrapper_class="" show_label=False %}
+              </div>
+            {% endfor %}
+          </div>
+          {% comment %}
+            Manual handling of form errors in the recipients field is required because recipients is always hidden and replaced by the formset.
+            https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/46
+          {% endcomment %}
+          {% if form.errors.recipients %}
+            {% include "django_bootstrap5/form_errors.html" with errors=form.errors.recipients %}
+          {% endif %}
+        </div>
+      {% endif %}
+      <div class="col">
+        {% if note %}
+          {% bootstrap_field form.subject show_help=False %}
+        {% else %}
+          {% bootstrap_field form.subject show_help=False addon_before="["|concat:workflow.preprint_id|concat:"]" %}
+        {% endif %}
+        {% bootstrap_field form.body %}
+        {% if not send_back %}
+          {% bootstrap_field form.attachment %}
+        {% endif %}
+        {% if not forward and not send_back %}
+          {% bootstrap_field form.actor %}
+          {% bootstrap_field form.content_type %}
+          {% bootstrap_field form.object_id %}
+          {% bootstrap_field form.message_type %}
+        {% endif %}
+      </div>
+      {% bootstrap_button button_type="submit" name="submit" content=send_label id="id_formset_submit_button" %}
+    </form>
+  </div>
+{% endblock content_wrapper %}

@@ -21,15 +21,14 @@ from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
+from wjs.jcom_profile.utils import render_template_from_setting
 
-from .communication_utils import get_eo_user
 from .forms__production import (
     EOSendBackToTypesetterForm,
     EsmFileForm,
     SectionOrderForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
-    WriteToTypMessageForm,
 )
 from .logic import (
     BeginPublication,
@@ -266,20 +265,8 @@ class ListSupplementaryFileView(LoginRequiredMixin, UserPassesTestMixin, DetailV
             self.object, self.request.user
         )
 
-    @property
-    def extra_links(self):
-        preprintid = self.object.article.get_identifier("preprintid")
-        if not preprintid:
-            preprintid = self.object.article_id
-        return {
-            "javascript:history.back()": _("Back to list"),
-            reverse("wjs_article_details", kwargs={"pk": self.kwargs["pk"]}): preprintid,
-            reverse("wjs_article_esm_files", kwargs={"pk": self.kwargs["pk"]}): preprintid,
-        }
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["extra_links"] = self.extra_links
         context["article"] = self.object.article
         context["form"] = self.form_class(
             user=self.request.user,
@@ -367,135 +354,6 @@ class DeleteSupplementaryFileView(HtmxMixin, LoginRequiredMixin, UserPassesTestM
             instance=self.article.articleworkflow,
         )
         return context
-
-
-class WriteToTyp(LoginRequiredMixin, UserPassesTestMixin, FormView):
-    """Let the author write to the typesetter of a certain article."""
-
-    model = ArticleWorkflow
-    template_name = "wjs_review/write_message_to_typ.html"
-    context_object_name = "workflow"
-    form_class = WriteToTypMessageForm
-
-    def setup(self, request, *args, **kwargs):
-        """Store a reference to the article for easier processing."""
-        super().setup(request, *args, **kwargs)
-        self.workflow = get_object_or_404(self.model, id=self.kwargs["pk"])
-
-    def test_func(self):
-        """User must be the article's author."""
-        return is_article_author(self.workflow, self.request.user) or base_permissions.has_eo_role(self.request.user)
-
-    def get_recipient(self):
-        """Get the typesetter of the most recent TypesettingAssignment for this Article.
-
-        He will be the recipient of the message.
-        """
-        return (
-            TypesettingAssignment.objects.filter(
-                round__article=self.workflow.article,
-            )
-            .values(
-                "typesetter__pk",
-            )
-            .order_by("round__round_number")
-            .last()["typesetter__pk"]
-        )
-
-    def get_success_url(self):
-        """Point back to the article's detail page."""
-        return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
-
-    def get_context_data(self, **kwargs):
-        """Add the workflow."""
-        context = super().get_context_data(**kwargs)
-        context["workflow"] = self.workflow
-        return context
-
-    def get_form_kwargs(self):
-        """Pass along user and article."""
-        kwargs = super().get_form_kwargs()
-        kwargs.update(
-            {
-                "actor": self.request.user,
-                "article": self.workflow.article,
-                "recipients": self.get_recipient(),
-            },
-        )
-        return kwargs
-
-    def form_valid(self, form):
-        """Add a Message for the typesetter and send the notification."""
-        form.create_message()
-        return super().form_valid(form)
-
-
-# TODO: refactor with WriteToTyp
-# (derive from it and override test func and get_recipient and form_valid)
-class WriteToAuWithModeration(LoginRequiredMixin, UserPassesTestMixin, FormView):
-    """Let the typesetter write to the author of a certain article.
-
-    The typesetter message will not go directly to the author, but it will go to the EO, who can then forward it.
-
-    """
-
-    model = ArticleWorkflow
-    template_name = "wjs_review/write_message_to_typ.html"
-    context_object_name = "workflow"
-    form_class = WriteToTypMessageForm
-
-    def setup(self, request, *args, **kwargs):
-        """Store a reference to the article for easier processing."""
-        super().setup(request, *args, **kwargs)
-        self.workflow = get_object_or_404(self.model, id=self.kwargs["pk"])
-
-    def test_func(self):
-        """User must be the article's author."""
-        return is_article_typesetter(
-            self.workflow,
-            self.request.user,
-        )
-
-    def get_recipient(self):
-        """Get the EO user.
-
-        He will be the recipient of the message.
-        """
-        return get_eo_user(self.workflow.article)
-
-    def get_to_be_forwarded_to(self):
-        """Get the author.
-
-        He will be added as the person to which EO should forward this message.
-        """
-        return self.workflow.article.correspondence_author
-
-    def get_success_url(self):
-        """Point back to the article's detail page."""
-        return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
-
-    def get_context_data(self, **kwargs):
-        """Add the workflow."""
-        context = super().get_context_data(**kwargs)
-        context["workflow"] = self.workflow
-        return context
-
-    def get_form_kwargs(self):
-        """Pass along recipient, user and article."""
-        kwargs = super().get_form_kwargs()
-        kwargs.update(
-            {
-                "actor": self.request.user,
-                "article": self.workflow.article,
-                "recipients": self.get_recipient(),
-            },
-        )
-        return kwargs
-
-    def form_valid(self, form):
-        """Add a Message for the typesetter and send the notification."""
-        form.create_message(to_be_forwarded_to=self.get_to_be_forwarded_to())
-        return super().form_valid(form)
 
 
 class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
@@ -729,17 +587,32 @@ class GalleyGenerationView(BaseRelatedViewsMixin, TemplateView):
         return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.articleworkflow.pk}))
 
 
-class EOSendBackToTypesetterView(LoginRequiredMixin, UserPassesTestMixin, FormView):
+class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
     """View to allow the EO to send a paper back to typesetter."""
 
+    title = _("Send back to typesetter")
     form_class = EOSendBackToTypesetterForm
-    template_name = "wjs_review/write_message_to_typ.html"
+    template_name = "wjs_review/write_message/write_messages.html"
     success_url = reverse_lazy("wjs_review_eo_pending")
 
     def setup(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""
         super().setup(request, *args, **kwargs)
-        self.articleworkflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
+        self.workflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
+        self.assignment = (
+            TypesettingAssignment.objects.filter(round__article=self.workflow.article)
+            .order_by("round__round_number")
+            .last()
+        )
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.workflow.pk}), title=self.workflow),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
 
     def test_func(self):
         """Typesetter can upload files."""
@@ -747,13 +620,37 @@ class EOSendBackToTypesetterView(LoginRequiredMixin, UserPassesTestMixin, FormVi
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["articleworkflow"] = self.articleworkflow
+        kwargs["workflow"] = self.workflow
+        kwargs["assignment"] = self.assignment
         kwargs["user"] = self.request.user
         return kwargs
 
+    def get_initial(self):
+        initial = super().get_initial()
+        message_context = {
+            "article": self.workflow.article,
+            "typesetter": self.assignment.typesetter,
+        }
+        initial["subject"] = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="eo_send_back_to_typesetting_subject",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=message_context,
+        )
+        initial["body"] = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="eo_send_back_to_typesetting_body",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=message_context,
+        )
+        return initial
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["workflow"] = self.articleworkflow
+        context["workflow"] = self.workflow
+        context["send_back"] = True
         return context
 
     def form_valid(self, form):

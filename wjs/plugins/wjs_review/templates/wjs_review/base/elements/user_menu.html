@@ -29,7 +29,7 @@
 <div class="dropdown">
   <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" id="user-menu" data-bs-toggle="dropdown" aria-expanded="false">
     {% if view.role %}
-      {% translate "Viewing as" %}: {{ view.role }}
+      {% translate "Viewing as" %}: {{ view.role_label }}
     {% else %}
       {% translate "Profile" %}
     {% endif %}

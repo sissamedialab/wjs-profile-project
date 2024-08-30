@@ -1,0 +1,7 @@
+{% load django_bootstrap5 %}
+{% url "wjs_message_toggle_read_by_eo" message_id=message.pk as toggle_read_url %}
+<div id="read-toggle-{{ message.pk }}">
+  <form name="form-toggle-{{ message.pk }}" autocomplete="off" hx-target="#read-toggle-{{ message.pk }}" hx-post="{{ toggle_read_url }}" hx-trigger="click" hx-swap="outerHTML">
+    {% bootstrap_form form show_help=False %}
+  </form>
+</div>

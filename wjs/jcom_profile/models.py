@@ -23,6 +23,7 @@ PROFESSIONS = (
     ),
     (2, "An active scientist"),
     (3, "Other"),
+    (4, "Other"),
 )
 
 

@@ -1,0 +1,33 @@
+<div class="row" id="msg-{{ reminder.id }}">
+    <div class="col">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ reminder.code }}</h5>
+                <div class="body">
+                    created: {{ reminder.date_created }}
+                    <br />
+                    due: {{ reminder.date_due }}
+                    <br />
+                    sent: {{ reminder.date_sent|default:"not yet" }}
+                    <br />
+                    disabled: {{ reminder.date_disabled|default:"no" }}
+                    <br />
+                    clemency_days: {{ reminder.clemency_days }}
+                    <br />
+                    target: {{ reminder.target }}
+                    <br />
+                    actor: {{ reminder.actor }}
+                    <br />
+                    recipient: {{ reminder.recipient }}
+                    <br />
+                    subject: {{ reminder.message_subject }}
+                    <br />
+                    body: {{ reminder.message_body }}
+                    <br />
+                    hide actor name: {{ reminder.hide_actor_name }}
+                    <br />
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

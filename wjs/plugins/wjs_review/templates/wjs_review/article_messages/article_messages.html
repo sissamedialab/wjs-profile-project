@@ -1,0 +1,8 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static wjs_permissions %}
+
+{% block content_wrapper %}
+  <div class="container mb-3">
+  {% include "wjs_review/article_messages/elements/messages_list.html" %}
+  </div>
+{% endblock content_wrapper %}
