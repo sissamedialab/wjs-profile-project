@@ -31,6 +31,7 @@ from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
 from ..conditions import needs_extra_article_information
 from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
 from ..logic import (
+    states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
     states_when_article_is_considered_in_review_for_eo_and_director,
 )
@@ -141,6 +142,12 @@ def get_article_log_entries(article: Article) -> Optional[QuerySet[LogEntry]]:
     content_type = ContentType.objects.get_for_model(article)
     log_entries = janeway_utils_models.LogEntry.objects.filter(content_type=content_type, object_id=article.pk)
     return log_entries
+
+
+@register.filter
+def is_production_state(workflow: ArticleWorkflow) -> bool:
+    """Return a list of log entries."""
+    return workflow.state in states_when_article_is_considered_in_production
 
 
 @register.simple_tag()
@@ -272,6 +279,16 @@ def assignment_requires_attention_tt(assignment: ReviewAssignment, user: Account
 def role_for_article_tt(article: Article, user: Account) -> str:
     """Return a role slug that describes the role of the given user on the article."""
     return communication_utils.role_for_article(article, user)
+
+
+@register.filter
+def is_user_article_manager(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is an Editor/Typesetter/Director/EO for the article."""
+    return (
+        is_article_editor(article, user)
+        or is_user_article_supervisor(article, user)
+        or is_user_article_typesetter(article, user)
+    )
 
 
 @register.filter

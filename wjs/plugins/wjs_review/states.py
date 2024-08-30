@@ -575,7 +575,6 @@ class EditorSelected(BaseState):
             name="editor deselect reviewer",
             label="Deselect reviewer",
             view_name="wjs_deselect_reviewer",
-            tooltip="Withdraw review assignment",
         ),
     )
 

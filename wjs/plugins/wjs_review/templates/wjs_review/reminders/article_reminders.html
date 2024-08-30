@@ -3,17 +3,6 @@
 
 {% block content_wrapper %}
   <div class="container mb-3">
-    <div class="row">
-      <div class="col-sm-12">
-        <h1 class="page-title">{{ view.title }}</h1>
-      </div>
-    </div>
-  </div>
-  <div class="container mb-3">
-    <div class="row">
-        {% for reminder in object_list %}
-            {% include "wjs_review/reminders/elements/reminder.html" %}
-        {% endfor %}
-    </div>
+    {% include "wjs_review/reminders/elements/reminders_list.html" %}
   </div>
 {% endblock content_wrapper %}

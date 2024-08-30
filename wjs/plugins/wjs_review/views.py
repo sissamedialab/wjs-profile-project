@@ -58,6 +58,7 @@ from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
     MessageFilter,
+    ReminderFilter,
     ReviewerArticleWorkflowFilter,
     StaffArticleWorkflowFilter,
     WorkOnAPaperArticleWorkflowFilter,
@@ -90,6 +91,7 @@ from .logic import (
     AdminActions,
     HandleEditorDeclinesAssignment,
     render_template_from_setting,
+    states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_for_review,
     states_when_article_is_considered_author_pending,
     states_when_article_is_considered_in_production,
@@ -301,7 +303,8 @@ class EditorArchived(EditorPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        state_past = Q(state__in=states_when_article_is_considered_archived_for_review) & Q(
+        past = states_when_article_is_considered_archived_for_review + states_when_article_is_considered_in_production
+        state_past = Q(state__in=past) & Q(
             article__editorassignment__editor__in=[self.request.user],
         )
         past_assignment = Q(article__past_editor_assignments__editor__in=[self.request.user])
@@ -363,7 +366,7 @@ class EOArchived(EOPending):
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_archived_for_review,
+            state__in=states_when_article_is_considered_archived,
         )
 
 
@@ -935,6 +938,27 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         form.is_valid()
         return form
 
+    def get_current_review_assignment(self) -> Optional[ReviewAssignment]:
+        """
+        Get the current review assignment for the current user.
+        """
+        qs = WorkflowReviewAssignment.objects.filter(
+            reviewer=self.request.user,
+            article=self.object.article,
+            review_round=self.object.article.current_review_round_object(),
+            is_complete=False,
+        )
+        try:
+            return qs.get()
+        except WorkflowReviewAssignment.DoesNotExist:
+            return None
+        except WorkflowReviewAssignment.MultipleObjectsReturned:
+            logger.warning(
+                f"Multiple review assignments for the same user on the same article:"
+                f" {self.request.user} - {self.object.article}"
+            )
+            return qs.first()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = self.get_form(self.request.GET)
@@ -945,6 +969,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         if self.object.state in states_when_article_is_considered_in_review:
             context["review_versions"] = self.object.get_review_versions(self.request.user)
             context["review"] = True
+            context["current_review_assignment"] = self.get_current_review_assignment()
         if self.object.state in states_when_article_is_considered_in_production:
             context["review_versions"] = self.object.get_review_versions(self.request.user)
             context["production_versions"] = self.object.get_production_versions(self.request.user)
@@ -1949,12 +1974,14 @@ class ArticleRevisionFileUpdate(UserPassesTestMixin, LoginRequiredMixin, View):
         )
 
 
-class ArticleReminders(BaseRelatedViewsMixin, ListView):
+class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     """All reminders related to an article."""
 
     title = _("Scheduled reminders")
-    model = Message
+    model = Reminder
     template_name = "wjs_review/reminders/article_reminders.html"
+    context_object_name = "reminders"
+    filterset_class = ReminderFilter
 
     def setup(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
@@ -1981,21 +2008,26 @@ class ArticleReminders(BaseRelatedViewsMixin, ListView):
             ),
         ]
 
+    def get_template_names(self):
+        if self.htmx:
+            return ["wjs_review/reminders/elements/reminders_list.html"]
+        return super().get_template_names()
+
     def get_queryset(self):
         """Get reminders related to an article via ReviewAssignment or WjsEditorAssignment or similar."""
-        # TODO: optimize
-        review_assignments = ReviewAssignment.objects.filter(article=self.workflow.article).values_list("pk")
-        reviewer_reminders = Reminder.objects.filter(
-            content_type=ContentType.objects.get_for_model(ReviewAssignment),
+        qs = super().get_queryset()
+        review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).values_list("pk")
+        reviewer_reminders = Q(
+            content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
             object_id__in=review_assignments,
         )
         editor_assignments = WjsEditorAssignment.objects.filter(article=self.workflow.article).values_list("pk")
-        editor_reminders = Reminder.objects.filter(
+        editor_reminders = Q(
             content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
             object_id__in=editor_assignments,
         )
-        result = reviewer_reminders.union(editor_reminders)
-        return result
+        result = qs.filter(editor_reminders | reviewer_reminders)
+        return result.order_by("-date_due")
 
     def get_context_data(self, **kwargs):
         """Add the article to the context."""
@@ -2173,6 +2205,15 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
         because the process is common.
         """
         return permissions.is_article_supervisor(self.get_object(), self.request.user)
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
 
     def get_success_url(self):
         messages.add_message(

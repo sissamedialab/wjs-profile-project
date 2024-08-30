@@ -1,5 +1,6 @@
 {% load wjs_review %}
 {% spaceless %}
+  {% if workflow|is_production_state %}
   {% if workflow|is_user_article_typesetter:request.user or workflow|is_user_article_supervisor:request.user %}
     <div class="hstack gap-1">
     <span
@@ -13,5 +14,6 @@
       title="{% if workflow.production_flag_no_checks_needed %}{% translate "No additional checks needed" %}{% else %}{% translate "Additional checks needed" %}{% endif %}"
       class="badge {% if workflow.production_flag_no_checks_needed %}text-bg-success{% else %}text-bg-danger{% endif %}">{% translate "Checks" %}</span>
     </div>
+  {% endif %}
   {% endif %}
 {% endspaceless %}

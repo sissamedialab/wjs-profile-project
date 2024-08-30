@@ -769,6 +769,6 @@ def test_editor_archived(
     view.request = fake_request
     view.setup(fake_request)
     qs = view.get_queryset()
-    assert qs.count() == 1
-    assert accepted.articleworkflow not in qs
+    assert qs.count() == 2
+    assert accepted.articleworkflow in qs
     assert past_assigned.articleworkflow in qs

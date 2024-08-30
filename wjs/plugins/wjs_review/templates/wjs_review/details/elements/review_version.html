@@ -1,4 +1,4 @@
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 wjs_review %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="review-{{ version.number }}">
     <button class="accordion-button {% if not version.latest or production %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-{{ version.number }}"
@@ -17,7 +17,7 @@
         <div>
           {% for revision in version.revision_requests %}
             {% include "wjs_review/details/elements/review_revision.html" with article_info=revision %}
-          {% empty %}
+            {% empty %}
             {% include "wjs_review/details/elements/review_revision.html" with article_info=workflow.article %}
           {% endfor %}
         </div>
@@ -30,11 +30,13 @@
             {% include "wjs_review/details/elements/review_cover.html" %}
           </div>
         {% endif %}
-        <div class="vstack gap-4">
-          {% for stage, assignments in version.assignments_by_stage.items %}
-            {% include "wjs_review/details/elements/review_assignment_list.html" %}
-          {% endfor %}
-        </div>
+        {% if workflow|is_user_article_reviewer:request.user or workflow|is_user_article_manager:request.user %}
+          <div class="vstack gap-4">
+            {% for stage, assignments in version.assignments_by_stage.items %}
+              {% include "wjs_review/details/elements/review_assignment_list.html" %}
+            {% endfor %}
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>
