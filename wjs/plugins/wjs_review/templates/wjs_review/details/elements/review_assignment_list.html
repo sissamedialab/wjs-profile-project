@@ -1,8 +1,13 @@
+{% load wjs_permissions %}
 {% if assignments %}
-<div>
-  <h6 class="fw-bold mb-3"><i class="{{ stage.css_class }} me-1"></i>{% translate stage.label %}</h6>
-  {% for assignment in assignments %}
-    {% include "wjs_review/details/elements/review_assignment.html" %}
-  {% endfor %}
-</div>
+  <div>
+    <h6 class="fw-bold mb-3"><i class="{{ stage.css_class }} me-1"></i>{% translate stage.label %}</h6>
+    {% for assignment in assignments %}
+      {% user_has_access_to workflow request.user assignment "all" as all_access %}
+      {% user_has_access_to workflow request.user assignment "no_names" as no_names %}
+      {% if no_names or all_access %}
+        {% include "wjs_review/details/elements/review_assignment.html" %}
+      {% endif %}
+    {% endfor %}
+  </div>
 {% endif %}

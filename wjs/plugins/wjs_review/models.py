@@ -1538,15 +1538,30 @@ class Reminder(models.Model):
         DIRECTOR_SHOULD_ASSIGN_EDITOR_1 = "DIRASED1", _("Director should assign editor")
         DIRECTOR_SHOULD_ASSIGN_EDITOR_2 = "DIRASED2", _("Director should assign editor")
 
+    class ReminderClasses(models.TextChoices):
+        # specs#618
+        REVIEWER_SHOULD_EVALUATE_ASSIGNMENT = "REEA", _("Reviewer should evaluate assignment")
+        REVIEWER_SHOULD_WRITE_REVIEW = "REWR", _("Reviewer should write review")
+        # specs#619
+        EDITOR_SHOULD_SELECT_REVIEWER = "EDSR", _("Editor should select reviewer")
+        EDITOR_SHOULD_MAKE_DECISION = "EDMD", _("Editor should make decision")
+        # specs#635
+        AUTHOR_SHOULD_SUBMIT_REVISION = "AUM", _("Author should submit revision")
+        AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION = "AUTCR", _("Author should submit technical revision")
+        DIRECTOR_SHOULD_ASSIGN_EDITOR = "DIRASED", _("Director should assign editor")
+
     code = models.CharField(
+        _("Reminder code"),
         max_length=10,
         choices=ReminderCodes.choices,
     )
-    date_created = models.DateTimeField(auto_now_add=True)
-    date_due = models.DateField()
-    date_sent = models.DateTimeField(null=True, blank=True)
-    disabled = models.BooleanField(default=False)
-    clemency_days = models.IntegerField()
+    date_created = models.DateTimeField(_("Date of creation"), auto_now_add=True)
+    date_due = models.DateField(_("Date due"), help_text="The date when the reminder should be sent")
+    date_sent = models.DateTimeField(
+        _("Date sent"), null=True, blank=True, help_text="The date when the reminder was sent"
+    )
+    disabled = models.BooleanField(_("Disabled"), default=False)
+    clemency_days = models.IntegerField(_("Clemency dats"), default=0)
 
     # The "target" of a reminder can be something like a ReviewAssigment (for reminders to reviewers), an
     # WjsEditorAssignment (for reminders to editors), but also just an Article (e.g. for reminders to EO related to
@@ -1564,22 +1579,26 @@ class Reminder(models.Model):
         "object_id",
     )
 
-    recipient = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="reminders_that_i_receive")
+    recipient = models.ForeignKey(
+        Account, verbose_name=_("Recipient"), on_delete=models.CASCADE, related_name="reminders_that_i_receive"
+    )
     # TODO: it's ok to drop a reminder if the recipient disappears, but the actor might be different...
     # Does the business logic prevent this problem?
     # E.g. to delete the editor, one should first re-assign the article and manage the reviewassignments anyway...
-    actor = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="reminders_that_i_send")
+    actor = models.ForeignKey(
+        Account, verbose_name=_("Actor"), on_delete=models.CASCADE, related_name="reminders_that_i_send"
+    )
     hide_actor_name = models.BooleanField(
+        verbose_name=_("Hide actor name"),
         default=True,
-        help_text="Hide the name of the actor in the message body / subject / From-header",
+        help_text=_("Hide the name of the actor in the message body / subject / From-header"),
     )
 
     # Subject and body are taken from .settings.reminders.
     # That dictionary should contain the template that will be rendered to create the reminder message.
     # The message is rendered when the reminder is created. This should allow for the editing of existing reminders.
-    message_subject = models.TextField()
-    message_body = models.TextField()
-    # TODO: add message_from_header ?
+    message_subject = models.TextField(_("Message subject"))
+    message_body = models.TextField(_("Message body"))
 
     class Meta:
         verbose_name = _("Reminder")
@@ -1608,6 +1627,11 @@ class Reminder(models.Model):
             return article
         else:
             return None
+
+    @property
+    def reminder_level(self):
+        """Return the order of the reminder among the same classes."""
+        return self.code[-1]
 
 
 class LatexPreamble(models.Model):

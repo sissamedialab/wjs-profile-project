@@ -1,33 +1,27 @@
-<div class="row" id="msg-{{ reminder.id }}">
-    <div class="col">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">{{ reminder.code }}</h5>
-                <div class="body">
-                    created: {{ reminder.date_created }}
-                    <br />
-                    due: {{ reminder.date_due }}
-                    <br />
-                    sent: {{ reminder.date_sent|default:"not yet" }}
-                    <br />
-                    disabled: {{ reminder.date_disabled|default:"no" }}
-                    <br />
-                    clemency_days: {{ reminder.clemency_days }}
-                    <br />
-                    target: {{ reminder.target }}
-                    <br />
-                    actor: {{ reminder.actor }}
-                    <br />
-                    recipient: {{ reminder.recipient }}
-                    <br />
-                    subject: {{ reminder.message_subject }}
-                    <br />
-                    body: {{ reminder.message_body }}
-                    <br />
-                    hide actor name: {{ reminder.hide_actor_name }}
-                    <br />
-                </div>
-            </div>
-        </div>
+{% load wjs_review wjs_tags %}
+<div id="reminder-item-{{ reminder.id }}" class="d-flex align-items-center mb-4">
+  <div class="card w-75">
+    <div class="card-header">
+      <h5 class="card-title">{{ reminder.get_code_display }}/{{ reminder.reminder_level }}</h5>
+      <small>
+        {% if reminder.date_sent %}
+          {% translate "Sent" %}: <i>{{ reminder.date_sent }}</i> <span class="text-black-50">({% translate "Due" %}: {{ reminder.date_due }})</span>
+        {% else %}
+          {% translate "Due" %}: <i>{{ reminder.date_due }}</i> {% if reminder.clemency_days %}{{ reminder.clemency_days }} {% translate "days" %}{% endif %}
+        {% endif %}
+      </small>
     </div>
+    <div class="card-body">
+      <div class="text-black-50 mb-2">
+        {% translate "To" %}: {{ reminder.recipient }}
+      </div>
+      <h6>{% translate "Subject" %}: <b>{{ reminder.message_subject }}</b></h6>
+      <div class="body">{{ reminder.message_body|safe }}</div>
+    </div>
+    <div class="card-footer">
+      {% translate "Sender" %}: <i>{{ reminder.actor }}</i><br>
+      <small>{% translate "Hide sender" %}: {{ reminder.hide_actor_name|yesno:"yes,no" }}</small><br>
+      <small>{% translate "Created" %}: {{ reminder.date_created }}</small>
+    </div>
+  </div>
 </div>

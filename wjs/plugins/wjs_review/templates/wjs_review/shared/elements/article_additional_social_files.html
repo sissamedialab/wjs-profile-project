@@ -1,4 +1,5 @@
 {% load static wjs_review %}
+{% translate "N/A" as na_label %}
 <table class="table">
   {% journal_with_language_content journal=article.journal as show_english_titles %}
   {% if show_english_titles %}
@@ -10,10 +11,10 @@
   </tr>
   {% endif %}
   <tr>
-    <th>{% translate "Short description" %}</th><td>{{ article.articleworkflow.social_media_short_description|default:"" }}</td>
+    <th>{% translate "Short description" %}</th><td>{{ article.articleworkflow.social_media_short_description|default:na_label }}</td>
   </tr>
   <tr>
     <th>{% translate "Image" %}</th>
-    <td>{% if article.meta_image %}<img src="{{ article.meta_image.url }}" title="{{ article }} cover image" width="100" alt="{% translate "Article cover image" %}"><br><a href="{{ article.meta_image.url }}"" target="_blank">Download image</a>{% endif %}</td>
+    <td>{% if article.meta_image %}<img src="{{ article.meta_image.url }}" title="{{ article }} cover image" width="100" alt="{% translate "Article cover image" %}"><br><a href="{{ article.meta_image.url }}" target="_blank">{% translate "Download image" %}</a>{% else %}{{ na_label }}{% endif %}</td>
   </tr>
 </table>

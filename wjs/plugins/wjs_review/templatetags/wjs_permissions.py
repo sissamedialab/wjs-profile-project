@@ -5,10 +5,39 @@ from django import template
 from django.db import models
 
 from .. import conditions
+from ..custom_types import ButtonSize
 from ..logic__visibility import PermissionChecker
 from ..models import ArticleWorkflow, PermissionAssignment
 
 register = template.Library()
+
+
+@register.inclusion_tag(takes_context=True, filename="wjs_review/base/elements/hijack.html")
+def hijack_button(context: dict, user: Account, size: ButtonSize = "small") -> dict:
+    """
+    Render a hijack button to impersonate the user.
+
+    .. block:: html
+
+        {% hijack_button user=<target-user> %}
+
+    :param context: The context to render the hijack button.
+    :type context: dict
+    :param user: The user to impersonate.
+    :type user: Account
+    :param size: The size of the button.
+    :type size: ButtonSize
+    :return: Context to render the hijack button.
+    :rtype: dict
+    """
+    sizes = {
+        "small": "btn-sm",
+        "medium": "",
+        "large": "btn-lg",
+    }
+    context["target_user"] = user
+    context["display_classes"] = f"btn-warning {sizes[size]}"
+    return context
 
 
 @register.simple_tag(takes_context=True)

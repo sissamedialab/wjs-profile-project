@@ -1,0 +1,10 @@
+{% load django_bootstrap5 hijack %}
+{% if target_user and request.user|can_hijack:target_user %}
+  {% translate "Impersonate" as impersonate_label %}
+  <form class="d-inline-block" action="{% url 'hijack:acquire' %}" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="user_pk" value="{{ target_user.pk }}">
+    {% bootstrap_button type="submit" button_class=display_classes aria_label=impersonate_label content=impersonate_label %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+  </form>
+{% endif %}

@@ -17,7 +17,7 @@
     {% endautoescape %}
 
     {% block breadcrumbs_wrapper %}
-      <nav class="container d-flex justify-content-between mb-3 pb-3 border-bottom">
+      <nav class="container d-flex justify-content-between mb-3{% if view.breadcrumbs %} pb-3 border-bottom{% endif %}">
         <ul class="nav breadcrumbs">
           {% block breadcrumbs %}
             {% if view.breadcrumbs %}

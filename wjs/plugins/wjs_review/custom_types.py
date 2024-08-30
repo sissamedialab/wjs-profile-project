@@ -1,11 +1,13 @@
 import dataclasses
-from typing import NamedTuple, Optional, Tuple, TypedDict
+from typing import Literal, NamedTuple, Optional, Tuple, TypedDict
 
 from django.db import models
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 from .models import PermissionAssignment, WorkflowReviewAssignment
+
+ButtonSize = Literal["small", "medium", "large"]
 
 
 class BootstrapButtonProps(TypedDict):

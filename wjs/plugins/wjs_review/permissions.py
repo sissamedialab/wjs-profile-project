@@ -7,7 +7,6 @@ from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
 
 from wjs.jcom_profile import permissions as base_permissions
-from wjs.jcom_profile.templatetags.wjs_tags import is_user_eo
 
 if TYPE_CHECKING:
     from .models import ArticleWorkflow
@@ -336,6 +335,7 @@ def is_article_supervisor(instance: "ArticleWorkflow", user: Account) -> bool:
         is_special_issue_editor(instance, user)
         or has_director_role_by_article(instance, user)
         or has_admin_role_by_article(instance, user)
+        or base_permissions.has_eo_role(user)
     )
 
 
@@ -436,7 +436,7 @@ def is_article_typesetter_or_eo(instance: "ArticleWorkflow", user: Account) -> b
     :return: True if the user is the article typesetter
     :rtype: bool
     """
-    return is_user_eo(user) or is_article_typesetter(instance, user)
+    return base_permissions.has_eo_role(user) or is_article_typesetter(instance, user)
 
 
 def is_article_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:

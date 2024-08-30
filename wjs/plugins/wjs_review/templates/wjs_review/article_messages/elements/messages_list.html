@@ -1,6 +1,6 @@
 {% load django_bootstrap5 %}
 {% translate "Search" as filter_label %}
-{% url "wjs_article_messages" as filter_url %}
+{% url "wjs_article_messages" pk=workflow.pk as filter_url %}
 <div id="messages-list">
 
   <div class="container mb-3">

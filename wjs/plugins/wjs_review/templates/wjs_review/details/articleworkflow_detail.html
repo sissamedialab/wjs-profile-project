@@ -18,8 +18,8 @@
           {% include "wjs_review/details/sections/metadata.html" %}
           {% if production %}
             {% include "wjs_review/details/sections/production.html" %}
-            {% include "wjs_review/details/sections/review.html" %}
-          {% else %}
+          {% endif %}
+          {% if review %}
             {% include "wjs_review/details/sections/review.html" %}
           {% endif %}
         </div>

@@ -13,7 +13,7 @@ from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from .communication_utils import get_eo_user
 from .managers import ArticleWorkflowQuerySet
-from .models import ArticleWorkflow, Message
+from .models import ArticleWorkflow, Message, Reminder
 
 
 class SpecialIssueFilterField(ModelChoiceField):
@@ -373,3 +373,29 @@ class MessageFilter(django_filters.FilterSet):
         if value:
             queryset = queryset.filter(Q(actor=value) | Q(messagerecipients__recipient=value))
         return queryset
+
+
+class ReminderFilter(django_filters.FilterSet):
+    recipient = django_filters.ModelChoiceFilter(
+        label=_("Filter by recipient"),
+        empty_label=_("Filter by recipient"),
+        queryset=Account.objects.none(),
+    )
+    code__startswith = django_filters.ChoiceFilter(
+        label=_("Filter by reminder type"),
+        empty_label=_("Filter by reminder type"),
+        choices=Reminder.ReminderClasses.choices,
+        field_name="code",
+        lookup_expr="startswith",
+    )
+
+    class Meta:
+        model = Reminder
+        fields = {
+            "recipient": ["exact"],
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        recipients = self.queryset.values_list("recipient", flat=True)
+        self.filters["recipient"].queryset = Account.objects.filter(pk__in=recipients)
