@@ -11,25 +11,30 @@
     </div>
   </div>
   <div class="container mb-3">
-    <form method="post">
-      {% csrf_token %}
-      {{ form.management_form }}
-      {% regroup form.forms by round as forms %}
-      {% for subforms in forms %}
-        <div class="row border-bottom">
-          <div class="col-sm-2 mt-2 pt-2">
-            <h5><b>{{ workflow }}{% if subforms.grouper > 0 %}/{{ subforms.grouper }}{% endif %}</b></h5>
+    <div class="card mb-3">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {{ form.management_form }}
+          {% regroup form.forms by round as forms %}
+          {% for subforms in forms %}
+            <div class="row border-bottom">
+              <div class="col-sm-2 mt-2 pt-2">
+                <h5><b>{{ workflow }}{% if subforms.grouper > 0 %}/{{ subforms.grouper }}{% endif %}</b>
+                </h5>
+              </div>
+              <div class="col-sm-10 mt-2 pt-2">
+                {% for form_item in subforms.list %}
+                  {% bootstrap_form form_item label_class="fw-bold" %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+          <div class="col mt-4">
+            {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content=save_label %}
           </div>
-          <div class="col-sm-10 mt-2 pt-2">
-            {% for form_item in subforms.list %}
-              {% bootstrap_form form_item label_class="fw-bold" %}
-            {% endfor %}
-          </div>
-        </div>
-      {% endfor %}
-      <div class="col mt-4">
-        {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content=save_label %}
+        </form>
       </div>
-    </form>
+    </div>
   </div>
 {% endblock content_wrapper %}

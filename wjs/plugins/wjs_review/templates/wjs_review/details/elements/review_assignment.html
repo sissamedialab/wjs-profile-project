@@ -6,13 +6,13 @@
 {% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as write_message_label %}
 <!-- djlint:on -->
 <div class="accordion-item {% if assignment.attention_condition %}{{ assignment.attention_condition.style }}{% endif %}">
-  <h2 class="accordion-header" id="heading-{{ prefix }}review-assignment-{{ assignment.pk }}">
-    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ prefix }}review-assignment-{{ assignment.pk }}" aria-expanded="{% if selected %}true{% endif %}" aria-controls="collapse-{{ prefix }}review-assignment-{{ assignment.pk }}">
+  <h2 class="accordion-header" id="heading-review-assignment-{{ assignment.pk }}">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-assignment-{{ assignment.pk }}" aria-expanded="{% if selected %}true{% endif %}" aria-controls="collapse-review-assignment-{{ assignment.pk }}">
       <span><b>{{ assignment.reviewer.get_full_name }}</b> {% if assignment.attention_condition %}[{{ assignment.attention_condition.message }}]{% endif %}</span>
       {% if assignment.attention_condition %}{{ assignment.attention_condition.icon }}{% endif %}
     </button>
   </h2>
-  <div id="collapse-{{ prefix }}review-assignment-{{ assignment.pk }}" class="accordion-collapse collapse{% if selected %} show{% endif %}" aria-labelledby="heading-{{ prefix }}review-assignment-{{ assignment.pk }}" data-bs-parent="#metadata">
+  <div id="collapse-review-assignment-{{ assignment.pk }}" class="accordion-collapse collapse{% if selected %} show{% endif %}" aria-labelledby="heading-review-assignment-{{ assignment.pk }}" data-bs-parent="#metadata">
     <div class="accordion-body">
       {% if assignment.date_completed %}
         <p>{% translate "Review received on" %}: {{ assignment.date_completed|date:DATE_FORMAT }}</p>

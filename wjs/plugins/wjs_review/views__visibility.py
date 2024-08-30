@@ -101,13 +101,17 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
                 PermissionTargetObject(
                     object_type=workflow_type.pk,
                     object=self.workflow,
-                    round=-1,  # "Fake" review round to tag the initial submission, to order it before all the other
+                    round=1,  # "Fake" review round to tag the initial submission, to order it before all the other
                     author_notes=True,
+                    date_reference=self.workflow.article.date_submitted or self.workflow.article.date_created,
                 )
             ]
             + [
                 PermissionTargetObject(
-                    object_type=editor_revisions_type.pk, object=obj, round=obj.review_round.round_number
+                    object_type=editor_revisions_type.pk,
+                    object=obj,
+                    round=obj.review_round.round_number,
+                    date_reference=obj.date_requested,
                 )
                 for obj in editor_revisions
             ]
@@ -123,17 +127,21 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
                     object=obj,
                     round=obj.review_round.round_number + 1,
                     author_notes=True,
+                    date_reference=obj.date_requested,
                 )
                 for obj in editor_revisions
             ]
             + [
                 PermissionTargetObject(
-                    object_type=review_assignments_type.pk, object=obj, round=obj.review_round.round_number
+                    object_type=review_assignments_type.pk,
+                    object=obj,
+                    round=obj.review_round.round_number,
+                    date_reference=obj.date_requested,
                 )
                 for obj in review_assignments
             ]
         )
-        return sorted(target_objects, key=attrgetter("round"), reverse=True)
+        return sorted(target_objects, key=attrgetter("round", "date_reference"), reverse=True)
 
     def _check_current_permission(
         self,

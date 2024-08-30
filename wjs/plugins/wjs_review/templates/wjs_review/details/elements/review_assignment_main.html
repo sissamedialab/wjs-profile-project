@@ -1,0 +1,33 @@
+{% load django_bootstrap5 humanize static wjs_permissions wjs_review %}
+{% get_review_assignment_actions assignment as actions %}
+{% url "wjs_message_write" article_id=article.pk recipient_id=assignment.reviewer.pk as add_message %}
+{% translate "Send message" as send_message_label %}
+<!-- djlint:off -->
+{% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as write_message_label %}
+<!-- djlint:on -->
+<div class="card border border-1 mb-4">
+  <h5 class="card-header fw-bolder"><span><b>{{ assignment.reviewer.get_full_name }}</b> {% if assignment.attention_condition %}[{{ assignment.attention_condition.message }}]{% endif %}</span>
+    {% if assignment.attention_condition %}{{ assignment.attention_condition.icon }}{% endif %}</h5>
+  <div class="card-body">
+    <div class="vstack gap-3 accordion">
+      <div>
+        {% if assignment.date_completed %}
+          <p>{% translate "Review received on" %}: {{ assignment.date_completed|date:DATE_FORMAT }}</p>
+        {% else %}
+          <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
+          {% if assignment.date_accepted %}<p>{% translate "Acceptance date" %}: {{ assignment.date_accepted|date:DATE_FORMAT }}</p>{% endif %}
+        {% endif %}
+        {% for reminder in assignment.unsent_reminders %}
+          <p>{{ forloop.counter|ordinal }} {% translate "reminder to reviewer" %}: {% translate "will be sent on" %} {{ reminder.date_due|date:DATE_FORMAT }}</p>
+        {% endfor %}
+        <div class="d-flex flex-wrap gap-2">
+          {% for action in actions %}
+            {% include "wjs_review/details/elements/actions_button.html" with is_button=True %}
+          {% endfor %}
+          {% bootstrap_button content=write_message_label href=add_message title=send_message_label button_class="btn-secondary" %}
+          {% hijack_button user=assignment.reviewer size="medium" %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -440,16 +440,14 @@ def sections(journal):
     return submission_models.Section.objects.filter(pk__in=sections_pk)
 
 
-@pytest.fixture
-def article(admin, coauthor, journal, sections):
+def _article(admin, coauthor, journal, sections, submitted=False):
     article = submission_models.Article.objects.create(
         abstract="Abstract",
         journal=journal,
-        journal_id=journal.id,
         title="Title",
         correspondence_author=admin,
         owner=admin,
-        date_submitted=None,
+        date_submitted=now() - timedelta(days=random.randint(1, 10)) if submitted else None,
         section=random.choice(sections),
         language="eng",
     )
@@ -464,6 +462,16 @@ def article(admin, coauthor, journal, sections):
         file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
         article.supplementary_files.add(SupplementaryFile.objects.create(file=file_obj))
     return article
+
+
+@pytest.fixture
+def article(admin, coauthor, journal, sections):
+    return _article(admin, coauthor, journal, sections)
+
+
+@pytest.fixture
+def submitted_article(admin, coauthor, journal, sections):
+    return _article(admin, coauthor, journal, sections, submitted=True)
 
 
 def _create_submitted_articles(journal: journal_models.Journal, count: int = 10) -> List[submission_models.Article]:

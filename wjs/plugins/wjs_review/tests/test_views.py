@@ -633,11 +633,11 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
 @pytest.mark.django_db
 def test_revision_file_replace(
     review_settings,
-    article: Article,
     editor_revision: EditorRevisionRequest,
 ):
     """Files from editorrevision are used to replace article files."""
     client = Client()
+    article = editor_revision.article
     client.force_login(article.correspondence_author)
     assert article.manuscript_files.count() == 1
     assert article.supplementary_files.count() == 1
@@ -661,10 +661,10 @@ def test_revision_file_replace(
 @pytest.mark.django_db
 def test_revision_file_replace_no_perms(
     review_settings,
-    article: Article,
     editor_revision: EditorRevisionRequest,
 ):
-    """Non Corresponding author cannot access view."""
+    """Non Corresponding author cannot access revision file view."""
+    article = editor_revision.article
     client = Client()
     client.force_login(article.authors.exclude(pk=article.correspondence_author.pk).first())
     assert article.manuscript_files.count() == 1

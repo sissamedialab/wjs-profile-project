@@ -665,7 +665,9 @@ class MessageRecipientForm(forms.Form):
     """
 
     # TODO: when switching to django >= 4, see https://github.com/jrief/django-formset
-    recipient = forms.ModelChoiceField(queryset=None)
+    recipient = forms.ModelChoiceField(
+        queryset=None, widget=forms.widgets.Select(attrs={"class": "rounded-0 rounded-start"})
+    )
 
     def __init__(self, *args, **kwargs):
         """Set the queryset for the recipient."""
