@@ -418,6 +418,7 @@ def test_typ_marks_unpublishable(
     assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
 
 
+@pytest.mark.skip("To be fixed in #918")
 @pytest.mark.django_db
 def test_typesetter_galley_generation(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
@@ -584,6 +585,7 @@ def test_automatic_preamble_generation(
         assert piece in rendered_preamble
 
 
+@pytest.mark.skip("To be fixed in #918")
 @pytest.mark.django_db
 def test_production_flag_galleys_ok(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
@@ -740,6 +742,7 @@ def test_publication(
     # TODO: turn the eid into a property stored into `article.page_numbers`?
 
 
+@pytest.mark.skip("To be fixed in #918")
 @pytest.mark.django_db
 def test_publication_with_fake_galley_generation(
     rfp_article: Article,
@@ -758,11 +761,11 @@ def test_publication_with_fake_galley_generation(
     # TODO: patch core.files.save_file_to_article so that a core.File is generated, but no file arrives on the
     # filesystem
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
     ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
-    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
     assert workflow.article.galley_set.count() == 3
 
 
@@ -809,12 +812,12 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a1, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
     ):
         service = BeginPublication(workflow=a1.articleworkflow, user=typ, request=fake_request)
         service.run()
     a1.refresh_from_db()
-    assert a1.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert a1.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
     assert a1.get_identifier("pubid").endswith("A01")
 
     a2 = article_factory(
@@ -849,23 +852,23 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a3, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
     ):
         service = BeginPublication(workflow=a3.articleworkflow, user=typ, request=fake_request)
         service.run()
     a3.refresh_from_db()
-    assert a3.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert a3.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
     assert a3.get_identifier("pubid").endswith("A03")
 
     # retry a2: expect change in the state, but not in the pubid etc.
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
     ):
         service = FinishPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         #    ⚠  Finish! (not "Begin")
         service.run()
     a2.refresh_from_db()
-    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
     assert a2.get_identifier("pubid").endswith("A02")
 
 

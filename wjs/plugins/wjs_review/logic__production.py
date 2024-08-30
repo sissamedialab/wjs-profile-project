@@ -766,9 +766,7 @@ class AttachGalleys:
     path: Path = dataclasses.field(init=False)  # path of the tmpdir where the upack method unpacked the received files
 
     def unpack_targz_from_jcomassistant(self) -> Path:
-        """Unpack an archive received from jcomassistant.
-
-        Accept the archive in the form of a bytes string.
+        """Unpack a tar.gz.
 
         Create and use a temporary folder.
         The caller should clean up if necessary.
@@ -786,7 +784,23 @@ class AttachGalleys:
         self.path = unpack_dir
         return self.path
 
-    def reemit_info_and_up(self, unpack_dir: Path) -> None:
+    def unpack_zip_from_jcomassistant(self) -> Path:
+        """Unpack a zip
+
+        Create and use a temporary folder.
+        The caller should clean up if necessary.
+        """
+        unpack_dir = tempfile.mkdtemp()
+        with zipfile.ZipFile(BytesIO(self.archive_with_galleys)) as archive:
+            archive.extractall(unpack_dir)
+
+        unpack_dir = Path(unpack_dir)
+
+        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
+        self.path = unpack_dir
+        return self.path
+
+    def reemit_info_and_up(self, unpack_dir: Path) -> bool:
         """Emit as log messages lines read from the given log file.
 
         Expect the logfile to contain log-formatted lines suchs as:
@@ -794,7 +808,7 @@ class AttachGalleys:
 
         Re-emit only info, wraning, error and critical.
 
-        Also return if any error or critical was found.
+        Also return if any error or critical was found (return True if all is good).
         """
         has_error_or_critical = False
         # log files are called something like
@@ -805,6 +819,8 @@ class AttachGalleys:
         srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
         if len(srvc_log_files) != 1:
             logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
+            if len(srvc_log_files) == 0:
+                return True
         srvc_log_file = srvc_log_files[0]
         with open(srvc_log_file) as log_file:
             for line in log_file:
@@ -956,7 +972,8 @@ class AttachGalleys:
 
     def run(self):
         # TODO: review me with specs#774: missing management of multilingual papers and PDF compilation
-        self.path = self.unpack_targz_from_jcomassistant()
+        # TODO: if targz: -> self.unpack_targz_from_jcomassistant()
+        self.path = self.unpack_zip_from_jcomassistant()
         green_light, reason = self._check_conditions()
         if not green_light:
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED

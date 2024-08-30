@@ -3,6 +3,7 @@ import pathlib
 import re
 import tarfile
 import threading
+import zipfile
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 import html2text
@@ -74,7 +75,7 @@ def _submit_review(
 
 
 def create_mock_tar_gz():
-    """Create a tar.gz archive containing a dummy .html and .epub file."""
+    """Create a tar.gz archive containing dummy galleys."""
     here = pathlib.Path(__file__).parent
     galley_name = "galley-x"
     html_filepath = here / f"{galley_name}.html"
@@ -93,6 +94,25 @@ def create_mock_tar_gz():
     return inmemory_targz
 
 
+def create_mock_zip():
+    """Create a zip archive containing dummy galleys."""
+    here = pathlib.Path(__file__).parent
+    galley_name = "galley-x"
+    html_filepath = here / f"{galley_name}.html"
+    epub_filepath = here / f"{galley_name}.epub"
+    pdf_filepath = here / f"{galley_name}.pdf"
+    log_filepath = here / f"{galley_name}.srvc_log"
+    inmemory_zip = io.BytesIO()
+    with zipfile.ZipFile(inmemory_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr("file1.txt", "This is the content of file 1.")
+        zipf.write(html_filepath)
+        zipf.write(epub_filepath)
+        zipf.write(pdf_filepath)
+        zipf.write(log_filepath)
+    inmemory_zip.seek(0)
+    return inmemory_zip
+
+
 class CustomHTTPRequestHandler(SimpleHTTPRequestHandler):
     """Simple server suitable to simulate jcomassistant."""
 
@@ -105,6 +125,13 @@ class CustomHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             inmemory_targz = create_mock_tar_gz()
             self.wfile.write(inmemory_targz.read())
+        elif self.path == "/good_galleys_zip":
+            self.send_response(200)
+            self.send_header("Content-type", "application/octet-stream")
+            self.send_header("Content-Disposition", 'attachment; filename="galleys.zip"')
+            self.end_headers()
+            inmemory_zip = create_mock_zip()
+            self.wfile.write(inmemory_zip.read())
         elif self.path == "/server_error":
             self.send_response(500)
             self.send_header("Content-type", "text/plain")
