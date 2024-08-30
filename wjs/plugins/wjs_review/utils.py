@@ -4,7 +4,9 @@ import tempfile
 import zipfile
 from typing import IO
 
+from django.conf import settings
 from django.db.models import QuerySet
+from django.utils.module_loading import import_string
 from submission.models import Article
 
 from .models import WorkflowReviewAssignment
@@ -70,3 +72,11 @@ def tex_file_has_queries(tex_file: IO) -> bool:
             return True
         else:
             return False
+
+
+def get_report_form(journal_code: str):
+    form_path = settings.WJS_REVIEW_CUSTOM_REPORT_FORMS.get(
+        journal_code,
+        settings.WJS_REVIEW_CUSTOM_REPORT_FORMS.get(None),
+    )
+    return import_string(form_path)

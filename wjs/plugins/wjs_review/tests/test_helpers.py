@@ -15,10 +15,21 @@ from submission import models as submission_models
 
 from wjs.jcom_profile.models import JCOMProfile
 
-from ..forms import ReportForm
 from ..logic import AssignToReviewer, SubmitReview
 from ..models import WjsEditorAssignment, WorkflowReviewAssignment
 from ..plugin_settings import SHORT_NAME
+from ..utils import get_report_form
+
+jcom_report_form_data = {
+    "no_conflict_of_interest": True,
+    "structure_and_writing_style": "Good",
+    "originality": "Good",
+    "scope_and_methods": "Good",
+    "argument_and_discussion": "Good",
+    "recommendation": "publish",
+    "editor_cover_letter": "This is the cover letter to be sent to editors.",
+    "author_review": "This is the review to be sent to authors.",
+}
 
 
 def get_next_workflow(journal: Journal) -> WorkflowElement:
@@ -57,10 +68,10 @@ def _submit_review(
     submit_final: bool = True,
 ):
     """Run SubmitReview service."""
-    form = ReportForm(
-        data={str(item.pk): "Fake data" for item in review_form.elements.all()},
+    report_form = get_report_form(fake_request.journal.code)
+    form = report_form(
+        data=jcom_report_form_data,
         review_assignment=review_assignment,
-        fields_required=True,
         submit_final=submit_final,
         request=fake_request,
     )

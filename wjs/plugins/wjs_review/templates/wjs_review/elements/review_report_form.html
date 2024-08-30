@@ -20,37 +20,7 @@
         {{ assignment.form.intro|safe }}
     </div>
 </div>
-{% if assignment.review_round.review_files.exists %}
-    <div class="row">
-        <div class="col">
-            <h2>{% translate "Review Files" %}</h2>
-            <div>
-                <a href="{% url 'review_download_all_files' assignment.pk %}{% if access_code %}?access_code={{ access_code }}{% endif %}"
-                   class="button"><i class="fa fa-download">&nbsp;</i>{% translate "Download all as ZIP" %}</a>
-            </div>
-            <div class="content">
-                <table class="scroll small">
-                    <tr>
-                        <th>Label</th>
-                        <th>Download</th>
-                    </tr>
-                    {% for file in assignment.review_round.review_files.all %}
-                        <tr>
-                            <td>{{ file.label }}</td>
-                            <td><a href="{% url 'review_file_download' assignment.pk file.pk %}{% if access_code %}?access_code={{ access_code }}{% endif %}"><i
-                                class="fa fa-download">&nbsp;</i></a></td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4">No files. You should add them before inviting reviewers.</td>
-                        </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-    </div>
-{% endif %}
-<form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
+<form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="row">
         <div class="col">
@@ -75,3 +45,40 @@
         </div>
     </div>
 </form>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const recommendationField = document.querySelector('#id_recommendation');
+    const followUpField = document.querySelector('#id_follow_up_action');
+    const suggestedReviewersField = document.querySelector('#id_suggested_reviewers');
+
+    function updateFormVisibility() {
+        const recommendationValue = recommendationField.value;
+
+        if (recommendationValue === 'revise_minor' || recommendationValue === 'revise_major') {
+            followUpField.style.display = 'block';
+            followUpField.parentElement.querySelector("label").style.display = 'block'
+        }
+        else {
+            followUpField.style.display = 'none';
+            followUpField.parentElement.querySelector("label").style.display = 'none'
+            followUpField.value = '';
+        }
+
+        if (followUpField.value === 'another_reviewer') {
+            suggestedReviewersField.style.display = 'block';
+            suggestedReviewersField.parentElement.querySelector("label").style.display = 'block'
+        }
+        else {
+            suggestedReviewersField.style.display = 'none';
+            suggestedReviewersField.parentElement.querySelector("label").style.display = 'none'
+        }
+    }
+    updateFormVisibility();
+    if (recommendationField) {
+        recommendationField.addEventListener('change', updateFormVisibility);
+    }
+    if (followUpField) {
+        followUpField.addEventListener('change', updateFormVisibility);
+    }
+});
+</script>

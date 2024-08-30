@@ -76,7 +76,6 @@ from .forms import (
     InviteUserForm,
     MessageForm,
     OpenAppealForm,
-    ReportForm,
     ReviewerSearchForm,
     SelectReviewerForm,
     SupervisorAssignEditorForm,
@@ -111,6 +110,7 @@ from .models import (
     WorkflowReviewAssignment,
 )
 from .prophy import Prophy
+from .utils import get_report_form
 
 if TYPE_CHECKING:
     from .custom_types import BreadcrumbItem
@@ -1163,16 +1163,15 @@ class ReviewSubmit(EvaluateReviewRequest):
         else:
             return {"data": None, "files": None}
 
-    def _get_report_form(self) -> ReportForm:
+    def _get_report_form(self):
         """Instantiate ReportForm (instantiated from ReviewAssigment.form object)."""
-        form = ReportForm(
+        form = get_report_form(self.request.journal.code)
+        return form(
             review_assignment=self.object,
-            fields_required=True,
             submit_final=self._submitting_report_final,
             request=self.request,
             **self._get_report_data(),
         )
-        return form
 
     def get_context_data(self, **kwargs) -> Context:
         """Add ReportForm to the context."""

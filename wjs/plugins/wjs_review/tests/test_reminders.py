@@ -21,7 +21,6 @@ from wjs.jcom_profile.utils import render_template
 
 from ..communication_utils import get_eo_user, update_date_send_reminders
 from ..conditions import any_reviewer_is_late_after_reminder
-from ..forms import ReportForm
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -48,7 +47,9 @@ from ..reminders.settings import (
     ReviewerShouldEvaluateAssignmentReminderManager,
     ReviewerShouldWriteReviewReminderManager,
 )
+from ..utils import get_report_form
 from . import test_helpers
+from .test_helpers import jcom_report_form_data
 
 
 def test_render_template():
@@ -1282,7 +1283,10 @@ def test_three_papers_three_reviewers(
     ).run()
     # D_r1 sends report
     # --------------------------------------------
-    rf = ReportForm(data={str(review_form.pk): "random report"}, review_assignment=assignment_D_r1)
+    report_form = get_report_form(journal.code)
+    rf = report_form(
+        data=jcom_report_form_data, review_assignment=assignment_D_r1, request=fake_request, submit_final=True
+    )
     assert rf.is_valid()
     SubmitReview(
         assignment=assignment_D_r1,
