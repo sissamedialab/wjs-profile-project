@@ -129,7 +129,7 @@ def _assign_article(fake_request, article, section_editor) -> Article:
 
 
 @pytest.fixture
-def assigned_article(fake_request, article, section_editor, review_settings) -> Article:
+def assigned_article(fake_request, submitted_article, section_editor, review_settings) -> Article:
     """
     Assign an editor to an article.
 
@@ -141,7 +141,7 @@ def assigned_article(fake_request, article, section_editor, review_settings) -> 
     message, so that the test using this fixture can check the notifications created *during* the test without
     interferences and without knowing the side effects of the fixture or of AssignToEditor().
     """
-    return _assign_article(fake_request, article, section_editor)
+    return _assign_article(fake_request, submitted_article, section_editor)
 
 
 def _accept_article(

@@ -1,13 +1,6 @@
 {% load django_bootstrap5 i18n wjs_review %}
 {% if current_review_assignment %}
-  <div class="card border border-1 mb-4">
-    <h5 class="card-header fw-bolder">{% translate "Review report to complete" %}</h5>
-    <div class="card-body">
-      <div class="accordion" id="currentReviewRound">
-        {% include "wjs_review/details/elements/review_assignment.html" with assignment=current_review_assignment selected=True prefix="action-" %}
-      </div>
-    </div>
-  </div>
+        {% include "wjs_review/details/elements/review_assignment_main.html" with assignment=current_review_assignment version=versions.0 %}
 {% endif %}
 <div class="card border border-1 mb-4">
   <h5 class="card-header fw-bolder">{% translate "Actions" %}</h5>

@@ -1,4 +1,5 @@
 import dataclasses
+from datetime import datetime
 from typing import Literal, NamedTuple, Optional, Tuple, TypedDict
 
 from django.db import models
@@ -29,6 +30,7 @@ class PermissionTargetObject(NamedTuple):
     object_type: int
     object: models.Model  # noqa: A003
     round: int  # noqa: A003
+    date_reference: datetime
     author_notes: bool = False
 
 

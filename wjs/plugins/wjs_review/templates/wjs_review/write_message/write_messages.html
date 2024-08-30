@@ -53,8 +53,8 @@
         {
           prefix: "recipientsFS",
           formTemplate: $("#recipients_formset_template").contents()[0],
-          addText: "<i class=\"bi bi-person-plus-fill\"></i>",
-          deleteText: "<i class=\"bi bi-person-dash-fill\"></i>",
+          addText: "<button class=\"btn btn-secondary\" >{% translate "Add a recipient" %} <i class=\"bi bi-person-fill-add\"></i></button>",
+          deleteText: "<button class=\"btn btn-outline-secondary rounded-0 rounded-end\" ><i class=\"bi bi-x-circle-fill\"></i></button>",
           added: added_callback,
           removed: removed_callback,
         });
@@ -80,12 +80,12 @@
     <div class="card mb-3">
       <div class="card-body">
         {% if introduction %}
-            <h5 class="card-title">{% translate "Message will be forwarded to" %}: {{ forward }}</h5>
+          <h5 class="card-title">{% translate "Message will be forwarded to" %}: {{ forward }}</h5>
           <div class="card-text">
             <p>{{ introduction }}</p>
           </div>
         {% else %}
-            <h5 class="card-title">{% translate "Extra info here" %}</h5>
+          <h5 class="card-title">{% translate "Extra info here" %}</h5>
           <div class="card-text">{% blocktranslate %}<p>Provide information</p>{% endblocktranslate %}</div>
         {% endif %}
       </div>

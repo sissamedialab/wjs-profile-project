@@ -3,9 +3,10 @@
 
 <div class="d-flex justify-content-between">
   <div class="d-flex align-items-center gap-3">
-    <h1>
-      {% translate "Article" %} {{ article|preprintid }} - {{ article.pk }}
-    </h1>
+    <h3>
+      <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span> -
+      {{ workflow }}
+    </h3>
     {% if workflow|is_user_article_manager:request.user %}
       <h5><span class="badge {{ article_classes.state }}" title="{% translate "State" %}: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span></h5>
     {% endif %}
