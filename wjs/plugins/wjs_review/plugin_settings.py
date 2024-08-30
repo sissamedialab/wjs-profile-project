@@ -132,9 +132,9 @@ def set_default_plugin_settings(force: bool = False):
             ),
         )
 
-    def review_invitation_message() -> tuple[SettingValue, ...]:
-        review_invitation_message_setting: SettingParams = {
-            "name": "review_invitation_message",
+    def review_invitation_message_default() -> tuple[SettingValue, ...]:
+        setting: SettingParams = {
+            "name": "review_invitation_message_default",
             "group": wjs_review_settings_group,
             "types": "rich-text",
             "pretty_name": _("Default message for review invitation"),
@@ -143,36 +143,35 @@ def set_default_plugin_settings(force: bool = False):
             ),
             "is_translatable": False,
         }
-        review_invitation_message_setting_value: SettingValueParams = {
+        value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear Colleague,
-            {% if already_reviewed %}
-                I am writing to ask for your help in reviewing the revised version of "{{ article.title }}" for which you have been so kind as to review the previous version.
-            {%else %}
-                I am writing to ask for your help in reviewing the {{ article.section.name }} "{{ article.title }}" for {{ journal.code }}.
-            {% endif %}
-            Please find the automatically generated instructions for reviewers appended below.<br><br>
-            In the hope that you will accept my request, I would like to thank you in advance for your cooperation.<br><br>
-            Kind regards,
-            {{ request.user.signature|safe }}
-            JCOM Editor-in-charge
-            """,
+            "value": """Dear Colleague,<br/>
+{% if already_reviewed %}
+    I am writing to ask for your help in reviewing the revised version of "{{ article.title }}" for which you have been so kind as to review the previous version.
+{%else %}
+    I am writing to ask for your help in reviewing the {{ article.section.name }} "{{ article.title }}" for {{ journal.code }}.
+{% endif %}
+Please find the automatically generated instructions for reviewers appended below.<br><br>
+In the hope that you will accept my request, I would like to thank you in advance for your cooperation.<br><br>
+Kind regards,<br/>
+{{ request.user.signature|safe }}<br/>
+JCOM Editor-in-charge
+""",
             "translations": {},
         }
         return (
             create_customization_setting(
-                review_invitation_message_setting,
-                review_invitation_message_setting_value,
-                review_invitation_message_setting["name"],
+                setting,
+                value,
+                setting["name"],
                 force=force,
             ),
         )
 
-    def declined_review_message() -> tuple[SettingValue, ...]:
-        declined_review_message_setting: SettingParams = {
-            "name": "declined_review_message",
+    def declined_review_notice() -> tuple[SettingValue, ...]:
+        setting: SettingParams = {
+            "name": "declined_review_notice",
             "group": wjs_review_settings_group,
             "types": "rich-text",
             "pretty_name": _("Message shown when reviewer declines the review"),
@@ -181,17 +180,17 @@ def set_default_plugin_settings(force: bool = False):
             ),
             "is_translatable": False,
         }
-        declined_review_message_setting_value: SettingValueParams = {
+        value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Thanks for the time to evaluate the review."),
+            "value": _("Thank you for considering the Editor's invite."),
             "translations": {},
         }
         return (
             create_customization_setting(
-                declined_review_message_setting,
-                declined_review_message_setting_value,
-                declined_review_message_setting["name"],
+                setting,
+                value,
+                setting["name"],
                 force=force,
             ),
         )
@@ -229,7 +228,7 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for revision request notification"),
             "description": _(
-                "Provide context for the notification when the Editor requests a major/minor revision for an article.",
+                "Subject of the notification sent to the author when the Editor requests a major/minor revision for an article. See also technical_revision_subject",
             ),
             "is_translatable": False,
         }
@@ -237,7 +236,7 @@ def set_default_plugin_settings(force: bool = False):
             "journal": None,
             "setting": None,
             "value": _(
-                "{% if major_revision %}Editor requires revision{% elif minor_revision %}Editor requires (minor) revision{% elif tech_revision %}Editor enables metadata update{% endif %}"
+                "{% if major_revision %}Editor requires major revision{% elif minor_revision %}Editor requires minor revision{% endif %}"
             ),
             "translations": {},
         }
@@ -253,20 +252,26 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Default message for revision request notification"),
             "description": _(
-                "Provide context for the notification when the Editor requests a major/minor revision for an article.",
+                "Body of the notification sent to the author when the Editor requests a major/minor revision for an article. See also technical_revision_body",
             ),
             "is_translatable": False,
         }
         review_decision_revision_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ article.correspondence_author.full_name }},
-            Editor has requested a {% if minor_revision %}minor{% endif %} revision of {{ article.title }}.
-            You can view your reviews and feedback on the manuscript at: {{ review_url }}
-            Regards,
-            {{ request.user.signature|safe }}
-            """,
+            "value": """Dear Dr. {{ article.correspondence_author.full_name }},
+<br/><br/>
+Please connect to {{ article.articleworkflow.url }} to read the Editor review and <...> submit the {% if minor_revision %}minor{% endif %} revision of {{ article.title }} requested by the Editor in charge by {{ revision.date_due }}.
+<br/><br/>
+In preparing your revision, please check that your manuscript conforms to the JCOM style and formatting instructions available: [link a sezione di help for auths]
+<br/><br/>
+In particular, please check that references are formatted correctly and that all references cited in the text are included in the reference list (and vice versa).
+<br/><br/>
+If you decide not to resubmit the article, please withdraw your preprint as soon as possible.
+<br/><br/>
+Thank you and regards,<br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -284,14 +289,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for article not suitable decision notification"),
             "description": _(
-                "Provide context for the notification when the article is deemed not suitable.",
+                "Subject of the notification sent to the author when the article is deemed not suitable.",
             ),
             "is_translatable": False,
         }
         subject_review_decision_not_suitable_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Article is deemed not suitable"),
+            "value": _("Declared not suitable"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -304,22 +309,23 @@ def set_default_plugin_settings(force: bool = False):
             "name": "review_decision_not_suitable_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for article not suitable decision notification"),
+            "pretty_name": _("Body of the article-not-suitable message"),
             "description": _(
-                "Provide context for the notification when the article is deemed not suitable.",
+                "Body of the notification sent to the author when the article is deemed not suitable.",
             ),
             "is_translatable": False,
         }
         review_decision_not_suitable_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ article.correspondence_author.full_name }},
-            We are sorry to inform you that "{{ article.title }}" has been deemed not suitable for {{ article.journal.name }}.
-            You can view your reviews and feedback on the manuscript at: {{ review_url }}
-            Regards,
-            {{ request.user.signature|safe }}
-            """,
+            "value": """Dear Dr. {{ article.correspondence_author.full_name }},
+<br/><br/>
+We regret to inform you that the Editor in charge of your {{ article.section.name }} <...> considers it not suitable for {{ journal.code }}.
+The Editor review is available to you at: {{ review_url }}.
+<br/><br/>
+Thank you and begards,<br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -344,7 +350,7 @@ def set_default_plugin_settings(force: bool = False):
         revision_request_date_due_postponed_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Revision due date is postponed"),
+            "value": _("Due date postponed"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -356,7 +362,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "revision_request_date_due_postponed_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for revision request due date postponing notification"),
+            "pretty_name": _("Body of the revision request due date postponing notification"),
             "description": _(
                 "Body of the email sent to the author when an editor postpones the revision due date.",
             ),
@@ -365,12 +371,13 @@ def set_default_plugin_settings(force: bool = False):
         revision_request_date_due_postponed_body_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ article.correspondence_author.full_name }},
-            The revision request due date for the article "{{ article.title }}" has been postponed until {{ date_due }}.
-            Regards,
-            the editor.
-            """,
+            "value": """Dear Dr. {{ article.correspondence_author.full_name }},
+<br/><br/>
+The deadline for revising your {{ article.section.name }} has been postponed until {{ date_due }}.
+<br/><br/>
+Regards,<br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -378,7 +385,7 @@ def set_default_plugin_settings(force: bool = False):
             revision_request_date_due_postponed_body_setting_value,
             revision_request_date_due_postponed_body_setting["name"],
         )
-        # setting_name = "revision_request_date_due_far_future_subject",
+
         revision_request_date_due_far_future_subject_setting: SettingParams = {
             "name": "revision_request_date_due_far_future_subject",
             "group": wjs_review_settings_group,
@@ -392,7 +399,7 @@ def set_default_plugin_settings(force: bool = False):
         revision_request_date_due_far_future_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Revision request due date is postponed too far in the future"),
+            "value": _("Due date postponed considerably"),
             "translations": {},
         }
         setting_3 = create_customization_setting(
@@ -404,9 +411,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "revision_request_date_due_far_future_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _(
-                "Default message for revision request due date postponing too far in the future notification"
-            ),
+            "pretty_name": _("Body of the revision request due date postponing too far in the future notification"),
             "description": _(
                 "Body of the notification sent to EO when an editor postpones the revision due date too far in the future.",
             ),
@@ -415,13 +420,11 @@ def set_default_plugin_settings(force: bool = False):
         revision_request_date_due_far_future_body_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ EO.full_name }},
-            The revision request due date for the article "{{ article.title }}" has been postponed too far in the
-            future, to {{ date_due }}.
-            Regards,
-            {{ request.user.signature|safe }}
-            """,
+            "value": """Dear {{ EO.full_name }},
+The revision due date for the article "{{ article.title }}" has been postponed to {{ date_due }}. Could it be a mistake?
+<br/><br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_4 = create_customization_setting(
@@ -438,14 +441,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for review withdraw notification"),
             "description": _(
-                "Provide context for automatic review withdraw.",
+                "Subject of the notification sent to reviewers when the review-assignment has been withdrawn.",
             ),
             "is_translatable": False,
         }
         withdraw_review_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Review withdraw notice"),
+            "value": _("Invite to review withdrawn"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -458,18 +461,25 @@ def set_default_plugin_settings(force: bool = False):
             "name": "review_withdraw_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Default message for review withdraw notification"),
+            "pretty_name": _("Body of the review withdraw notification"),
             "description": _(
-                "Provide context for automatic review withdraw.",
+                "Body of the notification sent to reviewers when the review-assignment has been withdrawn.",
             ),
             "is_translatable": False,
         }
         withdraw_review_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _(
-                "The review has been withdrawn because the article is undergoing a revision.<br>{{ withdraw_notice }}"
-            ),
+            "value": """Dear Dr. {{ recipient.full_name }},
+<br/><br/>
+This is to inform you that the editor in charge of this {{ article.section.name }} has been able to make a decision thereby relieving you of the assignment.
+<br/><br/>
+{{ journal.code }} looks forward to having another opportunity to avail itself of your expertise in the future.
+<br/><br/>
+Thank you and best regards,
+<br/><br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -479,19 +489,19 @@ def set_default_plugin_settings(force: bool = False):
             force=force,
         )
         withdraw_notice_setting: SettingParams = {
-            "name": "review_withdraw_notice",
+            "name": "review_withdraw_default",
             "group": wjs_review_settings_group,
             "types": "rich-text",
             "pretty_name": _("Default message for review withdraw notification"),
             "description": _(
-                "Provide context for automatic review withdraw.",
+                "Default message added to the reviewer-withdrawn notification. This can be customized by the operator. See also review_withdraw_body",
             ),
             "is_translatable": False,
         }
         withdraw_notice_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Provide context for the decision."),
+            "value": _("Please write here any additional comments you may wish to send the reviewer"),
             "translations": {},
         }
         setting_3 = create_customization_setting(
@@ -509,14 +519,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for technical revision request"),
             "description": _(
-                "Provide context for technical revision.",
+                "Subject of the notification sent to author when a technical revision has be requested.",
             ),
             "is_translatable": False,
         }
         technical_revision_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Technical revision request"),
+            "value": _("Metadata update allowed"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -528,16 +538,16 @@ def set_default_plugin_settings(force: bool = False):
             "name": "technical_revision_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Automatic message for technical revision request"),
+            "pretty_name": _("Body of technical revision request notice"),
             "description": _(
-                "Provide context for technical revision request.",
+                "Body of the notification sent to the author when a technical revision has been requested.",
             ),
             "is_translatable": False,
         }
         technical_revision_body_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Editor has requested a technical revision, you can now edit article metadata."),
+            "value": "The {{ journal.code }} Editor  in charge has allowed you to edit <...> your preprint metadata. Please do so within {{ revision.date_due }}.",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -552,16 +562,16 @@ def set_default_plugin_settings(force: bool = False):
             "name": "revision_submission_subject",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Subject for submission of author revision"),
+            "pretty_name": _("Subject of author revision submission notice"),
             "description": _(
-                "Provide context for technical revision.",
+                "Subject of the notification sent to the editor when an author submits a revision.",
             ),
             "is_translatable": False,
         }
         revision_submission_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Author revision submission"),
+            "value": "Resubmitted",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -570,19 +580,27 @@ def set_default_plugin_settings(force: bool = False):
             revision_submission_subject_setting["name"],
         )
         revision_submission_message_setting: SettingParams = {
-            "name": "revision_submission_message",
+            "name": "revision_submission_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Automatic message for author revision submission"),
+            "pretty_name": _("Body of author revision submission notice"),
             "description": _(
-                "Provide context for author revision submission.",
+                "Body of the notification sent to the editor when an author submits a revision.",
             ),
             "is_translatable": False,
         }
         revision_submission_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Author has submitted a revision of their article, you can now check edited content."),
+            "value": """Dear Dr. {{ editor.full_name }},
+<br/><br/>
+Please connect to {{ article.articleworkflow.url }} to download the {{ article.section.name }}  resubmitted in reply to your request for revision. <...>
+<br/>
+You are kindly requested to either select reviewers or make a decision within {{ default_editor_assign_reviewer_days }} days.
+<br/><br/>
+Thank you and best regards,
+<br/>
+{{ journal.code }} Journal""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -597,7 +615,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "requeue_article_subject",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Subject for requeue article for assignment"),
+            "pretty_name": _("Subject for article requeue after issues verification notice"),
             "description": _(
                 "The subject of the system message that is logged when EO verifies that an article's issues are not important and the article is requeued for editor assignment.",
             ),
@@ -606,7 +624,7 @@ def set_default_plugin_settings(force: bool = False):
         requeue_article_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Article issues deemed not important"),
+            "value": _("No blocking issues found"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -615,10 +633,10 @@ def set_default_plugin_settings(force: bool = False):
             requeue_article_subject_setting["name"],
         )
         requeue_article_message_setting: SettingParams = {
-            "name": "requeue_article_message",
+            "name": "requeue_article_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Automatic message for article requeue after issues verification"),
+            "pretty_name": _("Body of article requeue after issues verification notice"),
             "description": _(
                 "The body of the system message that is logged when EO verifies that an article's issues are not important and the article is requeued for editor assignment.",
             ),
@@ -627,7 +645,7 @@ def set_default_plugin_settings(force: bool = False):
         requeue_article_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("EO has deemed paper issues not important."),
+            "value": _("This submission has been checked for possible issues. The review process may start."),
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -644,14 +662,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for article requires resubmission after issues verification"),
             "description": _(
-                "The subject of the system message that is logged when EO verifies that an article requires resubmission.",
+                "The subject of notification to the author of papers that cannot start the review process and that require resubmission.",
             ),
             "is_translatable": False,
         }
         requires_resubmission_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Article issues requires resubmission"),
+            "value": _("Changes required"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -660,19 +678,26 @@ def set_default_plugin_settings(force: bool = False):
             requires_resubmission_subject_setting["name"],
         )
         requires_resubmission_message_setting: SettingParams = {
-            "name": "review_decision_requires_resubmission_message",
+            "name": "review_decision_requires_resubmission_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Automatic message for article requires resubmission after issues verification"),
+            "pretty_name": _("Body fo the notification for article requires resubmission after issues verification"),
             "description": _(
-                "The body of the system message that is logged when EO verifies that an article requires resubmission.",
+                "The body of notification to the author of papers that cannot start the review process and that require resubmission.",
             ),
             "is_translatable": False,
         }
         requires_resubmission_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("EO has deemed article requires resubmission."),
+            "value": """Dear Dr. {{ author.full_name }},
+<br/><br/>
+Routine checks have spotted <...> issues in your {{ article.section.name }}.<br/>
+More explanations will be provided in a separate message.<br/>
+Once you have made the modifications and/or provided the explanations requested, please resubmit your {{ article.section.name }} from its web page.<br/><br/>
+Thank you and best regards,<br/><br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -687,9 +712,9 @@ def set_default_plugin_settings(force: bool = False):
             "name": "hijack_notification_subject",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Default subject for notifications of actions as hijacked users"),
+            "pretty_name": _("Subject for notifications of actions as hijacked users"),
             "description": _(
-                "Provide context for notifications of actions as hijacked users.",
+                "Subject of the notification sent to the hijacked user for actions done in his place.",
             ),
             "is_translatable": False,
         }
@@ -709,16 +734,19 @@ def set_default_plugin_settings(force: bool = False):
             "name": "hijack_notification_body",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Default message for notifications of actions as hijacked users"),
+            "pretty_name": _("Body for the notifications of actions as hijacked users"),
             "description": _(
-                "Provide context for notifications of actions as hijacked users.",
+                "Body of the notification sent to the hijacked user for actions done in his place.",
             ),
             "is_translatable": False,
         }
         hijack_notification_body_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("User {{ hijacker }} executed {{ original_subject }} impersonating you."),
+            "value": """{{ hijacker }} has done the following action on your behalf:
+<br>
+{{ original_subject }}
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -729,115 +757,149 @@ def set_default_plugin_settings(force: bool = False):
         )
         return setting_1, setting_2
 
-    def patch_review_settings() -> tuple[SettingValue, ...]:
-        editor_assignment_subject_setting: SettingParams = {
-            "name": "subject_editor_assignment",
-            "group": email_subject_settings_group,
+    def core_review_settings() -> tuple[SettingValue, ...]:
+        setting_1_p: SettingParams = {
+            "name": "wjs_editor_assignment_subject",
+            "group": wjs_review_settings_group,
             "types": "text",
             "pretty_name": _("Subject of the assign to editor message"),
             "description": _(
-                "Provide instructions to handle editor assignments",
+                "The subject of the notification that is sent to the editor when a paper is assigned to him. Replaces Janeway's subject_editor_assignment.",
             ),
             "is_translatable": False,
         }
-        editor_assignment_subject_setting_value: SettingValueParams = {
+        setting_1_v: SettingValueParams = {
             "journal": None,
             "setting": None,
-            # https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/merge_requests/267#note_11875
-            "value": "{{ article.id }} assigned",
+            "value": "Assignment as Editor in charge",
             "translations": {},
         }
-        setting_1 = patch_setting(editor_assignment_subject_setting, editor_assignment_subject_setting_value)
-        editor_assignment_body_setting: SettingParams = {
-            "name": "editor_assignment",
-            "group": email_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Body of the assign to editor message"),
-            "description": _(
-                "Provide instructions to handle editor assignments",
-            ),
-            "is_translatable": False,
-        }
-        editor_assignment_body_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """
-            Dear {{ editor.full_name }},
-            <br/><br/>
-            You have been assigned as an editor to "{{ article.title }}" in the journal {{ request.journal.name }}.
-            <br/><br/>
-            If you are unable to be the editor for this article, please reply to this email.
-            <br/><br/>
-            You can view this article's data on the journal site: {{ review_in_review_url }}
-            <br/><br/>
-            Regards,
-            <br/><br/>
-            {{ request.user.signature|safe }}
-            """,
-            "translations": {},
-        }
-        setting_2 = patch_setting(editor_assignment_body_setting, editor_assignment_body_setting_value)
-        save_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_review_assignment",
-            journal=None,
-            value='Request to review "{{ article.title }}"',
+        setting_1 = create_customization_setting(
+            setting_1_p,
+            setting_1_v,
+            setting_1_p["name"],
+            force=force,
         )
-        review_message_email_setting: SettingParams = {
-            "name": "review_assignment",
-            "group": email_settings_group,
+
+        setting_2_p: SettingParams = {
+            "name": "wjs_editor_assignment_body",
+            "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Message shown on review submit page"),
+            "pretty_name": _("Body of the assign-to-editor message"),
             "description": _(
-                "Provide instructions to handle reviews.",
+                "The body of the notification that is sent to the editor when a paper is assigned to him. Replaces Janeway's editor_assignment.",
             ),
             "is_translatable": False,
         }
-        review_message_setting_value: SettingValueParams = {
+        setting_2_v: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            {% load fqdn %}
-            <p>
-            <br><br>
-            {{ user_message_content|safe }}
-            </p>
-            <p>---------------------------------------</p>
-            <p><b>{{ article.section.name }} to review:</b><br>
-            {{ article_details }}<br>
-            <b>Link to web page:</b><br>
-            {% if reviewer.jcomprofile.invitation_token %}
-                <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
-            {% else %}
-                <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id%}?access_code={{ review_assignment.access_code }}">Click here to review</a>
-            {% endif %}
-            <br>
-            </p>
-            <p><b>Please accept/decline this request to review by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
-            <p>
-            {% if already_reviewed %}
-                <br>
-            {% else %}
-                {{ journal.code }} is a diamond open access journal focusing on research in science communication.<br>
-                Its scope is available on [link to a specific help section for the journal in question].<br><br>
-                Its editorial board (the name links to the relevant webpage) relies on the
-                goodwill of referees to ensure the quality of the manuscripts it
-                publishes and hopes that you will be able to help on this occasion.<br>
-                More information about the Journal’s ethical and financial policy are
-                available on [link to a specific help section for the journal in question]<br><br>
-                It is {{ journal.code }}’s policy that authors and referees remain anonymous to each other.<br>
-            {% endif %}
-            <br>The {{ article.section.name }} you are being asked to review is available on the link provided above,
-            together with the buttons to accept or decline this assignment and tools to communicate with the
-            Editor in charge {{ request.user.signature|safe }}. <br><br>
-            All the necessary information and instructions to do the review are available at:<br>
-            [link to pdf file]<br><br>
-            Do not hesitate to contact {{ request.user.signature|safe }} or the Editorial Office for any further information or assistance that you may need.
-            </p>
-            """,
+            "value": """Dear Dr. {{ editor.full_name }},
+<br/><br/>
+Please connect to {{ article.articleworkflow.url }} to handle <...> this {{ article.section.name }} as editor-in-charge.
+<br/><br/>
+Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.<br/>
+Should you be unable to handle it, please decline the assignment as soon as possible.
+<br/><br/>
+Thank you in advance for your cooperation and best regards,
+<br/><br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
-        setting_3 = patch_setting(review_message_email_setting, review_message_setting_value)
+        setting_2 = create_customization_setting(
+            setting_2_p,
+            setting_2_v,
+            setting_2_p["name"],
+            force=force,
+        )
+
+        setting_30_p: SettingParams = {
+            "name": "review_invitation_message_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the assign-to-reviewer message"),
+            "description": _(
+                "The subject of the notification that is sent to the reviewer when a paper is assigned to him. Replaces Janeway's subject_review_assignment.",
+            ),
+            "is_translatable": False,
+        }
+        setting_30_v: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Invite to review",
+            "translations": {},
+        }
+        setting_30 = create_customization_setting(
+            setting_30_p,
+            setting_30_v,
+            setting_30_p["name"],
+            force=force,
+        )
+
+        setting_3_p: SettingParams = {
+            "name": "review_invitation_message_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of the assign-to-reviewer message - non customizable part"),
+            "description": _(
+                """The body of the notification that is sent to the editor when a paper is assigned to him.
+The part `{{ user_message_content }}` will be replaced with a text written by the editor (see review_invitation_message_body).
+Replaces Janeway's review_assignment.
+""",
+            ),
+            "is_translatable": False,
+        }
+        setting_3_v: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """{% load fqdn %}
+<p>
+<br><br>
+{{ user_message_content|safe }}
+</p>
+<p>---------------------------------------</p>
+<p><b>{{ article.section.name }} to review:</b><br>
+{{ article_details }}<br>
+<b>Link to web page:</b><br>
+{% if reviewer.jcomprofile.invitation_token %}
+    <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+{% else %}
+    <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id%}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+{% endif %}
+<br>
+</p>
+<p><b>Please accept/decline this invite to review by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
+<p>
+{% if already_reviewed %}
+    <br>
+{% else %}
+    {{ article.journal.name }} is a diamond open access journal focusing on research in science communication.<br>
+    Its scope is available on [link to a specific help section for the journal in question].<br><br>
+    Its editorial board (the name links to the relevant webpage) relies on the
+    goodwill of reviewers to ensure the quality of the manuscripts it
+    publishes and hopes that you will be able to help on this occasion.<br>
+    More information about the Journal’s ethical and financial policy are
+    available on [link to a specific help section for the journal in question]<br><br>
+    It is {{ journal.code }}’s policy that authors and reviewers remain anonymous to each other.<br>
+{% endif %}
+<br>The {{ article.section.name }} you are being asked to review is available on the link provided above,
+together with the buttons to accept or decline this invite and tools to communicate with the
+Editor in charge {{ request.user.signature|safe }}. <br><br>
+All the necessary information and instructions to do the review are available at:<br>
+[link to pdf file]<br><br>
+Do not hesitate to contact the Editor in charge or the Editorial Office for any further information or assistance that you may need.
+</p>
+""",
+            "translations": {},
+        }
+        setting_3 = create_customization_setting(
+            setting_3_p,
+            setting_3_v,
+            setting_3_p["name"],
+            force=force,
+        )
+
         default_review_days_setting: SettingParams = {
             "name": "default_review_days",
             "group": general_group,
@@ -966,7 +1028,7 @@ def set_default_plugin_settings(force: bool = False):
             default_author_technical_revision_days_setting["name"],
             force=force,
         )
-        return setting_1, setting_2, setting_3, setting_5, setting_6, setting_7, setting_8, setting_9
+        return setting_1, setting_2, setting_30, setting_3, setting_5, setting_6, setting_7, setting_8, setting_9
 
     def author_can_contact_director() -> tuple[SettingValue, ...]:
         author_can_contact_director_setting: SettingParams = {
@@ -1046,14 +1108,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for postponing due date notification"),
             "description": _(
-                "The subject of the notification that is sent to the reviewer, when the editor postpones the report due date",
+                "The subject of the notification that is sent to the reviewer, when the editor postpones the due date",
             ),
             "is_translatable": False,
         }
         subject_due_date_postpone_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Reviewer report due date is postponed"),
+            "value": _("Review due date postponed"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1065,22 +1127,23 @@ def set_default_plugin_settings(force: bool = False):
             "name": "due_date_postpone_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for postponing due date notification"),
+            "pretty_name": _("Body of the postponing due date notification"),
             "description": _(
-                "The body of the notification that is sent to the reviewer, when the editor postpones the report due date",
+                "The body of the notification that is sent to the reviewer, when the editor postpones the due date",
             ),
             "is_translatable": False,
         }
         due_date_postpone_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ reviewer.full_name }},
-            We are inform you that the reviewer report due date for the article "{{ article.title }}" is postponed to
-            {{ date_due }}.
-            Regards,
-            {{ request.user.signature|safe }}
-            """,
+            "value": """Dear Dr. {{ reviewer.full_name }},
+<br/><br/>
+This is to inform you that your review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to
+{{ date_due }}.
+<br/><br/>
+Thank you in advance for your cooperation and best regards,<br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1097,14 +1160,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for notification when due date is postponed far in the future."),
             "description": _(
-                "The subject of a notification that the system sends to EO when an editor postpones a reviewer report due date far into the future.",
+                "The subject of a notification that the system sends to EO when editors or reviewers postpone a review due date far into the future.",
             ),
             "is_translatable": False,
         }
         subject_due_date_far_future_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Editor postpones reviewer report due date far in the future."),
+            "value": _("Review due date postponed considerably"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1116,9 +1179,9 @@ def set_default_plugin_settings(force: bool = False):
             "name": "due_date_far_future_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for when due date is postponed in the far future."),
+            "pretty_name": _("Body of notification sent when due date is postponed in the far future."),
             "description": _(
-                "The subject of a notification that the system sends to EO when an editor postpones a reviewer report due date"
+                "The body of a notification that the system sends to EO when editors or reviewers postpone a review due date"
                 "far into the future.",
             ),
             "is_translatable": False,
@@ -1126,13 +1189,12 @@ def set_default_plugin_settings(force: bool = False):
         due_date_far_future_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ EO.full_name }},
-            I inform you that the reviewer report due date for the article "{{ article.title }}" is postponed to
-            {{ date_due }}.
-            Regards,
-            {{ request.user.signature|safe }}
-            """,
+            "value": """Dear {{ EO.full_name }},
+<br/><br/>
+{{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to {{ date_due }}. Could it be a mistake?
+<br/><br/>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1156,7 +1218,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_editor_decline_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Editor assignment is declined"),
+            "value": _("Editor declined assignment"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1165,25 +1227,28 @@ def set_default_plugin_settings(force: bool = False):
             subject_editor_decline_assignment_setting["name"],
         )
         editor_decline_assignment_setting: SettingParams = {
-            "name": "editor_decline_assignment_body",
+            "name": "editor_decline_assignment_default",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for declination of Editor assignment"),
+            "pretty_name": _("Default body of the notification for declination of Editor assignment"),
             "description": _(
-                "The body of the notification that is sent to the director when an editor declines an assignment.",
+                "The default body of the notification that is sent to the director when an editor declines an assignment. This will be further edited by the editor.",
             ),
             "is_translatable": False,
         }
         editor_decline_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ director }},
-            I'm sorry to inform you that I cant fulfill your request. My assigment is declined for the following
-            reasons:
-            Regards,
-            {{ editor }}
-            """,
+            "value": """Dear Dr. {{ director }},
+<br/><br/>
+I regret to inform you that <...> I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
+
+<br/><br/>
+Best regards,
+<br/><br/>
+{{ request.user.signature|safe }}<br/>
+{{ journal.code }} Editor-in-charge
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1207,7 +1272,7 @@ def set_default_plugin_settings(force: bool = False):
         wjs_editor_i_will_review_message_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Editor selects self as reviewer"),
+            "value": _("Editor will review"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1228,7 +1293,7 @@ def set_default_plugin_settings(force: bool = False):
         wjs_editor_i_will_review_message_body_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Article {{ article.id }} assigned to editor for a review."),
+            "value": """Editor {{ review_assignment.editor.full_name }} has decided to review {{ article.section.name }} "{{ article.title }}".""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1252,7 +1317,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_typesetting_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Typesetter is assigned to an article"),
+            "value": _("Typesetter assigned"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1273,11 +1338,12 @@ def set_default_plugin_settings(force: bool = False):
         typesetter_is_assigned_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ typesetter.full_name }}, you have been assigned paper {{ article.id }}.
+            "value": """Dear {{ typesetter.full_name }},
+<br/><br/>
+You have been assigned <...> the {{ article.section.name }} {{ article.id }}.
 
-            Please visit:
-            {% url "wjs_article_details" article.id %}
-            """,
+Please visit: {{ article.articleworkflow.url }}
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1301,7 +1367,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_eo_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("eo is assigned to an article"),
+            "value": _("EO assigned to an article"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1313,7 +1379,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "eo_assignment_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for assignment of a eo."),
+            "pretty_name": _("The body for for assignment of a eo notification."),
             "description": _(
                 "The body of the notification that is sent to the eo when he is assigned to an article.",
             ),
@@ -1322,11 +1388,7 @@ def set_default_plugin_settings(force: bool = False):
         eo_is_assigned_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ eo.full_name }}, you have been assigned paper {{ article.id }}.
-
-            Please visit:
-            {% url "wjs_article_details" article.id %}
-            """,
+            "value": """Dear {{ eo.full_name }}, you have been assigned this {{ article.section.name }}.""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1351,7 +1413,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Article {{ article.pk }} ready for proofreading."),
+            "value": _("Ready for proofreading."),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1363,7 +1425,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "proofreading_request_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for request of Author's proofreading."),
+            "pretty_name": _("Body of the request of Author's proofreading notification."),
             "description": _(
                 "The body of the notification that is sent to to the Author when the paper has been typesetted and is "
                 "ready for proofreading.",
@@ -1373,12 +1435,30 @@ def set_default_plugin_settings(force: bool = False):
         proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ author.full_name }}, your article {{ article.title }} has been typesetted and is ready
-            for your check.
-
-            Please visit:
-            {% url "wjs_article_details" article.id %}
-            """,
+            "value": """Dear Dr. {{ author.full_name }},
+<br/><br/>
+Please proof-read within 1 week <...> the pdf version of your typeset {{ article.section.name }}.
+<br/><br/>
+Only a limited number of the following kind of corrections are acceptable at this stage:
+<br/><br/>
+<ul>
+<li> layout and typesetting mistakes,
+<li> spelling mistakes in words or formulas,
+<li> mistakes or updating in references
+</ul>
+<br/><br/>
+<strong>Important</strong>: please reply to the queries on the first page of your  {{ article.section.name }}.
+<br/><br/>
+On your  {{ article.section.name }} web page you will find both a text area and a tool to upload the annotated pdf files. Please choose either or both tools to send your answers and any request for corrections back to us.
+<br/>
+Should you decide to use the text area, please explain very clearly where changes should occur referring to the typeset version (page number, paragraph and line, or equation number), and specify both the old (wrong) version and the correction.
+<br/>
+The corrected version will not be sent to you again.
+<br/><br/>
+Thank you and best regards,
+<br/><br/>
+{{ article.journal.code }} Typesetter
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1402,7 +1482,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_author_sends_corrections_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Corrections for article {{ article.id }} are ready."),
+            "value": "Author proofread manuscript",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1414,7 +1494,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "author_sends_corrections_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for author sending corrections."),
+            "pretty_name": _("Body for author sending corrections nofitication."),
             "description": _(
                 "The body of the notification that is sent to the typesetter when the author sends corrections.",
             ),
@@ -1423,11 +1503,10 @@ def set_default_plugin_settings(force: bool = False):
         author_sends_correction_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ typesetter.full_name }}, author has sent corrections for the paper {{ article.id }} and you have been assigned.
-
-            Please visit:
-            {% url "wjs_article_details" article.id %}
-            """,
+            "value": """Dear {{ typesetter.full_name }},
+<br/><br/>
+Author {{ article.correspondence_author.full_name }} has sent corrections <...> for the {{ article.section.name }} {{ article.id }}.
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1442,7 +1521,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "typesetting_generated_galleys_subject",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Subject for typesetting generated galleys."),
+            "pretty_name": _("Subject for galleys generated."),
             "description": _(
                 "The subject of the notification that is sent to the typesetter when Galleys are generated.",
             ),
@@ -1451,7 +1530,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_typesetting_generated_galleys_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Galleys for article {{ article.id }} are ready."),
+            "value": "Galleys are ready",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1463,7 +1542,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "typesetting_generated_galleys_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for typesetter generating Galleys."),
+            "pretty_name": _("Body of galleys generated notification."),
             "description": _(
                 "The body of the notification that is sent to the typesetter when Galleys are generated.",
             ),
@@ -1472,11 +1551,10 @@ def set_default_plugin_settings(force: bool = False):
         typesetting_generated_galleys_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ typesetter.full_name }}, Galleys for the paper {{ article.id }} are ready.
-
-            Please visit:
-            {% url "wjs_article_details" article.id %}
-            """,
+            "value": """Dear {{ typesetter.full_name }},
+<br/><br/>
+Galleys for the {{ article.section.name }} {{ article.id }} are ready.
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1491,7 +1569,7 @@ def set_default_plugin_settings(force: bool = False):
             "name": "editor_deassign_reviewer_subject",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Subject for reviewer deassign notification."),
+            "pretty_name": _("Subject of reviewer deassigned notification."),
             "description": _(
                 "The subject of the notification that is sent to the reviewer when deassigned.",
             ),
@@ -1500,7 +1578,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_editor_deassign_reviewer_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Review assignment has been deassigned"),
+            "value": _("Invite to review withdrawn"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1509,22 +1587,28 @@ def set_default_plugin_settings(force: bool = False):
             subject_editor_deassign_reviewer["name"],
         )
         editor_deassign_reviewer_setting: SettingParams = {
-            "name": "editor_deassign_reviewer_body",
+            "name": "editor_deassign_reviewer_default",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for reviewer deassign notification."),
+            "pretty_name": _("Defalt body of reviewer deassign notification."),
             "description": _(
-                "The body of the notification that is sent to the reviewer when deassigned.",
+                "The default body of the notification that is sent to the reviewer when deassigned. This can be modified by the operator.",
             ),
             "is_translatable": False,
         }
         editor_deassign_reviewer_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ assignment.reviewer.full_name }}, thanks for your involvements.
-
-            Your review is no longer needed
-            """,
+            "value": """Dear Dr. {{ assignment.reviewer.full_name }},
+<br/><br/>
+This is to inform you that the editor in charge of the {{ article.section.name }} "{{ article.title }}" has been able to make a decision thereby relieving you of the assignment.
+<br/><br/>
+{{ article.journal.code }} looks forward to having another opportunity to avail itself of your expertise in the future.
+<br/><br/>
+Thank you and best regards,
+<br/><br/>
+{{ article.journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1538,14 +1622,14 @@ def set_default_plugin_settings(force: bool = False):
             "types": "text",
             "pretty_name": _("Subject for system message when a reviewer is deassigned."),
             "description": _(
-                "The subject of the system message that is logged when the reviewer is deassigned.",
+                "The subject of the system message that is logged when the reviewer is deassigned but not notified.",
             ),
             "is_translatable": False,
         }
         subject_editor_deassign_reviewer_system_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Review assignment has been deassigned"),
+            "value": "Invite to review withdrawn",
             "translations": {},
         }
         setting_3 = create_customization_setting(
@@ -1557,17 +1641,16 @@ def set_default_plugin_settings(force: bool = False):
             "name": "editor_deassign_reviewer_system_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Default message for system message when a reviewer is deassigned."),
+            "pretty_name": _("Body of the system message when a reviewer is deassigned."),
             "description": _(
-                "The body of the system message that is logged when the reviewer is deassigned.",
+                "The body of the system message that is logged when the reviewer is deassigned but not notified.",
             ),
             "is_translatable": False,
         }
         editor_deassign_reviewer_system_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Reviewer {{ assignment.reviewer.full_name }} has been deassigned from {{ assignment.article }}.
-            """,
+            "value": """Reviewer {{ assignment.reviewer.full_name }} has been deselected.""",
             "translations": {},
         }
         setting_4 = create_customization_setting(
@@ -1782,10 +1865,10 @@ def set_default_plugin_settings(force: bool = False):
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
-        csv_writer.write_settings(review_invitation_message())
-        csv_writer.write_settings(declined_review_message())
+        csv_writer.write_settings(review_invitation_message_default())
+        csv_writer.write_settings(declined_review_notice())
         csv_writer.write_settings(do_review_message())
-        csv_writer.write_settings(patch_review_settings())
+        csv_writer.write_settings(core_review_settings())
         csv_writer.write_settings(review_decision_revision_request_message())
         csv_writer.write_settings(review_decision_not_suitable_message())
         csv_writer.write_settings(revision_request_postpone_date_due_messages())

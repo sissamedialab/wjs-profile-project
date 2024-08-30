@@ -791,8 +791,8 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
     def _render_message_preview(self, form: SelectReviewerForm) -> str:
         logic_context = form.get_message_context()
         preview = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="review_assignment",
+            setting_group_name="wjs_review",
+            setting_name="review_invitation_message_body",
             journal=self.object.article.journal,
             request=self.request,
             context=logic_context,
@@ -1515,7 +1515,7 @@ class WriteMessage(LoginRequiredMixin, CreateView):
         return context
 
 
-class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
+class ToggleMessageReadView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """A view to let the user toggle read/unread flag on a message."""
 
     model = MessageRecipients
@@ -1524,7 +1524,7 @@ class ToggleMessageReadView(UserPassesTestMixin, UpdateView):
     context_object_name = "message"
 
     def test_func(self):
-        """User must be the recipient (or staff or EO)."""
+        """User must be the recipient."""
         return self.request.user.id == self.kwargs["recipient_id"]
 
     def get_object(self, queryset=None):
@@ -1935,6 +1935,7 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
         return {
             "editor": self.object.editor,
             "assignment": self.object,
+            "article": self.object.article,
         }
 
     def get_initial(self):
@@ -1946,7 +1947,7 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
         ).processed_value
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="editor_deassign_reviewer_body",
+            setting_name="editor_deassign_reviewer_default",
             journal=self.object.article.journal,
             request=self.request,
             context=self._get_message_context(),

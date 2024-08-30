@@ -67,11 +67,23 @@ def create_customization_setting(
     """
     # capitalize() will make the first letter of a string capitalized but all the other letters lowercase
     name_for_messages_capitalized = name_for_messages[0].upper() + name_for_messages[1:]
-    setting, setting_created = Setting.objects.get_or_create(**setting_params)
+    setting, setting_created = Setting.objects.get_or_create(
+        name=setting_params["name"],
+        group=setting_params["group"],
+        defaults=setting_params,
+    )
     try:
         setting = SettingValue.objects.get(journal=None, setting=setting)
         if force:
             if settings.DEBUG:
+                # patch the setting itself
+                setting.types = setting_params["types"]
+                setting.pretty_name = setting_params["pretty_name"]
+                setting.description = setting_params["description"]
+                setting.is_translatable = setting_params["is_translatable"]
+                setting.save()
+
+                # patch the setting's default value
                 setting = patch_setting(setting_params, settingvalue_params)
                 logger.warning(f"Overwriting {name_for_messages_capitalized} as requested.")
             else:

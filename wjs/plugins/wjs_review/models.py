@@ -338,7 +338,13 @@ class ArticleWorkflow(TimeStampedModel):
     def permission_label(self) -> str:
         return _("Author notes")
 
+    @property
+    def url(self):
+        """Return the full URL, including domain and scheme."""
+        return self.article.journal.site_url(path=self.get_absolute_url())
+
     def get_absolute_url(self):
+        """Return canonical url of the object as per Django convention."""
         return reverse("wjs_article_details", args=[self.pk])
 
     def pending_revision_request(self):

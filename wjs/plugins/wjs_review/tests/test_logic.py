@@ -177,27 +177,25 @@ def test_assign_to_editor(
     # Check messages
     assert Message.objects.count() == 1
     message_to_editor = Message.objects.first()
-    review_in_review_url = fake_request.journal.site_url(
-        path=reverse(
-            "review_in_review",
-            kwargs={"article_id": article.pk},
-        ),
-    )
     editor_assignment_message = render_template_from_setting(
-        setting_group_name="email",
-        setting_name="editor_assignment",
+        setting_group_name="wjs_review",
+        setting_name="wjs_editor_assignment_body",
         journal=article.journal,
         request=fake_request,
         context={
             "article": article,
             "request": fake_request,
             "editor": section_editor.janeway_account,
-            "review_in_review_url": review_in_review_url,
+            "default_editor_assign_reviewer_days": get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_editor_assign_reviewer_days",
+                journal=article.journal,
+            ).processed_value,
         },
         template_is_setting=True,
     )
     assert message_to_editor.body == editor_assignment_message
-    assert review_in_review_url in message_to_editor.body
+    assert article.articleworkflow.url in message_to_editor.body
     assert message_to_editor.message_type == Message.MessageTypes.SYSTEM
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
     if current_user_editor:
@@ -275,8 +273,8 @@ def test_assign_to_reviewer_hijacked(
     editor_emails = [m for m in mail.outbox if m.to[0] == section_editor.email]
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="email_subject",
-        setting_name="subject_review_assignment",
+        setting_group_name="wjs_review",
+        setting_name="review_invitation_message_subject",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -286,8 +284,8 @@ def test_assign_to_reviewer_hijacked(
     assert len(user_emails) == 1
     assert len(editor_emails) == 1
     assert review_assignment_subject in user_emails[0].subject
-    assert assigned_article.title in user_emails[0].subject
-    assert f"User {eo_user} executed Request to review" in editor_emails[0].subject
+    # TODO after !509 assert assigned_article.version_code in user_emails[0].subject
+    assert f"User {eo_user} executed {review_assignment_subject}" in editor_emails[0].subject
 
 
 @pytest.mark.django_db
@@ -348,12 +346,13 @@ def test_editor_assigns_themselves_as_reviewer(
     assert assignment.editor == section_editor.janeway_account
     assert localtime(assignment.date_accepted).date() == _now.date()
 
+    context = {"article": assigned_article, "review_assignment": assignment}
     message_subject = render_template_from_setting(
         setting_group_name="wjs_review",
         setting_name="wjs_editor_i_will_review_message_subject",
         journal=assigned_article.journal,
         request=fake_request,
-        context={"article": assigned_article},
+        context=context,
         template_is_setting=True,
     )
     message_body = render_template_from_setting(
@@ -361,7 +360,7 @@ def test_editor_assigns_themselves_as_reviewer(
         setting_name="wjs_editor_i_will_review_message_body",
         journal=assigned_article.journal,
         request=fake_request,
-        context={"article": assigned_article},
+        context=context,
         template_is_setting=True,
     )
     # Check message
@@ -434,8 +433,8 @@ def test_assign_to_reviewer(
     assert not assignment.author_note_visible
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="email_subject",
-        setting_name="subject_review_assignment",
+        setting_group_name="wjs_review",
+        setting_name="review_invitation_message_subject",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -452,7 +451,7 @@ def test_assign_to_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
-    assert assigned_article.title in emails[0].subject
+    # TODO after !509 assert assigned_article.version_code in user_emails[0].subject
     assert "You have been invited" not in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
@@ -609,11 +608,15 @@ def test_assign_to_reviewer_after_revision(
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     if previous_assignment:
-        _create_review_assignment(
+        review_assignment = _create_review_assignment(
             fake_request=fake_request,
             reviewer_user=normal_user,
             assigned_article=assigned_article,
         )
+        # fake a "completed" review assignment
+        review_assignment.date_accepted = localtime(now())
+        review_assignment.is_complete = True
+        review_assignment.save()
 
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -828,8 +831,8 @@ def test_invite_reviewer(
     assert assignment.workflowreviewassignment.author_note_visible
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="email_subject",
-        setting_name="subject_review_assignment",
+        setting_group_name="wjs_review",
+        setting_name="review_invitation_message_subject",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -847,7 +850,7 @@ def test_invite_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
-    assert assigned_article.title in emails[0].subject
+    # TODO after !509 assert assigned_article.version_code in user_emails[0].subject
     assert "is a diamond open access" in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
@@ -1211,7 +1214,15 @@ def test_invite_reviewer_but_user_already_exists(
     assert len(mail.outbox) == 1
     # Check messages
     assert Message.objects.count() == 1
-    message_to_reviewer = Message.objects.get(subject__startswith="Request to review")
+    subject_from_setting = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="review_invitation_message_subject",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={},
+        template_is_setting=True,
+    )
+    message_to_reviewer = Message.objects.get(subject=subject_from_setting)
     assert "random message" in message_to_reviewer.body
     assert message_to_reviewer.message_type == Message.MessageTypes.SYSTEM
     assert message_to_reviewer.actor == section_editor.janeway_account
@@ -1395,7 +1406,7 @@ def test_handle_issues_to_selected(
         )
         requeue_article_message = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="requeue_article_message",
+            setting_name="requeue_article_body",
             journal=article.journal,
             request=fake_request,
             context=context,
@@ -1404,8 +1415,10 @@ def test_handle_issues_to_selected(
         assert message.subject == requeue_article_subject
         assert message.body == requeue_article_message
         assert message.message_type == message.MessageTypes.SYSTEM
-        assert not message.recipients.all().exists()
-        # no email because there is no recipient
+        # no notification sent to EO
+        assert message.recipients.count() == 0
+        # no email because message verbosity is TIMELINE
+        assert message.verbosity == Message.MessageVerbosity.TIMELINE
         assert len(mail.outbox) == 0
 
 
@@ -1567,6 +1580,7 @@ def test_handle_admin_decision(
             "decision": form_data["decision"],
             "user_message_content": form_data["decision_editor_report"],
             "skip": False,
+            "recipient": review.reviewer,
         }
         assert Message.objects.count() == 2
         withdrawn_message = Message.objects.first()
@@ -1814,7 +1828,11 @@ def test_handle_editor_decision(
         user=editor_user,
         request=fake_request,
     )
-    handle.run()
+    editor_decision = handle.run()
+    try:
+        revision = editor_decision.get_revision_request()
+    except EditorRevisionRequest.DoesNotExist:
+        pass
     assigned_article.refresh_from_db()
 
     # We had an incomplete review assignment; when the editor makes a decision (except for technical revision),
@@ -1827,6 +1845,7 @@ def test_handle_editor_decision(
         "user_message_content": form_data["decision_editor_report"],
         "withdraw_notice": form_data["withdraw_notice"],
         "skip": False,
+        "recipient": review_assignment.reviewer,
     }
     review_withdraw_message_subject = render_template_from_setting(
         setting_group_name="wjs_review",
@@ -1845,7 +1864,7 @@ def test_handle_editor_decision(
         template_is_setting=True,
     )
     # Try to avoid test-rot and simplify comparison:
-    review_withdraw_message_body = raw(review_withdraw_message_body).replace(" ", "").replace("\n", "")
+    review_withdraw_message_body = raw(review_withdraw_message_body)
 
     if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
         assert Message.objects.count() == 1
@@ -2055,7 +2074,7 @@ def test_handle_editor_decision(
             context={
                 "article": assigned_article,
                 "request": fake_request,
-                "revision": None,
+                "revision": revision,
                 "decision": form_data["decision"],
                 "user_message_content": form_data["decision_editor_report"],
                 "withdraw_notice": form_data["withdraw_notice"],
@@ -2822,9 +2841,10 @@ def test_deassign_reviewer(
     assert review_assignment.decision == "withdrawn"
 
     if send_reviewer_notification:
-        assert Message.objects.count() == 2
+        # TODO: review in specs#941
+        assert Message.objects.count() == 1
         assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
-        assert Message.objects.filter(recipients__isnull=True).count() == 1
+        assert Message.objects.filter(recipients__isnull=True).count() == 0
         assert len(mail.outbox) == 1  # system messages are not sent by email
     else:
         assert Message.objects.count() == 1

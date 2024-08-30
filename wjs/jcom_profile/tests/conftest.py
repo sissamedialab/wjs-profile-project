@@ -22,6 +22,9 @@ from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
+
+# Warning: dependency with wjs_review plugin
+from plugins.wjs_review import communication_utils
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Section
@@ -282,12 +285,13 @@ def eo_group() -> Group:
 
 
 @pytest.fixture()
-def eo_user(create_jcom_user, journal, eo_group) -> JCOMProfile:
+def eo_user(journal, eo_group) -> JCOMProfile:
     """Create EO user."""
-    eo = create_jcom_user("eo_user")
-    eo.groups.add(eo_group)
-    EditorAssignmentParameters.objects.create(editor=eo.janeway_account, journal=journal, workload=10)
-    return eo
+    eo = communication_utils.get_eo_user(journal)
+    eo.refresh_from_db()
+    # TODO: add a comment on why we need the following :)
+    EditorAssignmentParameters.objects.create(editor=eo, journal=journal, workload=10)
+    return eo.jcomprofile
 
 
 @pytest.fixture()

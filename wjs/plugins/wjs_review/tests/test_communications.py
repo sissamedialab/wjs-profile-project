@@ -393,7 +393,8 @@ def test_recipient_can_toggle_read(
     mr.refresh_from_db()
     assert mr.read is False
 
-    client.force_login(eo_user)
+    assert eo_user.janeway_account.is_active
+    client.force_login(eo_user.janeway_account)
     response = client.post(url, data={"read": True})
     assert response.status_code == 403
     mr.refresh_from_db()

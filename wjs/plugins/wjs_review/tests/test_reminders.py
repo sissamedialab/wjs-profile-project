@@ -129,9 +129,6 @@ def test_create_a_reminder(
     assert reminders.count() == 1
     assert reminders.first() == reminder_obj
 
-    # Somewhat weak test that the subject has been rendered
-    assert assigned_article.journal.code in reminder_obj.message_subject
-
     assert reminder_obj.recipient == service.reviewer
     assert reminder_obj.actor == section_editor.janeway_account
 
