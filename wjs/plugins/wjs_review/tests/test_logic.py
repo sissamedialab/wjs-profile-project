@@ -284,7 +284,7 @@ def test_assign_to_reviewer_hijacked(
     assert len(user_emails) == 1
     assert len(editor_emails) == 1
     assert review_assignment_subject in user_emails[0].subject
-    # TODO after !509 assert assigned_article.version_code in user_emails[0].subject
+    # FIXME: assigned_article.articleworkflow.preprint_id in user_emails[0].subject
     assert f"User {eo_user} executed {review_assignment_subject}" in editor_emails[0].subject
 
 
@@ -451,7 +451,7 @@ def test_assign_to_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == normal_user.email]
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
-    # TODO after !509 assert assigned_article.version_code in user_emails[0].subject
+    # FIXME: assert assigned_article.articleworkflow.preprint_id in emails[0].subject
     assert "You have been invited" not in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
@@ -850,7 +850,7 @@ def test_invite_reviewer(
     emails = [m for m in mail.outbox if m.to[0] == invited_user.email]
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
-    # TODO after !509 assert assigned_article.version_code in user_emails[0].subject
+    # FIXME: assert assigned_article.articleworkflow.preprint_id in emails[0].subject
     assert "is a diamond open access" in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body

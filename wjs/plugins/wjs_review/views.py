@@ -569,7 +569,7 @@ class AuthorPending(ArticleWorkflowBaseMixin):
 class AuthorArchived(AuthorPending):
     title = _("Archived preprints")
     show_filters = True
-    table_configuration_options = {"show_author_due_date": True}
+    table_configuration_options = {"show_author_due_date": True, "show_filter_author": True}
     """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
