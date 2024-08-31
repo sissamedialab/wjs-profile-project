@@ -8,6 +8,7 @@
   <th class="text-bg-light" colspan="3" scope="col">{% translate "Dates" %}</th>
   <th class="text-bg-light" colspan="4" scope="col">{% translate "Papers" %}</th>
   <th class="text-bg-light" rowspan="2" scope="col">{% translate "Files" %}</th>
+  <th class="text-bg-light" rowspan="2" scope="col">{% translate "Pub<br>mode." %}</th>
   <th class="text-bg-light" rowspan="2" scope="col">{% translate "Notes" %}</th>
   <th class="text-bg-light" rowspan="2" scope="col"></th>
 </tr>
@@ -61,6 +62,9 @@
       <!-- djlint:on -->
       {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=modal_title_label include_path="wjs_review/lists/elements/issue/_issue_files_modal.html" %}
     {% endwith %}
+  </td>
+  <td class="text-center">
+    {% include "wjs_review/lists/elements/issue/_toggle_batch.html" %}
   </td>
   <td class="text-center">
     {% if request.user|is_user_eo %}

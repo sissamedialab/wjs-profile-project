@@ -101,6 +101,18 @@ class EditorKeyword(models.Model):
         return f"{self.editor_parameters.editor} - Editor keyword: {self.keyword}"
 
 
+class IssueParameters(models.Model):
+    issue = models.OneToOneField("journal.Issue", verbose_name=_("Issue"), on_delete=models.CASCADE)
+    batch_publish = models.BooleanField(_("Batch published"), default=True)
+
+    class Meta:
+        verbose_name = _("Issue parameters")
+        verbose_name_plural = _("Issue parameters")
+
+    def __str__(self):  # NOQA: D105
+        return f"Issue parameters for {self.issue}"
+
+
 # Add settings.LANGUAGES choices, but add also the empty value to avoid the need to specify a language as default
 # (as it is not sure that, for example, english will be always available in settings.LANGUAGES)
 def _get_language_choices():

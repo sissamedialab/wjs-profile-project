@@ -90,8 +90,8 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="{% url 'issue_add_article' issue.pk %}" class="button">Add Article (temporary)</a>
-                                    <a href="{% url 'si-imu-1' pk=issue.pk %}" class="button">{% trans "Bulk-insert users" %}</a>{% trans " (create multiple authors/article by uploading a spreadsheet)." %}
+                                    <a href="{% url 'issue_add_article' i.pk %}" class="button">Add Article (temporary)</a>
+                                    <a href="{% url 'si-imu-1' pk=i.pk %}" title="{% trans "Create multiple authors/article by uploading a spreadsheet" %}" class="button">{% trans "Bulk-insert users" %}</a>
                                 </td>
                             </tr>
                         {% endfor %}

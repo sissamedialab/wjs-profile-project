@@ -13,7 +13,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
-from journal.models import Journal
+from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import ReviewAssignment
 from submission.models import Article
@@ -434,18 +434,31 @@ def article_in_special_issue(workflow: ArticleWorkflow) -> bool:
         return False
 
 
+def issue_published_batch(issue: Issue) -> bool:
+    """
+    Check if the issue is published in batch mode.
+
+    :param issue: The workflow to check issue on.
+    :type issue: Issue
+    :return True if the article is in a special issue, False otherwise.
+    :rtype: bool
+    """
+    try:
+        return issue.issueparameters.batch_publish
+    except AttributeError:
+        return False
+
+
 def article_is_published_piecemeal(workflow: ArticleWorkflow) -> bool:
     """
     Check if the article is in an issue for which articles are published piecemeal.
-
-    FIXME: Currently this is a placeholder function negating :py:func:`article_in_special_issue`.
 
     :param workflow: The workflow to check issue on.
     :type workflow: ArticleWorkflow
     :return True if the article is in a special issue, False otherwise.
     :rtype: bool
     """
-    return not article_in_special_issue(workflow)
+    return not issue_published_batch(workflow.article.primary_issue)
 
 
 def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) -> bool:
