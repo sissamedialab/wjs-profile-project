@@ -100,3 +100,15 @@ deploy-to-test:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
     DEPLOY_CMD: "deploy-test-wjs:${CI_COMMIT_SHA}"
+
+
+deploy-to-dev:
+  # Deploy the current commit to dev instance
+  # Warning! Be sure not to disrupt other peoples work 🙂
+  extends:
+    - .deploy
+  when: manual
+  variables:
+    SERVER_IP: "$TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+    DEPLOY_CMD: "deploy-dev-wjs:${CI_COMMIT_SHA}"
