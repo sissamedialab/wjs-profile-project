@@ -187,3 +187,15 @@ def preprintid(article):
 def is_user_eo_or_director(context, user: Account) -> bool:
     """Returns if user is part of the EO or has director role for the journal."""
     return has_eo_or_director_role(context["journal"], user)
+
+
+@register.filter
+def is_cfp(news):
+    """Returns if the CFP is open for the journal."""
+    return news.tags.filter(text="call").exists()
+
+
+@register.filter
+def is_archived_cfp(news):
+    """Returns if the CFP is open for the journal."""
+    return news.tags.filter(text="archived-calls").exists()
