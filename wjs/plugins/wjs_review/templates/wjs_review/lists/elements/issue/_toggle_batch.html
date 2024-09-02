@@ -1,0 +1,6 @@
+{% load wjs_review wjs_tags %}
+{% if request.user|is_user_eo %}
+  <a id="toggle-batch" hx-post="{% url 'toggle-issue-batch' issue.pk %}" hx-target="#toggle-batch"
+     title="{% if issue.issueparameters.batch_publish %}{% translate "Issue is published in batch mode" %}{% else %}{% translate "Issue is published piecemeal" %}{% endif %}">{% if issue.issueparameters.batch_publish %}
+    <i class="bi bi-journals"></i>{% else %}<i class="bi bi-table"></i>{% endif %}</a>
+{% endif %}

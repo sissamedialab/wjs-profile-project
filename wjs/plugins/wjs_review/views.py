@@ -2462,3 +2462,23 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
         initial["notification_subject"] = message_subject
         initial["notification_body"] = message_body
         return initial
+
+
+class ToggleIssueBatch(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    """A view to toggle the issue batch state."""
+
+    model = Issue
+    template_name = "wjs_review/lists/elements/issue/_toggle_batch.html"
+    context_object_name = "issue"
+    fields = ["batch_publish"]
+
+    def test_func(self):
+        """User must be the journal's EO."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        """Toggle value of IssueParameters.batch_publish."""
+        self.object = self.get_object()
+        self.object.issueparameters.batch_publish = not self.object.issueparameters.batch_publish
+        self.object.issueparameters.save()
+        return self.get(request, *args, **kwargs)

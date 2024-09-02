@@ -1,11 +1,11 @@
 {% load django_bootstrap5 wjs_articles wjs_tags %}
-  <tr>
-    <th class="text-bg-light" colspan="3" scope="col">{% translate "Name" %}</th>
-    <th class="text-bg-light" colspan="3" scope="col">{% translate "Date" %}</th>
-    <th class="text-bg-light" colspan="4" scope="col">{% translate "Papers" %}</th>
-    <th class="text-bg-light" colspan="2" scope="col">{% translate "Notes" %}</th>
-    <th class="text-bg-light" scope="col"></th>
-  </tr>
+<tr>
+  <th class="text-bg-light" colspan="3" scope="col">{% translate "Name" %}</th>
+  <th class="text-bg-light" colspan="3" scope="col">{% translate "Date" %}</th>
+  <th class="text-bg-light" colspan="5" scope="col">{% translate "Papers" %}</th>
+  <th class="text-bg-light" colspan="2" scope="col">{% translate "Notes" %}</th>
+  <th class="text-bg-light" scope="col"></th>
+</tr>
 <tr>
   <td colspan="3">
     {{ issue.display_title }}
@@ -16,7 +16,7 @@
   <td colspan="3">
     {{ issue.date|date:DATE_FORMAT }}
   </td>
-  <td class="text-center" colspan="4">
+  <td class="text-center" colspan="5">
     {{ issue.articles.count }}
   </td>
   <td class="text-center" colspan="2">
