@@ -10,7 +10,7 @@ from typing import Optional
 from django import template
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Case, IntegerField, OuterRef, Q, QuerySet, When
+from django.db.models import Case, IntegerField, OuterRef, QuerySet, When
 from django.utils import timezone
 from journal.models import ArticleOrdering, Issue
 from plugins.typesetting.models import (
@@ -52,9 +52,7 @@ def review_assignments_of_current_round(article):
         article.reviewassignment_set.filter(
             review_round=current_round,
         )
-        .filter(
-            Q(date_declined__isnull=True) & ~Q(decision="withdraw"),
-        )
+        .active()
         .annotate(
             ordering_score=Case(
                 When(date_complete__isnull=False, then=0),
@@ -235,7 +233,7 @@ def article_completed_review_by_user(article: Article, user: Account) -> Optiona
                 reviewer=user,
                 date_complete__isnull=False,
             )
-            .exclude(decision="withdraw")
+            .not_withdrawn()
             .latest("date_complete")
         )
     except WorkflowReviewAssignment.DoesNotExist:

@@ -23,7 +23,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -150,11 +150,7 @@ def handle_reviewer_deassignment_reminders(assignment: WorkflowReviewAssignment)
     """
     other_assignments = get_other_review_assignments_for_this_round(assignment)
     if not other_assignments.filter(is_complete=False).exists():
-        if (
-            other_assignments.filter(is_complete=True)
-            .filter(Q(date_declined__isnull=True) & ~Q(decision="withdraw"))
-            .exists()
-        ):
+        if other_assignments.filter(is_complete=True).not_declined_or_withdrawn().exists():
             EditorShouldMakeDecisionReminderManager(
                 article=assignment.article,
                 editor=assignment.editor,

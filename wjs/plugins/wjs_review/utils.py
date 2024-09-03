@@ -5,16 +5,15 @@ import zipfile
 from typing import IO
 
 from django.conf import settings
-from django.db.models import QuerySet
 from django.utils.module_loading import import_string
 from submission.models import Article
 
-from .models import WorkflowReviewAssignment
+from .models import WorkflowReviewAssignment, WorkflowReviewAssignmentQuerySet
 
 
 def get_other_review_assignments_for_this_round(
     review_assignment: WorkflowReviewAssignment,
-) -> QuerySet[WorkflowReviewAssignment]:
+) -> WorkflowReviewAssignmentQuerySet[WorkflowReviewAssignment]:
     """Return a queryset of ReviewAssigments for the same article/round of the given review_assigment.
 
     The queryset does not include the give review_assigment.
@@ -38,7 +37,7 @@ def get_other_review_assignments_for_this_round(
             review_round=review_round,
         )
         .exclude(id=my_id)
-        .exclude(decision="withdrawn")
+        .not_withdrawn()
     )
     return other_assignments_for_this_round
 

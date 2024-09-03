@@ -16,11 +16,15 @@ from django.db.models import (
 )
 from django.http import QueryDict
 from journal.models import Journal
-from review.models import ReviewAssignment
 from submission.models import Article, Keyword
 from utils.logger import get_logger
 
-from .models import ArticleWorkflow, ProphyCandidate, WjsEditorAssignment
+from .models import (
+    ArticleWorkflow,
+    ProphyCandidate,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 
 logger = get_logger(__name__)
 
@@ -135,13 +139,13 @@ def annotate_is_active_reviewer(self, article: Article):
     """Annotate Accounts, indicating if the person is a reviewer of the given Article.
 
     By active reviewer we mean that the person
-    - has a ReviewAssignment on this Article
+    - has a WorkflowReviewAssignment on this Article
     - the assignment if for the `current_review_round` of the Article
     - the assignment might or might not be declined or completed (?)
 
     """
     current_round = article.current_review_round()
-    _filter = ReviewAssignment.objects.filter(
+    _filter = WorkflowReviewAssignment.objects.filter(
         article=article.id,
         reviewer=OuterRef("id"),
         review_round__round_number=current_round,
@@ -157,11 +161,11 @@ def annotate_is_last_round_reviewer(self, article: Article):
     """Annotate Accounts, indicating if the person has been a reviewer of the given Article in the previous round.
 
     By past reviewer we mean that the person
-    - has a ReviewAssignment on this Article
+    - has a WorkflowReviewAssignment on this Article
     - the assignment is on the previous round
     """
     current_round = article.current_review_round()
-    _filter = ReviewAssignment.objects.filter(
+    _filter = WorkflowReviewAssignment.objects.filter(
         article=article.id,
         reviewer=OuterRef("id"),
         review_round__round_number=current_round - 1,
@@ -175,14 +179,14 @@ def annotate_is_last_round_reviewer(self, article: Article):
 def annotate_has_completed_review_in_the_previous_round(self, article: Article):
     """Annotate Accounts, indicating if the person has completed a review in the previous round."""
     current_round = article.current_review_round()
-    did_review_previously = ReviewAssignment.objects.filter(
+    did_review_previously = WorkflowReviewAssignment.objects.filter(
         article=article.id,
         reviewer=OuterRef("id"),
         review_round__round_number=current_round - 1,
         date_complete__isnull=False,
         # no need for `date_declined__isnull=True`, it's redundant when date_complete is not null
         # need this because the withdraw() janeway logic sets date_complete=now()
-    ).exclude(decision="withdraw")
+    ).not_withdrawn()
 
     return self.annotate(
         wjs_has_completed_review_in_the_previous_round=Exists(did_review_previously),
@@ -192,13 +196,13 @@ def annotate_has_completed_review_in_the_previous_round(self, article: Article):
 def annotate_has_currently_completed_review(self, article: Article):
     """Annotate Accounts, indicating if the person has a completed review for the current round."""
     current_round = article.current_review_round()
-    did_review_previously = ReviewAssignment.objects.filter(
+    did_review_previously = WorkflowReviewAssignment.objects.filter(
         article=article.id,
         reviewer=OuterRef("id"),
         review_round__round_number=current_round,
         date_complete__isnull=False,
         # no need for `date_declined__isnull=True`, it's redundant when date_complete is not null
-    ).exclude(decision="withdraw")
+    ).not_withdrawn()
 
     return self.annotate(
         wjs_has_currently_completed_review=Exists(did_review_previously),
@@ -208,9 +212,9 @@ def annotate_has_currently_completed_review(self, article: Article):
 def annotate_declined_the_previous_review_round(self, article: Article):
     """Annotate Accounts, indicating if the person has declined an assignment in the previous review round."""
     current_round = article.current_review_round()
-    _filter = ReviewAssignment.objects.filter(
+    _filter = WorkflowReviewAssignment.objects.filter(
         article=article.id, reviewer=OuterRef("id"), review_round__round_number=current_round - 1
-    ).filter(Q(date_declined__isnull=False) | Q(decision="withdraw"))
+    ).declined_or_withdrawn()
 
     return self.annotate(
         wjs_has_delined_the_previous_review_round=Exists(_filter),
@@ -220,9 +224,9 @@ def annotate_declined_the_previous_review_round(self, article: Article):
 def annotate_declined_current_review_round(self, article: Article):
     """Annotate Accounts, indicating if the person has declined an assignment in the current review round."""
     current_round = article.current_review_round()
-    _filter = ReviewAssignment.objects.filter(
+    _filter = WorkflowReviewAssignment.objects.filter(
         article=article.id, reviewer=OuterRef("id"), review_round__round_number=current_round
-    ).filter(Q(date_declined__isnull=False) | Q(decision="withdraw"))
+    ).declined_or_withdrawn()
 
     return self.annotate(
         wjs_has_declined_current_review_round=Exists(_filter),
@@ -232,10 +236,12 @@ def annotate_declined_current_review_round(self, article: Article):
 def annotate_worked_with_me(self, editor: Account):
     """Annotate Accounts, indicating if the person has ever worked with the given editor.
 
-    At least one assignement must not be declined.
+    At least one assignment must not be declined.
     """
-    _filter = ReviewAssignment.objects.filter(editor=editor, reviewer=OuterRef("id")).filter(
-        Q(date_declined__isnull=True) & ~Q(decision="withdraw")
+    _filter = (
+        WorkflowReviewAssignment.objects.not_withdrawn()
+        .filter(editor=editor, reviewer=OuterRef("id"))
+        .filter(date_declined__isnull=True)
     )
 
     return self.annotate(
