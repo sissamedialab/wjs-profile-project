@@ -1860,7 +1860,7 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
             article=self.object.article,
             is_complete=True,
             for_author_consumption=True,
-        ).exclude(decision="withdrawn")
+        ).not_withdrawn()
 
     def _get_revisions(self) -> QuerySet[EditorRevisionRequest]:
         return EditorRevisionRequest.objects.filter(

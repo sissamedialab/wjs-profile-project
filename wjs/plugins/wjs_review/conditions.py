@@ -15,7 +15,6 @@ from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
-from review.models import ReviewAssignment
 from submission.models import Article
 
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
@@ -35,7 +34,7 @@ from .models import (
 Account = get_user_model()
 
 
-def is_late(assignment: ReviewAssignment, user: Account) -> str:
+def is_late(assignment: WorkflowReviewAssignment, user: Account) -> str:
     """Tell if the assignment is late.
 
     The model function `is_late` looks at the due date, i.e. we are checking if the report is late, not if the
@@ -50,7 +49,7 @@ def is_late(assignment: ReviewAssignment, user: Account) -> str:
         return ""
 
 
-def is_late_invitation(assignment: ReviewAssignment, user: Account) -> str:
+def is_late_invitation(assignment: WorkflowReviewAssignment, user: Account) -> str:
     """Tell if the reviewer didn't even accepted/declined the assignment.
 
     To check if the report is late, see `is_late` above.
@@ -69,7 +68,7 @@ def always(*args, **kwargs) -> str:
     return "Please check."
 
 
-def review_done(assignment: ReviewAssignment, user: Account) -> str:
+def review_done(assignment: WorkflowReviewAssignment, user: Account) -> str:
     """Tell if the assignement has been accepted and completed.
 
     Warning: assignment.is_complete is True also for declined reviews.
@@ -81,12 +80,13 @@ def review_done(assignment: ReviewAssignment, user: Account) -> str:
         return ""
 
 
-def review_not_done(assignment: ReviewAssignment, user: Account) -> str:
+def review_not_done(assignment: WorkflowReviewAssignment, user: Account) -> str:
     """Tell if this review is not done.
 
     Something not-done is:
     - not accepted and not declined
     - accepted but not complete
+    - withdrawn
 
     This is useful to filter-out actions such as "editor deselects reviewer", since it is not correct to deselect
     done-reviews and there is no gain in deselecting declined reviews.
@@ -95,6 +95,8 @@ def review_not_done(assignment: ReviewAssignment, user: Account) -> str:
     if assignment.date_accepted and assignment.is_complete:
         return ""
     if assignment.date_declined:
+        return ""
+    if assignment.decision == "withdrawn":
         return ""
     return "Review pending."
 
@@ -132,14 +134,12 @@ def all_assignments_completed(article: Article) -> str:
     # TODO: review this condition. Do we need the editor to look at the paper as soon as there is one completed
     # assignment?
     review_round = article.current_review_round_object()
-    assignments = ReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(is_complete=True, date_declined__isnull=True),  # completed reviews
-    ).exclude(decision="withdrawn")
-    pending_assignments = ReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(is_complete=False, date_declined__isnull=True),  # active reviews
-    )
+    assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).completed()
+    pending_assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).pending()
     if assignments.exists() and not pending_assignments.exists():
         return "All review assignments are ready."
     else:
@@ -181,7 +181,7 @@ def one_review_assignment_late(article: Article) -> str:
     review_round = article.current_review_round_object()
     # TODO: use django.db.models.functions.Now() ?
     now = timezone.now().date()
-    late_assignments = ReviewAssignment.objects.filter(
+    late_assignments = WorkflowReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
         & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
     )
@@ -199,7 +199,7 @@ def editor_as_reviewer_is_late(article: Article) -> str:
         return ""
     review_round = article.current_review_round_object()
     now = timezone.now().date()
-    late_assignments = ReviewAssignment.objects.filter(
+    late_assignments = WorkflowReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round, reviewer=editor)
         & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
     )
@@ -213,7 +213,7 @@ def user_can_be_assigned_as_reviewer(workflow: ArticleWorkflow, user: Account) -
     """Tell if the user is already set as reviewer of the current round."""
     article = workflow.article
     review_round = article.current_review_round_object()
-    has_reviews = ReviewAssignment.objects.filter(review_round=review_round, reviewer=user).exists()
+    has_reviews = WorkflowReviewAssignment.objects.filter(review_round=review_round, reviewer=user).exists()
     if has_reviews:
         return ""
     else:
@@ -308,7 +308,7 @@ def reviewer_report_is_late(article: Article) -> str:
     # asked, pending/unfinished assignments are withdrawn). The filter on the round should thus be superfluous.
     review_round = article.current_review_round_object()
     now = timezone.now().date()
-    late_assignments = ReviewAssignment.objects.filter(
+    late_assignments = WorkflowReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
         & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
     )
@@ -342,7 +342,7 @@ def is_author_proofing_late(assignment: GalleyProofing) -> str:
         return ""
 
 
-def can_edit_permissions_by_assignment(assignment: ReviewAssignment, user: Account) -> str:
+def can_edit_permissions_by_assignment(assignment: WorkflowReviewAssignment, user: Account) -> str:
     """
     Tell if the user can edit permissions on the workflow.
 
@@ -351,8 +351,8 @@ def can_edit_permissions_by_assignment(assignment: ReviewAssignment, user: Accou
     - director
     - EO
 
-    :param assignment: The ReviewAssignment to check access to.
-    :type assignment: ReviewAssignment
+    :param assignment: The WorkflowReviewAssignment to check access to.
+    :type assignment: WorkflowReviewAssignment
     :param user: The user to check access for.
     :type user: Account
     :return: True if the user can edit permission, False otherwise.

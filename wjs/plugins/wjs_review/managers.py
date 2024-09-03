@@ -128,7 +128,24 @@ class WjsEditorAssignmentQuerySet(models.QuerySet):
 
 
 class WorkflowReviewAssignmentQuerySet(models.QuerySet):
-    def valid(self, article: Article, review_round: ReviewRound) -> QuerySet:
+    """FIXME: Add filter for each method."""
+
+    def by_current_round(self, article: Article, review_round: ReviewRound) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments for the given review round.
+
+        :param article: the article to get the valid review assignments for
+        :type article: Article
+
+        :param review_round: review round to get the valid review assignments for
+        :type review_round: ReviewRound
+
+        :return: the review assignments for the given article
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.filter(article=article, review_round=review_round)
+
+    def valid(self, article: Article, review_round: ReviewRound) -> "WorkflowReviewAssignmentQuerySet":
         """
         Return the valid review assignments for the given article.
 
@@ -143,12 +160,72 @@ class WorkflowReviewAssignmentQuerySet(models.QuerySet):
         :type review_round: ReviewRound
 
         :return: the valid review assignments for the given article
-        :rtype: QuerySet
+        :rtype: "WorkflowReviewAssignmentQuerySet"
         """
-        return self.filter(
-            Q(article=article, review_round=review_round)
-            & Q(
-                Q(is_complete=False)  # active reviews
-                | (Q(is_complete=True) & Q(date_declined__isnull=True) & ~Q(decision="withdraw")),  # completed reviews
-            ),
-        )
+        return self.active().by_current_round(article=article, review_round=review_round)
+
+    def not_withdrawn(self) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments that are not withdrawn.
+
+        It does not filter by article / review round, use in conjunction with :py:meth:`by_current_round`.
+
+        :return: review assignments that are not withdrawn
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.exclude(decision="withdrawn")
+
+    def declined_or_withdrawn(self) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments that are either withdrawn or declined.
+
+        It does not filter by article / review round, use in conjunction with :py:meth:`by_current_round`.
+
+        :return: review assignments that are not withdrawn
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.filter(Q(date_declined__isnull=False) | Q(decision="withdrawn"))
+
+    def not_declined_or_withdrawn(self) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments that are not withdrawn or declined.
+
+        It does not filter by article / review round, use in conjunction with :py:meth:`by_current_round`.
+
+        :return: review assignments that are not withdrawn
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.exclude(Q(date_declined__isnull=False) | Q(decision="withdrawn"))
+
+    def active(self) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments that are not completed or with a submitted review report.
+
+        It does not filter by article / review round, use in conjunction with :py:meth:`by_current_round`.
+
+        :return: review assignments that are not withdrawn
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.not_declined_or_withdrawn()
+
+    def pending(self) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments that are not completed and not declined.
+
+        It does not filter by article / review round, use in conjunction with :py:meth:`by_current_round`.
+
+        :return: review assignments that are not withdrawn
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.filter(is_complete=False, date_declined__isnull=True)
+
+    def completed(self) -> "WorkflowReviewAssignmentQuerySet":
+        """
+        Return the review assignments that are completed with a submitted review report.
+
+        It does not filter by article / review round, use in conjunction with :py:meth:`by_current_round`.
+
+        :return: review assignments that are not withdrawn
+        :rtype: "WorkflowReviewAssignmentQuerySet"
+        """
+        return self.active().filter(is_complete=True)
