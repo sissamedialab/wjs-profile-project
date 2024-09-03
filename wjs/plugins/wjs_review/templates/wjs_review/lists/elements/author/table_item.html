@@ -1,5 +1,5 @@
 {% load wjs_articles wjs_review wjs_tags %}
-{% get_article_classes workflow as article_classes %}
+{% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
     <td data-order="{{ article.pk }}" class="text-nowrap">
@@ -8,7 +8,7 @@
       <span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span>
     </td>
     <td>
-      <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
+      <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
     </td>
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}

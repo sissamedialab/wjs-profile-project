@@ -1,14 +1,14 @@
 {% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
-{% get_article_classes workflow as article_classes %}
+{% article_css_classes workflow as article_classes %}
 
 <div class="d-flex justify-content-between">
   <div class="d-flex align-items-center gap-3">
     <h3>
-      <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span> -
+      <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span> -
       {{ workflow }}
     </h3>
     {% if workflow|is_user_article_manager:request.user %}
-      <h5><span class="badge {{ article_classes.state }}" title="{% translate "State" %}: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span></h5>
+      <h5><span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">{{ workflow.state_label }}</span></h5>
     {% endif %}
   </div>
   <div class="d-flex align-items-center gap-3">

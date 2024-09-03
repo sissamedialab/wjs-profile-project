@@ -1,12 +1,12 @@
 {% load wjs_articles wjs_review wjs_tags %}
-{% get_article_classes workflow as article_classes %}
+{% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
     <td data-order="{{ article.date_submitted|date:"U" }}" class="text-nowrap">
       <a title="{{ article.title }}"
          href="{% url 'wjs_article_details' workflow.id %}"
          class="fw-bold">{{ article|versioned_number }}</a><br><span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span></td>
-    <td><span class="badge {{ article_classes.section }}">{{ article.section.name }}</span></td>
+    <td><span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span></td>
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
     </td>
@@ -17,7 +17,7 @@
       {% include "wjs_review/lists/elements/table_item_status.html" %}
     </td>
     <td>
-      {% if workflow.get_state_display == "Editor selected" %}
+      {% if workflow.state_label == "Editor selected" %}
         {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
       {% endif %}
     </td>

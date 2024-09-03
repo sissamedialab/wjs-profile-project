@@ -1,11 +1,12 @@
 {% load django_bootstrap5 i18n wjs_review %}
 {% if current_review_assignment %}
-        {% include "wjs_review/details/elements/review_assignment_main.html" with assignment=current_review_assignment version=versions.0 %}
+  {% include "wjs_review/details/elements/review_assignment_main.html" with assignment=current_review_assignment version=versions.0 %}
 {% endif %}
+{% get_article_actions workflow "" as actions %}
+{% if actions %}
 <div class="card border border-1 mb-4">
   <h5 class="card-header fw-bolder">{% translate "Actions" %}</h5>
   <div class="card-body">
-    {% get_article_actions workflow "" as actions %}
     <ul class="nav flex-column nav--blue-dot">
       {% for action in actions %}
         <li class="nav-item">{% include "wjs_review/details/elements/actions_button.html" %}</li>
@@ -31,3 +32,4 @@
     {% endif %}
   </div>
 </div>
+{% endif %}

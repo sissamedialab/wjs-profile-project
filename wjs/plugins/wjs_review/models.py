@@ -2,7 +2,7 @@
 
 import dataclasses
 import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 import html2text
 from core import models as core_models
@@ -17,6 +17,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
@@ -262,7 +263,7 @@ class ArticleWorkflow(TimeStampedModel):
         TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
         REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
-        OPEN_APPEAL = "open_appeal", _("Open appeal")
+        OPEN_APPEAL = EditorialDecisions.OPEN_APPEAL.value, _("Open appeal")
 
         @classmethod
         @property
@@ -270,13 +271,29 @@ class ArticleWorkflow(TimeStampedModel):
             return [
                 choice
                 for choice in cls.choices
-                if choice[0] not in [cls.REQUIRES_RESUBMISSION.value, cls.TECHNICAL_REVISION.value]
+                if choice[0]
+                not in [cls.REQUIRES_RESUBMISSION.value, cls.TECHNICAL_REVISION.value, cls.OPEN_APPEAL.value]
             ]
 
     class GalleysStatus(models.IntegerChoices):
         NOT_TESTED = 1, _("Galleys not tested")
         TEST_FAILED = 2, _("Galleys generation failed")
         TEST_SUCCEEDED = 3, _("Galleys generation succeeded")
+
+    class ReviewComputedStates(models.TextChoices):
+        REQUESTED_MINOR_REVISION = "requested_minor_revisions", _("Requested Minor revision")
+        REQUESTED_MAJOR_REVISION = "requested_major_revisions", _("Requested Major revision")
+        REQUESTED_OPEN_APPEAL = "requested_open_appeal", _("Requested Appeal")
+        REQUESTED_TECHNICAL_REVISION = "requested_tech_revisions", _("Requested Metadata change")
+        REQUESTED_REQUIRES_RESUBMISSION = "requested_requires_resubmission", _("Requested resubmission")
+        WAITING_FOR_DECISION = "waiting_for_decision", _("Waiting for decision")
+        IN_REVIEW = "in_review", _("In review")
+        RESUBMITTED_MINOR_REVISION = "resubmitted_minor_revisions", _("Resubmitted Minor revision")
+        RESUBMITTED_MAJOR_REVISION = "resubmitted_major_revisions", _("Resubmitted Major revision")
+        RESUBMITTED_OPEN_APPEAL = "resubmittedopen_appeal", _("Resubmitted Appeal")
+        RESUBMITTED_TECHNICAL_REVISION = "resubmitted_tech_revisions", _("Resubmitted Metadata change")
+        RESUBMITTED_REQUIRES_RESUBMITTED = "resubmitted_requires_resubmission", _("Resubmitted resubmitted")
+        ASSIGNED_TO_EDITOR = "assigned_to_editor", _("Assigned to Editor")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
@@ -349,6 +366,84 @@ class ArticleWorkflow(TimeStampedModel):
     def get_absolute_url(self):
         """Return canonical url of the object as per Django convention."""
         return reverse("wjs_article_details", args=[self.pk])
+
+    @cached_property
+    def state_value(self) -> Union["ReviewStates", "ReviewComputedStates"]:
+        """
+        Return the code for the article state.
+
+        The value can be either one of :py:attr:`ReviewComputedStates` or :py:attr:`ReviewStates` depending
+         on the states or other factors like the presence of accepted review requests, active reviews, etc.
+
+        :return: The verbose state label of the article.
+        :rtype: Union["ReviewStates", "ReviewComputedStates"
+        """
+        from .logic import (
+            states_when_article_is_considered_archived,
+            states_when_article_is_considered_in_production,
+        )
+
+        article = self.article
+        if (
+            self.state in states_when_article_is_considered_in_production
+            or self.state in states_when_article_is_considered_archived
+        ):
+            return self.state
+
+        waiting_for_revision = article.active_revision_requests().filter(
+            editorrevisionrequest__review_round=article.current_review_round_object(),
+        )
+        completed_revision = article.completed_revision_requests().filter(
+            editorrevisionrequest__review_round__round_number=article.current_review_round() - 1,
+        )
+        submitted_reviews = article.completed_reviews.exclude(decision="withdrawn").filter(
+            review_round=article.current_review_round_object(),
+        )
+        outstanding_reviews = article.active_reviews.filter(
+            review_round=article.current_review_round_object(),
+        )
+
+        # The order of the following checks is important because the first one that matches will be returned.
+        if waiting_for_revision.exists():
+            revision = waiting_for_revision.first()
+            return self.ReviewComputedStates("requested_" + revision.type).value
+
+        # No pending reviews with at least one submitted review -> Editor must make a decision
+        elif not outstanding_reviews.exists() and submitted_reviews.exists():
+            return self.ReviewComputedStates.WAITING_FOR_DECISION.value
+
+        # At least one submitted review and one pending reviews (implicit because of the previous clause) ->
+        # Article is in review
+        elif submitted_reviews.exists():
+            return self.ReviewComputedStates.IN_REVIEW.value
+
+        # At least one pending review (and none submitted) -> Article is in review
+        elif outstanding_reviews.exists():
+            return self.ReviewComputedStates.IN_REVIEW.value
+
+        elif completed_revision.exists():
+            revision = completed_revision.first()
+            return self.ReviewComputedStates("resubmitted_" + revision.type).value
+
+        else:
+            return self.ReviewComputedStates.ASSIGNED_TO_EDITOR.value
+
+    @cached_property
+    def state_label(self) -> str:
+        """
+        Return the verbose state label of the article.
+
+        Label is calculated based on the value of :py:attr:`state_value`.
+
+        :return: label of the state
+        :rtype: str
+        """
+        value = self.state_value
+        if value in self.ReviewComputedStates.values:
+            return self.ReviewComputedStates(value).label
+        if value in self.ReviewStates.values:
+            return self.ReviewStates(value).label
+        return value
 
     def pending_revision_request(self):
         try:
