@@ -1,7 +1,7 @@
 {% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
 {% translate "Issue Files" as modal_title_label %}
 {% if article.articleworkflow.pk %}
-  {% get_article_classes article.articleworkflow as article_classes %}
+  {% article_css_classes workflow as article_classes %}
   <tr class="article">
     <td>
       <input type="hidden" name="articles[]" value="{{ article.pk }}" />
@@ -10,7 +10,7 @@
           <i class="bi bi-grip-vertical sort-grip"></i>
         {% endif %}
         <div>
-          <span class="badge {{ article_classes.section }}">{{ article.section.name }}</span>
+          <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
           <br />
           <a title="{{ article.title }}"
              href="{% url 'wjs_article_details' article.articleworkflow.pk %}"
@@ -30,7 +30,7 @@
       {% endwith %}
     </td>
     <td>
-      <span class="badge {% if publish_status %}{{ article_classes.publishable }}{% else %}{{ article_classes.state }}{% endif %}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}</span>
+      <span class="badge {% if publish_status %}{{ article_classes.publishable_css }}{% else %}{{ article_classes.state_css }}{% endif %}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}</span>
     </td>
     <td>
       {{ article.date_published|date:DATE_FORMAT }}

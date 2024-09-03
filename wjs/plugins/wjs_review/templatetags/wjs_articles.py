@@ -12,7 +12,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Case, IntegerField, OuterRef, Q, QuerySet, When
 from django.utils import timezone
-from django.utils.text import slugify
 from journal.models import ArticleOrdering, Issue
 from plugins.typesetting.models import (
     GalleyProofing,
@@ -23,7 +22,6 @@ from submission.models import Article
 
 from wjs.jcom_profile.constants import EO_GROUP
 
-from ..logic import states_when_article_is_considered_in_production
 from ..models import (
     ArticleWorkflow,
     EditorRevisionRequest,
@@ -103,28 +101,6 @@ def last_eo_note(target):
     return eo_notes.last() or ""
 
 
-@register.simple_tag()
-def article_state_details(article):
-    if article.articleworkflow.state in states_when_article_is_considered_in_production:
-        return article.articleworkflow.get_state_display()
-
-    waiting_for_revision = article.active_revision_requests().filter(
-        editorrevisionrequest__review_round=article.current_review_round_object(),
-    )
-
-    if waiting_for_revision.exists():
-        return waiting_for_revision.first().get_type_display()
-
-    elif article.active_reviews.exists():
-        return "Assigned to reviewers"
-
-    elif article.completed_reviews.exclude(decision="withdrawn").exists():
-        return "Waiting for decision"
-
-    else:
-        return article.articleworkflow.get_state_display()
-
-
 @register.filter
 def article_current_editor(article):
     """Return the current editor."""
@@ -151,7 +127,7 @@ def article_current_editor(article):
 
 
 @register.filter
-def article_current_typesetter(article: Article, unfiltered: bool = False) -> TypesettingAssignment:
+def article_current_typesetter(article: Article, unfiltered: bool = False) -> TypesettingAssignment | None:
     """
     Return the current typesetter.
 
@@ -201,15 +177,15 @@ def user_is_corresponding_author(article: Article, user: Account) -> Optional[bo
 
 
 @register.simple_tag()
-def get_article_classes(workflow: ArticleWorkflow) -> dict[str, str]:
+def article_css_classes(workflow: ArticleWorkflow) -> dict[str, str]:
     """Return a string of classes for an article div."""
-    state = f"color-state-{slugify(workflow.state)}"
-    section = f"color-section-{workflow.article.section.pk}"
-    publishable = "bg-success" if workflow.production_flag_no_checks_needed else "bg-danger"
+    state_css = f"color-state-{workflow.state_value}"
+    section_css = f"color-section-{workflow.article.section.pk}"
+    publishable_css = "bg-success" if workflow.production_flag_no_checks_needed else "bg-danger"
     return {
-        "state": state,
-        "section": section,
-        "publishable": publishable,
+        "state_css": state_css,
+        "section_css": section_css,
+        "publishable_css": publishable_css,
     }
 
 

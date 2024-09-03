@@ -1,12 +1,12 @@
 {% load wjs_articles %}
 {% if generic %}
-  {% article_state_details article=workflow.article %}
+  {{ workflow.state_label }}
 {% elif brief %}
-  {% article_state_details article=workflow.article %}
+  {{ workflow.state_label }}
   {% include "wjs_review/lists/elements/attention.html" %}
 {% else %}
   <div class="top-0 {% if attention_flag %}position-absolute{% endif %} py-2">
-    <span class="badge {% if publish_status %}{{ article_classes.publishable }}{% else %}{{ article_classes.state }}{% endif %}" title="State: {{ workflow.get_state_display }}">{{ workflow.get_state_display }}<br><span title="Last transition: {{ workflow.modified|date:"d-M" }}">({{ workflow.modified|date:"d M" }})</span></span>
+    <span class="badge {% if publish_status %}{{ article_classes.publishable_css }}{% else %}{{ article_classes.state_css }}{% endif %}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}<br><span title="Last transition: {{ workflow.modified|date:"d-M" }}">({{ workflow.modified|date:"d M" }})</span></span>
   </div>
   <div class="my-1">
     {% if publish_status %}

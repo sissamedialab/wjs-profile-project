@@ -29,7 +29,7 @@
                                 {% with attention_flag=workflow|article_requires_attention_tt:user %}
                                     <p class="{% if attention_flag %}text-warning{% else %}text-primary{% endif %}">
                                         {% if attention_flag %}{{ attention_flag }} -{% endif %}
-                                        Current state: "{{ workflow.get_state_display }}" (last transition {{ workflow.modified }}) on review round (aka version) {{ workflow.article.current_review_round }}
+                                        Current state: "{{ workflow.state_label }}" (last transition {{ workflow.modified }}) on review round (aka version) {{ workflow.article.current_review_round }}
                                     </p>
                                 {% endwith %}
                                 <div>

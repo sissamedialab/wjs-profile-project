@@ -1,5 +1,5 @@
 {% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
-{% get_article_classes workflow as article_classes %}
+{% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>
     <td class="text-nowrap">
@@ -28,7 +28,7 @@
       {% endif %}
     </td>
     <td>
-      {% if workflow.get_state_display == "Ready for typesetter" %}
+      {% if workflow.state_label == "Ready for typesetter" %}
         <form id="{{ action.slug }}" action="{% url 'wjs_typ_take_in_charge' workflow.id %}" method="post">
           {% csrf_token %}
           {% translate "Take in charge" as take_label %}
