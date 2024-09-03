@@ -13,7 +13,11 @@ from journal import models as journal_models
 from wjs.jcom_profile.models import JCOMProfile
 
 from .. import views
-from ..filters import EOArticleWorkflowFilter, status_choices
+from ..filters import (
+    EOArticleWorkflowFilter,
+    StaffArticleWorkflowFilter,
+    eo_status_choices,
+)
 from ..logic import (
     states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_for_review,
@@ -23,65 +27,140 @@ from ..models import ArticleWorkflow, WjsEditorAssignment, WorkflowReviewAssignm
 
 
 @pytest.mark.django_db
-def test_articleworkflowfilter(journal: journal_models.Journal, create_set_of_articles_with_assignments):
+def test_articleworkflowfilter(
+    journal: journal_models.Journal,
+    create_set_of_articles_with_assignments,
+    fake_request: HttpRequest,
+    section_editor: Account,
+):
     """
     ArticleWorkflowFilter queries.
 
     Different queries are tested in a single test case because setup is expensive.
     """
     workflows = ArticleWorkflow.objects.all()
+    fake_request.user = section_editor
 
     # filter by article title
-    article_filterer = EOArticleWorkflowFilter(data={"article": "reviewer"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(
+        data={"article": "reviewer"}, queryset=workflows, journal=journal, request=fake_request
+    )
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__title__icontains="reviewer"))
 
     # filter by article id
     existing_id = workflows.first().article.id
-    article_filterer = EOArticleWorkflowFilter(data={"article": existing_id}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(
+        data={"article": existing_id}, queryset=workflows, journal=journal, request=fake_request
+    )
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__id=existing_id))
 
     # filter by editor email
-    article_filterer = EOArticleWorkflowFilter(data={"editor": "eee@a.it"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(
+        data={"editor": "eee@a.it"}, queryset=workflows, journal=journal, request=fake_request
+    )
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__editorassignment__editor__email="eee@a.it"))
 
     # filter by author email
-    article_filterer = EOArticleWorkflowFilter(data={"author": "aaa@a.it"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(
+        data={"author": "aaa@a.it"}, queryset=workflows, journal=journal, request=fake_request
+    )
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__authors__email="aaa@a.it"))
 
     # filter by reviewer email
-    article_filterer = EOArticleWorkflowFilter(data={"reviewer": "rrr@a.it"}, queryset=workflows, journal=journal)
+    article_filterer = EOArticleWorkflowFilter(
+        data={"reviewer": "rrr@a.it"}, queryset=workflows, journal=journal, request=fake_request
+    )
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__reviewassignment__reviewer__email="rrr@a.it"))
 
 
+@pytest.mark.parametrize("user_type", ("eo", "section-editor", "director", "none"))
 @pytest.mark.django_db
-def test_articleworkflowfilter_filter_status(
+def test_staffarticleworkflowfilter_filter_status(
+    journal: journal_models.Journal,  # noqa
     fake_request: HttpRequest,
     eo_user: Account,  # noqa
-    journal: journal_models.Journal,  # noqa
     director: Account,  # noqa
+    section_editor: Account,  # noqa
     review_settings,
+    user_type: str,
 ):
     """
-    ArticleWorkflowFilter query by status.
+    StaffArticleWorkflowFilter query by status.
 
-    Different queries are tested in a single test case because setup is expensive.
+    Filtering triggers different queryset methods depending on the status.
+
+    Some filters are available only for EO user
     """
     workflows = ArticleWorkflow.objects.all()
+    if user_type == "eo":
+        fake_request.user = eo_user
+    elif user_type == "director":
+        fake_request.user = director
+    elif user_type == "section-editor":
+        fake_request.user = section_editor
 
     filters = {
-        "eo_unread_messages": "with_unread_messages",
         "my_unread_messages": "with_unread_messages",
         "with_unread_messages": "with_unread_messages",
         "with_reviews": "with_reviews",
         "with_pending_reviews": "with_pending_reviews",
         "with_all_completed_reviews": "with_all_completed_reviews",
+        "eo_unread_messages": "with_unread_messages",
     }
 
+    for status_filter, qs_method in filters.items():
+        with patch(f"plugins.wjs_review.models.ArticleWorkflowQuerySet.{qs_method}") as mock_queryset:
+            article_filterer = StaffArticleWorkflowFilter(
+                data={"status": status_filter},
+                queryset=workflows,
+                request=fake_request,
+                journal=journal,
+            )
+            if status_filter == "eo_unread_messages":
+                if user_type == "eo":
+                    assert status_filter in dict(article_filterer.filters["status"].field.choices)
+                else:
+                    assert status_filter not in dict(article_filterer.filters["status"].field.choices)
+            else:
+                assert status_filter in dict(article_filterer.filters["status"].field.choices)
+            # call the filter method, it must be called low level because filter_queryset asserts that return value
+            # is a queryset which is not in this case because we mocked it
+            article_filterer.filters["status"].filter(workflows, status_filter)
+            mock_queryset.assert_called_once()
+
+
+@pytest.mark.django_db
+def test_eoarticleworkflowfilter_filter_status(
+    journal: journal_models.Journal,  # noqa
+    fake_request: HttpRequest,
+    eo_user: Account,  # noqa
+    director: Account,  # noqa
+    section_editor: Account,  # noqa
+    review_settings,
+):
+    """
+    EOArticleWorkflowFilter query by status.
+
+    Filtering triggers different queryset methods depending on the status.
+
+    This filter is only available for EO user.
+    """
+    workflows = ArticleWorkflow.objects.all()
+    fake_request.user = eo_user
+
+    filters = {
+        "my_unread_messages": "with_unread_messages",
+        "with_unread_messages": "with_unread_messages",
+        "with_reviews": "with_reviews",
+        "with_pending_reviews": "with_pending_reviews",
+        "with_all_completed_reviews": "with_all_completed_reviews",
+        "eo_unread_messages": "with_unread_messages",
+    }
     for status_filter, qs_method in filters.items():
         with patch(f"plugins.wjs_review.models.ArticleWorkflowQuerySet.{qs_method}") as mock_queryset:
             article_filterer = EOArticleWorkflowFilter(
@@ -117,6 +196,7 @@ def test_articleworkflowfilter_status_choices(
     if state != "none":
         ArticleWorkflow.objects.update(state=state)
     workflows = ArticleWorkflow.objects.all()
+    fake_request.user = eo_user
 
     filterset = EOArticleWorkflowFilter(
         queryset=workflows,
@@ -124,11 +204,11 @@ def test_articleworkflowfilter_status_choices(
         journal=journal,
     )
     if state != "none":
-        expected = [""] + [item[0] for item in status_choices()] + [state]
+        expected = [""] + [item[0] for item in eo_status_choices()] + [state]
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
     else:
         states = workflows.values_list("state", flat=True).distinct()
-        expected = [""] + [item[0] for item in status_choices()] + list(states)
+        expected = [""] + [item[0] for item in eo_status_choices()] + list(states)
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
 
 
