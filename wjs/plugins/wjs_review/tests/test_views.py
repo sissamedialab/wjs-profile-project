@@ -234,6 +234,7 @@ def test_invite_function_creates_inactive_user(
         "suffix": "Suffix",
         "email": "email@email.it",
         "message": "random message",
+        "acceptance_due_date": now().date() + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_DAYS),
     }
     response = client.post(url, data=data)
     assert response.status_code == 302
@@ -254,7 +255,7 @@ def test_invite_function_creates_inactive_user(
     assert not invited_user.is_active
     assert not invited_user.gdpr_checkbox
     for field, _ in data.items():
-        if field != "message":
+        if field not in ["message", "acceptance_due_date"]:
             assert getattr(invited_user, field) == data[field]
     assert invited_user.invitation_token == invitation_token
 
