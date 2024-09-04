@@ -67,7 +67,11 @@ from .models import (
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
-from .permissions import has_any_editor_role_by_article, is_article_editor
+from .permissions import (
+    has_any_editor_role_by_article,
+    is_article_editor,
+    is_article_editor_or_eo,
+)
 from .reminders.settings import (
     AuthorShouldSubmitMajorRevisionReminderManager,
     AuthorShouldSubmitMinorRevisionReminderManager,
@@ -2427,7 +2431,7 @@ class DeselectReviewer:
     @staticmethod
     def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
         """Current editor must be article editor."""
-        return is_article_editor(assignment.article.articleworkflow, editor)
+        return is_article_editor_or_eo(assignment.article.articleworkflow, editor)
 
     def check_conditions(self):
         """Check if the conditions for the deassignment are met."""

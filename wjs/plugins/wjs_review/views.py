@@ -2131,7 +2131,7 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
         """
         The user must be the article's editor.
         """
-        return permissions.is_article_editor(self.get_object().article.articleworkflow, self.request.user)
+        return permissions.is_article_editor_or_eo(self.get_object().article.articleworkflow, self.request.user)
 
     def get_success_url(self):
         messages.add_message(
