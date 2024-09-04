@@ -629,7 +629,9 @@ class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
         initial = super().get_initial()
         message_context = {
             "article": self.workflow.article,
+            "workflow": self.workflow,
             "typesetter": self.assignment.typesetter,
+            "user": self.request.user,
         }
         initial["subject"] = render_template_from_setting(
             setting_group_name="wjs_review",
