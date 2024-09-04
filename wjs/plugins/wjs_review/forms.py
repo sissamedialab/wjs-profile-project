@@ -61,6 +61,72 @@ from .models import (
 Account = get_user_model()
 
 
+class BaseInviteSelectReviewerForm(forms.Form):
+    acceptance_due_date = forms.DateField(label=_("Reviewer should accept/decline invite by"), required=False)
+    message_subject = forms.CharField(
+        label=_("Message Subject"),
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "disabled": "disabled",
+                "class": "form-control",
+            }
+        ),
+    )
+    message = forms.CharField(label=_("Message"), widget=SummernoteWidget(), required=False)
+    author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._today = now().date()
+        # refs #648
+        # https://gitlab.sissamedialab.it/wjs/specs/-/issues/648
+        self.date_value = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_DAYS)
+        self.date_min = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
+        self.date_max = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
+        date_attrs = {
+            "type": "date",
+            "value": self.date_value,
+            "min": self.date_min,
+            "max": self.date_max,
+        }
+        self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
+
+    def clean_acceptance_due_date(self):
+        """Ensure that the due date is in the future.
+
+        We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
+        """
+        acceptance_due_date = self.cleaned_data["acceptance_due_date"]
+        if not acceptance_due_date:
+            return acceptance_due_date
+        if acceptance_due_date < now().date():
+            raise forms.ValidationError(_("Date must be in the future"))
+        if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
+            raise forms.ValidationError(_(f"Date must be between {self.date_min} and {self.date_max}"))
+        return acceptance_due_date
+
+    def clean_logic(self):
+        """Run logic instance's check_conditions method."""
+        if not self.get_logic_instance(self.cleaned_data).check_conditions():
+            raise forms.ValidationError(_("Assignment conditions not met."))
+
+    def clean(self) -> Dict[str, Any]:
+        """Run clean_logic method and return cleaned data."""
+        self.clean_logic()
+        return self.cleaned_data
+
+    def save(self, commit: bool = True):
+        try:
+            service = self.get_logic_instance(self.cleaned_data)
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        return self.instance
+
+
 class ArticleReviewStateForm(forms.ModelForm):
     action = forms.ChoiceField(choices=[])
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
@@ -98,40 +164,22 @@ class ArticleReviewStateForm(forms.ModelForm):
         return instance
 
 
-class SelectReviewerForm(forms.ModelForm):
+class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
     reviewer = forms.ModelChoiceField(
         label=_("Reviewer"), queryset=Account.objects.none(), widget=forms.HiddenInput, required=False
     )
-    message = forms.CharField(label=_("Message"), widget=forms.Textarea(), required=False)
-    acceptance_due_date = forms.DateField(label=_("Reviewer should accept/decline invite by"), required=False)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
-    author_note_visible = forms.BooleanField(label=_("Author cover letter"), required=False)
 
     class Meta:
         model = ArticleWorkflow
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
-        """Take care of htmx and reviewer-not-selected."""
         # Memoize the return value to call the function only once
-        _today = now().date()
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
-        htmx = kwargs.pop("htmx", False)
         super().__init__(*args, **kwargs)
-        # refs #648
-        # https://gitlab.sissamedialab.it/wjs/specs/-/issues/648
-        self.date_value = _today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_DAYS)
-        self.date_min = _today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
-        self.date_max = _today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
-        date_attrs = {
-            "type": "date",
-            "value": self.date_value,
-            "min": self.date_min,
-            "max": self.date_max,
-        }
-        self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
         c_data = self.data.copy()
         c_data["state"] = self.instance.state
         self.data = c_data
@@ -139,54 +187,43 @@ class SelectReviewerForm(forms.ModelForm):
         if not self.instance.article.comments_editor:
             self.fields["author_note_visible"].widget = forms.HiddenInput()
 
-        # When loading during an htmx request fields are not required because we're only preseeding the reviewer
-        # When loading during a normal request (ie: submitting the form) fields are required
-        if not htmx and not self.editor_assigns_themselves_as_reviewer:
-            self.fields["message"].required = True
-            self.fields["reviewer"].required = True
-
         if self.editor_assigns_themselves_as_reviewer:
             self.fields["message"].widget = forms.HiddenInput()
             self.fields["author_note_visible"].widget = forms.HiddenInput()
-            self.fields["acceptance_due_date"].label = _("I will review by")
-            self.fields["acceptance_due_date"].help_text = _(
-                "the system will use this date to help you remind of the deadline."
-                " You can always postpone it at your leisure"
-            )
-        # If the reviewer is not set, other fields are disabled, because we need the reviewer to be set first
-        elif not self.data.get("reviewer"):
-            self.fields["acceptance_due_date"].widget.attrs["disabled"] = True
-            self.fields["message"].widget.attrs["disabled"] = True
-            self.fields["author_note_visible"].widget.attrs["disabled"] = True
         else:
-            # reviewer is set
-            if htmx:
-                # we can load default data
+            # we can load default data
+            self.fields["message"].required = True
+            self.fields["reviewer"].required = True
+            self.fields["message"].widget = SummernoteWidget()
+            if not self.data.get("acceptance_due_date", None):
+                interval_days = get_setting(
+                    "wjs_review",
+                    "acceptance_due_date_days",
+                    self.instance.article.journal,
+                )
+                self.data["acceptance_due_date"] = self._today + datetime.timedelta(days=interval_days.process_value())
+            if not self.data.get("author_note_visible", None):
                 default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
-                self.fields["message"].widget = SummernoteWidget()
-                if not self.data.get("message", None):
-                    default_message_rendered = render_template_from_setting(
-                        setting_group_name="wjs_review",
-                        setting_name="review_invitation_message_default",
-                        journal=self.instance.article.journal,
-                        request=self.request,
-                        context=self.get_message_context(),
-                        template_is_setting=True,
-                    )
-                    self.data["message"] = default_message_rendered
-                if not self.data.get("acceptance_due_date", None):
-                    interval_days = get_setting(
-                        "wjs_review",
-                        "acceptance_due_date_days",
-                        self.instance.article.journal,
-                    )
-                    self.data["acceptance_due_date"] = _today + datetime.timedelta(days=interval_days.process_value())
-                if not self.data.get("author_note_visible", None):
-                    self.data["author_note_visible"] = default_visibility
-            else:
-                # the form has been submitted (for real, not htmx)
-                # Nothing to do (the field-required thing has been done already some lines above).
-                pass
+                self.data["author_note_visible"] = default_visibility
+            if not self.data.get("message", None):
+                default_message_rendered = render_template_from_setting(
+                    setting_group_name="wjs_review",
+                    setting_name="review_invitation_message_default",
+                    journal=self.instance.article.journal,
+                    request=self.request,
+                    context=self.get_message_context(),
+                    template_is_setting=True,
+                )
+                self.data["message"] = default_message_rendered
+            default_subject = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="review_invitation_message_subject",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context=self.get_message_context(),
+                template_is_setting=True,
+            )
+            self.data["message_subject"] = default_subject
 
         self.fields["reviewer"].queryset = Account.objects.get_reviewers_choices(self.instance)
 
@@ -209,20 +246,6 @@ class SelectReviewerForm(forms.ModelForm):
         logic.assignment = WorkflowReviewAssignment(id=1, access_code="sample")
         return logic._get_message_context()
 
-    def clean_acceptance_due_date(self):
-        """Ensure that the due date is in the future.
-
-        We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
-        """
-        acceptance_due_date = self.cleaned_data["acceptance_due_date"]
-        if not acceptance_due_date:
-            return acceptance_due_date
-        if acceptance_due_date < now().date():
-            raise forms.ValidationError(_("Date must be in the future"))
-        if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
-            raise forms.ValidationError(_(f"Date must be between {self.date_min} and {self.date_max}"))
-        return acceptance_due_date
-
     def clean_reviewer(self):
         """
         Validate the reviewer.
@@ -234,16 +257,10 @@ class SelectReviewerForm(forms.ModelForm):
             raise forms.ValidationError("A reviewer must not be an author of the article")
         return reviewer
 
-    def clean_logic(self):
-        """Run AssignToReviewer.check_conditions method."""
-        if not self.get_logic_instance(self.cleaned_data).check_conditions():
-            raise forms.ValidationError(_("Assignment conditions not met."))
-
     def clean(self) -> Dict[str, Any]:
         cleaned_data = super().clean()
         if self.editor_assigns_themselves_as_reviewer:
             cleaned_data["reviewer"] = self.user
-        self.clean_logic()
         return cleaned_data
 
     def get_logic_instance(self, cleaned_data: Dict[str, Any]) -> AssignToReviewer:
@@ -261,17 +278,6 @@ class SelectReviewerForm(forms.ModelForm):
             request=self.request,
         )
 
-    def save(self, commit: bool = True) -> ArticleWorkflow:
-        """Change the state of the review using the transition method."""
-        try:
-            service = self.get_logic_instance(self.cleaned_data)
-            service.run()
-        except ValidationError as e:
-            self.add_error(None, e)
-            raise
-        self.instance.refresh_from_db()
-        return self.instance
-
 
 class ReviewerSearchForm(forms.Form):
     search = forms.CharField(required=False, label=_("Name"))
@@ -288,15 +294,13 @@ class ReviewerSearchForm(forms.Form):
     )
 
 
-class InviteUserForm(forms.Form):
+class InviteUserForm(BaseInviteSelectReviewerForm):
     """Used by staff to invite external users for review activities."""
 
     first_name = forms.CharField(label=_("First name"))
     last_name = forms.CharField(label=_("Last name"))
     suffix = forms.CharField(widget=forms.HiddenInput(), required=False)
     email = forms.EmailField(label=_("Email"))
-    message = forms.CharField(label=_("Personal notes for the reviewer"), widget=forms.Textarea, required=False)
-    author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
@@ -315,30 +319,52 @@ class InviteUserForm(forms.Form):
                 "suffix": prophy_account.suffix,
                 "email": prophy_account.email,
             }
+        if not self.data.get("acceptance_due_date", None):
+            interval_days = get_setting(
+                "wjs_review",
+                "acceptance_due_date_days",
+                self.instance.article.journal,
+            )
+            self.data["acceptance_due_date"] = self._today + datetime.timedelta(days=interval_days.process_value())
+        if not self.data.get("message", None):
+            default_message_rendered = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="review_invitation_message_default",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context={"article": self.instance.article, "journal": self.instance.article.journal},
+                template_is_setting=True,
+            )
+            self.fields["message"].initial = default_message_rendered
+        default_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_invitation_message_subject",
+            journal=self.instance.article.journal,
+            request=self.request,
+            context={
+                "article": self.instance.article,
+            },
+            template_is_setting=True,
+        )
+        self.fields["message_subject"].initial = default_subject
 
-    def get_logic_instance(self) -> InviteReviewer:
+    def get_message_context(self):
+        return {
+            "article": self.instance.article,
+            "review_assignment": WorkflowReviewAssignment(id=1, access_code="sample"),
+            "user_message_content": self.data.get("message", ""),
+            "acceptance_due_date": self.data.get("acceptance_due_date", ""),
+        }
+
+    def get_logic_instance(self, cleaned_data: Dict[str, Any]) -> InviteReviewer:
         """Instantiate :py:class:`InviteReviewer` class."""
         service = InviteReviewer(
             workflow=self.instance,
             editor=self.user,
-            form_data=self.cleaned_data,
+            form_data=cleaned_data,
             request=self.request,
         )
         return service
-
-    def save(self, commit: bool = True):
-        """
-        Create user and send invitation.
-
-        Errors are added to the form if the logic fails.
-        """
-        try:
-            service = self.get_logic_instance()
-            service.run()
-        except ValidationError as e:
-            self.add_error(None, e)
-            raise
-        return self.instance
 
 
 class EvaluateReviewForm(forms.ModelForm):

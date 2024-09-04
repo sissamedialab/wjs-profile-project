@@ -726,11 +726,7 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
         self.object = self.get_object()
         if self.htmx:
             return self.get(request, *args, **kwargs)
-        form = self.get_form()
-        if form.is_valid():
-            return self.form_valid(form)
-        else:
-            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
 
     @property
     def search_data(self) -> QueryDict:
@@ -842,7 +838,6 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
-        kwargs["htmx"] = self.htmx
         return kwargs
 
     def get_search_form(self) -> ReviewerSearchForm:
@@ -862,7 +857,7 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
             return super().form_invalid(form)
 
 
-class InviteReviewer(HtmxMixin, LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
+class InviteReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """Invite external users as reviewers.
 
     The user is created as inactive and his/her account is marked
@@ -874,8 +869,30 @@ class InviteReviewer(HtmxMixin, LoginRequiredMixin, ArticleAssignedEditorMixin, 
     model = ArticleWorkflow
     form_class = InviteUserForm
     success_url = reverse_lazy("wjs_review_list")
-    template_name = "wjs_review/select_reviewer/invite_external_reviewer.html"
     context_object_name = "workflow"
+
+    def _render_message_preview(self, form: InviteUserForm) -> str:
+        form_context = form.get_message_context()
+        preview = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_invitation_message_body",
+            journal=self.object.article.journal,
+            request=self.request,
+            context=form_context,
+            template_is_setting=True,
+        )
+        return preview
+
+    def get_context_data(self, **kwargs) -> Context:
+        context = super().get_context_data(**kwargs)
+        context["preview"] = self._render_message_preview(form=context["form"])
+        return context
+
+    def get_template_names(self) -> List[str]:
+        """Select the template based on the request type."""
+        if self.request.headers.get("Hx-Trigger-Name") == "invite-reviewer-message":
+            return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
+        return ["wjs_review/select_reviewer/invite_external_reviewer.html"]
 
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.pk,))
@@ -901,6 +918,16 @@ class InviteReviewer(HtmxMixin, LoginRequiredMixin, ArticleAssignedEditorMixin, 
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+
+    def post(self, request, *args, **kwargs) -> HttpResponse:
+        """
+        Handle POST requests: instantiate a form instance with the passed POST variables and then check if it's valid.
+
+        If we have been called via htmx, it means we are just displaying the form in the modal.
+        """
+        if self.htmx:
+            return self.get(request, *args, **kwargs)
+        return super().post(request, *args, **kwargs)
 
 
 class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
