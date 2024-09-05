@@ -12,10 +12,22 @@
     <div class="row">
         <div class="col m12">
             <div class="card-action">
-                <a href="{% url 'core_news_list' %}">
-                    <i class="fa fa-caret-left"></i>
-                    {% trans "Browse" %} {{ journal_settings.news.news_title }}
-                </a>
+                {% if news_item|is_cfp %}
+                  <a href="{% url 'core_news_list_tag' tag="call" %}">
+                      <i class="fa fa-caret-left"></i>
+                      {% trans "Browse" %} {% trans "Call for papers" %}
+                  </a>
+                {% elif news_item|is_archived_cfp %}
+                  <a href="{% url 'core_news_list_tag' tag="archived-calls" %}">
+                      <i class="fa fa-caret-left"></i>
+                      {% trans "Browse" %} {% trans "Archived call for papers" %}
+                  </a>
+                {% else %}
+                  <a href="{% url 'core_news_list' %}">
+                      <i class="fa fa-caret-left"></i>
+                      {% trans "Browse" %} {{ journal_settings.news.news_title }}
+                  </a>
+                {% endif %}
             </div>
             <div class="card full-width-card">
                 {% if news_item.best_image_url %}
