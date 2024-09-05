@@ -1876,7 +1876,7 @@ Thank you and best regards,
         subject_eo_send_back_to_typesetting_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Article sent back submitted for {{ article.journal }} {{ article.id }}"),
+            "value": _("Sent back to typesetter by EO"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1894,15 +1894,16 @@ Thank you and best regards,
             ),
             "is_translatable": False,
         }
+        # Setting is written in italian because it's the language used between EO and typesetters
         eo_send_back_to_typesetting_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
             "value": """
-            Dear {{ typesetter.full_name }},
-            the EO bla bla for "{{ article.title }} (ID: {{ article.id }})".
+            Ciao {{ typesetter.first_name }},
 
-            Thank you and best regards,
-            JCOM Editorial Office
+            ti rimango il paper {{ workflow }} per <inserire motivo>.
+
+            Grazie, {{ user.first_name }}
             """,
             "translations": {},
         }
