@@ -246,7 +246,7 @@ span.badge {
       }
     }
   }
-  .color-state {
+  &.color-state {
     &-requested_minor_revisions {
       background-color: $color-state-requested_minor_revisions;
 
