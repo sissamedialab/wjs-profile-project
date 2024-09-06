@@ -227,6 +227,55 @@ def test_articleworkflowfilter_status_choices(
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
 
 
+@pytest.mark.django_db
+def test_articleworkflowfilter_special_issue_choices(
+    coauthors_setting,
+    fake_request: HttpRequest,
+    eo_user: Account,  # noqa
+    journal: journal_models.Journal,  # noqa
+    director: Account,  # noqa
+    review_settings,
+    special_issue: journal_models.Issue,
+    issue: journal_models.Issue,
+):
+    """
+    EOArticleWorkflowFilter.special_issue choices are set depending on available articles in the queryset.
+    """
+    empty_issue = journal_models.Issue.objects.create(
+        journal=journal,
+        date=timezone.now(),
+        issue="0N",
+        issue_title=f"Issue 0N, {timezone.now().year}",
+        issue_type=journal_models.IssueType.objects.get(code="issue"),
+    )
+    empty_special_issue = journal_models.Issue.objects.create(
+        journal=journal,
+        date=timezone.now(),
+        issue="SP 0N",
+        issue_title=f"SP Issue 0N, {timezone.now().year}",
+        issue_type=journal_models.IssueType.objects.get(code="collection"),
+    )
+
+    workflows = ArticleWorkflow.objects.all()
+
+    fake_request.user = eo_user
+
+    filterset = EOArticleWorkflowFilter(
+        queryset=workflows,
+        request=fake_request,
+        journal=journal,
+    )
+    assert filterset.filters["special_issue"].field.queryset.count() == 1
+    # empty plain issue -> not included in filter values
+    assert empty_issue not in filterset.filters["special_issue"].field.queryset.all()
+    # empty special issue -> not included in filter values
+    assert empty_special_issue not in filterset.filters["special_issue"].field.queryset.all()
+    # full plain issue -> not included in filter values
+    assert issue not in filterset.filters["special_issue"].field.queryset.all()
+    # full special issue -> included in filter values
+    assert special_issue in filterset.filters["special_issue"].field.queryset.all()
+
+
 class TestListViews:
     @classmethod
     def _create_user(cls, create_jcom_user, journal: journal_models.Journal, role: str) -> JCOMProfile:

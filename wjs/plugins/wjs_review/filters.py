@@ -153,11 +153,9 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         filters = self.filters
         available_languages = get_journal_language_choices(self._journal)
         available_primary_issues = self.queryset.values_list("article__primary_issue", flat=True).distinct()
-        filters["special_issue"].queryset = (
-            self.filters["special_issue"]
-            .queryset.filter(journal=self._journal, pk__in=available_primary_issues)
-            .order_by("issue_title")
-        )
+        filters["special_issue"].queryset = Issue.objects.filter(
+            journal=self._journal, pk__in=available_primary_issues, issue_type__code="collection"
+        ).order_by("issue_title")
         if len(available_languages) == 1:
             filters.pop("language")
         else:
