@@ -25,6 +25,15 @@
   }
 }
 
+.social-media-links {
+  a {
+    svg {
+      height: 14px;
+      margin-bottom: -1px;
+    }
+  }
+}
+
 .h-captcha {
   // needed to fix a glitch with the h-captcha field
   max-width: 0;
