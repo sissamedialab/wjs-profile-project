@@ -9,6 +9,7 @@
       <form class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
         <div class="d-flex justify-content-end">
           {% bootstrap_field filter.form.actor_recipients show_label=False wrapper_class="me-3" addon_before='<i class="bi bi-funnel"></i>' %}
+          {% bootstrap_field filter.form.type show_label=False wrapper_class="me-3" %}
           {% bootstrap_field filter.form.content show_label=False wrapper_class="me-3" %}
           {% bootstrap_button name="filter" content=filter_label wrapper_class="me-3" %}
         </div>

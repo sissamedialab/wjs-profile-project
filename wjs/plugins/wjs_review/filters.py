@@ -379,6 +379,16 @@ class MessageFilter(django_filters.FilterSet):
         method="filter_content",
         label=_("Search on subject / body"),
     )
+    type = django_filters.ChoiceFilter(  # noqa: A003
+        field_name="message_type",
+        label=_("Filter by type"),
+        empty_label=_("Filter by type"),
+        choices=(
+            ("", _("All")),
+            (Message.MessageTypes.USER, _("User")),
+            (Message.MessageTypes.SYSTEM, _("System")),
+        ),
+    )
 
     class Meta:
         model = Message
