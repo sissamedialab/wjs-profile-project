@@ -768,10 +768,11 @@ class Rejected(BaseState):
 
     article_actions = BaseState.article_actions + (
         ArticleAction(
-            permission=permissions.has_admin_role_by_article,
+            permission=conditions.is_appeal_available,
             name="admin opens an appeal",
             label="Open Appeal",
             view_name="wjs_open_appeal",
+            is_modal=True,
         ),
     )
 
