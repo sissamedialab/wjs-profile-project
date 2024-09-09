@@ -306,12 +306,17 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         :rtype: QuerySet
         """
         if value:
-            filters = (
-                Q(**{f"{name}__email__icontains": value})
-                | Q(**{f"{name}__first_name__icontains": value})
-                | Q(**{f"{name}__last_name__icontains": value})
-            )
-            return queryset.filter(filters)
+            if isinstance(value, int):
+                return queryset.filter(**{f"{name}__id": value})
+            elif isinstance(value, Account):
+                return queryset.filter(**{name: value})
+            else:
+                filters = (
+                    Q(**{f"{name}__email__icontains": value})
+                    | Q(**{f"{name}__first_name__icontains": value})
+                    | Q(**{f"{name}__last_name__icontains": value})
+                )
+                return queryset.filter(filters)
         return queryset
 
 

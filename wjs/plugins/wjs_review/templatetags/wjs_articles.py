@@ -49,10 +49,10 @@ def review_assignments_of_current_round(article):
     current_round = article.current_review_round_object()
 
     return (
-        article.reviewassignment_set.filter(
+        WorkflowReviewAssignment.objects.valid(
+            article=article,
             review_round=current_round,
         )
-        .active()
         .annotate(
             ordering_score=Case(
                 When(date_complete__isnull=False, then=0),

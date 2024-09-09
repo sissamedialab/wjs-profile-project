@@ -2,9 +2,9 @@
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{% if view.table_configuration_options.table_type == "review" %}{{ article.date_submitted|date:"U" }}{% elif view.table_configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
+    <td data-order="{% if view.table_configuration_options.table_type == "review" %}{{ article|get_version_submission_date|date:"U" }}{% elif view.table_configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
-      <a title="{{ article.title }}"
+      <a
          href="{% url 'wjs_article_details' workflow.id %}"
          class="fw-bold">{{ article|versioned_number }}</a>
       <br />
@@ -15,7 +15,7 @@
         {% endif %}
       {% endwith %}
       {% if view.table_configuration_options.table_type == "review" %}
-        <span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span>
+        <span title="Submitted on {{ article|get_version_submission_date }}">{{ article|get_version_submission_date|date:"d-M" }}</span>
       {% elif view.table_configuration_options.table_type == "production" %}
         <span title="Accepted on {{ article.date_accepted }}">{{ article.date_accepted|date:"d-M" }}</span>
       {% endif %}
@@ -27,7 +27,7 @@
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
     </td>
-    <td class="{% if attention_flag %}fw-bolder{% endif %}">
+    <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title }}">
       {{ article.title|truncatewords:6 }}
     </td>
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
@@ -41,13 +41,13 @@
       <td>
         {% with editor_assignment_data=article|article_current_editor %}
           {{ editor_assignment_data.editor }}
-          {% if not view.table_configuration_options.hide_editor_age and workflow.state_label == "Editor selected" %}
+          {% if not view.table_configuration_options.hide_editor_age and workflow.article|waiting_editor_actions %}
             <div title="assigned">{{ editor_assignment_data.days_elapsed }} {% translate "days" %}</div>
           {% endif %}
         {% endwith %}
       </td>
       <td>
-        {% if workflow.state_label == "Editor selected" %}
+        {% if workflow.state == "EditorSelected" %}
           {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
         {% endif %}
       </td>

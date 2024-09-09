@@ -12,7 +12,7 @@
         <div>
           <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
           <br />
-          <a title="{{ article.title }}"
+          <a
              href="{% url 'wjs_article_details' article.articleworkflow.pk %}"
              class="fw-bold">{{ article.pk }}</a>
         </div>
@@ -21,7 +21,7 @@
     <td>
       {% include "wjs_review/lists/elements/corresponding_author.html" with workflow=article.articleworkflow %}
     </td>
-    <td>
+    <td title="{{ article.title }}">
       {{ article.title|truncatewords:6 }}
     </td>
     <td>

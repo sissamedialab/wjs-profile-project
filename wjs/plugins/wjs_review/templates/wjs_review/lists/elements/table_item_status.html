@@ -1,4 +1,4 @@
-{% load wjs_articles %}
+{% load wjs_articles wjs_review %}
 {% if generic %}
   {{ workflow.state_label }}
 {% elif brief %}
@@ -6,7 +6,14 @@
   {% include "wjs_review/lists/elements/attention.html" %}
 {% else %}
   <div class="top-0 {% if attention_flag %}position-absolute{% endif %} py-2">
-    <span class="badge {% if publish_status %}{{ article_classes.publishable_css }}{% else %}{{ article_classes.state_css }}{% endif %}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}<br><span title="Last transition: {{ workflow.modified|date:"d-M" }}">({{ workflow.modified|date:"d M" }})</span></span>
+    <span class="badge {% if publish_status %}{{ article_classes.publishable_css }}{% else %}{{ article_classes.state_css }}{% endif %}" title="State: {{ workflow.state_label }}">
+      {{ workflow.state_label }}<br>
+      {% if workflow.article|waiting_author_actions %}
+        <span title="{% translate "Author revision expected by" %}: {{ workflow.article|get_status_date|date:"d-M" }}">({{ workflow.article|get_status_date|date:"d M" }})</span>
+      {% else %}
+        <span title="{% translate "Last update" %}: {{ workflow.article|get_status_date|date:"d-M" }}">({{ workflow.article|get_status_date|date:"d M" }})</span>
+      {% endif %}
+    </span>
   </div>
   <div class="my-1">
     {% if publish_status %}
@@ -19,7 +26,7 @@
   </div>
   <div class="mt-4">
     {% if details %}
-      <div title="Current version: {{ workflow.article.current_review_round }}">Version {{ workflow.article.current_review_round }}</div>
+      <div title="{% translate "Current version" %}: {{ workflow.article.current_review_round }}">Version {{ workflow.article.current_review_round }}</div>
     {% endif %}
     {% include "wjs_review/lists/elements/attention.html" with details=True %}
   </div>

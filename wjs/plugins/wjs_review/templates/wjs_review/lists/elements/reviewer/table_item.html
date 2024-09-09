@@ -2,15 +2,15 @@
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user pending_review=workflow.article|article_pending_review_by_user:request.user completed_review=workflow.article|article_completed_review_by_user:request.user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>
-    <td data-order="{{ article.date_submitted|date:"U" }}" class="text-nowrap">
-      <a title="{{ article.title }}" href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article|versioned_number }}</a>
+    <td data-order="{{ article|get_version_submission_date|date:"U" }}" class="text-nowrap">
+      <a href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article|versioned_number }}</a>
       <br>
-      <span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span>
+      <span title="Submitted on {{ article|get_version_submission_date }}">{{ article|get_version_submission_date|date:"d-M" }}</span>
     </td>
     <td>
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
     </td>
-    <td>
+    <td title="{{ article.title }}">
       {{ article.title|truncatewords:6 }}
     </td>
     <td>
