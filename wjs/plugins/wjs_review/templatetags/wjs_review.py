@@ -18,7 +18,12 @@ from django.utils import timezone
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
-from review.models import EditorAssignment, ReviewAssignment, ReviewRound
+from review.models import (
+    EditorAssignment,
+    ReviewAssignment,
+    ReviewRound,
+    RevisionRequest,
+)
 from submission.models import Article, Section
 from utils import models as janeway_utils_models
 from utils.logger import get_logger
@@ -199,10 +204,54 @@ def get_requested_date(user, article):
         return ""
 
 
+@register.filter()
+def get_version_submission_date(article: Article) -> datetime.datetime:
+    """
+    Return the submission date of the article depending on the current version.
+
+    If current version is 1, return the article submission date, else return the date of the last
+    submitted revision request.
+    """
+
+    try:
+        revision_request = article.completed_revision_requests().latest("date_completed")
+        return revision_request.date_completed
+    except RevisionRequest.DoesNotExist:
+        return article.date_submitted
+
+
+@register.filter()
+def get_status_date(article: Article) -> datetime.datetime:
+    """
+    Return the relevant date for the current article state.
+    """
+    workflow = article.articleworkflow
+    if workflow.state in (ArticleWorkflow.ReviewStates.TO_BE_REVISED,):
+        revision_request = article.active_revision_requests().last()
+        if revision_request:
+            return revision_request.date_due
+    return workflow.modified
+
+
 @register.filter
 def active_revision_request(article: Article) -> Optional[QuerySet[LogEntry]]:
     """Return the active revision request for the given article."""
     return article.active_revision_requests()
+
+
+@register.filter
+def waiting_editor_actions(article: Article) -> bool:
+    """Return True if the article is waiting for an editor action."""
+    return article.articleworkflow.state_value in (
+        ArticleWorkflow.ReviewComputedStates.WAITING_FOR_DECISION,
+        ArticleWorkflow.ReviewComputedStates.ASSIGNED_TO_EDITOR,
+    )
+
+
+@register.filter
+def waiting_author_actions(article: Article) -> bool:
+    """Return True if the article is waiting for an author action."""
+    return article.articleworkflow.state_value in (ArticleWorkflow.ReviewStates.TO_BE_REVISED,)
 
 
 @register.filter

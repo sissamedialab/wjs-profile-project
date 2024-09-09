@@ -32,6 +32,7 @@ def test_articleworkflowfilter(
     create_set_of_articles_with_assignments,
     fake_request: HttpRequest,
     section_editor: Account,
+    eo_user: Account,
 ):
     """
     ArticleWorkflowFilter queries.
@@ -76,6 +77,20 @@ def test_articleworkflowfilter(
     )
     assert article_filterer.qs.exists()
     assert set(article_filterer.qs) == set(workflows.filter(article__reviewassignment__reviewer__email="rrr@a.it"))
+
+    # filter by eo in charge user
+    article_filterer = EOArticleWorkflowFilter(
+        data={"eo_in_charge": eo_user}, queryset=workflows, journal=journal, request=fake_request
+    )
+    assert article_filterer.qs.exists()
+    assert set(article_filterer.qs) == set(workflows.filter(eo_in_charge=eo_user))
+
+    # filter by eo in charge user by id
+    article_filterer = EOArticleWorkflowFilter(
+        data={"eo_in_charge": eo_user.pk}, queryset=workflows, journal=journal, request=fake_request
+    )
+    assert article_filterer.qs.exists()
+    assert set(article_filterer.qs) == set(workflows.filter(eo_in_charge=eo_user))
 
 
 @pytest.mark.parametrize("user_type", ("eo", "section-editor", "director", "none"))

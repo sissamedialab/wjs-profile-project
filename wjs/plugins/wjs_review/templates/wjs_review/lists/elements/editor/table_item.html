@@ -2,22 +2,22 @@
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{{ article.date_submitted|date:"U" }}" class="text-nowrap">
-      <a title="{{ article.title }}"
+    <td data-order="{{ article|get_version_submission_date|date:"U" }}" class="text-nowrap">
+      <a
          href="{% url 'wjs_article_details' workflow.id %}"
-         class="fw-bold">{{ article|versioned_number }}</a><br><span title="Submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M" }}</span></td>
+         class="fw-bold">{{ article|versioned_number }}</a><br><span title="Submitted on {{ article|get_version_submission_date }}">{{ article|get_version_submission_date|date:"d-M" }}</span></td>
     <td><span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span></td>
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
     </td>
-    <td class="{% if attention_flag %}fw-bolder{% endif %}">
+    <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title }}">
       {{ article.title|truncatewords:6 }}
     </td>
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" %}
     </td>
     <td>
-      {% if workflow.state_label == "Editor selected" %}
+      {% if workflow.state == "EditorSelected" %}
         {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
       {% endif %}
     </td>

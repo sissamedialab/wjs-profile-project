@@ -9,7 +9,7 @@
       {{ article.section.name }}
     </td>
     <td>
-      <a title="{{ article.title }}" href="{% url 'wjs_article_details' workflow.id %}" class="fw-bold">{{ article.id }}</a>
+      <a href="{% url 'wjs_article_details' workflow.pk %}" class="fw-bold">{{ article.pk }}</a>
     </td>
     <td>
       <span title="Last status change TODO workflow.date_last_transition">{{ workflow.latest_state_change|timesince }} since last state change</span>
@@ -28,7 +28,7 @@
       {% endif %}
     </td>
     <td>
-      {% if workflow.state_label == "Ready for typesetter" %}
+      {% if workflow.state == "ReadyForTypesetter" %}
         <form id="{{ action.slug }}" action="{% url 'wjs_typ_take_in_charge' workflow.id %}" method="post">
           {% csrf_token %}
           {% translate "Take in charge" as take_label %}
