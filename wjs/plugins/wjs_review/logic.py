@@ -2519,11 +2519,14 @@ class OpenAppeal:
 
     def _log_author(self):
         """Logs a message to the Author informing about the appeal."""
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="eo_opens_appeal_subject",
             journal=self.article.journal,
-        ).processed_value
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="eo_opens_appeal_body",

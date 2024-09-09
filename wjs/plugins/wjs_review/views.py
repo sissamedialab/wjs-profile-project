@@ -2399,15 +2399,17 @@ class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
         )
 
 
-class AdminOpensAppealView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class AdminOpensAppealView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """A view to move a paper to under appeal state.
 
     This passage can only be triggered by the EO.
     """
 
+    title = _("Open Appeal")
     model = ArticleWorkflow
     form_class = OpenAppealForm
-    template_name = "wjs_review/eo_select_editor.html"
+    template_name = "wjs_review/details/eo_select_editor.html"
+    context_object_name = "workflow"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
@@ -2426,6 +2428,14 @@ class AdminOpensAppealView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
         return kwargs
+
+    def form_valid(self, form):
+        """If the form is valid, save the message and return a response."""
+        super().form_valid(form)
+        response = HttpResponse("ok")
+        response.headers["HX-Redirect"] = self.get_success_url()
+        messages.success(self.request, _("The paper has been moved to under appeal state."))
+        return response
 
 
 class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):

@@ -24,6 +24,7 @@ from .communication_utils import get_eo_user
 from .logic import states_when_article_is_considered_archived
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     EditorRevisionRequest,
     Message,
     Reminder,
@@ -277,6 +278,19 @@ def pending_revision_request(workflow: ArticleWorkflow, user: Account) -> Option
     ).order_by()
     if pending_revision_requests.exists():
         return pending_revision_requests.last()
+
+
+def is_appeal_available(workflow: ArticleWorkflow, user: Account) -> str:
+    """Check if appeal is available on the current workflow."""
+    if not permissions.has_admin_role_by_article(workflow, user):
+        return ""
+    already_appealed = EditorDecision.objects.filter(
+        workflow=workflow, decision=ArticleWorkflow.Decisions.OPEN_APPEAL
+    ).exists()
+    if not already_appealed:
+        return "You can appeal the decision."
+    else:
+        return ""
 
 
 def pending_edit_metadata_request(workflow: ArticleWorkflow, user: Account) -> Optional[EditorRevisionRequest]:

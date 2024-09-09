@@ -290,7 +290,7 @@ class ArticleWorkflow(TimeStampedModel):
         IN_REVIEW = "in_review", _("In review")
         RESUBMITTED_MINOR_REVISION = "resubmitted_minor_revisions", _("Resubmitted Minor revision")
         RESUBMITTED_MAJOR_REVISION = "resubmitted_major_revisions", _("Resubmitted Major revision")
-        RESUBMITTED_OPEN_APPEAL = "resubmittedopen_appeal", _("Resubmitted Appeal")
+        RESUBMITTED_OPEN_APPEAL = "resubmitted_open_appeal", _("Resubmitted Appeal")
         RESUBMITTED_TECHNICAL_REVISION = "resubmitted_tech_revisions", _("Resubmitted Metadata change")
         RESUBMITTED_REQUIRES_RESUBMITTED = "resubmitted_requires_resubmission", _("Resubmitted resubmitted")
         ASSIGNED_TO_EDITOR = "assigned_to_editor", _("Assigned to Editor")

@@ -1,0 +1,20 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Confirm" as update_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{{ view.title }}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  {% blocktranslate %}
+    <p>
+      Select the editor to assign the article after the author has submitted the new version.<br>
+      By default the current editor is selected.
+    </p>
+  {% endblocktranslate %}
+  <form id="open-appeal" hx-post="{% url "wjs_open_appeal" pk=workflow.pk %}" hx-target="#htmxModalContent">
+    {% csrf_token %}
+    {% bootstrap_form_errors form layout='inline' %}
+    {% bootstrap_form form %}
+    {% bootstrap_button button_type="submit" content=update_label %}
+  </form>
+</div>
