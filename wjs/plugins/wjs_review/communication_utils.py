@@ -207,6 +207,9 @@ def log_operation(
         MessageRecipients.objects.filter(message=message).update(read=True)
     # Message to self are considered read
     MessageRecipients.objects.filter(message=message, recipient=actor).update(read=True)
+    # Message to eo_user are considered read
+    eo_user = get_eo_user(article)
+    MessageRecipients.objects.filter(message=message, recipient=eo_user).update(read=True)
     message.emit_notification()
     if notify_actor and hijacking_actor:
         fake_request = create_fake_request(user=None, journal=article.journal)

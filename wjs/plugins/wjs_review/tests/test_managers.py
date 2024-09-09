@@ -76,3 +76,28 @@ def test_with_unread_messages(create_set_of_articles_with_assignments):
 
     articles_with_review_round = ArticleWorkflow.objects.with_unread_messages()
     assert set(articles_messages) == set(articles_with_review_round.values_list("article_id", flat=True))
+
+
+@pytest.mark.django_db
+def test_with_unread_messages_by_eo(accepted_article, eo_user, eo_group, normal_user):
+    """
+    with_unread_messages manager method filter ArticleWorkflow for read messages by EO.
+
+    - if user is eo user, read flag on MessageRecipient is ignored
+    - normal user with eo role, will have read flag on MessageRecipient considered
+    """
+    Message.objects.all().delete()
+    normal_user.groups.add(eo_group)
+    eo_message = Message.objects.create(
+        actor=eo_user,
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=accepted_article.pk,
+        read_by_eo=True,
+    )
+    eo_message.messagerecipients_set.create(recipient=normal_user, read=False)
+    eo_message.messagerecipients_set.create(recipient=eo_user, read=False)
+
+    unread_by_eo = ArticleWorkflow.objects.with_unread_messages(user=eo_user, journal=accepted_article.journal)
+    unread_by_normal = ArticleWorkflow.objects.with_unread_messages(user=normal_user, journal=accepted_article.journal)
+    assert not unread_by_eo
+    assert unread_by_normal

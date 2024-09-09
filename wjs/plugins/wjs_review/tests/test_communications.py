@@ -30,6 +30,7 @@ from wjs.jcom_profile.permissions import get_hijacker
 from ..communication_utils import (
     get_eo_user,
     get_messages_related_to_me,
+    log_operation,
     should_notify_actor,
 )
 from ..logic import AssignToReviewer, HandleMessage
@@ -334,6 +335,28 @@ def test_user_sees_recipientee_messages(
     messages = get_messages_related_to_me(tuvok, article)
     assert messages.count() == 1
     assert messages.first() == msg
+
+
+@pytest.mark.django_db
+def test_messages_to_eo_always_read(
+    article: submission_models.Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    eo_user: JCOMProfile,
+):
+    """
+    A message sent to EO has the messagerecipient read flag set to true.
+
+    EO read flag is read_by_eo on Message model.
+    """
+    chakotay = create_jcom_user("Chakotay")
+    msg = log_operation(
+        article=article,
+        message_subject="Test message",
+        message_body="Test message",
+        actor=chakotay,
+        recipients=[eo_user.janeway_account],
+    )
+    assert msg.messagerecipients_set.first().read is True
 
 
 @pytest.mark.django_db
