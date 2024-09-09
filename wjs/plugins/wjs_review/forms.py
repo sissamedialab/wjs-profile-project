@@ -368,6 +368,53 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
         return service
 
 
+class DeclineReviewForm(forms.Form):
+    additional_comments = forms.CharField(
+        label=_("Additional comments"),
+        widget=SummernoteWidget(),
+        required=True,
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        self.instance = kwargs.pop("instance")
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("additional_comments"):
+            self.add_error("additional_comments", _("Please provide a reason for declining"))
+        cleaned_data["reviewer_decision"] = "0"
+        return cleaned_data
+
+    def get_logic_instance(self) -> EvaluateReview:
+        """Instantiate :py:class:`EvaluateReview` class."""
+        service = EvaluateReview(
+            assignment=self.instance,
+            reviewer=self.instance.reviewer,
+            editor=self.instance.editor,
+            form_data=self.cleaned_data,
+            request=self.request,
+            token="",
+        )
+        return service
+
+    def save(self, commit: bool = True) -> ReviewAssignment:
+        """
+        Change the state of the review using :py:class:`EvaluateReview`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
 class EvaluateReviewForm(forms.ModelForm):
     reviewer_decision = forms.ChoiceField(
         choices=(("1", _("Accept")), ("0", _("Reject")), ("2", _("Update"))),
