@@ -1767,7 +1767,6 @@ class HandleDecision:
             review_round=self.workflow.article.current_review_round_object(),
             decision=self.form_data["decision"],
             decision_editor_report=self.form_data["decision_editor_report"],
-            decision_internal_note=self.form_data["decision_internal_note"],
         )
         return decision
 
@@ -2499,7 +2498,6 @@ class OpenAppeal:
         form_data = {
             "decision": ArticleWorkflow.Decisions.OPEN_APPEAL,
             "decision_editor_report": "",
-            "decision_internal_note": None,
             "acceptance_due_date": None,
             "date_due": timezone.now() + datetime.timedelta(days=settings.REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD),
         }

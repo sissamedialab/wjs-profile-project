@@ -1299,11 +1299,12 @@ class ArticleAdminDispatchAssignment(LoginRequiredMixin, UserPassesTestMixin, Vi
         return HttpResponseRedirect(reverse("wjs_article_details", args=(self.articleworkflow.id,)))
 
 
-class ArticleAdminDecision(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
     model = ArticleWorkflow
     form_class = DecisionForm
-    template_name = "wjs_review/decision.html"
+    template_name = "wjs_review/make_decision/decision.html"
     context_object_name = "workflow"
+    title = _("Take a decision")
 
     def test_func(self):
         """Verify that only EO can access."""
@@ -1319,6 +1320,19 @@ class ArticleAdminDecision(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         kwargs["admin_form"] = True
         kwargs["initial"] = {"decision": self.request.GET.get("decision")}
         return kwargs
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(
+                url=reverse("wjs_article_admin_decision", kwargs={"pk": self.object.pk}),
+                title=self.title,
+                current=True,
+            ),
+        ]
 
     def form_valid(self, form):
         """
@@ -1339,11 +1353,12 @@ class ArticleAdminDecision(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return context
 
 
-class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView):
+class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     model = ArticleWorkflow
     form_class = DecisionForm
-    template_name = "wjs_review/decision.html"
+    template_name = "wjs_review/make_decision/decision.html"
     context_object_name = "workflow"
+    title = _("Take a decision")
 
     def get_queryset(self) -> QuerySet[ArticleWorkflow]:
         """Filter queryset to ensure only :py:class:`ArticleWorkflow` in EDITOR_SELECTED state are filtered."""
@@ -1370,6 +1385,17 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
         kwargs["request"] = self.request
         kwargs["initial"] = {"decision": self.request.GET.get("decision")}
         return kwargs
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(
+                url=reverse("wjs_article_decision", kwargs={"pk": self.object.pk}), title=self.title, current=True
+            ),
+        ]
 
     def form_valid(self, form):
         """
@@ -1418,6 +1444,7 @@ class ArticleDecision(LoginRequiredMixin, ArticleAssignedEditorMixin, UpdateView
         context["declined_reviews"] = self.declined_reviews
         context["submitted_reviews"] = self.submitted_reviews
         context["open_reviews"] = self.open_reviews
+        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
         return context
 
 

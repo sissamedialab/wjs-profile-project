@@ -62,7 +62,6 @@ def test_pending_revision_request(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }
@@ -138,7 +137,6 @@ def test_pending_edit_metadata_request(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }
@@ -226,7 +224,6 @@ def test_revision_actions(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }

@@ -522,11 +522,6 @@ class DecisionForm(forms.ModelForm):
         widget=SummernoteWidget(),
         required=False,
     )
-    decision_internal_note = forms.CharField(
-        label=_("Internal notes"),
-        widget=SummernoteWidget(),
-        required=False,
-    )
     withdraw_notice = forms.CharField(
         label=_("Notice to reviewers"),
         widget=SummernoteWidget(),

@@ -55,5 +55,5 @@ class WjsSectionAdmin(admin.ModelAdmin):
 class EditorDecisionAdmin(admin.ModelAdmin):
     """Helper class to "admin" EditorDecision."""
 
-    list_display = ["workflow", "decision", "decision_internal_note", "decision_editor_report"]
+    list_display = ["workflow", "decision", "decision_editor_report"]
     list_filter = ["decision"]

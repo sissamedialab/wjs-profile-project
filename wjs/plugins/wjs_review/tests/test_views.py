@@ -759,7 +759,6 @@ def test_editor_archived(
         form_data={
             "decision": ArticleWorkflow.Decisions.ACCEPT,
             "decision_editor_report": "test",
-            "decision_internal_note": "test",
         },
         user=section_editor.janeway_account,
         request=fake_request,

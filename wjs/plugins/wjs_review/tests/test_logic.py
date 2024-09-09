@@ -485,7 +485,6 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     form_data = {
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }
@@ -615,7 +614,6 @@ def test_assign_to_reviewer_after_revision(
     form_data = {
         "decision": revision_type,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -1566,7 +1564,6 @@ def test_handle_admin_decision(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
     }
     # Reset email and messages just before calling HandleDecision.run()
     mail.outbox = []
@@ -1686,7 +1683,6 @@ def test_handle_admin_decision_wrong_user(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
     }
     # Reset email and messages just before calling HandleDecision.run()
@@ -1755,7 +1751,6 @@ def test_handle_admin_decision_wrong_state(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
     }
     # Reset email and messages just before calling HandleDecision.run()
@@ -1822,7 +1817,6 @@ def test_handle_editor_decision(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
     }
     if final_state not in (
@@ -2155,7 +2149,6 @@ def test_handle_editor_decision(
     )
     assert editor_decision.decision == decision
     assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
-    assert editor_decision.decision_internal_note == form_data["decision_internal_note"]
 
 
 @pytest.mark.parametrize(
@@ -2191,7 +2184,6 @@ def test_author_handle_revision(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -2270,7 +2262,6 @@ def test_author_submit_checklist(
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -2329,7 +2320,6 @@ def test_handle_multiple_revision_request_with_author_submission(
     form_data = {
         "decision": decision1,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -2376,7 +2366,6 @@ def test_handle_multiple_revision_request_with_author_submission(
     form_data = {
         "decision": decision2,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -2427,7 +2416,6 @@ def test_handle_multiple_revision_request_no_author_submission(
     form_data = {
         "decision": decision1,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -2443,7 +2431,6 @@ def test_handle_multiple_revision_request_no_author_submission(
     form_data = {
         "decision": decision2,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
@@ -2506,7 +2493,6 @@ def test_handle_withdraw_review_assignment(
     form_data = {
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }
@@ -2550,7 +2536,6 @@ def test_article_snapshot_on_revision_request(
     form_data = {
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
         "withdraw_notice": "notice",
         "date_due": now().date() + datetime.timedelta(days=7),
     }
@@ -2589,7 +2574,6 @@ def test_handle_editor_decision_check_conditions(
     form_data = {
         "decision": ArticleWorkflow.Decisions.ACCEPT,
         "decision_editor_report": "random message",
-        "decision_internal_note": "random internal message",
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
