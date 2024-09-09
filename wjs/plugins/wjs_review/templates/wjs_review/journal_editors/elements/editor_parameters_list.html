@@ -1,0 +1,25 @@
+{% load django_bootstrap5 wjs_review %}
+{% for editor in editor_list %}
+  {% translate "Update" as manage_label %}
+  {% url "assignment_parameters" editor_pk=editor.pk as manage_url %}
+  <tr>
+    <td>{{ editor.full_name }}</td>
+    <td>{{ editor.affiliation }}</td>
+    <td>{% get_max_workload editor=editor journal=journal %}</td>
+    <td>{% get_current_workload editor=editor journal=journal %}</td>
+    <td>
+      {% get_editor_keywords editor=editor journal=journal as keywords %}
+      {% if keywords %}
+        <ul>
+          {% for keyword in keywords %}
+            <li>{{ keyword }}</li>{% endfor %}
+        </ul>
+      {% else %}
+        -
+      {% endif %}
+    </td>
+    <td>
+      {% bootstrap_button button_type="link" name="reviewer_decision" target="_blank" href=manage_url content=manage_label %}
+    </td>
+  </tr>
+{% endfor %}

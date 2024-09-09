@@ -8,7 +8,11 @@
       {{ workflow }}
     </h3>
     {% if workflow|is_user_article_manager:request.user %}
-      <h5><span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">{{ workflow.state_label }}</span></h5>
+      <h5>
+        <span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">
+          {{ workflow.state_label }}<br>{{ workflow.article|get_status_date|date:"d M" }}
+        </span>
+      </h5>
     {% endif %}
   </div>
   <div class="d-flex align-items-center gap-3">

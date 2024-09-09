@@ -1,0 +1,18 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static %}
+
+{% block breadcrumbs %}{% endblock breadcrumbs %}
+
+{% block content_wrapper %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h1 class="page-title">{{ view.title }}</h1>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mb-3" id="select-editor-table">
+    {% include "wjs_review/journal_editors/elements/editor_parameters_table.html" %}
+  </div>
+{% endblock content_wrapper %}

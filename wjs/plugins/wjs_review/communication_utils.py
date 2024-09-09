@@ -347,15 +347,18 @@ def group_messages_by_version(
     # Scan through the ordered messages. Accumulate them under the current date (head) until they become older than it.
     # Then move to the next younger date and accumulate the messages under that one.
     dates = iter(sorted(cutoff_dates.keys(), reverse=True))  # NB: dates are sorted: newest first
-    head = next(dates)
-    for message in messages.order_by("-created"):  # NB: sort messages also: newset first
-        if message.created >= head:
-            timeline[cutoff_dates[head]].append(message)
-        else:
-            try:
-                head = next(dates)
-            except StopIteration:
-                logger.debug(f"Message {message.pk} ({message.created}) is older that oldest round ({head})")
-            timeline[cutoff_dates[head]].append(message)
+    try:
+        head = next(dates)
+        for message in messages.order_by("-created"):  # NB: sort messages also: newset first
+            if message.created >= head:
+                timeline[cutoff_dates[head]].append(message)
+            else:
+                try:
+                    head = next(dates)
+                except StopIteration:
+                    logger.debug(f"Message {message.pk} ({message.created}) is older that oldest round ({head})")
+                timeline[cutoff_dates[head]].append(message)
+    except StopIteration:
+        pass
 
     return timeline

@@ -4,6 +4,7 @@
 {% user_has_role request 'reviewer' as user_is_reviewer %}
 {% user_has_role request 'director' as user_is_director %}
 {% user_has_role request 'typesetter' as user_is_typesetter %}
+{% user_has_eo_director_role request.user as user_is_eo_or_director %}
 
 {% url 'submission_start' as submission_start %}
 {% url 'core_manager_index' as core_manager_index %}
@@ -25,6 +26,7 @@
 {% url 'core_manager_edit_news' news_item.pk as core_manager_edit_news %}
 {% url 'wjs_review_typesetter_pending' as wjs_review_typesetter_pending %}
 {% url 'wjs_review_typesetter_workingon' as wjs_review_typesetter_workingon %}
+{% url 'wjs_journal_editors' as wjs_journal_editors %}
 
 <div class="dropdown">
   <button class="btn btn-outline-primary dropdown-toggle btn-sm" type="button" id="user-menu" data-bs-toggle="dropdown" aria-expanded="false">
@@ -39,6 +41,11 @@
       <li>
         <a class="dropdown-item" href="{{ submission_start }}">{% trans "Submit" %}</a>
       </li>
+    {% endif %}
+    {% if user_is_eo_or_director and wjs_journal_editors %}
+        <li>
+            <a class="dropdown-item" href="{{ wjs_journal_editors }}">{% trans "Editors list" %}</a>
+        </li>
     {% endif %}
     {% if user_is_author and wjs_review_author_pending %}
       <li>

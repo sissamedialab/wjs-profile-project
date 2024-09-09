@@ -6,7 +6,7 @@
   {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
 </div>
 <div class="modal-body">
-  <p>{% translate "Do you confirm to decline the assignment to" %} {{ object }}.</p>
+  <p>{% translate "Do you confirm that you do not wish to act as Editor in charge for" %} {{ object }}.</p>
   {% if error %}<p>{{ error }}</p>{% endif %}
   <form id="decline-assignment" hx-post="{% url "wjs_unassign_assignment" pk=object.pk %}" hx-target="#htmxModalContent">
   {% csrf_token %}

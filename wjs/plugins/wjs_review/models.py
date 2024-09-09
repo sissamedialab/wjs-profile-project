@@ -1084,58 +1084,59 @@ class Message(TimeStampedModel):
 
     actor = models.ForeignKey(
         Account,
+        verbose_name=_("from"),
         on_delete=models.DO_NOTHING,
         related_name="authored_messages",
-        verbose_name="from",
         help_text="The author of the message (for system message, use wjs-support account)",
         null=False,
     )
     hijacking_actor = models.ForeignKey(
         Account,
+        verbose_name=_("hijacker"),
         on_delete=models.DO_NOTHING,
         related_name="authored_messages_as_hijacker",
-        verbose_name="hijacker",
         help_text="The real author of the message (if actor has been hijacked)",
         null=True,
         blank=True,
     )
     recipients = models.ManyToManyField(
+        verbose_name=_("recipients"),
         to=Account,
         through="MessageRecipients",
         related_name="received_messages",
     )
     to_be_forwarded_to = models.ForeignKey(
         Account,
+        verbose_name=_("final recipient"),
         on_delete=models.DO_NOTHING,
         related_name="pre_moderation_messages",
-        verbose_name="final recipient",
         help_text="The final recipient that this message was intended for",
         null=True,
         blank=True,
     )
     subject = models.TextField(
+        verbose_name=_("subject"),
         blank=True,
         default="",
         max_length=111,
-        verbose_name="subject",
         help_text="A short description of the message or the subject of the email.",
     )
     body = models.TextField(
+        verbose_name=_("body"),
         blank=True,
         default="",
         max_length=1111,
-        help_text="The content of the message.",
     )
     message_type = models.TextField(
+        verbose_name=_("Type"),
         choices=MessageTypes.choices,
         default=MessageTypes.SYSTEM,
-        verbose_name=_("Type"),
         help_text=_("Define the message source / scope"),
     )
     verbosity = models.TextField(
+        verbose_name=_("Verbosity"),
         choices=MessageVerbosity.choices,
         default=MessageVerbosity.FULL,
-        verbose_name=_("Verbosity"),
         help_text=_("Define the message verbosity: ie: the amount of content sent my email / set in the timeline"),
     )
     # Do we want to manage very detailed ACLs?
@@ -1171,6 +1172,7 @@ class Message(TimeStampedModel):
     # A message could be related to other messages
     # (mainly used for forwarded messages - e.g. typ-to-au)
     related_messages = models.ManyToManyField(
+        verbose_name=_("Related messages"),
         to="Message",
         through="MessageThread",
         related_name="children_messages",
@@ -1178,13 +1180,15 @@ class Message(TimeStampedModel):
 
     # Attachments
     attachments = models.ManyToManyField(
+        verbose_name=_("Attachments"),
         to=core_models.File,
         null=True,
         blank=True,
     )
     read_by_eo = models.BooleanField(
+        verbose_name=_("Read by EO"),
         default=False,
-        help_text="True when a member of the EO marks as read a message exchanged by other two actors",
+        help_text=_("True when a member of the EO marks as read a message exchanged by other two actors"),
     )
     # number of chars to show in a "VERBINE" message
     verbine_lenght = 111

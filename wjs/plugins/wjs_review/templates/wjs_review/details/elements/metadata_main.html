@@ -17,35 +17,37 @@
     </tr>
   {% endif %}
   {% if article.date_submitted %}
+    {% if article|get_version_submission_date != article.date_submitted %}
+      <tr>
+        <th>{% translate "Last submitted" %}</th>
+        <td>{{ article|get_version_submission_date|date:"DATE_FORMAT" }}</td>
+      </tr>
+    {% endif %}
     <tr>
-      <th>{% translate "Submitted" %}</th>
+      <th>{% translate "v1 submitted" %}</th>
       <td>{{ article.date_submitted|date:"DATE_FORMAT" }}</td>
     </tr>
   {% endif %}
+  {% if workflow|is_user_article_reviewer:request.user %}
+    <tr>
+      {% current_editor_assigment article as editor_assigment %}
+      <th>{% translate "Editor" %}</th>
+      <td>{% if editor_assigment %}{{ editor_assigment.editor }}{% hijack_button user=editor_assigment.editor %}{% else %}{% translate "N/A" %}{% endif %}</td>
+    </tr>
+  {% endif %}
   {% if workflow|is_user_article_manager:request.user %}
+    {% if not workflow|is_user_director:request.user %}
     <tr>
       <th>{% translate "EO In charge" %}</th>
       <td>{{ workflow.eo_in_charge|default:"N/A" }}</td>
     </tr>
+    {% endif %}
     <tr>
-      <th>{% translate "Article Type" %}</th>
-      <td>{{ article.section }}</td>
+      {% current_editor_assigment article as editor_assigment %}
+      <th>{% translate "Editor" %}</th>
+      <td>{% if editor_assigment %}{{ editor_assigment.editor }}{% hijack_button user=editor_assigment.editor %}{% else %}{% translate "N/A" %}{% endif %}</td>
     </tr>
-    <tr>
-      <th>{% translate "Issue" %}</th>
-      <td>
-        {% if article.primary_issue %}{{ article.primary_issue }} / {{ article.date_published|date:"DATE_FORMAT" }}
-          {% elif article.projected_issue %}{{ article.projected_issue }} / {{ article.date_published|date:"DATE_FORMAT" }}
-          {% else %}{% translate "N/A" %}
-        {% endif %}
-      </td>
-    </tr>
-    {% if request.user|is_user_eo %}
-      <tr>
-        {% current_editor_assigment article as editor_assigment %}
-        <th>{% translate "Editor" %}</th>
-        <td>{% if editor_assigment %}{{ editor_assigment.editor }}{% hijack_button user=editor_assigment.editor %}{% else %}{% translate "N/A" %}{% endif %}</td>
-      </tr>
+    {% if request.user|is_user_eo and workflow|is_production_state %}
       <tr>
         {% current_typesetting_assignment article as typesetting_assigment %}
         <th>{% translate "Typesetter" %}</th>

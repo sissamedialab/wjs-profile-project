@@ -22,8 +22,8 @@
       <small><b>{{ message.actor }}</b> {% if message.recipients.exists %} -> <b>{{ message.recipients.all|join:", " }}</b>{% endif %}</small>
     {% endif %}
   </div>
-  <div class="align-self-start text-end" title="{{ message.created|date:DATETIME_FORMAT }}">
-    <small><i>{{ message.created|date:DATETIME_FORMAT }}</i></small><br>
+  <div class="align-self-start text-end" title="{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}">
+    <small><i>{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}</i></small><br>
     <small title="{% translate "Message has been read by all the recipients" %}">{% if message|message_read_by_all %}<i class="bi bi-check2-all"></i>{% endif %}</small>
   </div>
 </div>

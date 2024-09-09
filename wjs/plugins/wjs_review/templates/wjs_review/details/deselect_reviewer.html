@@ -2,7 +2,7 @@
 {% load django_bootstrap5 static wjs_permissions %}
 
 {% block content_wrapper %}
-  {% translate "Deassign reviewer" as deassign_label %}
+  {% translate "Confirm" as deassign_label %}
   {% translate "Back" as back_label %}
   {% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
   <div class="container mb-3">
@@ -13,19 +13,10 @@
     </div>
   </div>
   <div class="container mb-3">
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">{% translate "About this page" %}</h5>
-        <div class="card-text">{% blocktranslate %}<p>Some informative text</p>{% endblocktranslate %}
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="container mb-3">
       <form method="post">
         {% csrf_token %}
         {% bootstrap_form form %}
-        {% bootstrap_button name="deassign" button_class="btn-danger" content=deassign_label %}
+        {% bootstrap_button name="deassign" content=deassign_label %}
         {% bootstrap_button button_class="btn-outline-secondary" href=back_url content=back_label %}
     </form>
   </div>

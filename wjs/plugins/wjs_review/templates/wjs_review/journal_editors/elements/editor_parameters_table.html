@@ -1,0 +1,21 @@
+{% load django_bootstrap5 static %}
+<div class="card">
+  <div class="card-body">
+    <table class="table table-hover table-striped table-bordered mt-4" id="editors">
+      <thead class="bg-light">
+      <tr>
+        <th class="col">{% translate "Name" %}</th>
+        <th class="col">{% translate "Affiliation" %}</th>
+        <th class="col">{% translate "Max workload" %}</th>
+        <th class="col">{% translate "Current workload" %}</th>
+        <th class="col">{% translate "Keywords" %}</th>
+        <th class="col">{% translate "Manage" %}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% include "wjs_review/journal_editors/elements/editor_parameters_list.html" %}
+      </tbody>
+    </table>
+    {% include "wjs_review/base/elements/pagination.html" %}
+  </div>
+</div>

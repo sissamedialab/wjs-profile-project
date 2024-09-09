@@ -19,6 +19,27 @@ from .models import (
 )
 
 
+def get_recipient_label(workflow: ArticleWorkflow, user: Account, recipient: Account) -> str:
+    """
+    Get the label for the recipient of a message.
+
+    :param workflow: ArticleWorkflow object
+    :param user: User sending the message
+    :param recipient: User receiving the message
+    :return:
+    """
+    real_name = str(recipient)
+    if permissions.can_see_other_user_name(instance=workflow, sender=recipient, recipient=user):
+        return real_name
+    else:
+        if permissions.is_article_typesetter(instance=workflow, user=recipient):
+            return "typesetter"
+        elif permissions.is_article_editor(instance=workflow, user=recipient):
+            return "editor"
+        else:
+            return real_name
+
+
 @dataclasses.dataclass
 class BasePermissionChecker:
     """Machinery to check permissions.

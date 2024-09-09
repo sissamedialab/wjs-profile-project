@@ -40,6 +40,7 @@ from ..logic import (
     states_when_article_is_considered_in_review,
     states_when_article_is_considered_in_review_for_eo_and_director,
 )
+from ..logic__visibility import get_recipient_label
 from ..models import (
     ArticleWorkflow,
     EditorDecision,
@@ -430,27 +431,16 @@ def last_major_revision(article: ArticleWorkflow):
     return EditorDecision.objects.filter(workflow=article, decision=ArticleWorkflow.Decisions.MINOR_REVISION).last()
 
 
-@register.simple_tag(takes_context=True)
-def hide_real_name(context, actor_or_recipient: Account, to: Account, on: Article) -> str:
-    """Hide/show a message recipient/actor's name."""
-    # The arguments names "to" and "on" allow for a readable template tag, e.g.:
-    # {% display_recipient recipient to=user on=article %}
-    # but here we are aliasing "to" and "on" onto something easier to understand in the code
-    user = to
-    article = on
+@register.simple_tag()
+def hide_real_name(actor_or_recipient: Account, to: Account, on: Article) -> str:
+    """
+    Hide/show a message recipient/actor's name.
 
-    real_name = str(actor_or_recipient)
-    if permissions.can_see_other_user_name(
-        instance=article.articleworkflow, sender=actor_or_recipient, recipient=user
-    ):
-        return real_name
-    else:
-        if permissions.is_article_typesetter(instance=article.articleworkflow, user=actor_or_recipient):
-            return "typesetter"
-        elif permissions.is_article_editor(instance=article.articleworkflow, user=actor_or_recipient):
-            return "editor"
-        else:
-            return real_name
+    The arguments names "to" and "on" allow for a readable template tag, e.g.:
+    {% display_recipient recipient to=user on=article %}
+    but here we are aliasing "to" and "on" onto something easier to understand in the code
+    """
+    return get_recipient_label(on.articleworkflow, to, actor_or_recipient)
 
 
 @register.filter

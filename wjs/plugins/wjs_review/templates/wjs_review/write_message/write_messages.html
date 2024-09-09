@@ -66,9 +66,13 @@
 {% endblock bootstrap5_extra_head %}
 
 {% block content_wrapper %}
-  {% translate "Send" as send_label %}
+  {% if note %}
+    {% translate "Save" as send_label %}
+  {% else %}
+    {% translate "Send" as send_label %}
+  {% endif %}
   {% translate "Back" as back_label %}
-  {% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
+  {% url "wjs_article_details" pk=article.articleworkflow.pk as back_url %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -76,21 +80,31 @@
       </div>
     </div>
   </div>
-  <div class="container mb-3">
-    <div class="card mb-3">
-      <div class="card-body">
-        {% if introduction %}
+  {% if introduction %}
+    <div class="container mb-3">
+      <div class="card mb-3">
+        <div class="card-body">
           <h5 class="card-title">{% translate "Message will be forwarded to" %}: {{ forward }}</h5>
           <div class="card-text">
             <p>{{ introduction }}</p>
           </div>
-        {% else %}
-          <h5 class="card-title">{% translate "Extra info here" %}</h5>
-          <div class="card-text">{% blocktranslate %}<p>Provide information</p>{% endblocktranslate %}</div>
-        {% endif %}
+        </div>
       </div>
     </div>
-  </div>
+  {% endif %}
+  {% if note %}
+    <div class="container mb-3">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="card-text">
+            {% blocktranslate %}
+              <p>Once saved, you can access this note from the preprint timeline</p>
+            {% endblocktranslate %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
   <div class="container mb-3">
     {% if forward %}
     {% endif %}
@@ -137,6 +151,7 @@
         {% endif %}
       </div>
       {% bootstrap_button button_type="submit" name="submit" content=send_label id="id_formset_submit_button" %}
+      {% bootstrap_button button_class="btn-outline-secondary" href=back_url content=back_label %}
     </form>
   </div>
 {% endblock content_wrapper %}

@@ -179,6 +179,8 @@ ROSETTA_POFILE_WRAP_WIDTH = 0
 # Fall-backs if there is no date format specified for the active language
 DATE_FORMAT = "M d, Y"
 DATETIME_FORMAT = "M d, Y H:i:s"
+DATETIME_FORMAT_NO_SECONDS = "M d, Y H:i"
+TIME_FORMAT_NO_SECONDS = "H:i"
 DATE_FORMAT_STRFTIME = "%d %M"
 
 DATE_FORMATS = {

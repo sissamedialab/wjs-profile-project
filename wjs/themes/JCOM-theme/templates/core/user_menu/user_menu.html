@@ -4,7 +4,7 @@
 {% user_has_role request 'reviewer' as user_is_reviewer %}
 {% user_has_role request 'director' as user_is_director %}
 {% user_has_role request 'typesetter' as user_is_typesetter %}
-{% is_user_eo_or_director request.user as user_is_eo_or_director %}
+{% user_has_eo_director_role request.user as user_is_eo_or_director %}
 
 {% comment %}
 urls are defined here avoid error if for any reason the url is not defined in

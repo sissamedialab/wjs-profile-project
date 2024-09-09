@@ -8,7 +8,7 @@ action in a method named "run()".
 import dataclasses
 import datetime
 from copy import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
@@ -24,6 +24,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import QuerySet
+from django.db.models.query import FlatValuesListIterable
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -41,6 +42,7 @@ from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 import wjs.jcom_profile.permissions
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
@@ -1909,119 +1911,149 @@ class HandleMessage:
         if ContentType.objects.get_for_model(self.message.target) == Journal:
             raise NotImplementedError("🦆")
 
-    # TODO: refactor the following 3 methods by extending AccountManager as a manager for JCOMProfile
     @staticmethod
-    def _allowed_recipients_for_actor_pks(actor: Account, article: Article) -> List[int]:
-        """Return the list of ids of allowed recipients for the given actor/article combination."""
-        # TODO: if a director is also an author, the system can get confused! Or, more generally, all "roles" should be
-        # defined with respect to the article.
+    def allowed_recipients_for_actor(actor: Account, article: Article) -> QuerySet[Account]:
+        """Return the list of allowed recipients for the actor of the message.
 
+        This method is used to build the queryset for the recipient ModelChoiceField in the MessageForm, and possibly
+        other places.
+        """
+
+        def _get_directors(article_obj: Article) -> FlatValuesListIterable:
+            """
+            Get the director for the article journal.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List of director ids for current review round.
+            :rtype: FlatValuesListIterable
+            """
+            return Account.objects.filter(
+                accountrole__journal=article_obj.journal,
+                accountrole__role__slug=constants.DIRECTOR_ROLE,
+            ).values_list("pk", flat=True)
+
+        def _get_correspondening_author(article_obj: Article) -> list[int]:
+            """
+            Get the corresponding author for the article.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List containing the correspondence author id
+            :rtype: list[int]
+            """
+            return [article_obj.correspondence_author.pk]
+
+        def _get_current_editor(article_obj: Article) -> list[int]:
+            """
+            Get the current editor for the article.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List of editor ids for current review round.
+            :rtype: FlatValuesListIterable
+            """
+            return [WjsEditorAssignment.objects.get_current(article_obj).editor.pk]
+
+        def _get_reviewers(article_obj: Article) -> FlatValuesListIterable:
+            """
+            Get the reviewers for any review assignment reviewer.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List of reviewers ids
+            :rtype: FlatValuesListIterable
+            """
+            return article_obj.reviewassignment_set.all().values_list("reviewer", flat=True)
+
+        def _get_connected_editors(article_obj: Article, reviewer: Account) -> FlatValuesListIterable:
+            """
+            Get the editor connected with any review assignment reviewer is assigned to.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :param reviewer: Reviewer to check editors for
+            :type reviewer: Account
+
+            :return: List of editor ids
+            :rtype: FlatValuesListIterable
+            """
+            return article_obj.reviewassignment_set.filter(reviewer=reviewer.id).values_list("editor", flat=True)
+
+        def _get_past_editors(article_obj: Article) -> FlatValuesListIterable:
+            """
+            Get the editors connected with any review assignment reviewer is assigned to.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List of editor ids
+            :rtype: FlatValuesListIterable
+            """
+            return article_obj.past_editor_assignments.values_list("editor", flat=True)
+
+        allowed_recipients = Account.objects.all()
         # EO system user is always available
-        # (I need to do this funny `filter(id=...)` because I need a QuerySet)
-        allowed_recipients = Account.objects.filter(id=communication_utils.get_eo_user(article).id)
-        others = []
+        users_pk = [communication_utils.get_eo_user(article).pk]
 
         # The actor himself is always available also
-        others.append(
-            Account.objects.filter(id=actor.id),
-        )
+        users_pk.append(actor.pk)
 
         articleworkflow = article.articleworkflow
 
         # Editor can write to:
         if permissions.is_article_editor(instance=articleworkflow, user=actor):
             # the journal's director(s)
-            others.append(
-                Account.objects.filter(
-                    accountrole__journal=article.journal,
-                    accountrole__role__slug="director",
-                ),
-            )
+            users_pk.extend(_get_directors(article))
             # the Corresponding author
-            others.append(
-                Account.objects.filter(id=article.correspondence_author.id),
-            )
+            users_pk.extend(_get_correspondening_author(article))
             # all the article's reviewers
-            others.append(
-                Account.objects.filter(
-                    id__in=article.reviewassignment_set.all().values_list("reviewer", flat=True),
-                ),
-            )
+            users_pk.extend(_get_reviewers(article))
         # Reviewers can write to:
         elif permissions.is_article_reviewer(instance=articleworkflow, user=actor):
             # the journal's director(s)
-            others.append(
-                Account.objects.filter(
-                    accountrole__journal=article.journal,
-                    accountrole__role__slug="director",
-                ),
-            )
+            users_pk.extend(_get_directors(article))
             # "His" editor(s): only the editor that created the ReviewAssigment for this reviewer
             # I.e. not _all_ paper's editor. Other alternatives:
             # - all editors, e.g.: article.articleworkflow.get_editor_assignments()
             # - only the current/last editor
-            others.append(
-                Account.objects.filter(
-                    id__in=article.reviewassignment_set.filter(reviewer=actor.id).values_list("editor", flat=True),
-                ),
-            )
+            users_pk.extend(_get_connected_editors(article, actor))
         # Author(s) can write to:
         elif permissions.is_article_author(instance=articleworkflow, user=actor):
-            # (Only) the current/last editor
-            # Other alternatives:
-            # - all editors, e.g. article.articleworkflow.get_editor_assignments()
-            #
-            # NB: editor assignments do not have a direct reference to a review_round (this is a wjs concept). But we
-            # can use review assignments, that have a direct reference to both editor and review_round.
-            others.append(
-                Account.objects.filter(
-                    id__in=article.reviewassignment_set.filter(
-                        review_round__round_number=article.current_review_round(),
-                    ).values_list("editor", flat=True),
-                ),
-            )
             # the journal's director(s) (if permitted by the journal configuration)
             if get_setting(
                 "wjs_review",
                 "author_can_contact_director",
                 article.journal,
             ).processed_value:
-                others.append(
-                    Account.objects.filter(
-                        accountrole__journal=article.journal,
-                        accountrole__role__slug="director",
-                    ),
-                )
+                users_pk.extend(_get_directors(article))
+        # Director(s) can write to:
+        elif permissions.has_director_role_by_article(instance=articleworkflow, user=actor):
+            # the Corresponding author
+            users_pk.extend(_get_correspondening_author(article))
+            # all the article's reviewers
+            users_pk.extend(_get_reviewers(article))
+            # current editor
+            users_pk.extend(_get_current_editor(article))
+            # past editors editor
+            users_pk.extend(_get_past_editors(article))
 
-        # Note that MessageForm' clean method will try to do a `get()` on this queryset, and raise
-        # django.db.utils.NotSupportedError:
-        #   Calling QuerySet.get(...) with filters after union() is not supported.
-        # so we have to "refresh" it later on
-        # and cannot "filter" it directly.
-        qs = allowed_recipients.union(*others)
-        return qs.values_list("id", flat=True)
-
-    @staticmethod
-    def allowed_recipients_for_actor(actor: Account, article: Article) -> QuerySet:
-        """Return the list of allowed recipients for the actor of the message.
-
-        This method is used to build the queryset for the recipient ModelChoiceField in the MessageForm, and possibly
-        other places.
-
-        """
-        pks = HandleMessage._allowed_recipients_for_actor_pks(actor, article)
-        return Account.objects.filter(id__in=pks)
+        return allowed_recipients.filter(pk__in=users_pk)
 
     @staticmethod
     def can_write_to(actor: Account, article: Article, recipient: Account) -> bool:
         """Check if the sender (:py:param: actor) can write to :py:param: recipient wrt this :py:param: article."""
-        pks = HandleMessage._allowed_recipients_for_actor_pks(actor, article)
-        return recipient.id in pks
+        return HandleMessage.allowed_recipients_for_actor(actor, article).filter(pk=recipient.pk).exists()
 
     def run(self):
         """Save (and send) a message."""
         recipient = get_object_or_404(Account, id=self.form_data["recipient"])
-        if not Message.can_write_to(self.message.actor, self.message.target, recipient):
+        if not self.can_write_to(self.message.actor, self.message.target, recipient):
             raise ValidationError("Cannot write to this recipient. Please contact EO.")
 
         with transaction.atomic():

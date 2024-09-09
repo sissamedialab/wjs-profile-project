@@ -1156,7 +1156,7 @@ class PostponeRevisionRequestDueDate(HtmxMixin, UserPassesTestMixin, UpdateView)
     View to postpone the date_due of a revision request (done by the editor)
     """
 
-    title = _("Postpone revision request due date")
+    title = _("Change revision due date")
     model = EditorRevisionRequest
     form_class = EditorRevisionRequestDueDateForm
     template_name = "wjs_review/details/editor_revision_request_date_due_form.html"
@@ -1678,22 +1678,31 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
         from .custom_types import BreadcrumbItem
 
-        return [
-            BreadcrumbItem(
-                url=reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk}),
-                title=str(self.article.articleworkflow),
-            ),
-            BreadcrumbItem(
-                url=reverse("wjs_article_messages", kwargs={"pk": self.article.articleworkflow.pk}),
-                title=_("Messages"),
-            ),
-            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
-        ]
+        if self.note:
+            return [
+                BreadcrumbItem(
+                    url=reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk}),
+                    title=str(self.article.articleworkflow),
+                ),
+                BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+            ]
+        else:
+            return [
+                BreadcrumbItem(
+                    url=reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk}),
+                    title=str(self.article.articleworkflow),
+                ),
+                BreadcrumbItem(
+                    url=reverse("wjs_article_messages", kwargs={"pk": self.article.articleworkflow.pk}),
+                    title=_("Messages"),
+                ),
+                BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+            ]
 
     @property
     def title(self):
         if self.note:
-            return _("Write a personal note")
+            return _("Add a personal note")
         if self.source_message:
             return _('Reply to message "%s"') % self.source_message.subject
         if self.to_author:
@@ -1776,6 +1785,10 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         kwargs["hide_recipients"] = self.note or self.to_author or self.to_typesetter
         return kwargs
 
+    def get_sender_label(self):
+        """Return the label for the sender field."""
+        return permissions.main_role_by_article(self.article.articleworkflow, self.request.user)
+
     def get_initial(self):
         """Populate the hidden fields.
 
@@ -1783,7 +1796,11 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         we include the correct values here also for good practice.
 
         """
-        default_subject = f"Re: {self.source_message.subject}" if self.source_message else ""
+        default_subject = (
+            f"Re: {self.source_message.subject}"
+            if self.source_message
+            else _(f"Message from {self.get_sender_label()}")
+        )
         to_be_forwarded_to = self.get_to_be_forwarded_to()
         return {
             "actor": self.request.user.pk,
@@ -1810,6 +1827,15 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         context["note"] = self.note
         context["hide_recipients"] = self.note or self.to_author or self.to_typesetter
         return context
+
+    def form_valid(self, form):
+        """If the form is valid, save the message and return a response."""
+        response = super().form_valid(form)
+        if self.note:
+            messages.success(self.request, _("Note saved."))
+        else:
+            messages.success(self.request, _("The message has been sent."))
+        return response
 
 
 class ToggleMessageReadView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -2165,7 +2191,9 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
             raise Http404(_("This review has already been completed."))
         if self.reviewer:
             return permissions.is_article_reviewer(articleworkflow, self.request.user)
-        return permissions.is_article_editor(articleworkflow, self.request.user)
+        return permissions.is_article_editor(articleworkflow, self.request.user) or base_permissions.has_eo_role(
+            self.request.user
+        )
 
     @property
     def title(self):
@@ -2334,14 +2362,9 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
         messages.add_message(
             self.request,
             messages.SUCCESS,
-            "Editor assigned successfully.",
+            _("Editor assigned successfully."),
         )
-        if permissions.is_article_editor(self.object, self.request.user):
-            return reverse("wjs_review_list")
-        elif permissions.has_admin_role_by_article(self.object, self.request.user):
-            return reverse("wjs_review_eo_pending")
-        elif permissions.has_director_role_by_article(self.object, self.request.user):
-            return reverse("wjs_review_director_pending")
+        return reverse("wjs_article_details", args=(self.object.pk,))
 
     def _get_current_editor(self) -> Account | None:
         """Get the current editor of the article."""
@@ -2356,7 +2379,14 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
 
         The list is filtered by removing current editor, if any.
         """
-        return Account.objects.get_editors_with_keywords(self.object.article, self._get_current_editor())
+        article_authors = self.object.article.authors.all()
+        try:
+            current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
+        except WjsEditorAssignment.DoesNotExist:
+            current_editor = None
+        return Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
+            pk__in=article_authors
+        )
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
@@ -2373,9 +2403,11 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
         return kwargs
 
 
-class JournalEditorsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class JournalEditorsView(BaseRelatedViewsMixin, ListView):
+
+    title = _("Journal Editors")
     model = Account
-    template_name = "wjs_review/journal_editors.html"
+    template_name = "wjs_review/journal_editors/editor_list.html"
     context_object_name = "editor_list"
 
     def test_func(self):
@@ -2387,7 +2419,7 @@ class JournalEditorsView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     def get_queryset(self):
         qs = Account.objects.filter(
             accountrole__journal=self.request.journal,
-            accountrole__role__slug__in=("editor", "section-editor"),
+            accountrole__role__slug__in=(constants.EDITOR_ROLE, constants.SECTION_EDITOR_ROLE),
         )
         return qs
 
