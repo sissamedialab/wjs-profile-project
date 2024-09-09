@@ -174,6 +174,20 @@ def is_user_eo(user: Account) -> bool:
     return has_eo_role(user)
 
 
+@register.simple_tag()
+def user_has_eo_role(user: Account) -> bool:
+    """Returns if user is part of the EO."""
+    return has_eo_role(user)
+
+
+@register.simple_tag(takes_context=True)
+def user_has_eo_director_role(context, user: Account) -> bool:
+    """Returns if user is part of the EO."""
+    if not user.is_authenticated:
+        return False
+    return has_eo_or_director_role(context["request"].journal, user)
+
+
 @register.filter
 def preprintid(article):
     """Given an Article, returns the preprintid or empty string"""
@@ -181,12 +195,6 @@ def preprintid(article):
         return preprintid
     else:
         return ""
-
-
-@register.simple_tag(takes_context=True)
-def is_user_eo_or_director(context, user: Account) -> bool:
-    """Returns if user is part of the EO or has director role for the journal."""
-    return has_eo_or_director_role(context["journal"], user)
 
 
 @register.filter

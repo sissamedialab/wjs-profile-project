@@ -1,4 +1,4 @@
-{% load static wjs_review %}
+{% load django_bootstrap5 static wjs_review wjs_tags %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading-cover-letter-{{ version.number }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-cover-letter-{{ version.number }}" aria-expanded="false" aria-controls="collapse-cover-letter-{{ version.number }}">
@@ -7,9 +7,16 @@
   </h2>
   <div id="collapse-cover-letter-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-cover-letter-{{ version.number }}" data-bs-parent="#metadata">
     <div class="accordion-body">
-        {% if version.main_revision %}{{ version.main_revision.author_note }}
-        {% elif version.number == 1 %}{{ article.comments_for_editor }}
+      {% translate "Author Cover letter" as author_cover_letter %}
+      {% translate "Read" as open_label %}
+      {% with modal_id="cover_letter"|concat:version.number modal_target="#cover_letter"|concat:version.number %}
+        {% bootstrap_button type="button" data_bs_toggle="modal" data_bs_target=modal_target content=open_label %}
+        {% if version.main_revision %}
+          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_cover_letter modal_body=version.main_revision.author_note|safe %}
+        {% elif version.number == 1 %}
+          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_cover_letter modal_body=article.comments_for_editor|safe %}
         {% endif %}
+      {% endwith %}
     </div>
   </div>
 </div>

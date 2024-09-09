@@ -11,7 +11,7 @@
     </div>
     <div class="card-body {% if message.actor == user %}background-blue-100{% else %}{% endif %}">
       <div class="text-black-50 mb-2">
-        <small><i class="bi bi-clock"></i> <i>{{ message.created|time }}</i></small>
+        <small><i class="bi bi-clock"></i> <i>{{ message.created|date:TIME_FORMAT_NO_SECONDS }}</i></small>
         {% if message.actor != user %}
           {% translate "From" %}: {% hide_real_name message.actor to=user on=article %}
         {% endif %} -

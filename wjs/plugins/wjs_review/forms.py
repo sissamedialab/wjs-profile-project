@@ -175,11 +175,17 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
-        # Memoize the return value to call the function only once
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
         super().__init__(*args, **kwargs)
+        interval_days = get_setting(
+            "wjs_review",
+            "acceptance_due_date_days",
+            self.instance.article.journal,
+        )
+        default_acceptance_due_date = self._today + datetime.timedelta(days=interval_days.process_value())
+        self.initial["acceptance_due_date"] = default_acceptance_due_date
         c_data = self.data.copy()
         c_data["state"] = self.instance.state
         self.data = c_data
@@ -197,12 +203,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
             self.fields["reviewer"].required = True
             self.fields["message"].widget = SummernoteWidget()
             if not self.data.get("acceptance_due_date", None):
-                interval_days = get_setting(
-                    "wjs_review",
-                    "acceptance_due_date_days",
-                    self.instance.article.journal,
-                )
-                self.data["acceptance_due_date"] = self._today + datetime.timedelta(days=interval_days.process_value())
+                self.data["acceptance_due_date"] = default_acceptance_due_date
             if not self.data.get("author_note_visible", None):
                 default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
                 self.data["author_note_visible"] = default_visibility
@@ -735,7 +736,6 @@ class MessageRecipientForm(forms.Form):
     This will be the base for an inline form.
     """
 
-    # TODO: when switching to django >= 4, see https://github.com/jrief/django-formset
     recipient = forms.ModelChoiceField(
         queryset=None, widget=forms.widgets.Select(attrs={"class": "rounded-0 rounded-start"})
     )
@@ -907,6 +907,10 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         super().__init__(*args, **kwargs)
+        if self.instance.date_accepted:
+            self.fields["date_due"].label = _("Review due date")
+        else:
+            self.fields["date_due"].label = _("Accept/decline due date")
 
     def clean(self):
         """
@@ -941,7 +945,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
 
 
 class EditorRevisionRequestDueDateForm(forms.ModelForm):
-    date_due = forms.DateField(required=True, widget=forms.DateInput(attrs={"type": "date"}))
+    date_due = forms.DateField(label=_("Due date"), required=True, widget=forms.DateInput(attrs={"type": "date"}))
 
     class Meta:
         model = EditorRevisionRequest

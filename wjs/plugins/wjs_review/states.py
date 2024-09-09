@@ -453,12 +453,20 @@ class EditorToBeSelected(BaseState):
 class EditorSelected(BaseState):
     """Editor selected"""
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.is_article_editor,
-            name="declines assignment",
-            label="Decline Assignment",
-            view_name="wjs_unassign_assignment",
+            name="assigns reviewer",
+            label="Select a reviewer",
+            view_name="wjs_select_reviewer",
+        ),
+        ArticleAction(
+            condition=conditions.user_can_be_assigned_as_reviewer,
+            permission=permissions.is_article_editor,
+            name="assigns self as reviewer",
+            label="I will review",
+            tooltip="Assign myself as reviewer",
+            view_name="wjs_editor_assigns_themselves_as_reviewer",
             is_modal=True,
         ),
         ArticleAction(
@@ -466,6 +474,13 @@ class EditorSelected(BaseState):
             name="select editor",
             label="Select editor",
             view_name="wjs_assign_editor",
+        ),
+        ArticleAction(
+            permission=permissions.is_article_editor,
+            name="declines assignment",
+            label="Decline Assignment",
+            view_name="wjs_unassign_assignment",
+            is_modal=True,
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -484,22 +499,16 @@ class EditorSelected(BaseState):
         ArticleAction(
             permission=permissions.is_article_editor,
             name="deems not suitable",
-            label="Not suitable",
+            label="Not suitable for JCOM",
             view_name="wjs_article_decision",
             querystring_params={"decision": "not_suitable"},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
-            name="make decision",
-            label="Make decision",
+            name="request major revision",
+            label="Request Major revision",
             view_name="wjs_article_decision",
-        ),
-        ArticleAction(
-            permission=permissions.is_article_editor,
-            name="request technical revision",
-            label="Request Technical revision",
-            view_name="wjs_article_decision",
-            querystring_params={"decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION},
+            querystring_params={"decision": ArticleWorkflow.Decisions.MAJOR_REVISION},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
@@ -510,41 +519,25 @@ class EditorSelected(BaseState):
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
-            name="request major revision",
-            label="Request Major revision",
+            name="request technical revision",
+            label="Allow metadata change",
             view_name="wjs_article_decision",
-            querystring_params={"decision": ArticleWorkflow.Decisions.MAJOR_REVISION},
-        ),
-        ArticleAction(
-            condition=conditions.user_can_be_assigned_as_reviewer,
-            permission=permissions.is_article_editor,
-            name="assigns self as reviewer",
-            label="I will review",
-            tooltip="Assign myself as reviewer",
-            view_name="wjs_editor_assigns_themselves_as_reviewer",
-            is_modal=True,
+            querystring_params={"decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION},
         ),
         ArticleAction(
             permission=permissions.is_article_editor,
-            name="assigns reviewer",
-            label="Select a reviewer",
-            view_name="wjs_select_reviewer",
+            name="make decision",
+            label="Make decision",
+            view_name="wjs_article_decision",
         ),
-    )
+    ) + BaseState.article_actions
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
             permission=permissions.is_person_working_on_article,
             name="see review",
-            label="Details",
+            label="Upload review",
             view_name="wjs_assign_permission",
             custom_get_url=get_review_url,
-        ),
-        ReviewAssignmentAction(
-            permission=permissions.is_article_supervisor,
-            name="bypass reviewer",
-            label="See as reviewer",
-            view_name="wjs_assign_permission",
-            custom_get_url=get_review_url_with_code,
         ),
         ReviewAssignmentAction(
             permission=permissions.is_article_editor_or_eo,
@@ -589,7 +582,7 @@ class EditorSelected(BaseState):
             permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
-            label="Deselect a reviewer",
+            label="Deselect reviewer",
             view_name="wjs_deselect_reviewer",
         ),
     )
@@ -700,12 +693,12 @@ class Accepted(BaseState):
 class ToBeRevised(BaseState):
     """To be revised"""
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             condition=conditions.pending_revision_request,
             permission=permissions.is_article_editor,
             name="postpone author revision deadline",
-            label="",
+            label="Change revision due date",
             view_name="wjs_postpone_revision_request",
             custom_get_url=get_url_with_last_editor_revision_request_pk,
             is_modal=True,
@@ -714,7 +707,7 @@ class ToBeRevised(BaseState):
             condition=conditions.pending_edit_metadata_request,
             permission=permissions.is_article_editor,
             name="postpone author edit metadata deadline",
-            label="",
+            label="Change update metadata due date",
             view_name="wjs_postpone_revision_request",
             custom_get_url=get_url_with_last_editor_revision_request_pk,
             is_modal=True,
@@ -723,7 +716,7 @@ class ToBeRevised(BaseState):
             condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="submits new version",
-            label="",
+            label="Submit revision",
             view_name="do_revisions",
             custom_get_url=get_do_revision_url,
         ),
@@ -731,7 +724,7 @@ class ToBeRevised(BaseState):
             condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
-            label="",
+            label="Confirm previous version",
             view_name="do_revisions",
             custom_get_url=get_do_revision_url,
         ),
@@ -739,11 +732,11 @@ class ToBeRevised(BaseState):
             condition=conditions.pending_edit_metadata_request,
             permission=permissions.is_article_author,
             name="edit metadata",
-            label="",
+            label="Update metadata",
             view_name="do_revisions",
             custom_get_url=get_edit_metadata_revision_url,
         ),
-    )
+    ) + BaseState.article_actions
 
     @classmethod
     def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
@@ -782,7 +775,7 @@ class ToBeRevised(BaseState):
 class Rejected(BaseState):
     """Rejected"""
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=conditions.is_appeal_available,
             name="admin opens an appeal",
@@ -790,13 +783,13 @@ class Rejected(BaseState):
             view_name="wjs_open_appeal",
             is_modal=True,
         ),
-    )
+    ) + BaseState.article_actions
 
 
 class UnderAppeal(BaseState):
     """Under appeal after rejection"""
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.is_article_author,
             name="author submits appeal",
@@ -804,7 +797,7 @@ class UnderAppeal(BaseState):
             view_name="do_revisions",
             custom_get_url=get_do_revision_url,
         ),
-    )
+    ) + BaseState.article_actions
 
     @classmethod
     def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
@@ -819,7 +812,7 @@ class UnderAppeal(BaseState):
 class PaperMightHaveIssues(BaseState):
     """Paper might have issues"""
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=base_permissions.has_eo_role,
             name="requires resubmission",
@@ -840,7 +833,7 @@ class PaperMightHaveIssues(BaseState):
             label="Queue for review",
             view_name="wjs_article_dispatch_assignment",
         ),
-    )
+    ) + BaseState.article_actions
 
 
 class ReadyForTypesetter(BaseState):
@@ -848,14 +841,14 @@ class ReadyForTypesetter(BaseState):
     Ready for typesetter
     """
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.has_typesetter_role_by_article,
             name="typ takes in charge",
             label="Take in charge",
             view_name="wjs_typ_take_in_charge",
         ),
-    )
+    ) + BaseState.article_actions
 
 
 class TypesetterSelected(BaseState):
@@ -863,7 +856,7 @@ class TypesetterSelected(BaseState):
     Typesetter selected
     """
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.is_article_typesetter,
             name="uploads sources",  # this pairs with the one above ⮵
@@ -933,7 +926,7 @@ class TypesetterSelected(BaseState):
             confirm=_("Are you sure you want to set the paper ready for publication?"),
             is_post=True,
         ),
-    )
+    ) + BaseState.article_actions
 
     @classmethod
     def article_requires_typesetter_attention(cls, article: Article, user: Account, **kwargs) -> str:
@@ -977,7 +970,7 @@ class Proofreading(BaseState):
     send corrections back to the typesetter.
     """
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.is_article_author,
             name="author_add_extra_information",
@@ -1021,7 +1014,7 @@ class Proofreading(BaseState):
             custom_get_css_class=get_unpulishable_css_class,
             custom_get_label=get_publishable_label,
         ),
-    )
+    ) + BaseState.article_actions
 
     @classmethod
     def article_requires_typesetter_attention(cls, article: Article, user: Account, **kwargs) -> str:
@@ -1064,7 +1057,7 @@ class ReadyForPublication(BaseState):
     Ready for publication
     """
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
             name="begin publication",
@@ -1081,7 +1074,7 @@ class ReadyForPublication(BaseState):
             tooltip="Ask the typesetter for some changes...",
             view_name="wjs_send_back_to_typ",
         ),
-    )
+    ) + BaseState.article_actions
 
 
 class PublicationInProgress(BaseState):
@@ -1089,7 +1082,7 @@ class PublicationInProgress(BaseState):
     Publication in progress
     """
 
-    article_actions = BaseState.article_actions + (
+    article_actions = (
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
             name="finish publication",
@@ -1099,7 +1092,7 @@ class PublicationInProgress(BaseState):
             confirm=_("Are you sure you want to retry the publication process?"),
             is_post=True,
         ),
-    )
+    ) + BaseState.article_actions
 
 
 class SendToEditorForCheck(BaseState):

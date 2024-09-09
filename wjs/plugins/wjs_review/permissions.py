@@ -6,12 +6,41 @@ from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 if TYPE_CHECKING:
     from .models import ArticleWorkflow
 
 Account = get_user_model()
+
+
+def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
+    """
+    Return the main role of the user.
+
+    :param article: An instance of the ArticleWorkflow class.
+    :type article: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: The main role of the user.
+    :rtype: str
+    """
+    if base_permissions.has_eo_role(user):
+        return constants.EO_GROUP
+    elif has_director_role_by_article(article, user):
+        # We do have both a "director" and "main director" roles, but they are functionally equivalent
+        return constants.DIRECTOR_ROLE
+    elif is_article_typesetter(article, user):
+        return constants.TYPESETTER_ROLE
+    elif is_article_editor(article, user):
+        return constants.SECTION_EDITOR_ROLE
+    elif is_article_reviewer(article, user):
+        return constants.REVIEWER_ROLE
+    elif is_one_of_the_authors(article, user):
+        return constants.AUTHOR_ROLE
 
 
 def can_see_other_user_name(instance: "ArticleWorkflow", sender: Account, recipient: Account) -> bool:

@@ -6,7 +6,12 @@
   {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
 </div>
 <div class="modal-body">
-  <p>{% translate "Do you confirm to assign your self as reviewer of" %} {{ workflow }}.</p>
+  {% blocktranslate with due_date=form.initial.acceptance_due_date|date:DATE_FORMAT %}
+    <p>
+      You are going to assign yourself as reviewer of {{ workflow }}.
+      You will upload your review by {{ due_date }}.
+    </p>
+  {% endblocktranslate %}
   <form id="decline-assignment" hx-post="{% url "wjs_editor_assigns_themselves_as_reviewer" pk=workflow.pk %}" hx-target="#htmxModalContent">
     {% csrf_token %}
     {% bootstrap_form_errors form layout='inline' %}{% bootstrap_form form %}{% bootstrap_button button_type="submit" content="Assign" %}

@@ -14,6 +14,8 @@
     <div class="card mb-3">
       <div class="card-body">
         <form method="post">
+          {% translate "Back" as back_label %}
+          {% url "wjs_article_details" pk=workflow.pk as back_url %}
           {% csrf_token %}
           {{ form.management_form }}
           {% regroup form.forms by round as forms %}
@@ -32,6 +34,7 @@
           {% endfor %}
           <div class="col mt-4">
             {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content=save_label %}
+            {% bootstrap_button button_class="btn-outline-secondary" href=back_url content=back_label %}
           </div>
         </form>
       </div>

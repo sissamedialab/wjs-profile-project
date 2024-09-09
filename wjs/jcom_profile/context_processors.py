@@ -14,4 +14,6 @@ def date_format(request):
     return {
         "DATE_FORMAT": settings.DATE_FORMATS.get(language, settings.DATE_FORMAT),
         "DATETIME_FORMAT": settings.DATETIME_FORMATS.get(language, settings.DATETIME_FORMAT),
+        "DATETIME_FORMAT_NO_SECONDS": settings.DATETIME_FORMAT_NO_SECONDS,
+        "TIME_FORMAT_NO_SECONDS": settings.TIME_FORMAT_NO_SECONDS,
     }

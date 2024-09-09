@@ -20,6 +20,7 @@ from django.test import Client
 from django.urls import reverse
 from django.utils.timezone import now
 from hijack.middleware import HijackUserMiddleware
+from plugins.wjs_review.models import PastEditorAssignment
 from review import models as review_models
 from submission import models as submission_models
 from utils import setting_handler
@@ -464,6 +465,15 @@ def test_message_addressing(
 
     eo_system_user: Account = get_eo_user(assigned_article)
 
+    past_editor: Account = create_jcom_user("past_editor").janeway_account
+
+    PastEditorAssignment.objects.create(
+        article=assigned_article,
+        editor=past_editor,
+        date_assigned=now() - datetime.timedelta(days=30),
+        date_unassigned=now() - datetime.timedelta(days=10),
+    )
+
     # The fixture `review_settings` ensures that all needed (journal) settings exist, but we still need to set the
     # desired value
     setting_handler.save_setting(
@@ -501,6 +511,7 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(editor, assigned_article, author) is True
     assert HandleMessage.can_write_to(editor, assigned_article, director) is True
     assert HandleMessage.can_write_to(editor, assigned_article, eo_system_user) is True
+    assert HandleMessage.can_write_to(editor, assigned_article, past_editor) is False
 
     # Reviewer
     # ======
@@ -509,14 +520,25 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(reviewer, assigned_article, author) is False
     assert HandleMessage.can_write_to(reviewer, assigned_article, director) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, eo_system_user) is True
+    assert HandleMessage.can_write_to(reviewer, assigned_article, past_editor) is False
 
     # Author
     # ======
-    assert HandleMessage.can_write_to(author, assigned_article, editor) is True
+    assert HandleMessage.can_write_to(author, assigned_article, editor) is False
     assert HandleMessage.can_write_to(author, assigned_article, reviewer) is False
     assert HandleMessage.can_write_to(author, assigned_article, author) is True
     assert HandleMessage.can_write_to(author, assigned_article, director) is author_can_contact_director
     assert HandleMessage.can_write_to(author, assigned_article, eo_system_user) is True
+    assert HandleMessage.can_write_to(author, assigned_article, past_editor) is False
+
+    # Director
+    # ======
+    assert HandleMessage.can_write_to(director, assigned_article, editor) is True
+    assert HandleMessage.can_write_to(director, assigned_article, reviewer) is True
+    assert HandleMessage.can_write_to(director, assigned_article, author) is True
+    assert HandleMessage.can_write_to(director, assigned_article, director) is True
+    assert HandleMessage.can_write_to(director, assigned_article, eo_system_user) is True
+    assert HandleMessage.can_write_to(director, assigned_article, past_editor) is True
 
 
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
@@ -540,6 +562,14 @@ def test_allowed_recipients_for_actor(
 
     reviewer_1: Account = create_jcom_user("reviewer_1").janeway_account
     reviewer_2: Account = create_jcom_user("reviewer_2").janeway_account
+    past_editor: Account = create_jcom_user("past_editor").janeway_account
+
+    PastEditorAssignment.objects.create(
+        article=assigned_article,
+        editor=past_editor,
+        date_assigned=now() - datetime.timedelta(days=30),
+        date_unassigned=now() - datetime.timedelta(days=10),
+    )
 
     # Let's make all actors point directly to the Janeway's account (i.e. not to the JCOMProfile), because it's easier
     # to use.
@@ -588,6 +618,7 @@ def test_allowed_recipients_for_actor(
     assert reviewer_1 in allowed_recipients
     assert reviewer_2 in allowed_recipients
     assert editor in allowed_recipients
+    assert past_editor not in allowed_recipients
     assert director in allowed_recipients
     assert eo_system_user in allowed_recipients
 
@@ -598,6 +629,7 @@ def test_allowed_recipients_for_actor(
     assert reviewer_1 in allowed_recipients
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
+    assert past_editor not in allowed_recipients
     assert director in allowed_recipients
     assert eo_system_user in allowed_recipients
 
@@ -607,8 +639,20 @@ def test_allowed_recipients_for_actor(
     assert author in allowed_recipients
     assert reviewer_1 not in allowed_recipients
     assert reviewer_2 not in allowed_recipients
-    assert editor in allowed_recipients
+    assert editor not in allowed_recipients
+    assert past_editor not in allowed_recipients
     assert (director in allowed_recipients) is author_can_contact_director
+    assert eo_system_user in allowed_recipients
+
+    # Director
+    # ======
+    allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=director, article=assigned_article)
+    assert author in allowed_recipients
+    assert reviewer_1 in allowed_recipients
+    assert reviewer_2 in allowed_recipients
+    assert editor in allowed_recipients
+    assert past_editor in allowed_recipients
+    assert director in allowed_recipients
     assert eo_system_user in allowed_recipients
 
 

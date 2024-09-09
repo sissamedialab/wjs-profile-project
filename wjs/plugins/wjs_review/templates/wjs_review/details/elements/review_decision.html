@@ -1,4 +1,4 @@
-{% load static wjs_review %}
+{% load django_bootstrap5 static wjs_review wjs_tags %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading-editor-decision-{{ version.number }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-editor-decision-{{ version.number }}" aria-expanded="false" aria-controls="collapse-editor-decision-{{ version.number }}">
@@ -7,15 +7,21 @@
   </h2>
   <div id="collapse-editor-decision-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-editor-decision-{{ version.number }}" data-bs-parent="#metadata">
     <div class="accordion-body">
+      {% translate "Editor Report" as editor_report_title %}
+      {% translate "Read" as open_label %}
       <table class="table">
         <tr>
-          <th>{% translate "Decision" %}</th><td>{{ decision.get_decision_display }}</td>
+          <th>{% translate "Decision" %}</th>
+          <td>{{ decision.get_decision_display }}</td>
         </tr>
         <tr>
-          <th colspan="2">{% translate "Editor Report" %}</th>
-        </tr>
-        <tr>
-          <td colspan="2">{{ decision.decision_editor_report|safe }}</td>
+          <th>{{ editor_report_title }}</th>
+          {% with modal_id="editor_report"|concat:decision.pk modal_target="#editor_report"|concat:decision.pk %}
+            <td>
+              {% bootstrap_button type="button" data_bs_toggle="modal" data_bs_target=modal_target content=open_label %}
+              {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_report_title modal_body=decision.decision_editor_report|safe %}
+            </td>
+          {% endwith %}
         </tr>
       </table>
     </div>
