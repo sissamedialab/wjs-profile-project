@@ -1,5 +1,15 @@
 {% load static wjs_permissions wjs_review wjs_tags %}
 <table class="table">
+  {% if show_title_id %}
+    <tr>
+      <th>{% translate "ID" %}</th>
+      <td>{{ workflow.preprint_id }}</td>
+    </tr>
+    <tr>
+      <th>{% translate "Title" %}</th>
+      <td>{{ article.title }}</td>
+    </tr>
+  {% endif %}
   {% if has_full_access %}
     <tr>
       <th>{% translate "Corresponding author" %}</th>
@@ -12,7 +22,7 @@
       <td>{{ article.date_submitted|date:"DATE_FORMAT" }}</td>
     </tr>
   {% endif %}
-  {% if workflow|is_user_article_supervisor:request.user %}
+  {% if workflow|is_user_article_manager:request.user %}
     <tr>
       <th>{% translate "EO In charge" %}</th>
       <td>{{ workflow.eo_in_charge|default:"N/A" }}</td>

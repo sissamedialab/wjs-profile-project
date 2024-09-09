@@ -311,6 +311,9 @@ BOOTSTRAP5 = {"css_url": "/static/JCOM-theme/css/wjs_review.css"}
 # The list of journals that supports multiple languages and needs base english for display on the website
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
 
+# The list of journals for which we should show editor keywords when selecting a new editor
+WJS_SHOW_EDITOR_KEYWORDS = []
+
 # Associating each journal with Its custom Review Form
 WJS_REVIEW_CUSTOM_REPORT_FORMS = {
     None: "plugins.wjs_review.forms.JCOMReportForm",

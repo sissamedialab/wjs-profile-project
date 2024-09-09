@@ -774,7 +774,7 @@ class ArticleWorkflow(TimeStampedModel):
     def admin_or_system_requires_revision(self):
         pass
 
-    # editor assign different editor
+    # editor Select editor
     @transition(
         field=state,
         source=ReviewStates.EDITOR_SELECTED,

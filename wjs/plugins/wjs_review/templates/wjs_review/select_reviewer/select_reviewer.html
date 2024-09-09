@@ -1,5 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static %}
+{% load django_bootstrap5 static wjs_permissions %}
 
 {% block bootstrap5_extra_head %}
   {{ block.super }}
@@ -8,6 +8,8 @@
 {% endblock bootstrap5_extra_head %}
 
 {% block content_wrapper %}
+  {% user_has_access_to workflow=workflow user=request.user target=workflow.article permission_type="all" as has_full_access %}
+
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -19,8 +21,8 @@
   <div class="container mb-3" id="select-reviewer-table">
     <div class="card mb-3">
       <div class="card-body">
-        <h5 class="card-title">{% translate "About this page" %}</h5>
         <div class="card-text">
+        {% include "wjs_review/details/elements/metadata_main.html" with article=workflow.article show_title_id=True %}
           {% blocktranslate %}
             <p>
               This page provides a search tool to freely search for reviewers of your choice to select registered reviewers or to invite non-registered ones.<br>

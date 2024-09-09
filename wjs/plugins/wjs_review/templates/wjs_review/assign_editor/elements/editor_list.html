@@ -4,9 +4,11 @@
   {% csrf_token %}
   {% for user in users %}
     <tr>
-      <td>{{ user.get_full_name }}</td>
-      <td>{{ user.matching_keywords|join:", " }}</td>
-      <td>{{ user.num_shared_kwds }}</td>
+      <td>{{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}</td>
+      {% if workflow.article.journal|show_editor_keywords %}
+        <td>{{ user.matching_keywords|join:", " }}</td>
+        <td>{{ user.num_shared_kwds }}</td>
+      {% endif %}
       <td class="text-center">
         {% bootstrap_button name="editor" content=select_label value=user.pk %}
       </td>

@@ -696,7 +696,7 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
     :py:class:`WjsEditorAssignment` relation with the current user.
     """
 
-    title = _("Select reviewer")
+    title = _("Select a reviewer")
     model = ArticleWorkflow
     form_class = SelectReviewerForm
     context_object_name = "workflow"
@@ -850,6 +850,7 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
         Even if the form is valid, checks in logic.AssignToReviewer -called by form.save- may fail as well.
         """
         try:
+            messages.success(self.request, _("The reviewer has been succesfully selected."))
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -2068,7 +2069,7 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
     View to allow the Editor to postpone Reviewer Report due date.
     """
 
-    title = _("Update Reviewer Due Date")
+    title = _("Postpone report due date")
     model = ReviewAssignment
     form_class = UpdateReviewerDueDateForm
     template_name = "wjs_review/details/update_reviewer_due_date.html"
@@ -2148,7 +2149,7 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
     The editor can withdraw a pending review assignment
     """
 
-    title = _("Deselect Reviewer")
+    title = _("Deselect a Reviewer")
     model = WorkflowReviewAssignment
     form_class = DeselectReviewerForm
     template_name = "wjs_review/details/deselect_reviewer.html"
@@ -2219,7 +2220,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
     model = ArticleWorkflow
     form_class = SupervisorAssignEditorForm
     template_name = "wjs_review/assign_editor/select_editor.html"
-    title = _("Assign Editor")
+    title = _("Select Editor")
     context_object_name = "workflow"
 
     def test_func(self):
@@ -2254,21 +2255,25 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
         elif permissions.has_director_role_by_article(self.object, self.request.user):
             return reverse("wjs_review_director_pending")
 
+    def _get_current_editor(self) -> Account | None:
+        """Get the current editor of the article."""
+        try:
+            return WjsEditorAssignment.objects.get_current(self.object).editor
+        except WjsEditorAssignment.DoesNotExist:
+            return None
+
     def _editors_with_keywords(self) -> QuerySet[Account]:
         """
         Provides a list of available editors annotated with related keywords.
 
         The list is filtered by removing current editor, if any.
         """
-        try:
-            current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
-        except WjsEditorAssignment.DoesNotExist:
-            current_editor = None
-        return Account.objects.get_editors_with_keywords(self.object.article, current_editor)
+        return Account.objects.get_editors_with_keywords(self.object.article, self._get_current_editor())
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
         context["editors_with_keywords"] = self._editors_with_keywords()
+        context["current_editor"] = self._get_current_editor()
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:
