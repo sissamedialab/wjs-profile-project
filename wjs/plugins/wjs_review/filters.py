@@ -276,11 +276,11 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         :rtype: QuerySet
         """
         if value == "eo_unread_messages":
-            return queryset.with_unread_messages(get_eo_user(self.request.journal))
+            return queryset.with_unread_messages(get_eo_user(self.request.journal), journal=self.request.journal)
         if value == "my_unread_messages":
-            return queryset.with_unread_messages(self.request.user)
+            return queryset.with_unread_messages(self.request.user, journal=self.request.journal)
         if value == "with_unread_messages":
-            return queryset.with_unread_messages()
+            return queryset.with_unread_messages(journal=self.request.journal)
         if value == "with_reviews":
             return queryset.with_reviews()
         if value == "with_pending_reviews":

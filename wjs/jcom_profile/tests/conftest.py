@@ -289,7 +289,7 @@ def eo_user(journal, eo_group) -> JCOMProfile:
     """Create EO user."""
     eo = communication_utils.get_eo_user(journal)
     eo.refresh_from_db()
-    # TODO: add a comment on why we need the following :)
+    # Editor assignment parameters are required for EO in charge assignment
     EditorAssignmentParameters.objects.create(editor=eo, journal=journal, workload=10)
     return eo.jcomprofile
 

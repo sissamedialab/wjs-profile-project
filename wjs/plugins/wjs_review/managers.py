@@ -4,6 +4,7 @@ from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import F, OuterRef, Q, QuerySet, Subquery
+from journal.models import Journal
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 
@@ -40,7 +41,7 @@ class ArticleWorkflowQuerySet(models.QuerySet):
             .values("review_round__round_number")[:1],
         )
 
-    def with_unread_messages(self, user: Account = None) -> QuerySet:
+    def with_unread_messages(self, user: Account = None, journal: Journal | None = None) -> QuerySet:
         """
         Return articles with unread messages for the current user.
 
@@ -49,20 +50,33 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         :param user: the user to filter the unread messages for
         :type user: Account
 
+        :param journal: the current journal
+        :type journal: Journal
+
         :return: the queryset with unread messages
         :rtype: QuerySet
         """
+        from .communication_utils import get_eo_user
         from .models import Message
 
         messages = Message.objects.filter(
             content_type=ContentType.objects.get_for_model(Article),
             messagerecipients__read=False,
         )
-        if user:
-            filters = Q(recipients__in=[user])
-            if has_eo_role(user):
+        try:
+            account = user.janeway_account
+        except AttributeError:
+            account = user
+        if account:
+            is_eo_user = account == get_eo_user(journal) if journal else False
+            if not is_eo_user:
+                filters = Q(messagerecipients__read=False, messagerecipients__recipient=account)
+            else:
+                filters = Q(read_by_eo=False)
+            if has_eo_role(account) and not is_eo_user:
                 filters |= Q(read_by_eo=False)
-            messages = messages.filter(filters)
+            if filters:
+                messages = messages.filter(filters)
         return self.filter(article_id__in=Subquery(messages.values_list("object_id", flat=True)))
 
     def annotate_review_round(self) -> QuerySet:

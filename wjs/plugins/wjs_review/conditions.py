@@ -153,7 +153,9 @@ def has_unread_message(article: Article, recipient: Account) -> str:
 
     Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
     """
-    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(recipient).filter(article_id=article.pk)
+    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(
+        recipient, journal=article.journal
+    ).filter(article_id=article.pk)
     if article_has_unread_messages.exists():
         return "You have unread messages."
     else:
