@@ -1347,16 +1347,16 @@ ORDER BY dl.submissionDate
         ):
             logger.debug(f"Reviewer {reviewer} declines {self.article}")
 
-            decline_reason = self.newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
+            additional_comments = self.newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
             self.imported_document_layer_cod_list.append(reviewer_decline_message.get("documentLayerCod"))
             logger.debug(f"append reviewer decline message: {self.imported_document_layer_cod_list=}")
 
-            # TODO: add in the logic the management of decline_reason
+            # TODO: add in the logic the management of additional_comments
             EvaluateReview(
                 assignment=review_assignment,
                 reviewer=reviewer,
                 editor=self.get_current_editor(),
-                form_data={"reviewer_decision": "0", "decline_reason": decline_reason, "accept_gdpr": True},
+                form_data={"reviewer_decision": "0", "additional_comments": additional_comments, "accept_gdpr": True},
                 request=request,
                 token=None,
             ).run()

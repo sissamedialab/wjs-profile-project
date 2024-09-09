@@ -1,0 +1,91 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static %}
+{% load wjs_articles wjs_review wjs_tags %}
+
+{% block content_wrapper %}
+{% translate "Read Editor's invite" as editor_message_label %}
+{% translate "About Editor's invite" as editor_message_title %}
+{% article_css_classes assignment.article.articleworkflow as article_classes %}
+<div class="container mb-3">
+  <div class="row">
+    <div class="col-sm-12">
+      <h3 class="page-title">{{ view.title }}</h3>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-lg-9 col-md-7">
+        <div class="card border border-1">
+          <div class="card-head d-flex align-items-center px-2 py-2 pb-1 border-bottom">
+            <h6>
+              <span class="badge {{ article_classes.section }}">{{ assignment.article.section.name }}</span>
+            </h6>
+            <h4 class="ms-2"> - {{ assignment.article.pk }}</h4>
+          </div>
+          <div class="card-body px-2 py-2">
+            <div class="title-area mb-3">
+              <h5>Title</h5>
+              {{ assignment.article.title }}
+            </div>
+            <div class="title-area mb-3">
+              <h5>Abstract</h5>
+              {{ assignment.article.abstract }}
+            </div>
+            <div class="title-area mb-1 mt-3">
+              <strong>{% translate "Manuscript" %}</strong>
+            </div>
+            {% csrf_token %}
+            {% for file in assignment.article.manuscript_files.all %}
+              {% url 'article_file_download' 'id' assignment.article.pk file.pk as download_file %}
+              <!-- djlint:off -->
+              {% with author_file_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:file %}
+              <!-- djlint:on -->
+                {% bootstrap_button href=download_file content=author_file_label|safe button_class="btn-outline-primary" %}
+              {% endwith %}
+            {% endfor %}
+            <div class="title-area mb-1 mt-3">
+              <strong>{% translate "Author's cover letter" %}</strong>
+            </div>
+            {% include "wjs_review/evaluate_review/elements/author_cover_letter.html" %}
+            <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
+              {% csrf_token %}
+              <div class="row">
+                <div class="col-sm-4 mb-1 mt-3">
+                  {% bootstrap_field form.date_due label_class="fw-bold" %}
+                </div>
+              </div>
+              <div class="row">
+                {% bootstrap_form_errors form layout='inline' %}
+                <div class="col">
+                  {% bootstrap_field form.accept_gdpr %}
+                </div>
+              </div>
+              {% bootstrap_field form.additional_comments label_class="fw-bold" %}
+              {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Confirm" %}
+              {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
+            </form>
+          </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-5">
+      <div class="card border border-1">
+        <div class="card-head text-center px-2 py-2 pb-1 border-bottom">
+          <div class="title-area mb-3">
+              <h5><strong>{{ editor_message_title }}</strong></h5>
+          </div>
+        </div>
+        <div class="card-body px-2 py-2">
+           {% blocktranslate with editor=assignment.editor.full_name date_requested=assignment.date_requested|date:"d M Y" %}
+              <strong>Review requested</strong> by {{ editor }} on {{ date_requested }}
+           {% endblocktranslate %}
+           <br><br>
+           {% with modal_id="editor_invite_modal" modal_target="#editor_invite_modal" modal_content=assignment.workflowreviewassignment.editor_invite_message.body %}
+              {% bootstrap_button content=editor_message_label button_class="btn-link" data_bs_toggle="modal" data_bs_target=modal_target %}
+              {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_message_title modal_body=modal_content|safe %}
+           {% endwith %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content_wrapper %}

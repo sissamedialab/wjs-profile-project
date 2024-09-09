@@ -439,6 +439,7 @@ class AssignToReviewer:
             assignment.reviewassignment_ptr_id = assignment_id
             assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
+            assignment.editor_invite_message = None
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -532,7 +533,7 @@ class AssignToReviewer:
             context=context,
             template_is_setting=True,
         )
-        communication_utils.log_operation(
+        message = communication_utils.log_operation(
             article=self.workflow.article,
             message_subject=review_assignment_subject,
             message_body=message_body,
@@ -544,6 +545,8 @@ class AssignToReviewer:
             flag_as_read=True,
             flag_as_read_by_eo=True,
         )
+        self.assignment.editor_invite_message = message
+        self.assignment.save()
 
     def _create_reviewevaluate_reminders(self) -> None:
         """Create reminders related to evaluation of this review request."""

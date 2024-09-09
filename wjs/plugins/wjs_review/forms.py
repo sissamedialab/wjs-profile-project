@@ -373,15 +373,17 @@ class EvaluateReviewForm(forms.ModelForm):
         choices=(("1", _("Accept")), ("0", _("Reject")), ("2", _("Update"))),
         required=True,
     )
-    decline_reason = forms.CharField(
-        label=_("Please provide a reason for declining"),
+    additional_comments = forms.CharField(
+        label=_("Additional comments"),
         widget=SummernoteWidget(),
         required=False,
     )
     accept_gdpr = forms.BooleanField(required=False, widget=forms.HiddenInput())
     # https://docs.djangoproject.com/en/3.2/ref/forms/widgets/#dateinput
     # By default DateInput is an <input type="text">
-    date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    date_due = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}), label=_("Your review is expected by")
+    )
 
     class Meta:
         model = ReviewAssignment
@@ -408,12 +410,12 @@ class EvaluateReviewForm(forms.ModelForm):
         cleaned_data = super().clean()
         # Decision is optional if form is submitted when submitting a report
         if cleaned_data.get("reviewer_decision", None):
-            if cleaned_data["reviewer_decision"] == "0" and not cleaned_data["decline_reason"]:
+            if cleaned_data["reviewer_decision"] == "0" and not cleaned_data["additional_comments"]:
                 self.add_error("comments_for_editor", _("Please provide a reason for declining"))
-            elif cleaned_data["reviewer_decision"] == "0" and cleaned_data["decline_reason"]:
-                # we use comments_for_editor to store the decline_reason if the user has declined, or as cover letter
-                # if the user submits a report. As decline reason is less important we use an alias field
-                cleaned_data["comments_for_editor"] = cleaned_data["decline_reason"]
+            elif cleaned_data["reviewer_decision"] == "0" and cleaned_data["additional_comments"]:
+                # we use comments_for_editor to store the additional_comments if the user has declined, or as cover
+                # letter if the user submits a report. As decline reason is less important we use an alias field
+                cleaned_data["comments_for_editor"] = cleaned_data["additional_comments"]
             if cleaned_data["reviewer_decision"] == "1" and self.token and not cleaned_data["accept_gdpr"]:
                 self.add_error("accept_gdpr", _("You must accept GDPR to continue"))
         return cleaned_data

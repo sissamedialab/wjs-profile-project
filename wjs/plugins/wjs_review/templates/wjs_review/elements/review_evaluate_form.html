@@ -28,7 +28,7 @@
         {% if not assignment.date_declined %}
             <div class="col-6">
                 {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
-                {% bootstrap_field form.decline_reason %}
+                {% bootstrap_field form.additional_comments %}
             </div>
         {% endif %}
     </div>

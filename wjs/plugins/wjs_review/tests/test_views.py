@@ -493,7 +493,7 @@ def test_decline_invite(
         "reviewer_decision": "0",
         "accept_gdpr": accept_gdpr,
         "date_due": review_assignment_invited_user.date_due,
-        "decline_reason": reason,
+        "additional_comments": reason,
     }
     # Message related to the editor assignment
     assert Message.objects.count() == 1

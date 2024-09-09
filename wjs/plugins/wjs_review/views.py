@@ -1052,8 +1052,9 @@ class OpenReviewMixin(DetailView):
 
 class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
     form_class = EvaluateReviewForm
-    template_name = "wjs_review/review_evaluate.html"
+    template_name = "wjs_review/evaluate_review/review_evaluate.html"
     success_url = reverse_lazy("wjs_review_list")
+    title = _("Accept/Decline invite to review")
 
     def get_success_url(self) -> str:
         """Redirect to a different URL according to the decision."""
@@ -1072,6 +1073,22 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
                 self.access_code,
             )
         return url
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
+                title=self.object.article.articleworkflow,
+            ),
+            BreadcrumbItem(
+                url=reverse("wjs_evaluate_review", kwargs={"assignment_id": self.object.pk}),
+                title=self.title,
+                current=True,
+            ),
+        ]
 
     def get_queryset(self) -> QuerySet[ReviewAssignment]:
         queryset = super().get_queryset()

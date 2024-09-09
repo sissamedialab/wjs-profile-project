@@ -2625,6 +2625,7 @@ def test_postpone_due_date(
     """
     # reset messages from article fixture processing
     Message.objects.all().delete()
+    review_assignment.refresh_from_db()
     mail.outbox = []
     eo_user = communication_utils.get_eo_user(assigned_article)
 
@@ -2847,6 +2848,7 @@ def test_deassign_reviewer(
         ).run()
     # reset messages from article fixture processing
     Message.objects.all().delete()
+    review_assignment.refresh_from_db()
     mail.outbox = []
     run = DeselectReviewer(
         assignment=review_assignment,
@@ -2936,6 +2938,7 @@ def test_deassign_reviewer_existing_assignment(
         ).run()
     # reset messages from article fixture processing
     Message.objects.all().delete()
+    review_assignment.refresh_from_db()
     mail.outbox = []
     run = DeselectReviewer(
         assignment=review_assignment,
