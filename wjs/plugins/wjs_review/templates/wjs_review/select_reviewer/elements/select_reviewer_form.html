@@ -1,9 +1,9 @@
 {% load django_bootstrap5 i18n static %}
-{% translate "Past review notes" as review_notes %}
+{% translate "Display author cover letter" as review_notes %}
 {% translate "Close" as close_label %}
 {% url "wjs_article_details" workflow.pk as article_details %}
 <div class="modal-header">
-  <h5 class="modal-title" id="htmxModalLabel">{% translate "Select Reviewer" %}</h5>
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Select a Reviewer" %}</h5>
   {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
 </div>
 <div class="modal-body">

@@ -1,4 +1,4 @@
-{% load django_bootstrap5 static %}
+{% load django_bootstrap5 static wjs_review %}
 {% translate "Search" as search_label %}
 {% translate "Reset" as reset_label %}
 
@@ -8,8 +8,10 @@
       <thead class="bg-light">
       <tr>
         <th scope="col" class="col-3">{% translate "Name" %}</th>
-        <th scope="col" class="col-4">{% translate "Keywords" %}</th>
-        <th scope="col" class="col-2">{% translate "N. Matching Keywords" %}</th>
+        {% if workflow.article.journal|show_editor_keywords %}
+          <th scope="col" class="col-4">{% translate "Keywords" %}</th>
+          <th scope="col" class="col-2">{% translate "N. Matching Keywords" %}</th>
+        {% endif %}
         <th scope="col" class="col-1">{% translate "Action" %}</th>
       </tr>
       </thead>

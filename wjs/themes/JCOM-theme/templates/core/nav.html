@@ -128,6 +128,11 @@
                             </li>
                         {% endif %}
                     {% endfor %}
+                    {% if not request.user.is_authenticated %}
+                        <li>
+                            <a href="{% url 'core_login' as core_login %}">{% trans "Login" %}</a>
+                        </li>
+                    {% endif %}
                     {% if request.journal.nav_review %}
                         <li>
                             <a href="{% url 'become_reviewer' %}"><i class="fa fa-trophy">&nbsp;</i>{% trans "Become a Reviewer" %}</a>
@@ -198,6 +203,10 @@
             {% if request.user.is_authenticated %}
                 <li>
                     <a class="dropdown-trigger" href="#!" data-target="dropdown1">{% trans "Account" %}<i class="material-icons right">arrow_drop_down</i></a>
+                </li>
+            {% else %}
+                <li>
+                    <a href="{% url 'core_login' as core_login %}">{% trans "Login" %}</a>
                 </li>
             {% endif %}
             <li>

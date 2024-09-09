@@ -438,8 +438,8 @@ class EditorToBeSelected(BaseState):
     article_actions = BaseState.article_actions + (
         ArticleAction(
             permission=permissions.is_article_supervisor,
-            name="assign editor",
-            label="Assign Editor",
+            name="select editor",
+            label="Select Editor",
             view_name="wjs_assign_editor",
         ),
     )
@@ -463,8 +463,8 @@ class EditorSelected(BaseState):
         ),
         ArticleAction(
             permission=permissions.is_article_supervisor,
-            name="assign different editor",
-            label="Assign different Editor",
+            name="select editor",
+            label="Select editor",
             view_name="wjs_assign_editor",
         ),
         ArticleAction(
@@ -550,7 +550,7 @@ class EditorSelected(BaseState):
             permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="postpone reviewer due date",
-            label="Change Reviewer due date",
+            label="Postpone report due date",
             view_name="wjs_postpone_reviewer_due_date",
             is_modal=True,
         ),
@@ -573,7 +573,7 @@ class EditorSelected(BaseState):
             permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
-            label="Deselect reviewer",
+            label="Deselect a reviewer",
             view_name="wjs_deselect_reviewer",
         ),
     )

@@ -292,7 +292,17 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
             filter=Q(editorassignmentparameters__keywords__id__in=article_keywords_ids),
             distinct=True,
         ),
-    ).order_by("-num_shared_kwds")
+    )
+
+    editors = editors.annotate(
+        article_editor=Count(
+            "pasteditorassignment__article",
+            filter=Q(pasteditorassignment__article=article),
+            distinct=True,
+        ),
+    )
+
+    editors = editors.order_by("-num_shared_kwds", "first_name", "last_name")
 
     for editor in editors:
         matching_keywords = (

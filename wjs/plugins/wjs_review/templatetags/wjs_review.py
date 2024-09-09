@@ -73,6 +73,12 @@ def get_available_transitions(context: Dict[str, Any], workflow: ArticleWorkflow
     return list(workflow.get_available_user_state_transitions(user=user))
 
 
+@register.filter
+def show_editor_keywords(journal: Journal) -> bool:
+    """Return True if we should show editor keywords when selecting an article."""
+    return journal.code in settings.WJS_SHOW_EDITOR_KEYWORDS
+
+
 @register.simple_tag(takes_context=True)
 def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag: Union[str, None] = None) -> List[str]:
     """Get the available actions on an article in the given state."""
