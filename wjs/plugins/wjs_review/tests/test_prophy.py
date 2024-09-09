@@ -127,7 +127,6 @@ def test_two_articles_one_declined(
         form_data = {
             "decision": decision,
             "decision_editor_report": "random message",
-            "decision_internal_note": "random internal message",
             "withdraw_notice": "notice",
         }
         handle = HandleDecision(

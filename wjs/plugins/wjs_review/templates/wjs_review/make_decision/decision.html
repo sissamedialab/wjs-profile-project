@@ -1,0 +1,74 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static %}
+{% load wjs_review wjs_articles %}
+{% block content_wrapper %}
+{% article_css_classes workflow as article_classes %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12">
+        <h3 class="page-title">{{ view.title }}</h3>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <form name="decision" method="post">
+      <div class="row">
+        <div class="col-sm-12 border-bottom border-2">
+          <div class="card border border-1">
+            <div class="card-head d-flex align-items-center px-2 py-2 pb-1 border-bottom"><h6>
+              <span class="badge {{ article_classes.section_css }}">{{ workflow.article.section.name }}</span></h6>
+              <h4 class="ms-2">{{ workflow.article.pk }}</h4>
+            </div>
+            <div class="card-body px-2 py-2">
+              <div class="title-area mb-3">
+                <h5>{% translate "Title" %}</h5>
+                {{ workflow.article.title }}
+              </div>
+              {% include "wjs_review/make_decision/elements/report_forms_table.html" %}
+              {% get_available_transitions workflow as transitions %}
+              {% csrf_token %}
+              {% bootstrap_form_errors form layout='inline' %}
+              <div class="col-md-2">
+                {% if form.hide_decision %}
+                  {% bootstrap_field form.decision wrapper_class="visually-hidden" %}
+                {% else %}
+                  {% bootstrap_field form.decision %}
+                {% endif %}
+              </div>
+              {% if form.hide_date_due %}
+                {% bootstrap_field form.date_due wrapper_class="visually-hidden date-due" %}
+              {% else %}
+                {% bootstrap_field form.date_due wrapper_class="date-due" %}
+              {% endif %}
+              {% if form.decision_editor_report %}{% bootstrap_field form.decision_editor_report %}{% endif %}
+              {% if form.withdraw_notice %}{% bootstrap_field form.withdraw_notice %}{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% bootstrap_button button_type="submit" name="submit" value=1 content="Confirm" %}
+    </form>
+  </div>
+  <script>
+    function checkDateVisibility(decision)
+    {
+      if(["minor_revisions", "major_revisions", "tech_revisions"].indexOf(decision.selectedOptions[0].value) > -1) {
+        document.querySelector('.date-due').classList.remove('visually-hidden')
+      } else {
+        document.querySelector('.date-due').classList.add('visually-hidden')
+      }
+    }
+
+    (function () {
+      'use strict'
+      const decision = document.querySelector('#id_decision')
+
+      decision.addEventListener('change', function () {
+          checkDateVisibility(decision)
+      })
+
+      checkDateVisibility(decision)
+
+})()
+    </script>
+{% endblock content_wrapper %}

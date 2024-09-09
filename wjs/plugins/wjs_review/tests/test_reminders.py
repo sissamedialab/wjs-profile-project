@@ -1462,7 +1462,6 @@ def test_three_papers_three_reviewers(
         form_data={
             "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
             "decision_editor_report": "report",
-            "decision_internal_note": "",
             "Notice": "",
             "date_due": t4,
         },
@@ -1636,7 +1635,6 @@ class TestEditorDecides:
         form_data = {
             "decision": decision,
             "decision_editor_report": "random message",
-            "decision_internal_note": "random internal message",
             "withdraw_notice": "notice",
         }
         date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7)

@@ -1038,7 +1038,6 @@ class EditorDecision(TimeStampedModel):
     review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     decision = models.CharField(max_length=255, choices=ArticleWorkflow.Decisions.choices)
     decision_editor_report = models.TextField(blank=True, null=True)
-    decision_internal_note = models.TextField(blank=True, null=True)
 
     class Meta:
         verbose_name = _("Editor decision")

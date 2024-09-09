@@ -151,7 +151,6 @@ def _accept_article(
     form_data = {
         "decision": ArticleWorkflow.Decisions.ACCEPT,
         "decision_editor_report": "Some editor report",
-        "decision_internal_note": "Some internal note",
         "withdraw_notice": "Some withdraw notice",
     }
     assert fake_request.user is not None
@@ -192,7 +191,6 @@ def _reject_article(article: Article, fake_request: HttpRequest) -> Article:
     form_data = {
         "decision": ArticleWorkflow.Decisions.REJECT,
         "decision_editor_report": "Some editor report",
-        "decision_internal_note": "Some internal note",
         "withdraw_notice": "Some withdraw notice",
     }
     assert fake_request.user is not None
@@ -642,7 +640,6 @@ def editor_revision(assigned_article: Article, fake_request: HttpRequest) -> Edi
         form_data={
             "decision": ArticleWorkflow.Decisions.MAJOR_REVISION,
             "decision_editor_report": "skip",
-            "decision_internal_note": "skip",
             "date_due": "2024-01-01",
             "withdraw_notice": "automatic",
         },
