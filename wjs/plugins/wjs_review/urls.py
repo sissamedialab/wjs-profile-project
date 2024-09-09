@@ -42,6 +42,7 @@ from .views import (
     ReviewDeclined,
     ReviewEnd,
     ReviewerArchived,
+    ReviewerDeclineReview,
     ReviewerPending,
     ReviewSubmit,
     SelectReviewer,
@@ -121,6 +122,11 @@ urlpatterns = [
     ),
     path("postpone_duedate/<int:pk>/", UpdateReviewerDueDate.as_view(), name="wjs_postpone_reviewer_due_date"),
     path(
+        "postpone_duedate/<int:pk>/reviewer/",
+        UpdateReviewerDueDate.as_view(reviewer=True),
+        name="wjs_postpone_reviewer_due_date_by_reviewer",
+    ),
+    path(
         "invite_reviewer/<int:pk>/",
         InviteReviewer.as_view(),
         name="wjs_invite_reviewer",
@@ -153,6 +159,7 @@ urlpatterns = [
         EvaluateReviewRequest.as_view(),
         name="wjs_evaluate_review",
     ),
+    path("review/<int:pk>/decline/", ReviewerDeclineReview.as_view(), name="wjs_reviewer_decline_review"),
     path("review/<int:assignment_id>/declined/", ReviewDeclined.as_view(), name="wjs_declined_review"),
     path("article/<int:article_id>/revision/<int:revision_id>/", ArticleRevisionUpdate.as_view(), name="do_revisions"),
     path(

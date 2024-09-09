@@ -68,6 +68,7 @@ from .forms import (
     ArticleReviewStateForm,
     AssignEoForm,
     DecisionForm,
+    DeclineReviewForm,
     DeselectReviewerForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
@@ -1048,6 +1049,39 @@ class OpenReviewMixin(DetailView):
         context = super().get_context_data(**kwargs)
         context["access_code"] = self.access_code or self.object.access_code
         return context
+
+
+class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
+
+    title = _("Decline review")
+    form_class = DeclineReviewForm
+    template_name = "wjs_review/details/decline_review.html"
+    pk_url_kwarg = "pk"
+
+    def get_success_url(self) -> str:
+        return reverse("wjs_review_reviewer_pending")
+
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        return kwargs
+
+    def form_valid(self, form):
+        """
+        Executed when ReviewerDeclineReviewForm is valid
+
+        Even if the form is valid, checks in logic.DeclineReview -called by form.save- may fail as well.
+        """
+        try:
+            super().form_valid(form)
+            response = HttpResponse("ok")
+            response["HX-Redirect"] = self.get_success_url()
+            messages.success(self.request, _("The review has been declined."))
+            return response
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            # required to handle exception raised in the form save method (coming for janeway business logic)
+            return super().form_invalid(form)
 
 
 class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
@@ -2113,11 +2147,11 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
     View to allow the Editor to postpone Reviewer Report due date.
     """
 
-    title = _("Postpone report due date")
     model = ReviewAssignment
     form_class = UpdateReviewerDueDateForm
     template_name = "wjs_review/details/update_reviewer_due_date.html"
     context_object_name = "assignment"
+    reviewer = False
 
     def setup(self, request, *args, **kwargs):
         """Fetch the ReviewAssignment instance for easier processing."""
@@ -2127,7 +2161,17 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
     def test_func(self):
         """User must be the article's editor"""
         articleworkflow = self.object.article.articleworkflow
+        if self.object.is_complete:
+            raise Http404(_("This review has already been completed."))
+        if self.reviewer:
+            return permissions.is_article_reviewer(articleworkflow, self.request.user)
         return permissions.is_article_editor(articleworkflow, self.request.user)
+
+    @property
+    def title(self):
+        if self.reviewer:
+            return _("Postpone Due Date")
+        return _("Postpone report due date")
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -2193,7 +2237,7 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
     The editor can withdraw a pending review assignment
     """
 
-    title = _("Deselect a Reviewer")
+    title = _("Deselect Reviewer")
     model = WorkflowReviewAssignment
     form_class = DeselectReviewerForm
     template_name = "wjs_review/details/deselect_reviewer.html"
@@ -2264,7 +2308,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
     model = ArticleWorkflow
     form_class = SupervisorAssignEditorForm
     template_name = "wjs_review/assign_editor/select_editor.html"
-    title = _("Select Editor")
+    title = _("Select an Editor")
     context_object_name = "workflow"
 
     def test_func(self):

@@ -555,6 +555,22 @@ class EditorSelected(BaseState):
             is_modal=True,
         ),
         ReviewAssignmentAction(
+            permission=permissions.is_article_reviewer,
+            condition=conditions.review_not_done,
+            name="postpone reviewer due date",
+            label="Change due date",
+            view_name="wjs_postpone_reviewer_due_date_by_reviewer",
+            is_modal=True,
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_reviewer,
+            condition=conditions.review_not_done,
+            name="decline review",
+            label="Decline Review",
+            view_name="wjs_reviewer_decline_review",
+            is_modal=True,
+        ),
+        ReviewAssignmentAction(
             permission=permissions.is_article_supervisor,
             condition=conditions.review_not_done,
             name="disable reminders",
