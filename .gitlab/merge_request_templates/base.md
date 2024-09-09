@@ -6,6 +6,12 @@ This applies only for code changes (Python or JS)
 
 It can be skipped if proper inline comments are added
 
+## Page/URL
+
+Add here an example URL (when applicable) that brings to the page subject of the MR
+
+*
+
 ## Issues Items [URL]:
 
 *
