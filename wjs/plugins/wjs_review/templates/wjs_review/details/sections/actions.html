@@ -13,7 +13,7 @@
       {% endfor %}
     </ul>
   </div>
-  <div class="card-footer">
+  <div class="card-footer d-flex flex-wrap gap-2">
     <!-- djlint:off -->
     {% translate "Add a note <i class=\"bi bi-pencil\"></i>" as note_label %}
     {% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as message_label %}
@@ -22,13 +22,16 @@
     {% translate "Add a personale node" as note_title %}
     {% translate "Send message to a user involved in the article" as message_title %}
     {% translate "Send message to a user involved in the article" as reminders_title %}
+    {% translate "Manage" as manage_title %}
     {% url "wjs_message_note" pk=workflow.pk as add_note %}
     {% url "wjs_message_write" pk=workflow.pk as add_message %}
     {% url "wjs_article_reminders" pk=workflow.pk as article_reminders %}
+    {% url "manage_archive_article" article_id=article.pk as article_admin %}
     {% bootstrap_button href=add_note title=note_title button_class="btn-primary" content=note_label %}
     {% bootstrap_button href=add_message title=message_title button_class="btn-secondary" content=message_label %}
     {% if workflow|is_user_article_supervisor:request.user %}
       {% bootstrap_button href=article_reminders title=reminders_title button_class="btn-secondary" content=reminders_label %}
+      {% bootstrap_button href=article_admin title=manage_title target="_blank" button_class="btn-outline-secondary" content=manage_title %}
     {% endif %}
   </div>
 </div>
