@@ -260,7 +260,7 @@ class ArticleWorkflow(TimeStampedModel):
         REJECT = "reject", _("Reject")
         MINOR_REVISION = EditorialDecisions.MINOR_REVISIONS.value, _("Minor revision")
         MAJOR_REVISION = EditorialDecisions.MAJOR_REVISIONS.value, _("Major revision")
-        TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Technical revision")
+        TECHNICAL_REVISION = EditorialDecisions.TECHNICAL_REVISIONS.value, _("Change Metadata")
         NOT_SUITABLE = "not_suitable", _("Not suitable")
         REQUIRES_RESUBMISSION = "requires_resubmission", _("Requires resubmission")
         OPEN_APPEAL = EditorialDecisions.OPEN_APPEAL.value, _("Open appeal")
