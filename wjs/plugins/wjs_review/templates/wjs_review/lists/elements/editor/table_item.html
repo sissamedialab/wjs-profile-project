@@ -21,7 +21,7 @@
         {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
       {% endif %}
     </td>
-    <td title="Issue (if available)">{{ article.primary_issue|default:"—" }}</td>
+    <td title="Issue (if available)">{{ article.primary_issue|internal_title|default:"—" }}</td>
     <td title="latest personal note">
       {% last_user_note target=workflow.article as note %}
       {% if note %}

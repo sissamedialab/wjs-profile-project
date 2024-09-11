@@ -3,6 +3,7 @@
 import pycountry
 from core.models import Account
 from django import template
+from django.template import Context, Template
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
@@ -152,9 +153,33 @@ def language_alpha3(alpha_2):
 
 
 @register.filter
-def display_title(issue):
+def display_title(issue: Issue | None, use_short=False) -> str:
     """Return a translatable display_title for issues."""
+    if not issue:
+        return ""
+    if issue.issue_type.code == "collection":
+        volume, issue_number, year, issue_title, *__ = issue.issue_title_parts()
+        if use_short and issue.short_name:
+            title = issue.short_name
+        elif issue.short_name:
+            title = f"{issue_title} ({issue.short_name})"
+        else:
+            title = issue_title
+        template = Template(
+            " &bull; ".join((volume, issue_number, year, title)),
+        )
+        return mark_safe(template.render(Context()))
     return mark_safe(issue.update_display_title(save=False))
+
+
+@register.filter
+def internal_title(issue: Issue | None) -> str:
+    """Return a translatable display_title for issues."""
+    if not issue:
+        return ""
+    if issue.issue_type.code == "collection" and issue.short_name:
+        return issue.short_name
+    return mark_safe(issue.issue_title)
 
 
 @register.filter

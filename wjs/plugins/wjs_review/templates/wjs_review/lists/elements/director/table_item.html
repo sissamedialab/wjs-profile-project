@@ -23,7 +23,7 @@
       <br />
     {{ article|get_version_submission_date }}
       <br />
-      {{ article.primary_issue|default:"—" }}
+      {{ article.primary_issue|internal_title|default:"—" }}
     </td>
     <td>
       {% include "wjs_review/lists/elements/corresponding_author.html" %}

@@ -22,7 +22,7 @@
       <br />
       {{ article.articleworkflow.eo_in_charge|default:"—" }}
       <br />
-      {{ article.primary_issue|default:"—" }}
+      {{ article.primary_issue|internal_title|default:"—" }}
     </td>
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
