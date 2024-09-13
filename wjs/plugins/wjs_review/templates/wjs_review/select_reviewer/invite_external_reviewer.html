@@ -1,6 +1,9 @@
 {% load django_bootstrap5 static wjs_review %}
 {% translate "Invite" as invite_label %}
 {% translate "Close" as close_label %}
+{# Apparently, the view re-renders only the template containing the modal that does not directly contain base.html, and the browser needs that we include these js again here #}
+<script src="{% static "common/js/tinymce/tinymce.min.js" %}"></script>
+<script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
 {% url "wjs_invite_reviewer" workflow.pk as invite_reviewer %}
 <div class="modal-header">
   <h5 class="modal-title" id="htmxModalLabel">{% translate "Invite Reviewer" %}</h5>

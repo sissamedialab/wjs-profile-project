@@ -176,6 +176,7 @@ def _create_jcom_user(username: str = USERNAME) -> JCOMProfile:
         email=f"{username}@sissa.it",
         gdpr_checkbox=True,
         is_active=True,
+        signature=f"{username} signature",
     )
     return user
 
@@ -319,6 +320,7 @@ def invited_user(journal):
         is_active=False,
         gdpr_checkbox=False,
         invitation_token=generate_token(email, journal.code),
+        signature="Invited user signature",
     )
 
 

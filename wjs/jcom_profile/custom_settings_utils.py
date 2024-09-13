@@ -156,7 +156,7 @@ This is to confirm that Dr. {{ article.correspondence_author.full_name }} has su
 the {{ article.section.name }} "{{ article.title }}" to {{ article.journal.code }}
 including you among the co-authors.<br>
 <br>
-To access the preprint web page, please go to your preprint web page. The page allows you <...> to view all information
+To access the preprint web page, please go to your preprint web page. The page allows you [...] to view all information
 and files. Communications, on the other hand, will be sent to the corresponding author,
 Dr. {{ article.correspondence_author.full_name }}.<br>
 <br>

@@ -15,7 +15,6 @@ from django.forms import formset_factory
 from django.shortcuts import get_object_or_404
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
-from django_summernote.widgets import SummernoteWidget
 from review.forms import GeneratedForm
 from review.models import (
     ReviewAssignment,
@@ -55,6 +54,7 @@ from .models import (
     MessageThread,
     ProphyAccount,
     WjsEditorAssignment,
+    WjsMiniHTMLFormField,
     WorkflowReviewAssignment,
 )
 
@@ -74,7 +74,7 @@ class BaseInviteSelectReviewerForm(forms.Form):
             }
         ),
     )
-    message = forms.CharField(label=_("Message"), widget=SummernoteWidget(), required=False)
+    message = WjsMiniHTMLFormField(label=_("Message"), required=False)
     author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
 
     def __init__(self, *args, **kwargs):
@@ -201,7 +201,6 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
             # we can load default data
             self.fields["message"].required = True
             self.fields["reviewer"].required = True
-            self.fields["message"].widget = SummernoteWidget()
             if not self.data.get("acceptance_due_date", None):
                 self.data["acceptance_due_date"] = default_acceptance_due_date
             if not self.data.get("author_note_visible", None):
@@ -370,9 +369,8 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
 
 
 class DeclineReviewForm(forms.Form):
-    additional_comments = forms.CharField(
+    additional_comments = WjsMiniHTMLFormField(
         label=_("Additional comments"),
-        widget=SummernoteWidget(),
         required=True,
     )
 
@@ -421,9 +419,8 @@ class EvaluateReviewForm(forms.ModelForm):
         choices=(("1", _("Accept")), ("0", _("Reject")), ("2", _("Update"))),
         required=True,
     )
-    additional_comments = forms.CharField(
+    additional_comments = WjsMiniHTMLFormField(
         label=_("Additional comments"),
-        widget=SummernoteWidget(),
         required=False,
     )
     accept_gdpr = forms.BooleanField(required=False, widget=forms.HiddenInput())
@@ -509,7 +506,7 @@ class RichTextGeneratedForm(GeneratedForm):
         elements = self.get_elements(answer=answer, preview=preview, review_assignment=self.instance)
         for element in elements:
             if element.kind == "textarea":
-                self.fields[str(element.pk)].widget = SummernoteWidget()
+                self.fields[str(element.pk)] = WjsMiniHTMLFormField()  # FIXME: this class is to be deprecated anyway
 
     def get_elements(
         self,
@@ -567,14 +564,12 @@ class DecisionForm(forms.ModelForm):
         choices=ArticleWorkflow.Decisions.decision_choices,
         required=True,
     )
-    decision_editor_report = forms.CharField(
+    decision_editor_report = WjsMiniHTMLFormField(
         label=_("Editor Report"),
-        widget=SummernoteWidget(),
         required=False,
     )
-    withdraw_notice = forms.CharField(
+    withdraw_notice = WjsMiniHTMLFormField(
         label=_("Notice to reviewers"),
-        widget=SummernoteWidget(),
         required=False,
     )
     date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
@@ -769,7 +764,6 @@ class MessageForm(forms.ModelForm):
         ]
         widgets = {
             "subject": forms.TextInput(),
-            "body": SummernoteWidget(),
             "actor": forms.widgets.HiddenInput(),
             "content_type": forms.widgets.HiddenInput(),
             "object_id": forms.widgets.HiddenInput(),
@@ -1035,7 +1029,7 @@ class AssignEoForm(forms.ModelForm):
 
 class DeselectReviewerForm(forms.Form):
     notification_subject = forms.CharField(label=_("Subject"))
-    notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+    notification_body = WjsMiniHTMLFormField(label=_("Body"))
     send_notification = forms.BooleanField(label=_("Send notification to the reviewer"), required=False, initial=True)
 
     def __init__(self, *args, **kwargs):
@@ -1128,7 +1122,7 @@ class ForwardMessageForm(forms.ModelForm):
     class Meta:
         model = Message
         fields = ["subject", "body", "attachment"]
-        widgets = {"body": SummernoteWidget(), "subject": forms.TextInput()}
+        widgets = {"subject": forms.TextInput()}
 
     attachment = forms.FileField(required=False, label=_("Optional attachment"))
 
@@ -1203,7 +1197,7 @@ class TimelineFilterForm(forms.Form):
 class ArticleExtraInformationUpdateForm(forms.ModelForm):
     social_media_image = forms.ImageField(required=False, label=_("Social media image"))
     english_title = forms.CharField(label=_("Article title - English language"))
-    english_abstract = forms.CharField(label=_("Article abstract - English language"), widget=SummernoteWidget())
+    english_abstract = WjsMiniHTMLFormField(label=_("Article abstract - English language"))
 
     class Meta:
         model = ArticleWorkflow
@@ -1293,7 +1287,7 @@ class WithdrawPreprintForm(forms.Form):
     """Form used by an author who wants to withdraw a preprint."""
 
     notification_subject = forms.CharField(label=_("Subject"))
-    notification_body = forms.CharField(label=_("Body"), widget=SummernoteWidget())
+    notification_body = WjsMiniHTMLFormField(label=_("Body"))
 
     def __init__(self, *args, **kwargs):
         self.instance = kwargs.pop("instance")
@@ -1367,8 +1361,8 @@ class JCOMReportForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": "name/email"}),
     )
-    editor_cover_letter = forms.CharField(label="Review", required=True, widget=SummernoteWidget())
-    author_review = forms.CharField(label="Review (to be sent to Authors)", required=False, widget=SummernoteWidget())
+    editor_cover_letter = WjsMiniHTMLFormField(label="Review", required=True)
+    author_review = WjsMiniHTMLFormField(label="Review (to be sent to Authors)", required=False)
     author_file_title = forms.CharField(label="File Title (to be sent to Authors)", required=False)
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(

@@ -303,7 +303,7 @@ def extract_reviews_info(maketitle: HtmlElement) -> Optional[HtmlElement]:
     """Extract Book and Conference Review info from div.maketitle."""
     # The part that we are interested in starts with a <h2> (please
     # note that this method is called _after_ headings have been
-    # promoted), then some texts and <br/>s.
+    # promoted), then some texts and <br>s.
     # It should be at the end of the div.maketitle. E.g.:
     #
     # For a CONFERENCE review
@@ -311,7 +311,7 @@ def extract_reviews_info(maketitle: HtmlElement) -> Optional[HtmlElement]:
     #   <h2 class="likesectionHead"><a id="x1-3000"/>Contents</h2>
     #
     #   <h2 class="likesectionHead"><a id="x1-4000"/>Reviewed Conference<a id="Q1-1-7"/></h2>
-    #   Forum Wissenschaftskommunikation 2022<br/>
+    #   Forum Wissenschaftskommunikation 2022<br>
     #   Leibniz Universit&#228;t, Hannover, Germany, 4&#8211;6 October 2022
     # </div>
     # ...
@@ -321,8 +321,8 @@ def extract_reviews_info(maketitle: HtmlElement) -> Optional[HtmlElement]:
     #   <h2 class="likesectionHead"><a id="x1-3000"/>Contents</h2>
     #
     #   <h2 class="likesectionHead"><a id="x1-4000"></a>Reviewed Book<a id="Q1-1-7"></a></h3>
-    #   Christiansen, J. (2023).<br/>
-    #   Building Science Graphics: an... diagrams and visualizations.<br/>
+    #   Christiansen, J. (2023).<br>
+    #   Building Science Graphics: an... diagrams and visualizations.<br>
     #   Boca Raton &amp; Oxon: CRC Press
     # </div>
     # ...
