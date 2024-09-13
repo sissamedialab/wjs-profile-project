@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import html2text
 from core import models as core_models
+from core.model_utils import JanewayBleachCharField, MiniHTMLFormField
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -32,6 +33,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
+from tinymce.widgets import TinyMCE
 from utils import setting_handler
 from utils.logger import get_logger
 
@@ -64,6 +66,36 @@ MEDIALAB_DOI_JOURNAL_NUMBER = {
     "JCOM": "2",
     "JCOMAL": "3",
 }
+
+
+class WjsMiniHTMLFormField(MiniHTMLFormField):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bleach_options["tags"] = ["span", "em", "i", "b", "strong", "sup", "sub", "u", "br", "a"]
+        self.bleach_options["attributes"] = {"a": ["href", "title", "target"]}
+        if isinstance(self.widget, TinyMCE):
+            self.widget.mce_attrs.update(
+                {
+                    "plugins": "link lists charmap",
+                    "menubar": "",
+                    "forced_root_block": "div",
+                    "toolbar": "bold italic link numlist charmap",
+                    "height": "30rem",
+                    "resize": True,
+                    "elementpath": False,
+                }
+            )
+
+
+class WjsBleachCharField(JanewayBleachCharField):
+    """
+    An override of JanewayBleachCharField to use our custom form field.
+    """
+
+    def formfield(self, *args, **kwargs):
+        defaults = {"form_class": WjsMiniHTMLFormField}
+        defaults.update(kwargs)
+        return super().formfield(*args, **defaults)
 
 
 def can_be_set_rfp_wrapper(workflow: "ArticleWorkflow", **kwargs) -> bool:
@@ -1067,7 +1099,7 @@ class Message(TimeStampedModel):
 
     """
 
-    SPLIT_MARKER = "<...>"
+    SPLIT_MARKER = "[...]"
 
     class MessageTypes(models.TextChoices):
         SYSTEM = "System log message", _("A system message")
@@ -1121,11 +1153,12 @@ class Message(TimeStampedModel):
         max_length=111,
         help_text="A short description of the message or the subject of the email.",
     )
-    body = models.TextField(
+    body = WjsBleachCharField(
         verbose_name=_("body"),
         blank=True,
         default="",
         max_length=1111,
+        help_text="The content of the message.",
     )
     message_type = models.TextField(
         verbose_name=_("Type"),

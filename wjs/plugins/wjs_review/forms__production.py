@@ -6,7 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
-from django_summernote.widgets import SummernoteWidget
 from journal.models import Issue, SectionOrdering
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from submission import models as submission_models
@@ -18,7 +17,7 @@ from .logic__production import (
     HandleEOSendBackToTypesetter,
     UploadFile,
 )
-from .models import ArticleWorkflow, Message
+from .models import ArticleWorkflow, Message, WjsMiniHTMLFormField
 
 Account = get_user_model()
 
@@ -105,7 +104,7 @@ class WriteToTypMessageForm(forms.Form):
     """
 
     subject = forms.CharField(required=True, label="Subject")
-    body = forms.CharField(required=True, label="Body", widget=SummernoteWidget())
+    body = WjsMiniHTMLFormField(required=True, label="Body")
     attachment = forms.FileField(required=False, label=_("Optional attachment"))
 
     def __init__(self, *args, **kwargs):
@@ -213,7 +212,7 @@ class EOSendBackToTypesetterForm(forms.Form):
     """Form used by the EO to send a paper back to typesetter."""
 
     subject = forms.CharField(required=True, label="Subject")
-    body = forms.CharField(required=True, label="Body", widget=SummernoteWidget())
+    body = WjsMiniHTMLFormField(required=True, label="Body")
 
     def __init__(self, *args, **kwargs):
         """Store away user, article and typesetter assignement."""

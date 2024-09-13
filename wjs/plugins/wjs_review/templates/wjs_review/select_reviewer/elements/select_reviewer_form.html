@@ -8,6 +8,9 @@
 </div>
 <div class="modal-body">
   <form method="post" action="{% url 'wjs_select_reviewer' workflow.pk %}">
+{# Apparently, the view re-renders only the template containing the modal that does not directly contain base.html, and the browser needs that we include these js again here #}
+<script src="{% static "common/js/tinymce/tinymce.min.js" %}"></script>
+<script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
     {% csrf_token %}
     {% bootstrap_form_errors form layout='inline' %}
     {% bootstrap_form form %}

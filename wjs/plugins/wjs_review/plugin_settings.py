@@ -146,7 +146,7 @@ def set_default_plugin_settings(force: bool = False):
         value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear Colleague,<br/>
+            "value": """Dear Colleague,<br>
 {% if already_reviewed %}
     I am writing to ask for your help in reviewing the revised version of "{{ article.title }}" for which you have been so kind as to review the previous version.
 {%else %}
@@ -154,8 +154,8 @@ def set_default_plugin_settings(force: bool = False):
 {% endif %}
 Please find the automatically generated instructions for reviewers appended below.<br><br>
 In the hope that you will accept my request, I would like to thank you in advance for your cooperation.<br><br>
-Kind regards,<br/>
-{{ request.user.signature|safe }}<br/>
+Kind regards,<br>
+{{ request.user.signature|safe }}<br>
 JCOM Editor-in-charge
 """,
             "translations": {},
@@ -260,16 +260,16 @@ JCOM Editor-in-charge
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ article.correspondence_author.full_name }},
-<br/><br/>
-Please connect to {{ article.articleworkflow.url }} to read the Editor review and <...> submit the {% if minor_revision %}minor{% endif %} revision of {{ article.title }} requested by the Editor in charge by {{ revision.date_due }}.
-<br/><br/>
+<br><br>
+Please connect to {{ article.articleworkflow.url }} to read the Editor review and [...] submit the {% if minor_revision %}minor{% endif %} revision of {{ article.title }} requested by the Editor in charge by {{ revision.date_due }}.
+<br><br>
 In preparing your revision, please check that your manuscript conforms to the JCOM style and formatting instructions available: [link a sezione di help for auths]
-<br/><br/>
+<br><br>
 In particular, please check that references are formatted correctly and that all references cited in the text are included in the reference list (and vice versa).
-<br/><br/>
+<br><br>
 If you decide not to resubmit the article, please withdraw your preprint as soon as possible.
-<br/><br/>
-Thank you and regards,<br/>
+<br><br>
+Thank you and regards,<br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -319,11 +319,11 @@ Thank you and regards,<br/>
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ article.correspondence_author.full_name }},
-<br/><br/>
-We regret to inform you that the Editor in charge of your {{ article.section.name }} <...> considers it not suitable for {{ journal.code }}.
+<br><br>
+We regret to inform you that the Editor in charge of your {{ article.section.name }} [...] considers it not suitable for {{ journal.code }}.
 The Editor review is available to you at: {{ review_url }}.
-<br/><br/>
-Thank you and begards,<br/>
+<br><br>
+Thank you and begards,<br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -372,10 +372,10 @@ Thank you and begards,<br/>
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ article.correspondence_author.full_name }},
-<br/><br/>
+<br><br>
 The deadline for revising your {{ article.section.name }} has been postponed until {{ date_due }}.
-<br/><br/>
-Regards,<br/>
+<br><br>
+Regards,<br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -422,7 +422,7 @@ Regards,<br/>
             "setting": None,
             "value": """Dear {{ EO.full_name }},
 The revision due date for the article "{{ article.title }}" has been postponed to {{ date_due }}. Could it be a mistake?
-<br/><br/>
+<br><br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -471,13 +471,13 @@ The revision due date for the article "{{ article.title }}" has been postponed t
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ recipient.full_name }},
-<br/><br/>
+<br><br>
 This is to inform you that the editor in charge of this {{ article.section.name }} has been able to make a decision thereby relieving you of the assignment.
-<br/><br/>
+<br><br>
 {{ journal.code }} looks forward to having another opportunity to avail itself of your expertise in the future.
-<br/><br/>
+<br><br>
 Thank you and best regards,
-<br/><br/>
+<br><br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -547,7 +547,7 @@ Thank you and best regards,
         technical_revision_body_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "The {{ journal.code }} Editor  in charge has allowed you to edit <...> your preprint metadata. Please do so within {{ revision.date_due }}.",
+            "value": "The {{ journal.code }} Editor  in charge has allowed you to edit [...] your preprint metadata. Please do so within {{ revision.date_due }}.",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -593,13 +593,13 @@ Thank you and best regards,
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ editor.full_name }},
-<br/><br/>
-Please connect to {{ article.articleworkflow.url }} to download the {{ article.section.name }}  resubmitted in reply to your request for revision. <...>
-<br/>
+<br><br>
+Please connect to {{ article.articleworkflow.url }} to download the {{ article.section.name }}  resubmitted in reply to your request for revision. [...]
+<br>
 You are kindly requested to either select reviewers or make a decision within {{ default_editor_assign_reviewer_days }} days.
-<br/><br/>
+<br><br>
 Thank you and best regards,
-<br/>
+<br>
 {{ journal.code }} Journal""",
             "translations": {},
         }
@@ -691,11 +691,11 @@ Thank you and best regards,
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ author.full_name }},
-<br/><br/>
-Routine checks have spotted <...> issues in your {{ article.section.name }}.<br/>
-More explanations will be provided in a separate message.<br/>
-Once you have made the modifications and/or provided the explanations requested, please resubmit your {{ article.section.name }} from its web page.<br/><br/>
-Thank you and best regards,<br/><br/>
+<br><br>
+Routine checks have spotted [...] issues in your {{ article.section.name }}.<br>
+More explanations will be provided in a separate message.<br>
+Once you have made the modifications and/or provided the explanations requested, please resubmit your {{ article.section.name }} from its web page.<br><br>
+Thank you and best regards,<br><br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -795,14 +795,14 @@ Thank you and best regards,<br/><br/>
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ editor.full_name }},
-<br/><br/>
-Please connect to {{ article.articleworkflow.url }} to handle <...> this {{ article.section.name }} as editor-in-charge.
-<br/><br/>
-Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.<br/>
+<br><br>
+Please connect to {{ article.articleworkflow.url }} to handle [...] this {{ article.section.name }} as editor-in-charge.
+<br><br>
+Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.<br>
 Should you be unable to handle it, please decline the assignment as soon as possible.
-<br/><br/>
+<br><br>
 Thank you in advance for your cooperation and best regards,
-<br/><br/>
+<br><br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -1137,11 +1137,11 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ reviewer.full_name }},
-<br/><br/>
+<br><br>
 This is to inform you that your review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to
 {{ date_due }}.
-<br/><br/>
-Thank you in advance for your cooperation and best regards,<br/>
+<br><br>
+Thank you in advance for your cooperation and best regards,<br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -1190,9 +1190,9 @@ Thank you in advance for your cooperation and best regards,<br/>
             "journal": None,
             "setting": None,
             "value": """Dear {{ EO.full_name }},
-<br/><br/>
+<br><br>
 {{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to {{ date_due }}. Could it be a mistake?
-<br/><br/>
+<br><br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -1240,13 +1240,13 @@ Thank you in advance for your cooperation and best regards,<br/>
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ director }},
-<br/><br/>
-I regret to inform you that <...> I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
+<br><br>
+I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
 
-<br/><br/>
+<br><br>
 Best regards,
-<br/><br/>
-{{ request.user.signature|safe }}<br/>
+<br><br>
+{{ request.user.signature|safe }}<br>
 {{ journal.code }} Editor-in-charge
 """,
             "translations": {},
@@ -1339,8 +1339,8 @@ Best regards,
             "journal": None,
             "setting": None,
             "value": """Dear {{ typesetter.full_name }},
-<br/><br/>
-You have been assigned <...> the {{ article.section.name }} {{ article.id }}.
+<br><br>
+You have been assigned [...] the {{ article.section.name }} {{ article.id }}.
 
 Please visit: {{ article.articleworkflow.url }}
 """,
@@ -1436,27 +1436,27 @@ Please visit: {{ article.articleworkflow.url }}
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ author.full_name }},
-<br/><br/>
-Please proof-read within 1 week <...> the pdf version of your typeset {{ article.section.name }}.
-<br/><br/>
+<br><br>
+Please proof-read within 1 week [...] the pdf version of your typeset {{ article.section.name }}.
+<br><br>
 Only a limited number of the following kind of corrections are acceptable at this stage:
-<br/><br/>
+<br><br>
 <ul>
 <li> layout and typesetting mistakes,
 <li> spelling mistakes in words or formulas,
 <li> mistakes or updating in references
 </ul>
-<br/><br/>
+<br><br>
 <strong>Important</strong>: please reply to the queries on the first page of your  {{ article.section.name }}.
-<br/><br/>
+<br><br>
 On your  {{ article.section.name }} web page you will find both a text area and a tool to upload the annotated pdf files. Please choose either or both tools to send your answers and any request for corrections back to us.
-<br/>
+<br>
 Should you decide to use the text area, please explain very clearly where changes should occur referring to the typeset version (page number, paragraph and line, or equation number), and specify both the old (wrong) version and the correction.
-<br/>
+<br>
 The corrected version will not be sent to you again.
-<br/><br/>
+<br><br>
 Thank you and best regards,
-<br/><br/>
+<br><br>
 {{ article.journal.code }} Typesetter
 """,
             "translations": {},
@@ -1504,8 +1504,8 @@ Thank you and best regards,
             "journal": None,
             "setting": None,
             "value": """Dear {{ typesetter.full_name }},
-<br/><br/>
-Author {{ article.correspondence_author.full_name }} has sent corrections <...> for the {{ article.section.name }} {{ article.id }}.
+<br><br>
+Author {{ article.correspondence_author.full_name }} has sent corrections [...] for the {{ article.section.name }} {{ article.id }}.
 """,
             "translations": {},
         }
@@ -1552,7 +1552,7 @@ Author {{ article.correspondence_author.full_name }} has sent corrections <...> 
             "journal": None,
             "setting": None,
             "value": """Dear {{ typesetter.full_name }},
-<br/><br/>
+<br><br>
 Galleys for the {{ article.section.name }} {{ article.id }} are ready.
 """,
             "translations": {},
@@ -1600,13 +1600,13 @@ Galleys for the {{ article.section.name }} {{ article.id }} are ready.
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ assignment.reviewer.full_name }},
-<br/><br/>
+<br><br>
 This is to inform you that the editor in charge of the {{ article.section.name }} "{{ article.title }}" has been able to make a decision thereby relieving you of the assignment.
-<br/><br/>
+<br><br>
 {{ article.journal.code }} looks forward to having another opportunity to avail itself of your expertise in the future.
-<br/><br/>
+<br><br>
 Thank you and best regards,
-<br/><br/>
+<br><br>
 {{ article.journal.code }} Journal
 """,
             "translations": {},

@@ -255,14 +255,14 @@ class EditorShouldSelectReviewerReminderManager(ReminderManager):
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
             subject=_("Reminder: reviewers to select"),
-            body="""Dear Dr. {{ recipient.full_name }},<br/>
-<br/>
-kindly select 2 reviewers as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
-This preprint was assigned to you to handle as Editor in charge on {{ assigned }}.<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Dr. {{ recipient.full_name }},<br>
+<br>
+kindly select 2 reviewers as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+This preprint was assigned to you to handle as Editor in charge on {{ assigned }}.<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -274,14 +274,14 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
             subject=_("Reminder: reviewers to select urgently"),
-            body="""Dear Dr. {{ recipient.full_name }},<br/>
-<br/>
-This is to remind you that this {{ article.section.name }} needs to be assigned to 2 reviewers urgently.<br/>
-<a href="{{ article.articleworkflow.url }}">Go to web page</a><br/>
-<br/>
-<br/>
-Thank you very much and best regards,<br/>
-<br/>
+            body="""Dear Dr. {{ recipient.full_name }},<br>
+<br>
+This is to remind you that this {{ article.section.name }} needs to be assigned to 2 reviewers urgently.<br>
+<a href="{{ article.articleworkflow.url }}">Go to web page</a><br>
+<br>
+<br>
+Thank you very much and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -292,14 +292,14 @@ Thank you very much and best regards,<br/>
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
             subject=_("Reminder: editor's delay in selecting reviewers"),
-            body="""Dear Editor-in-chief,<br/>
-<br/>
-This {{ article.section.name }} was assigned to {{ current_editor.full_name }} on {{ assigned }} but they have not yet selected any reviewer.<br/>
-<br/>
-Please either take action from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>. or let us know if you need help.<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Editor-in-chief,<br>
+<br>
+This {{ article.section.name }} was assigned to {{ current_editor.full_name }} on {{ assigned }} but they have not yet selected any reviewer.<br>
+<br>
+Please either take action from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>. or let us know if you need help.<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -327,15 +327,15 @@ class EditorShouldMakeDecisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
             subject=_("Reminder: decision to make"),
-            body="""Dear Dr. {{ recipient.full_name }},<br/>
-<br/>
-You action is needed to either make a decision or contact another reviewer from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
-We note that at least one reviewer's report is available.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Dr. {{ recipient.full_name }},<br>
+<br>
+You action is needed to either make a decision or contact another reviewer from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+We note that at least one reviewer's report is available.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -346,15 +346,15 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
             subject=_("Reminder: decision to make urgently"),
-            body="""Dear Dr. {{ recipient.full_name }},<br/>
-<br/>
-This is to remind you that your editor decision is needed urgently. If needed, kindly select another reviewer.<br/>
-<br/>
-Go to <a href="{{ article.articleworkflow.url }}">web page</a><br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Dr. {{ recipient.full_name }},<br>
+<br>
+This is to remind you that your editor decision is needed urgently. If needed, kindly select another reviewer.<br>
+<br>
+Go to <a href="{{ article.articleworkflow.url }}">web page</a><br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -365,15 +365,15 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
             subject=_("Reminder: editor's delay in making decision"),
-            body="""Dear Editor-in-chief,<br/>
-<br/>
-{{ current_editor.full_name }} has received at least one review but has neither made a decision nor selected additional reviewers.<br/>
-<br/>
-Please either step in or let us know what we should do from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Editor-in-chief,<br>
+<br>
+{{ current_editor.full_name }} has received at least one review but has neither made a decision nor selected additional reviewers.<br>
+<br>
+Please either step in or let us know what we should do from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -401,18 +401,18 @@ class ReviewerShouldEvaluateAssignmentReminderManager(ReminderManager):
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
             subject=_("Reminder: Accept/decline Editor's invite"),
-            body="""Dear colleague,<br/>
-<br/>
-This is to remind you that I need your feedback regarding the invite to review I sent you on {{ date_requested }}.<br/>
-<br/>
-Please access all information and files about this {{ article.section.name }} and accept or decline the invite as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to let me know if I can count on your review.<br/>
-<br/>
-If you cannot review this manuscript at this time, please decline the invitation and we would be very grateful if you could suggest alternative reviewers.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
-{{ current_editor.full_name }}<br/>
+            body="""Dear colleague,<br>
+<br>
+This is to remind you that I need your feedback regarding the invite to review I sent you on {{ date_requested }}.<br>
+<br>
+Please access all information and files about this {{ article.section.name }} and accept or decline the invite as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to let me know if I can count on your review.<br>
+<br>
+If you cannot review this manuscript at this time, please decline the invitation and we would be very grateful if you could suggest alternative reviewers.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ current_editor.full_name }}<br>
 {{ journal.code }} Editor
 """,
             actor="editor",
@@ -423,21 +423,21 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
             subject=_("Reminder: Accept/decline Editor's invite (urgent)"),
-            body="""Dear colleague,<br/>
-<br/>
-Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br/>
-<br/>
-I would be very grateful if you could accept/decline our invitation to review urgently. Information and files about the {{ article.section.name }} are available via its <a href="{{ article.articleworkflow.url }}">web page</a>.<br/>
-<br/>
-If you cannot review this manuscript at this time, please decline the invitation and we would be very grateful if you could suggest alternative reviewers.<br/>
-<br/>
-{{ journal.code }} knows how important reviewers' work is and greatly appreciates their kind cooperation.<br/>
-<br/>
-<br/>
-Thank you in advance and best regards,<br/>
-<br/>
-<br/>
-{{ current_editor.full_name }}<br/>
+            body="""Dear colleague,<br>
+<br>
+Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
+<br>
+I would be very grateful if you could accept/decline our invitation to review urgently. Information and files about the {{ article.section.name }} are available via its <a href="{{ article.articleworkflow.url }}">web page</a>.<br>
+<br>
+If you cannot review this manuscript at this time, please decline the invitation and we would be very grateful if you could suggest alternative reviewers.<br>
+<br>
+{{ journal.code }} knows how important reviewers' work is and greatly appreciates their kind cooperation.<br>
+<br>
+<br>
+Thank you in advance and best regards,<br>
+<br>
+<br>
+{{ current_editor.full_name }}<br>
 {{ journal.code }} Editor
 """,
             actor="editor",
@@ -448,17 +448,17 @@ Thank you in advance and best regards,<br/>
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
             subject=_("Reviewer's delay in accepting invite"),
-            body="""Dear Dr. {{ recipient.full_name }},<br/>
-<br/>
-The reviewer {{ reviewer.full_name }} has not yet accepted/declined your invite to review this {{ article.section.name }}.<br/>
-<br/>
-You selected them on {{ date_assigned }}.<br/>
-<br/>
-We would be grateful if you could step in (send a personal message, change reviewer, assign yourself as reviewer, etc.) from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Dr. {{ recipient.full_name }},<br>
+<br>
+The reviewer {{ reviewer.full_name }} has not yet accepted/declined your invite to review this {{ article.section.name }}.<br>
+<br>
+You selected them on {{ date_assigned }}.<br>
+<br>
+We would be grateful if you could step in (send a personal message, change reviewer, assign yourself as reviewer, etc.) from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -482,17 +482,17 @@ class ReviewerShouldWriteReviewReminderManager(ReminderManager):
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
             subject=_("Reminder: your review due date expires today"),
-            body="""Dear colleague,<br/>
-<br/>
-We hope that you will be able to send us your review by the end of the day from this  <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
+            body="""Dear colleague,<br>
+<br>
+We hope that you will be able to send us your review by the end of the day from this  <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
 From the same page you can:
 <ul>
 <li> write to the Editor-in-charge  {{ current_editor }} if you need an extension of your review due date
 <li> decline to review this {{ article.section.name }} in case anything unexpected happened that makes it really impossible for you to fulfill your promise.
 </ul>
-Thank you very much in advance for your cooperation and kind regards,<br/>
-<br/>
+Thank you very much in advance for your cooperation and kind regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="editor",
@@ -504,15 +504,15 @@ Thank you very much in advance for your cooperation and kind regards,<br/>
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
             subject=_("Reminder: late review"),
-            body="""Dear Dr. {{ recipient.full_name }},<br/>
-<br/>
-Unfortunately Dr. {{ reviewer.full_name }} has not yet sent us their review, despite our reminder.<br/>
-<br/>
-We would be grateful if you could send them a personal message and/or select another reviewer as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Dr. {{ recipient.full_name }},<br>
+<br>
+Unfortunately Dr. {{ reviewer.full_name }} has not yet sent us their review, despite our reminder.<br>
+<br>
+We would be grateful if you could send them a personal message and/or select another reviewer as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -537,17 +537,17 @@ class AuthorShouldSubmitMajorRevisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1,
             subject=_("Reminder: revision to submit soon"),
-            body="""Dear Author,<br/>
-<br/>
-This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br/>
-<br/>
-In case you foresee a necessary delay please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br/>
-<br/>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Author,<br>
+<br>
+This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
+<br>
+In case you foresee a necessary delay please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
+<br>
+Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editor in charge
 """,
             actor="editor",
@@ -560,17 +560,17 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
             subject=_("Reminder: revision due date expires today"),
-            body="""Dear Author,<br/>
-<br/>
-This is to remind you that your revised {{ article.section.name }}'s due date expires today.<br/>
-<br/>
-Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br/>
-<br/>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Author,<br>
+<br>
+This is to remind you that your revised {{ article.section.name }}'s due date expires today.<br>
+<br>
+Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
+<br>
+Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editor in charge
 """,
             actor="editor",
@@ -593,17 +593,17 @@ class AuthorShouldSubmitMinorRevisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1,
             subject=_("Reminder: revision to submit soon"),
-            body="""Dear Author,<br/>
-<br/>
-This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br/>
-<br/>
-In case you foresee a necessary delay please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br/>
-<br/>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Author,<br>
+<br>
+This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
+<br>
+In case you foresee a necessary delay please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
+<br>
+Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editor in charge
 """,
             actor="editor",
@@ -616,17 +616,17 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
             subject=_("Reminder: revision due date expires today"),
-            body="""Dear Author,<br/>
-<br/>
-This is to remind you that your revised {{ article.section.name }}'s due date expires today.<br/>
-<br/>
-Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br/>
-<br/>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Author,<br>
+<br>
+This is to remind you that your revised {{ article.section.name }}'s due date expires today.<br>
+<br>
+Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
+<br>
+Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editor in charge
 """,
             actor="editor",
@@ -649,14 +649,14 @@ class AuthorShouldSubmitTechnicalRevisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
             subject=_("Reminder: metadata to update"),
-            body="""Dear Author,<br/>
-<br/>
-On {{ date_requested }} I allowed you to update your {{ article.section.name }} metadata.<br/>
-<br/>
-Please do so urgently from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Author,<br>
+<br>
+On {{ date_requested }} I allowed you to update your {{ article.section.name }} metadata.<br>
+<br>
+Please do so urgently from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editor in charge
 """,
             actor="editor",
@@ -667,13 +667,13 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
             subject=_("Reminder: metadata to update urgently"),
-            body="""Dear Author,<br/>
-<br/>
-Please update your {{ article.section.name }} metadata urgently from its <a href="{{ article.articleworkflow.url }}">web page</a>.<br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Author,<br>
+<br>
+Please update your {{ article.section.name }} metadata urgently from its <a href="{{ article.articleworkflow.url }}">web page</a>.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editor in charge
 """,
             actor="editor",
@@ -694,15 +694,15 @@ class DirectorShouldAssignEditorReminderManager(ReminderManager):
         Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1: ReminderSetting(
             code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1,
             subject=_("Reminder: editor to select"),
-            body="""Dear Editor-in-chief,<br/>
-<br/>
-This is to remind you that this {{ article.section.name }} needs to be assigned to an editor in charge as soon as possible.<br/>
-<br/>
-Go to <a href="{{ article.articleworkflow.url }}">web page</a><br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Editor-in-chief,<br>
+<br>
+This is to remind you that this {{ article.section.name }} needs to be assigned to an editor in charge as soon as possible.<br>
+<br>
+Go to <a href="{{ article.articleworkflow.url }}">web page</a><br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",
@@ -712,15 +712,15 @@ Thank you and best regards,<br/>
         Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2: ReminderSetting(
             code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2,
             subject=_("Reminder: editor to select soon"),
-            body="""Dear Editor-in-chief,<br/>
-<br/>
-This is another reminder to kindly ask you to assign this {{ article.section.name }} to an editor in charge as soon as possible.<br/>
-<br/>
-Go to <a href="{{ article.articleworkflow.url }}">web page</a><br/>
-<br/>
-<br/>
-Thank you and best regards,<br/>
-<br/>
+            body="""Dear Editor-in-chief,<br>
+<br>
+This is another reminder to kindly ask you to assign this {{ article.section.name }} to an editor in charge as soon as possible.<br>
+<br>
+Go to <a href="{{ article.articleworkflow.url }}">web page</a><br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
 {{ journal.code }} Editorial Office
 """,
             actor="EO",

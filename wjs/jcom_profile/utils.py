@@ -19,7 +19,6 @@ from django.template import Context, Template
 from journal.models import Journal
 from submission.models import Article
 from utils.logger import get_logger
-from utils.management.commands.test_fire_event import create_fake_request
 from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
 
@@ -273,7 +272,22 @@ def create_rich_fake_request(journal: Journal, settings: dict, user: Account = N
     """Create a fake_factory request suitable for rendering templates and storing django messages."""
     # - cron/management/commands/send_publication_notifications.py
     # - workflow-element-complete triggers core.workflow.workflow_next() that can store messages
-    fake_request = create_fake_request(user=user, journal=journal)
+    fake_request = HttpRequest()
+
+    fake_request.user = user
+
+    fake_request.FILES = None
+    fake_request.META = {}
+
+    fake_request.META = {"REMOTE_ADDR": "127.0.0.1"}
+    fake_request.model_content_type = None
+
+    if journal:
+        fake_request.journal = journal
+        fake_request.site_type = journal
+        fake_request.press = journal.press
+        fake_request.repository = None
+
     fake_request.GET = QueryDict("", mutable=True)
     fake_request.POST = QueryDict("", mutable=True)
     GlobalRequestMiddleware.process_request(fake_request)

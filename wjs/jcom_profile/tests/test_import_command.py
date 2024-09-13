@@ -614,11 +614,11 @@ class TestImportFromWjappSetAuthors:
   <h2 class="likesectionHead"><a id="x1-3000"></a>Contents</h2>
   <div class="tableofcontents">
     <span class="sectionToc"><a href="#Q1-1-2">Abstract</a></span>
-    <br/> <span class="sectionToc"><a href="#Q1-1-4">...</a></span>
+    <br> <span class="sectionToc"><a href="#Q1-1-4">...</a></span>
   </div>
   <h2 class="likesectionHead"><a id="x1-4000"></a>Reviewed Book<a id="Q1-1-7"></a></h2>
-  Christiansen, J. (2023).<br/>
-  Building Science Graphics.<br/>
+  Christiansen, J. (2023).<br>
+  Building Science Graphics.<br>
   Boca Raton &amp; Oxon: CRC Press
 </div>
 """,
@@ -640,10 +640,10 @@ class TestImportFromWjappSetAuthors:
   <h2 class="likesectionHead"><a id="x1-3000"></a>Contents</h2>
   <div class="tableofcontents">
     <span class="sectionToc"><a href="#Q1-1-2">Abstract</a></span>
-    <br/> <span class="sectionToc"><a href="#Q1-1-4">...</a></span>
+    <br> <span class="sectionToc"><a href="#Q1-1-4">...</a></span>
   </div>
   <h2 class="likesectionHead"><a id="x1-4000"></a>Reviewed Conference<a id="Q1-1-7"></a></h2>
-  Christiansen, J. (2023).<br/>
+  Christiansen, J. (2023).<br>
   Boca Raton &amp; Oxon: CRC Press
 </div>
 """,

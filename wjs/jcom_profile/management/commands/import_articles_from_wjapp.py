@@ -841,7 +841,7 @@ class BaseActionManager:
         #      Document_Layer messages/report from jcom jcomal are text message
         if not message:
             return ""
-        return message.replace("\r\n", "<br/>")
+        return message.replace("\r\n", "<br>")
 
 
 @dataclass
