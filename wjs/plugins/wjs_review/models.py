@@ -1417,6 +1417,15 @@ class WjsEditorAssignment(EditorAssignment):
 class PastEditorAssignment(models.Model):
     """A record of past editor assignments."""
 
+    class DeclineReasons(models.TextChoices):
+        """Reasons that an Editor can select when declining an assignment."""
+
+        JCOM_BUSY = "JCOM_BUSY", _("already too busy with JCOM editorial work")
+        BUSY = "BUSY", _("too busy in general")
+        OUTSIDE_EXPERTISE = "OUTSIDE_EXPERTISE", _("paper outside my area of expertise")
+        NO_REVIEWER = "NO_REVIEWER", _("unable to find an appropriate reviewer")
+        OTHER = "OTHER", _("other")
+
     article = models.ForeignKey(
         Article,
         verbose_name=_("Article"),
@@ -1427,6 +1436,10 @@ class PastEditorAssignment(models.Model):
     date_assigned = models.DateTimeField(_("Date assigned"))
     date_unassigned = models.DateTimeField(_("Date unassigned"))
     review_rounds = models.ManyToManyField("review.ReviewRound", verbose_name=_("Managed review rounds"), blank=True)
+    decline_reason = models.CharField(
+        blank=True, null=True, choices=DeclineReasons.choices, verbose_name=_("Decline reason")
+    )
+    decline_text = models.TextField(blank=True, null=True, verbose_name=_("Decline optional text"))
 
     class Meta:
         verbose_name = _("Past editor assignment")

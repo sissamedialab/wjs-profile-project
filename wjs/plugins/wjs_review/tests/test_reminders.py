@@ -160,6 +160,7 @@ def test_reminder_to_single_director(
         assignment=assignment,
         editor=assignment.editor,
         request=fake_request,
+        form_data={"decline_reason": "other"},
     ).run()
     assert Reminder.objects.all().count() == 2
     assert Reminder.objects.filter(code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1).count() == 1
@@ -1531,6 +1532,7 @@ def test_editor_declines(
         assignment=editor_assignment,
         editor=editor_assignment.editor,
         request=fake_request,
+        form_data={"decline_reason": "other"},
         director=director,
     ).run()
     assert Reminder.objects.all().count() == 2
@@ -1563,6 +1565,7 @@ def test_director_assigns(
         assignment=editor_assignment,
         editor=editor_assignment.editor,
         request=fake_request,
+        form_data={"decline_reason": "other"},
         director=director,
     ).run()
     assert not Reminder.objects.filter(recipient=editor_assignment.editor).exists()

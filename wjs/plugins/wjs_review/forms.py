@@ -33,6 +33,7 @@ from .logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
+    BaseDeassignEditor,
     DeselectReviewer,
     EvaluateReview,
     HandleDecision,
@@ -52,6 +53,7 @@ from .models import (
     Message,
     MessageRecipients,
     MessageThread,
+    PastEditorAssignment,
     ProphyAccount,
     WjsEditorAssignment,
     WjsMiniHTMLFormField,
@@ -1082,7 +1084,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
             request=self.request,
         )
 
-    def get_deassignment_logic_instance(self) -> Optional[HandleEditorDeclinesAssignment]:
+    def get_deassignment_logic_instance(self) -> Optional[BaseDeassignEditor]:
         """
         Instantiate :py:class:`DeassignFromEditor` class.
 
@@ -1090,7 +1092,8 @@ class SupervisorAssignEditorForm(forms.ModelForm):
         """
         try:
             assignment = WjsEditorAssignment.objects.get_current(self.instance)
-            return HandleEditorDeclinesAssignment(
+            # FIXME: this class is too basic to handle this situazion, to be addressed in issue 155
+            return BaseDeassignEditor(
                 # Like in the view, assume that there is only one editorassignment for each article,
                 # the condition in the logic will double-check it.
                 assignment=assignment,
@@ -1410,6 +1413,42 @@ class JCOMReportForm(forms.Form):
 
         Errors are added to the form if the logic fails.
         """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
+class EditorDeclinesAssignmentForm(forms.Form):
+    """Form to decline an editor's decision."""
+
+    decline_reason = forms.ChoiceField(choices=PastEditorAssignment.DeclineReasons.choices, required=True)
+    decline_text = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
+        label=_("Please write here any additional comments for the Editor in Chief"),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        self.instance = kwargs.pop("instance")
+        super().__init__(*args, **kwargs)
+
+    def get_logic_instance(self):
+        """Instantiate :py:class:`HandleEditorDeclinesAssignment` class."""
+        service = HandleEditorDeclinesAssignment(
+            assignment=WjsEditorAssignment.objects.get_all(self.instance).get(editor=self.request.user),
+            editor=self.request.user,
+            request=self.request,
+            form_data=self.cleaned_data,
+        )
+        return service
+
+    def save(self, commit=True) -> ReviewAssignment:
         try:
             service = self.get_logic_instance()
             service.run()

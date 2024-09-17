@@ -2341,6 +2341,7 @@ class HandleEditorDeclinesAssignment:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
+    form_data: Dict[str, Any]
     director: Optional[Account] = None
 
     def _get_message_context(self):
@@ -2349,6 +2350,8 @@ class HandleEditorDeclinesAssignment:
             "editor": self.editor,
             "director": self.director,
             "article": self.assignment.article,
+            "decline_reason": self.form_data.get("decline_reason"),
+            "decline_text": self.form_data.get("decline_text", None),
         }
 
     def _log_director(self):
@@ -2389,10 +2392,16 @@ class HandleEditorDeclinesAssignment:
             article=self.assignment.article,
         ).create()
 
+    def _save_decline_info(self, past_assignment: PastEditorAssignment):
+        past_assignment.decline_reason = self.form_data["decline_reason"]
+        past_assignment.decline_text = self.form_data.get("decline_text", None)
+        past_assignment.save()
+
     def run(self) -> PastEditorAssignment:
         with transaction.atomic():
             try:
                 past_assignment = BaseDeassignEditor(self.assignment, self.editor, self.request).run()
+                self._save_decline_info(past_assignment)
             except ValueError:
                 raise
             self._create_director_reminder()

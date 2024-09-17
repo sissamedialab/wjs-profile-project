@@ -1240,10 +1240,17 @@ Thank you in advance for your cooperation and best regards,<br>
             "journal": None,
             "setting": None,
             "value": """Dear Dr. {{ director }},
+<br/><br/>
+I regret to inform you that <...> I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
 <br><br>
-I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
-
+{{ decline_reason }}
+<br/><br/>
+{% if decline_text %}
+Additional comments:
 <br><br>
+{{ decline_text }}
+<br><br>
+{% endif %}
 Best regards,
 <br><br>
 {{ request.user.signature|safe }}<br>

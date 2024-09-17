@@ -70,6 +70,7 @@ from .forms import (
     DecisionForm,
     DeclineReviewForm,
     DeselectReviewerForm,
+    EditorDeclinesAssignmentForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
     EvaluateReviewForm,
@@ -89,7 +90,6 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
-    HandleEditorDeclinesAssignment,
     render_template_from_setting,
     states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_for_review,
@@ -2219,8 +2219,9 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
         return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
 
 
-class EditorDeclineAssignmentView(HtmxMixin, UserPassesTestMixin, DetailView):
+class EditorDeclineAssignmentView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     template_name = "wjs_review/details/editor_rejects_assignment.html"
+    form_class = EditorDeclinesAssignmentForm
     model = ArticleWorkflow
 
     def setup(self, request, *args, **kwargs):
@@ -2232,16 +2233,13 @@ class EditorDeclineAssignmentView(HtmxMixin, UserPassesTestMixin, DetailView):
         """User must be the article's Editor and must be assigned to the article."""
         return permissions.is_article_editor(self.object, self.request.user)
 
-    def get_logic_instance(self):
-        """Instantiate :py:class:`HandleEditorDeclinesAssignment` class."""
-        service = HandleEditorDeclinesAssignment(
-            assignment=WjsEditorAssignment.objects.get_all(self.object).get(editor=self.request.user),
-            editor=self.request.user,
-            request=self.request,
-        )
-        return service
+    def get_form_kwargs(self) -> Dict[str, Any]:
+        kwargs = super().get_form_kwargs()
+        kwargs["instance"] = self.object
+        kwargs["request"] = self.request
+        return kwargs
 
-    def post(self, request, *args, **kwargs):
+    def form_valid(self, form):
         """
         Delete declined WjsEditorAssignment using :py:class:`HandleEditorDeclinesAssignment`.
 
@@ -2249,15 +2247,15 @@ class EditorDeclineAssignmentView(HtmxMixin, UserPassesTestMixin, DetailView):
         If the action is successful, a success message is attached and the user is redirected to the article list page.
         """
         try:
-            service = self.get_logic_instance()
-            service.run()
-            messages.success(request, _("Assignment declined successfully."))
+            super().form_valid(form)
+            messages.success(self.request, _("Assignment declined successfully."))
             response = HttpResponse("ok")
             response.headers["HX-Redirect"] = reverse("wjs_review_list")
             return response
-        except ValidationError as e:
-            kwargs["error"] = e
-        return self.get(request, *args, **kwargs)
+        except (ValueError, ValidationError) as e:
+            form.add_error(None, e)
+            # required to handle exception raised in the form save method (coming for janeway business logic)
+            return super().form_invalid(form)
 
 
 class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
