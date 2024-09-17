@@ -745,6 +745,7 @@ def test_editor_archived(
         editor=section_editor.janeway_account,
         assignment=past_assignment,
         request=fake_request,
+        form_data={"decline_reason": "other"},
     ).run()
 
     AssignToEditor(

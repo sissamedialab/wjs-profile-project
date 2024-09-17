@@ -2724,6 +2724,7 @@ def test_past_assignment(
             editor=section_editor.janeway_account,
             assignment=assignment_1,
             request=fake_request,
+            form_data={"decline_reason": "other"},
         )
         service.run()
         assigned_article.refresh_from_db()
@@ -2753,6 +2754,7 @@ def test_past_assignment(
             editor=editor_2.janeway_account,
             assignment=assignment_2,
             request=fake_request,
+            form_data={"decline_reason": "other"},
         )
         service.run()
         assigned_article.articleworkflow.refresh_from_db()

@@ -590,6 +590,7 @@ def test_permission_form_view_setup_editor(
         assignment=current_editor_assignment,
         editor=current_editor_assignment.editor,
         request=fake_request,
+        form_data={"decline_reason": "other"},
     ).run()
     new_assignment = BaseAssignToEditor(
         editor=normal_user.janeway_account,

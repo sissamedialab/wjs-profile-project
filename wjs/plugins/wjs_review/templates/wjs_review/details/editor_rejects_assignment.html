@@ -2,14 +2,14 @@
 {% translate "Decline" as decline_label %}
 {% translate "Close" as close_label %}
 <div class="modal-header">
-  <h5 class="modal-title" id="htmxModalLabel">{% translate "Decline assignment" %}</h5>
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Decline assignment for" %} {{ object }}</h5>
   {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
 </div>
 <div class="modal-body">
-  <p>{% translate "Do you confirm that you do not wish to act as Editor in charge for" %} {{ object }}.</p>
-  {% if error %}<p>{{ error }}</p>{% endif %}
   <form id="decline-assignment" hx-post="{% url "wjs_unassign_assignment" pk=object.pk %}" hx-target="#htmxModalContent">
   {% csrf_token %}
+  {% bootstrap_form_errors form layout='inline' %}
+  {% bootstrap_form form label_class="fw-bold" %}
   {% bootstrap_button name="decline" content=decline_label %}
   {% bootstrap_button button_class="btn-outline-secondary" data_bs_dismiss="modal" button_type="button" aria_label=close_label content=close_label %}
 </form>
