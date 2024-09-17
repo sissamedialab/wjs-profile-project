@@ -7,6 +7,7 @@ from .models import (
     ProphyAccount,
     ProphyCandidate,
     WjsSection,
+    WorkflowReviewAssignment,
 )
 
 
@@ -57,3 +58,12 @@ class EditorDecisionAdmin(admin.ModelAdmin):
 
     list_display = ["workflow", "decision", "decision_editor_report"]
     list_filter = ["decision"]
+
+
+@admin.register(WorkflowReviewAssignment)
+class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
+    """Helper class to "admin" WorkflowReviewAssignment."""
+
+    list_display = ["article_id", "review_round_id", "report_form_answers"]
+    list_filter = ["article"]
+    search_fields = ["article"]
