@@ -244,15 +244,15 @@ PROPHY_ORGANIZATION = "SISSA"
 
 # prophy upload
 PROPHY_API_KEY = ""
-PROPHY_URL = "https://www.prophy.science/api/external/proposal/"
+PROPHY_URL = "https://www.prophy.ai/api/external/proposal/"
 
 # JWT token
 PROPHY_JWT_SUB = "SISSA"
-PROPHY_JWT_URL = "https://www.prophy.science/api/auth/api-jwt-login/?token="
+PROPHY_JWT_URL = "https://www.prophy.ai/api/auth/api-jwt-login/?token="
 PROPHY_JWT_KEY = ""
 
 # prophy author page
-PROPHY_AUTH = "https://www.prophy.science/author/"
+PROPHY_AUTH = "https://www.prophy.ai/author/"
 
 # How many days are considered "too far in the future" when postponing an EditorRevisionRequest
 REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD = 30
