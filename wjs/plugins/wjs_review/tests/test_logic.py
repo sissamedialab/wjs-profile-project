@@ -1616,7 +1616,7 @@ def test_handle_admin_decision(
         ).processed_value
         withdrawn_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="review_withdraw_body",
+            setting_name="review_withdraw_default",
             journal=assigned_article.journal,
             request=fake_request,
             context=message_context,
@@ -1861,16 +1861,10 @@ def test_handle_editor_decision(
         context=message_template_context,
         template_is_setting=True,
     )
-    review_withdraw_message_body = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_withdraw_body",
-        journal=assigned_article.journal,
-        request=fake_request,
-        context=message_template_context,
-        template_is_setting=True,
-    )
-    # Try to avoid test-rot and simplify comparison:
-    review_withdraw_message_body = raw(review_withdraw_message_body)
+
+    # Message body is taken from the form, not from the setting.
+    # (the setting was used to initialize the form).
+    review_withdraw_message_body = form_data["withdraw_notice"]
 
     if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
         assert Message.objects.count() == 1
@@ -1878,7 +1872,7 @@ def test_handle_editor_decision(
         assert Message.objects.count() == 2
         withdrawn_review_message = Message.objects.order_by("created").first()
         assert withdrawn_review_message.subject == review_withdraw_message_subject
-        assert review_withdraw_message_body in raw(withdrawn_review_message.body)
+        assert review_withdraw_message_body == withdrawn_review_message.body
         assert withdrawn_review_message.message_type == Message.MessageTypes.SYSTEM
         assert len(mail.outbox) == 2
         withdrawn_review_mail = mail.outbox[0]

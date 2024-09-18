@@ -1262,6 +1262,8 @@ class AuthorHandleRevision:
 class WithdrawReviewRequests:
     """
     Mark review requests as withdrawn and log a personalized message.
+
+    Similar to DeselectReviewer.
     """
 
     article: Article
@@ -1270,6 +1272,8 @@ class WithdrawReviewRequests:
     body_name: str
     context: Dict[str, Any]
     user: Account = None
+    form_data: dict = None
+    """If provided, use the form's data for the message body instead of gettig it from a setting."""
 
     def run(self):
         for assignment in self.article.reviewassignment_set.filter(is_complete=False):
@@ -1287,14 +1291,17 @@ class WithdrawReviewRequests:
             context=self.context,
             template_is_setting=True,
         )
-        review_withdraw_message = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name=self.body_name,
-            journal=self.article.journal,
-            request=self.request,
-            context=self.context,
-            template_is_setting=True,
-        )
+        if self.form_data and "withdraw_notice" in self.form_data:
+            review_withdraw_message = self.form_data["withdraw_notice"]
+        else:
+            review_withdraw_message = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name=self.body_name,
+                journal=self.article.journal,
+                request=self.request,
+                context=self.context,
+                template_is_setting=True,
+            )
         communication_utils.log_operation(
             actor=self.user,
             article=self.article,
@@ -1759,9 +1766,10 @@ class HandleDecision:
             article=self.workflow.article,
             request=self.request,
             subject_name="review_withdraw_subject",
-            body_name="review_withdraw_body",
+            body_name="review_withdraw_default",
             context=email_context,
             user=self.user,
+            form_data=self.form_data,
         )
         service.run()
 
@@ -2416,6 +2424,8 @@ class HandleEditorDeclinesAssignment:
 class DeselectReviewer:
     """
     Remove reviewer assignment.
+
+    Similar to WithdrawReviewRequests.
     """
 
     assignment: WorkflowReviewAssignment

@@ -1435,6 +1435,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["initial"] = {"decision": self.request.GET.get("decision")}
+        kwargs["has_pending_reviews"] = self.pending_reviews.exists()
         return kwargs
 
     @property
@@ -1483,10 +1484,18 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
 
     @property
     def open_reviews(self) -> QuerySet[ReviewAssignment]:
-        """Return not completed reviews for the current review round."""
+        """Return accepted but not completed reviews for the current review round."""
         return self.current_reviews.filter(
             date_complete__isnull=True,
             date_accepted__isnull=False,
+            date_declined__isnull=True,
+        )
+
+    @property
+    def pending_reviews(self) -> QuerySet[ReviewAssignment]:
+        """Return not completed reviews for the current review round."""
+        return self.current_reviews.filter(
+            date_complete__isnull=True,
             date_declined__isnull=True,
         )
 
