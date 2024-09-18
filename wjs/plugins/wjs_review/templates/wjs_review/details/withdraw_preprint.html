@@ -3,8 +3,6 @@
 
 {% block content_wrapper %}
   {% translate "Send and confirm" as withdraw_label %}
-  {% translate "Back" as back_label %}
-  {% url "wjs_article_details" pk=workflow.pk as back_url %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -26,7 +24,7 @@
         {% csrf_token %}
         {% bootstrap_form form %}
         {% bootstrap_button name="withdraw" button_class="btn-danger" content=withdraw_label %}
-        {% bootstrap_button button_class="btn-outline-secondary" href=back_url content=back_label %}
+        {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
     </form>
   </div>
 {% endblock content_wrapper %}

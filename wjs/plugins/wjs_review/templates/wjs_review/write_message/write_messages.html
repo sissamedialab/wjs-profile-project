@@ -71,8 +71,6 @@
   {% else %}
     {% translate "Send" as send_label %}
   {% endif %}
-  {% translate "Back" as back_label %}
-  {% url "wjs_article_details" pk=article.articleworkflow.pk as back_url %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -151,7 +149,7 @@
         {% endif %}
       </div>
       {% bootstrap_button button_type="submit" name="submit" content=send_label id="id_formset_submit_button" %}
-      {% bootstrap_button button_class="btn-outline-secondary" href=back_url content=back_label %}
+      {% include "wjs_review/base/elements/back.html" with workflow=article.articleworkflow %}
     </form>
   </div>
 {% endblock content_wrapper %}

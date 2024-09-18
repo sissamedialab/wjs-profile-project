@@ -3,8 +3,6 @@
 
 {% block content_wrapper %}
   {% translate "Confirm" as deassign_label %}
-  {% translate "Back" as back_label %}
-  {% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -17,7 +15,7 @@
         {% csrf_token %}
         {% bootstrap_form form %}
         {% bootstrap_button name="deassign" content=deassign_label %}
-        {% bootstrap_button button_class="btn-outline-secondary" href=back_url content=back_label %}
+        {% include "wjs_review/base/elements/back.html" with workflow=assignment.article.articleworkflow %}
     </form>
   </div>
 {% endblock content_wrapper %}

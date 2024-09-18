@@ -1,0 +1,6 @@
+{% load django_bootstrap5 %}
+{% if use_div %}<div class="container mb-3">{% endif %}
+{% translate "Back" as back_label %}
+{% url "wjs_article_details" pk=workflow.pk as back_url %}
+{% bootstrap_button button_class="btn-outline-primary" href=back_url content=back_label %}
+{% if use_div %}</div>{% endif %}

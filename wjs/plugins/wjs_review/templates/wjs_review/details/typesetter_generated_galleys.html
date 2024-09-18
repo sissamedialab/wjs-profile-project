@@ -2,7 +2,6 @@
 {% load django_bootstrap5 static wjs_permissions %}
 
 {% block content_wrapper %}
-  {% url "wjs_article_details" pk=workflow.pk as back_url %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -19,7 +18,7 @@
             <p>{{ error }}</p>
           {% endblocktranslate %}
         </div>
-        <a href="{{ back_url }}" class="btn btn-primary">{% translate "Back to the paper" %}</a>
+        {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
       </div>
     </div>
   </div>

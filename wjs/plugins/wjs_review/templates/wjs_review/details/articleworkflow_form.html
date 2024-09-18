@@ -3,8 +3,6 @@
 
 {% block content_wrapper %}
   {% translate "Save" as save_label %}
-  {% translate "Back" as back_label %}
-  {% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -22,10 +20,11 @@
     </div>
   </div>
   <div class="container mb-3">
-      <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {% bootstrap_form form %}
-        {% bootstrap_button name="save" content=save_label %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      {% bootstrap_button name="save" content=save_label %}
+      {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
     </form>
   </div>
 {% endblock content_wrapper %}

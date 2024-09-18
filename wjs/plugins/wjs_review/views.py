@@ -2297,7 +2297,10 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
         from .custom_types import BreadcrumbItem
 
         return [
-            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
+                title=self.object.article.articleworkflow,
+            ),
             BreadcrumbItem(url=self.request.path, title=self.title, current=True),
         ]
 

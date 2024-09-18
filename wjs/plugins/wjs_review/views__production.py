@@ -400,6 +400,7 @@ class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["disable_send_corrections"] = not self.object.notes and not self.object.annotated_files.exists()
+        context["article"] = self.article
         return context
 
     def get_send_logic_instance(self):
