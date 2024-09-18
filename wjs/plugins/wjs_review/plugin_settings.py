@@ -458,19 +458,19 @@ The revision due date for the article "{{ article.title }}" has been postponed t
             force=force,
         )
         withdraw_review_message_setting: SettingParams = {
-            "name": "review_withdraw_body",
+            "name": "review_withdraw_default",
             "group": wjs_review_settings_group,
             "types": "rich-text",
-            "pretty_name": _("Body of the review withdraw notification"),
+            "pretty_name": _("Default body of the review withdraw notification"),
             "description": _(
-                "Body of the notification sent to reviewers when the review-assignment has been withdrawn.",
+                "The default body of the notification that is sent to the reviewer when deassigned because the editor reached a decision. This can be modified by the operator.",
             ),
             "is_translatable": False,
         }
         withdraw_review_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear Dr. {{ recipient.full_name }},
+            "value": """Dear colleague,
 <br><br>
 This is to inform you that the editor in charge of this {{ article.section.name }} has been able to make a decision thereby relieving you of the assignment.
 <br><br>
@@ -488,29 +488,7 @@ Thank you and best regards,
             withdraw_review_message_setting["name"],
             force=force,
         )
-        withdraw_notice_setting: SettingParams = {
-            "name": "review_withdraw_default",
-            "group": wjs_review_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Default message for review withdraw notification"),
-            "description": _(
-                "Default message added to the reviewer-withdrawn notification. This can be customized by the operator. See also review_withdraw_body",
-            ),
-            "is_translatable": False,
-        }
-        withdraw_notice_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": _("Please write here any additional comments you may wish to send the reviewer"),
-            "translations": {},
-        }
-        setting_3 = create_customization_setting(
-            withdraw_notice_setting,
-            withdraw_notice_setting_value,
-            withdraw_notice_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2, setting_3
+        return setting_1, setting_2
 
     def technical_revision_body() -> tuple[SettingValue, ...]:
         technical_revision_subject_setting: SettingParams = {

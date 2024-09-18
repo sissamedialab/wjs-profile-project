@@ -83,6 +83,7 @@ class Command(BaseCommand):
         settings_to_drop = (
             "editor_deassign_reviewer_system_subject",
             "editor_deassign_reviewer_system_body",
+            "review_withdraw_body",
         )
         for setting_name in settings_to_drop:
             self.stdout.write(f"Dropping {setting_name}")

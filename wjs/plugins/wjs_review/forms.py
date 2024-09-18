@@ -572,6 +572,7 @@ class DecisionForm(forms.ModelForm):
     )
     withdraw_notice = WjsMiniHTMLFormField(
         label=_("Notice to reviewers"),
+        help_text=_("This message will be sent to reviewers that have unfinished review assignments."),
         required=False,
     )
     date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
@@ -585,6 +586,8 @@ class DecisionForm(forms.ModelForm):
         self.user = kwargs.pop("user", None)
         self.request = kwargs.pop("request", None)
         self.admin_form = kwargs.pop("admin_form", False)
+        if "initial" not in kwargs:
+            kwargs["initial"] = {}
         self.hide_date_due = kwargs["initial"].get("decision", None) not in (
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
@@ -592,15 +595,24 @@ class DecisionForm(forms.ModelForm):
             ArticleWorkflow.Decisions.OPEN_APPEAL,
         )
         self.hide_decision = kwargs["initial"].get("decision", None)
-        if "initial" not in kwargs:
-            kwargs["initial"] = {}
-        kwargs["initial"]["withdraw_notice"] = get_setting(
-            "wjs_review",
-            "review_withdraw_default",
-            self.request.journal,
-        ).processed_value
+        self.has_pending_reviews = kwargs.pop("has_pending_reviews", False)
+
+        # It's easier to set initial here, even if we might drop the field later on,
+        # because kwargs is going to be passed to super().__init__() for standard initialization.
+        kwargs["initial"]["withdraw_notice"] = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="review_withdraw_default",
+            journal=self.request.journal,
+            request=self.request,
+            context={},
+            template_is_setting=True,
+        )
+
         super().__init__(*args, **kwargs)
+
         if self.admin_form:
+            del self.fields["withdraw_notice"]
+        elif not self.has_pending_reviews:
             del self.fields["withdraw_notice"]
 
     def clean_date_due(self):
