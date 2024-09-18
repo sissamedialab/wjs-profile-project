@@ -36,7 +36,23 @@
   }
 
   h4 {
-    font-size: 1rem;
+    font-size: 1.2rem;
+  }
+
+  h5 {
+    font-size: 1.1rem;
+    font-weight: bold;
+  }
+
+  ul {
+    margin-left: 1rem;
+    li {
+      list-style: disc;
+    }
+  }
+
+  strong {
+    @extend b;
   }
 }
 

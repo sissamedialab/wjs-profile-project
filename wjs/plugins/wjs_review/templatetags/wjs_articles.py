@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Case, IntegerField, OuterRef, QuerySet, When
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from journal.models import ArticleOrdering, Issue
 from plugins.typesetting.models import (
     GalleyProofing,
@@ -101,27 +102,32 @@ def last_eo_note(target):
 
 @register.filter
 def article_current_editor(article):
-    """Return the current editor."""
-    # TODO: registering as a `filter` because I don't know how to use it with with otherwise
-    # e.g.: {% with editor_assignment_data=article|article_current_editor %}
-
+    """
+    Return the current editor and the days elapsed since the last relevant action.
+    """
+    reference_date = None
+    editor = None
+    try:
+        submitted_revision = EditorRevisionRequest.objects.filter(article=article).latest("date_completed")
+        reference_date = submitted_revision.date_completed
+    except EditorRevisionRequest.DoesNotExist:
+        pass
     try:
         editor_assignment = WjsEditorAssignment.objects.get_current(article)
+        editor = editor_assignment.editor
+        if not reference_date or editor_assignment.assigned > reference_date:
+            reference_date = editor_assignment.assigned
     except WjsEditorAssignment.DoesNotExist:
-        editor_assignment = None
-    if editor_assignment:
-        return {
-            "editor": editor_assignment.editor,
-            "days_elapsed": (timezone.now() - editor_assignment.assigned).days if editor_assignment.assigned else "",
-        }
-    else:
-        return {
-            "editor": "Not assigned",
-            # NB: this might not be accurate if there was a previous assignment that has been rejected, but the
-            # importance of the delay can be comparable with more common situations (i.e. older papers are _usually_
-            # more urgent).
-            "days_elapsed": (timezone.now() - article.date_submitted).days if article.date_submitted else "",
-        }
+        pass
+    if not reference_date:
+        reference_date = article.date_submitted
+    if not editor:
+        editor = _("Not assigned")
+
+    return {
+        "editor": editor,
+        "days_elapsed": (timezone.now() - reference_date).days if reference_date else "",
+    }
 
 
 @register.filter

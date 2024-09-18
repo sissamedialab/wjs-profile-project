@@ -179,7 +179,7 @@ def internal_title(issue: Issue | None) -> str:
         return ""
     if issue.issue_type.code == "collection" and issue.short_name:
         return issue.short_name
-    return mark_safe(issue.issue_title)
+    return mark_safe(issue.update_display_title(save=False))
 
 
 @register.filter

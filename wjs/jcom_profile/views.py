@@ -1123,3 +1123,13 @@ def set_notify_hijack(request):
     if request.method == "POST":
         request.session["silent_hijack"] = not request.session.get("silent_hijack", False)
     return redirect(request.GET.get("next", "/"))
+
+
+class KeywordListView(ListView):
+    model = Keyword
+    template_name = "journal/keywords.html"
+    context_object_name = "keywords"
+    title = _("Keywords")
+
+    def get_queryset(self):
+        return self.model.objects.filter(journal=self.request.journal).order_by("word")

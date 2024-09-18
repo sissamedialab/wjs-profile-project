@@ -10,7 +10,12 @@
     {% if workflow|is_user_article_manager:request.user %}
       <h5>
         <span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">
-          {{ workflow.state_label }}<br>{{ workflow.article|get_status_date|date:"d M" }}
+          {{ workflow.state_label }}<br>
+          {% with status_date=workflow.article|get_status_date_label %}
+            {% if status_date %}
+              ({{ status_date }})
+            {% endif %}
+          {% endwith %}
         </span>
       </h5>
     {% endif %}

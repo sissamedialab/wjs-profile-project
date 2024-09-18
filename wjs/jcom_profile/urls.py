@@ -7,6 +7,7 @@ from journal import views as journal_views
 
 from wjs.jcom_profile import experimental_views, views
 from wjs.jcom_profile.newsletter import views as newsletter_views
+from wjs.jcom_profile.views import KeywordListView
 
 urlpatterns = [
     path("profile/", views.edit_profile, name="core_edit_profile"),
@@ -161,6 +162,7 @@ urlpatterns = [
         views.set_notify_hijack,
         name="set_notify_hijack",
     ),
+    path("keywords/", KeywordListView.as_view(), name="keywords_list"),
 ]
 
 # Some experimental / Easter-egg URLs
