@@ -1,12 +1,6 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static wjs_permissions %}
 
-{% block bootstrap5_extra_head %}
-  {{ block.super }}
-  <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
-  <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
-{% endblock bootstrap5_extra_head %}
-
 {% block content_wrapper %}
   {% user_has_access_to workflow=workflow user=request.user target=workflow.article permission_type="all" as has_full_access %}
 
@@ -42,16 +36,4 @@
     </div>
     {% include "wjs_review/select_reviewer/elements/reviewers_table.html" %}
   </div>
-
-  <!--Columns ordering-->
-  <script>
-    new DataTable("#reviewers", {
-      info: false,
-      searching: false,
-      ordering: true,
-      paging: false,
-      order: [],
-      columns: [null, null, null, { orderable: false }],
-    });
-  </script>
 {% endblock content_wrapper %}
