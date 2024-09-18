@@ -2,8 +2,12 @@
 {% translate "Invite" as invite_label %}
 {% translate "Close" as close_label %}
 {# Apparently, the view re-renders only the template containing the modal that does not directly contain base.html, and the browser needs that we include these js again here #}
-<script src="{% static "common/js/tinymce/tinymce.min.js" %}"></script>
 <script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
+<script>
+  document.addEventListener("htmx:configRequest", function(event) {
+    bindTinymce(event, "message");
+  });
+</script>
 {% url "wjs_invite_reviewer" workflow.pk as invite_reviewer %}
 <div class="modal-header">
   <h5 class="modal-title" id="htmxModalLabel">{% translate "Invite Reviewer" %}</h5>
@@ -24,7 +28,8 @@
     {% bootstrap_field form.message %}
     {% bootstrap_field form.author_note_visible %}
     <div class="d-flex justify-content-between mt-3">
-      {% bootstrap_button button_type="button" name="invite-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#invitemessagePreviewCollapse" aria_expanded="false" aria_controls="invitemessagePreviewCollapse" hx_post=invite_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
+      {% bootstrap_button button_type="button" id="preview-btn-invite" name="invite-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#invitemessagePreviewCollapse" aria_expanded="false" aria_controls="invitemessagePreviewCollapse" hx_post=invite_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
+      {% bootstrap_button button_type="button" id="update-btn-invite" name="invite-reviewer-message" value="1" button_class="btn-outline-secondary" hx_post=invite_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Update Preview" style="display:none;" %}
       {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content=invite_label %}
     </div>
     <div class="collapse mt-3" id="invitemessagePreviewCollapse">

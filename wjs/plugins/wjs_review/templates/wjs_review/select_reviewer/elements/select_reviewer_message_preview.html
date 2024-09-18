@@ -9,3 +9,16 @@
     </div>
   </div>
 {% endif %}
+
+<script>
+  document.addEventListener("htmx:afterSwap", function(event) {
+    if (event.detail.target.id === "reviewer-message-preview") {
+      const previewButtons = document.querySelectorAll("#preview-btn-invite, #preview-btn-select");
+      const updateButtons = document.querySelectorAll("#update-btn-invite, #update-btn-select");
+
+      previewButtons.forEach(button => button.style.display = "none");
+      updateButtons.forEach(button => button.style.display = "inline-block");
+
+    }
+  });
+</script>

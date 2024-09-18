@@ -8,9 +8,13 @@
 </div>
 <div class="modal-body">
   <form method="post" action="{% url 'wjs_select_reviewer' workflow.pk %}">
-{# Apparently, the view re-renders only the template containing the modal that does not directly contain base.html, and the browser needs that we include these js again here #}
-<script src="{% static "common/js/tinymce/tinymce.min.js" %}"></script>
-<script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
+    {# Apparently, the view re-renders only the template containing the modal that does not directly contain base.html, and the browser needs that we include these js again here #}
+    <script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
+    <script>
+      document.addEventListener("htmx:configRequest", function(event) {
+        bindTinymce(event, "message");
+      });
+    </script>
     {% csrf_token %}
     {% bootstrap_form_errors form layout='inline' %}
     {% bootstrap_form form %}
@@ -23,7 +27,8 @@
       </div>
     {% endif %}
     <div class="d-flex justify-content-between mt-3">
-      {% bootstrap_button button_type="button" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#messagePreviewCollapse" aria_expanded="false" aria_controls="messagePreviewCollapse" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
+      {% bootstrap_button button_type="button" id="preview-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#messagePreviewCollapse" aria_expanded="false" aria_controls="messagePreviewCollapse" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
+      {% bootstrap_button button_type="button" id="update-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Update Preview" style="display:none;" %}
       {% bootstrap_button button_type="submit" content="Assign" %}
     </div>
     <div class="collapse mt-3" id="messagePreviewCollapse">
