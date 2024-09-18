@@ -228,16 +228,22 @@ def get_version_submission_date(article: Article) -> datetime.datetime:
 
 
 @register.filter()
-def get_status_date(article: Article) -> datetime.datetime:
+def get_status_date_label(article: Article) -> str:
     """
-    Return the relevant date for the current article state.
+    Return the formatted relevant date for the current article state.
     """
     workflow = article.articleworkflow
     if workflow.state in (ArticleWorkflow.ReviewStates.TO_BE_REVISED,):
         revision_request = article.active_revision_requests().last()
         if revision_request:
-            return revision_request.date_due
-    return workflow.modified
+            return f"by {revision_request.date_due.strftime('%d-%b')}"
+    if workflow.state_value in (ArticleWorkflow.ReviewComputedStates.ASSIGNED_TO_EDITOR.value,):
+        assignment = WjsEditorAssignment.objects.filter(
+            article=article, review_rounds=article.current_review_round_object()
+        ).first()
+        if assignment:
+            return assignment.assigned.strftime("%d-%b")
+    return ""
 
 
 @register.filter

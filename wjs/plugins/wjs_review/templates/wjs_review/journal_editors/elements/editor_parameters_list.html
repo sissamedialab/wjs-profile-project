@@ -1,9 +1,9 @@
-{% load django_bootstrap5 wjs_review %}
+{% load django_bootstrap5 wjs_review wjs_permissions %}
 {% for editor in editor_list %}
   {% translate "Update" as manage_label %}
   {% url "assignment_parameters" editor_pk=editor.pk as manage_url %}
   <tr>
-    <td>{{ editor.full_name }}</td>
+    <td>{{ editor.full_name }} {% hijack_button user=editor size="medium" %}</td>
     <td>{{ editor.affiliation }}</td>
     <td>{% get_max_workload editor=editor journal=journal %}</td>
     <td>{% get_current_workload editor=editor journal=journal %}</td>

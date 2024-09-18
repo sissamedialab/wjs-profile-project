@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ view.title }}{% endblock title %}
+
+{% block page_title %}{{ view.title }}{% endblock page_title %}
+
+{% block body %}
+  <div class="row">
+    <div class="content-row col m12">
+      <div class="cms-page card">
+        <div id="cms-title" class="card-content">
+          <h1 class="main-title">{{ view.title }}</h1>
+          <div class="divider spacer"></div>
+          <div id="main_article" class="cms-page-content-description">
+            <ul>
+              {% for keyword in keywords %}
+                <li class="badge bg-primary">{{ keyword }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock body %}

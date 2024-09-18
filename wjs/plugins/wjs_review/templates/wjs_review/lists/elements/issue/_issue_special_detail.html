@@ -44,7 +44,7 @@
     {{ issue.date|date:DATE_FORMAT }}
   </td>
   <td class="text-center">
-    {{ issue.articles.count }}
+    {{ issue.expected_submissions|default:0 }}
   </td>
   <td class="text-center">
     {% special_issue_paper_pending issue %}
