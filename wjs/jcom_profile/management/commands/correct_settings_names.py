@@ -11,6 +11,10 @@ class Command(BaseCommand):
     help = "Correct existing settings names."  # noqa A003
 
     def handle(self, *args, **options):
+        self.rename_settings()
+        self.drop_obsolete_settings()
+
+    def rename_settings(self):
         settings_to_rename = (
             # jcom_profile
             (
@@ -73,3 +77,19 @@ class Command(BaseCommand):
             else:
                 setting.name = new_name
                 setting.save()
+
+    def drop_obsolete_settings(self):
+        """Drop settings we had second thoughts about."""
+        settings_to_drop = (
+            "editor_deassign_reviewer_system_subject",
+            "editor_deassign_reviewer_system_body",
+        )
+        for setting_name in settings_to_drop:
+            self.stdout.write(f"Dropping {setting_name}")
+            group_name = "wjs_review"
+            try:
+                setting = Setting.objects.get(name=setting_name, group__name=group_name)
+            except Setting.DoesNotExist:
+                self.stdout.write(f"   setting {setting_name} in group {group_name} does not exist. Doing nothing.")
+            else:
+                setting.delete()

@@ -2864,17 +2864,17 @@ def test_deassign_reviewer(
     assert review_assignment.is_complete
     assert review_assignment.decision == "withdrawn"
 
+    assert Message.objects.count() == 1
+
     if send_reviewer_notification:
-        # TODO: review in specs#941
-        assert Message.objects.count() == 1
+        assert len(mail.outbox) == 1  # email has been sent to reviewer
+        assert mail.outbox[0].to == [review_assignment.reviewer.email]
         assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__isnull=True).count() == 0
-        assert len(mail.outbox) == 1  # system messages are not sent by email
     else:
-        assert Message.objects.count() == 1
+        assert len(mail.outbox) == 0  # no email has been sent
         assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
         assert Message.objects.filter(recipients__isnull=True).count() == 1
-        assert len(mail.outbox) == 0  # system messages are not sent by email
     # Reminders are modified
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),
@@ -2946,7 +2946,7 @@ def test_deassign_reviewer_existing_assignment(
         assignment=review_assignment,
         editor=review_assignment.editor,
         request=fake_request,
-        send_reviewer_notification=False,
+        send_reviewer_notification=False,  # ⇦ don't send the email!
         form_data={"notification_subject": "subject", "notification_body": "body"},
     ).run()
     reviewer = review_assignment.reviewer
@@ -2957,7 +2957,7 @@ def test_deassign_reviewer_existing_assignment(
     assert Message.objects.count() == 1
     assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
     assert Message.objects.filter(recipients__isnull=True).count() == 1
-    assert len(mail.outbox) == 0  # system messages are not sent by email
+    assert len(mail.outbox) == 0  # no email has been sent
     # Reminders are modified
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),

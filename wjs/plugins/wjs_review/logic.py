@@ -2415,7 +2415,7 @@ class HandleEditorDeclinesAssignment:
 @dataclasses.dataclass
 class DeselectReviewer:
     """
-    Remove reviewer assignment
+    Remove reviewer assignment.
     """
 
     assignment: WorkflowReviewAssignment
@@ -2431,49 +2431,33 @@ class DeselectReviewer:
             "assignment": self.assignment,
         }
 
-    def _log_reviewer(self):
-        """Logs a message to the reviewer containing information about the motivation of the deassignment."""
+    def _log_operation(self):
+        """Log a message to the reviewer containing information about the motivation of the deassignment."""
+        if self.send_reviewer_notification:
+            verbosity = Message.MessageVerbosity.FULL
+            message_body = self.form_data.get("notification_body")
+            recipients = [self.assignment.reviewer]
+        else:
+            verbosity = Message.MessageVerbosity.TIMELINE
+            message_body = ""
+            recipients = []
+
         communication_utils.log_operation(
             article=self.assignment.article,
             message_subject=self.form_data.get("notification_subject"),
-            message_body=self.form_data.get("notification_body"),
-            verbosity=Message.MessageVerbosity.FULL,
+            message_body=message_body,
+            verbosity=verbosity,
             actor=self.editor,
-            recipients=[self.assignment.reviewer],
+            recipients=recipients,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
             flag_as_read=True,
             flag_as_read_by_eo=True,
         )
 
-    def _log_system(self):
-        """Logs a system message notifying for deassignment."""
-        message_subject = get_setting(
-            setting_group_name="wjs_review",
-            setting_name="editor_deassign_reviewer_system_subject",
-            journal=self.assignment.article.journal,
-        ).processed_value
-        message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="editor_deassign_reviewer_system_body",
-            journal=self.assignment.article.journal,
-            request=self.request,
-            context=self._get_message_context(),
-            template_is_setting=True,
-        )
-        communication_utils.log_operation(
-            article=self.assignment.article,
-            message_subject=message_subject,
-            message_body=message_body,
-            actor=self.editor,
-            verbosity=Message.MessageVerbosity.EMAIL,
-            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
-            notify_actor=communication_utils.should_notify_actor(),
-        )
-
     @staticmethod
     def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
-        """Current editor must be article editor."""
+        """Check if the editor (who does the operation) is the article's editor."""
         return is_article_editor_or_eo(assignment.article.articleworkflow, editor)
 
     def check_conditions(self):
@@ -2483,15 +2467,12 @@ class DeselectReviewer:
 
     def _withdraw_assignment(self) -> bool:
         """
-        Withdraw the assignment
+        Withdraw the assignment.
         """
         self._delete_reviewer_reminders()
         handle_reviewer_deassignment_reminders(self.assignment)
-        if self.send_reviewer_notification:
-            self._log_reviewer()
-        else:
-            self._log_system()
         self.assignment.withdraw()
+        self._log_operation()
         return True
 
     def _delete_reviewer_reminders(self):
