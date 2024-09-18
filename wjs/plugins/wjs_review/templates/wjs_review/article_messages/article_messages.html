@@ -3,6 +3,7 @@
 
 {% block content_wrapper %}
   <div class="container mb-3">
-  {% include "wjs_review/article_messages/elements/messages_list.html" %}
+    {% include "wjs_review/article_messages/elements/messages_list.html" %}
+    {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
   </div>
 {% endblock content_wrapper %}

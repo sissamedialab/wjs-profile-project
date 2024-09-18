@@ -6,7 +6,6 @@
 {% translate "Upload File" as upload_label %}
 {% translate "Add Notes" as add_notes_label %}
 {% url 'wjs_list_annotated_files' pk=object.pk as update_files_url %}
-{% url "wjs_article_details" pk=assignment.article.articleworkflow.pk as back_url %}
 <form method="post" action="{{ update_files_url }}" enctype="multipart/form-data">
   {% csrf_token %}
   {% bootstrap_form_errors form type="non_fields" %}
@@ -36,6 +35,7 @@
   </div>
   <div class="mb-3">
     {% bootstrap_button name="action" value="send_corrections" content=send_label disabled=disable_send_corrections %}
+    {% include "wjs_review/base/elements/back.html" with workflow=article.articleworkflow %}
   </div>
 </form>
 
