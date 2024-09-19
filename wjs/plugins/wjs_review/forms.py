@@ -567,11 +567,11 @@ class DecisionForm(forms.ModelForm):
         required=True,
     )
     decision_editor_report = WjsMiniHTMLFormField(
-        label=_("Editor Report"),
+        label=_("Editor Report for authors"),
         required=False,
     )
     withdraw_notice = WjsMiniHTMLFormField(
-        label=_("Notice to reviewers"),
+        label=_("Courtesy notes for reviewers who did not send review"),
         help_text=_("This message will be sent to reviewers that have unfinished review assignments."),
         required=False,
     )
@@ -630,6 +630,26 @@ class DecisionForm(forms.ModelForm):
         if date_due and date_due < now().date():
             raise forms.ValidationError(_("Date must be in the future"))
         return date_due
+
+    def _get_review_files_pks(self):
+        send_review_file_pks = []
+
+        for key, value in self.data.items():
+            if key.startswith("send_review_file_") and value == "yes":
+                review_pk = key.split("_")[-1]
+                send_review_file_pks.append(review_pk)
+        return send_review_file_pks
+
+    def clean(self):
+        cleaned_data = super().clean()
+        send_review_file_pks = self._get_review_files_pks()
+        cleaned_data["send_review_file"] = send_review_file_pks
+        for pk in send_review_file_pks:
+            if WorkflowReviewAssignment.objects.get(pk=pk) not in WorkflowReviewAssignment.objects.completed().filter(
+                article=self.instance.article
+            ):
+                raise forms.ValidationError(_("Form data was compromised"))
+        return cleaned_data
 
     def get_logic_instance(self) -> HandleDecision:
         """Instantiate :py:class:`EvaluateReview` class."""
@@ -1372,11 +1392,11 @@ class JCOMReportForm(forms.Form):
     # FOLLOW-UP ACTIONS
     follow_up_action = forms.ChoiceField(choices=FOLLOWUP_CHOICES, label="Follow-up Action", required=False)
     suggested_reviewers = forms.CharField(
-        label="Suggested Name(s)/Email(s) of other Reviewer(s)",
+        label="Suggested reviewer(s)",
         required=False,
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": "name/email"}),
     )
-    editor_cover_letter = WjsMiniHTMLFormField(label="Review", required=True)
+    editor_cover_letter = WjsMiniHTMLFormField(label="Cover letter for Editor", required=True)
     author_review = WjsMiniHTMLFormField(label="Review (to be sent to Authors)", required=False)
     author_file_title = forms.CharField(label="File Title (to be sent to Authors)", required=False)
     # This is saved in ReviewAssignment.review_file

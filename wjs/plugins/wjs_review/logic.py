@@ -442,6 +442,7 @@ class AssignToReviewer:
             assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.editor_invite_message = None
+            assignment.send_review_file = False
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -1783,6 +1784,12 @@ class HandleDecision:
         )
         return decision
 
+    def _mark_send_review_file(self):
+        """Update WorkflowReviewAssignment.send_review_file"""
+        send_review_file_pks = self.form_data.get("send_review_file", [])
+        if send_review_file_pks:
+            WorkflowReviewAssignment.objects.filter(pk__in=send_review_file_pks).update(send_review_file=True)
+
     def _delete_editor_reminders(self):
         """Delete all reminders for the editor.
 
@@ -1808,6 +1815,7 @@ class HandleDecision:
             if not conditions:
                 raise ValidationError(_("Decision conditions not met"))
             decision = self._store_decision()
+            self._mark_send_review_file()
             handler = self._decision_handlers.get(self.form_data["decision"], None)
             if handler:
                 getattr(self, handler)()
