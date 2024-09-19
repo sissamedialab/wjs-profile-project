@@ -149,25 +149,21 @@ def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWo
         )
 
 
-def get_unpulishable_css_class(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
-    """Return the css class for a button that would change the flag.
-
-    The class is related to the action that would be done, not the state of the article.
-    """
-    if not workflow.production_flag_no_checks_needed:
-        return "btn-success"
-    else:
-        return "btn-danger"
-
-
 def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return the label for a button that would change the flag.
 
     The label describes the action that would be done, not the state of the article.
     """
     if workflow.production_flag_no_checks_needed:
-        return "Mark as Unpublishable"
-    return "Mark as publishable"
+        return _("Mark as Unpublishable")
+    return _("Mark as publishable")
+
+
+def get_publishable_confirm_text(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return the confirmation text for the button that toggles the paper publishable/unpublishable."""
+    if workflow.production_flag_no_checks_needed:
+        return _("Are you sure you want to mark the paper as unpublishable?")
+    return _("Are you sure you want to mark the paper as publishable?")
 
 
 def cannot_be_set_rfp_or_galleys_not_present(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
@@ -205,10 +201,10 @@ class ArticleAction:
     querystring_params: dict = None
     disabled: Optional[Callable] = None
     custom_get_url: Optional[Callable] = None
-    custom_get_css_class: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
     condition: Optional[Callable] = None
     confirm: Optional[str] = ""
+    custom_get_confirm: Optional[Callable] = None
 
     # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
     # TODO: do we still need tag? let's keep it...
@@ -226,11 +222,10 @@ class ArticleAction:
             "tooltip": self.tooltip,
             "url": self.custom_get_url(self, workflow, user) if self.custom_get_url else self.get_url(workflow, user),
             "tag": self.tag,
-            "css_class": self.custom_get_css_class(self, workflow, user) if self.custom_get_css_class else None,
             "is_htmx": self.is_htmx,
             "is_modal": self.is_modal,
             "is_post": self.is_post,
-            "confirm": self.confirm,
+            "confirm": self.custom_get_confirm(self, workflow, user) if self.custom_get_confirm else self.label,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
             "id": id(self),
         }
@@ -887,7 +882,7 @@ class TypesetterSelected(BaseState):
             label="Mark Unpublishable",
             view_name="wjs_toggle_publishable",
             custom_get_label=get_publishable_label,
-            confirm=_("Are you sure you want to mark the paper as unpublishable?"),
+            custom_get_confirm=get_publishable_confirm_text,
             is_post=True,
         ),
         ArticleAction(
@@ -1010,9 +1005,9 @@ class Proofreading(BaseState):
             name="toggle paper non-publishable flag",
             label="Mark Unpublishable",
             view_name="wjs_toggle_publishable",
-            is_htmx=True,
-            custom_get_css_class=get_unpulishable_css_class,
             custom_get_label=get_publishable_label,
+            custom_get_confirm=get_publishable_confirm_text,
+            is_post=True,
         ),
     ) + BaseState.article_actions
 
