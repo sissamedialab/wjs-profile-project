@@ -1,0 +1,10 @@
+.required_field {
+  label::after {
+    content: "*" !important;
+    color: color("red", "base");
+    position: relative !important;
+    opacity: 1 !important;
+    display: inline !important;
+    font-size: 1.3em;
+  }
+}

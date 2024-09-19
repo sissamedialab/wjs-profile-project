@@ -77,6 +77,7 @@ class JCOMProfileForm(EditAccountForm):
         required=True,
         label=_("By registering an account you agree to our Privacy Policy"),
     )
+    twitter = forms.CharField(label=_("X.com handle"), required=False)
 
     class Meta:
         model = JCOMProfile
@@ -95,6 +96,7 @@ class JCOMProfileForm(EditAccountForm):
             "is_superuser",
             "janeway_account",
             "invitation_token",
+            "interests",
         )
 
     def __init__(self, *args, **kwargs):
@@ -102,6 +104,10 @@ class JCOMProfileForm(EditAccountForm):
         self.journal = kwargs.pop("journal")
         super().__init__(*args, **kwargs)
         privacy_url = _get_privacy_url(self.journal)
+        self.fields["department"].required = False
+        self.fields["institution"].required = True
+        self.fields["country"].required = True
+        self.fields["keywords"].queryset = Keyword.objects.exclude(word_en="").order_by("word_en")
         self.fields["gdpr_checkbox"].label = mark_safe(
             _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )

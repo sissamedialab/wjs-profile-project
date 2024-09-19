@@ -3,7 +3,7 @@
 
     {% if field|is_checkbox %}
     <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
-        <div class="{% if field.field.required and form.required_css_class %}{{ form.required_css_class }}{% endif %}">
+        <div class="{% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
             {% if classes.icon %}
                 {% include "materializecssform/field_icon.html" %}
             {% endif %}
@@ -26,7 +26,7 @@
         </div>
     </div>
     {% elif field|is_multiple_checkbox %}
-    <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+    <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
         {% if field.auto_id %}
             <label>{{ field.label }}</label>
         {% endif %}
@@ -59,7 +59,7 @@
     </div>
 
     {% elif field|is_radio %}
-    <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+    <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
         <div class="{% if field.field.required and form.required_css_class %}{{ form.required_css_class }}{% endif %}">
             {% if classes.icon %}
                 {% include "materializecssform/field_icon.html" %}
@@ -81,7 +81,7 @@
         </div>
     </div>
     {% elif field|is_date_input %}
-    <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+    <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
         {% if classes.icon %}
             {% include "materializecssform/field_icon.html" %}
         {% endif %}
@@ -101,7 +101,7 @@
 
     </div>
     {% elif field|is_datetime_input %}
-    <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+    <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
         {% if classes.icon %}
             {% include "materializecssform/field_icon.html" %}
         {% endif %}
@@ -121,7 +121,7 @@
 
     </div>
     {% elif field|is_select %}
-    <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+    <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
             {% if field|is_select_multiple %}
                 {% if classes.icon %}
                     {% include "materializecssform/field_icon.html" %}
@@ -173,7 +173,7 @@
     </div>
 
     {% elif field|is_textarea %}
-        <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+        <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
             {% if classes.icon %}
                 {% include "materializecssform/field_icon.html" %}
             {% endif %}
@@ -194,7 +194,7 @@
         </div>
 
     {% elif field|is_file %}
-        <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+        <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
 
             {% for error in field.errors %}
                 <p class="help-block orange-text {{ form.error_css_class }}">{{ error }}</p>
@@ -215,7 +215,7 @@
 
         </div>
     {% else %}
-        <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }}">
+        <div class="input-field col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
             {% if classes.icon %}
                 {% include "materializecssform/field_icon.html" %}
             {% endif %}

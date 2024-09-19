@@ -41,7 +41,8 @@ class JCOMProfile(Account):
     # have this data for most of our existing users.
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
     gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
-    invitation_token = models.CharField(_("Invitation token"), max_length=500, default="")
+    invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
+    keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
 
 
 class Correspondence(models.Model):

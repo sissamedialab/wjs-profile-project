@@ -2,55 +2,32 @@
 
 <h5>{% trans "Core Data" %}</h5>
 <div class="row">
-    {{ form.salutation|materializecss:"m2" }}
-    {{ form.first_name|materializecss:"m3" }}
-    {{ form.middle_name|materializecss:"m3" }}
-    {{ form.last_name|materializecss:"m3" }}
-    {{ form.suffix|materializecss:"m1" }}
+  {{ form.first_name|materializecss:"m3,required=true" }}
+  {{ form.middle_name|materializecss:"m3" }}
+  {{ form.last_name|materializecss:"m3" }}
+  {{ form.suffix|materializecss:"m1" }}
 </div>
 <div class="row">
-    {{ form.department|materializecss:"m3" }}
-    {{ form.institution|materializecss:"m3" }}
-    {{ form.country|materializecss:"m3" }}
-    {{ form.preferred_timezone|materializecss:"m3" }}
+  {{ form.department|materializecss:"m3" }}
+  {{ form.institution|materializecss:"m3" }}
+  {{ form.country|materializecss:"m3" }}
+  {{ form.orcid|materializecss:"m3" }}
 </div>
 {% hook 'extra_corefields' %}
 <hr />
+<h5>{% trans "Biography and Interests" %}</h5>
+<div class="row">
+  {{ form.biography|materializecss:"m6" }}
+  {{ form.keywords|materializecss:"m6" }}
+</div>
+<hr />
 <h5>{% trans "Social Media and Accounts" %}</h5>
 <div class="row">
-    {{ form.twitter|materializecss:"m4" }}
-    {{ form.facebook|materializecss:"m4" }}
-    {{ form.orcid|materializecss:"m4" }}
+  {{ form.twitter|materializecss:"m4" }}
+  {{ form.facebook|materializecss:"m4" }}
 </div>
 <div class="row">
-    {{ form.github|materializecss:"m4" }}
-    {{ form.linkedin|materializecss:"m4" }}
-    {{ form.website|materializecss:"m4" }}
-</div>
-<hr />
-<h5>{% trans "Biography and Signature" %}</h5>
-<div class="row">
-    {{ form.biography|materializecss:"m6" }}
-    {{ form.signature|materializecss:"m6" }}
-    <div class="col m12">
-        <label for="id_interests">{% trans "Review Interests" %}</label>
-        <input type="text" id="id_interests" name="interests" value="{% for interest in user_to_edit.interest.all %}{{ interest }}{% if not forloop.last %},{% endif %}{% endfor %}"/> {% trans "Hit Enter to add a new interest" %}.
-    </div>
-</div>
-
-<h5>{% trans "Profile Image" %}</h5>
-<div class="row">
-    <div class="col m3">
-        {% if user_to_edit.profile_image %}
-            <img src="{{ user_to_edit.profile_image.url }}" style="max-width: 90%;" alt="{% trans "Profile image" %}">
-        {% else %}
-            <img src="{% static "common/img/icons/users.png" %}" class="responsive-image" alt="{% trans "Profile image" %}">
-        {% endif %}
-    </div>
-    {{ form.profile_image|materializecss:"m9" }}
-</div>
-<hr />
-<h5>{% trans "Options" %}</h5>
-<div class="row">
-    {{ form.biography|materializecss }}
+  {{ form.github|materializecss:"m4" }}
+  {{ form.linkedin|materializecss:"m4" }}
+  {{ form.website|materializecss:"m4" }}
 </div>
