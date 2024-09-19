@@ -24,7 +24,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files import File
-from django.core.mail import send_mail
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -812,11 +811,11 @@ class AttachGalleys:
         """
         has_error_or_critical = False
         # log files are called something like
-        # - galley-xxx.epub_log
-        # - galley-xxx.html_log
-        # - galley-xxx.srvc_log
+        # - galleyXXX.epub_log
+        # - galleyXXX.html_log
+        # - galleYXXX.srvc_log
         # We are going to use only the service log (*.srvc_log)
-        srvc_log_files = list(unpack_dir.glob("galley-*.srvc_log"))
+        srvc_log_files = list(unpack_dir.glob("galley*.srvc_log"))
         if len(srvc_log_files) != 1:
             logger.warning(f"Found {len(srvc_log_files)} srvc_log files. Ask Elia")
             if len(srvc_log_files) == 0:
@@ -997,12 +996,11 @@ class AttachGalleys:
 
     def _notify_error(self, reason: str):
         logger.error(f"Galleys generation failed for {self.article.id}: {reason}")
-        send_mail(
-            f"{self.article} - galley unpacking and attachment failed",
-            f"Please check JCOMAssistant response content.\n{reason}",
-            None,
-            [self.request.user.email],
-            fail_silently=False,
+        communication_utils.notify_async_event(
+            message_subject="Galleys unpacking and attachment failed",
+            message_body=f"Please check JCOMAssistant response content.\n{reason}",
+            recipients=[self.request.user],
+            article=self.article,
         )
 
 
@@ -1092,9 +1090,9 @@ class TypesetterTestsGalleyGeneration:
             request=self.request,
         ).run()
 
-    def _get_galleys_from_jcom_assistant(self):
+    def _get_and_save_galleys(self):
         """
-        Use Jcom Assistent to render the galleys and attach them to the article.
+        Use Jcom Assistent to render the galleys and then attach them to the article.
 
         If settings.JCOMASSISTANT_MOCK_FILE is set, use the path as a mock response file instead of contacting
         the JCOM Assistant service.
@@ -1104,37 +1102,16 @@ class TypesetterTestsGalleyGeneration:
         if settings.JCOMASSISTANT_MOCK_FILE:
             return self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
         response = self._jcom_assistant_client()
+
+        # Unpack the response and "attach" the galleys to the article...
         galleys_created = AttachGalleys(
             archive_with_galleys=response.content,
             article=self.assignment.round.article,
             request=self.request,
         ).run()
-        return galleys_created
 
-    def _generate_and_attach_galleys(self):
-        """Generate galleys.
-
-        - send source files to jcomassistant
-        - attach generated galleys to TA (and article)
-        - record success/failure of the generation
-        """
-        galleys_created = self._get_galleys_from_jcom_assistant()
+        # ... and save them to the TA also
         self.assignment.galleys_created.set(galleys_created)
-        # This flag is set by AttachGalleys that we have just run
-        if (
-            self.assignment.round.article.articleworkflow.production_flag_galleys_ok
-            == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-        ):
-            return True
-        else:
-            send_mail(
-                f"{self.assignment.round.article} - galley unpacking and attachment failed",
-                f"Please zip file in Assigment {self.assignment} galleys_created.",
-                None,
-                [self.request.user.email],
-                fail_silently=False,
-            )
-            return False
 
     def _check_queries_in_tex_src(self):
         """Fixme.
@@ -1152,16 +1129,15 @@ class TypesetterTestsGalleyGeneration:
             # This logic is generally called asynchronously, so we don't
             # raise an exception here, but directly notify the typesetter
             logger.error(f"Galley generation failed to start for article {self.assignment.round.article.id}")
-            send_mail(
-                f"{self.assignment.round.article} - galley generation failed to start",
-                f"Please check\n{self.assignment.round.article.url}\n",
-                None,
-                [self.request.user.email],
-                fail_silently=False,
+            communication_utils.notify_async_event(
+                message_subject="Galley generation failed to start",
+                message_body=f"Please check {self.assignment.round.article}\n{self.assignment.round.article.url}\n",
+                recipients=[self.request.user],
+                article=self.assignment.round.article,
             )
             return
         self._clean_galleys()
-        if not self._generate_and_attach_galleys():
+        if not self._get_and_save_galleys():
             return
         self._check_queries_in_tex_src()
         context = self._get_message_context()
@@ -1196,14 +1172,14 @@ class JcomAssistantClient:
         files = {"file": open(file_path, "rb")}
         response = requests.post(url=url, files=files)
         if response.status_code != 200:
-            logger.error("Unexpected status code {response.status_code}. Trying to proceed...")
-            send_mail(
-                f"{self.archive_with_files_to_process.article} - galley generation service failed",
-                f"Please check JCOMAssistant service status.\n{response.content}",
-                None,
-                [self.user.email],
-                fail_silently=False,
+            article = self.archive_with_files_to_process.article
+            communication_utils.notify_async_event(
+                message_subject="Unexpected status code from jcomassistant",
+                message_body=f"Please check JCOMAssistant service status.\n{response.content}\n{article.url}",
+                recipients=[self.user],
+                article=article,
             )
+            logger.error(f"Unexpected status code {response.status_code} from jcomassistant for {article}.")
             raise ValueError(f"Unexpected status code {response.status_code}.")
         return response
 
@@ -1570,18 +1546,19 @@ class FinishPublication:
         if self.workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED:
             return True
         else:
-            send_mail(
-                f"{self.workflow.article} - final galley generation failed",
-                """Please note that the generation has been attempted on the article sources,
+            communication_utils.notify_async_event(
+                message_subject="Final galley generation failed",
+                message_body=f"""Please note that the generation has been attempted on the article sources,
 and this have been automatically derived from the latest typesetted files.
 
 This is usually related to some temporary issue with the infrastructure.
 
 Please retry and contact assistance is the problem persists.
+
+{self.workflow.url}
 """,
-                None,
-                [self.request.user.email],
-                fail_silently=False,
+                recipients=[self.request.user],
+                article=self.workflow.article,
             )
             return False
 

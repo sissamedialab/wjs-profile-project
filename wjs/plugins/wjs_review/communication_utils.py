@@ -4,10 +4,12 @@ Keeping here also anything that we might want to test easily 🙂.
 """
 
 import datetime
-from typing import Optional, Union
+from typing import List, Optional, Union
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.mail import send_mail
 from django.db.models import Exists, OuterRef, Q, QuerySet
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
@@ -362,3 +364,26 @@ def group_messages_by_version(
         pass
 
     return timeline
+
+
+def notify_async_event(
+    message_subject: str,
+    message_body: str,
+    recipients: List[Account],
+    article: Article,
+):
+    """Send an email to notify some event related to an async task.
+
+    Mainly used for PDF and galley generation.
+    """
+    if not recipients:
+        logger.error(f'Notification of async event ("{message_subject}") with recipients! Setting EO and proceeding.')
+        recipients = [get_eo_user(article)]
+
+    send_mail(
+        subject=message_subject,
+        message=message_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[recipient.email for recipient in recipients],
+        fail_silently=False,
+    )

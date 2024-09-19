@@ -992,6 +992,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context["form"] = self.get_form(self.request.GET)
         messages = get_messages_related_to_me(self.request.user, self.object.article)
+        messages = messages.exclude(verbosity=Message.MessageVerbosity.EMAIL)
         context["timeline_messages"] = group_messages_by_version(
             self.object.article, messages, filters=context["form"].cleaned_data
         )

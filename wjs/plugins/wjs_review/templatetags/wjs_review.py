@@ -32,7 +32,7 @@ from utils.models import LogEntry
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
 from .. import communication_utils, permissions, states
-from ..communication_utils import MESSAGE_TYPE_ICONS, group_messages_by_version
+from ..communication_utils import MESSAGE_TYPE_ICONS
 from ..conditions import needs_extra_article_information
 from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
 from ..logic import (
@@ -282,20 +282,6 @@ def review_assignment_request_message(assignment: ReviewAssignment):
         toaddress__email__in=(assignment.reviewer.email,),
     ).order_by("date")
     return [f"<div>{le} | {le.message_id} | {le.description}</div>" for le in log_entry]
-
-
-@register.filter
-def article_messages(article: Article, user: Account) -> QuerySet[Message]:
-    """Return all messages related to this article that the user can see."""
-    messages = communication_utils.get_messages_related_to_me(user, article)
-    return messages
-
-
-@register.simple_tag()
-def timeline_messages(article: Article, user: Account) -> Dict[str, List[Message]]:
-    """Return all messages related to this article that the user can see."""
-    messages = article_messages(article, user)
-    return dict(group_messages_by_version(article, messages))
 
 
 @register.filter
