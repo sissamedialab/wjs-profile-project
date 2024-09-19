@@ -22,11 +22,13 @@ from core.models import (
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.files import File as DjangoFile
+from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
 from journal.models import Issue
+from PIL import Image
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
 from submission.models import Article
@@ -919,3 +921,13 @@ def _jump_article_to_rfp(article: Article, typesetter: Account, request: HttpReq
     ReadyForPublication(article.articleworkflow, typesetter).run()
     article.refresh_from_db()
     return article
+
+
+@pytest.fixture
+def generate_image(width=1, height=1, color=(250, 0, 0)):
+    image = Image.new("RGB", (width, height), color)
+    image_io = BytesIO()
+    image.save(image_io, format="JPEG")
+    image_content = ContentFile(image_io.getvalue(), "generated_image.jpg")
+
+    return image_content

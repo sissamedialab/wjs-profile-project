@@ -1071,6 +1071,25 @@ class ReadyForPublication(BaseState):
         ),
     ) + BaseState.article_actions
 
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        """
+        Tell if the article requires attention by the EO.
+        """
+
+        if conditions.journal_requires_english_content(article.journal):
+            if not article.title_en or not article.abstract_en:
+                return "Missing English translation of title or abstract"
+
+        if not article.meta_image and not article.articleworkflow.social_media_short_description:
+            return "Missing image and short description for social media"
+        elif not article.meta_image:
+            return "Missing image for social media"
+        elif not article.articleworkflow.social_media_short_description:
+            return "Missing short description for social media"
+
+        return ""
+
 
 class PublicationInProgress(BaseState):
     """
