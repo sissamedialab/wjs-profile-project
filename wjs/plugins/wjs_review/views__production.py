@@ -527,13 +527,12 @@ class ReadyForPublicationView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
 def typesettertestsgalleygeneration_wrapper(
     assignment_id: int,
 ):
-    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for asyn processing."""
+    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for async processing."""
     # See also logic__production.finishpublication_wrapper().
 
     # TODO: review me wrt
     # - wjs.jcom_profile.tests.conftest.fake_request and
     # - utils.management.commands.test_fire_event.create_fake_request
-
     assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
     request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
 
