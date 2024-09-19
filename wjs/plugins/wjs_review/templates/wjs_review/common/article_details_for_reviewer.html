@@ -42,27 +42,7 @@
         {% if assignment.date_due %}<p>{% translate "Review due on" %} {{ assignment.date_due }}.</p>{% endif %}
         {% if assignment.is_complete %}<p>{% translate "Review completed on" %} {{ assignment.date_complete }}.</p>{% endif %}
     </div>
-    {% if assignment.workflowreviewassignment.author_note_visible %}
-        {% with previous_revision=assignment.workflowreviewassignment.previous_review_round.editorrevisionrequest %}
-            {% if previous_revision %}
-                <div class="col">
-                    <h3>Author cover letter</h3>
-                    {% if previous_revision.author_note_file %}
-                        <a href="{{ previous_revision.author_note_file.url }}">Cover letter</a>
-                    {% endif %}
-                    {% if previous_revision.author_note %}
-                        {# FIXME: Content is not really safe, we must add a sanitizer (see https://pypi.org/project/html-sanitizer/) #}
-                        {{ previous_revision.author_note|safe }}
-                    {% endif %}
-                </div>
-            {% else %}
-                <div class="col">
-                    <h3>Comments to the editor</h3>
-                    {{ article.comments_editor }}
-                </div>
-            {% endif %}
-        {% endwith %}
-    {% endif %}
+     {% include "wjs_review/common/author_cover_letter.html" %}
     <div class="col">
         <a href="#">Generic info</a> TODO: link to help pages for reviewer
     </div>

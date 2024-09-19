@@ -1,0 +1,14 @@
+{% load django_bootstrap5 %}
+{% load wjs_tags %}
+{% url 'article_file_download' 'id' workflow.article.pk review.review_file.pk as download_file %}
+{% with author_file_title=review.workflowreviewassignment.report_form_answers|keyvalue:'author_file_title' %}
+<!-- djlint:off -->
+{% with author_file_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:author_file_title %}
+<!-- djlint:on -->
+  {% if author_file_title %}
+    {% bootstrap_button type="link" href=download_file content=author_file_label|safe button_class="btn-outline-primary" %}
+  {% else %}
+    {% bootstrap_button type="link" href=download_file content=review.review_file button_class="btn-outline-primary" %}
+  {% endif %}
+{% endwith %}
+{% endwith %}

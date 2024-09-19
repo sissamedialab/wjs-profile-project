@@ -1,0 +1,36 @@
+{% load django_bootstrap5 static %}
+{% load wjs_tags %}
+{% translate "Comments to the Editor" as comments_editor_title %}
+{% translate "Author's note" as author_note_title %}
+{% translate "Read" as modal_label %}
+{% if assignment.workflowreviewassignment.author_note_visible %}
+    {% with previous_revision=assignment.workflowreviewassignment.previous_review_round.editorrevisionrequest_set.first %}
+      {% if previous_revision %}
+        <div class="title-area mb-1 mt-3">
+          <strong>{% translate "Author's note" %}</strong>
+        </div>
+        {% if previous_revision.author_note %}
+          {% with modal_id="author_note_modal" modal_target="#author_note_modal" modal_content=previous_revision.author_note %}
+              {% bootstrap_button content=modal_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+              {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_note_title modal_body=modal_content|safe %}
+          {% endwith %}
+            {# FIXME: Content is not really safe, we must add a sanitizer (see https://pypi.org/project/html-sanitizer/) #}
+        {% endif %}
+        {% if previous_revision.cover_letter_file %}
+          <!-- djlint:off -->
+            {% with author_file_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:previous_revision.cover_letter_file.name %}
+          <!-- djlint:on -->
+          {% bootstrap_button href=previous_revision.cover_letter_file.url content=author_file_label|safe button_class="btn-outline-primary" %}
+            {% endwith %}
+        {% endif %}
+      {% else %}
+         <div class="title-area mb-1 mt-3">
+           <strong>{% translate "Author's cover letter" %}</strong>
+         </div>
+        {% with modal_id="comments_editor_modal" modal_target="#comments_editor_modal" modal_content=assignment.article.comments_editor %}
+            {% bootstrap_button content=modal_label button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=comments_editor_title modal_body=modal_content|safe %}
+        {% endwith %}
+      {% endif %}
+  {% endwith %}
+{% endif %}

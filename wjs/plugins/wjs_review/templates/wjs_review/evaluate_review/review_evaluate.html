@@ -5,6 +5,10 @@
 {% block content_wrapper %}
 {% translate "Read Editor's invite" as editor_message_label %}
 {% translate "About Editor's invite" as editor_message_title %}
+  <!-- djlint:off -->
+{% translate "<i class=\"bi bi-check\"></i> Accept" as accept_label %}
+{% translate "<i class=\"bi bi-x\"></i> Decline" as decline_label %}
+  <!-- djlint:on -->
 {% article_css_classes assignment.article.articleworkflow as article_classes %}
 <div class="container mb-3">
   <div class="row">
@@ -17,7 +21,7 @@
         <div class="card border border-1">
           <div class="card-head d-flex align-items-center px-2 py-2 pb-1 border-bottom">
             <h6>
-              <span class="badge {{ article_classes.section }}">{{ assignment.article.section.name }}</span>
+              <span class="badge {{ article_classes.section_css }}">{{ assignment.article.section.name }}</span>
             </h6>
             <h4 class="ms-2"> - {{ assignment.article.pk }}</h4>
           </div>
@@ -30,22 +34,11 @@
               <h5>Abstract</h5>
               {{ assignment.article.abstract }}
             </div>
-            <div class="title-area mb-1 mt-3">
-              <strong>{% translate "Manuscript" %}</strong>
-            </div>
             {% csrf_token %}
-            {% for file in assignment.article.manuscript_files.all %}
-              {% url 'article_file_download' 'id' assignment.article.pk file.pk as download_file %}
-              <!-- djlint:off -->
-              {% with author_file_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:file %}
-              <!-- djlint:on -->
-                {% bootstrap_button href=download_file content=author_file_label|safe button_class="btn-outline-primary" %}
-              {% endwith %}
-            {% endfor %}
-            <div class="title-area mb-1 mt-3">
-              <strong>{% translate "Author's cover letter" %}</strong>
+            <div class="accordion accordion-flush border bg-transparent" id="metadata">
+              {% include "wjs_review/details/elements/metadata_preprint_files.html" with article=assignment.article %}
             </div>
-            {% include "wjs_review/evaluate_review/elements/author_cover_letter.html" %}
+            {% include "wjs_review/common/author_cover_letter.html" %}
             <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
               {% csrf_token %}
               <div class="row">
@@ -60,8 +53,9 @@
                 </div>
               </div>
               {% bootstrap_field form.additional_comments label_class="fw-bold" %}
-              {% bootstrap_button button_type="submit" name="reviewer_decision" value=1 content="Confirm" %}
-              {% bootstrap_button button_type="submit" name="reviewer_decision" value=0 content="Decline" %}
+                {% bootstrap_button button_type="submit" button_class="btn-success" content=accept_label|safe  name="reviewer_decision" value=1 %}
+                {% bootstrap_button button_type="submit" button_class="btn-outline-danger" content=decline_label|safe name="reviewer_decision" value=0 %}
+                {% include "wjs_review/base/elements/back.html" with workflow=assignment.article.articleworkflow %}
             </form>
           </div>
         </div>

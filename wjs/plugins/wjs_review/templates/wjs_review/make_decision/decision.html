@@ -1,7 +1,9 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static %}
-{% load wjs_review wjs_articles %}
+{% load wjs_review wjs_articles wjs_tags %}
 {% block content_wrapper %}
+{% translate "Reviewers: " as reviewers_text %}
+{% translate "Please parte here all reviewer comments that you with to send the Author. Feel free to modify them as you see fit. After clicking \"Send\", the Author will receive them as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
 {% article_css_classes workflow as article_classes %}
   <div class="container mb-3">
     <div class="row">
@@ -32,7 +34,7 @@
                 {% if form.hide_decision %}
                   {% bootstrap_field form.decision wrapper_class="visually-hidden" %}
                 {% else %}
-                  {% bootstrap_field form.decision %}
+                  {% bootstrap_field form.decision label_class="fw-bold" %}
                 {% endif %}
               </div>
               {% if form.hide_date_due %}
@@ -40,13 +42,19 @@
               {% else %}
                 {% bootstrap_field form.date_due wrapper_class="date-due" %}
               {% endif %}
-              {% if form.decision_editor_report %}{% bootstrap_field form.decision_editor_report %}{% endif %}
-              {% if form.withdraw_notice %}{% bootstrap_field form.withdraw_notice %}{% endif %}
+              {% if form.decision_editor_report %}{% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}{% endif %}
+              {% include "wjs_review/make_decision/elements/review_files_table.html" %}
+              {% if form.withdraw_notice %}
+                {% with courtesy_notes_reviwers=reviewers_text|concat:open_reviewers_list %}
+                 {% bootstrap_field form.withdraw_notice label_class="fw-bold" addon_before=courtesy_notes_reviwers addon_before_class=None %}
+                {% endwith %}
+              {% endif %}
             </div>
           </div>
         </div>
       </div>
       {% bootstrap_button button_type="submit" name="submit" value=1 content="Confirm" %}
+      {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
     </form>
   </div>
   <script>

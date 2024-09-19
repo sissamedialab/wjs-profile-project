@@ -1355,7 +1355,7 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
     form_class = DecisionForm
     template_name = "wjs_review/make_decision/decision.html"
     context_object_name = "workflow"
-    title = _("Take a decision")
+    title = _("Make decision")
 
     def test_func(self):
         """Verify that only EO can access."""
@@ -1409,7 +1409,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
     form_class = DecisionForm
     template_name = "wjs_review/make_decision/decision.html"
     context_object_name = "workflow"
-    title = _("Take a decision")
+    title = _("Make decision")
 
     def get_queryset(self) -> QuerySet[ArticleWorkflow]:
         """Filter queryset to ensure only :py:class:`ArticleWorkflow` in EDITOR_SELECTED state are filtered."""
@@ -1505,6 +1505,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         context["submitted_reviews"] = self.submitted_reviews
         context["open_reviews"] = self.open_reviews
         context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        context["open_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.open_reviews])
         return context
 
 

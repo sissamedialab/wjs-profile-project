@@ -583,3 +583,9 @@ def special_issue_paper_published(issue: Issue) -> int:
 def special_issue_paper_others(issue: Issue) -> int:
     """Return the number of articles in non-interesting states in the issue."""
     return issue.articles.count() - special_issue_paper_pending(issue) - special_issue_paper_published(issue)
+
+
+@register.simple_tag()
+def has_review_file(reviews: list[ReviewAssignment]) -> bool:
+    """Returns True if there is at least one Review Assigment with a review file"""
+    return any(review.review_file for review in reviews)

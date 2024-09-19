@@ -13,7 +13,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db import models
-from django.db.models import BLANK_CHOICE_DASH, QuerySet
+from django.db.models import QuerySet
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
@@ -286,7 +286,7 @@ class ArticleWorkflow(TimeStampedModel):
     class Decisions(models.TextChoices):
         """Decisions that can be made by the editor."""
 
-        __empty__ = BLANK_CHOICE_DASH[0][0]
+        __empty__ = _("Select one decision")
 
         ACCEPT = "accept", _("Accept")
         REJECT = "reject", _("Reject")
@@ -1495,6 +1495,7 @@ class WorkflowReviewAssignment(ReviewAssignment):
         related_name="editor_invite_messages",
         verbose_name=_("Editor invite message"),
     )
+    send_review_file = models.BooleanField(default=False, verbose_name=_("Send review file to Author"))
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
 
     # Map janeway's statuses to an ordered dict to map to our own statuses
