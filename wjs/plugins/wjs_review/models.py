@@ -410,16 +410,10 @@ class ArticleWorkflow(TimeStampedModel):
         :return: The verbose state label of the article.
         :rtype: Union["ReviewStates", "ReviewComputedStates"
         """
-        from .logic import (
-            states_when_article_is_considered_archived,
-            states_when_article_is_considered_in_production,
-        )
+        from .logic import states_when_article_is_considered_working_on
 
         article = self.article
-        if (
-            self.state in states_when_article_is_considered_in_production
-            or self.state in states_when_article_is_considered_archived
-        ):
+        if self.state not in states_when_article_is_considered_working_on:
             return self.state
 
         waiting_for_revision = article.active_revision_requests().filter(

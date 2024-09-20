@@ -115,6 +115,13 @@ states_when_article_is_considered_in_review = [
     ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
 ]
 
+# "Working on" means articles that are actively in review i.e. they are assigned to some editor or a revision has been
+# requested.
+states_when_article_is_considered_working_on = [
+    ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+    ArticleWorkflow.ReviewStates.TO_BE_REVISED,
+]
+
 # Editors should not see papers under appeal until the author submitted a revision,
 # but EO/director should see them always
 states_when_article_is_considered_in_review_for_eo_and_director = states_when_article_is_considered_in_review + [
