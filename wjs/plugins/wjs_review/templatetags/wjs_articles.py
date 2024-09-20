@@ -184,7 +184,7 @@ def user_is_corresponding_author(article: Article, user: Account) -> Optional[bo
 def article_css_classes(workflow: ArticleWorkflow) -> dict[str, str]:
     """Return a string of classes for an article div."""
     state_css = f"color-state-{workflow.state_value}"
-    section_css = f"color-section-{workflow.article.section.pk}"
+    section_css = f"color-section-{workflow.article.section.pk}" if workflow.article.section else ""
     publishable_css = "bg-success" if workflow.production_flag_no_checks_needed else "bg-danger"
     return {
         "state_css": state_css,
