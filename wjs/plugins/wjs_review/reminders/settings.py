@@ -541,7 +541,8 @@ class AuthorShouldSubmitMajorRevisionReminderManager(ReminderManager):
 <br>
 This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
 <br>
-In case you foresee a necessary delay please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
+In case you foresee a necessary delay [...]
+please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
 <br>
 Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
 <br>
@@ -562,7 +563,8 @@ Thank you and best regards,<br>
             subject=_("Reminder: revision due date expires today"),
             body="""Dear Author,<br>
 <br>
-This is to remind you that your revised {{ article.section.name }}'s due date expires today.<br>
+This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
+<br>
 <br>
 Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
 <br>
@@ -597,7 +599,8 @@ class AuthorShouldSubmitMinorRevisionReminderManager(ReminderManager):
 <br>
 This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
 <br>
-In case you foresee a necessary delay please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
+In case you foresee a necessary delay [...]
+please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
 <br>
 Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
 <br>
@@ -618,7 +621,8 @@ Thank you and best regards,<br>
             subject=_("Reminder: revision due date expires today"),
             body="""Dear Author,<br>
 <br>
-This is to remind you that your revised {{ article.section.name }}'s due date expires today.<br>
+This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
+<br>
 <br>
 Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
 <br>
