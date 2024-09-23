@@ -1102,11 +1102,14 @@ class Message(TimeStampedModel):
         USER = "User message", _("User direct message")
 
     class MessageVerbosity(models.TextChoices):
-        # generic system actions (STD & SILENT)
+        """Message "verbosity".
+
+        Specify if the target of the message is the timeline, an email or both (default).
+        """
+
         FULL = "Full", _("Full message content is sent by email")
         TIMELINE = "Timeline", _("Timeline only, no email sent")
         EMAIL = "Email", _("Email only, not recorded in timeline")
-        REDUCED = "Reduced", _("Reduced message sent my email")
 
     actor = models.ForeignKey(
         Account,

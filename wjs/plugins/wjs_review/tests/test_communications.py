@@ -104,7 +104,6 @@ def test_emit_message_email_by_types(
         (Message.MessageVerbosity.FULL, True),
         (Message.MessageVerbosity.TIMELINE, False),
         (Message.MessageVerbosity.EMAIL, True),
-        (Message.MessageVerbosity.REDUCED, True),
     ),
 )
 @pytest.mark.django_db
