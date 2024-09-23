@@ -265,6 +265,9 @@ def role_for_article(article: Article, user: Account) -> str:
     if TypesettingAssignment.objects.filter(round__article=article, typesetter=user).exists():
         return "typesetter"
 
+    if user.check_role(article.journal, role=constants.DIRECTOR_ROLE, staff_override=False):
+        return "director"
+
     return ""
 
 

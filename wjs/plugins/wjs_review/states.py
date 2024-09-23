@@ -8,6 +8,7 @@ from typing import Callable, Optional, Type
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -18,7 +19,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import communication_utils, conditions, permissions
-from .models import ArticleWorkflow, can_be_set_rfp_wrapper
+from .models import ArticleWorkflow, PastEditorAssignment, can_be_set_rfp_wrapper
 
 logger = get_logger(__name__)
 
@@ -440,9 +441,18 @@ class EditorToBeSelected(BaseState):
     )
 
     @classmethod
-    def article_requires_attention(cls, article: Article, **kwargs) -> str:
-        """Articles in this state always require attention (from EO or director)."""
-        return conditions.always(article)
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        # If a paper is in this state we can assume that there are no "live" assignments (WjsEditorAssignments), so we
+        # need to check only for past assignments.
+        if latest_editor_assignment := PastEditorAssignment.objects.all().order_by("date_unassigned").last():
+            waiting_days = (latest_editor_assignment.date_unassigned - article.date_submitted).days
+        else:
+            waiting_days = (timezone.now() - article.date_submitted).days
+        return f"Editor has not been selected for {waiting_days} days"
+
+    @classmethod
+    def article_requires_director_attention(cls, article: Article, **kwargs) -> str:
+        return "Editor should be selected"
 
 
 class EditorSelected(BaseState):
@@ -636,6 +646,8 @@ class EditorSelected(BaseState):
         """
         Tell if the article requires attention by the directors.
         """
+        if attention_flag := conditions.needs_assignment_all_editorreminders_sent(article):
+            return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
@@ -645,8 +657,6 @@ class EditorSelected(BaseState):
         """
         Rifle through the situations that require attention.
         """
-        if attention_flag := conditions.author_revision_is_late(article):
-            return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
@@ -654,6 +664,8 @@ class EditorSelected(BaseState):
     @classmethod
     def article_requires_reviewer_attention(cls, article: Article, **kwargs) -> str:
         """Rifle through the situations that require attention."""
+        if attention_flag := conditions.reviewer_acceptdecline_is_late(article):
+            return attention_flag
         if attention_flag := conditions.reviewer_report_is_late(article):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
@@ -671,6 +683,10 @@ class Withdrawn(BaseState):
 
 class IncompleteSubmission(BaseState):
     """Incomplete submission"""
+
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
+        return "Partial submission to be completed or withdrawn"
 
 
 class NotSuitable(BaseState):
@@ -734,11 +750,33 @@ class ToBeRevised(BaseState):
     ) + BaseState.article_actions
 
     @classmethod
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+        if attention_flag := conditions.author_revision_is_late_all_reminders_sent(
+            article,
+            late_after_days=2,  # FIXME: add a setting similar to settings.WJS_REMINDER_LATE_AFTER
+        ):
+            return attention_flag
+        if attention_flag := conditions.author_technicalrevision_is_late_all_reminders_sent(
+            article,
+            late_after_days=2,
+        ):
+            return attention_flag
+        return ""
+
+    @classmethod
     def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
         """
         Rifle through the situations that require attention.
         """
-        if attention_flag := conditions.author_revision_is_late(article):
+        if attention_flag := conditions.author_revision_is_late_all_reminders_sent(
+            article,
+            late_after_days=1,
+        ):
+            return attention_flag
+        if attention_flag := conditions.author_technicalrevision_is_late_all_reminders_sent(
+            article,
+            late_after_days=1,
+        ):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
@@ -750,6 +788,8 @@ class ToBeRevised(BaseState):
         Rifle through the situations that require attention.
         """
         if attention_flag := conditions.author_revision_is_late(article):
+            return attention_flag
+        if attention_flag := conditions.author_technicalrevision_is_late(article):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
@@ -796,10 +836,14 @@ class UnderAppeal(BaseState):
 
     @classmethod
     def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the EO.
-        """
-        if attention_flag := conditions.author_revision_is_late(article):
+        if attention_flag := conditions.author_appealsubmission_is_late(article):
+            # To be fixed in specs#1029
+            return attention_flag + ". Withdraw?"
+        return ""
+
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
+        if attention_flag := conditions.author_appealsubmission_is_late(article):
             return attention_flag
         return ""
 
@@ -829,6 +873,11 @@ class PaperMightHaveIssues(BaseState):
             view_name="wjs_article_dispatch_assignment",
         ),
     ) + BaseState.article_actions
+
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article) -> str:
+        """Papers in this state always require attention by EO."""
+        return "Submission to be checked"
 
 
 class ReadyForTypesetter(BaseState):
@@ -1012,24 +1061,6 @@ class Proofreading(BaseState):
     ) + BaseState.article_actions
 
     @classmethod
-    def article_requires_typesetter_attention(cls, article: Article, user: Account, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the typesetter.
-        """
-        assignment = (
-            GalleyProofing.objects.filter(
-                round__article=article,
-                proofreader=article.correspondence_author,
-                round__typesettingassignment__typesetter=user,
-            )
-            .order_by("round__round_number")
-            .last()
-        )
-        if attention_flag := conditions.is_author_proofing_late(assignment):
-            return attention_flag
-        return ""
-
-    @classmethod
     def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
         """
         Tell if the article requires attention by the EO.
@@ -1076,17 +1107,12 @@ class ReadyForPublication(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
+        if not article.meta_image or not article.articleworkflow.social_media_short_description:
+            return "Missing image and/or short description for social media"
 
         if conditions.journal_requires_english_content(article.journal):
             if not article.title_en or not article.abstract_en:
                 return "Missing English translation of title or abstract"
-
-        if not article.meta_image and not article.articleworkflow.social_media_short_description:
-            return "Missing image and short description for social media"
-        elif not article.meta_image:
-            return "Missing image for social media"
-        elif not article.articleworkflow.social_media_short_description:
-            return "Missing short description for social media"
 
         return ""
 

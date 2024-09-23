@@ -1916,7 +1916,6 @@ class TestResetDate:
         reea_reminders.update(date_sent=base_date - datetime.timedelta(days=1))
         assert not any_reviewer_is_late_after_reminder(review_assignment.article)
         reea_reminders.update(date_sent=base_date - datetime.timedelta(days=settings.WJS_REMINDER_LATE_AFTER + 1))
-        assert (
-            f"Reviewer's reminder sent past {settings.WJS_REMINDER_LATE_AFTER} days."
-            == any_reviewer_is_late_after_reminder(review_assignment.article)
+        assert "Reviewer does not respond. Please take action" == any_reviewer_is_late_after_reminder(
+            review_assignment.article
         )
