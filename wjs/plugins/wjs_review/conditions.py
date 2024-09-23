@@ -59,7 +59,7 @@ def is_late_invitation(assignment: WorkflowReviewAssignment, user: Account) -> s
     if not assignment.date_accepted and not assignment.date_declined:
         grace_period = timezone.timedelta(days=4)
         if timezone.now() - assignment.date_requested > grace_period:
-            return "The reviewer has not yet answered to the invitation."
+            return "Reviewer has not yet answered to the invitation"
 
     return ""
 
@@ -111,6 +111,8 @@ def needs_assignment(article: Article) -> str:
 
     In this situation the editor should take some action: usually select
     reviewer, but also take decision or decline assignment...
+
+    See also below `needs_assignment_all_editorreminders_sent()`
     """
     # We cannot use Article.active_reviews or comleted_reviews because they take into account all review rounds, not
     # only the current one.
@@ -118,7 +120,35 @@ def needs_assignment(article: Article) -> str:
     review_round = article.current_review_round_object()
     assignments = WorkflowReviewAssignment.objects.valid(article, review_round)
     if not assignments.exists():
-        return "The paper should be be assigned to some reviewer."
+        return "Review process should start/restart"
+    else:
+        return ""
+
+
+def needs_assignment_all_editorreminders_sent(article: Article) -> str:
+    """Tell if the paper need a review assignment.
+
+    See above `needs_assignment()`.
+
+    Also, take into consideration reminders to editor.
+    They should all have been sent.
+    """
+    review_round = article.current_review_round_object()
+    review_assignments = WorkflowReviewAssignment.objects.valid(article, review_round)
+    if review_assignments.exists():
+        return ""
+
+    editor_assignment = WjsEditorAssignment.objects.get_current(article)
+    last_reminder_sent = Reminder.objects.filter(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3.value,
+        date_sent__date__lte=timezone.now().date(),
+        disabled=False,
+        object_id=editor_assignment.id,
+        content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
+    )
+
+    if last_reminder_sent.exists():
+        return "Review process not yet started/restarted"
     else:
         return ""
 
@@ -142,7 +172,7 @@ def all_assignments_completed(article: Article) -> str:
         article=article, review_round=review_round
     ).pending()
     if assignments.exists() and not pending_assignments.exists():
-        return "All review assignments are ready."
+        return "Review(s) completed. Decision should be made"
     else:
         return ""
 
@@ -157,7 +187,7 @@ def has_unread_message(article: Article, recipient: Account) -> str:
         recipient, journal=article.journal
     ).filter(article_id=article.pk)
     if article_has_unread_messages.exists():
-        return "You have unread messages."
+        return "You have unread messages"
     else:
         return ""
 
@@ -173,7 +203,7 @@ def article_has_old_unread_message(article: Article) -> str:
         created__lt=oldest_acceptable_message_date,
     )
     if unread_messages.exists():
-        return "This article has unattended messages."
+        return "Paper has unread messages"
     else:
         return ""
 
@@ -207,7 +237,7 @@ def editor_as_reviewer_is_late(article: Article) -> str:
         & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
     )
     if late_assignments.exists():
-        return "The editor's review is late."
+        return "Your review is overdue"
     else:
         return ""
 
@@ -246,27 +276,138 @@ def any_reviewer_is_late_after_reminder(article: Article) -> str:
     )
 
     if expired_reminders.exists():
-        return f"Reviewer's reminder sent past {settings.WJS_REMINDER_LATE_AFTER} days."
+        return "Reviewer does not respond. Please take action"
     else:
         return ""
 
 
+def all_reminders_sent(target, days_ago: int):
+    """Return true if all reminders for the given target has been sent more that the given number of days."""
+    # I'll check if there is still any reminder left to be sent (in which case it's easy)
+    # and, if there are not, if the last sent reminder has been sent before yesterday.
+    unsent_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.id,
+        disabled=False,
+        date_sent__isnull=True,
+    )
+    if unsent_reminders.exists():
+        return False
+
+    # All reminders have been sent.
+    last_sent_reminder = (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.id,
+            disabled=False,
+            date_sent__isnull=False,
+            # don't try `date_sent__lt=yesterday` because you might just get the first reminders
+        )
+        .order_by("date_sent")
+        .last()
+    )
+    if last_sent_reminder.date_sent.date() < timezone.now().date() - timezone.timedelta(days=days_ago):
+        return True
+    else:
+        return False
+
+
 def author_revision_is_late(article: Article) -> str:
-    """Tell if the author is late in submitting a revision."""
+    """Tell if the author is late in submitting a revision.
+
+    This is meant for the author.
+    """
     late_revision_requests = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
+        type__in=(
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
     ).order_by()
     if late_revision_requests.exists():
         expected = late_revision_requests.first().date_due
         days_late = (timezone.now().date() - expected).days
-        return f"The revision request is {days_late} days late (was expected by {expected.strftime('%b-%d')})."
+        return f"The revision request is {days_late} days late (was expected by {expected})"
+    else:
+        return ""
+
+
+def author_revision_is_late_all_reminders_sent(article: Article, late_after_days: int = 1) -> str:
+    """Tell if the author is late in submitting a revision.
+
+    This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
+    NB: if the a.c. string should be different, this needs refactoring!
+    """
+    late_revision_requests = EditorRevisionRequest.objects.filter(
+        article_id=article.id,
+        date_due__lt=timezone.now().date(),
+        type__in=(
+            ArticleWorkflow.Decisions.MAJOR_REVISION,
+            ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
+    ).order_by()
+    if revision_request := late_revision_requests.last():
+        if all_reminders_sent(revision_request, days_ago=late_after_days):
+            expected = late_revision_requests.first().date_due
+            days_late = (timezone.now().date() - expected).days
+            return f"Revision is {days_late} days late. Pls consider reminding author"
+    return ""
+
+
+def author_technicalrevision_is_late(article: Article) -> str:
+    """Tell if the author is late in submitting a technical revision.
+
+    This is meant for the author.
+    """
+    late_revision_requests = EditorRevisionRequest.objects.filter(
+        article_id=article.id,
+        date_due__lt=timezone.now().date(),
+        type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
+    ).order_by()
+
+    if late_revision_requests.exists():
+        return "Editor allowed metadata update. Please take action"
+    else:
+        return ""
+
+
+def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_after_days: int = 1) -> str:
+    """Tell if the author is late in submitting a technical revision.
+
+    "Late" means that the author has not yet set metadata after the last reminder.
+    This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
+    """
+    late_revision_requests = EditorRevisionRequest.objects.filter(
+        article_id=article.id,
+        date_due__lt=timezone.now().date(),
+        type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
+    ).order_by()
+    if revision_request := late_revision_requests.last():
+        if all_reminders_sent(revision_request, days_ago=late_after_days):
+            return "Author has not updated metadata"
+    return ""
+
+
+def author_appealsubmission_is_late(article: Article) -> str:
+    """Tell if the author is late in submission an appeal."""
+    late_revision_requests = EditorRevisionRequest.objects.filter(
+        article_id=article.id,
+        date_due__lt=timezone.now().date(),
+        type=ArticleWorkflow.Decisions.OPEN_APPEAL,
+    ).order_by()
+    if late_revision_requests.exists():
+        expected = late_revision_requests.first().date_due
+        days_late = (timezone.now().date() - expected).days
+        # Warning: used by both author and EO, but EO appends ". Withdraw?" to this string
+        # To be fixed in specs#1029
+        return f"Appeal is {days_late} days late"
     else:
         return ""
 
 
 def pending_revision_request(workflow: ArticleWorkflow, user: Account) -> Optional[EditorRevisionRequest]:
-    """Tell if the author or the article editor have any pending minor/major revision."""
+    """Return any pending minor/major revision if the user is author or the editor of the article."""
     if not permissions.is_article_author(workflow, user) and not permissions.is_article_editor(workflow, user):
         return None
     pending_revision_requests = EditorRevisionRequest.objects.filter(
@@ -309,13 +450,23 @@ def pending_edit_metadata_request(workflow: ArticleWorkflow, user: Account) -> O
 
 
 def eo_has_unread_messages(article: Article) -> str:
-    """
-    Tell if EO has any unread message for the current article.
-
-    Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
-    """
+    """Tell if EO has any unread message for the current article."""
     eo_user = get_eo_user(article.journal)
     return has_unread_message(article=article, recipient=eo_user)
+
+
+def reviewer_acceptdecline_is_late(article: Article) -> str:
+    """Tell if the reviewer is late with evaluating (accepte/decline) the review request."""
+    review_round = article.current_review_round_object()
+    now = timezone.now().date()
+    late_assignments = WorkflowReviewAssignment.objects.filter(
+        Q(article=article, review_round=review_round)
+        & Q(is_complete=False, date_accepted__isnull=True, date_declined__isnull=True, date_due__lt=now),
+    )
+    if late_assignments.exists():
+        return "Invite to be accepted/declined"
+    else:
+        return ""
 
 
 def reviewer_report_is_late(article: Article) -> str:
@@ -326,10 +477,10 @@ def reviewer_report_is_late(article: Article) -> str:
     now = timezone.now().date()
     late_assignments = WorkflowReviewAssignment.objects.filter(
         Q(article=article, review_round=review_round)
-        & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
+        & Q(is_complete=False, date_accepted__isnull=False, date_declined__isnull=True, date_due__lt=now),
     )
     if late_assignments.exists():
-        return "The review is late."
+        return "Review is overdue"
     else:
         return ""
 
@@ -337,10 +488,7 @@ def reviewer_report_is_late(article: Article) -> str:
 def is_typesetter_late(assignment: TypesettingAssignment) -> str:
     """Tell if the typesetter is late with the assignment."""
     if timezone.now().date() >= assignment.due:
-        return (
-            f"Typesetting is late by {(timezone.now().date() - assignment.due).days} days."
-            f" Was expected by {assignment.due}."
-        )
+        return f"Typesetter is {(timezone.now().date() - assignment.due).days} days late"
     else:
         return ""
 
@@ -496,6 +644,6 @@ def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) ->
 
 
 def can_withdraw_preprint(workflow: ArticleWorkflow, user: Account) -> bool:
-    """Returns True if the preprint can be withdrawn."""
+    """Return True if the preprint can be withdrawn."""
     state_condition = workflow.state not in states_when_article_is_considered_archived
     return state_condition

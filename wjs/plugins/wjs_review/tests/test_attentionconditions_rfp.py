@@ -14,7 +14,7 @@ def test_article_requires_eo_attention_missing_image_and_missing_description(rfp
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
-    assert attention_condition == "Missing image and short description for social media"
+    assert attention_condition == "Missing image and/or short description for social media"
 
 
 @pytest.mark.django_db
@@ -33,7 +33,7 @@ def test_article_requires_eo_attention_image_ok_but_missing_description(
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
-    assert attention_condition == "Missing short description for social media"
+    assert attention_condition == "Missing image and/or short description for social media"
 
 
 @pytest.mark.django_db
@@ -51,7 +51,7 @@ def test_article_requires_eo_attention_description_ok_but_missing_image(rfp_arti
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
-    assert attention_condition == "Missing image for social media"
+    assert attention_condition == "Missing image and/or short description for social media"
 
 
 @pytest.mark.parametrize(
