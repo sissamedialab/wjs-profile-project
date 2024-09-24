@@ -69,7 +69,11 @@
                             <li>
                                 <a class="dropdown-trigger" href="#!" data-target="account">{% trans "Account" %}<i class="material-icons right">arrow_drop_down</i></a>
                             </li>
-                        {% endif %}
+                       {% else %}
+                          <li>
+                            <a href="{% url 'core_login' %}">{% trans "Login" %}</a>
+                          </li>
+                      {% endif %}
                     </ul>
                 </div>
             </div>
@@ -128,11 +132,6 @@
                             </li>
                         {% endif %}
                     {% endfor %}
-                    {% if not request.user.is_authenticated %}
-                        <li>
-                            <a href="{% url 'core_login' as core_login %}">{% trans "Login" %}</a>
-                        </li>
-                    {% endif %}
                     {% if request.journal.nav_review %}
                         <li>
                             <a href="{% url 'become_reviewer' %}"><i class="fa fa-trophy">&nbsp;</i>{% trans "Become a Reviewer" %}</a>
@@ -206,9 +205,9 @@
                 </li>
             {% else %}
                 <li>
-                    <a href="{% url 'core_login' as core_login %}">{% trans "Login" %}</a>
+                  <a href="{% url 'core_login' %}">{% trans "Login" %}</a>
                 </li>
-            {% endif %}
+           {% endif %}
             <li>
                 <form method="get" action="{% url 'search' %}">
                     <div class="input-field">
