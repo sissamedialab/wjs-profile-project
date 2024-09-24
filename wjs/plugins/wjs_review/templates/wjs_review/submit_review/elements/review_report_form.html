@@ -1,35 +1,30 @@
 {% load django_bootstrap5 i18n %}
-
-<div class="row">
-    <div class="col">
-        <h2>{% translate "General Review Guidelines" %}</h2>
-    </div>
-</div>
-<div class="row">
-    <div class="col">
-        {{ journal_settings.general.reviewer_guidelines|safe }}
-    </div>
-</div>
-<div class="row">
-    <div class="col">
-        <h2>{% translate "Information for this Form" %}</h2>
-    </div>
-</div>
-<div class="row">
-    <div class="col">
-        {{ assignment.form.intro|safe }}
-    </div>
-</div>
+{% translate "If you do, please write do the Editor in charge" as conflict_interest_label %}
+{% translate "Please wither write your comments in the text area and/or upload a file" as author_review_label %}
 <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    <div class="row">
-        <div class="col">
-            {% if form.errors %}
-                <div class="alert alert-info">
-                {% translate "Please correct errors below. Note, you'll have to reselect any files you want uploaded." %}
+    <div class="col">
+        {% bootstrap_form_errors form type='fields' %}
+        {# FIXME: We might want to refactor this implementation if we find a way to express this structure with django-bootstrap4 #}
+        <div class="mb-3">
+            <label class="fw-bold" for="{{ form.conflict_of_interest.id_for_label }}">
+                {{ form.conflict_of_interest.label }}
+            </label>
+            <div>{{ conflict_interest_label }}</div>
+            {% for radio in form.conflict_of_interest %}
+                <div class="form-check-inline">
+                    {{ radio.tag }}
+                    <label class="form-check-label" for="{{ radio.id_for_label }}">
+                        {{ radio.choice_label }}
+                    </label>
                 </div>
-            {% endif %}
-            {% bootstrap_form form required_css_class="required-field" %}
+            {% endfor %}
+        </div>
+        <div class="mb-3">
+            {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title' %}
+            {% bootstrap_field form.author_review label_class="fw-bold" addon_before=author_review_label addon_before_class=None %}
+            {% bootstrap_field form.review_file label_class="fw-bold" %}
+            {% bootstrap_field form.author_file_title %}
         </div>
     </div>
     <div class="row">

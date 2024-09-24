@@ -1351,58 +1351,71 @@ class WithdrawPreprintForm(forms.Form):
 class JCOMReportForm(forms.Form):
     EVALUATION_CHOICES = [
         ("", "---"),
-        ("Poor", "Poor"),
-        ("Acceptable", "Acceptable"),
-        ("Good", "Good"),
-        ("Excellent", "Excellent"),
+        ("Poor", _("Poor")),
+        ("Acceptable", _("Acceptable")),
+        ("Good", _("Good")),
+        ("Excellent", _("Excellent")),
     ]
     RECOMMENDATION_CHOICES = [
         ("", "---"),
-        ("publish", "It can be published in this form."),
+        ("publish", _("It can be published in this form.")),
         (
             "revise_minor",
-            "There are some weaknesses or errors. The author(s) should revise the paper, taking the reviewers` "
-            "comments into account.",
+            _(
+                "There are some weaknesses or errors. The author(s) should revise the paper, taking the reviewers` "
+                "comments into account."
+            ),
         ),
         (
             "revise_major",
-            "There are major weaknesses or errors. The author(s) should rewrite the paper, along the lines indicated "
-            "by the reviewers` comments.",
+            _(
+                "There are major weaknesses or errors. The author(s) should rewrite the paper, along the lines "
+                "indicated by the reviewers` comments."
+            ),
         ),
-        ("reject", "The paper is not to be published."),
+        ("reject", _("The paper is not to be published.")),
     ]
     FOLLOWUP_CHOICES = [
         ("", "---"),
-        ("no_review", "I don't think it will be necessary for me to review the article again."),
-        ("second_review", "Send me back the revised paper for a second review."),
-        ("another_reviewer", "Send the paper for review to another reviewer."),
+        ("no_review", _("I don't think it will be necessary for me to review the article again.")),
+        ("second_review", _("Send me back the revised paper for a second review.")),
+        ("another_reviewer", _("Send the paper for review to another reviewer.")),
     ]
-    no_conflict_of_interest = forms.BooleanField(required=True, label="No conflict of interest")
+    YES_NO_CHOICES = [
+        ("yes", _("Yes")),
+        ("no", _("No")),
+    ]
+    conflict_of_interest = forms.ChoiceField(
+        required=True,
+        label=_("Any conflict of interest to declare?"),
+        widget=forms.RadioSelect,
+        choices=YES_NO_CHOICES,
+    )
     # EVALUATION
     structure_and_writing_style = forms.ChoiceField(
-        choices=EVALUATION_CHOICES, label="Structure and Writing Style", required=True
+        choices=EVALUATION_CHOICES, label=_("Structure and Writing Style"), required=True
     )
-    originality = forms.ChoiceField(choices=EVALUATION_CHOICES, label="Originality", required=True)
-    scope_and_methods = forms.ChoiceField(choices=EVALUATION_CHOICES, label="Scope and Methods", required=True)
+    originality = forms.ChoiceField(choices=EVALUATION_CHOICES, label=_("Originality"), required=True)
+    scope_and_methods = forms.ChoiceField(choices=EVALUATION_CHOICES, label=_("Scope and Methods"), required=True)
     argument_and_discussion = forms.ChoiceField(
-        choices=EVALUATION_CHOICES, label="Argument and Discussion", required=True
+        choices=EVALUATION_CHOICES, label=_("Argument and Discussion"), required=True
     )
     # RECOMMENDATION
-    recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label="Recommendation", required=True)
+    recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label=_("Recommendation"), required=True)
     # FOLLOW-UP ACTIONS
-    follow_up_action = forms.ChoiceField(choices=FOLLOWUP_CHOICES, label="Follow-up Action", required=False)
+    follow_up_action = forms.ChoiceField(choices=FOLLOWUP_CHOICES, label=_("Follow-up Action"), required=False)
     suggested_reviewers = forms.CharField(
-        label="Suggested reviewer(s)",
+        label=_("Suggested reviewer(s)"),
         required=False,
-        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "name/email"}),
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("name/email")}),
     )
-    editor_cover_letter = WjsMiniHTMLFormField(label="Cover letter for Editor", required=True)
-    author_review = WjsMiniHTMLFormField(label="Review (to be sent to Authors)", required=False)
-    author_file_title = forms.CharField(label="File Title (to be sent to Authors)", required=False)
+    editor_cover_letter = WjsMiniHTMLFormField(label=_("Cover letter (for the Editor in charge)"), required=True)
+    author_review = WjsMiniHTMLFormField(label=_("Review (for the Author)"), required=False)
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(
-        label="File (to be sent to Authors)", required=False, widget=forms.ClearableFileInput()
+        label="File (to be sent to Author)", required=False, widget=forms.ClearableFileInput()
     )
+    author_file_title = forms.CharField(label=_("File title"), required=False)
 
     def __init__(self, *args, **kwargs):
         self.instance = kwargs.pop("review_assignment", None)
@@ -1412,20 +1425,23 @@ class JCOMReportForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        no_conflict_of_interest = cleaned_data.get("no_conflict_of_interest")
+        conflict_of_interest = cleaned_data.get("conflict_of_interest")
         recommendation = cleaned_data.get("recommendation")
         follow_up_action = cleaned_data.get("follow_up_action")
         author_review = cleaned_data.get("author_review")
         author_file = cleaned_data.get("author_file")
         # follow_up_action is required only if recommendation is to revise_minor or revise_major
-        if not no_conflict_of_interest:
-            self.add_error("no_conflict_of_interest", "This field is required.")
+        if conflict_of_interest == "yes":
+            self.add_error("conflict_of_interest", _("You cannot declare that you have a conflict of interest."))
         if recommendation in ["revise_minor", "revise_major"]:
             if not follow_up_action:
-                self.add_error("follow_up_action", "This field is required if the recommendation is to revise.")
+                self.add_error("follow_up_action", _("This field is required if the recommendation is to revise."))
         if not author_review and not author_file:
             raise forms.ValidationError(
-                'At least one of "Review (to be sent to Authors)" or "Files (to be sent to Authors)" must be provided.'
+                _(
+                    'At least one of "Review (to be sent to Authors)" or "Files (to be sent to Authors)" must be '
+                    "provided."
+                )
             )
         return cleaned_data
 

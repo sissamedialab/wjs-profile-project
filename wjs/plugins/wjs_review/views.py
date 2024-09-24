@@ -99,7 +99,7 @@ from .logic import (
     states_when_article_is_considered_in_review_for_eo_and_director,
 )
 from .logic__visibility import PermissionChecker
-from .mixins import EditorRequiredMixin
+from .mixins import EditorRequiredMixin, ReviewerRequiredMixin
 from .models import (
     ArticleWorkflow,
     EditorRevisionRequest,
@@ -1200,8 +1200,9 @@ class ReviewEnd(OpenReviewMixin):
     incomplete_review_only = False
 
 
-class ReviewSubmit(EvaluateReviewRequest):
-    template_name = "wjs_review/review_submit.html"
+class ReviewSubmit(BaseRelatedViewsMixin, EvaluateReviewRequest, ReviewerRequiredMixin):
+    template_name = "wjs_review/submit_review/review_submit.html"
+    title = _("Sumbit review")
 
     @property
     def allow_draft(self):
