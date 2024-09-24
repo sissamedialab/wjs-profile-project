@@ -1124,15 +1124,63 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
             return super().form_invalid(form)
 
 
-class ReviewDeclined(OpenReviewMixin):
-    template_name = "wjs_review/review_declined.html"
+class ReviewDeclined(BaseRelatedViewsMixin, OpenReviewMixin):
+    title = _("Review Declined")
+    template_name = "wjs_review/submit_review/review_declined.html"
     incomplete_review_only = False
     use_access_code = True
 
+    def test_func(self):
+        """Allow access only to the reviewer who has completed the review."""
+        self.article = self.get_object().article.articleworkflow
+        return permissions.is_article_reviewer(self.article, self.request.user) or base_permissions.has_eo_role(
+            self.request.user
+        )
 
-class ReviewEnd(OpenReviewMixin):
-    template_name = "wjs_review/review_end.html"
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
+                title=self.object.article.articleworkflow,
+            ),
+            BreadcrumbItem(
+                url=self.request.path_info,
+                title=self.title,
+                current=True,
+            ),
+        ]
+
+
+class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
+    title = _("Review submitted")
+    template_name = "wjs_review/submit_review/review_end.html"
     incomplete_review_only = False
+
+    def test_func(self):
+        """Allow access only to the reviewer who has completed the review."""
+        self.article = self.get_object().article.articleworkflow
+        return permissions.is_article_reviewer(self.article, self.request.user) or base_permissions.has_eo_role(
+            self.request.user
+        )
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
+                title=self.object.article.articleworkflow,
+            ),
+            BreadcrumbItem(
+                url=self.request.path_info,
+                title=self.title,
+                current=True,
+            ),
+        ]
 
 
 class ReviewSubmit(BaseRelatedViewsMixin, EvaluateReviewRequest, ReviewerRequiredMixin):
