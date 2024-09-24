@@ -21,7 +21,7 @@ from ..plugin_settings import SHORT_NAME
 from ..utils import get_report_form
 
 jcom_report_form_data = {
-    "no_conflict_of_interest": True,
+    "conflict_of_interest": "no",
     "structure_and_writing_style": "Good",
     "originality": "Good",
     "scope_and_methods": "Good",
