@@ -48,6 +48,7 @@ def user_has_access_to(
     target: models.Model,
     permission_type: PermissionAssignment.PermissionType = "",
     review_round: Optional[int] = None,
+    secondary_permission: bool = False,
 ) -> bool:
     """
     Check if the user has access to the given attribute of the workflow.
@@ -57,8 +58,8 @@ def user_has_access_to(
     .. block:: html
 
         {% for review in round.reviewassignment_set.all %}
-            {% user_has_access_to workflow user review "all" as all_access %}
-            {% user_has_access_to workflow user review "no_names" as no_names %}
+            {% user_has_access_to workflow user review PermissionType.ALL as all_access %}
+            {% user_has_access_to workflow user review PermissionType.NO_NAMES as no_names %}
             {% if no_names %}
                 <div class="card-body">
                     Assignment {{ assignment.id }}{% if all_access %} to {{ assignment.reviewer }}{% endif %}.
@@ -77,10 +78,19 @@ def user_has_access_to(
     :param review_round: Review round number to check access for. If 0 current review round is used,
         if None review round check is not used.
     :type review_round: Optional[int]
+    :param secondary_permission: If True, check for secondary permission.
+    :type secondary_permission: bool
     :return: True if the user has access, False otherwise.
     :rtype: bool
     """
-    return PermissionChecker()(workflow, user, target, permission_type=permission_type, review_round=review_round)
+    return PermissionChecker()(
+        workflow,
+        user,
+        target,
+        permission_type=permission_type,
+        review_round=review_round,
+        secondary_permission=secondary_permission,
+    )
 
 
 @register.simple_tag(takes_context=True)

@@ -162,6 +162,7 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
 }
 
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")
+TEMPLATES[0]["OPTIONS"]["context_processors"].append("plugins.wjs_review.context_processors.visibility_flags")
 
 INSTALLATION_BASE_THEME = "material"
 SELECT2_USE_BUNDLED_JQUERY = False

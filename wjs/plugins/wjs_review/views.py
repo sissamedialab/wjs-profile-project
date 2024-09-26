@@ -2335,6 +2335,8 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
     template_name = "wjs_review/assign_editor/select_editor.html"
     title = _("Select an Editor")
     context_object_name = "workflow"
+    edit_permissions: bool = False
+    selected_editor: Account = None
 
     def test_func(self):
         """
@@ -2361,7 +2363,12 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
             messages.SUCCESS,
             _("Editor assigned successfully."),
         )
-        return reverse("wjs_article_details", args=(self.object.pk,))
+        if self.edit_permissions:
+            return reverse(
+                "wjs_assign_permission_redirect", kwargs={"pk": self.object.pk, "user_id": self.selected_editor.pk}
+            )
+        else:
+            return reverse("wjs_article_details", args=(self.object.pk,))
 
     def _get_current_editor(self) -> Account | None:
         """Get the current editor of the article."""
@@ -2398,6 +2405,13 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
         kwargs["instance"] = self.object
         kwargs["selectable_editors"] = self._editors_with_keywords()
         return kwargs
+
+    def form_valid(self, form):
+        """If the form is valid, save the assignment and return a response."""
+        form.save()
+        self.edit_permissions = form.assign_permissions
+        self.selected_editor = form.cleaned_data["editor"]
+        return super().form_valid(form)
 
 
 class JournalEditorsView(BaseRelatedViewsMixin, ListView):

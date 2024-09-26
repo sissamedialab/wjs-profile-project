@@ -1,4 +1,4 @@
-{% load static wjs_permissions wjs_review wjs_tags %}
+{% load django_bootstrap5 static wjs_permissions wjs_review wjs_tags %}
 <table class="table">
   {% if show_title_id %}
     <tr>
@@ -45,7 +45,19 @@
     <tr>
       {% current_editor_assigment article as editor_assigment %}
       <th>{% translate "Editor" %}</th>
-      <td>{% if editor_assigment %}{{ editor_assigment.editor }}{% hijack_button user=editor_assigment.editor %}{% else %}{% translate "N/A" %}{% endif %}</td>
+      <td>
+        {% if editor_assigment %}
+          {% url "wjs_assign_permission" workflow.pk editor_assigment.editor.pk as edit_permissions_url %}
+          <!-- djlint:off -->
+          {% translate "Set visibility rights <i class=\"bi bi-sliders\"></i>" as edit_permissions_label %}
+          <!-- djlint:on -->
+          {{ editor_assigment.editor }}
+          {% hijack_button user=editor_assigment.editor %}
+          {% bootstrap_button content=edit_permissions_label href=edit_permissions_url button_class="btn-outline-secondary btn-sm" %}
+        {% else %}
+          {% translate "N/A" %}
+        {% endif %}
+      </td>
     </tr>
     {% if request.user|is_user_eo and workflow|is_production_state %}
       <tr>

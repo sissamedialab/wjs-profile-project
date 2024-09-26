@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_review %}
+{% load django_bootstrap5 wjs_review wjs_tags %}
 {% translate "Select" as select_label %}
 <form method="post">
   {% csrf_token %}
@@ -9,8 +9,13 @@
         <td>{{ user.matching_keywords|join:", " }}</td>
         <td>{{ user.num_shared_kwds }}</td>
       {% endif %}
-      <td class="text-center">
+      <td class="d-flex align-items-center">
         {% bootstrap_button name="editor" content=select_label value=user.pk %}
+        {% with field_name="set_permissions_"|concat:user.pk %}
+          {% with field=form|keyvalue:field_name %}
+            {% bootstrap_field field wrapper_class="ms-3 align-self-center" %}
+          {% endwith %}
+        {% endwith %}
       </td>
     </tr>
   {% endfor %}

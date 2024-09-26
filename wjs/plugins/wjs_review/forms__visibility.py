@@ -6,6 +6,7 @@ from django.utils.translation import gettext as _
 
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     EditorRevisionRequest,
     PermissionAssignment,
     WorkflowReviewAssignment,
@@ -55,7 +56,7 @@ class UserPermissionsForm(forms.Form):
         self.round = kwargs.pop("round")
         self.author_notes = kwargs.pop("author_notes")
         super().__init__(*args, **kwargs)
-        if isinstance(self.object, WorkflowReviewAssignment):
+        if isinstance(self.object, WorkflowReviewAssignment) or isinstance(self.object, EditorDecision):
             self.fields["permission_secondary"].widget = forms.HiddenInput()
         elif isinstance(self.object, ArticleWorkflow):
             self.fields["permission"].widget = forms.HiddenInput()
@@ -64,7 +65,10 @@ class UserPermissionsForm(forms.Form):
                 self.fields["permission"].widget = forms.HiddenInput()
             else:
                 self.fields["permission_secondary"].widget = forms.HiddenInput()
-        self.fields["permission"].label = self.object.permission_label
+        self.fields["permission"].label = f"{self.object.permission_label} (target: {self.object.__class__.__name__})"
+        self.fields["permission_secondary"].label = (
+            f"{self.fields['permission_secondary'].label} (target: {self.object.__class__.__name__})"
+        )
 
     def save(self) -> Optional[PermissionAssignment]:
         """Creates / updates custom PermissionAssignment if value is changed."""

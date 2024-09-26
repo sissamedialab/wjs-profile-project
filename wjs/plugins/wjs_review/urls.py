@@ -230,6 +230,11 @@ urlpatterns = [
         EditUserPermissions.as_view(),
         name="wjs_assign_permission",
     ),
+    path(
+        "article/<int:pk>/permissions/<int:user_id>/redirect/",
+        EditUserPermissions.as_view(redirect=True),
+        name="wjs_assign_permission_redirect",
+    ),
     path("begin_publication/<int:pk>/", BeginPublicationView.as_view(), name="wjs_review_begin_publication"),
     path("finish_publication/<int:pk>/", FinishPublicationView.as_view(), name="wjs_review_finish_publication"),
     path(

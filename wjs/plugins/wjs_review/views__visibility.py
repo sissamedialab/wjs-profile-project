@@ -19,6 +19,7 @@ from .forms__visibility import BaseUserPermissionFormSet, UserPermissionsForm
 from .logic__visibility import PermissionChecker
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     EditorRevisionRequest,
     PermissionAssignment,
     WjsEditorAssignment,
@@ -36,6 +37,7 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
     model = ArticleWorkflow
     template_name = "wjs_review/edit_permissions/assign_permission.html"
     context_object_name = "workflow"
+    redirect = False
 
     def load_initial(self, request, *args, **kwargs):
         super().load_initial(request, *args, **kwargs)
@@ -87,6 +89,10 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
             article__correspondence_author=self.user
         )
         editor_revisions_type = ContentType.objects.get_for_model(EditorRevisionRequest)
+        editor_decisions = EditorDecision.objects.filter(workflow=self.workflow).exclude(
+            review_round__article__correspondence_author=self.user
+        )
+        editor_decisions_type = ContentType.objects.get_for_model(EditorDecision)
         review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).exclude(
             reviewer=self.user
         )
@@ -108,12 +114,12 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
             ]
             + [
                 PermissionTargetObject(
-                    object_type=editor_revisions_type.pk,
+                    object_type=editor_decisions_type.pk,
                     object=obj,
                     round=obj.review_round.round_number,
-                    date_reference=obj.date_requested,
+                    date_reference=obj.created,
                 )
-                for obj in editor_revisions
+                for obj in editor_decisions
             ]
             # We manage author notes (aka author cover letter) separately.
             # These info are stored in editor_revisions, but they are intended more
@@ -141,7 +147,8 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
                 for obj in review_assignments
             ]
         )
-        return sorted(target_objects, key=attrgetter("round", "date_reference"), reverse=True)
+        # sorting by object type is mainly to provide data stability during tests
+        return sorted(target_objects, key=attrgetter("round", "date_reference", "object_type"), reverse=True)
 
     def _check_current_permission(
         self,
@@ -236,6 +243,8 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
         return initial
 
     def get_success_url(self):
+        if self.redirect:
+            return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
         return reverse("wjs_assign_permission", kwargs={"pk": self.workflow.pk, "user_id": self.user.id})
 
     def get_form_kwargs(self):

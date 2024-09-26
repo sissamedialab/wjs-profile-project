@@ -22,16 +22,21 @@
     {% translate "Add a personale node" as note_title %}
     {% translate "Send message to a user involved in the article" as message_title %}
     {% translate "Send message to a user involved in the article" as reminders_title %}
-    {% translate "Manage" as manage_title %}
+    {% translate "Manage" as manage_label %}
+    {% translate "Go to Janeway's Manager" as manage_title %}
+    {% translate "Admin" as admin_label %}
+    {% translate "Go to Django admin interface" as admin_title %}
     {% url "wjs_message_note" pk=workflow.pk as add_note %}
     {% url "wjs_message_write" pk=workflow.pk as add_message %}
     {% url "wjs_article_reminders" pk=workflow.pk as article_reminders %}
-    {% url "manage_archive_article" article_id=article.pk as article_admin %}
+    {% url "manage_archive_article" article_id=article.pk as article_manage %}
+    {% url "admin:submission_article_change" article.pk as article_admin %}
     {% bootstrap_button href=add_note title=note_title button_class="btn-primary" content=note_label %}
     {% bootstrap_button href=add_message title=message_title button_class="btn-secondary" content=message_label %}
     {% if workflow|is_user_article_supervisor:request.user %}
       {% bootstrap_button href=article_reminders title=reminders_title button_class="btn-secondary" content=reminders_label %}
-      {% bootstrap_button href=article_admin title=manage_title target="_blank" button_class="btn-outline-secondary" content=manage_title %}
+      {% bootstrap_button href=article_manage title=manage_title target="_blank" button_class="btn-outline-secondary" content=manage_label %}
+      {% bootstrap_button href=article_admin title=admin_title target="_blank" button_class="btn-outline-secondary" content=admin_label %}
     {% endif %}
   </div>
 </div>

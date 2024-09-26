@@ -8,7 +8,7 @@
 <div class="accordion-item {% if assignment.attention_condition %}{{ assignment.attention_condition.style }}{% endif %}">
   <h2 class="accordion-header" id="heading-review-assignment-{{ assignment.pk }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-assignment-{{ assignment.pk }}" aria-expanded="{% if selected %}true{% endif %}" aria-controls="collapse-review-assignment-{{ assignment.pk }}">
-      <span><b>{{ assignment.reviewer.get_full_name }}</b> {% if assignment.attention_condition %}[{{ assignment.attention_condition.message }}]{% endif %}</span>
+      <span><b>{% if show_name %}{{ assignment.reviewer.get_full_name }}{% else %}{% translate "Reviewer" %}{% endif %}</b> {% if assignment.attention_condition %}[{{ assignment.attention_condition.message }}]{% endif %}</span>
       {% if assignment.attention_condition %}{{ assignment.attention_condition.icon }}{% endif %}
     </button>
   </h2>
