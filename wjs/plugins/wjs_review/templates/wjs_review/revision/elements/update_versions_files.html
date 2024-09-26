@@ -13,7 +13,7 @@
     {% endif %}
   </tr>
   {% for file in article.manuscript_files.all %}
-    {% url "article_file_download" "id" article.pk file.pk as download_file_url %}
+    {% url 'download_single_file' 'id' article.pk file.pk as download_file_url %}
     {% url "revisions_replace_file" article.pk revision_request.pk file.pk as replace_file_url %}
     <tr>
       <td>{{ file.label }}</td>
@@ -35,7 +35,7 @@
     </tr>
   {% endfor %}
   {% for file in article.data_figure_files.all %}
-    {% url "article_file_download" "id" article.pk file.pk as download_file_url %}
+    {% url 'download_single_file' 'id' article.pk file.pk as download_file_url %}
     {% url "revisions_replace_file" article.pk revision_request.pk file.pk as replace_file_url %}
     <tr>
       <td>{{ file.label }}</td>

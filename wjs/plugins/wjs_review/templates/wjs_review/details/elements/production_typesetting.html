@@ -8,7 +8,7 @@
       <ul class="list-group mb-0">
         {% for galley in version.assignment.galleys_created.all %}
           {% if galley.file.label == "PDF" %}
-            <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'article_file_download' 'id' galley.article.pk galley.file.pk %}">{{ galley.file.original_filename }}</a></li>
+            <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'download_single_file' galley.article.pk galley.file.pk %}">{{ galley.file.original_filename }}</a></li>
           {% endif %}
         {% endfor %}
       </ul>
@@ -19,7 +19,7 @@
       <h5><i class="bi bi-journals pe-2"></i> {% translate "Source files" %}</h5>
       <ul class="list-group mb-0">
         {% for file in version.assignment.files_to_typeset.all %}
-          <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}">{{ file.original_filename }}</a></li>
+          <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'download_single_file' file.article.pk file.pk %}">{{ file.original_filename }}</a></li>
         {% endfor %}
       </ul>
     </div>

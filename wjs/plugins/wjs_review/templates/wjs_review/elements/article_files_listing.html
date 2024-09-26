@@ -7,21 +7,21 @@
                 <li class="list-group-item fw-bold">Manuscript Files</li>
                 {% for file in article.manuscript_files.all %}
                     <li class="list-group-item">
-                        <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+                        <a target="_blank" href="{% url 'download_single_file' article.pk file.pk %}">{{ file }}</a>
                     </li>
                 {% endfor %}
 
                 <li class="list-group-item fw-bold">Data Figure Files</li>
                 {% for file in article.data_figure_files.all %}
                     <li class="list-group-item">
-                        <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+                        <a target="_blank" href="{% url 'download_single_file' article.pk file.pk %}">{{ file }}</a>
                     </li>
                 {% endfor %}
 
                 <li class="list-group-item fw-bold">Supplementary Files</li>
                 {% for file in article.supplementary_files.all %}
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file.file }}</a>
+                        <a target="_blank" href="{% url 'download_single_file' article.pk file.pk %}">{{ file.file }}</a>
                         <button hx-post="{% url 'delete_supplementary_file' file_id=file.id %}" hx-confirm="Are you sure you want to delete this file?" hx-target="#lista-file" hx-swap="outerHTML" class="btn btn-danger btn-sm">Delete</button>
                     </li>
                 {% endfor %}
@@ -36,7 +36,7 @@
                 <li class="list-group-item fw-bold">Source Files</li>
                 {% for file in article.source_files.all %}
                     <li class="list-group-item">
-                        <a target="_blank" href="{% url 'article_file_download' 'id' article.pk file.pk %}">{{ file }}</a>
+                        <a target="_blank" href="{% url 'download_single_file' article.pk file.pk %}">{{ file }}</a>
                     </li>
                 {% endfor %}
             </ul>

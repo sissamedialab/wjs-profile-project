@@ -16,7 +16,7 @@
       <h5>{% translate "Annotated Files" %}</h5>
       {% for file in galleyproofing.annotated_files.all %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
-          <a class="btn btn-link annotation-files" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
+          <a class="btn btn-link annotation-files" href="{% url 'download_single_file' file.article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
           <button
             hx-post="{{ update_files_url }}" hx-confirm="{{ confirm_label }}" hx-target="#proofing-notes" hx-vals='{"file_to_delete": {{ file.pk }} }'
             class="btn btn-danger btn-sm" name="action" value="delete_file">

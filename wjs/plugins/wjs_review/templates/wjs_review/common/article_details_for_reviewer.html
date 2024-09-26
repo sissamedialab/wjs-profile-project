@@ -23,7 +23,7 @@
         <strong>{% translate "Manuscript" %}</strong>
         <ul>
             {% for file in article.manuscript_files.all %}
-              <li><a target="_blank" href="{% url 'article_file_download' 'id' article.id file.id %}">{{ file }}</a></li>
+              <li><a target="_blank" href="{% url 'download_single_file' article.id file.id %}">{{ file }}</a></li>
             {% endfor %}
         </ul>
     </div>
