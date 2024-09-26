@@ -354,6 +354,7 @@ class Command(BaseCommand):
                     f"Different email for {author.id}. Janeway {author.email} vs. new {imported_email}",
                 )
                 author.email = imported_email
+                author.username = imported_email
                 author.save()
 
             author.add_account_role("author", article.journal)
