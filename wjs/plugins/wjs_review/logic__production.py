@@ -30,6 +30,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
+from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from django_q.tasks import async_task
 from events import logic as events_logic
@@ -1431,7 +1432,8 @@ class BeginPublication:
         # Page numbers should have been set when we set the pubid when we do set_article_identifiers()
         num = self.workflow.page_numbers
         doi = self.workflow.article.get_doi()
-
+        assert num
+        assert doi
         # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
         replacements = (
             # f-strings and latex macros don't dance well together...
@@ -1450,7 +1452,10 @@ class BeginPublication:
         # TODO: should I expect to always find all replacement?
         # I.e. is it an error if some replacement cannot be found in the source?
         for old_string, new_string in replacements:
-            content = content.replace(old_string, new_string, 1)
+            if old_string in content:
+                content = content.replace(old_string, new_string, 1)
+            else:
+                raise Exception(_("Missing variable in Automatic Preamble") + f": {old_string}")
         processed_file = BytesIO(content.encode("utf-8"))
         return processed_file
 
