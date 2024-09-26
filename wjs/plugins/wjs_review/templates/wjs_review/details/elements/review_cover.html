@@ -14,7 +14,7 @@
         {% if version.main_revision %}
           {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_cover_letter modal_body=version.main_revision.author_note|safe %}
         {% elif version.number == 1 %}
-          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_cover_letter modal_body=article.comments_for_editor|safe %}
+          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_cover_letter modal_body=article.comments_editor|safe %}
         {% endif %}
       {% endwith %}
     </div>

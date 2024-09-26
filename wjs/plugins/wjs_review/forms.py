@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.forms import formset_factory
 from django.shortcuts import get_object_or_404
+from django.utils.safestring import mark_safe
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from review.forms import GeneratedForm
@@ -1104,9 +1105,15 @@ class SupervisorAssignEditorForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
-        self.editor = kwargs.pop("selectable_editors")
+        self.editors = kwargs.pop("selectable_editors")
         super().__init__(*args, **kwargs)
-        self.fields["editor"].queryset = self.editor
+        self.fields["editor"].queryset = self.editors
+        for editor in self.editors:
+            self.fields[f"set_permissions_{editor.pk}"] = forms.BooleanField(
+                label=_(mark_safe('<i class="bi bi-sliders"></i>')),
+                required=False,
+                initial=False,
+            )
 
     def get_logic_instance(self) -> AssignToEditor:
         """Instantiate :py:class:`AssignToEditor` class."""
@@ -1146,6 +1153,11 @@ class SupervisorAssignEditorForm(forms.ModelForm):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+    @property
+    def assign_permissions(self):
+        editor = self.cleaned_data["editor"]
+        return self.cleaned_data.get(f"set_permissions_{editor.pk}", False)
 
 
 class ForwardMessageForm(forms.ModelForm):

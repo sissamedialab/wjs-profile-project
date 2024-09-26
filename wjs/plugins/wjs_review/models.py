@@ -1005,13 +1005,16 @@ class ArticleWorkflow(TimeStampedModel):
                 permission_type=PermissionAssignment.PermissionType.NO_NAMES,
             )
             if has_permission:
+                revisions = EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
+                if review_round.round_number > 1:
+                    revisions |= EditorRevisionRequest.objects.filter(
+                        article=self.article, review_round__round_number=review_round.round_number - 1
+                    )
                 version = Version(
                     review_round=review_round,
                     latest=index == 0,
                     decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
-                    revision_requests=list(
-                        EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
-                    ),
+                    revision_requests=list(revisions),
                     editor_assignment=WjsEditorAssignment.objects.filter(
                         article=self.article, review_rounds=review_round
                     ).first(),
@@ -1078,6 +1081,10 @@ class EditorDecision(TimeStampedModel):
             article=self.workflow.article,
             review_round=self.review_round,
         )
+
+    @property
+    def permission_label(self) -> str:
+        return _(f"Editor {self.get_revision_request().editor}'s report")
 
 
 class Message(TimeStampedModel):

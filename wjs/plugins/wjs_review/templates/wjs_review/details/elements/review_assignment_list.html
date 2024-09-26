@@ -3,10 +3,10 @@
   <div>
     <h6 class="fw-bold mb-3"><i class="{{ stage.css_class }} me-1"></i>{% translate stage.label %}</h6>
     {% for assignment in assignments %}
-      {% user_has_access_to workflow request.user assignment "all" as all_access %}
-      {% user_has_access_to workflow request.user assignment "no_names" as no_names %}
+      {% user_has_access_to workflow request.user assignment PermissionType.ALL as all_access %}
+      {% user_has_access_to workflow request.user assignment PermissionType.NO_NAMES as no_names %}
       {% if no_names or all_access %}
-        {% include "wjs_review/details/elements/review_assignment.html" %}
+        {% include "wjs_review/details/elements/review_assignment.html" with show_name=all_access %}
       {% endif %}
     {% endfor %}
   </div>

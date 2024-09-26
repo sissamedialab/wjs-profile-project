@@ -10,6 +10,12 @@
       {% translate "Editor Report" as editor_report_title %}
       {% translate "Read" as open_label %}
       <table class="table">
+        {% if show_name %}
+          <tr>
+            <th>{% translate "Editor" %}</th>
+            <td>{{ decision.get_revision_request.editor }}</td>
+          </tr>
+        {% endif %}
         <tr>
           <th>{% translate "Decision" %}</th>
           <td>{{ decision.get_decision_display }}</td>

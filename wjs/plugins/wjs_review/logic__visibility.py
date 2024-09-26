@@ -374,7 +374,7 @@ class AuthorPermissionChecker(BasePermissionChecker):
         if isinstance(self.instance, Article):
             return permissions.is_one_of_the_authors(self.instance.articleworkflow, self.user)
         if isinstance(self.instance, RevisionRequest):
-            is_an_author = permissions.is_one_of_the_authors(self.instance.articleworkflow, self.user)
+            is_an_author = permissions.is_one_of_the_authors(self.instance.article.articleworkflow, self.user)
             return is_an_author and permission_type == PermissionAssignment.PermissionType.NO_NAMES
         return False
 
