@@ -37,8 +37,8 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
     template_name = "wjs_review/edit_permissions/assign_permission.html"
     context_object_name = "workflow"
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.workflow = self.model.objects.get(pk=kwargs["pk"])
         self.user = Account.objects.get(pk=kwargs["user_id"])
 

@@ -7,7 +7,6 @@ from core import models as core_models
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
@@ -39,7 +38,6 @@ from journal.models import Issue, Journal
 from plugins.typesetting.models import TypesettingAssignment
 from review import logic as review_logic
 from review.models import ReviewAssignment
-from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -65,7 +63,6 @@ from .filters import (
 )
 from .forms import (
     ArticleExtraInformationUpdateForm,
-    ArticleReviewStateForm,
     AssignEoForm,
     DecisionForm,
     DeclineReviewForm,
@@ -99,7 +96,13 @@ from .logic import (
     states_when_article_is_considered_in_review_for_eo_and_director,
 )
 from .logic__visibility import PermissionChecker
-from .mixins import EditorRequiredMixin, ReviewerRequiredMixin
+from .mixins import (
+    ArticleAssignedEditorMixin,
+    AuthenticatedUserPassesTest,
+    EditorRequiredMixin,
+    OpenReviewMixin,
+    ReviewerRequiredMixin,
+)
 from .models import (
     ArticleWorkflow,
     EditorRevisionRequest,
@@ -121,7 +124,7 @@ logger = get_logger(__name__)
 Account = get_user_model()
 
 
-class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class Manager(AuthenticatedUserPassesTest, TemplateView):
     """Plugin manager page.Just an index."""
 
     template_name = "wjs_review/index.html"
@@ -131,7 +134,7 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return base_permissions.has_eo_role(self.request.user)
 
 
-class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
+class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
     related_views: Dict[str, Dict[str, str]] = {
         constants.EO_GROUP: {
             "wjs_review_eo_pending": _("Pending preprints"),
@@ -168,20 +171,18 @@ class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
     extra_links: Dict[str, str]
     role = None
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
-        if not self.request.user or self.request.user.is_anonymous:
-            raise Http404(_("You are not allowed to access this page."))
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         if self.role:
             request.session["role"] = self.role
         current_role = request.session.get("role", self.role)
         if not current_role:
-            current_role = base_permissions.main_role(self.request.journal, self.request.user)
+            current_role = base_permissions.main_role(request.journal, request.user)
         if current_role:
             self.extra_links = {
                 reverse(view_name): title
                 for view_name, title in self.related_views[current_role].items()
-                if self._is_available_related_view(self.request.journal, view_name, self.request)
+                if self._is_available_related_view(request.journal, view_name, request)
             }
         else:
             self.extra_links = {}
@@ -199,7 +200,7 @@ class BaseRelatedViewsMixin(LoginRequiredMixin, UserPassesTestMixin):
         # and we want to check the exact class.
         view_matches_current_url = self.__class__ == view_class
         view_object = view_class()
-        view_object.request = self.request
+        view_object.request = request
         view_object.kwargs = self.kwargs
         view_object.args = self.args
         user_has_permission = view_object.test_func()
@@ -219,9 +220,9 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
     title: str
     show_filters = True
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         if getattr(self, "filterset_class", None):
             self.filterset = self.filterset_class(
                 data=self.request.GET if self.request.GET.get("search") else None,
@@ -639,29 +640,6 @@ class ReviewerArchived(ReviewerPending):
         )
 
 
-# FIXME: Drop this, no longer needed
-class UpdateState(LoginRequiredMixin, UpdateView):
-    model = ArticleWorkflow
-    form_class = ArticleReviewStateForm
-    template_name = "wjs_review/update_state.html"
-    success_url = reverse_lazy("wjs_review_list")
-
-    def get_form_kwargs(self) -> Dict[str, Any]:
-        kwargs = super().get_form_kwargs()
-        kwargs["user"] = self.request.user
-        kwargs["request"] = self.request
-        return kwargs
-
-
-# FIXME: Align permission checking logic with the rest of the views
-class ArticleAssignedEditorMixin:
-    def get_queryset(self) -> QuerySet[ArticleWorkflow]:
-        # TODO: We must check this once we have decided the flow for multiple review rounds
-        #       it should work because if an editor is deassigned from one round to another we delete the assignment
-        #       and this relation will cease to exist
-        return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
-
-
 # refs #584
 class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """
@@ -1007,51 +985,6 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         return context
 
 
-class OpenReviewMixin(DetailView):
-    """
-    Mixin to be used to load a single review by using either the access code or the current user to check permission.
-
-    View is open to both logged in users and anonymous users, because the permissions are checked at the queryset level
-    by either using the access code or the current user.
-    """
-
-    model = WorkflowReviewAssignment
-    pk_url_kwarg = "assignment_id"
-    context_object_name = "assignment"
-    incomplete_review_only = True
-    "Filter queryset to exclude completed reviews."
-
-    @property
-    def access_code(self):
-        return self.request.GET.get("access_code")
-
-    def get_queryset(self) -> QuerySet[ReviewAssignment]:
-        """
-        Filter queryset to ensure only :py:class:`ReviewAssignment` suitable for review matching user / access_code.
-        """
-        queryset = super().get_queryset()
-        if self.incomplete_review_only:
-            queryset = queryset.filter(is_complete=False)
-            queryset = queryset.filter(article__stage=submission_models.STAGE_UNDER_REVIEW)
-        if self.access_code:
-            queryset = queryset.filter(access_code=self.access_code)
-        elif self.request.user.is_staff:
-            pass  # staff can see all reviews
-        elif self.request.user.is_authenticated and self.request.user.check_role(
-            self.request.journal,
-            "section-editor",
-        ):
-            queryset = queryset.filter(editor=self.request.user)
-        elif self.request.user.is_authenticated:
-            queryset = queryset.filter(reviewer=self.request.user)
-        return queryset
-
-    def get_context_data(self, **kwargs) -> Context:
-        context = super().get_context_data(**kwargs)
-        context["access_code"] = self.access_code or self.object.access_code
-        return context
-
-
 class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
 
     title = _("Decline review")
@@ -1085,11 +1018,50 @@ class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
             return super().form_invalid(form)
 
 
+class PostponeRevisionRequestDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
+    """
+    View to postpone the date_due of a revision request (done by the editor)
+    """
+
+    title = _("Change revision due date")
+    model = EditorRevisionRequest
+    form_class = EditorRevisionRequestDueDateForm
+    template_name = "wjs_review/details/editor_revision_request_date_due_form.html"
+    context_object_name = "revision_request"
+
+    def test_func(self):
+        """
+        Check that the user is the article's editor
+        """
+        self.article = self.get_object().article.articleworkflow
+        return permissions.is_article_editor(self.article, self.request.user)
+
+    def form_valid(self, form):
+        """
+        Executed when EditorRevisionRequestDueDateForm is valid
+        """
+        form.save()
+        messages.success(self.request, _("The due date has been postponed."))
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
+
+    def get_success_url(self):
+        return reverse("wjs_article_details", args=(self.object.article.articleworkflow.id,))
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        kwargs["user"] = self.request.user
+        return kwargs
+
+
 class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
     form_class = EvaluateReviewForm
     template_name = "wjs_review/evaluate_review/review_evaluate.html"
     success_url = reverse_lazy("wjs_review_list")
     title = _("Accept/Decline invite to review")
+    use_access_code = True
 
     def get_success_url(self) -> str:
         """Redirect to a different URL according to the decision."""
@@ -1152,47 +1124,10 @@ class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
             return super().form_invalid(form)
 
 
-class PostponeRevisionRequestDueDate(HtmxMixin, UserPassesTestMixin, UpdateView):
-    """
-    View to postpone the date_due of a revision request (done by the editor)
-    """
-
-    title = _("Change revision due date")
-    model = EditorRevisionRequest
-    form_class = EditorRevisionRequestDueDateForm
-    template_name = "wjs_review/details/editor_revision_request_date_due_form.html"
-    context_object_name = "revision_request"
-
-    def test_func(self):
-        """
-        Check that the user is the article's editor
-        """
-        self.article = self.get_object().article.articleworkflow
-        return permissions.is_article_editor(self.article, self.request.user)
-
-    def form_valid(self, form):
-        """
-        Executed when EditorRevisionRequestDueDateForm is valid
-        """
-        form.save()
-        messages.success(self.request, _("The due date has been postponed."))
-        response = HttpResponse("ok")
-        response["HX-Redirect"] = self.get_success_url()
-        return response
-
-    def get_success_url(self):
-        return reverse("wjs_article_details", args=(self.object.article.articleworkflow.id,))
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["request"] = self.request
-        kwargs["user"] = self.request.user
-        return kwargs
-
-
 class ReviewDeclined(OpenReviewMixin):
     template_name = "wjs_review/review_declined.html"
     incomplete_review_only = False
+    use_access_code = True
 
 
 class ReviewEnd(OpenReviewMixin):
@@ -1203,6 +1138,7 @@ class ReviewEnd(OpenReviewMixin):
 class ReviewSubmit(BaseRelatedViewsMixin, EvaluateReviewRequest, ReviewerRequiredMixin):
     template_name = "wjs_review/submit_review/review_submit.html"
     title = _("Sumbit review")
+    use_access_code = False
 
     @property
     def allow_draft(self):
@@ -1309,7 +1245,7 @@ class ReviewSubmit(BaseRelatedViewsMixin, EvaluateReviewRequest, ReviewerRequire
             return super().form_valid(form)
 
 
-class AssignEoToArticle(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class AssignEoToArticle(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     model = ArticleWorkflow
     form_class = AssignEoForm
     template_name = "wjs_review/assign_eo/assign_eo.html"
@@ -1329,16 +1265,16 @@ class AssignEoToArticle(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, Upda
         return kwargs
 
 
-class ArticleAdminDispatchAssignment(LoginRequiredMixin, UserPassesTestMixin, View):
+class ArticleAdminDispatchAssignment(AuthenticatedUserPassesTest, View):
     model = ArticleWorkflow
 
     def test_func(self):
         """Verify that only staff can access."""
         return base_permissions.has_eo_role(self.request.user)
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Set current article on object for convenience."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.articleworkflow = get_object_or_404(self.model, pk=self.kwargs["pk"])
 
     def get(self, *args, **kwargs):
@@ -1522,9 +1458,9 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     context_object_name = "messages_list"
     filterset_class = MessageFilter
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Filter only messages related to a certain article and that the current user can see."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
         self.article = self.workflow.article
 
@@ -1592,7 +1528,7 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         return context
 
 
-class MessageAttachmentDownloadView(UserPassesTestMixin, DetailView):
+class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):
     """Let the recipients of a message with attachment download the attachment."""
 
     model = Message
@@ -1631,9 +1567,9 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
     source_message = None
     "The message we are replying to"
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Filter only messages related to a certain article and that the current user can see."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
         self.article = self.workflow.article
         if self.kwargs.get("original_message_pk"):
@@ -1850,7 +1786,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         return response
 
 
-class ToggleMessageReadView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class ToggleMessageReadView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     """A view to let the user toggle read/unread flag on a message."""
 
     model = MessageRecipients
@@ -1894,7 +1830,7 @@ class ToggleMessageReadView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
         return self.render_to_response(self.get_context_data(form=form, message=self.object.message))
 
 
-class ToggleMessageReadByEOView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     """A view to let the EO toggle read/unread flag on a message by other two actors."""
 
     model = Message
@@ -1926,7 +1862,7 @@ class ToggleMessageReadByEOView(HtmxMixin, LoginRequiredMixin, UserPassesTestMix
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
 
 
-class UploadRevisionAuthorCoverLetterFile(UserPassesTestMixin, LoginRequiredMixin, UpdateView):
+class UploadRevisionAuthorCoverLetterFile(AuthenticatedUserPassesTest, UpdateView):
     """
     Basic view to upload the optional file of the author cover letter.
 
@@ -1964,9 +1900,9 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
     context_object_name = "revision_request"
     meta_data_fields = ["title", "abstract"]
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
 
     def test_func(self):
@@ -2084,7 +2020,7 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         return context
 
 
-class ArticleRevisionFileUpdate(UserPassesTestMixin, LoginRequiredMixin, View):
+class ArticleRevisionFileUpdate(AuthenticatedUserPassesTest, View):
     model = EditorRevisionRequest
     pk_url_kwarg = "revision_id"
     context_object_name = "revision_request"
@@ -2096,9 +2032,9 @@ class ArticleRevisionFileUpdate(UserPassesTestMixin, LoginRequiredMixin, View):
             article__correspondence_author=self.request.user,
         ).exists()
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Store a reference to the revision request for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(EditorRevisionRequest, pk=self.kwargs[self.pk_url_kwarg])
 
     def get(self, *args, **kwargs):
@@ -2126,9 +2062,9 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     context_object_name = "reminders"
     filterset_class = ReminderFilter
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
 
     def test_func(self):
@@ -2180,7 +2116,7 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         return context
 
 
-class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     """
     View to allow the Editor to postpone Reviewer Report due date.
     """
@@ -2191,9 +2127,9 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
     context_object_name = "assignment"
     reviewer = False
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Fetch the ReviewAssignment instance for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
 
     def test_func(self):
@@ -2231,14 +2167,14 @@ class UpdateReviewerDueDate(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, 
         return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
 
 
-class EditorDeclineAssignmentView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class EditorDeclineAssignmentView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     template_name = "wjs_review/details/editor_rejects_assignment.html"
     form_class = EditorDeclinesAssignmentForm
     model = ArticleWorkflow
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Fetch the ArticleWorkflow instance for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, pk=self.kwargs["pk"])
 
     def test_func(self):
@@ -2452,9 +2388,9 @@ class ForwardMessage(BaseRelatedViewsMixin, CreateView):
         """Allow access only to EO (or staff)."""
         return base_permissions.has_admin_role(self.request.journal, self.request.user)
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Fetch the original message that we are going to forward."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.original_message = self.get_object()
         self.workflow = self.original_message.target.articleworkflow
 
@@ -2537,7 +2473,7 @@ class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
         )
 
 
-class AdminOpensAppealView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class AdminOpensAppealView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     """A view to move a paper to under appeal state.
 
     This passage can only be triggered by the EO.
@@ -2549,8 +2485,8 @@ class AdminOpensAppealView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, U
     template_name = "wjs_review/details/eo_select_editor.html"
     context_object_name = "workflow"
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
 
     def test_func(self):
@@ -2639,7 +2575,7 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
         return initial
 
 
-class ToggleIssueBatch(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, DetailView):
+class ToggleIssueBatch(HtmxMixin, AuthenticatedUserPassesTest, DetailView):
     """A view to toggle the issue batch state."""
 
     model = Issue

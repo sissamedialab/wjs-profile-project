@@ -24,6 +24,7 @@ from ..logic import (
     states_when_article_is_considered_in_review,
 )
 from ..models import ArticleWorkflow, WjsEditorAssignment, WorkflowReviewAssignment
+from ..views import BaseRelatedViewsMixin
 
 
 @pytest.mark.django_db
@@ -349,7 +350,7 @@ class TestListViews:
         self,
         setup_data,
         fake_request: HttpRequest,
-        view_class: Type[MultipleObjectMixin],
+        view_class: Type[BaseRelatedViewsMixin],
         role: str,
     ):
         """
@@ -362,8 +363,9 @@ class TestListViews:
         fake_request.user = user
         view_obj = view_class()
         view_obj.kwargs = {}
+        view_obj.args = {}
         view_obj.request = fake_request
-        view_obj.setup(fake_request)
+        view_obj.load_initial(fake_request)
         qs = view_obj.get_queryset()
         assert qs.exists()
         if role == "reviewer":
@@ -412,8 +414,9 @@ class TestListViews:
         fake_request.user = user
         view_obj = view_class()
         view_obj.kwargs = {}
+        view_obj.args = {}
         view_obj.request = fake_request
-        view_obj.setup(fake_request)
+        view_obj.load_initial(fake_request)
         qs = view_obj.get_queryset()
         assert qs.exists()
         if role == "reviewer":

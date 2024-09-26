@@ -51,7 +51,6 @@ from .views import (
     ToggleMessageReadByEOView,
     ToggleMessageReadView,
     UpdateReviewerDueDate,
-    UpdateState,
     UploadRevisionAuthorCoverLetterFile,
     WriteMessage,
 )
@@ -101,7 +100,6 @@ urlpatterns = [
     path("typesetter/archived/", TypesetterArchived.as_view(), name="wjs_review_typesetter_archived"),
     # Both authors and typs can set a paper ready for publication; the following is just an alias:
     path("typesetter/rfp/<int:pk>/", ReadyForPublicationView.as_view(), name="wjs_review_rfp"),
-    path("update/<int:pk>/", UpdateState.as_view(), name="update_state"),
     path("issues/<int:pk>/sections/order/", UpdateSectionOrder.as_view(), name="wjs_order_sections"),
     path("assign_eo/<int:pk>/", AssignEoToArticle.as_view(), name="wjs_assign_eo"),
     path(
