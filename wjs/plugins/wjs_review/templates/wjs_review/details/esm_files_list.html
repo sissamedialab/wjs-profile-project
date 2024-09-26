@@ -12,7 +12,7 @@
   <ul id="supplementary-files-list" class="list-group mb-3">
     {% for file in article.supplementary_files.all %}
       <li class="list-group-item d-flex justify-content-between align-items-center">
-        <a class="btn btn-link" href="{% url 'article_file_download' 'id' article.pk file.pk %}" target="_blank">{{ file.file }}</a>
+        <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.file }}</a>
         {% url "delete_supplementary_file" file_id=file.pk as delete_esm_url %}
         {% bootstrap_button name="delete-file" button_class="btn-danger btn-sm" hx_post=delete_esm_url hx_confirm=confirm_label hx_target="#htmxModalContent" content=delete_label %}
       </li>

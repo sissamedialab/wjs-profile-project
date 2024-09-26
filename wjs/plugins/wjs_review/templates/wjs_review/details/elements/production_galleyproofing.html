@@ -15,7 +15,7 @@
         <h6><i class="bi bi-journals pe-2"></i> {% translate "Annotated files" %}</h6>
         <ul class="list-group mb-0">
           {% for file in version.galleyproofing.annotated_files.all %}
-            <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}">{{ file.original_filename }}</a></li>
+            <li class="list-group-item p-0"><a class="btn btn-link" href="{% url 'download_single_file' file.article.pk file.pk %}">{{ file.original_filename }}</a></li>
           {% endfor %}
         </ul>
       </div>

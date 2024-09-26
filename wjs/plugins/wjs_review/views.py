@@ -35,7 +35,7 @@ from django.views.generic import (
 )
 from django_filters.views import FilterView
 from journal.models import Issue, Journal
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import logic as review_logic
 from review.models import ReviewAssignment
 from submission.models import Article
@@ -2489,16 +2489,6 @@ class ForwardMessage(BaseRelatedViewsMixin, CreateView):
         return reverse("wjs_article_details", kwargs={"pk": self.workflow.pk})
 
 
-class DownloadAnythingDROPME(View):
-    """DROPME! UNSAFE!"""
-
-    def get(self, request, *args, **kwargs):
-        """Serve any File."""
-        attachment = core_models.File.objects.get(pk=self.kwargs["file_id"])
-        article = Article.objects.get(pk=self.kwargs["article_id"])
-        return core_files.serve_file(request, attachment, article, public=True)
-
-
 class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
     title = _("Update Article Information")
     model = ArticleWorkflow
@@ -2641,3 +2631,83 @@ class ToggleIssueBatch(HtmxMixin, AuthenticatedUserPassesTest, DetailView):
         self.object.issueparameters.batch_publish = not self.object.issueparameters.batch_publish
         self.object.issueparameters.save()
         return self.get(request, *args, **kwargs)
+
+
+class DownloadSingleFile(AuthenticatedUserPassesTest, View):
+    """
+    View to allow any user to download single files across all templates. Also checking if the user has permission
+    """
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.attachment = core_models.File.objects.get(pk=self.kwargs["file_id"])
+        self.article = Article.objects.get(pk=self.kwargs["article_id"])
+
+    def test_func(self):
+        """Check if the user can see(download) the file. Both full permission and NO_NAME grant access to files."""
+        related_instances = self._get_related_instances()
+        for instance in related_instances:
+            if PermissionChecker()(
+                self.article.articleworkflow,
+                self.request.user,
+                instance,
+                permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+            ):
+                return True
+        return False
+
+    def _get_related_instances(self):
+        """Get the instance's relations to check permissions."""
+        related_instances = []
+        # Article's fields
+        if (
+            self.article.large_image_file == self.attachment
+            or self.article.thumbnail_image_file == self.attachment
+            or self.article.render_galley == self.attachment
+        ):
+            related_instances.append(self.article)
+        for related_field in [
+            self.article.manuscript_files,
+            self.article.data_figure_files,
+            self.article.source_files,
+            self.article.supplementary_files,
+        ]:
+            if related_field.filter(pk=self.attachment.pk).exists():
+                related_instances.append(self.article)
+        # ArticleWorkflow's files
+        # FIXME: might need to add articleworkflow.publication_galleys_source_file because of specs#1048
+        if self.article.articleworkflow.supplementary_files_at_acceptance.filter(file__pk=self.attachment.pk).exists():
+            related_instances.append(self.article)
+        # EditorRevisionRequest's files
+        for err in [
+            EditorRevisionRequest.objects.filter(cover_letter_file=self.attachment).first(),
+            EditorRevisionRequest.objects.filter(manuscript_files__pk=self.attachment.pk).first(),
+            EditorRevisionRequest.objects.filter(data_figure_files__pk=self.attachment.pk).first(),
+            EditorRevisionRequest.objects.filter(source_files__pk=self.attachment.pk).first(),
+            EditorRevisionRequest.objects.filter(supplementary_files__file__pk=self.attachment.pk).first(),
+        ]:
+            if err:
+                related_instances.append(err)
+        # WorkflowReviewAssignment's files (reviewers' report files)
+        if wra := WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first():
+            related_instances.append(wra)
+        # TypesettingAssignment's files
+        for ta in [
+            TypesettingAssignment.objects.filter(files_to_typeset__pk=self.attachment.pk).first(),
+            TypesettingAssignment.objects.filter(galleys_created__pk=self.attachment.pk).first(),
+        ]:
+            if ta:
+                related_instances.append(ta)
+        # GalleyProofing's files
+        for gp in [
+            GalleyProofing.objects.filter(proofed_files__pk=self.attachment.pk).first(),
+            GalleyProofing.objects.filter(annotated_files__pk=self.attachment.pk).first(),
+        ]:
+            if gp:
+                related_instances.append(gp)
+
+        return related_instances
+
+    def get(self, request, *args, **kwargs):
+        """Serves an article file."""
+        return core_files.serve_file(request, self.attachment, self.article)

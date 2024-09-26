@@ -11,7 +11,7 @@
                     aria-controls="rr{{ round.pk }}Files">Files at acceptance</button>
             <div class="collapse" id="rr{{ round.pk }}Files">
                     {% for file in round.article.articleworkflow.supplementary_files_at_acceptance.all %}
-                        <li><a target="_blank" href="{% url 'article_file_download' 'id' round.article.pk file.pk %}">{{ file.file }}</a></li>
+                        <li><a target="_blank" href="{% url 'download_single_file' round.article.pk file.pk %}">{{ file.file }}</a></li>
                     {% endfor %}
             </div>
     {% endif %}

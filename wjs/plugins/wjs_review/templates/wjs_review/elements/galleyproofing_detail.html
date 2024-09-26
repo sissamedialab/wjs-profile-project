@@ -9,7 +9,7 @@
     <div class="collapse" id="rr{{ proofing_assignment.pk }}Files">
             {% for galley in proofing_assignment.proofed_files.all %}
                 {% if galley.file.label == "PDF" %}
-                    <li><a target="_blank" href="{% url 'article_file_download' 'id' galley.article.pk galley.file.pk %}">{{ galley.file }}</a></li>
+                    <li><a target="_blank" href="{% url 'download_single_file' galley.article.pk galley.file.pk %}">{{ galley.file }}</a></li>
                 {% endif %}
             {% endfor %}
     </div>
@@ -22,7 +22,7 @@
     <div class="collapse" id="rr{{ proofing_assignment.pk }}AnnotatedFiles">
         <ul>
             {% for file in proofing_assignment.annotated_files.all %}
-                <li><a target="_blank" href="{% url 'article_file_download' 'id' file.article.pk file.pk %}">{{ file }}</a></li>
+                <li><a target="_blank" href="{% url 'download_single_file' file.article.pk file.pk %}">{{ file }}</a></li>
             {% endfor %}
             {{ proofing_assignment.notes }}
         </ul>
