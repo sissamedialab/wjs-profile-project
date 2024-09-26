@@ -357,6 +357,7 @@ Thank you and begards,<br>
             revision_request_date_due_postponed_subject_setting,
             revision_request_date_due_postponed_subject_setting_value,
             revision_request_date_due_postponed_subject_setting["name"],
+            force=force,
         )
         revision_request_date_due_postponed_body_setting: SettingParams = {
             "name": "revision_request_date_due_postponed_body",
@@ -384,6 +385,7 @@ Regards,<br>
             revision_request_date_due_postponed_body_setting,
             revision_request_date_due_postponed_body_setting_value,
             revision_request_date_due_postponed_body_setting["name"],
+            force=force,
         )
 
         revision_request_date_due_far_future_subject_setting: SettingParams = {
@@ -406,6 +408,7 @@ Regards,<br>
             revision_request_date_due_far_future_subject_setting,
             revision_request_date_due_far_future_subject_setting_value,
             revision_request_date_due_far_future_subject_setting["name"],
+            force=force,
         )
         revision_request_date_due_far_future_body_setting: SettingParams = {
             "name": "revision_request_date_due_far_future_body",
@@ -431,6 +434,7 @@ The revision due date for the article "{{ article.title }}" has been postponed t
             revision_request_date_due_far_future_body_setting,
             revision_request_date_due_far_future_body_setting_value,
             revision_request_date_due_far_future_body_setting["name"],
+            force=force,
         )
         return setting_1, setting_2, setting_3, setting_4
 
@@ -511,6 +515,7 @@ Thank you and best regards,
             technical_revision_subject_setting,
             technical_revision_subject_setting_value,
             technical_revision_subject_setting["name"],
+            force=force,
         )
         technical_revision_body_setting: SettingParams = {
             "name": "technical_revision_body",
@@ -532,6 +537,7 @@ Thank you and best regards,
             technical_revision_body_setting,
             technical_revision_body_setting_value,
             technical_revision_body_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -556,6 +562,7 @@ Thank you and best regards,
             revision_submission_subject_setting,
             revision_submission_subject_setting_value,
             revision_submission_subject_setting["name"],
+            force=force,
         )
         revision_submission_message_setting: SettingParams = {
             "name": "revision_submission_body",
@@ -585,6 +592,7 @@ Thank you and best regards,
             revision_submission_message_setting,
             revision_submission_message_setting_value,
             revision_submission_message_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -609,6 +617,7 @@ Thank you and best regards,
             requeue_article_subject_setting,
             requeue_article_subject_setting_value,
             requeue_article_subject_setting["name"],
+            force=force,
         )
         requeue_article_message_setting: SettingParams = {
             "name": "requeue_article_body",
@@ -630,6 +639,7 @@ Thank you and best regards,
             requeue_article_message_setting,
             requeue_article_message_setting_value,
             requeue_article_message_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -654,6 +664,7 @@ Thank you and best regards,
             requires_resubmission_subject_setting,
             requires_resubmission_subject_setting_value,
             requires_resubmission_subject_setting["name"],
+            force=force,
         )
         requires_resubmission_message_setting: SettingParams = {
             "name": "review_decision_requires_resubmission_body",
@@ -682,6 +693,7 @@ Thank you and best regards,<br><br>
             requires_resubmission_message_setting,
             requires_resubmission_message_setting_value,
             requires_resubmission_message_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1055,6 +1067,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             prophy_journal_setting,
             prophy_journal_setting_value,
             prophy_journal_setting["name"],
+            force=force,
         )
         prophy_upload_enabled_setting: SettingParams = {
             "name": "prophy_upload_enabled",
@@ -1076,6 +1089,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             prophy_upload_enabled_setting,
             prophy_upload_enabled_setting_value,
             prophy_upload_enabled_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1100,6 +1114,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             subject_due_date_postpone_setting,
             subject_due_date_postpone_setting_value,
             subject_due_date_postpone_setting["name"],
+            force=force,
         )
         due_date_postpone_setting: SettingParams = {
             "name": "due_date_postpone_body",
@@ -1128,6 +1143,7 @@ Thank you in advance for your cooperation and best regards,<br>
             due_date_postpone_setting,
             due_date_postpone_setting_value,
             due_date_postpone_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1152,6 +1168,7 @@ Thank you in advance for your cooperation and best regards,<br>
             subject_due_date_far_future_setting,
             subject_due_date_far_future_setting_value,
             subject_due_date_far_future_setting["name"],
+            force=force,
         )
         due_date_far_future_setting: SettingParams = {
             "name": "due_date_far_future_body",
@@ -1179,6 +1196,7 @@ Thank you in advance for your cooperation and best regards,<br>
             due_date_far_future_setting,
             due_date_far_future_setting_value,
             due_date_far_future_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1203,6 +1221,7 @@ Thank you in advance for your cooperation and best regards,<br>
             subject_editor_decline_assignment_setting,
             subject_editor_decline_assignment_setting_value,
             subject_editor_decline_assignment_setting["name"],
+            force=force,
         )
         editor_decline_assignment_setting: SettingParams = {
             "name": "editor_decline_assignment_default",
@@ -1240,6 +1259,7 @@ Best regards,
             editor_decline_assignment_setting,
             editor_decline_assignment_setting_value,
             editor_decline_assignment_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1264,6 +1284,7 @@ Best regards,
             wjs_editor_i_will_review_message_subject_setting,
             wjs_editor_i_will_review_message_subject_setting_value,
             wjs_editor_i_will_review_message_subject_setting["name"],
+            force=force,
         )
         wjs_editor_i_will_review_message_body_setting: SettingParams = {
             "name": "wjs_editor_i_will_review_message_body",
@@ -1285,6 +1306,7 @@ Best regards,
             wjs_editor_i_will_review_message_body_setting,
             wjs_editor_i_will_review_message_body_setting_value,
             wjs_editor_i_will_review_message_body_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1309,6 +1331,7 @@ Best regards,
             subject_typesetting_assignment,
             subject_typesetting_assignment_setting_value,
             subject_typesetting_assignment["name"],
+            force=force,
         )
         typesetter_is_assigned_setting: SettingParams = {
             "name": "typesetting_assignment_body",
@@ -1335,6 +1358,7 @@ Please visit: {{ article.articleworkflow.url }}
             typesetter_is_assigned_setting,
             typesetter_is_assigned_setting_value,
             typesetter_is_assigned_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1359,6 +1383,7 @@ Please visit: {{ article.articleworkflow.url }}
             subject_eo_assignment,
             subject_eo_assignment_setting_value,
             subject_eo_assignment["name"],
+            force=force,
         )
         eo_is_assigned_setting: SettingParams = {
             "name": "eo_assignment_body",
@@ -1380,6 +1405,7 @@ Please visit: {{ article.articleworkflow.url }}
             eo_is_assigned_setting,
             eo_is_assigned_setting_value,
             eo_is_assigned_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1405,6 +1431,7 @@ Please visit: {{ article.articleworkflow.url }}
             subject_proofreading_request,
             subject_proofreading_request_setting_value,
             subject_proofreading_request["name"],
+            force=force,
         )
         proofreading_request_setting: SettingParams = {
             "name": "proofreading_request_body",
@@ -1450,6 +1477,7 @@ Thank you and best regards,
             proofreading_request_setting,
             proofreading_request_setting_value,
             proofreading_request_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1474,6 +1502,7 @@ Thank you and best regards,
             subject_author_sends_corrections,
             subject_author_sends_corrections_setting_value,
             subject_author_sends_corrections["name"],
+            force=force,
         )
         author_sends_corrections_setting: SettingParams = {
             "name": "author_sends_corrections_body",
@@ -1498,6 +1527,7 @@ Author {{ article.correspondence_author.full_name }} has sent corrections [...] 
             author_sends_corrections_setting,
             author_sends_correction_setting_value,
             author_sends_corrections_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1522,6 +1552,7 @@ Author {{ article.correspondence_author.full_name }} has sent corrections [...] 
             subject_typesetting_generated_galleys,
             subject_typesetting_generated_galleys_setting_value,
             subject_typesetting_generated_galleys["name"],
+            force=force,
         )
         typesetting_generated_galleys_setting: SettingParams = {
             "name": "typesetting_generated_galleys_body",
@@ -1546,6 +1577,7 @@ Galleys for the {{ article.section.name }} {{ article.id }} are ready.
             typesetting_generated_galleys_setting,
             typesetting_generated_galleys_setting_value,
             typesetting_generated_galleys_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1570,6 +1602,7 @@ Galleys for the {{ article.section.name }} {{ article.id }} are ready.
             subject_editor_deassign_reviewer,
             subject_editor_deassign_reviewer_setting_value,
             subject_editor_deassign_reviewer["name"],
+            force=force,
         )
         editor_deassign_reviewer_setting: SettingParams = {
             "name": "editor_deassign_reviewer_default",
@@ -1600,6 +1633,7 @@ Thank you and best regards,
             editor_deassign_reviewer_setting,
             editor_deassign_reviewer_setting_value,
             editor_deassign_reviewer_setting["name"],
+            force=force,
         )
         subject_editor_deassign_reviewer_system: SettingParams = {
             "name": "editor_deassign_reviewer_system_subject",
@@ -1621,6 +1655,7 @@ Thank you and best regards,
             subject_editor_deassign_reviewer_system,
             subject_editor_deassign_reviewer_system_setting_value,
             subject_editor_deassign_reviewer_system["name"],
+            force=force,
         )
         editor_deassign_reviewer_system_setting: SettingParams = {
             "name": "editor_deassign_reviewer_system_body",
@@ -1642,6 +1677,7 @@ Thank you and best regards,
             editor_deassign_reviewer_system_setting,
             editor_deassign_reviewer_system_setting_value,
             editor_deassign_reviewer_system_setting["name"],
+            force=force,
         )
         return setting_1, setting_2, setting_3, setting_4
 
@@ -1666,6 +1702,7 @@ Thank you and best regards,
             subject_eo_opens_appeal,
             subject_eo_opens_appeal_setting_value,
             subject_eo_opens_appeal["name"],
+            force=force,
         )
         eo_opens_appeal_setting: SettingParams = {
             "name": "eo_opens_appeal_body",
@@ -1696,6 +1733,7 @@ Thank you and best regards,
             eo_opens_appeal_setting,
             eo_opens_appeal_setting_value,
             eo_opens_appeal_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1720,6 +1758,7 @@ Thank you and best regards,
             subject_author_withdraws_preprint,
             subject_author_withdraws_preprint_setting_value,
             subject_author_withdraws_preprint["name"],
+            force=force,
         )
         author_withdraws_preprint_setting: SettingParams = {
             "name": "author_withdraws_preprint_body",
@@ -1727,23 +1766,25 @@ Thank you and best regards,
             "types": "text",
             "pretty_name": _("Default message for author withdrawing a preprint."),
             "description": _(
-                "The body of the notification that is sent to the EO/Editor when a preprint is withdrawn.",
+                "The body of the notification that is sent to the EO/Editor when a preprint is withdrawn. The author can modify it (so don't include the editor's name).",
             ),
             "is_translatable": False,
         }
         author_withdraws_preprint_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ supervisor.full_name }}, I'm withdrawing the preprint {{ article.id }}.
-
-            {{ article.correspondence_author.full_name }}
-            """,
+            "value": """Dear editors, I'm withdrawing the preprint {{ article.id }}.
+<br>
+<br>
+{{ article.correspondence_author.full_name }}
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
             author_withdraws_preprint_setting,
             author_withdraws_preprint_setting_value,
             author_withdraws_preprint_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1768,6 +1809,7 @@ Thank you and best regards,
             subject_preprint_withdrawn_preprint,
             subject_preprint_withdrawn_setting_value,
             subject_preprint_withdrawn_preprint["name"],
+            force=force,
         )
         preprint_withdrawn_setting: SettingParams = {
             "name": "preprint_withdrawn_body",
@@ -1792,6 +1834,7 @@ Thank you and best regards,
             preprint_withdrawn_setting,
             preprint_withdrawn_setting_value,
             preprint_withdrawn_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1816,6 +1859,7 @@ Thank you and best regards,
             subject_author_submits_appeal,
             subject_author_submits_appeal_setting_value,
             subject_author_submits_appeal["name"],
+            force=force,
         )
         author_submits_appeal_setting: SettingParams = {
             "name": "author_submits_appeal_body",
@@ -1844,6 +1888,7 @@ Thank you and best regards,
             author_submits_appeal_setting,
             author_submits_appeal_setting_value,
             author_submits_appeal_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
@@ -1868,6 +1913,7 @@ Thank you and best regards,
             subject_eo_send_back_to_typesetting,
             subject_eo_send_back_to_typesetting_setting_value,
             subject_eo_send_back_to_typesetting["name"],
+            force=force,
         )
         eo_send_back_to_typesetting_setting: SettingParams = {
             "name": "eo_send_back_to_typesetting_body",
@@ -1896,6 +1942,7 @@ Thank you and best regards,
             eo_send_back_to_typesetting_setting,
             eo_send_back_to_typesetting_setting_value,
             eo_send_back_to_typesetting_setting["name"],
+            force=force,
         )
         return setting_1, setting_2
 
