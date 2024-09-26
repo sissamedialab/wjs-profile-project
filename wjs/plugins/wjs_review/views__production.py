@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, List
 from core.models import File, SupplementaryFile
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -16,7 +15,6 @@ from django.views.generic import DetailView, FormView, TemplateView, UpdateView,
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
-from plugins.wjs_review.states import BaseState
 from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile import permissions as base_permissions
@@ -47,6 +45,7 @@ from .logic__production import (
     TypesetterTestsGalleyGeneration,
     finishpublication_wrapper,
 )
+from .mixins import AuthenticatedUserPassesTest
 from .models import ArticleWorkflow
 from .permissions import (
     has_typesetter_role_by_article,
@@ -54,6 +53,7 @@ from .permissions import (
     is_article_supervisor,
     is_article_typesetter,
 )
+from .states import BaseState
 from .views import ArticleWorkflowBaseMixin, BaseRelatedViewsMixin
 
 if TYPE_CHECKING:
@@ -133,7 +133,7 @@ class TypesetterArchived(TypesetterPending):
         ).order_by("-article__date_accepted")
 
 
-class TypesetterUploadFiles(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class TypesetterUploadFiles(AuthenticatedUserPassesTest, UpdateView):
     """View allowing the typesetter to upload files."""
 
     title = _("Files to typeset")
@@ -173,16 +173,16 @@ class TypesetterUploadFiles(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         return context
 
 
-class DownloadRevisionFiles(LoginRequiredMixin, UserPassesTestMixin, View):
+class DownloadRevisionFiles(AuthenticatedUserPassesTest, View):
     """
     View to allow the Typesetter to download the last-revision files for an article.
     """
 
     model = ArticleWorkflow
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
 
     def test_func(self):
@@ -210,14 +210,14 @@ class DownloadRevisionFiles(LoginRequiredMixin, UserPassesTestMixin, View):
             return Http404
 
 
-class ReadyForProofreadingView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ReadyForProofreadingView(AuthenticatedUserPassesTest, TemplateView):
     """Typesetter sends the paper to the author for proofreading."""
 
     model = TypesettingAssignment
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article and object for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.round.article
 
@@ -246,7 +246,7 @@ class ReadyForProofreadingView(LoginRequiredMixin, UserPassesTestMixin, Template
         )
 
 
-class ListSupplementaryFileView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+class ListSupplementaryFileView(AuthenticatedUserPassesTest, DetailView):
     """View to allow the typesetter to upload supplementary files."""
 
     model = ArticleWorkflow
@@ -254,9 +254,9 @@ class ListSupplementaryFileView(LoginRequiredMixin, UserPassesTestMixin, DetailV
     form_class = EsmFileForm
     context_object_name = "workflow"
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article and object for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
 
     def test_func(self):
@@ -275,16 +275,16 @@ class ListSupplementaryFileView(LoginRequiredMixin, UserPassesTestMixin, DetailV
         return context
 
 
-class CreateSupplementaryFileView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, FormView):
+class CreateSupplementaryFileView(HtmxMixin, AuthenticatedUserPassesTest, FormView):
     """View to allow the typesetter to upload supplementary files."""
 
     model = File
     form_class = EsmFileForm
     template_name = "wjs_review/details/esm_files_list.html"
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.articleworkflow = get_object_or_404(ArticleWorkflow, article_id=self.kwargs["article_id"])
 
     def test_func(self) -> bool:
@@ -310,16 +310,16 @@ class CreateSupplementaryFileView(HtmxMixin, LoginRequiredMixin, UserPassesTestM
         return context
 
 
-class DeleteSupplementaryFileView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class DeleteSupplementaryFileView(HtmxMixin, AuthenticatedUserPassesTest, TemplateView):
     """View to allow the typesetter to delete supplementary files."""
 
     model = SupplementaryFile
     form_class = EsmFileForm
     template_name = "wjs_review/details/esm_files_list.html"
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.supplementary_file = get_object_or_404(self.model, pk=self.kwargs["file_id"])
         self.article = self.supplementary_file.file.article
 
@@ -364,8 +364,8 @@ class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
     form_class = UploadAnnotatedFilesForm
     context_object_name = "galleyproofing"
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(GalleyProofing, pk=kwargs["pk"])
         self.article = self.object.round.article
 
@@ -443,14 +443,14 @@ class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
             return self.get(self.request, *self.args, **self.kwargs)
 
 
-class TogglePublishableFlagView(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class TogglePublishableFlagView(HtmxMixin, AuthenticatedUserPassesTest, TemplateView):
     """Typesetter toggles `production_flag_no_checks_needed` flag."""
 
     model = ArticleWorkflow
     template_name = "wjs_review/elements/article_actions_button.html"
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
 
     def test_func(self):
@@ -476,7 +476,7 @@ class TogglePublishableFlagView(HtmxMixin, LoginRequiredMixin, UserPassesTestMix
         return HttpResponseRedirect(self.get_success_url())
 
 
-class ReadyForPublicationView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ReadyForPublicationView(AuthenticatedUserPassesTest, TemplateView):
     """A view to move a paper to ready-for-publication.
 
     This passage can be triggered either
@@ -486,8 +486,8 @@ class ReadyForPublicationView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
 
     model = ArticleWorkflow
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
 
     def test_func(self):
@@ -552,8 +552,8 @@ class GalleyGenerationView(BaseRelatedViewsMixin, TemplateView):
     template_name = "wjs_review/details/typesetter_generated_galleys.html"
     error = ""
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.articleworkflow = self.object.round.article.articleworkflow
 
@@ -595,9 +595,9 @@ class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
     template_name = "wjs_review/write_message/write_messages.html"
     success_url = reverse_lazy("wjs_review_eo_pending")
 
-    def setup(self, request, *args, **kwargs):
+    def load_initial(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""
-        super().setup(request, *args, **kwargs)
+        super().load_initial(request, *args, **kwargs)
         self.workflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
         self.assignment = (
             TypesettingAssignment.objects.filter(round__article=self.workflow.article)
@@ -665,13 +665,13 @@ class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
             return super().form_invalid(form)
 
 
-class TypesetterTakeInCharge(LoginRequiredMixin, UserPassesTestMixin, View):
+class TypesetterTakeInCharge(AuthenticatedUserPassesTest, View):
     """View to allow the typsetter to take in charge a paper."""
 
     model = ArticleWorkflow
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, id=self.kwargs["pk"])
 
     def test_func(self):
@@ -702,7 +702,7 @@ class TypesetterTakeInCharge(LoginRequiredMixin, UserPassesTestMixin, View):
         )
 
 
-class UpdateSectionOrder(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class UpdateSectionOrder(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     model = Issue
     form_class = SectionOrderForm
     template_name = "wjs_review/lists/elements/issue/issue_list.html"
@@ -726,13 +726,13 @@ class UpdateSectionOrder(HtmxMixin, LoginRequiredMixin, UserPassesTestMixin, Upd
         return render(self.request, self.template_name, {"issue": self.object, "form": form})
 
 
-class BeginPublicationView(LoginRequiredMixin, UserPassesTestMixin, View):
+class BeginPublicationView(AuthenticatedUserPassesTest, View):
     """EO publish a paper."""
 
     model = ArticleWorkflow
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.article
 
@@ -760,7 +760,7 @@ class BeginPublicationView(LoginRequiredMixin, UserPassesTestMixin, View):
         return HttpResponseRedirect(self.object.article.url)
 
 
-class FinishPublicationView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):
     """Finish (or retry) the publication process.
 
     The second stage might be long (galley generation can last for even a minute) and could crash (most probably for
@@ -772,8 +772,8 @@ class FinishPublicationView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
 
     model = ArticleWorkflow
 
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
         self.object = self.model.objects.get(pk=self.kwargs["pk"])
         self.article = self.object.article
 

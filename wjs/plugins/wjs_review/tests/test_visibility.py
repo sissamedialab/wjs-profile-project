@@ -496,7 +496,10 @@ def test_permission_form_view_setup_reviewer(
     )
 
     view_obj = EditUserPermissions()
-    view_obj.setup(fake_request, pk=assigned_article.articleworkflow.pk, user_id=normal_user.pk)
+    view_obj.kwargs = {"pk": assigned_article.articleworkflow.pk, "user_id": normal_user.pk}
+    view_obj.args = ()
+    view_obj.load_initial(fake_request, pk=assigned_article.articleworkflow.pk, user_id=normal_user.pk)
+    view_obj.request = fake_request
     objs = view_obj._get_article_objects()
     # 1 article
     # 1 editor revision request
@@ -605,8 +608,11 @@ def test_permission_form_view_setup_editor(
         create_jcom_user,
     )
     view_obj = EditUserPermissions()
+    view_obj.kwargs = {"pk": assigned_article.articleworkflow.pk, "user_id": normal_user.pk}
+    view_obj.args = ()
     fake_request.user = normal_user.janeway_account
-    view_obj.setup(fake_request, pk=assigned_article.articleworkflow.pk, user_id=normal_user.pk)
+    view_obj.load_initial(fake_request, pk=assigned_article.articleworkflow.pk, user_id=normal_user.pk)
+    view_obj.request = fake_request
     objs = view_obj._get_article_objects()
     # 1 article
     # 2 editor revision request
@@ -659,7 +665,10 @@ def test_permission_form_view_setup_editor(
     # Permissions for original editor
     fake_request.user = past_assignment.editor
     view_obj = EditUserPermissions()
-    view_obj.setup(fake_request, pk=assigned_article.articleworkflow.pk, user_id=past_assignment.editor.pk)
+    view_obj.kwargs = {"pk": assigned_article.articleworkflow.pk, "user_id": past_assignment.editor.pk}
+    view_obj.args = ()
+    view_obj.load_initial(fake_request, pk=assigned_article.articleworkflow.pk, user_id=past_assignment.editor.pk)
+    view_obj.request = fake_request
     initial = view_obj.get_initial()
     assert len(initial) == 11
     for index, item in enumerate(initial):

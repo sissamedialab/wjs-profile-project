@@ -538,7 +538,7 @@ class EditorSelected(BaseState):
     ) + BaseState.article_actions
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
-            permission=permissions.is_person_working_on_article,
+            permission=permissions.is_article_reviewer,
             name="see review",
             label="Upload review",
             view_name="wjs_assign_permission",

@@ -853,7 +853,7 @@ class ImportCorrespondenceManager:
                 if not msg.recipients.all():
                     raise RuntimeError(
                         f"msg {m['documentLayerCod']} without recipients: {self.article.id}"
-                        f" {m['documentLayerSubject']} { m['documentLayerType']} {message_recipients_no_bcc=}"
+                        f" {m['documentLayerSubject']} {m['documentLayerType']} {message_recipients_no_bcc=}"
                     )
 
         logger.debug(f"imported correspondence for {self.preprintid}/{self.imported_version_num}")
