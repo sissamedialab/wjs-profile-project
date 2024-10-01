@@ -390,7 +390,7 @@ def test_reviewer_accepts__deletes_some_reminders(
     service__evaluate_review.run()
     assert Reminder.objects.count() == 2
     r_1 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1)
-    assert r_1.actor == service__evaluate_review.editor
+    assert r_1.actor == get_eo_user(assigned_article.journal)
     assert r_1.recipient == service__evaluate_review.reviewer
     assert r_1.date_due == acceptance_due_date + datetime.timedelta(days=r_1_date)
     r_2 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2)

@@ -495,7 +495,7 @@ Thank you very much in advance for your cooperation and kind regards,<br>
 <br>
 {{ journal.code }} Editorial Office
 """,
-            actor="editor",
+            actor="EO",
             recipient="reviewer",
             days_after=0,
             clemency_days=2,
