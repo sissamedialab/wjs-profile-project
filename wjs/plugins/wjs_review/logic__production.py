@@ -403,20 +403,21 @@ class UploadFile:
         return self.file_to_upload and self.file_to_upload.content_type in ["application/zip"]
 
     def _remove_file_from_assignment(self):
-        """Empties the files_to_typeset field of TypesettingAssignment."""
+        """Empty the files_to_typeset field of TypesettingAssignment."""
         self.assignment.files_to_typeset.clear()
 
     def _delete_core_files_record(self):
+        """Delete the current source files and reset the flag to galleys-untested."""
         file_record = self.assignment.files_to_typeset.get()
         file_record.delete()
-
-    def _update_typesetting_assignment(self, uploaded_file):
-        """Create the relation in files_to_typeset field of TypesettingAssignment"""
-        self.assignment.files_to_typeset.add(uploaded_file)
         self.assignment.round.article.articleworkflow.production_flag_galleys_ok = (
             ArticleWorkflow.GalleysStatus.NOT_TESTED
         )
         self.assignment.round.article.articleworkflow.save()
+
+    def _update_typesetting_assignment(self, uploaded_file):
+        """Create the relation in files_to_typeset field of TypesettingAssignment."""
+        self.assignment.files_to_typeset.add(uploaded_file)
 
     def _look_for_queries_in_archive(self):
         """Check if there are any queries in the archive's source tex file."""
@@ -426,7 +427,7 @@ class UploadFile:
         self.assignment.round.article.articleworkflow.save()
 
     def run(self):
-        """Main method to execute the file upload logic."""
+        """Execute the file upload logic."""
         with transaction.atomic():
             if not self._check_typesetter_condition():
                 raise ValueError("Invalid state transition")
