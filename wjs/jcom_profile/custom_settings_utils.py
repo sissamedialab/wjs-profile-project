@@ -478,7 +478,7 @@ class SettingsCSVWrapper:
             "setting name": setting_value.setting.name,
             "setting group": setting_value.setting.group.name,
             "value": setting_value.processed_value,
-            "usage": "",
+            "usage": setting_value.setting.description,
             "verbosity": "",
             "auto mark as read": "",
             "auto mark as read by eo": "",

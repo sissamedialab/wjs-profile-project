@@ -7,13 +7,9 @@ from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
 
-from wjs.jcom_profile import permissions as base_permissions
-
-from .. import communication_utils
 from ..logic import CreateReviewRound, VerifyProductionRequirements
 from ..models import (
     ArticleWorkflow,
-    Message,
     ProphyAccount,
     ProphyCandidate,
     WjsEditorAssignment,
@@ -88,28 +84,6 @@ def on_revision_complete(**kwargs) -> None:
     # NB: STAGE_ASSIGNED is the correct stage here, because the other candidate STAGE_UNDER_REVIEW is set by
     # review.logic.quick_assign() only when a review assigment is created.
     article.save()
-
-
-def log_author_uploads_revision(**kwargs) -> Message:
-    """Log a message when the author uploads a revision.
-
-    This is used because we let Janeway manage the upload of a revision.
-    """
-    revision_request = kwargs.pop("revision")
-    article = revision_request.article
-    actor = article.correspondence_author
-    editor = revision_request.editor
-    message = communication_utils.log_operation(
-        article=article,
-        message_subject="Author submits revision.",
-        message_body=revision_request.author_note,
-        actor=actor,
-        recipients=[editor],
-        verbosity=Message.MessageVerbosity.FULL,
-        hijacking_actor=base_permissions.get_hijacker(),
-        notify_actor=communication_utils.should_notify_actor(),
-    )
-    return message
 
 
 def send_to_prophy(**kwargs) -> None:

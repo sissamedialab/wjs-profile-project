@@ -577,11 +577,17 @@ Thank you and best regards,
         revision_submission_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear Dr. {{ editor.full_name }},
+            "value": """{% if revision.type == "Technical Revisions" %}TECHNICAL REVISION
+Dear colleague,
 <br><br>
-Please connect to {{ article.articleworkflow.url }} to download the {{ article.section.name }}  resubmitted in reply to your request for revision. [...]
+Please note that the author has updated the metadata of the {{ article.section.name }} <a href="{{ article.articleworkflow.url }}">{{ article.title }}</a>.
+{% else %}NON-TECH REVISION
+Dear Dr. {{ editor.full_name }},
+<br><br>
+Please connect to <a href="{{ article.articleworkflow.url }}">the article page</a> to download the {{ article.section.name }}  resubmitted in reply to your request for revision. [...]
 <br>
 You are kindly requested to either select reviewers or make a decision within {{ default_editor_assign_reviewer_days }} days.
+{% endif %}
 <br><br>
 Thank you and best regards,
 <br>
@@ -1635,51 +1641,7 @@ Thank you and best regards,
             editor_deassign_reviewer_setting["name"],
             force=force,
         )
-        subject_editor_deassign_reviewer_system: SettingParams = {
-            "name": "editor_deassign_reviewer_system_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject for system message when a reviewer is deassigned."),
-            "description": _(
-                "The subject of the system message that is logged when the reviewer is deassigned but not notified.",
-            ),
-            "is_translatable": False,
-        }
-        subject_editor_deassign_reviewer_system_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Invite to review withdrawn",
-            "translations": {},
-        }
-        setting_3 = create_customization_setting(
-            subject_editor_deassign_reviewer_system,
-            subject_editor_deassign_reviewer_system_setting_value,
-            subject_editor_deassign_reviewer_system["name"],
-            force=force,
-        )
-        editor_deassign_reviewer_system_setting: SettingParams = {
-            "name": "editor_deassign_reviewer_system_body",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Body of the system message when a reviewer is deassigned."),
-            "description": _(
-                "The body of the system message that is logged when the reviewer is deassigned but not notified.",
-            ),
-            "is_translatable": False,
-        }
-        editor_deassign_reviewer_system_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Reviewer {{ assignment.reviewer.full_name }} has been deselected.""",
-            "translations": {},
-        }
-        setting_4 = create_customization_setting(
-            editor_deassign_reviewer_system_setting,
-            editor_deassign_reviewer_system_setting_value,
-            editor_deassign_reviewer_system_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2, setting_3, setting_4
+        return setting_1, setting_2
 
     def eo_opens_appeal_message():
         subject_eo_opens_appeal: SettingParams = {
