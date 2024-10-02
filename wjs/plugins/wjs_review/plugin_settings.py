@@ -195,32 +195,6 @@ JCOM Editor-in-charge
             ),
         )
 
-    def do_review_message() -> tuple[SettingValue, ...]:
-        do_review_message_setting: SettingParams = {
-            "name": "do_review_message",
-            "group": wjs_review_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Message shown on review submit page"),
-            "description": _(
-                "Provide instructions to handle reviews.",
-            ),
-            "is_translatable": False,
-        }
-        do_review_message_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": _("To submit the review do this and this."),
-            "translations": {},
-        }
-        return (
-            create_customization_setting(
-                do_review_message_setting,
-                do_review_message_setting_value,
-                do_review_message_setting["name"],
-                force=force,
-            ),
-        )
-
     def review_decision_revision_request_message() -> tuple[SettingValue, ...]:
         subject_review_decision_revision_request_setting: SettingParams = {
             "name": "review_decision_revision_request_subject",
@@ -1913,7 +1887,6 @@ Thank you and best regards,
         csv_writer.write_settings(review_lists_page_size())
         csv_writer.write_settings(review_invitation_message_default())
         csv_writer.write_settings(declined_review_notice())
-        csv_writer.write_settings(do_review_message())
         csv_writer.write_settings(core_review_settings())
         csv_writer.write_settings(review_decision_revision_request_message())
         csv_writer.write_settings(review_decision_not_suitable_message())

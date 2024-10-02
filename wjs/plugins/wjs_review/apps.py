@@ -64,24 +64,32 @@ class WjsReviewConfig(AppConfig):
         from .events import ReviewEvent
         from .events.handlers import (
             clean_prophy_candidates,
-            on_article_submitted,
-            on_revision_complete,
-            on_workflow_submitted,
+            notify_author_article_submission,
+            notify_coauthors_article_submission,
             perform_checks_at_acceptance,
+            process_submission,
+            restart_review_process_after_revision_submission,
             send_to_prophy,
+            sync_article_articleworkflow,
         )
 
+        events_logic.Events.unregister_for_event(
+            events_logic.Events.ON_ARTICLE_SUBMITTED,
+            transactional_emails.send_submission_acknowledgement,
+        )
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,
-            on_article_submitted,
+            sync_article_articleworkflow,
+            notify_author_article_submission,
+            notify_coauthors_article_submission,
         )
         events_logic.Events.register_for_event(
             ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED,
-            on_workflow_submitted,
+            process_submission,
         )
         events_logic.Events.register_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,
-            on_revision_complete,
+            restart_review_process_after_revision_submission,
         )
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,
