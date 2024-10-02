@@ -3,8 +3,11 @@
 Una-tantum command needed because of name changed during specs#901.
 """
 
-from core.models import Setting
+from core.models import Setting, SettingValue
 from django.core.management.base import BaseCommand
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Command(BaseCommand):
@@ -13,6 +16,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.rename_settings()
         self.drop_obsolete_settings()
+        self.set_jcom_defaults_over_janeways()
 
     def rename_settings(self):
         settings_to_rename = (
@@ -81,6 +85,7 @@ class Command(BaseCommand):
     def drop_obsolete_settings(self):
         """Drop settings we had second thoughts about."""
         settings_to_drop = (
+            "do_review_message",
             "editor_deassign_reviewer_system_subject",
             "editor_deassign_reviewer_system_body",
             "review_withdraw_body",
@@ -94,3 +99,42 @@ class Command(BaseCommand):
                 self.stdout.write(f"   setting {setting_name} in group {group_name} does not exist. Doing nothing.")
             else:
                 setting.delete()
+
+    def set_jcom_defaults_over_janeways(self):
+        update_setting_default(
+            "submission_acknowledgement",
+            "email",
+            """Dear {{ article.correspondence_author.full_name }}, <br>
+<br>
+Thank you for submitting [...]
+the {{ article.section.name }} "{{ article }}" to {{ article.journal }}.<br>
+<br>
+Please check all data and files from your manuscript web page on
+{{ article.articleworkflow.url }}
+and contact the Editorial Office if anything needs correction. <br>
+<br>
+Your manuscript has been assigned to the appropriate editor in charge and
+the review process will start as soon as possible.
+We will be in touch as soon as the peer-review process has been completed.<br>
+<br>
+From now on, please make sure any message is sent through the appropriate “write a message”
+button from your manuscript web page, so that a record is stored in the system.<br>
+<br>
+Best regards,<br>
+{{ journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_submission_acknowledgement", "email_subject", """Submitted""")
+
+
+def update_setting_default(name, group, value):
+    """"""
+    setting = Setting.objects.get(name=name, group__name=group)
+    setting_value = SettingValue.objects.get(setting=setting, journal__isnull=True)
+    if overrides := SettingValue.objects.filter(setting=setting, journal__isnull=False):
+        for override in overrides:
+            logger.warning(f"Found override for {group}/{name} in {override.journal.code}")
+
+    setting_value.value = value
+    setting_value.save()
+    logger.debug(f"Updated {group}/{name}")

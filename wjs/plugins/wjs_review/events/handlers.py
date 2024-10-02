@@ -1,3 +1,8 @@
+"""Handlers functions.
+
+Generally registered onto some event in the `app` module.
+"""
+
 from typing import Optional
 
 from django.conf import settings
@@ -7,6 +12,9 @@ from submission import models as submission_models
 from submission.models import Article
 from utils.logger import get_logger
 
+from wjs.jcom_profile.utils import render_template_from_setting
+
+from .. import communication_utils
 from ..logic import CreateReviewRound, VerifyProductionRequirements
 from ..models import (
     ArticleWorkflow,
@@ -22,7 +30,7 @@ from .assignment import dispatch_assignment, dispatch_eo_assignment
 logger = get_logger(__name__)
 
 
-def on_article_submitted(**kwargs) -> None:
+def sync_article_articleworkflow(**kwargs) -> None:
     """Sync ArticleWorkflow state with article on submission."""
     article = kwargs["article"]
     if article.stage == STAGE and article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION:
@@ -32,7 +40,7 @@ def on_article_submitted(**kwargs) -> None:
         events_logic.Events.raise_event(ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED, task_object=article, **kwargs)
 
 
-def on_workflow_submitted(**kwargs) -> None:
+def process_submission(**kwargs) -> None:
     """When ArticleWorkflow is marked as submitted, the process filtering tasks are run."""
     workflow = kwargs["workflow"]
     workflow.system_process_submission()
@@ -65,7 +73,7 @@ def dispatch_checks(article: submission_models.Article) -> Optional[bool]:
     return bool(assignment)
 
 
-def on_revision_complete(**kwargs) -> None:
+def restart_review_process_after_revision_submission(**kwargs) -> None:
     """
     When a new article revision is submitted, start the revision process again.
 
@@ -84,6 +92,95 @@ def on_revision_complete(**kwargs) -> None:
     # NB: STAGE_ASSIGNED is the correct stage here, because the other candidate STAGE_UNDER_REVIEW is set by
     # review.logic.quick_assign() only when a review assigment is created.
     article.save()
+
+
+def notify_author_article_submission(**kwargs):
+    """Notify the corresponding author of submission."""
+    # This overrides janeway's
+    # src/utils/transitional_email.send_submission_acknowledgement
+    # which should be "unregistered" from the event ON_ARTICLE_SUBMITTED in
+    # wjs_review.app
+
+    article = kwargs["article"]
+    request = kwargs["request"]
+
+    context = {
+        "article": article,
+        "request": request,
+    }
+    message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_submission_acknowledgement",
+        journal=article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+
+    message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="submission_acknowledgement",
+        journal=article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+
+    communication_utils.log_operation(
+        article=article,
+        message_subject=message_subject,
+        message_body=message_body,
+        recipients=[article.correspondence_author],
+        flag_as_read=True,
+        flag_as_read_by_eo=True,
+    )
+
+
+def notify_coauthors_article_submission(**kwargs):
+    """Notify co-authors of submission."""
+    # FIXME: This logic is intended to be insert in janeway; this is a copy-paste of janeway
+    #  src/utils/transitional_email.send_submission_acknowledgement function, with the difference that we want to
+    #  notify coauthors
+    article = kwargs["article"]
+    request = kwargs["request"]
+    if article.authors.count() == 1:
+        # no co-authors (only the correspondence author)
+        return
+
+    context = {
+        "article": article,
+        "request": request,
+    }
+    message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="submission_coauthors_acknowledgement_subject",
+        journal=article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+
+    # Send per-coauthor customized notifications
+    coauthors = [c for c in article.authors.all() if c != article.correspondence_author]
+    for coauthor in coauthors:
+        # we call the recipient "author" because thus the template is easier to read
+        context["author"] = coauthor
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="submission_coauthors_acknowledgement_body",
+            journal=article.journal,
+            request=request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[coauthor],
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
+        )
 
 
 def send_to_prophy(**kwargs) -> None:

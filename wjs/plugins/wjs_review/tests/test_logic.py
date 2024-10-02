@@ -28,8 +28,8 @@ from .. import communication_utils
 from ..communication_utils import get_system_user
 from ..events.handlers import (
     dispatch_eo_assignment,
-    on_article_submitted,
-    on_revision_complete,
+    restart_review_process_after_revision_submission,
+    sync_article_articleworkflow,
 )
 from ..forms import (
     AssignEoForm,
@@ -100,7 +100,7 @@ def test_assign_to_eo(article: submission_models.Article, eo_user: JCOMProfile) 
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
     article.articleworkflow.save()
     assert not article.articleworkflow.eo_in_charge
-    on_article_submitted(article=article)
+    sync_article_articleworkflow(article=article)
     article.articleworkflow.refresh_from_db()
     assert article.articleworkflow.eo_in_charge
 
@@ -639,7 +639,7 @@ def test_assign_to_reviewer_after_revision(
     revision_request = EditorRevisionRequest.objects.get(article=assigned_article)
     revision_request.date_completed = now()
     revision_request.save()
-    on_revision_complete(revision=revision_request)
+    restart_review_process_after_revision_submission(revision=revision_request)
 
     acceptance_due_date = localtime(now()).date() + datetime.timedelta(days=7)
     service = AssignToReviewer(

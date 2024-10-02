@@ -150,26 +150,20 @@ def add_coauthors_submission_email_settings(force: bool = False) -> tuple[Settin
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": """Dear Dr. {{ author.full_name}},<br>
+        "value": """Dear {{ author.full_name}}, <br>
 <br>
-This is to confirm that Dr. {{ article.correspondence_author.full_name }} has submitted
-the {{ article.section.name }} "{{ article.title }}" to {{ article.journal.code }}
-including you among the co-authors.<br>
+This is to confirm that {{ article.correspondence_author.full_name }} has just submitted
+the {{ article.section.name }} "{{ article }}" to {{ article.journal }} on your behalf.<br>
 <br>
-To access the preprint web page, please go to your preprint web page. The page allows you [...] to view all information
-and files. Communications, on the other hand, will be sent to the corresponding author,
-Dr. {{ article.correspondence_author.full_name }}.<br>
+Please update your user profile and acknowledge the privacy notice, if needed,
+from <a href="{% url 'core_edit_profile' }">here</a>
+as your data will be associated to your manuscript if and when it is published.
+Your manuscript is available to you on {{ article.articleworkflow.url }}.
 <br>
-To confirm authorship of this paper, please mark this message as read.<br>
 <br>
-In case you are receiving this email by mistake and you are not a co-author of the preprint in question, please send an
-email to {{ support_email }} urgently.<br>
+Thank you and best regards,
 <br>
-Thank you and best regards,<br>
-<br>
-{{ article.journal.code }} Editorial Office<br>
-{{ article.journal.name }}<br>
-{{ article.journal.site_url }}
+{{ journal.code }} Journal
 """,
         "translations": {},
     }
@@ -190,7 +184,7 @@ Thank you and best regards,<br>
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": "Your preprint has been submitted",
+        "value": "Your manuscript has been submitted",
         "translations": {},
     }
     setting_2 = create_customization_setting(
