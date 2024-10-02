@@ -1,0 +1,15 @@
+{% load django_bootstrap5 static wjs_review %}
+<div class="modal-header">
+    <h5 class="modal-title" id="htmxModalLabel">{% translate "Edit issue parameters" %}</h5>
+    {% url 'wjs_review_issueparameter_edit' issue.issueparameters.pk as issueparameter_edit_url %}
+    {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+    {% url 'wjs_review_issueparameter_edit' issueparameters.pk as issueparameter_edit_url %}
+    <form hx-post="{{ issueparameter_edit_url }}">
+        {% csrf_token %}
+        {% bootstrap_form_errors form layout='inline' %}
+        {% bootstrap_form form %}
+        {% bootstrap_button button_type="submit" content="Submit" %}
+    </form>
+</div>

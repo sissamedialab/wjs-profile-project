@@ -26,6 +26,8 @@
     {{ issue.short_name }}
     {% if request.user|is_user_eo %}
       <a href="{% url 'manage_issues_id' issue.pk %}" target="_blank"><i class="bi bi-gear"></i></a>
+      {% url 'wjs_review_issueparameter_edit' issue.issueparameters.pk as issueparameter_edit_url %}
+      {% bootstrap_button button_class="btn-link" name="update-issue-parameters" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=issueparameter_edit_url hx_target="#htmxModalContent" content='<i class="bi bi-file-earmark-font"></i>' %}
     {% endif %}
   </td>
   <td>

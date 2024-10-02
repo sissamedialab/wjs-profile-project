@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 import django_filters
 from core import files as core_files
 from core import models as core_models
+from django import forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -24,6 +25,7 @@ from django.template import Context
 from django.urls import resolve, reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import (
     CreateView,
@@ -45,6 +47,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
+from wjs.jcom_profile.models import IssueParameters
 
 from . import permissions
 from .communication_utils import (
@@ -460,6 +463,37 @@ class EditorWorkOnIssue(BaseWorkOnIssue):
         queryset = super().get_queryset()
         queryset = queryset.filter(managing_editors=self.request.user)
         return queryset
+
+
+class IssueParametersUpdateView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
+    """View to allow EO to modify our custom issue parameters."""
+
+    model = IssueParameters
+    fields = ["latex_fragment", "batch_publish"]
+    template_name = "wjs_review/lists/elements/issue/_issue_parameters_modal.html"
+    success_url = reverse_lazy("wjs_review_eo_issues_list")
+    context_object_name = "issueparameters"
+
+    def test_func(self):
+        """Allow access only to EO."""
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields["latex_fragment"].widget = forms.Textarea(attrs={"cols": 80, "rows": 5})
+        return form
+
+    def form_valid(self, form):
+        super().form_valid(form)
+        messages.success(
+            self.request,
+            mark_safe(
+                _("Issue parameters correctly set for ") + self.get_object().issue.update_display_title(save=False)
+            ),
+        )
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.success_url
+        return response
 
 
 class DirectorPending(ArticleWorkflowBaseMixin):
