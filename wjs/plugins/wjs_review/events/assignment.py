@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional
 from core.models import AccountRole, Role
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models import Count, F
 from django.utils.module_loading import import_string
 from submission.models import Article
 from utils.logic import get_current_request
@@ -51,7 +52,11 @@ def default_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignmen
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=editors)
     if parameters:
         request = get_current_request()
-        if parameter := parameters.order_by("workload", "id").first():
+        annotated_parameters = parameters.annotate(
+            assignment_count=Count("editor__editorassignment"),
+            available_workload=F("workload") - F("assignment_count"),
+        )
+        if parameter := annotated_parameters.order_by("-available_workload", "id").first():
             assignment = BaseAssignToEditor(
                 editor=parameter.editor, article=article, request=request, first_assignment=True
             ).run()
@@ -74,7 +79,11 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=directors)
     if parameters:
         request = get_current_request()
-        if parameter := parameters.order_by("workload", "id").first():
+        annotated_parameters = parameters.annotate(
+            assignment_count=Count("editor__editorassignment"),
+            available_workload=F("workload") - F("assignment_count"),
+        )
+        if parameter := annotated_parameters.order_by("-available_workload", "id").first():
             assignment = BaseAssignToEditor(
                 editor=parameter.editor, article=article, request=request, first_assignment=True
             ).run()
@@ -110,9 +119,14 @@ def assign_eo_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]:
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     parameter = (
         EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=eo_users)
-        .order_by("workload", "id")
+        .annotate(
+            assignment_count=Count("editor__articleworkflow__eo_in_charge"),
+            available_workload=F("workload") - F("assignment_count"),
+        )
+        .order_by("-available_workload", "id")
         .first()
     )
+
     if parameter:
         return parameter.editor
 
