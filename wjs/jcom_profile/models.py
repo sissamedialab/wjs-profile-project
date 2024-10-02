@@ -105,6 +105,13 @@ class EditorKeyword(models.Model):
 class IssueParameters(models.Model):
     issue = models.OneToOneField("journal.Issue", verbose_name=_("Issue"), on_delete=models.CASCADE)
     batch_publish = models.BooleanField(_("Batch published"), default=True)
+    latex_fragment = models.CharField(
+        verbose_name=_("LaTeX fragment"),
+        help_text=_("LaTeX fragment that should appear in the PDF of all papers of this issue."),
+        max_length=500,
+        blank=True,
+        null=True,
+    )
 
     class Meta:
         verbose_name = _("Issue parameters")
