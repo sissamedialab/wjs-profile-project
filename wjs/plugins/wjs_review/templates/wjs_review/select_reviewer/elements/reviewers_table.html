@@ -6,6 +6,7 @@
 <!-- djlint:on -->
 {% url "wjs_select_reviewer" workflow.pk as search_reviewer %}
 {% url "wjs_invite_reviewer" workflow.pk as invite_reviewer %}
+{% url "wjs_message_write" pk=workflow.pk recipient_id=eo_user.pk as contact_eo %}
 <div class="mb-3">
   <div class="card">
     <div class="card-body">
@@ -30,7 +31,7 @@
           <th scope="col" class="col-4">{% translate "Email" %}</th>
           <!-- djlint:on -->
           <th scope="col" class="col-2" title="{% translate "Past | prophy | notes | declined-or-removed |" %}">{% translate "Flags" %}</th>
-          <th scope="col" class="col-1" title="{% translate "Gray out if already-assigned | author-of-paper | disabled" %}">{% translate "Action" %}</th>
+          <th scope="col" class="col-3" title="{% translate "Gray out if already-assigned | author-of-paper | disabled" %}">{% translate "Action" %}</th>
         </tr>
         </thead>
         <tbody>
