@@ -51,9 +51,11 @@
         {% bootstrap_button name="editor-assign-themselves" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_vals=btn.value hx_get=editor_assigns_themselves hx_target="#htmxModalContent" content=select_label %}
       {% else %}
         <div class="d-inline-block" tabindex="0" data-toggle="tooltip" title="{{ btn.disabled_cause }}">
+
           {% bootstrap_button name="assign-reviewer" disabled=btn.disabled data_bs_toggle="modal" data_bs_target="#htmxModal" button_class=btn.css_class hx_vals=btn.value hx_trigger="click" hx_post=wjs_select_reviewer hx_target="#htmxModalContent" data_toggle=btn.disabled_cause content=select_label %}
         </div>
       {% endif %}
+      <a class="btn btn-outline-primary" href="{{ contact_eo }}">{% translate "Contact EO to update email" %}</a>
     </td>
   </tr>
 {% empty %}

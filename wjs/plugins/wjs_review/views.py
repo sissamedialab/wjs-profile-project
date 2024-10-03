@@ -840,6 +840,7 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
                 "object_list": objects_list,
                 "reviewers": objects_list,
                 "querystring": querystring,
+                "eo_user": get_eo_user(self.object.article),
             }
         )
         context["reviewer"] = context["form"].data.get("reviewer")
