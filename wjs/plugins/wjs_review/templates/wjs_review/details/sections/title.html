@@ -29,6 +29,12 @@
     {% if make_decision_url %}
       {% bootstrap_button "Make decision" href=make_decision_url button_class="btn-primary" %}
     {% endif %}
-    {% bootstrap_button '<i class="bi bi-info-circle"></i> Help' href="#" button_class="btn-outline-primary" %}
+    {% if workflow|is_user_article_author:request.user %}
+      {% bootstrap_button '<i class="bi bi-info-circle"></i> Help' href="/site/authors" button_class="btn-outline-primary" target="_blank" %}
+    {% elif workflow|is_user_article_editor:request.user %}
+      {% bootstrap_button '<i class="bi bi-info-circle"></i> Help' href="/site/editors" button_class="btn-outline-primary" target="_blank" %}
+    {% elif workflow|is_user_article_reviewer:request.user %}
+      {% bootstrap_button '<i class="bi bi-info-circle"></i> Help' href="/site/reviewers" button_class="btn-outline-primary" target="_blank" %}
+    {% endif %}
   </div>
 </div>
