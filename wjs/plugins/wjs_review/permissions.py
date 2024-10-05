@@ -10,7 +10,7 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 if TYPE_CHECKING:
-    from .models import ArticleWorkflow
+    from .models import ArticleWorkflow, WorkflowReviewAssignment
 
 Account = get_user_model()
 
@@ -263,6 +263,22 @@ def has_section_editor_or_reviewer_role_by_article(instance: "ArticleWorkflow", 
     :rtype: bool
     """
     return has_section_editor_role_by_article(instance, user) or has_reviewer_role_by_article(instance, user)
+
+
+def is_assignment_reviewer(instance: "WorkflowReviewAssignment", user: Account) -> bool:
+    """
+    Check if the user is the is assignment reviewer.
+
+    :param instance: An instance of the WorkflowReviewAssignment class.
+    :type instance: WorkflowReviewAssignment
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is the assignment reviewer, False otherwise.
+    :rtype: bool
+    """
+    return instance.reviewer == user
 
 
 def is_article_reviewer(instance: "ArticleWorkflow", user: Account) -> bool:
