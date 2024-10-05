@@ -82,26 +82,40 @@ def has_any_journal_role(journal: Journal, user: Account) -> bool:
     return len(user.roles_for_journal(journal=journal)) > 0
 
 
-def can_hijack_user_role(hijacker: Account) -> bool:
+def can_hijack_user_role(hijacker: Account, hijacked: Account) -> bool:
     """
     Check if the given user can hijack another user's role.
 
     Hijacking is allowed for superusers, EO members, and directors.
+
+    :param hijacker: The user to check for role.
+    :type hijacker: Account
+
+    :param hijacked: The user to check for role.
+    :type hijacked: Account
     """
     from core.middleware import GlobalRequestMiddleware
 
     request = GlobalRequestMiddleware.get_current_request()
-    return hijacker.is_superuser or has_eo_role(hijacker) or has_director_role(request.journal, hijacker)
+    by_superuser = hijacker.is_superuser or has_eo_role(hijacker)
+    by_director = has_director_role(request.journal, hijacker) and has_editor_role(request.journal, hijacked)
+    return by_superuser or by_director
 
 
 def hijack_eo_and_admins_only(*, hijacker: Account, hijacked: Account) -> bool:
     """
     Check hijack permissions: Superusers and EO members may hijack other staff and regular users, but not superusers.
+
+    :param hijacker: The user to check for role.
+    :type hijacker: Account
+
+    :param hijacked: The user to check for role.
+    :type hijacked: Account
     """
     if not hijacked.is_active or hijacked.is_superuser:
         return False
 
-    return can_hijack_user_role(hijacker)
+    return can_hijack_user_role(hijacker, hijacked)
 
 
 def has_section_editor_role(journal: Journal, user: Account) -> bool:
