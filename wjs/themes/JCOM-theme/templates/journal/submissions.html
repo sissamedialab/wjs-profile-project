@@ -1,70 +1,61 @@
 {% extends "core/base.html" %}
-{% load i18n %}
-{% load static %}
-{% load hooks %}
-{% block title %}
-    {% trans "Submissions" %}
-{% endblock title %}
-{% block css %}
-    <style>
-        .fa-check {
-            color: green;
-        }
-
-        .fa-times {
-            color: darkred;
-        }
-    </style>
-{% endblock css %}
+{% load i18n hooks static %}
+{% block title %}{% translate "Submissions" %}{% endblock title %}
 {% block body %}
     <div class="row">
-        <div class="col s12">
-            <h1 class="main-title">{% trans "Submissions" %}</h1>
-        </div>
-        <div class="col s12 l8">
+        <div class="col m9">
             <div class="card">
                 <div class="card-content">
+                    <h1 class="main-title">{% translate "Submissions" %}</h1>
+                    <div class="divider spacer"></div>
                     {% if journal_settings.general.disable_journal_submission %}
-                        <p>{{ journal_settings.general.disable_journal_submission_message|safe }}</p>
+                    <p>{{ journal_settings.general.disable_journal_submission_message|safe }}</p>
                     {% endif %}
+                    <br />
                     <div class="default-li">{{ journal_settings.general.submission_intro_text|safe }}</div>
                     <br />
                     {% if not journal_settings.general.disable_journal_submission %}
-                        <div class="button-group">
-                            {% if not request.user.is_authenticated %}
-                                <a href="{% url 'core_register' %}" class="btn btn-primary">{% trans "Register" %}</a>
-                                <a href="{% url 'core_login' %}?next={% url 'submission_start' %}" class="btn btn-primary">{% trans "Login" %}</a>
-                            {% else %}
-                                <a href="{% url 'submission_start' %}" class="btn btn-primary">{% trans "Start Submission" %}</a>
-                            {% endif %}
-                        </div>
+                    <div class="button-group">
+                         {% if not request.user.is_authenticated %}<a href="{% url "core_register" %}" class="btn btn-primary">{% translate "Register" %}</a>
+                        <a href="{% url "core_login" %}" class="btn btn-primary">{% translate "Login" %}</a>{% else %}
+                        <a href="{% url "submission_start" %}" class="btn btn-primary">{% translate "Start Submission" %}</a>{% endif %}
+                    </div>
                     {% endif %}
+                    <br />
                     <div class="divider spacer"></div>
                     {% for item in submission_items %}
-                        {% if item.title == 'licences' %}
-                            <span class="card-title">{{ item.title|capfirst }}</span>
-                            <p>{{ request.journal.name }} {% trans "allows the following licences for submission" %}:</p>
+                        <div class="default-li">
+                        {% if item.title == "licences" %}
+                            <span class="card-title">
+                                {{ item.title|capfirst }}
+                            </span>
+                            <p>{{ request.journal.name }} {% translate "allows the following licences for submission" %}:</p>
                             {% include "elements/license_block.html" %}
-                        {% elif item.title == 'sections' %}
-                            <span class="card-title">{{ item.title|capfirst }}</span>
+                        {% elif item.title == "sections" %}
+                            <span class="card-title">
+                                {{ item.title|capfirst }}
+                            </span>
                             {% include "elements/sections_display.html" %}
                         {% else %}
                             {% if item.get_display_text %}
-                                <span class="card-title">{{ item.title|capfirst }}</span>
+                                <span class="card-title">
+                                    {{ item.title|capfirst }}
+                                </span>
                                 {{ item.get_display_text|safe }}
                                 <div class="divider spacer"></div>
                             {% endif %}
                         {% endif %}
+                        </div>
                     {% empty %}
                         <p>There are no submission page items to display for this journal.</p>
                     {% endfor %}
                 </div>
             </div>
         </div>
-        <div class="col s12 l4">
-            <div class="card submission-toc-card hide-on-small-only" id="toc-card">
+        <div class="col m3">
+            <div class="card submission-toc-card toc-card hide-on-small-only" id="toc-card">
                 <div class="card-content">
-                    <h4>{% trans "Table of Contents" %}</h4>
+                        <h4>{% translate "Table of Contents" %}</h4>
                     <ul id="toc" class="section table-of-contents">
                     </ul>
                 </div>
@@ -73,10 +64,28 @@
     </div>
 {% endblock body %}
 {% block js %}
-    <script src="{% static 'material/sub-toc.js' %}"></script>
-    <script>
-     $(document).ready(function () {
-            $('.scrollspy').scrollSpy();
-        });
-    </script>
+  <script src="{% static "material/sub-toc.js" %}"></script>
+  <script>
+    const setTocCardPosition = (element) => {
+      const contentCard = $(".card-content");
+      const toc = $("#toc-card");
+      const infobar_y = document.querySelector(".section > .row").offsetTop;
+      const y = $(element).scrollTop();
+      const padding = contentCard.innerHeight() - contentCard.height();
+      toc.fadeIn();
+      console.log(y)
+      if (y > infobar_y) {
+        toc.css({ top: `${padding / 2}px` });
+      } else {
+        toc.css({ top: `${infobar_y - y}px` });
+      }
+    };
+    $(window).on("load", function() {
+      setTocCardPosition(".card-content");
+      $(".scrollspy").scrollSpy();
+    });
+    $(document).scroll(function() {
+      setTocCardPosition(this);
+    });
+  </script>
 {% endblock js %}
