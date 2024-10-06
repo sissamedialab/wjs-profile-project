@@ -1,7 +1,3 @@
-<table class="table table-bordered" id="papers">
-  <tbody>
-  {% for issue in issues %}
-    {% include "wjs_review/lists/elements/issue/issue_detail.html" %}
-  {% endfor %}
-  </tbody>
-</table>
+{% for issue in issues %}
+  {% include "wjs_review/lists/elements/issue/issue_detail.html" %}
+{% endfor %}
