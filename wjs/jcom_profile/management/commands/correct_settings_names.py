@@ -43,10 +43,6 @@ class Command(BaseCommand):
                 "review_withdraw_default",
             ),
             (
-                "revision_submission_message",
-                "revision_submission_body",
-            ),
-            (
                 "requeue_article_message",
                 "requeue_article_body",
             ),
@@ -72,12 +68,16 @@ class Command(BaseCommand):
         for old_name, new_name in settings_to_rename:
             # I don't want to use `update` because it is designed for bulk-operations
             # and I want to be sure that I'm operating on a single setting
-            self.stdout.write(f"Correcting {old_name} into {new_name}")
+            logger.debug(f"Correcting {old_name} into {new_name}")
             try:
                 setting = Setting.objects.get(name=old_name)
             except Setting.DoesNotExist:
-                Setting.objects.get(name=new_name)
-                self.stdout.write(f"   setting {new_name} already in place. Doing nothing.")
+                try:
+                    Setting.objects.get(name=new_name)
+                except Setting.DoesNotExist:
+                    logger.warning(f"   no setting namde either {new_name} or {old_name}. Doing nothing.")
+                else:
+                    logger.debug(f"   setting {new_name} already in place. Doing nothing.")
             else:
                 setting.name = new_name
                 setting.save()
@@ -85,18 +85,22 @@ class Command(BaseCommand):
     def drop_obsolete_settings(self):
         """Drop settings we had second thoughts about."""
         settings_to_drop = (
+            # "revision_submission" first and second incarnation
+            # (replaced by revisions_complete_editor_notification)
+            "revision_submission_message",
+            "revision_submission_body",
             "do_review_message",
             "editor_deassign_reviewer_system_subject",
             "editor_deassign_reviewer_system_body",
             "review_withdraw_body",
         )
         for setting_name in settings_to_drop:
-            self.stdout.write(f"Dropping {setting_name}")
+            logger.debug(f"Dropping {setting_name}")
             group_name = "wjs_review"
             try:
                 setting = Setting.objects.get(name=setting_name, group__name=group_name)
             except Setting.DoesNotExist:
-                self.stdout.write(f"   setting {setting_name} in group {group_name} does not exist. Doing nothing.")
+                logger.debug(f"   setting {setting_name} in group {group_name} does not exist. Doing nothing.")
             else:
                 setting.delete()
 
@@ -107,15 +111,18 @@ class Command(BaseCommand):
             """Dear {{ article.correspondence_author.full_name }}, <br>
 <br>
 Thank you for submitting [...]
-the {{ article.section.name }} "{{ article }}" to {{ article.journal }}.<br>
+the {{ article.section.name }} "{{ article.title }}" to {{ article.journal }}.
 <br>
-Please check all data and files from your manuscript web page on
-{{ article.articleworkflow.url }}
-and contact the Editorial Office if anything needs correction. <br>
+<br>
+Please check all data and files from your manuscript
+<a href="{{ article.articleworkflow.url }}">web page</a>
+and contact the Editorial Office if anything needs correction.
+<br>
 <br>
 Your manuscript has been assigned to the appropriate editor in charge and
 the review process will start as soon as possible.
-We will be in touch as soon as the peer-review process has been completed.<br>
+We will be in touch as soon as the peer-review process has been completed.
+<br>
 <br>
 From now on, please make sure any message is sent through the appropriate “write a message”
 button from your manuscript web page, so that a record is stored in the system.<br>
@@ -125,6 +132,36 @@ Best regards,<br>
 """,
         )
         update_setting_default("subject_submission_acknowledgement", "email_subject", """Submitted""")
+
+        update_setting_default("revision_digest", "email", "NOT USED IN WJS")
+        update_setting_default("subject_revision_digest", "email_subject", "NOT USED IN WJS")
+
+        # Replaces WJS's revision_submission_[subject,body]
+        update_setting_default(
+            "revisions_complete_editor_notification",
+            "email",
+            """Dear Dr. {{ editor.full_name }},
+<br><br>
+{% if revision.type == "tech_revisions" %}
+The author has just updated metadata for {{ article.section.name }} "{{ article.title }}". The change(s) is/are visible
+on the web pages only.  If either the title and/or the abstract have been changed, the pdf file will be updated either
+in a revised version (if requested) or during the stage of proofreading (in case of acceptance for publication).
+{% else %}
+Please connect to the manuscript web page to download the {{ article.section.name }} resubmitted in reply to your
+request for revision.  You are kindly requested [...] to either select reviewers or make a decision by
+{{ default_editor_assign_reviewer_days }} days.
+{% endif %}
+<br><br>
+Thank you and best regards,
+<br>
+{{ journal.code }} Journal
+""",
+        )
+        update_setting_default(
+            "subject_revisions_complete_editor_notification",
+            "email_subject",
+            """{% if revision.type == "tech_revisions" %}Metadata updated{% else %}Resubmitted{% endif %}""",
+        )
 
 
 def update_setting_default(name, group, value):

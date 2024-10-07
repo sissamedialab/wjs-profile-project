@@ -1788,7 +1788,7 @@ Thank you and best regards,
         subject_author_submits_appeal_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Appeal submitted for {{ article.journal }} {{ article.id }}."),
+            "value": _("Appeal submitted"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1810,14 +1810,14 @@ Thank you and best regards,
         author_submits_appeal_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ appeal_editor.full_name }},
-            the author of "{{ article.title }} (ID: {{ article.id }})" has appealed against rejection. Please connect to
-            the preprint web page and handle the appeal within 5 days.
-
-            Thank you and best regards,
-            JCOM Editorial Office
-            """,
+            "value": """Dear {{ editor.full_name }},
+<br><br>
+The author of the {{ article.section.name }} "{{ article.title }}" has appealed against rejection. <br>
+Please connect to {{ article.articleworkflow.url }} and kindly handle the appeal within 5 days.
+<br><br>
+Thank you and best regards,<br>
+{{ journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1882,6 +1882,62 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def technicalrevisions_complete_reviewer_notification() -> tuple[SettingValue, ...]:
+        setting_parms: SettingParams = {
+            "name": "technicalrevisions_complete_reviewer_notification_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of author submits technical revision for reviewers"),
+            "description": _(
+                "Subject of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision).",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Metadata updated",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        setting_parms: SettingParams = {
+            "name": "technicalrevisions_complete_reviewer_notification_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of author submits technical revision for reviewers"),
+            "description": _(
+                "Body of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision)."
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ reviewer.full_name }},
+<br><br>
+The author has just updated metadata for {{ article.section.name }} "{{ article.title }}". The change(s) is/are visible
+on the web pages only. If either the title and/or the abstract have been changed, the pdf file will be updated either in
+a revised version (if requested) or during the stage of proofreading (in case of acceptance for publication).
+<br><br>
+Thank you and best regards,
+<br>
+{{ journal.code }} Journal
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -1895,7 +1951,6 @@ Thank you and best regards,
         csv_writer.write_settings(technical_revision_body())
         csv_writer.write_settings(author_can_contact_director())
         csv_writer.write_settings(hijack_notification_message())
-        csv_writer.write_settings(author_submits_revision_message())
         csv_writer.write_settings(admin_deems_unimportant())
         csv_writer.write_settings(admin_requires_resubmission())
         csv_writer.write_settings(prophy_settings())
@@ -1914,6 +1969,7 @@ Thank you and best regards,
         csv_writer.write_settings(preprint_withdrawn_system_message())
         csv_writer.write_settings(author_submits_appeal_message())
         csv_writer.write_settings(eo_send_back_to_typesetting_message())
+        csv_writer.write_settings(technicalrevisions_complete_reviewer_notification())
 
 
 def ensure_workflow_elements():

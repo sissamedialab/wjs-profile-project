@@ -1145,13 +1145,13 @@ class AuthorHandleRevision:
         events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
 
     def _get_revision_submission_message_context(self) -> Dict[str, Any]:
-        self.appeal_editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
+        self.editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
         return {
             "article": self.revision.article,
             "request": self.request,
             "skip": False,
             "revision": self.revision,
-            "appeal_editor": self.appeal_editor,
+            "editor": self.editor,
         }
 
     def _was_under_appeal(self) -> bool:
@@ -1165,21 +1165,32 @@ class AuthorHandleRevision:
         Unsubmitted reviews are available only in case of technical revisions, because for major / minor revisions
         reviewers are withdrawn when requesting the revision.
         """
+        article = self.revision.article  # alias
         reviewer_message_subject = get_setting(
             setting_group_name="wjs_review",
-            setting_name="revision_submission_subject",
-            journal=self.revision.article.journal,
+            setting_name="technicalrevisions_complete_reviewer_notification_subject",
+            journal=article.journal,
         ).processed_value
-        reviewer_message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="revision_submission_body",
-            journal=self.revision.article.journal,
-            request=self.request,
-            context=self._get_revision_submission_message_context(),
-            template_is_setting=True,
-        )
 
-        for assignment in self.revision.article.active_revision_requests():
+        context = self._get_revision_submission_message_context()
+        # NB: don't use Janeway's article.active_reviews since it includes "withdrawn" reviews.
+        current_round = article.current_review_round_object()
+        for assignment in WorkflowReviewAssignment.objects.filter(
+            article=article,
+            review_round=current_round,
+            is_complete=False,
+        ).not_withdrawn():
+            # customize message per-reviewer
+            context["reviewer"] = assignment.reviewer
+            reviewer_message_body = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="technicalrevisions_complete_reviewer_notification_body",
+                journal=article.journal,
+                request=self.request,
+                context=context,
+                template_is_setting=True,
+            )
+
             communication_utils.log_operation(
                 actor=self.revision.editor,
                 article=self.revision.article,
@@ -1195,14 +1206,19 @@ class AuthorHandleRevision:
 
     def _notify_editor(self):
         """Send notification to the editor."""
-        reviewer_message_subject = get_setting(
-            setting_group_name="wjs_review",
-            setting_name="revision_submission_subject",
+        # we need to render the subject too,
+        # because it changes for major/minor and technical revision submissions
+        reviewer_message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_revisions_complete_editor_notification",
             journal=self.revision.article.journal,
-        ).processed_value
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
         reviewer_message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="revision_submission_body",
+            setting_group_name="email",
+            setting_name="revisions_complete_editor_notification",
             journal=self.revision.article.journal,
             request=self.request,
             context=self._get_revision_submission_message_context(),
@@ -1240,7 +1256,7 @@ class AuthorHandleRevision:
             article=self.revision.article,
             message_subject=message_subject,
             message_body=message_body,
-            recipients=[self.appeal_editor],
+            recipients=[self.editor],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
