@@ -169,8 +169,8 @@ def test_emit_message_email_reduced(
     workflow = article.articleworkflow
     workflow_url = article.journal.site_url(workflow.get_absolute_url())
     if has_marker:
-        assert "Read more" in html_body
-        assert "Read more" in email.body
+        assert "read more" in html_body
+        assert "read more" in email.body
         assert msg1 in html_body
         assert msg2 not in html_body
         assert html2text.html2text(msg1) in email.body
