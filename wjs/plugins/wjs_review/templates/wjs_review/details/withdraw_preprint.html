@@ -1,5 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static wjs_permissions %}
+{% load django_bootstrap5 static wjs_permissions wjs_tags %}
 
 {% block content_wrapper %}
   {% translate "Send and confirm" as withdraw_label %}
@@ -10,15 +10,17 @@
       </div>
     </div>
   </div>
-  <div class="container mb-3">
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">{% translate "About this page" %}</h5>
-        <div class="card-text">{% blocktranslate %}<p>Provide a reason for withdrawal</p>{% endblocktranslate %}
+  {% if not request.user|is_user_eo %}
+    <div class="container mb-3">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title">{% translate "About this page" %}</h5>
+          <div class="card-text">{% blocktranslate %}<p>Provide a reason for withdrawal. After withdrawal, the preprint will no longer be under consideration in JCOM.</p>{% endblocktranslate %}
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  {% endif %}
   <div class="container mb-3">
       <form method="post">
         {% csrf_token %}
