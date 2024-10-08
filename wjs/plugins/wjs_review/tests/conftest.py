@@ -41,6 +41,7 @@ from ..events import ReviewEvent
 from ..logic import (
     AssignToEditor,
     AssignTypesetter,
+    AuthorHandleRevision,
     AuthorSendsCorrections,
     HandleDecision,
     OpenAppeal,
@@ -117,7 +118,7 @@ def review_settings(journal, eo_user):
     )
 
 
-def _assign_article(fake_request, article, section_editor) -> Article:
+def _assign_article(fake_request, article, section_editor, cleanup_side_effects: bool = True) -> Article:
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     article.articleworkflow.save()
     assignment = AssignToEditor(
@@ -126,7 +127,8 @@ def _assign_article(fake_request, article, section_editor) -> Article:
     workflow = assignment.article.articleworkflow
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -149,6 +151,7 @@ def assigned_article(fake_request, submitted_article, section_editor, review_set
 def _accept_article(
     fake_request: HttpRequest,
     article: Article,
+    cleanup_side_effects: bool = True,
 ) -> Article:
     form_data = {
         "decision": ArticleWorkflow.Decisions.ACCEPT,
@@ -169,7 +172,8 @@ def _accept_article(
         ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
         ArticleWorkflow.ReviewStates.ACCEPTED,
     )
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -189,7 +193,7 @@ def accepted_article(fake_request, assigned_article) -> Article:
     return _accept_article(fake_request, assigned_article)
 
 
-def _reject_article(article: Article, fake_request: HttpRequest) -> Article:
+def _reject_article(article: Article, fake_request: HttpRequest, cleanup_side_effects: bool = True) -> Article:
     form_data = {
         "decision": ArticleWorkflow.Decisions.REJECT,
         "decision_editor_report": "Some editor report",
@@ -204,7 +208,8 @@ def _reject_article(article: Article, fake_request: HttpRequest) -> Article:
     ).run()
     workflow = editor_decision.workflow
     assert workflow.state == ArticleWorkflow.ReviewStates.REJECTED
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -223,13 +228,18 @@ def rejected_article(fake_request, assigned_article) -> Article:
 
 
 def _under_appeal_article(
-    article: Article, fake_request: HttpRequest, eo_user: Account, section_editor: Account
+    article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+    section_editor: Account,
+    cleanup_side_effects: bool = True,
 ) -> Article:
     fake_request.user = eo_user.janeway_account
 
     OpenAppeal(section_editor, article, fake_request).run()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return article
 
 
@@ -239,12 +249,41 @@ def under_appeal_article(fake_request, rejected_article, eo_user, section_editor
     return _under_appeal_article(rejected_article, fake_request, eo_user, section_editor)
 
 
-def _ready_for_typesetter_article(article: Article) -> Article:
+def _appeal_submitted_article(
+    article: Article, fake_request: HttpRequest, cleanup_side_effects: bool = False
+) -> Article:
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    author = article.correspondence_author
+    fake_request.user = author
+
+    revision = EditorRevisionRequest.objects.filter(article=article).order_by().last()
+    AuthorHandleRevision(
+        revision=revision,
+        form_data={},
+        user=author,
+        request=fake_request,
+    ).run()
+
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
+    return article
+
+
+@pytest.fixture
+def appeal_submitted_article(fake_request: HttpRequest, open_appeal_article: Article) -> Article:
+    """Return an article with an appeal submitted."""
+    return _appeal_submitted_article(rejected_article, fake_request)
+
+
+def _ready_for_typesetter_article(article: Article, cleanup_side_effects: bool = True) -> Article:
     workflow = article.articleworkflow
     if workflow.state == ArticleWorkflow.ReviewStates.ACCEPTED:
         workflow = VerifyProductionRequirements(articleworkflow=workflow).run()
     assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -261,12 +300,14 @@ def _assigned_to_typesetter_article(
     article: Article,
     typesetter: Account,
     fake_request: HttpRequest,
+    cleanup_side_effects: bool = True,
 ) -> Article:
     typesetting_assignment = AssignTypesetter(article, typesetter, fake_request).run()
     workflow = typesetting_assignment.round.article.articleworkflow
     assert workflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
     assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -287,6 +328,7 @@ def _assigned_to_typesetter_article_with_parent(
     article: Article,
     typesetter: Account,
     fake_request: HttpRequest,
+    cleanup_side_effects: bool = True,
 ) -> Article:
     parent_article = Article.objects.create(
         title="Parent article",
@@ -302,7 +344,8 @@ def _assigned_to_typesetter_article_with_parent(
     AssignTypesetter(article, typesetter, fake_request).run()
     article.refresh_from_db()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return article
 
 
@@ -348,6 +391,7 @@ def _stage_proofing_article(
     article: Article,
     typesetter: Account,
     fake_request: HttpRequest,
+    cleanup_side_effects: bool = True,
 ) -> Article:
     typesetting_assignment = TypesettingAssignment.objects.get(
         round=article.typesettinground_set.first(),
@@ -361,7 +405,8 @@ def _stage_proofing_article(
     ).run()
     article.refresh_from_db()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return article
 
 
@@ -378,6 +423,7 @@ def stage_proofing_article(
 def _assigned_to_typesetter_proofs_done_article(
     article: Article,
     fake_request: HttpRequest,
+    cleanup_side_effects: bool = True,
 ) -> Article:
     """Let the author proof-read an article.
 
@@ -399,7 +445,8 @@ def _assigned_to_typesetter_proofs_done_article(
     ).run()
     article.refresh_from_db()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
-    cleanup_notifications_side_effects()
+    if cleanup_side_effects:
+        cleanup_notifications_side_effects()
     return article
 
 

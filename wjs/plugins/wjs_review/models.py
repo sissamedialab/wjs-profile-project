@@ -1264,7 +1264,7 @@ class Message(TimeStampedModel):
     def get_absolute_url(self):
         """Return the URL to the message."""
         if self.content_type.model_class() == Article:
-            return f'{reverse("wjs_article_messages", args=[self.target.articleworkflow.pk])}#message-{self.pk}'
+            return f'{reverse("wjs_article_messages", args=[self.target.articleworkflow.pk])}#message-item-{self.pk}'
 
     @property
     def journal(self) -> Journal:

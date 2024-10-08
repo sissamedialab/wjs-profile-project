@@ -5,17 +5,17 @@
   </div>
   <div class="me-1 flex-grow-1">
     {% if message.message_type == message.MessageTypes.NOTE %}
-      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-{{ message.id }}">
+      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">
         <b>{% translate "Personal note" %}</b>
       </a>
       <br>
       {{ message.subject }}
     {% elif message.message_type == message.MessageTypes.SYSTEM %}
-      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-{{ message.id }}">
+      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">
         {{ message.subject }}
       </a>
     {% else %}
-      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-{{ message.id }}">
+      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">
         {{ message.subject }}
       </a>
       <br>

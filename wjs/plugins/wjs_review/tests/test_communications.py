@@ -180,8 +180,8 @@ def test_emit_message_email_reduced(
         assert Message.SPLIT_MARKER in msg.body
         assert workflow_url in html_body.replace("\n", "")
         assert workflow_url in email.body.replace("\n", "")
-        assert f"message-{msg.pk}" in html_body
-        assert f"message-{msg.pk}" in email.body
+        assert f"message-item-{msg.pk}" in html_body
+        assert f"message-item-{msg.pk}" in email.body
         assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) in html_body.replace(
             "\n", ""
         )
@@ -199,8 +199,8 @@ def test_emit_message_email_reduced(
         # Link to the article status page
         assert workflow_url in html_body.replace("\n", "")
         assert workflow_url in email.body.replace("\n", "")
-        assert f"message-{msg.pk}" not in html_body
-        assert f"message-{msg.pk}" not in email.body
+        assert f"message-item-{msg.pk}" not in html_body
+        assert f"message-item-{msg.pk}" not in email.body
         assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) not in html_body.replace(
             "\n", ""
         )
