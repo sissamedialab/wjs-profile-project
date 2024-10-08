@@ -9,7 +9,6 @@
   {% blocktranslate with due_date=form.initial.acceptance_due_date|date:DATE_FORMAT %}
     <p>
       You are going to assign yourself as reviewer of {{ workflow }}.
-      You will upload your review by {{ due_date }}.
     </p>
   {% endblocktranslate %}
   <form id="decline-assignment" hx-post="{% url "wjs_editor_assigns_themselves_as_reviewer" pk=workflow.pk %}" hx-target="#htmxModalContent">
