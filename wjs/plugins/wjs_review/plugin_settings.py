@@ -235,7 +235,7 @@ JCOM Editor-in-charge
             "setting": None,
             "value": """Dear Dr. {{ article.correspondence_author.full_name }},
 <br><br>
-Please connect to {{ article.articleworkflow.url }} to read the Editor review and [...] submit the {% if minor_revision %}minor{% endif %} revision of {{ article.title }} requested by the Editor in charge by {{ revision.date_due }}.
+Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a> to read the Editor review and [...] submit the {% if minor_revision %}minor{% endif %} revision of {{ article.title }} requested by the Editor in charge by {{ revision.date_due }}.
 <br><br>
 In preparing your revision, please check that your manuscript conforms to the JCOM style and formatting instructions available: [link a sezione di help for auths]
 <br><br>
@@ -515,67 +515,6 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
-    def author_submits_revision_message() -> tuple[SettingValue, ...]:
-        revision_submission_subject_setting: SettingParams = {
-            "name": "revision_submission_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject of author revision submission notice"),
-            "description": _(
-                "Subject of the notification sent to the editor when an author submits a revision.",
-            ),
-            "is_translatable": False,
-        }
-        revision_submission_subject_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Resubmitted",
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            revision_submission_subject_setting,
-            revision_submission_subject_setting_value,
-            revision_submission_subject_setting["name"],
-            force=force,
-        )
-        revision_submission_message_setting: SettingParams = {
-            "name": "revision_submission_body",
-            "group": wjs_review_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Body of author revision submission notice"),
-            "description": _(
-                "Body of the notification sent to the editor when an author submits a revision.",
-            ),
-            "is_translatable": False,
-        }
-        revision_submission_message_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """{% if revision.type == "Technical Revisions" %}TECHNICAL REVISION
-Dear colleague,
-<br><br>
-Please note that the author has updated the metadata of the {{ article.section.name }} <a href="{{ article.articleworkflow.url }}">{{ article.title }}</a>.
-{% else %}NON-TECH REVISION
-Dear Dr. {{ editor.full_name }},
-<br><br>
-Please connect to <a href="{{ article.articleworkflow.url }}">the article page</a> to download the {{ article.section.name }}  resubmitted in reply to your request for revision. [...]
-<br>
-You are kindly requested to either select reviewers or make a decision within {{ default_editor_assign_reviewer_days }} days.
-{% endif %}
-<br><br>
-Thank you and best regards,
-<br>
-{{ journal.code }} Journal""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            revision_submission_message_setting,
-            revision_submission_message_setting_value,
-            revision_submission_message_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2
-
     def admin_deems_unimportant() -> tuple[SettingValue, ...]:
         requeue_article_subject_setting: SettingParams = {
             "name": "requeue_article_subject",
@@ -766,7 +705,7 @@ Thank you and best regards,<br><br>
             "setting": None,
             "value": """Dear Dr. {{ editor.full_name }},
 <br><br>
-Please connect to {{ article.articleworkflow.url }} to handle [...] this {{ article.section.name }} as editor-in-charge.
+Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a> to handle [...] this {{ article.section.name }} as editor-in-charge.
 <br><br>
 Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.<br>
 Should you be unable to handle it, please decline the assignment as soon as possible.
@@ -1330,7 +1269,7 @@ Best regards,
 <br><br>
 You have been assigned [...] the {{ article.section.name }} {{ article.id }}.
 
-Please visit: {{ article.articleworkflow.url }}
+Please visit: the manuscript <a href="{{ article.articleworkflow.url }}">web page</a>
 """,
             "translations": {},
         }
@@ -1631,7 +1570,7 @@ Thank you and best regards,
         subject_eo_opens_appeal_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("{{ article.journal }} {{ article.id }} appeal granted."),
+            "value": _("Appeal granted"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1653,16 +1592,16 @@ Thank you and best regards,
         eo_opens_appeal_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Dear {{ article.correspondence_author.full_name }},
-            you can now submit your appeal from your pages.
-
-            Please visit:
-            {% url "wjs_article_details" article.id %}
-
-            Best regards,
-            EO
-            """,
+            "value": """Dear {{ article.correspondence_author.full_name }},
+<br><br>
+you have been enabled to submit your appeal against rejection.
+Please [...] do so within 30 days, otherwise the procedure of appeal will be closed
+and rejection will stand.
+<br><br>
+Thank you and best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1812,10 +1751,13 @@ Thank you and best regards,
             "setting": None,
             "value": """Dear {{ editor.full_name }},
 <br><br>
-The author of the {{ article.section.name }} "{{ article.title }}" has appealed against rejection. <br>
-Please connect to {{ article.articleworkflow.url }} and kindly handle the appeal within 5 days.
+The author of the {{ article.section.name }} "{{ article.title }}" has appealed against rejection.
+<br>
+Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a>
+and kindly handle the appeal within 5 days.
 <br><br>
-Thank you and best regards,<br>
+Thank you and best regards,
+<br>
 {{ journal.code }} Journal
 """,
             "translations": {},
