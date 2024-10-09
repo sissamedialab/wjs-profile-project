@@ -1,0 +1,141 @@
+{# djlint:off #}
+{% extends "admin/core/base.html" %}
+{% load static %}
+{% load foundation %}
+{% load i18n %}
+
+{% block title-section %}{% trans "Article Info" %}{% endblock %}
+{% block css %}
+    <link href="{% static 'admin/css/timeline.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block head %}
+    {{ block.super }}
+{% endblock %}
+
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li>Submit an Article</li>
+{% endblock %}
+
+{% block body %}
+    <article>
+        <div class="box">
+            <form method="POST"{% if journal_settings.general.abstract_required %} novalidate{% endif %}>
+                {% csrf_token %}
+
+                {% if article.is_preprint %}{% trans "This article is a preprint" %}{% endif %}
+                {% include "submission/timeline.html" with data=article %}
+
+                <div class="row expanded">
+                    <div class="title-area">
+                        <h2>{% trans 'Basic Information' %}</h2>
+                    </div>
+                    <div class="content">
+                        {% include "elements/forms/errors.html" with form=form %}
+                        <div class="{% if request.journal.submissionconfiguration.subtitle %}large-6{% else %}large-12{% endif %} columns">
+                            {{ form.title|foundation }}
+                        </div>
+
+                        {% if request.journal.submissionconfiguration.subtitle %}
+                            <div class="large-6 columns">
+                                {{ form.subtitle|foundation }}
+                            </div>
+                        {% endif %}
+
+                        {% if request.journal.submissionconfiguration.abstract %}
+                            <div class="large-12 columns">
+                                {{ form.abstract|foundation }}
+                            </div>
+                        {% endif %}
+                        {% if journal_settings.general.submission_summary %}
+                            <div class="large-12 columns">
+                                {{ form.non_specialist_summary|foundation }}
+                            </div>
+                        {% endif %}
+                        {% if request.journal.submissionconfiguration.language %}
+                            <div class="large-{{ request.journal.submissionconfiguration.lang_section_license_width }} columns">
+                                {{ form.language|foundation }}
+                            </div>
+                        {% endif %}
+
+                        <div class="large-{{ request.journal.submissionconfiguration.lang_section_license_width }} columns end">
+                            {{ form.section|foundation }}
+                        </div>
+
+                        {% if request.journal.submissionconfiguration.license %}
+                            <div class="large-{{ request.journal.submissionconfiguration.lang_section_license_width }} columns error">
+                                {{ form.license|foundation }}
+                                <p class="help-text"><a href="#" data-open="license">{% trans 'View license information' %}</a></p>
+                            </div>
+                        {% endif %}
+
+
+                        {% if request.journal.submissionconfiguration.keywords %}
+                            <div class="large-12 columns">
+                                <div class="row expanded">
+                                    <div class="large-12 columns">
+                                        <label for="id_keywords">{% trans 'Keywords' %}</label>
+                                      <p>
+                                        Please select from one to three keywords to accurately describe the subject matter of your paper.
+                                      </p>
+                                      <p>
+                                        If no keyword describes your paper satisfactorily, please choose the most appropriate keyword(s) from the list. After submission, you can send an email to the Editorial Office suggesting adding keywords that better describe your paper. If approved by the editor-in-chief, the new keyword(s) will be added to either the journal keyword list or your paper's files (if published).
+                                      </p>
+                                        {{ form.keywords }}
+                                        {{ form.keywords.help_text}}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="clearfix"></div>
+
+
+                    {% include "admin/elements/submission/additional_fields.html" with form=form additional_fields=additional_fields %}
+
+                    <div class="large-12 columns">
+                        <button class="success button pull-right" type="submit" name="start_submission"><i
+                                class="fa fa-check">&nbsp;</i>{% trans "Save and Continue" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </article>
+
+    <!-- License information modal -->
+    <div id="license" class="reveal" data-reveal aria-labelledby="licensetitle" aria-hidden="true"
+         role="dialog">
+        <div class="card">
+            <div class="card-divider">
+                <h2 id="licensetitle">{% trans 'License Information' %}</h2>
+            </div>
+            <div class="card-section">
+                <p>{{ request.journal.name }} {% trans "allows the following licenses for submission" %}:</p>
+                {% include "elements/license_block.html" %}
+            </div>
+        </div>
+        <button class="close-button" data-close aria-label="Close modal" type="button">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+
+{% endblock body %}
+
+
+
+{% block js %}
+    {{ block.super }}
+
+    <script type="text/javascript" src="{% static "common/js/jq-ui.min.js" %}"></script>
+    <script src="{% static "common/js/tagit.js" %}"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $("#id_keywords").tagit(
+                {allowSpaces: true});
+        });
+    </script>
+{% endblock %}
+{# djlint:on #}

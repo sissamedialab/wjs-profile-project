@@ -25,3 +25,9 @@ body {
   font-size: 1.5rem;
   font-weight: bold;
 }
+
+.select-wrapper {
+  & + .help-text {
+    margin-top: 0;
+  }
+}

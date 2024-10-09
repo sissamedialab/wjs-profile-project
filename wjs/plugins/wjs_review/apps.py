@@ -67,6 +67,7 @@ class WjsReviewConfig(AppConfig):
             convert_manuscript_to_pdf,
             notify_author_article_submission,
             notify_coauthors_article_submission,
+            on_article_submission_start,
             perform_checks_at_acceptance,
             process_submission,
             restart_review_process_after_revision_submission,
@@ -74,6 +75,10 @@ class WjsReviewConfig(AppConfig):
             sync_article_articleworkflow,
         )
 
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_SUBMISSION_START,
+            on_article_submission_start,
+        )
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_ARTICLE_SUBMITTED,
             transactional_emails.send_submission_acknowledgement,

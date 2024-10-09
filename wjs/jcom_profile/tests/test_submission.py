@@ -139,7 +139,7 @@ class TestSIStage:
 
         assert response.status_code == 200
         targets = (
-            ".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]",
+            ".//div[@class='container'][re:test(text(), '.*Article Issue selection.*', 'i')]",
             "//*[re:test(text(), '.*Select Issue.*', 'i')]",
         )
         html = lxml.html.fromstring(response.content.decode())
@@ -159,7 +159,7 @@ class TestSIStage:
 
         assert response.status_code == 200
         targets = (
-            ".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]",
+            ".//div[@class='container'][re:test(text(), '.*Article Issue selection.*', 'i')]",
             "//*[re:test(text(), '.*Select Issue.*', 'i')]",
         )
         html = lxml.html.fromstring(response.content.decode())

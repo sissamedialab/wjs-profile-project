@@ -8,6 +8,7 @@ from pathlib import Path
 
 from core.janeway_global_settings import TEMPLATES
 from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 
 INSTALLED_APPS = [
     "wjs.jcom_profile",
@@ -326,3 +327,26 @@ WJS_REVIEW_CUSTOM_REPORT_FORMS = {
 # (x,y) position of the watermark
 WATERMARK_X_POSITION = 10
 WATERMARK_Y_POSITION = 720
+
+WJS_ARTICLE_LANGUAGES = {
+    None: [("eng", _("English"))],
+    "JCOM": [
+        (
+            "eng",
+            _("English"),
+        ),
+        ("deu", "German"),
+        ("fra", _("French")),
+        ("esp", _("Spanish")),
+        ("por", _("Portuguese")),
+        ("ita", _("Italian")),
+    ],
+    "JCOMAL": [("esp", _("Spanish")), ("por", _("Portuguese"))],
+}
+
+WJS_ARTICLE_KEYWORDS_LIMITS = {
+    None: {
+        "min": 1,
+        "max": 3,
+    },
+}

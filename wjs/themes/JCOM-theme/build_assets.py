@@ -18,7 +18,9 @@ BASE_THEME_DIR = os.path.join(settings.BASE_DIR, "static", "JCOM-theme")
 SRC_THEME_DIR = os.path.dirname(__file__)
 THEME_CSS_FILES = [
     os.path.join(BASE_THEME_DIR, "css", "jcom.css"),
+    os.path.join(BASE_THEME_DIR, "css", "jcom_nav.css"),
     os.path.join(BASE_THEME_DIR, "css", "jcomal.css"),
+    os.path.join(BASE_THEME_DIR, "css", "jcomal_nav.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_jcom.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_jcomal.css"),
     os.path.join(BASE_THEME_DIR, "css", "newsletter_mobile.css"),

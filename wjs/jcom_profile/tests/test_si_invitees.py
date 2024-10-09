@@ -48,7 +48,10 @@ class TestSIInvitees:
         # The page I'm visiting is the one that lets me choose the SI
         html = lxml.html.fromstring(response.content.decode())
         # we must user regexps because template reformatting may change renderend content whitespaces
-        assert html.xpath(".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]", namespaces={"re": regexpNS})
+        assert html.xpath(
+            ".//div[@class='container'][re:test(text(), '.*Article Issue selection.*', 'i')]",
+            namespaces={"re": regexpNS},
+        )
 
         # The SI is among the choices
         # NB: don't just `assert <Element...>`: elements are False if they don't have children
@@ -114,7 +117,10 @@ class TestSIInvitees:
 
         # The page I'm visiting is the one that lets me choose the SI
         html = lxml.html.fromstring(response.content.decode())
-        assert html.xpath(".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]", namespaces={"re": regexpNS})
+        assert html.xpath(
+            ".//div[@class='container'][re:test(text(), '.*Article Issue selection.*', 'i')]",
+            namespaces={"re": regexpNS},
+        )
 
         # The SI is among the choices
         assert html.find(f".//input[@value='{open_special_issue.id}']") is not None
@@ -160,7 +166,10 @@ class TestSIInvitees:
 
         # The page I'm visiting is the one that lets me choose the SI
         html = lxml.html.fromstring(response.content.decode())
-        assert html.xpath(".//h1[re:test(text(), '.*Article Issue selection.*', 'i')]", namespaces={"re": regexpNS})
+        assert html.xpath(
+            ".//div[@class='container'][re:test(text(), '.*Article Issue selection.*', 'i')]",
+            namespaces={"re": regexpNS},
+        )
 
         # I can see the expected SIs
         assert html.find(f".//input[@value='{si_no_invitees.id}']") is not None

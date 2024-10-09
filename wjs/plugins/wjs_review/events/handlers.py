@@ -8,8 +8,9 @@ from typing import Optional
 from django.conf import settings
 from django.utils.module_loading import import_string
 from events import logic as events_logic
+from submission import logic as submission_logic
 from submission import models as submission_models
-from submission.models import Article
+from utils import setting_handler
 from utils.logger import get_logger
 
 from wjs.jcom_profile.utils import render_template_from_setting
@@ -42,6 +43,28 @@ def sync_article_articleworkflow(**kwargs) -> None:
         article.articleworkflow.save()
         kwargs = {"workflow": article.articleworkflow}
         events_logic.Events.raise_event(ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED, task_object=article, **kwargs)
+
+
+def on_article_submission_start(**kwargs) -> None:
+    """Assign current user as main author."""
+    article = kwargs["article"]
+    request = kwargs["request"]
+    user_automatically_author = setting_handler.get_setting(
+        "general",
+        "user_automatically_author",
+        request.journal,
+    ).processed_value
+    user_automatically_main_author = setting_handler.get_setting(
+        "general",
+        "user_automatically_main_author",
+        request.journal,
+    ).processed_value
+
+    if user_automatically_main_author and user_automatically_author:
+        submission_logic.add_user_as_author(request.user, article)
+        if user_automatically_main_author:
+            article.correspondence_author = request.user
+            article.save()
 
 
 def process_submission(**kwargs) -> None:
@@ -208,7 +231,7 @@ def perform_checks_at_acceptance(**kwargs):
 
     This function should be called just after the paper has been accepted.
     """
-    article: Article = kwargs["article"]
+    article: submission_models.Article = kwargs["article"]
     if article.articleworkflow.state == ArticleWorkflow.ReviewStates.ACCEPTED:
         VerifyProductionRequirements(article.articleworkflow).run()
     else:
