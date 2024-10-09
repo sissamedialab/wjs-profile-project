@@ -322,3 +322,7 @@ WJS_REVIEW_CUSTOM_REPORT_FORMS = {
     None: "plugins.wjs_review.forms.JCOMReportForm",
     "JCOM": "plugins.wjs_review.forms.JCOMReportForm",
 }
+
+# (x,y) position of the watermark
+WATERMARK_X_POSITION = 10
+WATERMARK_Y_POSITION = 720

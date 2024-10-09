@@ -7,8 +7,15 @@ action in a method named "run()".
 
 import dataclasses
 import datetime
+import shutil
+import tarfile
+import tempfile
 from copy import copy
+from io import BytesIO
+from pathlib import Path
 from typing import Any, Dict, Optional
+
+import requests
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
@@ -21,6 +28,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import QuerySet
@@ -2747,3 +2755,97 @@ class WithdrawPreprint:
             if assignment := self._check_typesetter_conditions():
                 self._log_typesetter(assignment)
             return
+
+
+@dataclasses.dataclass
+class ConvertManuscriptToPdf:
+    """Use Yakunin service to convert the manuscript file uploaded by the author into a PDF"""
+
+    article: Article
+
+    def create_in_memory_ini_file(self) -> BytesIO:
+        ini_content = f"""
+    [wjs]
+    text = Not for distribution {self.article.journal.code} {self.article.id} v{self.article.current_review_round()}
+    x = {settings.WATERMARK_X_POSITION}
+    y = {settings.WATERMARK_Y_POSITION}
+    """
+
+        ini_file = BytesIO(ini_content.encode("utf-8"))
+        ini_file.name = "wj.ini"
+        ini_file.seek(0)
+        return ini_file
+
+    def ask_yakunin_to_process(self, ini_file: BytesIO) -> bytes:
+        if getattr(settings, "YAKUNIN_MOCK_FILE", None):
+            with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
+                return mock_file.read()
+        url = settings.YAKUNIN_URL
+
+        files = {
+            "file": (
+                self.article.manuscript_files.first().original_filename,
+                self.article.manuscript_files.first().get_file(self.article, as_bytes=True),
+            ),
+            "ini": (ini_file.name, ini_file.getvalue()),
+        }
+
+        response = requests.post(url, files=files)
+        if response.status_code != 200:
+            raise ValueError(_(f"Unexpected status code {response.status_code}."))
+
+        return response.content
+
+    def unpack_response_file(self, content: bytes) -> Path:
+        unpack_dir = tempfile.mkdtemp()
+
+        with BytesIO(content) as file_obj:
+            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+                tar.extractall(path=unpack_dir)
+        unpack_dir = Path(unpack_dir)
+
+        return unpack_dir
+
+    def check_yakunin_logs(self, unpack_dir: Path) -> bool:
+        has_error_or_critical = False
+        # Assuming the file is always present if response.status_code is 200
+        yakunin_log_file = next(unpack_dir.glob("yakunin-task.log"), None)
+
+        with open(yakunin_log_file) as log_file:
+            for line in log_file:
+                if line.startswith("ERROR"):
+                    has_error_or_critical = True
+                    break
+                elif line.startswith("CRITICAL"):
+                    has_error_or_critical = True
+                    break
+        return not has_error_or_critical
+
+    def handle_generated_pdf(self, unpack_dir: Path):
+        # Assuming the pdf is always present if no error or critical in logs
+        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        with generated_pdf_path.open("rb") as pdf_file:
+            generated_pdf = File(pdf_file, name=generated_pdf_path.name)
+            generated_manuscript = core_files.save_file_to_article(
+                file_to_handle=generated_pdf,
+                article=self.article,
+                owner=self.article.correspondence_author,
+                label="Manuscript File",
+            )
+
+        for file in self.article.source_files.all():
+            file.unlink_file()
+            file.delete()
+        self.article.source_files.set(self.article.manuscript_files.all())
+        self.article.manuscript_files.clear()
+        self.article.manuscript_files.add(generated_manuscript)
+        self.article.save()
+
+    def run(self):
+        content = self.ask_yakunin_to_process(self.create_in_memory_ini_file())
+        unpack_dir = self.unpack_response_file(content)
+        if not self.check_yakunin_logs(unpack_dir):
+            raise ValueError(_("Error in generating the PDF file."))
+        self.handle_generated_pdf(unpack_dir)
+        # cleanup temporary dir created by unzip_response_file
+        shutil.rmtree(unpack_dir)
