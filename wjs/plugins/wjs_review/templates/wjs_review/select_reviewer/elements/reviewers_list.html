@@ -7,7 +7,7 @@
   <tr>
     <td>
       {% if user.wjs_is_only_prophy %}
-        <a href="{{ user.wjs_prophy_auth_url }}{{ user.author_id }}" title="{% translate "Candidate's details on Prophy" %}">{{ user.full_name }}</a>
+        <a href="{{ user.wjs_prophy_auth_url }}{{ user.author_id }}" title="{% translate "Candidate's details on Prophy" %}" target="_blank">{{ user.full_name }}</a>
       {% else %}
         {{ user.full_name }}
       {% endif %}
