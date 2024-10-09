@@ -1,6 +1,11 @@
-{% load wjs_review wjs_tags %}
-{% if request.user|is_user_eo %}
-  <a id="toggle-batch-{{ issue.pk }}" hx-post="{% url 'toggle-issue-batch' issue.pk %}" hx-target="#toggle-batch-{{ issue.pk }}" hx-swap="outerHTML"
-     title="{% if issue.issueparameters.batch_publish %}{% translate "Issue is published in batch mode" %}{% else %}{% translate "Issue is published piecemeal" %}{% endif %}">{% if issue.issueparameters.batch_publish %}
-    <i class="bi bi-journals"></i>{% else %}<i class="bi bi-table"></i>{% endif %}</a>
-{% endif %}
+{% load django_bootstrap5 wjs_review wjs_tags %}
+{% url 'toggle-issue-batch' issue.pk as toggle_mode_url %}
+{% translate "Issue is published in batch mode" as batch_label %}
+{% translate "Issue is published piecemeal" as piece_label %}
+{% with button_id="toggle-batch-"|concat:issue.pk button_selector="#toggle-batch-"|concat:issue.pk %}
+  {% if issue.issueparameters.batch_publish %}
+    {% bootstrap_button id=button_id button_class="btn-outline-primary btn-sm" hx_post=toggle_mode_url hx_target=button_selector hx_swap="outerHTML" title=batch_label content='<i class="bi bi-journals"></i>' %}
+  {% else %}
+    {% bootstrap_button id=button_id button_class="btn-outline-primary btn-sm" hx_post=toggle_mode_url hx_target=button_selector hx_swap="outerHTML" title=piece_label content='<i class="bi bi-table"></i>' %}
+  {% endif %}
+{% endwith %}

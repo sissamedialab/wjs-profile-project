@@ -1,19 +1,49 @@
-{% load wjs_articles wjs_tags %}
-{% if issue.issue_type.code == "collection" %}
-  {% include "wjs_review/lists/elements/issue/_issue_special_detail.html" %}
-{% else %}
-  {% include "wjs_review/lists/elements/issue/_issue_plain_detail.html" %}
-{% endif %}
-<tr>
-  <td colspan="14">
-    <div id="issues-list-content">
-      {% include "wjs_review/lists/elements/issue/issue_articles_list.html" %}
+{% load django_bootstrap5 wjs_articles wjs_tags %}
+<div class="card">
+  <div class="card-body">
+    <div class="card-title">
+      <h6 class="d-flex justify-content-between">
+        <b>{{ issue|display_title:True }}</b>
+        <div id="issue-actions">
+          {% if request.user|is_user_eo %}
+            {% url 'wjs_review_issueparameter_edit' issue.issueparameters.pk as issueparameter_edit_url %}
+            {% url 'manage_issues_id' issue.pk as manage_issue_url %}
+            {% url 'toggle-issue-batch' issue.pk as toggle_mode_url %}
+            {% translate "Issue is published in batch mode" as batch_label %}
+            {% translate "Issue is published piecemeal" as piece_label %}
+            {% translate "Janeway Manager" as manager_label %}
+            {% bootstrap_button button_class="btn-outline-primary btn-sm" href=manage_issue_url target="_blank" title=manager_label content='<i class="bi bi-gear"></i>' %}
+            {% if issue.issue_type.code == "collection" %}
+              {% include "wjs_review/lists/elements/issue/_toggle_batch.html" %}
+              {% bootstrap_button button_class="btn-outline-primary btn-sm" name="update-issue-parameters" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=issueparameter_edit_url hx_target="#htmxModalContent" content='<i class="bi bi-card-heading"></i>' %}
+            {% endif %}
+          {% endif %}
+        </div>
+      </h6>
+      {% if issue.issue_type.code == "collection" %}
+        {% include "wjs_review/lists/elements/issue/_issue_special_detail.html" %}
+      {% else %}
+        {% include "wjs_review/lists/elements/issue/_issue_plain_detail.html" %}
+      {% endif %}
     </div>
-  </td>
-</tr>
-<tr>
-  <td class="pb-6 bg-light bg-gradient" colspan="14">&nbsp;</td>
-</tr>
+    <div class="accordion" id="manuscripts-{{ issue.pk }}">
+      <div class="accordion-item">
+        <h6 class="accordion-header" id="heading-manuscripts-{{ issue.pk }}">
+          <button class="accordion-button bg-white collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-manuscripts-{{ issue.pk }}" aria-expanded="false" aria-controls="collapse-manuscripts-{{ issue.pk }}">
+            <b>{% translate "Manuscripts" %}</b>
+          </button>
+        </h6>
+        <div id="collapse-manuscripts-{{ issue.pk }}" class="accordion-collapse collapse" aria-labelledby="heading-manuscripts-{{ issue.pk }}" data-bs-parent="#manuscripts-{{ issue.pk }}">
+          <div class="accordion-body">
+            <div id="issues-list-content">
+              {% include "wjs_review/lists/elements/issue/issue_articles_list.html" %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% block js %}
   <!-- jsDelivr :: Sortable :: Latest (https://www.jsdelivr.com/package/npm/sortablejs) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
