@@ -21,7 +21,7 @@
   <tr>
     <th>{% translate "Dates" %}</th>
     <td class="p-0">
-      <table class="table border table-bordered table-sm m-0">
+      <table class="table table-sm m-0">
         <tr>
           <th class="col-3">{% translate "Open" %}</th>
           <th class="col-3">{% translate "Close" %}</th>
@@ -45,7 +45,7 @@
   <tr>
     <th>{% translate "Manuscripts" %}</th>
     <td class="p-0">
-      <table class="table border table-bordered table-sm m-0">
+      <table class="table table-sm m-0">
         <tr>
           <th class="col-3">{% translate "Expected" %}</th>
           <th class="col-3">{% translate "Pending" %}</th>
@@ -53,16 +53,16 @@
           <th class="col-3">{% translate "Other" %}</th>
         </tr>
         <tr>
-          <td class="text-center">
+          <td>
             {{ issue.expected_submissions|default:0 }}
           </td>
-          <td class="text-center">
+          <td>
             {% special_issue_paper_pending issue %}
           </td>
-          <td class="text-center">
+          <td>
             {% special_issue_paper_published issue %}
           </td>
-          <td class="text-center">
+          <td>
             {% special_issue_paper_others issue %}
           </td>
         </tr>

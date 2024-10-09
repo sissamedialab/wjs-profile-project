@@ -19,6 +19,8 @@
             {% bootstrap_button button_type=link button_class="btn-outline-secondary" href=request.path content=reset_label %}
             {% bootstrap_button button_type="submit" content=search_label %}
           </div>
+      <a class="btn btn-warning" target="_blank" href="{{ contact_eo }}">{% translate "Contact EO to update reviewer email" %}</a>
+
           {% bootstrap_button name="invite-reviewer" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=invite_reviewer hx_target="#htmxModalContent" content=invite_label %}
         </div>
       </form>

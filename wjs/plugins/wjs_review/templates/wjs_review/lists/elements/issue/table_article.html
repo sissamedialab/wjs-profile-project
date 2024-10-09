@@ -43,9 +43,9 @@
         {% with modal_id="article_files_modal-"|concat:article.pk modal_target="#article_files_modal-"|concat:article.pk %}
           <!-- djlint:off -->
           {% if has_extra_information %}
-            {% bootstrap_button type="button" button_class="btn-outline-primary border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder\"></i>" %}
+            {% bootstrap_button type="button" button_class="btn-outline-primary border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder-fill\"></i>" %}
           {% else %}
-            {% bootstrap_button type="button" button_class="btn-outline-warning border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder\"></i>" %}
+            {% bootstrap_button type="button" button_class="btn-outline-warning border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-exclamation-triangle-fill\"></i>" %}
           {% endif %}
           <!-- djlint:on -->
           {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=modal_title_label include_path="wjs_review/shared/elements/article_additional_social_files.html" %}
