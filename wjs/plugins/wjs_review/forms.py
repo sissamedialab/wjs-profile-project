@@ -198,6 +198,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
             self.fields["author_note_visible"].widget = forms.HiddenInput()
 
         if self.editor_assigns_themselves_as_reviewer:
+            self.fields["acceptance_due_date"].label = _("I will send my review by")
             self.fields["message_subject"].widget = forms.HiddenInput()
             self.fields["message"].widget = forms.HiddenInput()
             self.fields["author_note_visible"].widget = forms.HiddenInput()
