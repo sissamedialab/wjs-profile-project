@@ -1,0 +1,10 @@
+{% load django_bootstrap5 %}
+{% translate "Display author cover letter" as review_notes %}
+{% if workflow.article.comments_editor %}
+  {% bootstrap_button button_type="button" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#authorNotesCollapse" aria_expanded="false" aria_controls="authorNotesCollapse" content=review_notes %}
+  <div class="collapse mt-3" id="authorNotesCollapse">
+    <div class="card card-body">
+      {{ workflow.article.comments_editor }}
+    </div>
+  </div>
+{% endif %}

@@ -19,7 +19,7 @@
   <tbody>
     {% for field_name, field in form_fields.items %}
       <tr>
-        {% if field_name != 'author_file_title' and field_name != 'no_conflict_of_interest' and field_name != 'review_file' and field_name != 'author_review' %}
+        {% if field_name != 'author_file_title' and field_name != 'conflict_of_interest' and field_name != 'review_file' and field_name != 'author_review' %}
           <th>{% translate field.label %}</th>
           {% for review in submitted_reviews %}
               {% if field_name != 'editor_cover_letter' %}

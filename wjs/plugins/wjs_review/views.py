@@ -760,14 +760,14 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
     def get_template_names(self) -> List[str]:
         """Select the template based on the request type."""
         if self.htmx:
-            if self.request.POST.get("message"):
-                return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
-            elif self.request.headers.get("Hx-Trigger-Name") == "assign-reviewer":
+            if self.request.headers.get("Hx-Trigger-Name") == "assign-reviewer":
                 return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
             elif self.request.headers.get("Hx-Trigger-Name") == "editor-assign-themselves":
                 return ["wjs_review/editor_assigns_themselves_as_reviewer.html"]
             elif self.request.headers.get("Hx-Trigger-Name") == "search-reviewer-form":
                 return ["wjs_review/select_reviewer/elements/reviewers_table.html"]
+            elif self.request.POST.get("message"):
+                return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
         return ["wjs_review/select_reviewer/select_reviewer.html"]
 
     def paginate_queryset(self, queryset, page_size) -> Tuple[Paginator, Optional[Page], Optional[QuerySet], bool]:
@@ -1098,12 +1098,26 @@ class PostponeRevisionRequestDueDate(HtmxMixin, AuthenticatedUserPassesTest, Upd
         return kwargs
 
 
-class EvaluateReviewRequest(OpenReviewMixin, UpdateView):
+class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
     form_class = EvaluateReviewForm
     template_name = "wjs_review/evaluate_review/review_evaluate.html"
     success_url = reverse_lazy("wjs_review_list")
     title = _("Accept/Decline invite to review")
     use_access_code = True
+    allow_anonymous_access = True
+
+    def load_initial(self, request, *args, **kwargs):
+        if self.allow_anonymous_access and request.user.is_anonymous:
+            self.extra_links = {}
+        else:
+            super().load_initial(request, *args, **kwargs)
+
+    def test_func(self):
+        """
+        This is needed because the permission logic is inside OpenReviewMixin but we still need a test_func to use
+        BaseRelatedViewsMixin.
+        """
+        return True
 
     def get_success_url(self) -> str:
         """Redirect to a different URL according to the decision."""
@@ -1171,13 +1185,22 @@ class ReviewDeclined(BaseRelatedViewsMixin, OpenReviewMixin):
     template_name = "wjs_review/submit_review/review_declined.html"
     incomplete_review_only = False
     use_access_code = True
+    allow_anonymous_access = True
+
+    def load_initial(self, request, *args, **kwargs):
+        if self.allow_anonymous_access and request.user.is_anonymous:
+            self.extra_links = {}
+        else:
+            super().load_initial(request, *args, **kwargs)
 
     def test_func(self):
-        """Allow access only to the reviewer who has completed the review."""
-        self.article = self.get_object().article.articleworkflow
-        return permissions.is_article_reviewer(self.article, self.request.user) or base_permissions.has_eo_role(
-            self.request.user
-        )
+        """
+        This is needed because the permission logic is inside OpenReviewMixin but we still need a test_func to use
+        BaseRelatedViewsMixin.
+
+        We also need the invited reviewer (AnonymousUser) to have access to this page.
+        """
+        return True
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
@@ -1225,7 +1248,7 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
         ]
 
 
-class ReviewSubmit(BaseRelatedViewsMixin, EvaluateReviewRequest, ReviewerRequiredMixin):
+class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
     template_name = "wjs_review/submit_review/review_submit.html"
     title = _("Sumbit review")
     use_access_code = False

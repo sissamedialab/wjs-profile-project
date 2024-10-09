@@ -58,7 +58,7 @@
     <ul class="list-group mb-1">
       {% for file in article.manuscript_files.all %}
         <li class="list-group-item">
-          <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.name }}</a>
+          <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
         </li>
       {% endfor %}
     </ul>
@@ -69,7 +69,7 @@
     <ul class="list-group mb-1">
       {% for file in article.data_figure_files.all %}
         <li class="list-group-item">
-          <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.name }}</a>
+          <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
         </li>
       {% endfor %}
     </ul>

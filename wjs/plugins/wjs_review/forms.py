@@ -443,7 +443,7 @@ class EvaluateReviewForm(forms.ModelForm):
         self.request = kwargs.pop("request")
         self.token = kwargs.pop("token")
         super().__init__(*args, **kwargs)
-        if self.token and not self.instance.reviewer.jcomprofile.gdpr_checkbox:
+        if not self.instance.reviewer.jcomprofile.gdpr_checkbox:
             self.fields["accept_gdpr"].widget = forms.CheckboxInput()
         if self.instance.date_accepted:
             self.fields["reviewer_decision"].required = False

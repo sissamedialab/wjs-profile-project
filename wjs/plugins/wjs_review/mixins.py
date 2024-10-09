@@ -37,8 +37,10 @@ class AuthenticatedUserPassesTest(UserPassesTestMixin):
         - run :py:meth:`dispatch` to call the view method
     """
 
+    allow_anonymous_access = False
+
     def dispatch(self, request, *args, **kwargs):
-        if request.user.is_anonymous:
+        if request.user.is_anonymous and not self.allow_anonymous_access:
             return self.handle_no_permission()
         self.load_initial(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
