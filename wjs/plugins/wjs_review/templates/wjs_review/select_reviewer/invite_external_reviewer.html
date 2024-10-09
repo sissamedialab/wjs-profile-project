@@ -27,6 +27,7 @@
     {% bootstrap_field form.message_subject %}
     {% bootstrap_field form.message %}
     {% bootstrap_field form.author_note_visible %}
+    {% include "wjs_review/select_reviewer/elements/author_note.html" %}
     <div class="d-flex justify-content-between mt-3">
       {% bootstrap_button button_type="button" id="preview-btn-invite" name="invite-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#invitemessagePreviewCollapse" aria_expanded="false" aria_controls="invitemessagePreviewCollapse" hx_post=invite_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
       {% bootstrap_button button_type="button" id="update-btn-invite" name="invite-reviewer-message" value="1" button_class="btn-outline-secondary" hx_post=invite_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Update Preview" style="display:none;" %}

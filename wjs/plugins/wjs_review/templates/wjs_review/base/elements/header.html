@@ -36,6 +36,7 @@
                       {% bootstrap_button button_type="link" button_class="btn-link ps-0" name="more" content=title href=url size="sm" extra_classes="mx-1" %}
                     </li>
                   {% endfor %}
+                {% elif request.user.is_anonymous %}
                 {% else %}
                   <div class="text-bg-warning">
                   DEFINE <span class="font-monospace">related_views</span> in {{ view }}

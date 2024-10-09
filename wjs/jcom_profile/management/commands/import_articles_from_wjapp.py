@@ -1779,7 +1779,7 @@ ORDER BY dl.submissionDate
         # that do not have a "mandatory" value (such as no-conflict-of-interests).
         report_form = get_report_form(self.journal)
         jcom_report_form_data = {
-            "no_conflict_of_interest": True,
+            "conflict_of_interest": "no",
             "structure_and_writing_style": "",
             "originality": "",
             "scope_and_methods": "",

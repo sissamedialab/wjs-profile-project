@@ -1,6 +1,6 @@
 {% load django_bootstrap5 i18n static %}
-{% translate "Display author cover letter" as review_notes %}
 {% translate "Close" as close_label %}
+{% translate "Assign" as assign_label %}
 {% url "wjs_article_details" workflow.pk as article_details %}
 <div class="modal-header">
   <h5 class="modal-title" id="htmxModalLabel">{% translate "Select a Reviewer" %}</h5>
@@ -12,24 +12,22 @@
     <script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
     <script>
       document.addEventListener("htmx:configRequest", function(event) {
-        bindTinymce(event, "message");
+        if(["preview-btn-select", "update-btn-select", "assign-editor"].indexOf(event.target.id) > -1) {
+          bindTinymce(event, "message");
+        }
+      });
+      document.getElementById('htmxModal').addEventListener('hidden.bs.modal', function () {
+        unloadModal();
       });
     </script>
     {% csrf_token %}
     {% bootstrap_form_errors form layout='inline' %}
     {% bootstrap_form form %}
-    {% if workflow.article.comments_editor %}
-      {% bootstrap_button button_type="button" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#authorNotesCollapse" aria_expanded="false" aria_controls="authorNotesCollapse" content=review_notes %}
-      <div class="collapse mt-3" id="authorNotesCollapse">
-        <div class="card card-body">
-          {{ workflow.article.comments_editor }}
-        </div>
-      </div>
-    {% endif %}
+    {% include "wjs_review/select_reviewer/elements/author_note.html" %}
     <div class="d-flex justify-content-between mt-3">
       {% bootstrap_button button_type="button" id="preview-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#messagePreviewCollapse" aria_expanded="false" aria_controls="messagePreviewCollapse" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
       {% bootstrap_button button_type="button" id="update-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Update Preview" style="display:none;" %}
-      {% bootstrap_button button_type="submit" content="Assign" %}
+      {% bootstrap_button button_type="submit" id="assign-editor" content=assign_label %}
     </div>
     <div class="collapse mt-3" id="messagePreviewCollapse">
       {% include "wjs_review/select_reviewer/elements/select_reviewer_message_preview.html" %}
