@@ -1,5 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static wjs_permissions %}
+{% load django_bootstrap5 static wjs_permissions wjs_review %}
 
 {% block content_wrapper %}
   {% user_has_access_to workflow=workflow user=request.user target=workflow.article permission_type="all" as has_full_access %}
@@ -21,10 +21,24 @@
               This page provides a search tool to freely search for reviewers of your choice to select registered reviewers or to invite non-registered ones.<br>
               A list of possible reviewers is already available for your consideration.<br>
             </p>
-            <p>
-              This tutorial provides information about Prophy and how to use it in JCOM.<br>
-              See the complete list of suggested reviewers for this preprint.<br>
-            </p>
+          {% endblocktranslate %}
+          {% if workflow.article|has_prophy_candidates %}
+            {% blocktranslate with prophy_link=workflow.article|jwt_token_url:request.user article_id=workflow.article.id %}
+              <p>
+                This tutorial provides information about Prophy and how to use it in JCOM.<br>
+                See the <a href="{{ prophy_link }}" target="_blank">complete list of suggested reviewers</a> for this preprint.<br>
+              </p>
+            {% endblocktranslate %}
+          {% else %}
+            {% blocktranslate %}
+              <p>
+                This tutorial provides information about Prophy and how to use it in JCOM.<br>
+                See the complete list of suggested reviewers for this preprint.<br>
+              </p>
+            {% endblocktranslate %}
+          {% endif %}
+
+          {% blocktranslate %}
             <p>
               Please keep in mind that Prophy suggestions might include authors of this preprint;<br>
               Any reviewer suggested by Prophy is ordered by suitability for this preprint.<br>
