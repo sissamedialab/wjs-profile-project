@@ -88,7 +88,7 @@ def get_url_with_galleyproofing_pk(action: "ArticleAction", workflow: "ArticleWo
     return url
 
 
-def get_edit_permissions_url_review_assignment(
+def get_reviewer_permission_edit_url(
     action: "ReviewAssignmentAction",
     assignment: ReviewAssignment,
     user: Account,
@@ -97,7 +97,7 @@ def get_edit_permissions_url_review_assignment(
     url = reverse(
         action.view_name,
         kwargs={
-            "user_id": user.pk,
+            "user_id": assignment.reviewer.pk,
             "pk": assignment.article.articleworkflow.pk,
         },
     )
@@ -276,7 +276,9 @@ class ReviewAssignmentAction:
     querystring_params: dict = None
     custom_get_url: Optional[Callable] = None
     permission: Optional[Callable] = None
-    confirm: Optional[str] = ""
+    assignment_permission: Optional[Callable] = None
+    confirm: str = ""
+    button_class: str = "btn-primary"
 
     def __post_init__(self):
         if self.is_modal:
@@ -299,6 +301,7 @@ class ReviewAssignmentAction:
             "is_modal": self.is_modal,
             "is_post": self.is_post,
             "confirm": self.confirm,
+            "button_class": self.button_class,
             "id": id(self),
         }
 
@@ -359,9 +362,12 @@ class ReviewAssignmentAction:
         :return: True if the user has permission to run this action
         :rtype: bool
         """
-        if self.permission is None:
+        if self.permission is None and self.assignment_permission is None:
             return True
-        return self.permission(assignment.article.articleworkflow, user)
+        if self.assignment_permission:
+            return self.assignment_permission(assignment, user)
+        else:
+            return self.permission(assignment.article.articleworkflow, user)
 
 
 # Actions organized by states
@@ -538,7 +544,7 @@ class EditorSelected(BaseState):
     ) + BaseState.article_actions
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
-            permission=permissions.is_article_reviewer,
+            assignment_permission=permissions.is_assignment_reviewer,
             name="see review",
             label="Upload review",
             view_name="wjs_assign_permission",
@@ -553,7 +559,7 @@ class EditorSelected(BaseState):
             is_modal=True,
         ),
         ReviewAssignmentAction(
-            permission=permissions.is_article_reviewer,
+            assignment_permission=permissions.is_assignment_reviewer,
             condition=conditions.review_not_done,
             name="postpone reviewer due date",
             label="Change due date",
@@ -561,7 +567,7 @@ class EditorSelected(BaseState):
             is_modal=True,
         ),
         ReviewAssignmentAction(
-            permission=permissions.is_article_reviewer,
+            assignment_permission=permissions.is_assignment_reviewer,
             condition=conditions.review_not_done,
             name="decline review",
             label="Decline Review",
@@ -576,19 +582,20 @@ class EditorSelected(BaseState):
             view_name="WRITEME!",
         ),
         ReviewAssignmentAction(
-            permission=permissions.is_article_supervisor,
-            condition=conditions.review_not_done,
-            name="set visibility",
-            label='Set visibility rights <i class="bi bi-sliders"></i>',
-            view_name="wjs_assign_permission",
-            custom_get_url=get_edit_permissions_url_review_assignment,
-        ),
-        ReviewAssignmentAction(
             permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
             label="Deselect reviewer",
             view_name="wjs_deselect_reviewer",
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_editor_or_eo,
+            condition=conditions.review_not_done,
+            name="set visibility",
+            label='Set visibility rights <i class="bi bi-sliders"></i>',
+            view_name="wjs_assign_permission",
+            custom_get_url=get_reviewer_permission_edit_url,
+            button_class="btn-outline-secondary",
         ),
     )
 
