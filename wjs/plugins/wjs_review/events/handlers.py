@@ -15,7 +15,11 @@ from utils.logger import get_logger
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from .. import communication_utils
-from ..logic import CreateReviewRound, VerifyProductionRequirements
+from ..logic import (
+    ConvertManuscriptToPdf,
+    CreateReviewRound,
+    VerifyProductionRequirements,
+)
 from ..models import (
     ArticleWorkflow,
     ProphyAccount,
@@ -226,3 +230,14 @@ def clean_prophy_candidates(**kwargs) -> None:
             article=article.id,
         ).delete()
         ProphyAccount.objects.filter(prophycandidate__isnull=True).delete()
+
+
+def convert_manuscript_to_pdf(**kwargs) -> None:
+    """This responds to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
+    article = kwargs["article"]
+    file_type = kwargs["file_type"]
+
+    if file_type == "manuscript":
+        ConvertManuscriptToPdf(article).run()
+    elif file_type == "data":
+        pass
