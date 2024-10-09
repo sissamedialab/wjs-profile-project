@@ -1,19 +1,35 @@
 <div class="card my-4">
+  <div class="card-header">
+    <h5 class="card-title">{% translate "Information" %}</h5>
+  </div>
   <div class="card-body">
-    <h3 class="card-title">{% translate "Information" %}</h3>
     {% blocktranslate with editor_name=revision_request.editor.full_name %}
-    <p>
-      You have been asked to revise your article manuscript. If the editor
-      has made peer review comments
-      available for you to view, these will be visible below. The
-      manuscript and any additional files are
-      also listed below.
-    </p>
-    <p>
-      The editor, {{ editor_name }}, supplied the
-      following note
-    </p>
+      <p>
+        You are going to submit a revised version of your preprint.
+      </p>
+      <ol>
+        <li>Update the metadata, if needed.
+        </li>
+        <li>
+          Add a cover letter to the editor, which will be visible to any selected reviewer by default.
+        </li>
+        <li>
+          Submit the source file of your revised preprint and any necessary supplementary files.
+        </li>
+        <li>
+          Check the boxes in the “Finishing up” section.
+        </li>
+        <li>
+          Click “Upload”.
+        </li>
+      </ol>
     {% endblocktranslate %}
-    {{ revision_request.editor_note|safe }}
+    {% if revision_request.editor_note %}
+      <h6>{% translate "Editor report" %}
+      </h6>
+      <p>
+        {{ revision_request.editor_note|safe }}
+      </p>
+    {% endif %}
   </div>
 </div>

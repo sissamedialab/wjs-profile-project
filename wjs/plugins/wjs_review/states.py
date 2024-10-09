@@ -141,6 +141,15 @@ def get_do_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", us
         )
 
 
+def get_confirm_version_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    revision_request = conditions.pending_revision_request(workflow, user)
+    if revision_request:
+        return reverse(
+            "confirm_version",
+            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+        )
+
+
 def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     revision_request = conditions.pending_edit_metadata_request(workflow, user)
     if revision_request:
@@ -744,7 +753,7 @@ class ToBeRevised(BaseState):
             name="confirms previous manuscript",
             label="Confirm previous version",
             view_name="do_revisions",
-            custom_get_url=get_do_revision_url,
+            custom_get_url=get_confirm_version_url,
         ),
         ArticleAction(
             condition=conditions.pending_edit_metadata_request,

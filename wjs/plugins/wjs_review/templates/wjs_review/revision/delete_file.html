@@ -1,0 +1,28 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 static %}
+
+{# djlint:off #}
+{% translate "<i class=\"bi bi-trash3-fill\"></i>" as delete_label %}
+{% translate "return confirm('Are you sure you want to delete this item?');" as confirm_label %}
+{# djlint:on #}
+{% url "wjs_delete_article_file" article.pk revision_request.pk file.pk as delete_file_url %}
+
+{% block content_wrapper %}
+  <div class="container mb-3">
+    <h2>{{ view.title }}</h2>
+  </div>
+  <div class="container mb-3">
+    <div class="card mb-3">
+      <div class="card-header">
+        <h5 id="cover_letter" class="card-title">{% translate "Confirm deleting file" %}</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ delete_file_url }}">
+          {% csrf_token %}
+          <input value="{{ request.path_info }}#do_revision_files" name="next" type="hidden">
+          {% bootstrap_button name="delete" button_type="submit" button_class="btn-outline-secondary" onclick=confirm_label content=delete_label %}
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock content_wrapper %}

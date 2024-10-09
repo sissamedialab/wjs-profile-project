@@ -1,39 +1,52 @@
-{% if revisions.exists %}
-  <div class="card my-4">
-    <div class="card-body">
-      <h3 class="card-title">{% translate "Past versions" %}</h3>
-      <div class="accordion" id="accordionRevision">
-        {% for revision in revisions %}
-          <div class="accordion-item">
-            <h5 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRevision{{ revision.review_round.round_number }}" aria-expanded="true" aria-controls="collapseRevision{{ revision.review_round.round_number }}">
-                {% translate "Version" %}: {{ revision.review_round.round_number }}
-              </button>
-            </h5>
-            {% with round_str=revision.review_round.round_number|stringformat:"s" %}
-              <div id="collapseRevision{{ round_str }}" class="accordion-collapse {% if forloop.last %}show{% endif %} collapse">
-                <div class="accordion-body">
-                  <h6>{% translate "Version files" %}</h6>
-                  <table class="small scroll">
-                    {% if revision.manuscript_files.exists %}
-                      {% url 'revisions_use_files' revision_request.article.pk revision_request.pk file_type as manuscript_url %}
-                      {% include "wjs_review/revision/elements/past_versions_files.html" with title="Manuscript files" url=manuscript_url modal_id="manuscriptModal"|add:round_str files=revision.manuscript_files.all %}
-                    {% endif %}
-                    {% if revision.data_figure_files.exists %}
-                      {% url 'revisions_use_files' revision_request.article.pk revision_request.pk file_type as manuscript_url %}
-                      {% include "wjs_review/revision/elements/past_versions_files.html" with title="Data figure files" url=manuscript_url modal_id="manuscriptModal"|add:round_str files=revision.data_figure_files.all %}
-                    {% endif %}
-                    {% if revision.supplementary_files.exists %}
-                      {% url 'revisions_use_files' revision_request.article.pk revision_request.pk file_type as manuscript_url %}
-                      {% include "wjs_review/revision/elements/past_versions_files.html" with title="Supplementary files" url=manuscript_url modal_id="supplementaryModal"|add:round_str files=revision.supplementary_files.all %}
-                    {% endif %}
-                  </table>
-                </div>
-              </div>
-            {% endwith %}
+{% load django_bootstrap5 %}
+<div class="row">
+  <div class="col-1 col-stepper">
+    <div class="stepper">
+        <span class="badge rounded-pill bg-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-database" viewBox="0 0 16 16">
+            <path
+              d="M4.318 2.687C5.234 2.271 6.536 2 8 2s2.766.27 3.682.687C12.644 3.125 13 3.627 13 4c0 .374-.356.875-1.318 1.313C10.766 5.729 9.464 6 8 6s-2.766-.27-3.682-.687C3.356 4.875 3 4.373 3 4c0-.374.356-.875 1.318-1.313M13 5.698V7c0 .374-.356.875-1.318 1.313C10.766 8.729 9.464 9 8 9s-2.766-.27-3.682-.687C3.356 7.875 3 7.373 3 7V5.698c.271.202.58.378.904.525C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777A5 5 0 0 0 13 5.698M14 4c0-1.007-.875-1.755-1.904-2.223C11.022 1.289 9.573 1 8 1s-3.022.289-4.096.777C2.875 2.245 2 2.993 2 4v9c0 1.007.875 1.755 1.904 2.223C4.978 15.71 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13zm-1 4.698V10c0 .374-.356.875-1.318 1.313C10.766 11.729 9.464 12 8 12s-2.766-.27-3.682-.687C3.356 10.875 3 10.373 3 10V8.698c.271.202.58.378.904.525C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777A5 5 0 0 0 13 8.698m0 3V13c0 .374-.356.875-1.318 1.313C10.766 14.729 9.464 15 8 15s-2.766-.27-3.682-.687C3.356 13.875 3 13.373 3 13v-1.302c.271.202.58.378.904.525C4.978 12.71 6.427 13 8 13s3.022-.289 4.096-.777c.324-.147.633-.323.904-.525" />
+          </svg>
+        </span>
+      <div class="line"></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card mb-3">
+      <div class="card-header">
+        <h5 id="previous_version" class="card-title">{% translate "Previous version" %}</h5>
+      </div>
+      <div class="card-body">
+        <h5>
+          {% translate "Version" %}: {{ revision.review_round.round_number }}
+        </h5>
+        {% with round_str=revision.review_round.round_number|stringformat:"s" %}
+          {# djlint:off #}
+          {% translate "Manuscript" as manuscript_label %}
+          {% translate "Data & Figures" as data_label %}
+          {% translate "Supplementary" as supplementary_label %}
+          {% translate "<i class=\"bi bi-cloud-check-fill\"></i> Confirm the current version of all files" as confirm_label %}
+          {# djlint:om#}
+          <div class="mb-3">
+            <h6 class="card-title"><b>{% translate "Preprint files" %}</b></h6>
+            {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.manuscript_files.all file_type="manuscript" type_label=manuscript_label %}
           </div>
-        {% endfor %}
+          <div class="mb-3">
+            <h6 class="card-title"><b>{% translate "Data files" %}</b></h6>
+            {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.data_figure_files.all file_type="data" type_label=data_label %}
+          </div>
+          <div class="mb-3">
+            {% if object.confirm_previous_version %}
+              <p>{% translate "You have confirmed the current version" %}</p>
+            {% else %}
+              <form method="post" action="{{ request.path_info }}#previous_version">
+                {% csrf_token %}
+                {% bootstrap_button button_class="btn-secondary" button_type="submit" name="confirm_previous_version" value=1 content=confirm_label %}
+              </form>
+            {% endif %}
+          </div>
+        {% endwith %}
       </div>
     </div>
   </div>
-{% endif %}
+</div>

@@ -4,7 +4,7 @@ import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 from django.utils import timezone
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from plugins.typesetting.models import GalleyProofing
 from review import models as review_models
 from submission.models import Article
@@ -91,7 +91,7 @@ def test_author_revision_is_late(
     eo = communication_utils.get_eo_user(article)
 
     days_past = 5
-    expected = now() + timezone.timedelta(days=-days_past)  # note the "-": the author is late!
+    expected = localtime(now() + timezone.timedelta(days=-days_past))  # note the "-": the author is late!
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
@@ -213,7 +213,7 @@ def test_author_technicalrevision_is_late(
     eo = communication_utils.get_eo_user(article)
 
     days_past = 5
-    expected = now() + timezone.timedelta(days=-days_past)  # note the "-": the author is late!
+    expected = localtime(now() + timezone.timedelta(days=-days_past))  # note the "-": the author is late!
     form_data = {
         "decision": decision,
         "decision_editor_report": "random message",
@@ -452,7 +452,7 @@ def test_reviewer_is_late(
         reviewer=reviewer.janeway_account,
         editor=section_editor,
         form_data={
-            "acceptance_due_date": (timezone.now() + timezone.timedelta(1)).strftime("%Y-%m-%d"),
+            "acceptance_due_date": (localtime(timezone.now() + timezone.timedelta(1))).strftime("%Y-%m-%d"),
             "message": "random message",
             "author_note_visible": False,
         },
@@ -467,7 +467,7 @@ def test_reviewer_is_late(
     assert state_cls.article_requires_attention(article=article, user=reviewer) == ""
 
     # accept/decline overdue
-    assignment.date_due = timezone.now() - timezone.timedelta(1)
+    assignment.date_due = localtime(timezone.now() - timezone.timedelta(1))
     assignment.save()
     assert state_cls.article_requires_attention(article=article, user=reviewer) == "Invite to be accepted/declined"
 
