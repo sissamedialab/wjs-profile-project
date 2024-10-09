@@ -1,29 +1,28 @@
-{% extends "wjs_review/base.html" %}
+{% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static %}
 
-{% block title %}Uploading Article File for {{ revision_request.article.title }}{% endblock title %}
-
-{% block content %}
-    <div class="container">
-        <div class="row">
-            <div class="col-sm-12">
-                <div class="card my-4">
-                    <div class="card-body">
-                        <h3 class="card-title">Cover letter</h3>
-                        {% if object.cover_letter_file %}
-                            <p>Update the cover letter file.</p>
-                        {% else %}
-                            <p>Please upload your cover letter file.</p>
-                        {% endif %}
-                        <form method="post" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            {% bootstrap_form_errors form layout='inline' %}
-                            {% bootstrap_field form.cover_letter_file %}
-                            {% bootstrap_button button_type="submit" name="replacement" value=1 content="Upload" %}
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block content_wrapper %}
+  <div class="container mb-3">
+    <h2>{{ view.title }}</h2>
+  </div>
+  <div class="container mb-3">
+    <div class="card my-4">
+      {# djlint:off #}
+      {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload" as upload_label %}
+      {# djlint:on #}
+      <div class="card-body">
+        {% if object.cover_letter_file %}
+          <p>{% translate "Update the cover letter file." %}</p>
+        {% else %}
+          <p>{% translate "Please upload your cover letter file." %}</p>
+        {% endif %}
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% bootstrap_form_errors form layout='inline' %}
+          {% bootstrap_field form.cover_letter_file %}
+          {% bootstrap_button button_type="submit" name="replacement" value=1 content=upload_label %}
+        </form>
+      </div>
     </div>
-{% endblock content %}
+  </div>
+{% endblock content_wrapper %}

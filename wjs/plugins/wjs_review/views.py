@@ -2,6 +2,7 @@ from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
+from core import files
 from core import files as core_files
 from core import models as core_models
 from django import forms
@@ -29,13 +30,16 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import (
     CreateView,
+    DeleteView,
     DetailView,
+    FormView,
     ListView,
     TemplateView,
     UpdateView,
     View,
 )
 from django_filters.views import FilterView
+from events import logic as event_logic
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import logic as review_logic
@@ -67,9 +71,11 @@ from .filters import (
 from .forms import (
     ArticleExtraInformationUpdateForm,
     AssignEoForm,
+    ConfirmVersionForm,
     DecisionForm,
     DeclineReviewForm,
     DeselectReviewerForm,
+    EditMetadataForm,
     EditorDeclinesAssignmentForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
@@ -85,6 +91,7 @@ from .forms import (
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
+    UploadArticleForm,
     UploadRevisionAuthorCoverLetterFileForm,
     WithdrawPreprintForm,
 )
@@ -1945,7 +1952,7 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
 
 
-class UploadRevisionAuthorCoverLetterFile(AuthenticatedUserPassesTest, UpdateView):
+class UploadRevisionAuthorCoverLetterFile(BaseRelatedViewsMixin, UpdateView):
     """
     Basic view to upload the optional file of the author cover letter.
 
@@ -1957,6 +1964,7 @@ class UploadRevisionAuthorCoverLetterFile(AuthenticatedUserPassesTest, UpdateVie
 
     """
 
+    title = _("Upload Author Cover Letter")
     model = EditorRevisionRequest
     pk_url_kwarg = "revision_id"
     template_name = "wjs_review/revision/upload_revision_author_cover_letter_file.html"
@@ -1969,19 +1977,183 @@ class UploadRevisionAuthorCoverLetterFile(AuthenticatedUserPassesTest, UpdateVie
             article__correspondence_author=self.request.user,
         ).exists()
 
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
+                title=self.object.article.articleworkflow,
+            ),
+            BreadcrumbItem(
+                url=reverse(
+                    "do_revisions",
+                    kwargs={"article_id": self.object.article.articleworkflow.pk, "revision_id": self.object.pk},
+                ),
+                title=_("Submit revision"),
+            ),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
+
     def get_success_url(self):
         """Redirect to the article details page."""
         return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
 
 
-class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
-    title = _("Submit Revision")
+class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
+    """ """
+
     model = EditorRevisionRequest
-    form_class = EditorRevisionRequestEditForm
+    pk_url_kwarg = "revision_id"
+    template_name = "wjs_review/revision/upload_file.html"
+    form_class = UploadArticleForm
+    original_file = None
+
+    @property
+    def title(self):
+        if self.file_type == "manuscript":
+            if self.original_file:
+                return _("Replace preprint")
+            return _("Upload preprint")
+        # FIXME: Cover letter management not yet implemented
+        if self.file_type == "cover_letter":
+            if self.original_file:
+                return _("Replace cover letter")
+            return _("Upload cover letter")
+        if self.original_file:
+            return _("Replace supplementary material")
+        return _("Upload supplementary material")
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        # FIXME: Refactor to use load_initial after merging !568
+        self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
+        if self.kwargs.get("file_id"):
+            self.original_file = get_object_or_404(core_models.File, pk=self.kwargs.get("file_id"))
+        self.file_type = self.kwargs["file_type"]
+        return self.model.objects.filter(
+            pk=self.kwargs[self.pk_url_kwarg],
+            article__correspondence_author=self.request.user,
+        ).exists()
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["file_type"] = self.file_type
+        kwargs["instance"] = self.object
+        kwargs["original_file"] = self.original_file
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        """If the form is valid, save the file and return a response."""
+        form.save()
+        new_file = form.new_file
+        if new_file:
+            if self.original_file:
+                review_logic.log_revision_event(
+                    "File {} ({}) replaced with {} ({})".format(
+                        self.original_file.label,
+                        self.original_file.original_filename,
+                        new_file.label,
+                        new_file.original_filename,
+                    ),
+                    self.request.user,
+                    self.object,
+                )
+            else:
+                review_logic.log_revision_event(
+                    "New file {} ({}) uploaded".format(new_file.label, new_file.original_filename),
+                    self.request.user,
+                    self.object,
+                )
+            if self.file_type == "manuscript":
+                event_logic.Events.raise_event(
+                    event_logic.Events.ON_ARTICLE_FILE_UPLOAD,
+                    **{
+                        "request": self.request,
+                        "file_id": new_file,
+                        "original_filename": new_file.original_filename,
+                        "file_type": "manuscript",
+                        "article": self.object.article,
+                    },
+                )
+
+        response = HttpResponse("ok")
+        response.headers["HX-Redirect"] = self.get_success_url()
+        return response
+
+    def get_success_url(self):
+        """Redirect to the article details page."""
+        return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["revision_request"] = self.object
+        context["article"] = self.object.article
+        return context
+
+
+class DeleteRevisionFile(AuthenticatedUserPassesTest, DeleteView):
+    """A view to let the user delete a file from the revision request."""
+
+    title = _("Delete file")
+    model = core_models.File
+    pk_url_kwarg = "file_id"
+    article_pk_url_kwarg = "article_id"
+    revision_pk_url_kwarg = "revision_id"
+    template_name = "wjs_review/revision/delete_file.html"
+
+    def test_func(self):
+        """User must be corresponding author of the article."""
+        return Article.objects.filter(
+            pk=self.kwargs[self.article_pk_url_kwarg],
+            correspondence_author=self.request.user,
+        ).exists()
+
+    def get_success_url(self):
+        """Redirect to the article details page."""
+        if self.request.POST.get("next"):
+            return self.request.POST.get("next")
+        return reverse(
+            "do_revisions",
+            kwargs={
+                "article_id": self.kwargs[self.article_pk_url_kwarg],
+                "revision_id": self.kwargs[self.revision_pk_url_kwarg],
+            },
+        )
+
+    def delete(self, request, *args, **kwargs):
+        """Delete the file and return a response."""
+        self.object = self.get_object()
+        article = get_object_or_404(Article, pk=self.kwargs[self.article_pk_url_kwarg])
+        revision_request = get_object_or_404(EditorRevisionRequest, pk=self.kwargs[self.revision_pk_url_kwarg])
+        self.object.delete()
+        files.delete_file(article, self.object)
+        review_logic.log_revision_event(
+            "File {} ({}) deleted.".format(self.object.id, self.object.original_filename),
+            request.user,
+            revision_request,
+        )
+        event_logic.Events.raise_event(
+            event_logic.Events.ON_ARTICLE_FILE_DELETE,
+            **{
+                "request": request,
+                "file_id": self.object.pk,
+                "original_filename": self.object.original_filename,
+                "article": article,
+            },
+        )
+        return HttpResponseRedirect(self.get_success_url())
+
+
+class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
+    model = EditorRevisionRequest
     pk_url_kwarg = "revision_id"
     template_name = "wjs_review/revision/revision_form.html"
     context_object_name = "revision_request"
     meta_data_fields = ["title", "abstract"]
+    confirm_version = False
 
     def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
@@ -1996,6 +2168,14 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         ).exists()
 
     @property
+    def title(self):
+        if self.confirm_version:
+            return _("Confirm previous version")
+        if self.object.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            return _("Update Metadata")
+        return _("Submit Revision")
+
+    @property
     def page_title(self):
         return f"{self.title} for {self.object.article.title}"
 
@@ -2005,7 +2185,7 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
 
         return [
             BreadcrumbItem(
-                url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}),
+                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
                 title=self.object.article.articleworkflow,
             ),
             BreadcrumbItem(
@@ -2030,20 +2210,53 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
             article=self.object.article,
         ).order_by("-review_round__round_number")
 
+    def get_form_class(self):
+        """
+        Select form class based on the revision request type.
+
+        Each form handle saving author note and confirm_previous_version flag, and it provides different checklist
+        fields based on the revision request type.
+        """
+        if self.confirm_version:
+            return ConfirmVersionForm
+        if self.object.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            return EditMetadataForm
+        return EditorRevisionRequestEditForm
+
     def get_form_kwargs(self) -> Dict[str, Any]:
         save_metadata = bool(self.request.POST.get("save_metadata"))
+        save_metadata_draft = bool(self.request.POST.get("save_metadata_draft"))
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
-        # when saving metadata form main view form must not be instatiated as submitted
-        # so we remove data / files to skip form instatiation and validation
-        if save_metadata:
+        kwargs["save_cover_letter"] = bool(self.request.POST.get("save_cover_letter"))
+        kwargs["confirm_previous_version"] = bool(self.request.POST.get("confirm_previous_version"))
+        # when saving metadata form main view form must not be instantiated as submitted
+        # so we remove data / files to skip form instantiation and validation
+        if save_metadata or save_metadata_draft:
             del kwargs["data"]
             del kwargs["files"]
+        if kwargs.get("data"):
+            d = kwargs["data"].copy()
+            # when finishing the revision, we need to set author note / confirm_previous_version data because
+            # author note / confirm_previous_version and finishing form
+            # are in the same django form but split in two different HTML forms due to the page layout
+            if not kwargs["save_cover_letter"]:
+                d["author_note"] = self.object.author_note
+            if not kwargs["confirm_previous_version"]:
+                d["confirm_previous_version"] = self.object.confirm_previous_version
+            kwargs["data"] = d
         return kwargs
 
     def _get_metadata_form_class(self) -> Type[model_forms.BaseModelForm]:
-        """Generate a MetadataForm class for the article."""
+        """
+        Generate a MetadataForm class for the article.
+
+        Unless we are saving draft data, the form is generated for :py:class:`Article`, otherwise for
+        :py:class:`EditorRevisionRequest`.
+        """
+        if bool(self.request.POST.get("save_metadata_draft")):
+            return model_forms.modelform_factory(EditorRevisionRequest, fields=self.meta_data_fields)
         return model_forms.modelform_factory(Article, fields=self.meta_data_fields)
 
     def _get_metadata_form(self) -> Optional[model_forms.BaseModelForm]:
@@ -2058,8 +2271,23 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
             meta_data_form = form_class(self.request.POST, instance=self.object.article)
             meta_data_form.is_valid()
             return meta_data_form
+        elif self.request.POST.get("save_metadata_draft"):
+            meta_data_form = form_class(self.request.POST, instance=self.object)
+            meta_data_form.is_valid()
+            return meta_data_form
         else:
-            return form_class(instance=self.object.article)
+            initial = {}
+            if self.object.title:
+                initial["title"] = self.object.title
+            if self.object.abstract:
+                initial["abstract"] = self.object.abstract
+            return form_class(instance=self.object.article, initial=initial)
+
+    def form_invalid(self, form):
+        if form.is_bound:
+            return super().form_invalid(form)
+        else:
+            return self.form_valid(form)
 
     def form_valid(self, form):
         """
@@ -2070,23 +2298,30 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
           ```AuthorHandleRevision``` logic class to complete the revision submission process and redirect to article
           status page;
         - if the submit button is "save_metadata", it means the user has updated the metadata, we can just save the
-          form, update aricle object associated with the revision request and redirect back to revision request page;
+          form, update article object associated with the revision request and redirect back to revision request page;
         - in all the other cases we just save the form and redirect back to revision request page.
         """
-        if self.request.POST.get(self.form_class.CONFIRMED_BUTTON_NAME):
+        if self.request.POST.get(self.get_form_class().CONFIRMED_BUTTON_NAME):
             self.object = form.finish()
             return HttpResponseRedirect(self.get_success_url())
         meta_data_form = self._get_metadata_form()
+        meta_data_save = False
         if meta_data_form and meta_data_form.is_valid():
-            self.object.article = meta_data_form.save()
-        self.object = form.save()
+            if self.request.POST.get("save_metadata"):
+                self.object.article = meta_data_form.save()
+                meta_data_save = True
+            elif self.request.POST.get("save_metadata_draft"):
+                meta_data_form.save()
+                meta_data_save = True
+        if not meta_data_save:
+            self.object = form.save()
         return self.render_to_response(self.get_context_data(form=form))
 
     def get_success_url(self):
         """
         Redirect to the article details page if the revision confirmation is submitted or to the revision request page.
         """
-        if self.request.POST.get(self.form_class.CONFIRMED_BUTTON_NAME):
+        if self.request.POST.get(self.get_form_class().CONFIRMED_BUTTON_NAME):
             return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
         else:
             return reverse(
@@ -2098,8 +2333,9 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["article"] = self.object.article
         context["reviews"] = self._get_reviews()
-        context["revisions"] = self._get_revisions()
+        context["revision"] = self._get_revisions()[0]
         context["meta_data_form"] = self._get_metadata_form()
+        context["save_metadata"] = bool(self.request.POST.get("save_metadata"))
         return context
 
 

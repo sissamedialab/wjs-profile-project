@@ -1,26 +1,30 @@
+{% translate "Close" as close_label %}
 <div class="modal" id="{{ modal.id }}" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">{% trans "Confirmation" %}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label=close_label></button>
       </div>
       <div class="modal-body">
-        <p>{{ modal.question }}</p>
         {% if modal.potential_errors %}
-            {% for error in modal.potential_errors %}
-                <div class="callout bs-callout-warning">
-                    <p><span class="fa fa-warning">&nbsp;</span>{{ error }}</p>
-                </div>
-            {% endfor %}
+          {% for error in modal.potential_errors %}
+            <div class="callout bs-callout-warning">
+              <p><span class="fa fa-warning">&nbsp;</span>{{ error }}</p>
+            </div>
+          {% endfor %}
+        {% else %}
+        <p>{{ modal.question }}</p>
         {% endif %}
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary" form="{{ form_id }}" type="submit" name="{{ modal.confirmed_button_name }}" value="1">
-            {% trans "Yes" %}
-        </button>
+        {% if not modal.potential_errors %}
+          <button class="btn btn-primary" form="{{ form_id }}" type="submit" name="{{ modal.confirmed_button_name }}" value="1">
+            {% translate "Yes" %}
+          </button>
+        {% endif %}
         <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">
-            {% trans "No, go back" %}
+          {% translate "No, go back" %}
         </button>
       </div>
     </div>

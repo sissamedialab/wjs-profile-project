@@ -7,12 +7,16 @@
   </div>
   <div class="container mb-3">
     {% include "wjs_review/revision/elements/info.html" %}
-    {% include "wjs_review/revision/elements/meta_data.html" %}
-    {% include "wjs_review/revision/elements/past_revisions.html" %}
-    {% include "wjs_review/revision/elements/revision_files.html" %}
-    {% if form.modal %}
-      {% include "admin/elements/confirm_modal.html" with modal=form.modal form_id="do_revision" %}
+    {% if view.confirm_version %}
+      {% include "wjs_review/revision/elements/past_revisions.html" %}
+    {% elif meta_data_form %}
+      {% include "wjs_review/revision/elements/meta_data.html" %}
     {% endif %}
+    {% include "wjs_review/revision/elements/cover_letter.html" %}
+    {% if revision_request.type != "tech_revisions" and not view.confirm_version %}
+      {% include "wjs_review/revision/elements/revision_files.html" %}
+    {% endif %}
+    {% include "wjs_review/revision/elements/finishing.html" %}
   </div>
 {% endblock content_wrapper %}
 

@@ -16,6 +16,7 @@ from .views import (
     AuthorArchived,
     AuthorPending,
     AuthorWithdrawPreprint,
+    DeleteRevisionFile,
     DeselectReviewer,
     DirectorArchived,
     DirectorPending,
@@ -53,6 +54,7 @@ from .views import (
     ToggleMessageReadView,
     UpdateReviewerDueDate,
     UploadRevisionAuthorCoverLetterFile,
+    UploadRevisionFile,
     WriteMessage,
 )
 from .views__production import (  # noqa F401
@@ -163,14 +165,34 @@ urlpatterns = [
     path("review/<int:assignment_id>/declined/", ReviewDeclined.as_view(), name="wjs_declined_review"),
     path("article/<int:article_id>/revision/<int:revision_id>/", ArticleRevisionUpdate.as_view(), name="do_revisions"),
     path(
+        "article/<int:article_id>/revision/<int:revision_id>/confirm/",
+        ArticleRevisionUpdate.as_view(confirm_version=True),
+        name="confirm_version",
+    ),
+    path(
         "article/<int:article_id>/revision/<int:revision_id>/files/<str:file_type>/",
         ArticleRevisionFileUpdate.as_view(),
         name="revisions_use_files",
     ),
     path(
-        "article/<int:article_id>/revision/<int:revision_id>/upload/",
+        "article/<int:article_id>/revision/<int:revision_id>/upload-cover/",
         UploadRevisionAuthorCoverLetterFile.as_view(),
-        name="wjs_upload_file",
+        name="wjs_upload_cover_letter_file",
+    ),
+    path(
+        "article/<int:article_id>/revision/<int:revision_id>/upload/<str:file_type>/",
+        UploadRevisionFile.as_view(),
+        name="wjs_upload_article_file",
+    ),
+    path(
+        "article/<int:article_id>/revision/<int:revision_id>/upload/<str:file_type>/<int:file_id>/",
+        UploadRevisionFile.as_view(),
+        name="wjs_replace_article_file",
+    ),
+    path(
+        "article/<int:article_id>/revision/<int:revision_id>/delete/<int:file_id>/",
+        DeleteRevisionFile.as_view(),
+        name="wjs_delete_article_file",
     ),
     path("messages/<int:pk>/", ArticleMessages.as_view(), name="wjs_article_messages"),
     path("messages/<int:pk>/write/", WriteMessage.as_view(), name="wjs_message_write"),

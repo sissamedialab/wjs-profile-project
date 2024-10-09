@@ -1,0 +1,15 @@
+{% load django_bootstrap5 static wjs_review %}
+{% translate "Upload File" as upload_label %}
+{% url "wjs_article_details" pk=workflow.pk as status_url %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{{ view.title }}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="submit" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  {% url 'wjs_upload_article_file' article.pk revision_request.pk view.file_type as upload_url %}
+  <form id="upload-file" hx-encoding="multipart/form-data" hx-post="{{ upload_url }}">
+    {% csrf_token %}
+    {% bootstrap_form form layout="horizontal" %}
+    {% bootstrap_button name="upload-file" content=upload_label %}
+  </form>
+</div>

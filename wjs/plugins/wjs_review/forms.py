@@ -1,6 +1,7 @@
 import datetime
 from typing import Any, Dict, Iterable, Optional
 
+from core import files
 from core import files as core_files
 from core import models as core_models
 from core.forms import ConfirmableForm
@@ -592,7 +593,6 @@ class DecisionForm(forms.ModelForm):
         self.hide_date_due = kwargs["initial"].get("decision", None) not in (
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
-            ArticleWorkflow.Decisions.TECHNICAL_REVISION,
             ArticleWorkflow.Decisions.OPEN_APPEAL,
         )
         self.hide_decision = kwargs["initial"].get("decision", None)
@@ -610,7 +610,13 @@ class DecisionForm(forms.ModelForm):
         )
 
         super().__init__(*args, **kwargs)
-
+        if kwargs["initial"].get("decision", None) == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            self.fields["decision"].choices = (
+                (
+                    ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
+                    ArticleWorkflow.Decisions.TECHNICAL_REVISION.name,
+                ),
+            )
         if self.admin_form:
             del self.fields["withdraw_notice"]
         elif not self.has_pending_reviews:
@@ -680,9 +686,50 @@ class DecisionForm(forms.ModelForm):
 
 
 class UploadArticleForm(forms.Form):
-    file_type = forms.ChoiceField(choices=(("manuscript", _("Manuscript")), ("data", _("Data/Figure"))))
-    label = forms.CharField(widget=forms.TextInput(attrs={"placeholder": "Label"}))
-    file = forms.FileField(widget=forms.FileInput())
+    file_type = forms.ChoiceField(
+        label=_("File type"), choices=(("manuscript", _("Manuscript")), ("data", _("Data/Figure"))), required=False
+    )
+    label = forms.CharField(label=_("File label"), widget=forms.TextInput(attrs={"placeholder": "Label"}))
+    file = forms.FileField(label=_("Source file"), widget=forms.FileInput())
+
+    def __init__(self, *args, **kwargs):
+        self.file_type = kwargs.pop("file_type", "")
+        self.instance = kwargs.pop("instance")
+        self.user = kwargs.pop("user")
+        self.original_file = kwargs.pop("original_file", None)
+        self.new_file = None
+        super().__init__(*args, **kwargs)
+        if self.file_type:
+            self.fields["file_type"].widget = forms.HiddenInput()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        cleaned_data["file_type"] = self.file_type
+        return cleaned_data
+
+    def save(self, commit: bool = True) -> File:
+        uploaded_file = self.cleaned_data["file"]
+        label = self.cleaned_data["label"]
+        file_type = self.cleaned_data["file_type"]
+        article = self.instance.article
+        if self.original_file:
+            self.original_file.delete()
+        if file_type in ["manuscript", "data"]:
+            new_file = files.save_file_to_article(
+                uploaded_file,
+                article,
+                self.user,
+                label=label,
+            )
+            if file_type == "manuscript":
+                article.manuscript_files.set([new_file])
+            if file_type == "data":
+                article.data_figure_files.add(new_file)
+            self.new_file = new_file
+        else:
+            self.instance.cover_letter_file = uploaded_file
+            self.instance.save()
+        return self.instance
 
 
 class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
@@ -692,25 +739,7 @@ class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
         widgets = {"cover_letter_file": forms.ClearableFileInput()}
 
 
-class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
-    confirm_title = forms.BooleanField(
-        label=_("I confirm that title and abstract on this web page correspond to those written in the preprint file.")
-    )
-    confirm_styles = forms.BooleanField(
-        label=_(
-            "I confirm that this resubmission fulfills the stylistic guidelines of the Journal and its ethical policy "
-            "in all its aspects including use of AI, authorship, etc.."
-        )
-    )
-    confirm_blind = forms.BooleanField(
-        label=_("I confirm that the file does not contain any author information and has line numbering..")
-    )
-    confirm_cover = forms.BooleanField(
-        label=_(
-            "I confirm that the cover letter lists and describes clearly the changes implemented in the preprint "
-            "and motivates any modifications that have not been made.."
-        )
-    )
+class BaseEditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
 
     class Meta:
         model = EditorRevisionRequest
@@ -719,6 +748,8 @@ class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         self.request = kwargs.pop("request", None)
+        self.save_cover_letter = kwargs.pop("save_cover_letter", None)
+        self.confirm_previous_version = kwargs.pop("confirm_previous_version", None)
         super().__init__(*args, **kwargs)
 
     def get_logic_instance(self) -> AuthorHandleRevision:
@@ -746,6 +777,94 @@ class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
         self.instance.refresh_from_db()
         return self.instance
 
+
+class EditMetadataForm(BaseEditorRevisionRequestEditForm):
+    confirm_cover_metadata = forms.BooleanField(
+        label=_(
+            "If I have modified title and/or abstract, I will take care of updating them in my preprint file as soon"
+            "as possible. Either in a revised version or during the stage of proofreading"
+            "(if my preprint is accepted for publication)."
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.save_cover_letter:
+            self.fields["confirm_cover_metadata"].required = False
+
+    def check_for_potential_errors(self):
+        """Check if the user has confirmed all the required fields."""
+        errors = []
+        if not self.cleaned_data.get("confirm_cover_metadata", False):
+            errors.append(_("You must confirm that the cover letter lists and describes the changes."))
+        if not self.instance.author_note and not self.instance.cover_letter_file:
+            errors.append(_("You must provide a cover letter."))
+        return errors
+
+
+class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
+    confirm_version = forms.BooleanField(
+        label=_(
+            "I confirm that my cover letter to the Editor includes my reasons for asking for reconsideration "
+            "of this version."
+        ),
+    )
+
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["author_note", "confirm_previous_version"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.save_cover_letter or self.confirm_previous_version:
+            self.fields["confirm_version"].required = False
+
+    def check_for_potential_errors(self):
+        """Check if the user has confirmed all the required fields."""
+        errors = []
+        if not self.cleaned_data.get("confirm_version", False):
+            errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
+        if not self.instance.confirm_previous_version:
+            errors.append(_("You must confirm the current version."))
+        if not self.instance.author_note and not self.instance.cover_letter_file:
+            errors.append(_("You must provide a cover letter."))
+        return errors
+
+
+class EditorRevisionRequestEditForm(BaseEditorRevisionRequestEditForm):
+    confirm_title = forms.BooleanField(
+        label=_(
+            "I confirm that title and abstract on this web page correspond to those written in the preprint file."
+        ),
+    )
+    confirm_styles = forms.BooleanField(
+        label=_(
+            "I confirm that this resubmission fulfills the stylistic guidelines of the Journal and its ethical policy "
+            "in all its aspects including use of Al, authorship, etc."
+        ),
+    )
+    confirm_blind = forms.BooleanField(
+        label=_("I confirm that the file does not contain any author information and has line numbering."),
+    )
+    confirm_cover = forms.BooleanField(
+        label=_(
+            "I confirm that the cover letter lists and describes clearly the changes implemented in the preprint "
+            "and motivates any modifications that have not been made."
+        ),
+    )
+
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["author_note"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.save_cover_letter:
+            self.fields["confirm_title"].required = False
+            self.fields["confirm_styles"].required = False
+            self.fields["confirm_blind"].required = False
+            self.fields["confirm_cover"].required = False
+
     def check_for_potential_errors(self):
         """Check if the user has confirmed all the required fields."""
         errors = []
@@ -757,6 +876,8 @@ class EditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
             errors.append(_("You must confirm that the file does not contain any author information."))
         if not self.cleaned_data.get("confirm_cover", False):
             errors.append(_("You must confirm that the cover letter lists and describes the changes."))
+        if not self.instance.author_note and not self.instance.cover_letter_file:
+            errors.append(_("You must provide a cover letter."))
         return errors
 
 

@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import html2text
 from core import models as core_models
-from core.model_utils import JanewayBleachCharField, MiniHTMLFormField
+from core.model_utils import (
+    JanewayBleachCharField,
+    JanewayBleachField,
+    MiniHTMLFormField,
+)
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -1464,6 +1468,13 @@ class EditorRevisionRequest(RevisionRequest):
         blank=True,
         related_name="+",
     )
+    confirm_previous_version = models.BooleanField(default=False, verbose_name=_("Confirm version"))
+    # Fields where we store article metadata when author save the metadata draft
+    # ie: "Save as draft" button in templates/wjs_review/revision/elements/meta_data.html
+    # when author click on "Save metadata"" button, data are stored on the article (but not cleaned from here)
+    # fields here keep the same name of the article fields to be able to reuse the same form
+    title = JanewayBleachCharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
+    abstract = JanewayBleachField(blank=True, null=True, verbose_name=_("Abstract"))
 
     class Meta:
         ordering = ("date_requested",)

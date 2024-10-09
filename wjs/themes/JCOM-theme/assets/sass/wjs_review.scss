@@ -188,4 +188,28 @@ table.table-bordered.dataTable .table-borderless td {
   height: 2.56rem;
 }
 
+.table-files {
+  td {
+    vertical-align: middle;
+  }
+}
+
+.col-stepper {
+  width: 4%;
+}
+
+.stepper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.line {
+  margin-top: 0.25rem;
+  width: 1px;
+  height: 100%;
+  background-color: #0d6efd;
+}
+
 @import "bootstrap/scss/bootstrap";
