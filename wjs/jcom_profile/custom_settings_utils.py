@@ -44,10 +44,25 @@ class SettingValueParams(TypedDict):
     translations: dict
 
 
-def patch_setting(setting_params: SettingParams, settingvalue_params: SettingValueParams) -> SettingValue:
+class PatchSettingParams(TypedDict):
+    name: str
+    group: SettingGroup
+
+
+class PatchSettingValueParams(TypedDict):
+    journal: Journal
+    value: Union[str, int, bool, float]
+    translations: dict
+
+
+def patch_setting(setting_params: PatchSettingParams, settingvalue_params: PatchSettingValueParams) -> SettingValue:
     setting = Setting.objects.get(group=setting_params["group"], name=setting_params["name"])
-    setting_value = SettingValue.objects.get(journal=None, setting=setting)
-    setting_value.journal = settingvalue_params["journal"]
+    journal = settingvalue_params["journal"]
+    try:
+        setting_value = SettingValue.objects.get(journal=journal, setting=setting)
+    except SettingValue.DoesNotExist:
+        setting_value = SettingValue.objects.get(journal=None, setting=setting)
+        setting_value.journal = settingvalue_params["journal"]
     setting_value.value = settingvalue_params["value"]
     for field, value in settingvalue_params["translations"].items():
         setattr(setting_value, field, value)
@@ -445,6 +460,36 @@ def add_general_facebook_handle_setting(force: bool = False) -> tuple[SettingVal
             force=force,
         ),
     )
+
+
+# refs specs#954
+def add_submission_settings(journal: Journal, force: bool = False) -> tuple[SettingValue, ...]:
+    general_settings_group = get_group("general")
+    setting_1 = patch_setting(
+        PatchSettingParams(name="submit_select_issue_form_editor_version", group=general_settings_group),
+        PatchSettingValueParams(
+            journal=journal, value="wjs.jcom_profile.forms.SelectSpecialIssueForm", translations={}
+        ),
+    )
+    setting_2 = patch_setting(
+        PatchSettingParams(name="submit_select_issue_form_general_version", group=general_settings_group),
+        PatchSettingValueParams(
+            journal=journal, value="wjs.jcom_profile.forms.SelectSpecialIssueForm", translations={}
+        ),
+    )
+    setting_3 = patch_setting(
+        PatchSettingParams(name="submit_info_form_editor_version", group=general_settings_group),
+        PatchSettingValueParams(
+            journal=journal, value="wjs.jcom_profile.forms.KeywordSelectionArticleInfoSubmit", translations={}
+        ),
+    )
+    setting_4 = patch_setting(
+        PatchSettingParams(name="submit_info_form_general_version", group=general_settings_group),
+        PatchSettingValueParams(
+            journal=journal, value="wjs.jcom_profile.forms.KeywordSelectionArticleInfoSubmit", translations={}
+        ),
+    )
+    return (setting_1, setting_2, setting_3, setting_4)
 
 
 class SettingsCSVWrapper:

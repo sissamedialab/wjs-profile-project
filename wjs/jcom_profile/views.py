@@ -107,6 +107,8 @@ def edit_profile(request):
             if form.is_valid():
                 form.save()
                 messages.add_message(request, messages.SUCCESS, "Profile updated.")
+                if request.GET.get("next"):
+                    return HttpResponseRedirect(request.GET.get("next"))
                 return redirect(reverse("core_edit_profile"))
 
         elif "export" in request.POST:

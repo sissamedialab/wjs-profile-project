@@ -38,3 +38,13 @@
   // needed to fix a glitch with the h-captcha field
   max-width: 0;
 }
+
+.submit-section {
+  .row {
+    max-width: unset !important;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
+}

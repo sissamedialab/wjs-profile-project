@@ -1,0 +1,33 @@
+@charset "UTF-8";
+/* Reduced CSS to render the vetrinetta header */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap");
+
+// Custom colors
+@import "components/color-variables";
+@import "jcomal-color-variables";
+
+// Variables;
+@import "components/variables";
+@import "variables";
+
+// Reset
+@import "components/normalize";
+//
+// components
+@import "components/global";
+@import "components/icons-material-design";
+@import "components/grid";
+@import "components/navbar";
+@import "components/typography";
+@import "components/dropdown";
+@import "components/collapsible";
+@import "components/sidenav";
+@import "components/forms/input-fields";
+
+// customizations TBV
+@import "jcom_custom";
+@import "navbar";
+@import "button";
+@import "global";
+@import "flaticon";
+@import "sideNav";

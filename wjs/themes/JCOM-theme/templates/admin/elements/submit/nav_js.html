@@ -1,0 +1,12 @@
+{% load static %}
+<script>
+  $(document).ready(function() {
+    {# Initialize mobile sidebar navigation #}
+    $(".sidenav").sidenav();
+    {# Initialize selects #}
+    $("select").formSelect();
+    $(".dropdown-trigger").dropdown();
+    $(".collapsible").collapsible();
+    $(".modal").modal();
+  });
+</script>

@@ -18,19 +18,16 @@ from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
 from journal.models import Issue
 from submission import models as submission_models
+from submission.forms import ArticleInfoSubmit, SelectIssueForm
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
-from utils.forms import CaptchaForm
+from utils.forms import CaptchaForm, JanewayTranslationModelForm
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import (
-    EditorAssignmentParameters,
-    EditorKeyword,
-    JCOMProfile,
-    Recipient,
-)
-from wjs.jcom_profile.settings_helpers import get_journal_language_choices
+from .models import EditorAssignmentParameters, EditorKeyword, JCOMProfile, Recipient
+from .settings_helpers import get_article_language_choices, get_journal_language_choices
+from .templatetags.wjs_tags import display_title
 
 logger = get_logger(__name__)
 
@@ -522,3 +519,78 @@ class SearchForm(JanewaySearchForm):
         if sort not in dict(SEARCH_SORT_OPTIONS):
             return "-date_published"
         return sort
+
+
+class IssueModelChoiceField(forms.ModelChoiceField):
+
+    def label_from_instance(self, obj):
+        """
+        Return a value as it should appear when rendered in a template.
+        """
+        if obj is None:
+            return None
+        return display_title(obj)
+
+
+class SelectSpecialIssueForm(SelectIssueForm):
+    """Used to choose the destination special issue during submission."""
+
+    primary_issue = IssueModelChoiceField(
+        queryset=None,
+        required=False,
+        blank=True,
+        empty_label=_("No selection"),
+        widget=forms.RadioSelect(),
+    )
+
+
+class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
+    keywords = forms.ModelMultipleChoiceField(
+        queryset=Keyword.objects.none(),
+        label=_("Keywords"),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            # Competing Interests is wrongly added to the Janeway's form, we must remove it otherwise the field
+            # value is overridden by this form. This must be fixed in Janeway.
+            self._meta.fields = [field for field in self._meta.fields if field != "competing_interests"]
+        except KeyError:
+            pass
+        self.fields["keywords"].queryset = Keyword.objects.filter(journal=self.instance.journal).order_by("word")
+        if self.instance.pk:
+            self.fields["keywords"].initial = self.instance.keywords.all()
+        self.fields["language"].choices = get_article_language_choices(self.instance.journal)
+        self.fields["section"].label = _("Article type")
+
+    def clean_keywords(self):
+        keywords = self.cleaned_data.get("keywords")
+        keywords_limits = settings.WJS_ARTICLE_KEYWORDS_LIMITS.get(
+            self.instance.journal, settings.WJS_ARTICLE_KEYWORDS_LIMITS.get(None)
+        )
+        if len(keywords) < keywords_limits["min"]:
+            raise forms.ValidationError(_(f"You must select at least {keywords_limits['min']} keywords."))
+        if len(keywords) > keywords_limits["max"]:
+            raise forms.ValidationError(_(f"You must select at most {keywords_limits['max']} keywords."))
+        return keywords
+
+    def save(self, commit=True, *args, **kwargs):
+        """
+        Save selected keywords to the article.
+
+        We must bypass the janeway save method that saves textual keywords instead of picking them from the list
+        of objects provided by this form. JanewayTranslationModelForm is the parent class of ArticleInfoSubmit
+        and allows us to reuse model form save method "skipping" the unwanted parents.
+        """
+        instance = JanewayTranslationModelForm.save(self, commit=commit)
+
+        # Saving custom keywords replaces the currently selected ones
+        posted_keywords = self.cleaned_data.get("keywords", "")
+        instance.keywords.clear()
+        if posted_keywords:
+            instance.keywords.add(*posted_keywords)
+
+        return instance
