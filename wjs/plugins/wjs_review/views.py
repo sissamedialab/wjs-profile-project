@@ -641,7 +641,13 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
     filterset_class = ReviewerArticleWorkflowFilter
     filterset: ReviewerArticleWorkflowFilter
     show_filters = False
-    table_configuration_options = {"reviewer_status": True, "show_filter_editor": True, "show_filter_author": False}
+    table_configuration_options = {
+        "reviewer_status": True,
+        "show_filter_editor": True,
+        "show_filter_author": False,
+        "pending_list": True,
+        "archived_list": False,
+    }
     """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def test_func(self):
@@ -666,6 +672,13 @@ class ReviewerArchived(ReviewerPending):
 
     title = _("Archived preprints")
     show_filters = True
+    table_configuration_options = {
+        "reviewer_status": True,
+        "show_filter_editor": True,
+        "show_filter_author": False,
+        "pending_list": False,
+        "archived_list": True,
+    }
     """See :py:attr:`EOPending.table_configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
