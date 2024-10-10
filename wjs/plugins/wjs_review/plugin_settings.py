@@ -630,7 +630,7 @@ Thank you and best regards,<br><br>
         hijack_notification_subject_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("User {{ hijacker }} executed {{ original_subject }}"),
+            "value": '{{ journal.code }} Editorial Office /Editor in chief did "{{ original_subject }}"',
             "translations": {},
         }
         setting_1 = create_customization_setting(

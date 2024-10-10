@@ -286,11 +286,23 @@ def test_assign_to_reviewer_hijacked(
         template_is_setting=True,
     )
 
+    hijack_notification_subject = render_template_from_setting(
+        setting_group_name="wjs_review",
+        setting_name="hijack_notification_subject",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "journal": assigned_article.journal,
+            "original_subject": review_assignment_subject,
+        },
+        template_is_setting=True,
+    )
+
     assert len(user_emails) == 1
     assert len(editor_emails) == 1
     assert review_assignment_subject in user_emails[0].subject
     assert assigned_article.journal.code in user_emails[0].subject
-    assert f"User {eo_user} executed {review_assignment_subject}" in editor_emails[0].subject
+    assert hijack_notification_subject in editor_emails[0].subject
 
 
 @pytest.mark.django_db

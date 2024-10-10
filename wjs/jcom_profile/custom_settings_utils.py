@@ -67,6 +67,16 @@ def patch_setting(setting_params: PatchSettingParams, settingvalue_params: Patch
     for field, value in settingvalue_params["translations"].items():
         setattr(setting_value, field, value)
     setting_value.save()
+
+    # If we have been asked to patch the default value but there are overrides,
+    # report it:
+    if not settingvalue_params["journal"]:
+        for override in SettingValue.objects.filter(
+            journal__isnull=False,
+            setting=setting,
+        ):
+            logger.warning(f"    - override exists for {override.journal.code} (patch has no effect)")
+
     return setting_value
 
 
@@ -256,7 +266,7 @@ def add_publication_alert_settings(force: bool = False) -> tuple[SettingValue, .
         "value": """
 Hello,
 <p>
-We have received a request to subscribe your email address to JCOM publication alert.
+We have received a request to subscribe your email address to {{ journal.code }} publication alert.
 </p>
 <p>
 To confirm your email address, activate your subscription and select your topics of interest click on
@@ -275,7 +285,7 @@ you will not be added to our mailing list.
 Kind regards,
 </p>
 <p>
-JCOM - Journal of Science Communication
+{{ journal.code }} - {{ journal.description }}
 </p>
 """,
         "translations": {},
@@ -317,10 +327,9 @@ JCOM - Journal of Science Communication
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": """
-Hello,
+        "value": """Hello,
 <p>
-We have received a request to subscribe your email address to JCOM publication alert.
+We have received a request to subscribe your email address to {{ journal.code }} publication alert.
 </p>
 <p>
 Please note that you are already subscribed. If you wish to change your topics of interest use the link below.
@@ -332,7 +341,7 @@ Please note that you are already subscribed. If you wish to change your topics o
 Kind regards,
 </p>
 <p>
-JCOM - Journal of Science Communication
+{{ journal.code }} - {{ journal.description }}
 </p>
 """,
         "translations": {},
@@ -354,7 +363,7 @@ JCOM - Journal of Science Communication
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": "Your subscription to JCOM publication alert",
+        "value": "Your subscription to {{ journal.code }} publication alert",
         "translations": {},
     }
     setting_4 = create_customization_setting(
@@ -374,7 +383,7 @@ JCOM - Journal of Science Communication
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": "See current news",
+        "value": "",
         "translations": {},
     }
     setting_5 = create_customization_setting(
@@ -394,7 +403,7 @@ JCOM - Journal of Science Communication
     settingvalue_params: SettingValueParams = {
         "journal": None,
         "setting": None,
-        "value": "Publication alert subscription",
+        "value": "{{ journal.code }} - New publication",
         "translations": {},
     }
     setting_6 = create_customization_setting(
