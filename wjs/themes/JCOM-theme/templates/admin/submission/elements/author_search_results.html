@@ -1,0 +1,30 @@
+<table class="small scroll">
+  <thead>
+  <tr>
+    <th>{% trans "Name" %}</th>
+    <th>{% trans "Email" %}</th>
+    <th>{% trans "Institution" %}</th>
+    <th>{% trans "Country" %}</th>
+    <th></th>
+  </tr>
+  </thead>
+  <tbody id="sortable">
+  {% for author in authors %}
+    <tr id="authors-{{ author.janeway_account.pk }}">
+      <td>{{ author.full_name }}</td>
+      <td>{{ author.email }}</td>
+      <td>{{ author.institution|default:"" }}</td>
+      <td>{{ author.country|default:"" }}</td>
+      <td>
+        <form method="post" action="{% url 'submit_authors' article_id %}">{% csrf_token %}<input type="hidden" name="author_search_text" value="{{ author.email }}">
+          <button class="cursor" name="search_authors" type="submit"><i class="fa fa-plus" aria-hidden="true"></i></button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="3">{% trans "No authors found, update search query" %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

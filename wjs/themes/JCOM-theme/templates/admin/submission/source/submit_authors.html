@@ -15,26 +15,24 @@
 {% block body %}
     <article>
 
-    <form method="POST">
     <div class="row box expanded">
-        {% csrf_token %}
         {% include "submission/timeline.html" with data=article %}
         <div class="large-7 columns">
             <div class="title-area">
                 <h2>{% trans "Search for Existing Authors" %}</h2>
             </div>
 
-            <form method="POST">
-                {% csrf_token %}
+            <form hx-get="{% url "author_search" article.pk %}" hx-target="#authors-results">
                 <div class="row">
                     <div class="large-12 columns">
-                        <p>{% trans "Search for a user using email address or ORCiD. If a user is matched, they will be automatically added as an author. This search only returns exact matches." %}</p>
+                        <p>{% trans "Search for a user using email address, name or ORCiD. The list of matching authors is returned and you can add the desired person." %}</p>
                     </div>
                 </div>
                 <div class="row">
                     <div class="large-8 columns">
                         <input class="form-control" name="author_search_text" style="width: 100%;" value=""
                                placeholder="{% trans "Search by email address or ORCiD" %}." required>
+                        <div id="authors-results"></div>
                     </div>
                     <div class="large-4 columns">
                         <button class="tiny success button" name="search_authors"><i class="fa fa-search">

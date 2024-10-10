@@ -7,7 +7,7 @@ from journal import views as journal_views
 
 from wjs.jcom_profile import experimental_views, views
 from wjs.jcom_profile.newsletter import views as newsletter_views
-from wjs.jcom_profile.views import KeywordListView
+from wjs.jcom_profile.views import AuthorSearchView, KeywordListView
 
 urlpatterns = [
     path("profile/", views.edit_profile, name="core_edit_profile"),
@@ -163,6 +163,7 @@ urlpatterns = [
         name="set_notify_hijack",
     ),
     path("keywords/", KeywordListView.as_view(), name="keywords_list"),
+    path("search_authors/<int:article_id>/", AuthorSearchView.as_view(), name="author_search"),
 ]
 
 # Some experimental / Easter-egg URLs
