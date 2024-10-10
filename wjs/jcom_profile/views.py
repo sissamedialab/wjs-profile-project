@@ -14,11 +14,12 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.db import IntegrityError
+from django.db.models import Q
 from django.db.models.query import RawQuerySet
 from django.forms import modelformset_factory
 from django.http import Http404, HttpResponseRedirect
@@ -45,6 +46,7 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
+from .mixins import HtmxMixin
 from .models import EditorAssignmentParameters, JCOMProfile, Recipient
 from .newsletter.service import NewsletterMailerService
 from .permissions import get_hijacker
@@ -1135,3 +1137,28 @@ class KeywordListView(ListView):
 
     def get_queryset(self):
         return self.model.objects.filter(journal=self.request.journal).order_by("word")
+
+
+class AuthorSearchView(HtmxMixin, LoginRequiredMixin, ListView):
+    model = JCOMProfile
+    template_name = "admin/submission/elements/author_search_results.html"
+    context_object_name = "authors"
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search_text = self.request.GET.get("author_search_text", "")
+        if search_text:
+            qs = qs.filter(
+                Q(first_name__icontains=search_text)
+                | Q(last_name__icontains=search_text)
+                | Q(email__icontains=search_text)
+                | Q(orcid=search_text)
+            )
+        else:
+            qs = qs.none()
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["article_id"] = self.kwargs.get("article_id")
+        return context
