@@ -18,20 +18,22 @@
         {{ editor_assignment_data.editor }}
       {% endwith %}
     </td>
-    <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
-      {% if view.table_configuration_options.reviewer_status %}
-        {% if completed_review %}
-          <span class="badge bg-success">{% translate "Complete" %}</span>
+    {% if not view.table_configuration_options.pending_list %}
+      <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
+        {% if view.table_configuration_options.reviewer_status %}
+          {% if completed_review %}
+            <span class="badge bg-success">{% translate "Complete" %}</span>
+          {% endif %}
+        {% else %}
+          {% include "wjs_review/lists/elements/table_item_status.html" %}
         {% endif %}
-      {% else %}
-        {% include "wjs_review/lists/elements/table_item_status.html" %}
-      {% endif %}
-    </td>
+      </td>
+    {% endif %}
     <td>
       {{ article.primary_issue|internal_title|default:"—" }}
     </td>
     <td class="align-bottom position-relative {% if attention_flag %}fw-bolder{% endif %}">
-      {% if review %}
+      {% if pending_review %}
         {% include "wjs_review/lists/elements/table_item_reviewer_status.html" with review=pending_review %}
       {% endif %}
     </td>
