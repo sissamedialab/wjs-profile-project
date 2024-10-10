@@ -98,7 +98,7 @@ def can_hijack_user_role(hijacker: Account, hijacked: Account) -> bool:
 
     request = GlobalRequestMiddleware.get_current_request()
     by_superuser = hijacker.is_superuser or has_eo_role(hijacker)
-    by_director = has_director_role(request.journal, hijacker) and has_editor_role(request.journal, hijacked)
+    by_director = has_director_role(request.journal, hijacker) and has_any_editor_role(request.journal, hijacked)
     return by_superuser or by_director
 
 
