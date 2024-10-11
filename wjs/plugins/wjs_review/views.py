@@ -1264,6 +1264,11 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
             ),
         ]
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        return context
+
 
 class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
     template_name = "wjs_review/submit_review/review_submit.html"

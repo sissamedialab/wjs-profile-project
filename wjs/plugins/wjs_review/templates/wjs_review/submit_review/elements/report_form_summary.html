@@ -1,0 +1,68 @@
+{% load django_bootstrap5 static %}
+{% load wjs_review wjs_tags %}
+<!-- djlint:off -->
+{% translate "<i class=\"bi bi-clipboard-fill\"></i> Read the review" as read_review_label %}
+{% translate "<i class=\"bi bi-clipboard-fill\"></i> Read cover letter" as read_cover_letter_label %}
+<!-- djlint:on -->
+{% translate "Review for editor" as editor_cover_letter_modal_title %}
+{% translate "Review for author" as author_review_modal_title %}
+<table class="table table-hover table-striped table-bordered mt-4" id="report-forms">
+  <thead class="bg-light">
+    <tr>
+      <th class="text-center" colspan="2">Review Submitted</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for field_name, field in form_fields.items %}
+      <tr>
+        {% with answer_value=assignment.workflowreviewassignment.report_form_answers|keyvalue:field_name %}
+          {% if field_name != 'author_file_title' and field_name != 'conflict_of_interest' and field_name != 'review_file' and field_name != 'author_review' and answer_value %}
+            <th>{% translate field.label %}</th>
+            {% if field_name != 'editor_cover_letter' %}
+              <td>
+                {% if field.choices %}
+                  {% for choice_value, choice_label in field.choices %}
+                    {% if choice_value == answer_value %}
+                      {{ choice_label }}
+                    {% endif %}
+                  {% endfor %}
+                {% else %}
+                  {{ answer_value }}
+                {% endif %}
+              </td>
+            {% elif field_name == 'editor_cover_letter' %}
+              {% with modal_id="editor_cover_letter_modal-"|concat:assignment.pk modal_target="#editor_cover_letter_modal-"|concat:assignment.pk modal_content=assignment.workflowreviewassignment.report_form_answers|keyvalue:'editor_cover_letter' %}
+              <td>
+                {% bootstrap_button type="button" content=read_cover_letter_label button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+                {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_cover_letter_modal_title modal_body=modal_content %}
+              </td>
+              {% endwith %}
+            {% else %}
+              <td></td>
+            {% endif %}
+          {% endif %}
+        {% endwith %}
+      </tr>
+    {% endfor %}
+      <tr>
+        <th>{% translate "Review" %}</th>
+      </tr>
+      <tr>
+        <th class="ps-4">{% translate "Text" %}</th>
+          {% with modal_id="author_review_modal-"|concat:assignment.pk modal_target="#author_review_modal-"|concat:assignment.pk modal_content=assignment.workflowreviewassignment.report_form_answers|keyvalue:'author_review' %}
+          <td>
+            {% bootstrap_button type="button" content=read_review_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_modal_title modal_body=modal_content %}
+          </td>
+          {% endwith %}
+      </tr>
+    {% if assignment.review_file %}
+       <tr>
+       <th class="ps-4">{% translate "Files" %}</th>
+          <td>
+          {% include "wjs_review/make_decision/elements/author_file_download.html" %}
+          </td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>
