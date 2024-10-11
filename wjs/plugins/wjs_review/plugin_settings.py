@@ -893,6 +893,29 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             default_author_major_revision_days_setting["name"],
             force=force,
         )
+        default_author_major_revision_days_max_setting: SettingParams = {
+            "name": "default_author_major_revision_days_max",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default maximum number of days for major revision"),
+            "description": _(
+                "The default maximum number of days for author to submit a major revision.",
+            ),
+            "is_translatable": False,
+        }
+        default_author_major_revision_days_max_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 90,
+            "translations": {},
+        }
+        setting_10 = create_customization_setting(
+            default_author_major_revision_days_max_setting,
+            default_author_major_revision_days_max_setting_value,
+            default_author_major_revision_days_max_setting["name"],
+            force=force,
+        )
+        # refs 1024
         default_author_minor_revision_days_setting: SettingParams = {
             "name": "default_author_minor_revision_days",
             "group": wjs_review_settings_group,
@@ -915,6 +938,30 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             default_author_minor_revision_days_setting["name"],
             force=force,
         )
+        default_author_minor_revision_days_max_setting: SettingParams = {
+            "name": "default_author_minor_revision_days_max",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default maximum number of days for minor revision"),
+            "description": _(
+                "The default maximum number of days for author to submit a minor revision.",
+            ),
+            "is_translatable": False,
+        }
+        default_author_minor_revision_days_max_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 60,
+            "translations": {},
+        }
+        setting_11 = create_customization_setting(
+            default_author_minor_revision_days_max_setting,
+            default_author_minor_revision_days_max_setting_value,
+            default_author_minor_revision_days_max_setting["name"],
+            force=force,
+        )
+        # Keep this to make it simple to modify it in the settings' manager, if needed. Use it to automatically set
+        # the date_due value when the editor requests a technical revision (without neither a form nor a modal).
         default_author_technical_revision_days_setting: SettingParams = {
             "name": "default_author_technical_revision_days",
             "group": wjs_review_settings_group,
@@ -937,7 +984,43 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             default_author_technical_revision_days_setting["name"],
             force=force,
         )
-        return setting_1, setting_2, setting_30, setting_3, setting_5, setting_6, setting_7, setting_8, setting_9
+        # refs #1024
+        default_author_appeal_revision_days_setting: SettingParams = {
+            "name": "default_author_appeal_revision_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for appeal"),
+            "description": _(
+                "The default number of days for author to respond to an appeal.",
+            ),
+            "is_translatable": False,
+        }
+        default_author_appeal_revision_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 30,
+            "translations": {},
+        }
+        setting_12 = create_customization_setting(
+            default_author_appeal_revision_days_setting,
+            default_author_appeal_revision_days_setting_value,
+            default_author_appeal_revision_days_setting["name"],
+            force=force,
+        )
+        return (
+            setting_1,
+            setting_2,
+            setting_30,
+            setting_3,
+            setting_5,
+            setting_6,
+            setting_7,
+            setting_8,
+            setting_9,
+            setting_10,
+            setting_11,
+            setting_12,
+        )
 
     def author_can_contact_director() -> tuple[SettingValue, ...]:
         author_can_contact_director_setting: SettingParams = {

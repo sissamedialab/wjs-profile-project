@@ -10,6 +10,9 @@
       Select the editor to assign the article after the author has submitted the new version.<br>
       By default the current editor is selected.
     </p>
+    <p>
+      The deadline for the submission is: {{ date_due }}.
+    </p>
   {% endblocktranslate %}
   <form id="open-appeal" hx-post="{% url "wjs_open_appeal" pk=workflow.pk %}" hx-target="#htmxModalContent">
     {% csrf_token %}

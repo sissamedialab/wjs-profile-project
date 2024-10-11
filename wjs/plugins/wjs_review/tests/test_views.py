@@ -29,6 +29,103 @@ from ..templatetags.wjs_articles import user_is_coauthor
 from ..views import EditorArchived, SelectReviewer
 
 
+@pytest.mark.parametrize(
+    "decision",
+    (
+        ArticleWorkflow.Decisions.MAJOR_REVISION,
+        ArticleWorkflow.Decisions.MINOR_REVISION,
+        ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+    ),
+)
+@pytest.mark.django_db
+def test_editor_requests_revision_but_date_due_in_the_past(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    decision: ArticleWorkflow.Decisions,
+):
+    """An editor cannot set the minor/major/technical revision request's date_due in the past wrt now().date()."""
+    url = reverse("wjs_article_decision", args=(assigned_article.pk,))
+    post_data = {
+        "decision": decision.value,
+        "date_due": now().date() - datetime.timedelta(days=1),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    assert dict(response.context["form"].errors) == {"date_due": ["Date must be in the future"]}
+
+
+@pytest.mark.parametrize(
+    "decision,setting_name",
+    (
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, "default_author_major_revision_days_max"),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, "default_author_minor_revision_days_max"),
+    ),
+)
+@pytest.mark.django_db
+def test_editor_requests_revision_but_date_due_too_much_in_the_future(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    decision: ArticleWorkflow.Decisions,
+    setting_name: str,
+):
+    """An editor cannot set the minor/major revision request's date_due too much in the future wrt settings."""
+    url = reverse("wjs_article_decision", args=(assigned_article.pk,))
+    revision_days_max = get_setting(
+        setting_group_name="wjs_review",
+        setting_name=setting_name,
+        journal=assigned_article.journal,
+    ).processed_value
+    post_data = {
+        "decision": decision.value,
+        "date_due": now().date() + datetime.timedelta(days=revision_days_max + 1),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 200
+    assert dict(response.context["form"].errors) == {
+        "date_due": [f"Date must be less than {revision_days_max} days in the future"]
+    }
+
+
+@pytest.mark.parametrize(
+    "decision,setting_name",
+    (
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, "default_author_major_revision_days_max"),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, "default_author_minor_revision_days_max"),
+    ),
+)
+@pytest.mark.django_db
+def test_editor_requests_revision_date_due_is_in_the_right_range(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    decision: ArticleWorkflow.Decisions,
+    setting_name: str,
+):
+    """An editor can set the minor/major revision request's date_due in the right range (between today + 1 and the
+    relevant max value possible).
+    """
+    url = reverse("wjs_article_decision", args=(assigned_article.pk,))
+    revision_days_max = get_setting(
+        setting_group_name="wjs_review",
+        setting_name=setting_name,
+        journal=assigned_article.journal,
+    ).processed_value
+    how_many_days_in_the_future = 1
+    assert how_many_days_in_the_future < revision_days_max
+    post_data = {
+        "decision": decision.value,
+        "date_due": now().date() + datetime.timedelta(days=how_many_days_in_the_future),
+    }
+    client.force_login(section_editor.janeway_account)
+    response = client.post(url, post_data)
+    assert response.status_code == 302
+    assert response.url == reverse("wjs_article_details", args=(assigned_article.pk,))
+
+
 @pytest.mark.django_db
 def test_editor_assigns_themselves_as_reviewer_gives_403_if_user_is_not_editor(
     client: Client,

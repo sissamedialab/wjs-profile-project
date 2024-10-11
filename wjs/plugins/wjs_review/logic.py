@@ -1865,7 +1865,11 @@ class PostponeRevisionRequestDueDate:
     request: HttpRequest
 
     def _check_postponed_date_due_too_far_future(self) -> bool:
-        max_threshold = settings.REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD
+        max_threshold = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="default_author_appeal_revision_days",
+            journal=self.revision_request.article.journal,
+        ).process_value()
         max_date = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=max_threshold)
         return self.form_data["date_due"] >= max_date
 
@@ -2584,11 +2588,16 @@ class OpenAppeal:
 
     def _handle_decision(self):
         """Instantiate HandleDecision to create the EditorRevisionRequest and the other collateral effects."""
+        appeal_revision_days = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="default_author_appeal_revision_days",
+            journal=self.article.journal,
+        ).process_value()
         form_data = {
             "decision": ArticleWorkflow.Decisions.OPEN_APPEAL,
             "decision_editor_report": "",
             "acceptance_due_date": None,
-            "date_due": timezone.now() + datetime.timedelta(days=settings.REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD),
+            "date_due": timezone.now().date() + datetime.timedelta(days=appeal_revision_days),
         }
         HandleDecision(
             workflow=self.article.articleworkflow,

@@ -586,9 +586,12 @@ class DecisionForm(forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
+        self.today = now().date()
         self.user = kwargs.pop("user", None)
         self.request = kwargs.pop("request", None)
         self.admin_form = kwargs.pop("admin_form", False)
+        self.date_due_max = kwargs.pop("date_due_max", None)
+        self.revision_days_max = kwargs.pop("revision_days_max", None)
         if "initial" not in kwargs:
             kwargs["initial"] = {}
         self.hide_date_due = kwargs["initial"].get("decision", None) not in (
@@ -611,22 +614,24 @@ class DecisionForm(forms.ModelForm):
         )
 
         super().__init__(*args, **kwargs)
-        if kwargs["initial"].get("decision", None) == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-            self.fields["decision"].choices = (
-                (
-                    ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
-                    ArticleWorkflow.Decisions.TECHNICAL_REVISION.name,
-                ),
-            )
         if self.admin_form:
             del self.fields["withdraw_notice"]
         elif not self.has_pending_reviews:
             del self.fields["withdraw_notice"]
+        self.fields["date_due"].widget.attrs["min"] = self.today
+        if self.date_due_max:
+            self.fields["date_due"].widget.attrs["max"] = self.date_due_max
 
-    def clean_date_due(self):
+    def _clean_date_due_depending_on_decision(self):
+        """Validate the due date with respect to the decision."""
+        # Please note that this method is not called automagically by django form framework,
+        # but manually by the form's generic `clean` method below because the validation inside
+        # depends on another field value, and as a Django best practice this has to be done in the
+        # main form's clean() method, not in the clean_fieldname() one.
         date_due = self.cleaned_data["date_due"]
+        decision = self.cleaned_data["decision"]
         if (
-            self.cleaned_data["decision"]
+            decision
             in (
                 ArticleWorkflow.Decisions.MINOR_REVISION,
                 ArticleWorkflow.Decisions.MAJOR_REVISION,
@@ -634,9 +639,14 @@ class DecisionForm(forms.ModelForm):
             )
             and not date_due
         ):
-            raise forms.ValidationError(_("Please provide a date due for author to submit a revision"))
-        if date_due and date_due < now().date():
-            raise forms.ValidationError(_("Date must be in the future"))
+            self.add_error("date_due", _("Please provide a date due for author to submit a revision"))
+        if date_due and date_due < self.today:
+            self.add_error("date_due", _("Date must be in the future"))
+        if decision in (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION):
+            if date_due and self.date_due_max and self.revision_days_max and (date_due > self.date_due_max):
+                self.add_error(
+                    "date_due", _("Date must be less than {} days in the future").format(self.revision_days_max)
+                )
         return date_due
 
     def _get_review_files_pks(self):
@@ -650,6 +660,7 @@ class DecisionForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        cleaned_data["date_due"] = self._clean_date_due_depending_on_decision()
         send_review_file_pks = self._get_review_files_pks()
         cleaned_data["send_review_file"] = send_review_file_pks
         for pk in send_review_file_pks:
