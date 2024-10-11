@@ -1,3 +1,4 @@
+import datetime
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
@@ -1505,9 +1506,35 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
+        today = timezone.now().date()
+        # kwargs["data"] "wins" over self.request.GET because it's the form data sent by the user.
+        # But kwargs["data"] is not always present, so I try to be as safe as possible. Hope this is not "unreadable"
+        decision = kwargs.get("data", {}).get("decision", self.request.GET.get("decision", None))
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
-        kwargs["initial"] = {"decision": self.request.GET.get("decision")}
+        kwargs["initial"] = {"decision": decision}
+        if decision in (ArticleWorkflow.Decisions.MINOR_REVISION, ArticleWorkflow.Decisions.MAJOR_REVISION):
+            if decision == ArticleWorkflow.Decisions.MINOR_REVISION:
+                days_setting_name = "default_author_minor_revision_days"
+                days_max_setting_name = "default_author_minor_revision_days_max"
+            else:
+                days_setting_name = "default_author_major_revision_days"
+                days_max_setting_name = "default_author_major_revision_days_max"
+            revision_days = get_setting(
+                setting_group_name="wjs_review",
+                setting_name=days_setting_name,
+                journal=self.object.article.journal,
+            ).process_value()
+            revision_days_max = get_setting(
+                setting_group_name="wjs_review",
+                setting_name=days_max_setting_name,
+                journal=self.object.article.journal,
+            ).process_value()
+            date_due_initial = today + datetime.timedelta(days=revision_days)
+            date_due_max = today + datetime.timedelta(days=revision_days_max)
+            kwargs["initial"]["date_due"] = date_due_initial
+            kwargs["date_due_max"] = date_due_max
+            kwargs["revision_days_max"] = revision_days_max
         kwargs["has_pending_reviews"] = self.pending_reviews.exists()
         return kwargs
 
@@ -2872,6 +2899,17 @@ class AdminOpensAppealView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
         return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        appeal_revision_days = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="default_author_appeal_revision_days",
+            journal=self.object.article.journal,
+        ).process_value()
+        date_due = timezone.now().date() + datetime.timedelta(days=appeal_revision_days)
+        context["date_due"] = date_due
+        return context
 
     def form_valid(self, form):
         """If the form is valid, save the message and return a response."""

@@ -3105,6 +3105,12 @@ def test_assign_new_editor(
 def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest):
     """EO opens an appeal."""
     normal_user.add_account_role("section-editor", rejected_article.journal)
+    appeal_revision_days = get_setting(
+        setting_group_name="wjs_review",
+        setting_name="default_author_appeal_revision_days",
+        journal=rejected_article.journal,
+    ).process_value()
+    date_due = now().date() + datetime.timedelta(days=appeal_revision_days)
     form_data = {
         "editor": normal_user.pk,
         "state": rejected_article.articleworkflow.state,
@@ -3126,6 +3132,7 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
     revision_request = EditorRevisionRequest.objects.filter(article=rejected_article).last()
     assert assignment.editor == normal_user.janeway_account
     assert revision_request.editor == eo_user.janeway_account
+    assert revision_request.date_due == date_due
 
 
 @pytest.mark.django_db

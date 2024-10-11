@@ -256,8 +256,7 @@ PROPHY_JWT_KEY = ""
 # prophy author page
 PROPHY_AUTH = "https://www.prophy.ai/author/"
 
-# How many days are considered "too far in the future" when postponing an EditorRevisionRequest
-REVISION_REQUEST_DATE_DUE_MAX_THRESHOLD = 30
+# How many days are considered "too far in the future" when postponing a review request
 REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD = 30
 
 # refs #648

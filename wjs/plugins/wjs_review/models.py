@@ -310,8 +310,7 @@ class ArticleWorkflow(TimeStampedModel):
             return [
                 choice
                 for choice in cls.choices
-                if choice[0]
-                not in [cls.REQUIRES_RESUBMISSION.value, cls.TECHNICAL_REVISION.value, cls.OPEN_APPEAL.value]
+                if choice[0] not in [cls.REQUIRES_RESUBMISSION.value, cls.OPEN_APPEAL.value]
             ]
 
     class GalleysStatus(models.IntegerChoices):
