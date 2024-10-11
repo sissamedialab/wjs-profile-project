@@ -313,10 +313,11 @@ def test_wjs_review_review(review_assignment, client):
 
 
 @pytest.mark.django_db
-def test_wjs_review_end(review_assignment, client):
-    client.force_login(review_assignment.reviewer)
+def test_wjs_review_end(submitted_review_assignment, client):
+    client.force_login(submitted_review_assignment.reviewer)
     response = client.get(
-        f"/{review_assignment.article.journal.code}/plugins/wjs-review-articles/review/{review_assignment.pk}/end/"
+        f"/{submitted_review_assignment.article.journal.code}/plugins/"
+        f"wjs-review-articles/review/{submitted_review_assignment.pk}/end/"
     )
     assert response.status_code == 200
 

@@ -67,6 +67,7 @@ from ..plugin_settings import (
 from .test_helpers import (
     ThreadedHTTPServer,
     _create_review_assignment,
+    _submit_review,
     create_mock_tar_gz,
 )
 
@@ -639,6 +640,16 @@ def review_assignment(
         reviewer_user=reviewer,
         assigned_article=assigned_article,
     )
+
+
+@pytest.fixture
+def submitted_review_assignment(
+    review_assignment: WorkflowReviewAssignment,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+) -> WorkflowReviewAssignment:
+    """Create a submitted review assignment for reviewer users."""
+    return _submit_review(review_assignment=review_assignment, review_form=review_form, fake_request=fake_request)
 
 
 @pytest.fixture

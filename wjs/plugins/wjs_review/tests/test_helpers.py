@@ -66,7 +66,7 @@ def _submit_review(
     review_form: ReviewForm,
     fake_request: HttpRequest,
     submit_final: bool = True,
-):
+) -> WorkflowReviewAssignment:
     """Run SubmitReview service."""
     report_form = get_report_form(fake_request.journal.code)
     form = report_form(
@@ -83,6 +83,7 @@ def _submit_review(
         request=fake_request,
     )
     submit.run()
+    return review_assignment
 
 
 def create_mock_tar_gz():
