@@ -31,7 +31,7 @@ from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
 from django.db.models.query import FlatValuesListIterable
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
@@ -2224,6 +2224,11 @@ class PostponeReviewerDueDate:
     editor: Account
     form_data: Dict[str, Any]
     request: HttpRequest
+    original_due_date: datetime.date
+    """
+    Storing original assignment date_due to calculate the difference because `UpdateReviewerDueDateForm` already
+    updates `assignment` instance.
+    """
 
     def _report_postponed_far_future_date(self) -> bool:
         """Check if the editor postponed due date far in the future."""
@@ -2301,6 +2306,16 @@ class PostponeReviewerDueDate:
         """
         self.assignment.date_due = self.form_data.get("date_due")
         self.assignment.save()
+        self._update_reminder_dates()
+
+    def _update_reminder_dates(self):
+        """Update the reminder dates for the reviewer."""
+        date_diff = self.form_data["date_due"] - self.original_due_date
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(self.assignment),
+            object_id=self.assignment.pk,
+            date_sent__isnull=True,
+        ).update(date_due=F("date_due") + date_diff)
 
     @staticmethod
     def check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:

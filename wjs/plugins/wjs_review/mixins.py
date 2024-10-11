@@ -5,6 +5,8 @@ from django.views.generic import DetailView
 from review.models import ReviewAssignment
 from submission import models as submission_models
 
+from wjs.jcom_profile import permissions as base_permissions
+
 from . import permissions
 from .models import ArticleWorkflow, WorkflowReviewAssignment
 
@@ -79,7 +81,8 @@ class OpenReviewMixin(DetailView):
         if self.access_code and self.use_access_code:
             queryset = queryset.filter(access_code=self.access_code)
         elif self.request.user.is_authenticated:
-            queryset = queryset.filter(reviewer=self.request.user)
+            if not base_permissions.has_eo_role(self.request.user):
+                queryset = queryset.filter(reviewer=self.request.user)
         return queryset
 
     def get_context_data(self, **kwargs) -> Context:

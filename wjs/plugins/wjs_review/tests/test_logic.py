@@ -2646,8 +2646,14 @@ def test_postpone_due_date(
         editor=review_assignment.editor,
         form_data=form_data,
         request=fake_request,
+        original_due_date=initial_date_due,
     )
-
+    reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(review_assignment),
+        object_id=review_assignment.pk,
+    )
+    reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+    date_diff = form_data["date_due"] - initial_date_due
     if postpone_date < 1:
         with pytest.raises(ValueError):
             service.run()
@@ -2663,6 +2669,9 @@ def test_postpone_due_date(
         assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 0
         assert len(mail.outbox) == 1
+        updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+        for reminder in updated_reminder_dates.keys():
+            assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
     else:
         service.run()
         review_assignment.refresh_from_db()
@@ -2671,6 +2680,9 @@ def test_postpone_due_date(
         assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
         assert len(mail.outbox) == 2
+        updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+        for reminder in updated_reminder_dates.keys():
+            assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
 
 
 @pytest.mark.django_db

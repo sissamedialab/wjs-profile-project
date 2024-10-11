@@ -102,6 +102,24 @@ def review_not_done(assignment: WorkflowReviewAssignment, user: Account) -> str:
     return "Review pending."
 
 
+def no_tech_revision_request(workflow: ArticleWorkflow, user: Account) -> str:
+    """Tell if there is no technical revision request."""
+    if not EditorRevisionRequest.objects.filter(
+        article_id=workflow.article_id,
+        type=ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        date_completed__isnull=True,
+    ).exists():
+        return "No pending technical revision request."
+    return ""
+
+
+def review_not_accepted(assignment: WorkflowReviewAssignment, user: Account) -> str:
+    """Tell if this review assignment has not been accepted."""
+    if not assignment.date_accepted and not assignment.date_declined:
+        return "Review acceptance pending."
+    return ""
+
+
 def needs_assignment(article: Article) -> str:
     """Tell if the editor should select some reviewer.
 

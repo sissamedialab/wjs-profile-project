@@ -7,7 +7,7 @@
   {% endif %}
   {% include "wjs_review/details/elements/production_flags.html" %}
   {% include "wjs_review/lists/elements/attention.html" %}
-  {% if article.language != "eng" %}
+  {% if article.language and article.language != "eng" %}
     <img src="{% static 'img/languages/{{ article.language }}.png' %}" alt="{% translate "Flag for language" %} {{ article.language }}" title="{% translate "Article language" %}: {{ article.language }}" />
   {% endif %}
 </div>

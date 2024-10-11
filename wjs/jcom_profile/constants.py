@@ -26,3 +26,7 @@ LABELS = {
     EO_GROUP: _("EO"),
     TYPESETTER_ROLE: _("Typesetter"),
 }
+
+
+def role_label(role):
+    return LABELS.get(role, role)

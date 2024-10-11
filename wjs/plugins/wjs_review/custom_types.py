@@ -82,7 +82,7 @@ class ReviewAssignmentStatus(NamedTuple):
             "withdrawn": _("Withdrawn"),
             "complete": _("Review completed"),
             "accept": _("Assignment Accepted"),
-            "declined": _("Declined"),
+            "declined": _("Declined / Deselected"),
             "wait": _("Selected"),
             "late": _("Selected"),
         }

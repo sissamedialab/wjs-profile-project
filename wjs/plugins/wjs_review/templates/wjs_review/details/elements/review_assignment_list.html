@@ -6,7 +6,7 @@
       {% user_has_access_to workflow request.user assignment PermissionType.ALL as all_access %}
       {% user_has_access_to workflow request.user assignment PermissionType.NO_NAMES as no_names %}
       {% if no_names or all_access %}
-        {% include "wjs_review/details/elements/review_assignment.html" with show_name=all_access %}
+        {% include "wjs_review/details/elements/review_assignment_item.html" with show_name=all_access %}
       {% endif %}
     {% endfor %}
   </div>
