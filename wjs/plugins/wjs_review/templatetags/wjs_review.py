@@ -29,6 +29,7 @@ from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry
 
+from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.models import EditorAssignmentParameters
 
 from .. import communication_utils, permissions, states
@@ -575,3 +576,59 @@ def special_issue_paper_others(issue: Issue) -> int:
 def has_review_file(reviews: list[ReviewAssignment]) -> bool:
     """Returns True if there is at least one Review Assigment with a review file"""
     return any(review.review_file for review in reviews)
+
+
+@register.simple_tag()
+def main_role_by_article(article: ArticleWorkflow, user: Account, return_label: bool = True) -> str:
+    """
+    Return the main role of the user on the article.
+
+    :param article: The article to get the main role for.
+    :type article: ArticleWorkflow
+    :param user: The user to get the main role for.
+    :type user: Account
+    :param return_label: Whether to return the label of the role or the role itself.
+    :type return_label: bool
+
+    :return: The main role of the user on the article.
+    :rtype: str
+    """
+    role = permissions.main_role_by_article(article, user)
+    if return_label:
+        return role_label(role)
+    return role
+
+
+@register.simple_tag()
+def main_role_by_assignment(assignment: WorkflowReviewAssignment, user: Account, return_label: bool = True) -> str:
+    """
+    Return the main role of the user on the assignment.
+
+    :param assignment: The assignment to get the main role for.
+    :type assignment: WorkflowReviewAssignment
+    :param user: The user to get the main role for.
+    :type user: Account
+    :param return_label: Whether to return the label of the role or the role itself.
+    :type return_label: bool
+
+    :return: The main role of the user on the article.
+    :rtype: str
+    """
+    role = permissions.main_role_by_assignment(assignment, user)
+    if return_label:
+        return role_label(role)
+    return role
+
+
+@register.filter()
+def get_role_label(role) -> str:
+    """
+    Return the label of the role.
+
+    :param role: The role (as constant in `wjs.jcom_profile.constant`) to get the label for.
+    :type role: str
+
+    :return: The label of the role.
+    :rtype: str
+    """
+    return role_label(role)

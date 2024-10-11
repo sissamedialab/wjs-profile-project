@@ -209,7 +209,10 @@ class Version:
         """
         if self.revision_requests:
             latest = self.revision_requests[0]
-            if latest.type in (ArticleWorkflow.Decisions.MAJOR_REVISION, ArticleWorkflow.Decisions.MINOR_REVISION):
+            if latest.type in (
+                ArticleWorkflow.Decisions.MAJOR_REVISION.value,
+                ArticleWorkflow.Decisions.MINOR_REVISION.value,
+            ):
                 return latest
         return None
 

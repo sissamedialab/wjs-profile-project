@@ -1,0 +1,40 @@
+
+{% load django_bootstrap5 humanize static wjs_permissions wjs_review %}
+{% get_review_assignment_actions assignment as actions %}
+{% url "wjs_message_write" pk=article.pk recipient_id=assignment.reviewer.pk as add_message %}
+{% translate "Send message" as send_message_label %}
+<!-- djlint:off -->
+{% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as write_message_label %}
+<!-- djlint:on -->
+
+{% if assignment.date_declined %}
+  <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
+  <p>{% translate "Decline date" %}: {{ assignment.date_declined|date:DATE_FORMAT }}</p>
+{% elif not assignment.date_accepted %}
+  <p>{% translate "Accept/decline due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
+{% elif assignment.date_complete %}
+  <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
+  <p>{% translate "Acceptance date" %}: {{ assignment.date_accepted|date:DATE_FORMAT }}</p>
+  <p>{% translate "Review date" %}: {{ assignment.date_complete|date:DATE_FORMAT }}</p>
+{% else %}
+  <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
+  <p>{% translate "Acceptance date" %}: {{ assignment.date_accepted|date:DATE_FORMAT }}</p>
+  <p>{% translate "Report due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
+{% endif %}
+{% for reminder in assignment.unsent_reminders %}
+  {% if request.user != assignment.reviewer and show_name %}
+    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {% translate "will be sent on" %} {{ reminder.date_due|date:DATE_FORMAT }}</p>
+  {% endif %}
+  {% if request.user == assignment.reviewer and reminder.recipient == assignment.reviewer %}
+    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {% translate "will be sent on" %} {{ reminder.date_due|date:DATE_FORMAT }}</p>
+  {% endif %}
+{% endfor %}
+<div class="d-flex flex-wrap gap-2">
+  {% for action in actions %}
+    {% include "wjs_review/details/elements/actions_button.html" with is_button=True %}
+  {% endfor %}
+  {% if request.user != assignment.reviewer and show_name %}
+    {% bootstrap_button content=write_message_label href=add_message title=send_message_label button_class="btn-secondary" %}
+  {% endif %}
+  {% hijack_button user=assignment.reviewer size="medium" %}
+</div>

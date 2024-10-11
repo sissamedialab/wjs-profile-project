@@ -1,0 +1,14 @@
+{% load django_bootstrap5 static wjs_permissions wjs_review %}
+<div class="accordion-item {% if assignment.attention_condition %}{{ assignment.attention_condition.style }}{% endif %}">
+  <h2 class="accordion-header" id="heading-review-assignment-{{ assignment.pk }}">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-assignment-{{ assignment.pk }}" aria-expanded="{% if selected %}true{% endif %}"
+            aria-controls="collapse-review-assignment-{{ assignment.pk }}">
+      {% include "wjs_review/details/elements/review_assignment_head.html" %}
+    </button>
+  </h2>
+  <div id="collapse-review-assignment-{{ assignment.pk }}" class="accordion-collapse collapse{% if selected %} show{% endif %}" aria-labelledby="heading-review-assignment-{{ assignment.pk }}" data-bs-parent="#metadata">
+    <div class="accordion-body">
+      {% include "wjs_review/details/elements/review_assignment_body.html" %}
+    </div>
+  </div>
+</div>

@@ -43,6 +43,27 @@ def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
         return constants.AUTHOR_ROLE
 
 
+def main_role_by_assignment(assignment: "WorkflowReviewAssignment", user: Account) -> str:
+    """
+    Return the main role of the user.
+
+    :param assignment: An instance of the ArticleWorkflow class.
+    :type assignment: WjsReviewAssignment
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: The main role of the user.
+    :rtype: str
+    """
+    if assignment.editor == user:
+        return constants.SECTION_EDITOR_ROLE
+    elif assignment.reviewer == user:
+        return constants.REVIEWER_ROLE
+    else:
+        return main_role_by_article(assignment.article.articleworkflow, user)
+
+
 def can_see_other_user_name(instance: "ArticleWorkflow", sender: Account, recipient: Account) -> bool:
     """
     Check if the user can see other user's name.
@@ -539,6 +560,24 @@ def is_article_typesetter_or_eo(instance: "ArticleWorkflow", user: Account) -> b
     return base_permissions.has_eo_role(user) or is_article_typesetter(instance, user)
 
 
+def is_article_pure_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is the editor or eo.
+
+    In case user is editor, it must not be a reviewer also. This function should be used to tweak the UI for the editor
+    when they choose to review the article themselves, not for real permission checking.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+    :param user: The user to check for role.
+    :type user: Account
+    :return: True if the user is the article editor or eo
+    :rtype: bool
+    """
+    manager = is_article_editor(instance, user) or is_article_supervisor(instance, user)
+    return manager and not is_article_reviewer(instance, user)
+
+
 def is_article_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the user is the editor or eo.
@@ -547,7 +586,7 @@ def is_article_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
     :type instance: ArticleWorkflow
     :param user: The user to check for role.
     :type user: Account
-    :return: True if the user is the article typesetter
+    :return: True if the user is the article editor
     :rtype: bool
     """
     return is_article_editor(instance, user) or is_article_supervisor(instance, user)

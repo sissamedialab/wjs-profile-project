@@ -1051,7 +1051,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
     date_due = forms.DateField(label=_("Date due"), required=True, widget=forms.DateInput(attrs={"type": "date"}))
 
     class Meta:
-        model = ReviewAssignment
+        model = WorkflowReviewAssignment
         fields = ["date_due"]
 
     def __init__(self, *args, **kwargs):
@@ -1062,6 +1062,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
             self.fields["date_due"].label = _("Review due date")
         else:
             self.fields["date_due"].label = _("Accept/decline due date")
+        self._original_date = self.instance.date_due
 
     def clean(self):
         """
@@ -1080,6 +1081,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
             editor=self.instance.editor,
             form_data=self.cleaned_data,
             request=self.request,
+            original_due_date=self._original_date,
         )
         return service
 

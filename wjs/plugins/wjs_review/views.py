@@ -43,13 +43,13 @@ from events import logic as event_logic
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import logic as review_logic
-from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
+from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.mixins import HtmxMixin
 from wjs.jcom_profile.models import IssueParameters
 
@@ -218,7 +218,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
 
     @property
     def role_label(self):
-        return constants.LABELS.get(self.role, self.role)
+        return role_label(self.role)
 
 
 class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
@@ -1000,7 +1000,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         form.is_valid()
         return form
 
-    def get_current_review_assignment(self) -> Optional[ReviewAssignment]:
+    def get_current_review_assignment(self) -> Optional[WorkflowReviewAssignment]:
         """
         Get the current review assignment for the current user.
         """
@@ -1029,11 +1029,15 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         context["timeline_messages"] = group_messages_by_version(
             self.object.article, messages, filters=context["form"].cleaned_data
         )
-        if self.object.state in states_when_article_is_considered_in_review:
+        if self.object.state in (
+            states_when_article_is_considered_in_review + states_when_article_is_considered_archived
+        ):
             context["review_versions"] = self.object.get_review_versions(self.request.user)
             context["review"] = True
             context["current_review_assignment"] = self.get_current_review_assignment()
-        if self.object.state in states_when_article_is_considered_in_production:
+        if self.object.state in (
+            states_when_article_is_considered_in_production + states_when_article_is_considered_archived
+        ):
             context["review_versions"] = self.object.get_review_versions(self.request.user)
             context["production_versions"] = self.object.get_production_versions(self.request.user)
             context["production"] = True
@@ -1166,7 +1170,7 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
             ),
         ]
 
-    def get_queryset(self) -> QuerySet[ReviewAssignment]:
+    def get_queryset(self) -> QuerySet[WorkflowReviewAssignment]:
         queryset = super().get_queryset()
         if self.kwargs.get("token", None):
             return queryset.filter(reviewer__jcomprofile__invitation_token=self.kwargs.get("token", None))
@@ -1527,27 +1531,27 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
             return super().form_invalid(form)
 
     @property
-    def current_reviews(self) -> QuerySet[ReviewAssignment]:
+    def current_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return the reviews for the current review round for the article."""
-        return self.object.article.reviewassignment_set.filter(
+        return WorkflowReviewAssignment.objects.filter(
             review_round=self.object.article.current_review_round_object(),
         )
 
     @property
-    def submitted_reviews(self) -> QuerySet[ReviewAssignment]:
+    def submitted_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return the submitted reviews for the current review round."""
         return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False).exclude(
             decision="withdrawn"
         )
 
     @property
-    def declined_reviews(self) -> QuerySet[ReviewAssignment]:
+    def declined_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return the declined reviews for the current review round."""
         # Attention: this does not return withdrawn reviews, is this what's intended?
         return self.current_reviews.filter(date_declined__isnull=False)
 
     @property
-    def open_reviews(self) -> QuerySet[ReviewAssignment]:
+    def open_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return accepted but not completed reviews for the current review round."""
         return self.current_reviews.filter(
             date_complete__isnull=True,
@@ -1556,7 +1560,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         )
 
     @property
-    def pending_reviews(self) -> QuerySet[ReviewAssignment]:
+    def pending_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return not completed reviews for the current review round."""
         return self.current_reviews.filter(
             date_complete__isnull=True,
@@ -2423,8 +2427,10 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
 
     def test_func(self):
-        """Let's show reminders only to EO or staff."""
-        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+        """Let's show reminders only to EO or director."""
+        return base_permissions.has_admin_role(
+            self.request.journal, self.request.user
+        ) or base_permissions.has_director_role(self.request.journal, self.request.user)
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
@@ -2448,7 +2454,7 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         return super().get_template_names()
 
     def get_queryset(self):
-        """Get reminders related to an article via ReviewAssignment or WjsEditorAssignment or similar."""
+        """Get reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
         qs = super().get_queryset()
         review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).values_list("pk")
         reviewer_reminders = Q(
@@ -2476,14 +2482,14 @@ class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     View to allow the Editor to postpone Reviewer Report due date.
     """
 
-    model = ReviewAssignment
+    model = WorkflowReviewAssignment
     form_class = UpdateReviewerDueDateForm
     template_name = "wjs_review/details/update_reviewer_due_date.html"
     context_object_name = "assignment"
     reviewer = False
 
     def load_initial(self, request, *args, **kwargs):
-        """Fetch the ReviewAssignment instance for easier processing."""
+        """Fetch the WorkflowReviewAssignment instance for easier processing."""
         super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
 
