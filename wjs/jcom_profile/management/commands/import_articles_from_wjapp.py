@@ -161,29 +161,32 @@ class Command(BaseCommand):
 
         self.connection = mariadb.connect(**connection_parameters)
 
-        row = self.read_article_data(preprintid)
+        current_version_row = self.read_article_data(preprintid)
 
-        if not row:
+        if not current_version_row:
             self.connection.close()
             logger.debug(f"Article not found {self.journal.code} {preprintid}.")
             return
 
-        document_cod = row["documentCod"]
-        preprintid = row["preprintId"]
-        section = row["documentType"]
-        version_cod = row["versionCod"]
+        document_cod = current_version_row["documentCod"]
+        preprintid = current_version_row["preprintId"]
+        publicationid = current_version_row["publicationId"]
+        section = current_version_row["documentType"]
+        version_cod = current_version_row["versionCod"]
         # current_version -> row  "versionNumber"
 
         logger.debug(f"""Importing {preprintid}""")
 
         # create article and section
-        article, preprintid, main_author = self.create_article(row)
+        article, preprintid, main_author = self.create_article(current_version_row)
 
         self.set_section(article, section)
 
         # article keywords
         keywords = self.read_article_keywords(version_cod)
         self.set_keywords(article, keywords)
+
+        # TODO: set article issue
 
         # read all version versionNum, versionCod
         versions = self.read_versions_data(document_cod)
@@ -193,6 +196,7 @@ class Command(BaseCommand):
         for v in versions:
             imported_version_cod = v["versionCod"]
             imported_version_num = v["versionNumber"]
+            imported_version_state_cod = v["stateCod"]
             imported_version_bios_text = v["authorsBio"]
 
             # read actions history from wjapp preprint
@@ -213,11 +217,14 @@ class Command(BaseCommand):
                         session=session,
                         journal=self.journal,
                         preprintid=preprintid,
+                        publicationid=publicationid,
                         article=article,
                         imported_version_num=imported_version_num,
                         imported_version_cod=imported_version_cod,
+                        imported_version_state_cod=imported_version_state_cod,
                         importfiles=self.options["importfiles"],
                         imported_document_layer_cod_list=self.imported_document_layer_cod_list,
+                        action_triggers_import_files=False,
                     ).run()
                 else:
                     logger.warning(f"Action {action['actionID']} not yet managed.")
@@ -238,6 +245,8 @@ class Command(BaseCommand):
             ).run()
 
         mark_all_messages_read(article)
+
+        self.debug_list_article_files_imported(article)
 
         self.connection.close()
 
@@ -277,6 +286,7 @@ class Command(BaseCommand):
 SELECT
 d.documentCod,
 d.preprintId,
+d.publicationId,
 d.documentType,
 d.submissionDate,
 d.authorCod,
@@ -334,6 +344,7 @@ WHERE
 SELECT
 versionCod,
 versionNumber,
+stateCod,
 authorsBio
 FROM Version
 WHERE documentCod=%(document_cod)s
@@ -402,7 +413,29 @@ ORDER BY ah.actionDate
             )
 
             # clean some data related to the article
-            EditorRevisionRequest.objects.filter(article=article).delete()
+            for err in EditorRevisionRequest.objects.filter(article=article):
+
+                err.cover_letter_file.delete()
+
+                for f in err.manuscript_files.all():
+                    f.unlink_file()
+                    f.delete()
+
+                for f in err.data_figure_files.all():
+                    f.unlink_file()
+                    f.delete()
+
+                for f in err.source_files.all():
+                    f.unlink_file()
+                    f.delete()
+
+                for f in err.article.supplementary_files.all():
+                    f.file.unlink_file()
+                    f.file.delete()
+                    f.delete()
+
+                err.delete()
+
             WorkflowReviewAssignment.objects.filter(article=article).delete()
             for rr in ReviewRound.objects.filter(article=article):
                 EditorDecision.objects.filter(review_round=rr).delete()
@@ -410,18 +443,38 @@ ORDER BY ah.actionDate
             # necessary to delete
             Message.objects.filter(object_id=article.id).delete()
 
-            article.manuscript_files.all().delete()
-            article.data_figure_files.all().delete()
-            article.supplementary_files.all().delete()
-            article.source_files.all().delete()
-            article.galley_set.all().delete()
+            # NOTE: the galley must never be deleted: they are never created by the import
+            # and if already present (published article) must remain
+
+            # TODO: supplementary_files are similar, but different:
+            # - if paper is in review (not yet accepted), do nothing
+            # - if paper is in production (after acceptance, before publication)
+            #   - attachments of latest version be moved to `A.supplementary_files` (this simulates the typesetter
+            #     uploading them and ensures they will be "published")
+            # - (optional) if paper is published, we can add attachments of the accepted version as
+            #   A.AW.supplementary_files_at_acceptance
+
+            for f in article.manuscript_files.all():
+                f.unlink_file()
+                f.delete()
+
+            for f in article.data_figure_files.all():
+                f.unlink_file()
+                f.delete()
+
+            for f in article.source_files.all():
+                f.unlink_file()
+                f.delete()
+
+            for f in article.data_figure_files.all():
+                f.unlink_file()
+                f.delete()
 
             # after delete the id is lost
             article_id_check = article.id
 
             article.delete()
 
-            # check deleted when article is deleted
             assert RevisionRequest.objects.filter(article__id=article_id_check).count() == 0
             assert ReviewAssignment.objects.filter(article__id=article_id_check).count() == 0
             assert ReviewRound.objects.filter(article__id=article_id_check).count() == 0
@@ -607,6 +660,31 @@ ORDER BY ah.actionDate
             article.keywords.add(keyword)
         article.save()
 
+    def debug_list_article_files_imported(self, article):
+        """Log debug of all files imported also historical"""
+
+        article = submission_models.Article.objects.get(id=article.pk)
+
+        for f in article.manuscript_files.all():
+            logger.debug(f"imported: {article.id} manuscript: {f.id} {f}")
+        for f in article.source_files.all():
+            logger.debug(f"imported: {article.id} source: {f.label} {f.id} {f}")
+        for f in article.data_figure_files.all():
+            logger.debug(f"imported: {article.id} data figure: {f.id} {f}")
+
+        from plugins.wjs_review.models import EditorRevisionRequest
+
+        err_list = EditorRevisionRequest.objects.filter(article=article)
+        for e in err_list:
+            for m in e.manuscript_files.all():
+                logger.debug(f"imported: {article.id} rev round {e.review_round.round_number} manuscript: {m.id} {m}")
+            for s in e.source_files.all():
+                logger.debug(
+                    f"imported: {article.id} rev round {e.review_round.round_number} source: {s.label} {s.id} {s}"
+                )
+            for d in e.data_figure_files.all():
+                logger.debug(f"imported: {article.id} rev round {e.review_round.round_number} data figure: {d.id} {d}")
+
 
 #
 # general function
@@ -786,15 +864,9 @@ class ImportCorrespondenceManager:
                 )
                 continue
 
-            logger.debug(
-                f"msg {m['documentLayerCod']} to be imported {self.article.id} {m['documentLayerSubject']}"
-                f" {m['documentLayerType']}"
-            )
-
             if m["documentLayerType"] in self.types_from_admin_list:
                 # author set directly, not read from wjapp
                 author = get_eo_user(self.journal)
-                logger.debug(f"msg {m['documentLayerCod']} Add author eo user, type {m['documentLayerType']}")
             else:
                 if not author_from_wjapp:
                     raise RuntimeError(f"msg {m['documentLayerCod']} Missing author. type {m['documentLayerType']}")
@@ -806,9 +878,6 @@ class ImportCorrespondenceManager:
                     author_from_wjapp[0]["lastname"],
                     author_from_wjapp[0]["firstname"],
                     author_from_wjapp[0]["email"],
-                )
-                logger.debug(
-                    f"msg {m['documentLayerCod']} add wjapp author {author.last_name} {m['documentLayerSubject']}"
                 )
 
             with freezegun.freeze_time(
@@ -840,9 +909,6 @@ class ImportCorrespondenceManager:
                     )
                     if recipient not in msg.recipients.all():
                         msg.recipients.add(recipient)
-                    logger.debug(
-                        f"msg {m['documentLayerCod']} add wjapp recipient {recipient} {m['documentLayerSubject']}"
-                    )
 
                 # management of special cases
                 # TBV: correct management of this type?
@@ -967,11 +1033,14 @@ class BaseActionManager:
     session: requests.sessions.Session
     journal: Journal
     preprintid: str
+    publicationid: str
     article: submission_models.Article
     imported_version_num: int
     imported_version_cod: int
+    imported_version_state_cod: int
     importfiles: bool
     imported_document_layer_cod_list: list
+    action_triggers_import_files: bool
 
     def run(self):
         raise NotImplementedError
@@ -985,30 +1054,185 @@ class BaseActionManager:
             self.connection.close()
             raise Exception
 
-    def download_manuscript_version(self):
+    def import_files(self):
+        """Downloads and save files for imported version."""
+
+        # TBV: action admin resets editor will be skip in the import. New version is created when
+        #     the editor is assigned. Verify that the import of the files is coerent in wjapp
+        # TODO: import files is different for imported_version_state_cod published
+        #       pubid.pdf instead of preprintid.pdf
+        #
+        # pdf published version pubid.pdf (no source): "PDF", "pdf",
+        #   JCOM_003N_0623/8/JCOM_2305_2024_N03.pdf&fileType=pdf
+        #
+        # published version: download tar.gz loaded by typesetter from previous version
+        #       JCOM_003N_0623/7/submission/JCOM_003N_0623.tar.gz
+        # TODO: also download and add (to be decided how) to the tar.gz from current_hidden
+        #       JCOM_003N_0623.tex which has the placeholders replaced
+        #
+        # download preprintid.docx, preprintid.pdf for not published version: "ZIP", "zip"
+        #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
+        #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
+        #
+        # attachments read data from db for each attachment (no source file name)
+        #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
+
+        logger.warning(f"REVIEW ROUND: {self.article.current_review_round_object()}")
+        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
+        # wjapp version state 22 is the published version
+        if self.imported_version_state_cod == 22:
+            response_manuscript_pub = self.download_manuscript_pub_version(url_base)
+            if response_manuscript_pub.headers["Content-Length"] != "0":
+                manuscript_pub_dj = self.get_manuscript_pub(response_manuscript_pub)
+                self.save_manuscript(manuscript_pub_dj)
+
+            # previous version: submission / preprintid.tar.gz
+            # TODO: add or replace preprintid.tex to the zip from current_hidden where placeholders are replaced
+            response_source_pub = self.download_source_pub(url_base)
+            if response_source_pub.headers["Content-Length"] != "0":
+                logger.error(f"SOURCE TARGZ size: {response_source_pub.headers['Content-Length']}")
+                source_pub_dj = self.get_source_pub(response_source_pub)
+                self.save_source_pub(source_pub_dj)
+
+        else:
+            response_manuscript = self.download_manuscript(url_base)
+            if response_manuscript.headers["Content-Length"] != "0":
+                manuscript_dj = self.get_manuscript(response_manuscript)
+                self.save_manuscript(manuscript_dj)
+
+            (response_source, doc_type) = self.download_source(url_base)
+            if response_source.headers["Content-Length"] != "0":
+                source_dj = self.get_source(response_source, doc_type)
+                self.save_source(source_dj, doc_type)
+
+        # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
+        # the original name of the attachment file is not imported but it is not relevant
+
+        # TBV: check on final status page JCOM_001N_0724 files appear twice in version 2
+        #      template problem?
+
+        self.article.data_figure_files.clear()
+        wjapp_attachments = self.read_attachments_data()
+        for dff_data in wjapp_attachments:
+            dff_response = self.download_wjapp_attachment(url_base, dff_data)
+            if dff_response.headers["Content-Length"] != "0":
+                dff_dj = self.get_data_figure_file(dff_response, dff_data)
+                self.save_data_figure_file(dff_dj, dff_data)
+
+    # published version pdf
+    # TODO: test when production actions are imported
+    def download_manuscript_pub(self, url_base):
+        """Download pdf manuscript for published imported version."""
+
+        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.publicationid}.pdf&fileType=pdf"
+        logger.debug(f"{file_url=}")
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty file pdf downloaded: {response.headers['Content-Length']}"
+            )
+        return response
+
+    def get_manuscript_pub(self, response):
+        """Get pdf manuscript published file from response as DjangoFile."""
+
+        manuscript_dj = DjangoFile(BytesIO(response.content), f"{self.pubid}.pdf")
+        return manuscript_dj
+
+    # published version source TARGZ (from previous version)
+    def download_source_pub(self, url_base):
+        """Download tar gz source from previous version of imported version."""
+
+        previous_version = self.imported_version_num - 1
+        file_url = f"{url_base}{self.preprintid}/{previous_version}/submission/{self.preprintid}.tar.gz&fileType=gz"
+        logger.debug(f"pub source: {file_url=}")
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty file tar.gz downloaded: {response.headers['Content-Length']}"
+            )
+        return response
+
+    def get_source_pub(self, response):
+        """Get tar.gz source file from response as DjangoFile."""
+
+        source_pub_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.tar.gz")
+        return source_pub_dj
+
+    def save_source_pub(self, response):
+        """Save typesetter source tar.gz TA.files_to_typeset"""
+
+        # TODO: fix when the production action are imported
+        filename = response.headers.get("Content-Disposition").split("filename=")[1]
+        logger.error(f"TA not existing: {filename} not saved")
+
+    # manuscript
+    def download_manuscript(self, url_base):
         """Download pdf manuscript for imported version."""
 
-        # TODO: move url to plugin settings (depends on journal)?
-        # authorised request.
-        # ex: https://jcom.sissa.it/jcom/common/archiveFile?
-        #    filePath=JCOM_003N_0623/5/JCOM_003N_0623.pdf&fileType=pdf
-        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
         file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
         logger.debug(f"{file_url=}")
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty file pdf downloaded: {response.headers['Content-Length']}"
+            )
+        return response
 
+    def get_manuscript(self, response):
+        """Extract pdf manuscript from response as DjangoFile."""
+
+        manuscript_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.pdf")
+        return manuscript_dj
+
+    def download_source(self, url_base):
+        """Download docx/doc source for imported version."""
+
+        doc_type = "docx"
+        url_first_part = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}"
+        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+        logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
 
+        if response.status_code == 200:
+            if response.headers["Content-Length"] == "0":
+                logger.error(
+                    f"check wjapp login data empty file {doc_type} downloaded: {response.headers['Content-Length']}"
+                )
+            else:
+                return (response, doc_type)
+        else:
+            logger.error(f"With docx got {response.status_code}!")
+
+        # try with doc instead of docx
+        doc_type = "doc"
+        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+        logger.debug(f"retry with {doc_type} {file_url=}")
+        response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
 
         if response.headers["Content-Length"] == "0":
-            logger.error(f"check wjapp login credentials empty file downloaded: {response.headers['Content-Length']}")
+            logger.error(
+                f"check wjapp login credentials empty file {doc_type} downloaded: {response.headers['Content-Length']}"
+            )
 
-        return response
+        return (response, doc_type)
 
-    def save_manuscript(self, response):
-        """Save manuscript from response"""
+    def get_source(self, response, doc_type):
+        """Extract source docx/doc from response as DjangoFile."""
 
-        manuscript_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.pdf")
+        source_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.{doc_type}")
+        return source_dj
+
+    def save_manuscript(self, manuscript_dj):
+        """Save PDF manuscript"""
+
+        # remove previous files relations already saved as historical files
+        # the manuscript has only the current files
+        self.article.manuscript_files.clear()
 
         manuscript_file = files.save_file_to_article(
             manuscript_dj,
@@ -1020,14 +1244,96 @@ class BaseActionManager:
         manuscript_file.description = ""
         manuscript_file.save()
         self.article.save()
+
         return
+
+    def save_source(self, source_dj, doc_type):
+        """Save docx/doc as source file"""
+
+        # remove previous files relations already saved as historical files
+        self.article.source_files.clear()
+
+        source_file = files.save_file_to_article(
+            source_dj,
+            self.article,
+            self.article.correspondence_author,
+        )
+        self.article.source_files.add(source_file)
+        source_file.label = doc_type.upper()
+        source_file.description = ""
+        source_file.save()
+        self.article.save()
+
+        return
+
+    # wjapp attachments - data figurs files
+    def download_wjapp_attachment(self, url_base, dff_data):
+        """Download one wjapp attachment for imported version."""
+
+        # url ex: JCOM_001A_0524/2/attachments/JCOM_001A_0524_ATTACH00360924.docx&fileType=Attachment
+
+        url_end_part = f"{dff_data['attachID']}.{dff_data['attachFormat']}&fileType={dff_data['attachType']}"
+        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/attachments/{url_end_part}"
+        logger.debug(f"{file_url=}")
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(f"check wjapp login credentials empty DFF downloaded: {response.headers['Content-Length']}")
+        return response
+
+    def get_data_figure_file(self, dff_response, a_data):
+        """Return attachment file from response as DjangoFile."""
+
+        dff_dj = DjangoFile(BytesIO(dff_response.content), f"{a_data['attachID']}.{a_data['attachFormat']}")
+        return dff_dj
+
+    def save_data_figure_file(self, dff_dj, dff_data):
+        """Save wjapp attachment as data figure file"""
+
+        dff_file = files.save_file_to_article(
+            dff_dj,
+            self.article,
+            self.article.correspondence_author,
+        )
+        self.article.data_figure_files.add(dff_file)
+        dff_file.label = dff_data["attachType"]
+        dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
+        dff_file.save()
+        self.article.save()
+
+        return
+
+    def read_attachments_data(self):
+        """Read wjapp attachments data for the imported version."""
+
+        cursor_attachments = self.connection.cursor(dictionary=True)
+        query_attachments = """
+SELECT
+attachID,
+attachTitle,
+attachDescription,
+attachType,
+attachFormat,
+submissionDate
+FROM Attachment
+WHERE
+    versioncod=%(imported_version_cod)s
+ORDER BY submissionDate
+"""
+        cursor_attachments.execute(
+            query_attachments,
+            {
+                "imported_version_cod": self.imported_version_cod,
+            },
+        )
+        attachments_data = cursor_attachments.fetchall()
+        cursor_attachments.close()
+        return attachments_data
 
 
 @dataclass
 class EditorAssignmentAction(BaseActionManager):
     """Manages editor assignment action."""
-
-    action_triggers_import_files: bool = field(init=False, default=False)
 
     def run(self):
         """Editor assignment management."""
@@ -1057,10 +1363,7 @@ class EditorAssignmentAction(BaseActionManager):
             self.set_editor_parameters(editor_parameters, editor_maxworkload)
 
             if self.action_triggers_import_files and self.importfiles:
-                # TODO: import files must be done not only for this case but for each new wjapp version
-                # TODO: import files must be extended to wjapp source zip/targz file and attachments
-                response = self.download_manuscript_version()
-                self.save_manuscript(response)
+                self.import_files()
 
     # TODO: check why new review_round is not created
     def set_editor(self, editor_cod, editor_lastname, editor_firstname, editor_email, editor_assign_date):
@@ -1180,6 +1483,7 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
     """Manages action SYS_ASS_ED."""
 
     def __post_init__(self):
+        """Enables attribute to import files for this action"""
         self.action_triggers_import_files = True
 
 
@@ -1358,12 +1662,13 @@ ORDER BY dl.submissionDate
 
             else:
                 message = render_template_from_setting(
-                    setting_group_name="wjs_review",
-                    setting_name="review_invitation_message_body",
+                    setting_group_name="email",
+                    setting_name="review_assignment",
                     journal=self.journal,
                     request=request,
                     context={
                         "article": self.article,
+                        "reviewer": reviewer,
                         "request": request,
                     },
                     template_is_setting=True,
@@ -1960,6 +2265,7 @@ class ED_REQ_REV(EditorDecisionAction):  # noqa N801
     """Manages wjapp action ED_REQ_REQ: editor requires major revision."""
 
     def __post_init__(self):
+        """Set the specific data for major revision"""
         self.editor_decision = ArticleWorkflow.Decisions.MAJOR_REVISION
         self.requires_revision = True
         self.revision_interval_days = get_setting(
@@ -1974,6 +2280,7 @@ class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
     """Manages wjapp action ED_ACC_DOC_WMC: editor requires minor revision."""
 
     def __post_init__(self):
+        """Set the specific data for minor revision"""
         self.editor_decision = ArticleWorkflow.Decisions.MINOR_REVISION
         self.requires_revision = True
         self.revision_interval_days = get_setting(
@@ -1988,6 +2295,7 @@ class ED_REJ_DOC(EditorDecisionAction):  # noqa N801
     """Manages wjapp action ED_REJ_DOC: editor rejects."""
 
     def __post_init__(self):
+        """Set the specific data for rejection"""
         self.editor_decision = ArticleWorkflow.Decisions.REJECT
         self.requires_revision = False
         self.revision_interval_days = 0
@@ -1998,6 +2306,7 @@ class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
     """Manages wjapp action ED_CON_NOT_SUIT: editor considers not suitable."""
 
     def __post_init__(self):
+        """Set the specific data for not suitable"""
         self.editor_decision = ArticleWorkflow.Decisions.NOT_SUITABLE
         self.requires_revision = False
         self.revision_interval_days = 0
@@ -2009,7 +2318,8 @@ class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
 class ED_ACC_DOC(EditorDecisionAction):  # noqa N801
     """Manages wjapp action ED_ACC_DOC: editor accepts."""
 
-    def __post_init__(self):  # noqa
+    def __post_init__(self):
+        """Set the specific data for acceptance"""
         self.editor_decision = ArticleWorkflow.Decisions.ACCEPT
         self.requires_revision = False
         self.revision_interval_days = 0
@@ -2017,6 +2327,8 @@ class ED_ACC_DOC(EditorDecisionAction):  # noqa N801
 
 class AuthorSubmitRevisionAction(BaseActionManager):
     """Author submit revision management."""
+
+    # action_triggers_import_files not used here because this action always implies new files from the author
 
     def run(self):
         # TBV: author of the action is the same of main_author?
@@ -2050,6 +2362,10 @@ class AuthorSubmitRevisionAction(BaseActionManager):
 
         self.imported_document_layer_cod_list.append(author_note.get("documentLayerCod"))
         logger.debug(f"append cover letter message {self.imported_document_layer_cod_list=}")
+
+        if self.importfiles:
+            self.import_files()
+
         return
 
     def read_author_cover_letter_message(self):
