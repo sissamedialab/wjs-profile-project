@@ -146,7 +146,7 @@ def set_default_plugin_settings(force: bool = False):
         value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Thank you for considering the Editor's invite."),
+            "value": "Thank you for considering the Editor's invite.",
             "translations": {},
         }
         return (
@@ -172,7 +172,7 @@ def set_default_plugin_settings(force: bool = False):
         subject_review_decision_not_suitable_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Declared not suitable"),
+            "value": "Declared not suitable",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -196,10 +196,11 @@ def set_default_plugin_settings(force: bool = False):
             "setting": None,
             "value": """Dear Dr. {{ article.correspondence_author.full_name }},
 <br><br>
-We regret to inform you that the Editor in charge of your {{ article.section.name }} [...] considers it not suitable for {{ journal.code }}.
-The Editor review is available to you at: {{ review_url }}.
+We regret to inform you that the Editor in charge of your {{ article.section.name }} [...] considers it not suitable for {{ article.journal.code }}.
+The Editor review is available to you at the <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.
 <br><br>
-Thank you and begards,<br>
+Thank you and best regards,
+<br>
 {{ journal.code }} Journal
 """,
             "translations": {},
@@ -226,7 +227,7 @@ Thank you and begards,<br>
         revision_request_date_due_postponed_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Due date postponed"),
+            "value": "Due date postponed",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -253,7 +254,7 @@ Thank you and begards,<br>
 The deadline for revising your {{ article.section.name }} has been postponed until {{ date_due }}.
 <br><br>
 Regards,<br>
-{{ journal.code }} Journal
+{{ article.journal.code }} Journal
 """,
             "translations": {},
         }
@@ -277,7 +278,7 @@ Regards,<br>
         revision_request_date_due_far_future_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Due date postponed considerably"),
+            "value": "Due date postponed considerably",
             "translations": {},
         }
         setting_3 = create_customization_setting(
@@ -300,9 +301,12 @@ Regards,<br>
             "journal": None,
             "setting": None,
             "value": """Dear {{ EO.full_name }},
-The revision due date for the article "{{ article.title }}" has been postponed to {{ date_due }}. Could it be a mistake?
+<br>
+The revision due date for the article "{{ article.title }}" has been postponed to {{ date_due }}.
+<br>
+Since it is far in the future it might be worth checking.
 <br><br>
-{{ journal.code }} Journal
+{{ article.journal.code }} Journal
 """,
             "translations": {},
         }
@@ -328,7 +332,7 @@ The revision due date for the article "{{ article.title }}" has been postponed t
         technical_revision_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Metadata update allowed"),
+            "value": "Metadata update allowed",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -350,7 +354,7 @@ The revision due date for the article "{{ article.title }}" has been postponed t
         technical_revision_body_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "The {{ journal.code }} Editor  in charge has allowed you to edit [...] your preprint metadata. Please do so within {{ revision.date_due }}.",
+            "value": "The {{ article.journal.code }} Editor in charge has allowed you to edit [...] your manuscript metadata. Please do so by {{ revision.date_due }}.",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -375,7 +379,7 @@ The revision due date for the article "{{ article.title }}" has been postponed t
         requeue_article_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("No blocking issues found"),
+            "value": "No blocking issues found",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -397,7 +401,7 @@ The revision due date for the article "{{ article.title }}" has been postponed t
         requeue_article_message_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("This submission has been checked for possible issues. The review process may start."),
+            "value": "This submission has been checked for possible issues. The review process may start.",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -422,7 +426,7 @@ The revision due date for the article "{{ article.title }}" has been postponed t
         requires_resubmission_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Changes required"),
+            "value": "Changes required",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -886,7 +890,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
         subject_due_date_postpone_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Review due date postponed"),
+            "value": "Review due date postponed",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -940,7 +944,7 @@ Thank you in advance for your cooperation and best regards,<br>
         subject_due_date_far_future_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Review due date postponed considerably"),
+            "value": "Review due date postponed considerably",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -994,7 +998,7 @@ Since it is far in the future it might be worth checking.
         subject_editor_decline_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Editor declined assignment"),
+            "value": "Editor declined assignment",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1020,7 +1024,7 @@ Since it is far in the future it might be worth checking.
 <br><br>
 I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by {{ article.correspondence_author.full_name }} for the following reasons:
 <br><br>
-{{ decline_reason }}
+{{ decline_reason_label }}
 <br><br>
 {% if decline_text %}
 Additional comments:
@@ -1114,7 +1118,7 @@ Thank you and best regards,
         wjs_editor_i_will_review_message_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Editor will review"),
+            "value": "Editor will review",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1161,7 +1165,7 @@ Thank you and best regards,
         subject_typesetting_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Typesetter assigned"),
+            "value": "Typesetter assigned",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1213,7 +1217,7 @@ Please visit: the manuscript <a href="{{ article.articleworkflow.url }}">web pag
         subject_eo_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("EO assigned to an article"),
+            "value": "EO assigned to an article",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1261,7 +1265,7 @@ Please visit: the manuscript <a href="{{ article.articleworkflow.url }}">web pag
         subject_proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Ready for proofreading."),
+            "value": "Ready for proofreading.",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1432,7 +1436,7 @@ Galleys for the {{ article.section.name }} {{ article.id }} are ready.
         subject_editor_deassign_reviewer_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Invite to review withdrawn"),
+            "value": "Invite to review withdrawn",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1488,7 +1492,7 @@ Thank you and best regards,
         subject_eo_opens_appeal_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Appeal granted"),
+            "value": "Appeal granted",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1544,7 +1548,7 @@ Thank you and best regards,
         subject_author_withdraws_preprint_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Withdrawn"),
+            "value": "Withdrawn",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1598,7 +1602,7 @@ Thank you and best regards,
         subject_preprint_withdrawn_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Withdrawn"),
+            "value": "Withdrawn",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1655,7 +1659,7 @@ Best regards,
         subject_author_submits_appeal_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Appeal submitted"),
+            "value": "Appeal submitted",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1712,7 +1716,7 @@ Thank you and best regards,
         subject_eo_send_back_to_typesetting_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Sent back to typesetter by EO"),
+            "value": "Sent back to typesetter by EO",
             "translations": {},
         }
         setting_1 = create_customization_setting(

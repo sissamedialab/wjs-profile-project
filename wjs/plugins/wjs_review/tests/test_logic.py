@@ -928,7 +928,7 @@ def test_handle_accept_invite_reviewer(
     if accept_gdpr:
         # Expected message:
         # - invitation to reviewer (note to reviewer)
-        # - reviewer's acceptance - reviewer_acknowledgement (from rev to ed: rev accepts assignment)
+        # - reviewer's acceptance - reviewer_acknowledgement (from rev to ed: rev accepts/declines assignment)
         # - acknowledgement to reviewer - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
         assert Message.objects.count() == 3
         # Message related to the reviewer accepting the assignment
@@ -1016,33 +1016,40 @@ def test_handle_decline_invite_reviewer(
     assignment.refresh_from_db()
     invited_user.refresh_from_db()
     # Regardless of the value of accept_gdpr, the message is created and sent
-    assert Message.objects.count() == 2
+    # See also test_logic.test_handle_accept_invite_reviewer()
+    assert Message.objects.count() == 3
     # Message related to the reviewer declining the assignment
-    message = Message.objects.last()
+    message = Message.objects.get(recipients__in=[section_editor.janeway_account])
     assert message.actor == invited_user
     assert list(message.recipients.all()) == [section_editor.janeway_account]
-    message_subject = get_setting(
+    context = {
+        "article": assignment.article,
+        "request": fake_request,
+        "review_assignment": assignment,
+        "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
+    }
+    message_subject = render_template_from_setting(
         setting_group_name="email_subject",
-        setting_name="subject_review_decline_acknowledgement",
-        journal=assignment.article.journal,
-    ).processed_value
-    message_body = render_template_from_setting(
-        setting_group_name="email",
-        setting_name="review_decline_acknowledgement",
+        setting_name="subject_reviewer_acknowledgement",
         journal=assignment.article.journal,
         request=fake_request,
-        context={
-            "article": assignment.article,
-            "request": fake_request,
-            "review_assignment": assignment,
-            "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
-        },
+        context=context,
+        template_is_setting=True,
+    )
+    message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="reviewer_acknowledgement",
+        journal=assignment.article.journal,
+        request=fake_request,
+        context=context,
         template_is_setting=True,
     )
     assert message.subject == message_subject
     assert message.body == message_body
     default_review_days = int(get_setting("general", "default_review_days", fake_request.journal).value)
-    assert invited_user.signature in message.body
+    # Notification is from the system, not from the reviewer
+    assert invited_user.signature not in message.body
+    assert f"{assignment.article.journal.code} Journal" in message.body
 
     assert invited_user.is_active == accept_gdpr
     assert invited_user.jcomprofile.gdpr_checkbox == accept_gdpr

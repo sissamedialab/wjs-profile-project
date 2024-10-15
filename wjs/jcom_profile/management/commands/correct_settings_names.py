@@ -135,6 +135,26 @@ Best regards,<br>
 
         update_setting_default("revision_digest", "email", "NOT USED IN WJS")
         update_setting_default("subject_revision_digest", "email_subject", "NOT USED IN WJS")
+        update_setting_default("editor_digest", "email", "NOT USED IN WJS")
+        update_setting_default("subject_editor_digest", "email_subject", "NOT USED IN WJS")
+        update_setting_default("reviewer_digest", "email", "NOT USED IN WJS")
+        update_setting_default("subject_reviewer_digest", "email_subject", "NOT USED IN WJS")
+        update_setting_default("production_assign_article", "email", "NOT USED IN WJS")
+        update_setting_default("subject_production_assign_article", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notification_submission", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notification_submission", "email_subject", "NOT USED IN WJS")
+        update_setting_default("copyeditor_assignment_notification", "email", "NOT USED IN WJS")
+        update_setting_default("subject_copyeditor_assignment_notification", "email_subject", "NOT USED IN WJS")
+        update_setting_default("copyeditor_notify_editor", "email", "NOT USED IN WJS")
+        update_setting_default("subject_copyeditor_notify_editor", "email_subject", "NOT USED IN WJS")
+        update_setting_default("copyeditor_notify_author", "email", "NOT USED IN WJS")
+        update_setting_default("subject_copyeditor_notify_author", "email_subject", "NOT USED IN WJS")
+        update_setting_default("copyeditor_reopen_task", "email", "NOT USED IN WJS")
+        update_setting_default("subject_copyeditor_reopen_task", "email_subject", "NOT USED IN WJS")
+        update_setting_default("author_copyedit_complete", "email", "NOT USED IN WJS")
+        update_setting_default("subject_author_copyedit_complete", "email_subject", "NOT USED IN WJS")
+        update_setting_default("production_manager_notification", "email", "NOT USED IN WJS")
+        update_setting_default("subject_production_manager_notification", "email_subject", "NOT USED IN WJS")
 
         # Replaces WJS's revision_submission_[subject,body]
         update_setting_default(
@@ -206,6 +226,19 @@ Kind regards,
         update_setting_default("subject_review_decision_undecline", "email_subject", "NOT USED IN WJS")
         update_setting_default("share_reviews_notification", "email", "NOT USED IN WJS")
         update_setting_default("subject_share_reviews_notification", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_se_draft_declined", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_se_draft_declined", "email_subject", "NOT USED IN WJS")
+        update_setting_default("submission_access_request_notification", "email", "NOT USED IN WJS")
+        update_setting_default("subject_submission_access_request_notification", "email_subject", "NOT USED IN WJS")
+        update_setting_default("submission_access_request_complete", "email", "NOT USED IN WJS")
+        update_setting_default("subject_submission_access_request_complete", "email_subject", "NOT USED IN WJS")
+        update_setting_default("draft_message", "email", "NOT USED IN WJS")
+        update_setting_default("subject_draft_message", "email_subject", "NOT USED IN WJS")
+        update_setting_default("draft_editor_message", "email", "NOT USED IN WJS")
+        update_setting_default("subject_draft_editor_message", "email_subject", "NOT USED IN WJS")
+        # Don't confuse editor_new_submission with editor_assignment:
+        update_setting_default("editor_new_submission", "email", "NOT USED IN WJS")
+        update_setting_default("subject_editor_new_submission", "email_subject", "NOT USED IN WJS")
 
         update_setting_default(
             "review_withdrawl",
@@ -247,15 +280,19 @@ Thank you in advance for your cooperation and best regards,
         )
 
         # Warning: do not confuse settings
-        # - reviewer_acknowledgement      (from rev to ed: rev accepts assignment)
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts/declines assignment)
         # - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
         update_setting_default(
             "reviewer_acknowledgement",
             "email",
             """Dear {{ review_assignment.editor.full_name }},
 <br><br>
-reviewer {{ review_assignment.reviewer.full_name }} has accepted your invite to review
-this {{ article.section.name }}. For more information, please go to {{ review_in_review_url }}
+reviewer {{ review_assignment.reviewer.full_name }} has
+{% if review_assignment.date_accepted %}accepted
+{% elif review_assignment.date_declined %}declined
+{% else %}-configuration error-
+{% endif %}your invite to review this {{ article.section.name }}.
+For more information, please go to the <a href="{{ article.articleworkflow.url }}">manuscript web page</a>.
 <br><br>
 Best regards,
 <br>
@@ -299,6 +336,24 @@ Best regards,
             "subject_review_accept_acknowledgement", "email_subject", """Thank you for accepting invite"""
         )
 
+        # Warning: do not confuse with reviewer_acknowledgement
+        update_setting_default(
+            "review_decline_acknowledgement",
+            "email",
+            """Dear {{ review_assignment.reviewer.full_name }},
+<br>
+Thank you for letting us know that you are unable to review "{{ article.safe_title }}"
+for {{ article.journal.name }}.
+<br>
+{{ article.journal.code }} looks forward to availing itself of your expertise in the future.
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_review_decline_acknowledgement", "email_subject", "Invite to review declined")
+
         update_setting_default(
             "review_complete_acknowledgement",
             "email",
@@ -322,7 +377,7 @@ Best regards,
 <br><br>
 We would like to warmly thank you for completing your review of "{{ article.safe_title }}".
 <br>
-{{ article.journal.code }} looks froward to availing itself again of your expertise in the future.
+{{ article.journal.code }} looks forward to availing itself again of your expertise in the future.
 <br><br>
 Thank you again and best regards,
 <br>
