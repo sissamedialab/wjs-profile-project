@@ -91,6 +91,8 @@ class Command(BaseCommand):
             "review_invitation_message",  # old name of the following
             "review_invitation_message_default",
             "review_invitation_message_subject",
+            "review_decision_revision_request_body",  # replaced by request_revision**s**
+            "review_decision_revision_request_subject",
         )
         for setting_name in settings_to_drop:
             logger.debug(f"Dropping {setting_name}")
@@ -109,7 +111,7 @@ class Command(BaseCommand):
             """Dear {{ article.correspondence_author.full_name }}, <br>
 <br>
 Thank you for submitting [...]
-the {{ article.section.name }} "{{ article.title }}" to {{ article.journal }}.
+the {{ article.section.name }} "{{ article.title }}" to {{ article.journal.name }}.
 <br>
 <br>
 Please check all data and files from your manuscript
@@ -224,6 +226,179 @@ Best regards,
 This can be modified by the operator.""",
         )
         update_setting_default("subject_review_withdrawl", "email_subject", "Invite to review withdrawn")
+
+        update_setting_default("subject_editor_assignment", "email_subject", "Assignment as Editor in charge")
+        update_setting_default(
+            "editor_assignment",
+            "email",
+            """Dear Dr. {{ editor.full_name }},
+<br><br>
+Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a> to handle [...]
+this {{ article.section.name }} as editor-in-charge.
+<br><br>
+Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.
+<br>
+Should you be unable to handle it, please decline the assignment as soon as possible.
+<br><br>
+Thank you in advance for your cooperation and best regards,
+<br><br>
+{{ article.journal.code }} Journal
+""",
+        )
+
+        # Warning: do not confuse settings
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts assignment)
+        # - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
+        update_setting_default(
+            "reviewer_acknowledgement",
+            "email",
+            """Dear {{ review_assignment.editor.full_name }},
+<br><br>
+reviewer {{ review_assignment.reviewer.full_name }} has accepted your invite to review
+this {{ article.section.name }}. For more information, please go to {{ review_in_review_url }}
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default(
+            "subject_reviewer_acknowledgement",
+            "email_subject",
+            """Reviewer {{ review_assignment.reviewer.full_name }}’s reply to invite""",
+            # Warning: here we are "casting in stone" the reviewer's name (i.e. we could'nt hide them from the timeline
+            # if we wanted to), but these message are not visible by the authors anyway
+        )
+
+        update_setting_default(
+            "review_accept_acknowledgement",
+            "email",
+            """{% load fqdn %}Dear {{ review_assignment.reviewer.full_name }},
+<br><br>
+Thank you for accepting {{ review_assignment.editor.full_name }}’s invite to review
+the {{ article.section.name }} "{{ article.safe_title }}" for {{ article.journal.name }}.
+<br><br>
+Your review is expected by {{ review_assignment.date_due|date:DATE_FORMAT }}.
+<br>{% journal_base_url article.journal as base_url %}
+Instructions to write your review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
+<br>
+Please also keep in mind the specificities of this article type ({{ article.section.name }}),
+which are explained <a href="{{ base_url }}/site/authors/">here</a>.
+<br><br>
+Should you need any further information or assistance, please do not hesitate
+to contact either the Editor in charge {{ review_assignment.editor.full_name }}
+or the Editorial Office by using the "Write a message" button on this
+<a href="{{ article.articleworkflow.url }}">manuscript web page</a>.
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default(
+            "subject_review_accept_acknowledgement", "email_subject", """Thank you for accepting invite"""
+        )
+
+        update_setting_default(
+            "review_complete_acknowledgement",
+            "email",
+            """Dear {{ review_assignment.editor.full_name }},
+<br><br>
+A review has just come in [...] for "{{ article.safe_title }}".
+Please go to this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }}'s web page</a>
+to read it and take action, if appropriate.
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_review_complete_acknowledgement", "email_subject", """Review received""")
+
+        update_setting_default(
+            "review_complete_reviewer_acknowledgement",
+            "email",
+            """Dear {{ review_assignment.reviewer.full_name }},
+<br><br>
+We would like to warmly thank you for completing your review of "{{ article.safe_title }}".
+<br>
+{{ article.journal.code }} looks froward to availing itself again of your expertise in the future.
+<br><br>
+Thank you again and best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default(
+            "subject_review_complete_reviewer_acknowledgement", "email_subject", """Thank you for reviewing"""
+        )
+
+        update_setting_default(
+            "review_decision_decline",
+            "email",
+            """Dear {{ article.correspondence_author.full_name }},
+<br><br>
+We regret to inform you that "{{ article.safe_title }}"
+has not been accepted [...] for publication in {{ article.journal.name }}.
+<br><br>
+To read the review, please go to the
+<a href="{{ article.articleworkflow.url }}">{{ article.section.name }}'s web page</a>
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_review_decision_decline", "email_subject", """Rejected""")
+
+        update_setting_default(
+            "review_decision_accept",
+            "email",
+            """Dear {{ article.correspondence_author.full_name }},
+<br><br>
+We are pleased to inform you that your {{ article.section.name }} "{{ article.safe_title }}"
+has been accepted [...] for publication in {{ article.journal.name }}.
+<br><br>
+To read the review, please go to the
+<a href="{{ article.articleworkflow.url }}">{{ article.section.name }}'s web page</a>
+<br><br>
+You will be recontacted as soon as your manuscript has been typeset and is ready for proofreading.
+<br>
+If you wish to be notified about new publications, including your own,
+please subscribe for alerts on
+{{ article.journal.site_url }}
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_review_decision_accept", "email_subject", """Accepted for publication""")
+
+        update_setting_default(
+            "request_revisions",
+            "email",
+            """{% load fqdn %}Dear Dr. {{ article.correspondence_author.full_name }},
+<br><br>
+Please connect to <a href="{{ article.articleworkflow.url }}">{{ article.section.name }}'s web page</a>
+to read the review and [...]
+submit the  requested {% if minor_revision %}minor{% endif %} revision by {{ revision.date_due }}.
+<br><br>
+In preparing it, please check that your manuscript conforms to the
+<a href="{{ base_url }}/site/authors/#heading1">{{ article.journal.code }} style and formatting instructions</a>.
+<br><br>
+In particular, please check that references are formatted correctly and
+that all references cited in the text are included in the reference list (and vice versa).
+<br><br>
+If you decide not to resubmit your manuscript, please withdraw it from the Journal as soon as possible
+by using the appropriate link on your manuscript page.
+<br><br>
+Thank you and regards,
+<br>
+{{ journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_request_revisions", "email_subject", "Revision requested")
 
 
 def update_setting_default(name, group, value, description=None):

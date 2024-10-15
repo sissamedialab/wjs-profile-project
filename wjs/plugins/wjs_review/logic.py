@@ -310,8 +310,8 @@ class AssignToEditor:
         else:
             actor = None
         message_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="wjs_editor_assignment_subject",
+            setting_group_name="email_subject",
+            setting_name="subject_editor_assignment",
             journal=self.workflow.article.journal,
             request=self.request,
             context={
@@ -320,8 +320,8 @@ class AssignToEditor:
             template_is_setting=True,
         )
         message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="wjs_editor_assignment_body",
+            setting_group_name="email",
+            setting_name="editor_assignment",
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -797,19 +797,30 @@ class EvaluateReview:
         )
 
     def _log_accept(self):
-        # TODO: exceptions here just disappear
-        # try print(self.workflow.article) (no workflow in EvaluateReview instances!!!)
-        message_subject = get_setting(
+        context = self._get_accept_message_context()
+        self._log_editor_of_reviewer_acceptance(context)
+        # when editor does I-will-review, the assignment is automatically accepted,
+        # so he will never pass through here, and we can thank the reviewer safely
+        self._log_reviewer_thanking_him(context)
+
+    def _log_editor_of_reviewer_acceptance(self, context: dict[str, Any]):
+        # Warning: do not confuse settings
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts assignment)
+        # - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
+        message_subject = render_template_from_setting(
             setting_group_name="email_subject",
-            setting_name="subject_review_accept_acknowledgement",
-            journal=self.assignment.article.journal,
-        ).processed_value
-        message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="review_accept_acknowledgement",
+            setting_name="subject_reviewer_acknowledgement",
             journal=self.assignment.article.journal,
             request=self.request,
-            context=self._get_accept_message_context(),
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="reviewer_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=context,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -818,6 +829,37 @@ class EvaluateReview:
             message_body=message_body,
             actor=self.assignment.reviewer,
             recipients=[self.assignment.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+    def _log_reviewer_thanking_him(self, context: dict[str, Any]):
+        # Warning: do not confuse settings
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts assignment)
+        # - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_accept_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="review_accept_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[self.assignment.reviewer],
+            verbosity=Message.MessageVerbosity.EMAIL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1048,9 +1090,9 @@ class SubmitReview:
             template_is_setting=True,
         )
         if self.assignment.reviewer == self.assignment.editor:
-            verbosity = Message.MessageVerbosity.FULL
-        else:
             verbosity = Message.MessageVerbosity.EMAIL
+        else:
+            verbosity = Message.MessageVerbosity.FULL
         communication_utils.log_operation(
             # no actor as it's a system message
             article=self.assignment.article,
@@ -1237,7 +1279,7 @@ class AuthorHandleRevision:
             template_is_setting=True,
         )
         communication_utils.log_operation(
-            actor=self.user,
+            actor=None,
             article=self.revision.article,
             message_subject=reviewer_message_subject,
             message_body=reviewer_message_body,
@@ -1560,16 +1602,16 @@ class HandleDecision:
 
     def _log_revision_request(self, context, revision_type=None):
         revision_request_message_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_decision_revision_request_subject",
+            setting_group_name="email_subject",
+            setting_name="subject_request_revisions",
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
             template_is_setting=True,
         )
         revision_request_message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_decision_revision_request_body",
+            setting_group_name="email",
+            setting_name="request_revisions",
             journal=self.workflow.article.journal,
             request=self.request,
             context=context,
@@ -2422,7 +2464,8 @@ class HandleEditorDeclinesAssignment:
             "editor": self.editor,
             "director": self.director,
             "article": self.assignment.article,
-            "decline_reason": self.form_data.get("decline_reason"),
+            "decline_reason_value": self.form_data.get("decline_reason")[0],
+            "decline_reason_label": self.form_data.get("decline_reason")[1],
             "decline_text": self.form_data.get("decline_text", None),
         }
 

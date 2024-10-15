@@ -158,67 +158,6 @@ def set_default_plugin_settings(force: bool = False):
             ),
         )
 
-    def review_decision_revision_request_message() -> tuple[SettingValue, ...]:
-        subject_review_decision_revision_request_setting: SettingParams = {
-            "name": "review_decision_revision_request_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject for revision request notification"),
-            "description": _(
-                "Subject of the notification sent to the author when the Editor requests a major/minor revision for an article. See also technical_revision_subject",
-            ),
-            "is_translatable": False,
-        }
-        subject_review_decision_revision_request_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": _(
-                "{% if major_revision %}Editor requires major revision{% elif minor_revision %}Editor requires minor revision{% endif %}"
-            ),
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            subject_review_decision_revision_request_setting,
-            subject_review_decision_revision_request_setting_value,
-            subject_review_decision_revision_request_setting["name"],
-            force=force,
-        )
-        review_decision_revision_request_setting: SettingParams = {
-            "name": "review_decision_revision_request_body",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Default message for revision request notification"),
-            "description": _(
-                "Body of the notification sent to the author when the Editor requests a major/minor revision for an article. See also technical_revision_body",
-            ),
-            "is_translatable": False,
-        }
-        review_decision_revision_request_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear Dr. {{ article.correspondence_author.full_name }},
-<br><br>
-Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a> to read the Editor review and [...] submit the {% if minor_revision %}minor{% endif %} revision of {{ article.title }} requested by the Editor in charge by {{ revision.date_due }}.
-<br><br>
-In preparing your revision, please check that your manuscript conforms to the JCOM style and formatting instructions available: [link a sezione di help for auths]
-<br><br>
-In particular, please check that references are formatted correctly and that all references cited in the text are included in the reference list (and vice versa).
-<br><br>
-If you decide not to resubmit the article, please withdraw your preprint as soon as possible.
-<br><br>
-Thank you and regards,<br>
-{{ journal.code }} Journal
-""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            review_decision_revision_request_setting,
-            review_decision_revision_request_setting_value,
-            review_decision_revision_request_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2
-
     def review_decision_not_suitable_message() -> tuple[SettingValue, ...]:
         subject_review_decision_not_suitable_setting: SettingParams = {
             "name": "review_decision_not_suitable_subject",
@@ -507,11 +446,16 @@ The revision due date for the article "{{ article.title }}" has been postponed t
             "setting": None,
             "value": """Dear Dr. {{ author.full_name }},
 <br><br>
-Routine checks have spotted [...] issues in your {{ article.section.name }}.<br>
-More explanations will be provided in a separate message.<br>
-Once you have made the modifications and/or provided the explanations requested, please resubmit your {{ article.section.name }} from its web page.<br><br>
-Thank you and best regards,<br><br>
-{{ journal.code }} Journal
+Routine checks have spotted [...] issues in your {{ article.section.name }}.
+<br>
+More explanations will be provided in a separate message.
+<br>
+Once you have made the modifications and/or provided the explanations requested,
+please resubmit your {{ article.section.name }} from its <a href="{{ article.articleworkflow.url }}">web page</a>.
+<br><br>
+Thank you and best regards,
+<br><br>
+{{ article.journal.code }} Journal
 """,
             "translations": {},
         }
@@ -574,61 +518,6 @@ Thank you and best regards,<br><br>
         return setting_1, setting_2
 
     def core_review_settings() -> tuple[SettingValue, ...]:
-        setting_1_p: SettingParams = {
-            "name": "wjs_editor_assignment_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject of the assign to editor message"),
-            "description": _(
-                "The subject of the notification that is sent to the editor when a paper is assigned to him. Replaces Janeway's subject_editor_assignment.",
-            ),
-            "is_translatable": False,
-        }
-        setting_1_v: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Assignment as Editor in charge",
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            setting_1_p,
-            setting_1_v,
-            setting_1_p["name"],
-            force=force,
-        )
-
-        setting_2_p: SettingParams = {
-            "name": "wjs_editor_assignment_body",
-            "group": wjs_review_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Body of the assign-to-editor message"),
-            "description": _(
-                "The body of the notification that is sent to the editor when a paper is assigned to him. Replaces Janeway's editor_assignment.",
-            ),
-            "is_translatable": False,
-        }
-        setting_2_v: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear Dr. {{ editor.full_name }},
-<br><br>
-Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a> to handle [...] this {{ article.section.name }} as editor-in-charge.
-<br><br>
-Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.<br>
-Should you be unable to handle it, please decline the assignment as soon as possible.
-<br><br>
-Thank you in advance for your cooperation and best regards,
-<br><br>
-{{ journal.code }} Journal
-""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            setting_2_p,
-            setting_2_v,
-            setting_2_p["name"],
-            force=force,
-        )
 
         setting_3_p: SettingParams = {
             "name": "review_invitation_message_body",
@@ -659,7 +548,7 @@ Replaces Janeway's review_assignment.
 {% if reviewer.jcomprofile.invitation_token %}
     <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
 {% else %}
-    <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id%}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+    <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
 {% endif %}
 </p>
 <p><b>Please accept/decline this invite to review by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
@@ -899,8 +788,6 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
             force=force,
         )
         return (
-            setting_1,
-            setting_2,
             setting_3,
             setting_5,
             setting_6,
@@ -1129,9 +1016,9 @@ Since it is far in the future it might be worth checking.
         editor_decline_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear Dr. {{ director }},
-<br/><br/>
-I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
+            "value": """Dear {{ director }},
+<br><br>
+I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by {{ article.correspondence_author.full_name }} for the following reasons:
 <br><br>
 {{ decline_reason }}
 <br><br>
@@ -1926,7 +1813,6 @@ Thank you and best regards,
         csv_writer.write_settings(review_lists_page_size())
         csv_writer.write_settings(declined_review_notice())
         csv_writer.write_settings(core_review_settings())
-        csv_writer.write_settings(review_decision_revision_request_message())
         csv_writer.write_settings(review_decision_not_suitable_message())
         csv_writer.write_settings(revision_request_postpone_date_due_messages())
         csv_writer.write_settings(technical_revision_body())

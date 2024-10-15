@@ -1339,8 +1339,9 @@ def test_three_papers_three_reviewers(
     assert Reminder.objects.all().count() == 14
     # 4 assignments notifications
     # 2 acceptance notifications
+    # 2 acceptance acknowledgements
     # 2 report notifications
-    assert Message.objects.all().count() == 8
+    assert Message.objects.all().count() == 10
     # Resetting messages, we are going to count new message each day
     Message.objects.all().delete()
     caplog.clear()

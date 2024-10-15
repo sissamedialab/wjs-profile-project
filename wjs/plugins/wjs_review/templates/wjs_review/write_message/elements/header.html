@@ -2,7 +2,7 @@
   <p>
     {{ article.section }} {{ article.pk }}<br>
     {% translate "Title" %}: {{ article.title }}
-    {% if show_authors %}{% if article.authors.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}: {{ article.authors.all|join:", " }}{% endif %}
+    {% if show_authors %}<br>{% if article.authors.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}: {{ article.authors.all|join:", " }}{% endif %}
   </p>
   <p align="center">
     <a href="{{ status_url }}">{% translate "Go to web page" %}</a>
