@@ -97,8 +97,15 @@ def cleanup_notifications_side_effects():
     Message.objects.all().delete()
 
 
+@pytest.mark.django_db
+@pytest.fixture  # (scope="session")  ??? can't have scope session and db access???
+def correct_settings_names():
+    """Update Janeway settings with our defaults."""
+    call_command("correct_settings_names")
+
+
 @pytest.fixture
-def review_settings(journal, eo_user):
+def review_settings(journal, eo_user, correct_settings_names):
     """
     Initialize plugin settings and install wjs_review as part of the workflow.
 

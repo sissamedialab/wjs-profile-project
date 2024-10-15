@@ -357,8 +357,8 @@ def test_invite_function_creates_inactive_user(
     assert invited_user.invitation_token == invitation_token
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_invitation_message_subject",
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
