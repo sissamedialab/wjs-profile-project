@@ -531,9 +531,13 @@ class AssignToReviewer:
             message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
         else:
             message_verbosity = Message.MessageVerbosity.FULL
-            message_subject_setting = "review_invitation_message_subject"
+            message_subject_setting = "subject_review_assignment"
+            message_subject_setting_group_name = "email_subject"
+
+            # do not confuse with review_assignement which is the default message presented to the editor for him to
+            # modify
             message_body_setting = "review_invitation_message_body"
-            message_subject_setting_group_name = message_body_setting_group_name = "wjs_review"
+            message_body_setting_group_name = "wjs_review"
 
         review_assignment_subject = render_template_from_setting(
             setting_group_name=message_subject_setting_group_name,
@@ -1300,8 +1304,8 @@ class WithdrawReviewRequests:
 
     article: Article
     request: HttpRequest
-    subject_name: str
-    body_name: str
+    subject_name: tuple[str, str]
+    body_name: tuple[str, str]
     context: Dict[str, Any]
     user: Account = None
     form_data: dict = None
@@ -1316,8 +1320,8 @@ class WithdrawReviewRequests:
     def _log_review_withdraw(self, reviewer: Account):
         self.context["recipient"] = reviewer
         review_withdraw_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name=self.subject_name,
+            setting_group_name=self.subject_name[1],
+            setting_name=self.subject_name[0],
             journal=self.article.journal,
             request=self.request,
             context=self.context,
@@ -1327,8 +1331,8 @@ class WithdrawReviewRequests:
             review_withdraw_message = self.form_data["withdraw_notice"]
         else:
             review_withdraw_message = render_template_from_setting(
-                setting_group_name="wjs_review",
-                setting_name=self.body_name,
+                setting_group_name=self.body_name[1],
+                setting_name=self.body_name[0],
                 journal=self.article.journal,
                 request=self.request,
                 context=self.context,
@@ -1797,8 +1801,8 @@ class HandleDecision:
         service = WithdrawReviewRequests(
             article=self.workflow.article,
             request=self.request,
-            subject_name="review_withdraw_subject",
-            body_name="review_withdraw_default",
+            subject_name=("editor_deassign_reviewer_subject", "wjs_review"),
+            body_name=("editor_deassign_reviewer_default", "wjs_review"),
             context=email_context,
             user=self.user,
             form_data=self.form_data,
@@ -2409,6 +2413,8 @@ class HandleEditorDeclinesAssignment:
     request: HttpRequest
     form_data: Dict[str, Any]
     director: Optional[Account] = None
+    # FIXME! explain why this is optional / when it is useful
+    # see also the re-definition of self.director in run()
 
     def _get_message_context(self):
         """Get the context for the message template."""
@@ -2421,7 +2427,7 @@ class HandleEditorDeclinesAssignment:
         }
 
     def _log_director(self):
-        """Logs a message to the Director containing information about the motivation of the declination."""
+        """Log a message to the Director containing information about the motivation of the declination."""
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="editor_decline_assignment_subject",
@@ -2448,6 +2454,19 @@ class HandleEditorDeclinesAssignment:
             flag_as_read_by_eo=True,
         )
 
+    def _withdraw_unfinished_review_requests(self):
+        """Mark unfinished review requests as withdrawn."""
+        service = WithdrawReviewRequests(
+            article=self.assignment.article,
+            request=self.request,
+            subject_name=("editor_decline_assignment__for_reviewers_subject", "wjs_review"),
+            body_name=("editor_decline_assignment__for_reviewers_body", "wjs_review"),
+            context=self._get_message_context(),
+            user=self.editor,
+            form_data={},
+        )
+        service.run()
+
     def _update_state(self):
         self.assignment.article.articleworkflow.ed_declines_assignment()
         self.assignment.article.articleworkflow.save()
@@ -2468,6 +2487,7 @@ class HandleEditorDeclinesAssignment:
             try:
                 past_assignment = BaseDeassignEditor(self.assignment, self.editor, self.request).run()
                 self._save_decline_info(past_assignment)
+                self._withdraw_unfinished_review_requests()
             except ValueError:
                 raise
             self._create_director_reminder()
@@ -2698,8 +2718,8 @@ class WithdrawPreprint:
         service = WithdrawReviewRequests(
             article=self.workflow.article,
             request=self.request,
-            subject_name="preprint_withdrawn_subject",
-            body_name="preprint_withdrawn_body",
+            subject_name=("preprint_withdrawn_subject", "wjs_review"),
+            body_name=("preprint_withdrawn_body", "wjs_review"),
             context={"article": self.workflow.article},
         )
         service.run()

@@ -132,43 +132,6 @@ def set_default_plugin_settings(force: bool = False):
             ),
         )
 
-    def review_invitation_message_default() -> tuple[SettingValue, ...]:
-        setting: SettingParams = {
-            "name": "review_invitation_message_default",
-            "group": wjs_review_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Default message for review invitation"),
-            "description": _(
-                "Provide the default message to invite reviewers.",
-            ),
-            "is_translatable": False,
-        }
-        value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear Colleague,<br>
-{% if already_reviewed %}
-    I am writing to ask for your help in reviewing the revised version of "{{ article.title }}" for which you have been so kind as to review the previous version.
-{%else %}
-    I am writing to ask for your help in reviewing the {{ article.section.name }} "{{ article.title }}" for {{ journal.code }}.
-{% endif %}
-Please find the automatically generated instructions for reviewers appended below.<br><br>
-In the hope that you will accept my request, I would like to thank you in advance for your cooperation.<br><br>
-Kind regards,<br>
-{{ request.user.signature|safe }}<br>
-JCOM Editor-in-charge
-""",
-            "translations": {},
-        }
-        return (
-            create_customization_setting(
-                setting,
-                value,
-                setting["name"],
-                force=force,
-            ),
-        )
-
     def declined_review_notice() -> tuple[SettingValue, ...]:
         setting: SettingParams = {
             "name": "declined_review_notice",
@@ -411,62 +374,6 @@ The revision due date for the article "{{ article.title }}" has been postponed t
             force=force,
         )
         return setting_1, setting_2, setting_3, setting_4
-
-    def withdraw_review_message() -> tuple[SettingValue, ...]:
-        withdraw_review_subject_setting: SettingParams = {
-            "name": "review_withdraw_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject for review withdraw notification"),
-            "description": _(
-                "Subject of the notification sent to reviewers when the review-assignment has been withdrawn.",
-            ),
-            "is_translatable": False,
-        }
-        withdraw_review_subject_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": _("Invite to review withdrawn"),
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            withdraw_review_subject_setting,
-            withdraw_review_subject_setting_value,
-            withdraw_review_subject_setting["name"],
-            force=force,
-        )
-        withdraw_review_message_setting: SettingParams = {
-            "name": "review_withdraw_default",
-            "group": wjs_review_settings_group,
-            "types": "rich-text",
-            "pretty_name": _("Default body of the review withdraw notification"),
-            "description": _(
-                "The default body of the notification that is sent to the reviewer when deassigned because the editor reached a decision. This can be modified by the operator.",
-            ),
-            "is_translatable": False,
-        }
-        withdraw_review_message_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear colleague,
-<br><br>
-This is to inform you that the editor in charge of this {{ article.section.name }} has been able to make a decision thereby relieving you of the assignment.
-<br><br>
-{{ journal.code }} looks forward to having another opportunity to avail itself of your expertise in the future.
-<br><br>
-Thank you and best regards,
-<br><br>
-{{ journal.code }} Journal
-""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            withdraw_review_message_setting,
-            withdraw_review_message_setting_value,
-            withdraw_review_message_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2
 
     def technical_revision_body() -> tuple[SettingValue, ...]:
         technical_revision_subject_setting: SettingParams = {
@@ -723,29 +630,6 @@ Thank you in advance for your cooperation and best regards,
             force=force,
         )
 
-        setting_30_p: SettingParams = {
-            "name": "review_invitation_message_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject of the assign-to-reviewer message"),
-            "description": _(
-                "The subject of the notification that is sent to the reviewer when a paper is assigned to him. Replaces Janeway's subject_review_assignment.",
-            ),
-            "is_translatable": False,
-        }
-        setting_30_v: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Invite to review",
-            "translations": {},
-        }
-        setting_30 = create_customization_setting(
-            setting_30_p,
-            setting_30_v,
-            setting_30_p["name"],
-            force=force,
-        )
-
         setting_3_p: SettingParams = {
             "name": "review_invitation_message_body",
             "group": wjs_review_settings_group,
@@ -753,7 +637,7 @@ Thank you in advance for your cooperation and best regards,
             "pretty_name": _("Body of the assign-to-reviewer message - non customizable part"),
             "description": _(
                 """The body of the notification that is sent to the editor when a paper is assigned to him.
-The part `{{ user_message_content }}` will be replaced with a text written by the editor (see review_invitation_message_body).
+The part `{{ user_message_content }}` will be replaced with a text written by the editor (see review_assignment).
 Replaces Janeway's review_assignment.
 """,
             ),
@@ -762,41 +646,48 @@ Replaces Janeway's review_assignment.
         setting_3_v: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """{% load fqdn %}
+            "value": """{% load fqdn %}{% journal_base_url article.journal as base_url %}
 <p>
 <br><br>
 {{ user_message_content|safe }}
 </p>
 <p>---------------------------------------</p>
 <p><b>{{ article.section.name }} to review:</b><br>
-{{ article_details }}<br>
-<b>Link to web page:</b><br>
+{{ article.title }}
+</p>
+<p><b>Link to web page:</b><br>
 {% if reviewer.jcomprofile.invitation_token %}
-    <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+    <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
 {% else %}
-    <a href="{% journal_base_url article.journal %}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id%}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+    <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id%}?access_code={{ review_assignment.access_code }}">Click here to review</a>
 {% endif %}
-<br>
 </p>
 <p><b>Please accept/decline this invite to review by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
 <p>
 {% if already_reviewed %}
     <br>
 {% else %}
-    {{ article.journal.name }} is a diamond open access journal focusing on research in science communication.<br>
-    Its scope is available on [link to a specific help section for the journal in question].<br><br>
-    Its editorial board (the name links to the relevant webpage) relies on the
+    {{ article.journal.name }} is a diamond-open-access journal focusing on research in science communication.<br>
+    Its scope is available <a href="{{ base_url }}/site/about-jcom/#heading1">here</a>.
+    <br><br>
+    Its <a href="{{ base_url }}/site/editorial-team/">editorial board</a> relies on the
     goodwill of reviewers to ensure the quality of the manuscripts it
-    publishes and hopes that you will be able to help on this occasion.<br>
-    More information about the Journal’s ethical and financial policy are
-    available on [link to a specific help section for the journal in question]<br><br>
-    It is {{ journal.code }}’s policy that authors and reviewers remain anonymous to each other.<br>
+    publishes and hopes that you will be able to help on this occasion.
+    <br>
+    More information about the Journal’s ethical policy is
+    available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>
+    <br><br>
+    It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
 {% endif %}
 <br>The {{ article.section.name }} you are being asked to review is available on the link provided above,
 together with the buttons to accept or decline this invite and tools to communicate with the
-Editor in charge {{ request.user.signature|safe }}. <br><br>
-All the necessary information and instructions to do the review are available at:<br>
-[link to pdf file]<br><br>
+Editor in charge.
+<br><br>
+All the necessary information and instructions to do the review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
+<br><br>
+If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
+<a href="{{ base_url }}/site/authors/">here</a>.
+<br><br>
 Do not hesitate to contact the Editor in charge or the Editorial Office for any further information or assistance that you may need.
 </p>
 """,
@@ -1010,7 +901,6 @@ Do not hesitate to contact the Editor in charge or the Editorial Office for any 
         return (
             setting_1,
             setting_2,
-            setting_30,
             setting_3,
             setting_5,
             setting_6,
@@ -1188,7 +1078,8 @@ Thank you in advance for your cooperation and best regards,<br>
             "setting": None,
             "value": """Dear {{ EO.full_name }},
 <br><br>
-{{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to {{ date_due }}. Could it be a mistake?
+{{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to {{ date_due }}.
+Since it is far in the future it might be worth checking.
 <br><br>
 {{ journal.code }} Journal
 """,
@@ -1202,7 +1093,7 @@ Thank you in advance for your cooperation and best regards,<br>
         )
         return setting_1, setting_2
 
-    def editor_decline_assignment_message() -> tuple[SettingValue, ...]:
+    def editor_decline_assignment_messages() -> tuple[SettingValue, ...]:
         subject_editor_decline_assignment_setting: SettingParams = {
             "name": "editor_decline_assignment_subject",
             "group": wjs_review_settings_group,
@@ -1240,10 +1131,10 @@ Thank you in advance for your cooperation and best regards,<br>
             "setting": None,
             "value": """Dear Dr. {{ director }},
 <br/><br/>
-I regret to inform you that <...> I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
+I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by  {{ article.correspondence_author.full_name }} for the following reasons:
 <br><br>
 {{ decline_reason }}
-<br/><br/>
+<br><br>
 {% if decline_text %}
 Additional comments:
 <br><br>
@@ -1253,7 +1144,7 @@ Additional comments:
 Best regards,
 <br><br>
 {{ request.user.signature|safe }}<br>
-{{ journal.code }} Editor-in-charge
+{{ journal.code }} Editor in charge
 """,
             "translations": {},
         }
@@ -1263,7 +1154,64 @@ Best regards,
             editor_decline_assignment_setting["name"],
             force=force,
         )
-        return setting_1, setting_2
+
+        setting_3_params: SettingParams = {
+            "name": "editor_decline_assignment__for_reviewers_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of notification sent to active reviewers when editor declines assignment"),
+            "description": _(
+                "Subject of the notification sent to active reviewers when editor declines assignment.",
+            ),
+            "is_translatable": False,
+        }
+        setting_3_valueparams: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Invite to review withdrawn""",
+            "translations": {},
+        }
+        setting_3 = create_customization_setting(
+            setting_3_params,
+            setting_3_valueparams,
+            setting_3_params["name"],
+            force=force,
+        )
+
+        setting_4_params: SettingParams = {
+            "name": "editor_decline_assignment__for_reviewers_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Notification sent to active reviewers when editor declines assignment"),
+            "description": _(
+                "Body of the notification sent to active reviewers when editor declines assignment.",
+            ),
+            "is_translatable": False,
+        }
+        setting_4_valueparams: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear Dr. {{ recipient.full_name }},
+<br><br>
+This is to inform you that you have been deselected as reviewer, hence your report is no longer needed.
+<br><br>
+{{ article.journal.code }} looks forward to having another opportunity to avail itself of your
+expertise in the future.
+<br><br>
+Thank you and best regards,
+<br><br>
+{{ article.journal.code }} Journal
+""",
+            "translations": {},
+        }
+        setting_4 = create_customization_setting(
+            setting_4_params,
+            setting_4_valueparams,
+            setting_4_params["name"],
+            force=force,
+        )
+
+        return setting_1, setting_2, setting_3, setting_4
 
     def editor_assigns_themselves_as_reviewer_message() -> tuple[SettingValue, ...]:
         wjs_editor_i_will_review_message_subject_setting: SettingParams = {
@@ -1619,7 +1567,7 @@ Galleys for the {{ article.section.name }} {{ article.id }} are ready.
         editor_deassign_reviewer_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear Dr. {{ assignment.reviewer.full_name }},
+            "value": """Dear colleague,
 <br><br>
 This is to inform you that the editor in charge of the {{ article.section.name }} "{{ article.title }}" has been able to make a decision thereby relieving you of the assignment.
 <br><br>
@@ -1709,7 +1657,7 @@ Thank you and best regards,
         subject_author_withdraws_preprint_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Withdrawn preprint {{ article.id }}"),
+            "value": _("Withdrawn"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1731,9 +1679,12 @@ Thank you and best regards,
         author_withdraws_preprint_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear editors, I'm withdrawing the preprint {{ article.id }}.
+            "value": """Dear Editor, <br><br>
+This is to inform you that I have just withdrawn my {{ article.section.name }} from {{ article.journal.code }}.
 <br>
 <br>
+Thank you and best regards,
+<br><br>
 {{ article.correspondence_author.full_name }}
 """,
             "translations": {},
@@ -1760,7 +1711,7 @@ Thank you and best regards,
         subject_preprint_withdrawn_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": _("Assignments closed for preprint {{ article.id }}"),
+            "value": _("Withdrawn"),
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1782,10 +1733,17 @@ Thank you and best regards,
         preprint_withdrawn_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """Dear {{ recipient.full_name }}, thanks for your involvements.
-
-            Your assignment has been closed for the preprint {{ article.id }}.
-            """,
+            "value": """Dear {{ recipient.full_name }},
+<br><br>
+This manuscript has been withdrawn from {{ article.journal.code }} and
+does not need to be handled by you anymore.
+<br>
+{{ article.journal.code }} thanks you very much for your collaboration.
+<br>
+Best regards,
+<br><br>
+{{ article.journal.code }} Journal
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1966,13 +1924,11 @@ Thank you and best regards,
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
-        csv_writer.write_settings(review_invitation_message_default())
         csv_writer.write_settings(declined_review_notice())
         csv_writer.write_settings(core_review_settings())
         csv_writer.write_settings(review_decision_revision_request_message())
         csv_writer.write_settings(review_decision_not_suitable_message())
         csv_writer.write_settings(revision_request_postpone_date_due_messages())
-        csv_writer.write_settings(withdraw_review_message())
         csv_writer.write_settings(technical_revision_body())
         csv_writer.write_settings(author_can_contact_director())
         csv_writer.write_settings(hijack_notification_message())
@@ -1981,7 +1937,7 @@ Thank you and best regards,
         csv_writer.write_settings(prophy_settings())
         csv_writer.write_settings(due_date_postpone_message())
         csv_writer.write_settings(due_date_far_future_message())
-        csv_writer.write_settings(editor_decline_assignment_message())
+        csv_writer.write_settings(editor_decline_assignment_messages())
         csv_writer.write_settings(editor_assigns_themselves_as_reviewer_message())
         csv_writer.write_settings(typesetter_is_assigned_message())
         csv_writer.write_settings(article_requires_proofreading_message())

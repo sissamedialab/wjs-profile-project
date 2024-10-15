@@ -213,8 +213,8 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
                 self.data["author_note_visible"] = default_visibility
             if not self.data.get("message", None):
                 default_message_rendered = render_template_from_setting(
-                    setting_group_name="wjs_review",
-                    setting_name="review_invitation_message_default",
+                    setting_group_name="email",
+                    setting_name="review_assignment",
                     journal=self.instance.article.journal,
                     request=self.request,
                     context=self.get_message_context(),
@@ -222,8 +222,8 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
                 )
                 self.data["message"] = default_message_rendered
             default_subject = render_template_from_setting(
-                setting_group_name="wjs_review",
-                setting_name="review_invitation_message_subject",
+                setting_group_name="email_subject",
+                setting_name="subject_review_assignment",
                 journal=self.instance.article.journal,
                 request=self.request,
                 context=self.get_message_context(),
@@ -235,7 +235,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
 
     def get_message_context(self) -> Dict[str, Any]:
         """
-        Return a dictionary with the context  to render default form message.
+        Return a dictionary with the context to render the default form message.
 
         The context is generated using AssignToReviewer._get_message_context method.
 
@@ -334,8 +334,8 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
             self.data["acceptance_due_date"] = self._today + datetime.timedelta(days=interval_days.process_value())
         if not self.data.get("message", None):
             default_message_rendered = render_template_from_setting(
-                setting_group_name="wjs_review",
-                setting_name="review_invitation_message_default",
+                setting_group_name="email",
+                setting_name="review_assignment",
                 journal=self.instance.article.journal,
                 request=self.request,
                 context={"article": self.instance.article, "journal": self.instance.article.journal},
@@ -343,8 +343,8 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
             )
             self.fields["message"].initial = default_message_rendered
         default_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_invitation_message_subject",
+            setting_group_name="email_subject",
+            setting_name="subject_review_assignment",
             journal=self.instance.article.journal,
             request=self.request,
             context={
@@ -355,6 +355,7 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
         self.fields["message_subject"].initial = default_subject
 
     def get_message_context(self):
+        # TODO: consider using SelectReviewerForm as in scenario_review._assign_reviewer_via_plugin_logic()
         return {
             "article": self.instance.article,
             "review_assignment": WorkflowReviewAssignment(id=1, access_code="sample"),
@@ -605,8 +606,8 @@ class DecisionForm(forms.ModelForm):
         # It's easier to set initial here, even if we might drop the field later on,
         # because kwargs is going to be passed to super().__init__() for standard initialization.
         kwargs["initial"]["withdraw_notice"] = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_withdraw_default",
+            setting_group_name="email",
+            setting_name="review_withdrawl",
             journal=self.request.journal,
             request=self.request,
             context={},

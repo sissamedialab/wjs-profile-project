@@ -278,8 +278,8 @@ def test_assign_to_reviewer_hijacked(
     editor_emails = [m for m in mail.outbox if m.to[0] == section_editor.email]
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_invitation_message_subject",
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -450,8 +450,8 @@ def test_assign_to_reviewer(
     assert not assignment.author_note_visible
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_invitation_message_subject",
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -853,8 +853,8 @@ def test_invite_reviewer(
     assert assignment.workflowreviewassignment.author_note_visible
 
     review_assignment_subject = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_invitation_message_subject",
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
         context={"article": assigned_article},
@@ -873,7 +873,7 @@ def test_invite_reviewer(
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
     assert assigned_article.journal.code in emails[0].subject
-    assert "is a diamond open access" in emails[0].body
+    assert "is a diamond-open-access" in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
     # Check messages
@@ -882,7 +882,7 @@ def test_invite_reviewer(
     assert message_to_invited_user.subject == review_assignment_subject
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
-    assert "is a diamond open access" in message_to_invited_user.body
+    assert "is a diamond-open-access" in message_to_invited_user.body
     assert message_to_invited_user.message_type == Message.MessageTypes.SYSTEM
     assert message_to_invited_user.actor == section_editor.janeway_account
     assert list(message_to_invited_user.recipients.all()) == [invited_user.janeway_account]
@@ -1237,8 +1237,8 @@ def test_invite_reviewer_but_user_already_exists(
     # Check messages
     assert Message.objects.count() == 1
     subject_from_setting = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_invitation_message_subject",
+        setting_group_name="email_subject",
+        setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
         context={},
@@ -1621,14 +1621,16 @@ def test_handle_admin_decision(
         )
         not_suitable_message_body = raw(not_suitable_message_body)
 
+        # See here for a map of which setting is used in each withdrawal situation:
+        # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1089#review-assignments-withdrawal
         withdrawn_message_subject = get_setting(
             setting_group_name="wjs_review",
-            setting_name="review_withdraw_subject",
+            setting_name="editor_deassign_reviewer_subject",
             journal=assigned_article.journal,
         ).processed_value
         withdrawn_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="review_withdraw_default",
+            setting_name="editor_deassign_reviewer_default",
             journal=assigned_article.journal,
             request=fake_request,
             context=message_context,
@@ -1867,7 +1869,7 @@ def test_handle_editor_decision(
     }
     review_withdraw_message_subject = render_template_from_setting(
         setting_group_name="wjs_review",
-        setting_name="review_withdraw_subject",
+        setting_name="editor_deassign_reviewer_subject",
         journal=assigned_article.journal,
         request=fake_request,
         context=message_template_context,

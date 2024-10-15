@@ -31,16 +31,8 @@ class Command(BaseCommand):
             ),
             # wjs_review
             (
-                "review_invitation_message",
-                "review_invitation_message_default",
-            ),
-            (
                 "declined_review_message",
                 "declined_review_notice",
-            ),
-            (
-                "review_withdraw_notice",
-                "review_withdraw_default",
             ),
             (
                 "requeue_article_message",
@@ -58,11 +50,11 @@ class Command(BaseCommand):
                 "editor_deassign_reviewer_body",
                 "editor_deassign_reviewer_default",
             ),
-            # Do not correct the followings Janeway settings: we simply add our owns
-            # - subject_editor_assignment ⬄ wjs_editor_assignment_subject
-            # - editor_assignment ⬄ wjs_editor_assignment_body
-            # - review_assignment ⬄ review_invitation_message_body + review_invitation_message_default
-            # - subject_review_assignment ⬄ review_invitation_message_subject
+            # At a certain point, we had our own version of these settings.
+            # in #958 #959 we decided to use Janeway's setting (with our values)
+            # - editor_assignment ⬄ wjs_editor_assignment
+            # - review_assignment ⬄ review_invitation_message (but we add review_invitation_message_body)
+            # - review_withdrawl ⬄ review_withdraw_...
         )
 
         for old_name, new_name in settings_to_rename:
@@ -92,7 +84,13 @@ class Command(BaseCommand):
             "do_review_message",
             "editor_deassign_reviewer_system_subject",
             "editor_deassign_reviewer_system_body",
-            "review_withdraw_body",
+            "review_withdraw_notice",  # old name of the following
+            "review_withdraw_body",  # old name of the following
+            "review_withdraw_default",
+            "review_withdraw_subject",
+            "review_invitation_message",  # old name of the following
+            "review_invitation_message_default",
+            "review_invitation_message_subject",
         )
         for setting_name in settings_to_drop:
             logger.debug(f"Dropping {setting_name}")
@@ -163,10 +161,78 @@ Thank you and best regards,
             """{% if revision.type == "tech_revisions" %}Metadata updated{% else %}Resubmitted{% endif %}""",
         )
 
+        # Review invitation / assignment
 
-def update_setting_default(name, group, value):
-    """"""
+        update_setting_default(
+            "review_assignment",
+            "email",
+            """Dear {{ reviewer.full_name }},<br>
+{% if already_reviewed %}
+    I am writing to ask for your help in reviewing the revised version of the {{ article.section.name }}
+titled "{{ article.title }}" for which you have been so kind as to review the previous version.
+{% else %}
+    I am writing to ask for your help in reviewing the {{ article.section.name }}
+titled "{{ article.title }}" for {{ journal.code }}.
+{% endif %}
+Please find the automatically generated instructions for reviewers appended below.
+<br>
+<br>
+In the hope that you will accept my request, I would like to thank you in advance for your cooperation.
+<br>
+<br>
+Kind regards,
+<br>
+{{ request.user.signature|safe }}
+<br>
+{{ journal.code }} Editor in charge
+""",
+        )
+
+        update_setting_default(
+            "subject_review_assignment",
+            "email_subject",
+            "Invite to review",
+        )
+
+        update_setting_default("review_request_sent", "email", "NOT USED IN WJS")
+        update_setting_default("subject_review_request_sent", "email_subject", "NOT USED IN WJS")
+        update_setting_default("default_review_reminder", "email", "NOT USED IN WJS")
+        update_setting_default("subject_default_review_reminder", "email_subject", "NOT USED IN WJS")
+        update_setting_default("accepted_review_reminder", "email", "NOT USED IN WJS")
+        update_setting_default("subject_accepted_review_reminder", "email_subject", "NOT USED IN WJS")
+        update_setting_default("review_decision_undecline", "email", "NOT USED IN WJS")
+        update_setting_default("subject_review_decision_undecline", "email_subject", "NOT USED IN WJS")
+        update_setting_default("share_reviews_notification", "email", "NOT USED IN WJS")
+        update_setting_default("subject_share_reviews_notification", "email_subject", "NOT USED IN WJS")
+
+        update_setting_default(
+            "review_withdrawl",
+            "email",
+            """Dear Dr. {{ assignment.reviewer.full_name }},
+<br><br>
+This is to confirm that you are no longer requested to review this submission.
+<br><br>
+{{ article.journal.code }} looks forward to soon having another opportunity
+of availing itself of your expertise.
+<br><br>
+Best regards,
+<br><br>
+{{ request.user.signature|safe }}<br>
+{{ article.journal.code }} Editor in charge
+""",
+            description="""The default body of the notification sent to the reviewer when editor deassigned him.
+This can be modified by the operator.""",
+        )
+        update_setting_default("subject_review_withdrawl", "email_subject", "Invite to review withdrawn")
+
+
+def update_setting_default(name, group, value, description=None):
+    """Patch a setting's default value."""
+    # TODO: refactor with wjs.jcom_profile.custom_settings_utils.patch_settin()
     setting = Setting.objects.get(name=name, group__name=group)
+    if description:
+        setting.description = description
+        setting.save()
     setting_value = SettingValue.objects.get(setting=setting, journal__isnull=True)
     if overrides := SettingValue.objects.filter(setting=setting, journal__isnull=False):
         for override in overrides:
