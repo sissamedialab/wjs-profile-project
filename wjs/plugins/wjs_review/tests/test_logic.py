@@ -183,8 +183,8 @@ def test_assign_to_editor(
     assert Message.objects.count() == 1
     message_to_editor = Message.objects.first()
     editor_assignment_message = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="wjs_editor_assignment_body",
+        setting_group_name="email",
+        setting_name="editor_assignment",
         journal=article.journal,
         request=fake_request,
         context={
@@ -536,8 +536,8 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
     # Prepare templates
     revision_request_message_subject = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_decision_revision_request_subject",
+        setting_group_name="email_subject",
+        setting_name="subject_request_revisions",
         journal=assigned_article.journal,
         request=fake_request,
         context={
@@ -551,8 +551,8 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         review_round=assigned_article.reviewround_set.get(),
     )
     revision_request_message_body = render_template_from_setting(
-        setting_group_name="wjs_review",
-        setting_name="review_decision_revision_request_body",
+        setting_group_name="email",
+        setting_name="request_revisions",
         journal=assigned_article.journal,
         request=fake_request,
         context={
@@ -926,31 +926,40 @@ def test_handle_accept_invite_reviewer(
     invited_user.jcomprofile.refresh_from_db()
 
     if accept_gdpr:
-        assert Message.objects.count() == 2
+        # Expected message:
+        # - invitation to reviewer (note to reviewer)
+        # - reviewer's acceptance - reviewer_acknowledgement (from rev to ed: rev accepts assignment)
+        # - acknowledgement to reviewer - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
+        assert Message.objects.count() == 3
         # Message related to the reviewer accepting the assignment
-        message = Message.objects.last()
+        message = Message.objects.get(recipients__in=[section_editor.janeway_account])
         assert message.actor == invited_user
         assert list(message.recipients.all()) == [section_editor.janeway_account]
-        message_subject = get_setting(
+        context = {
+            "article": assignment.article,
+            "request": fake_request,
+            "review_assignment": assignment,
+            "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
+        }
+
+        message_subject = render_template_from_setting(
             setting_group_name="email_subject",
-            setting_name="subject_review_accept_acknowledgement",
-            journal=assignment.article.journal,
-        ).processed_value
-        message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="review_accept_acknowledgement",
+            setting_name="subject_reviewer_acknowledgement",
             journal=assignment.article.journal,
             request=fake_request,
-            context={
-                "article": assignment.article,
-                "request": fake_request,
-                "review_assignment": assignment,
-                "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
-            },
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="reviewer_acknowledgement",
+            journal=assignment.article.journal,
+            request=fake_request,
+            context=context,
             template_is_setting=True,
         )
         assert message.subject == message_subject
-        assert message.body == message_body.replace("<br/>", "<br>")  # FIXME: janeway settings?
+        assert message.body == message_body
     else:
         # No new message created
         assert Message.objects.count() == 1
@@ -1928,16 +1937,16 @@ def test_handle_editor_decision(
             "skip": False,
         }
         revision_request_message_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_decision_revision_request_subject",
+            setting_group_name="email_subject",
+            setting_name="subject_request_revisions",
             journal=assigned_article.journal,
             request=fake_request,
             context=message_template_context,
             template_is_setting=True,
         )
         revision_request_message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="review_decision_revision_request_body",
+            setting_group_name="email",
+            setting_name="request_revisions",
             journal=assigned_article.journal,
             request=fake_request,
             context=message_template_context,
