@@ -762,6 +762,8 @@ class EvaluateReview:
             "request": self.request,
             "review_assignment": self.assignment,
             "review_url": reverse("wjs_review_review", kwargs={"assignment_id": self.assignment.id}),
+            # Please note that this same context is used also for notifications to the editor (who don't have access to
+            # the `review_url` page)
         }
 
     def _get_decline_message_context(self) -> Dict[str, Any]:
@@ -801,11 +803,12 @@ class EvaluateReview:
         self._log_editor_of_reviewer_acceptance(context)
         # when editor does I-will-review, the assignment is automatically accepted,
         # so he will never pass through here, and we can thank the reviewer safely
-        self._log_reviewer_thanking_him(context)
+        self._log_reviewer_thanking_acceptance(context)
 
     def _log_editor_of_reviewer_acceptance(self, context: dict[str, Any]):
+        # Warning: same setting as for _log_editor_of_reviewer_decline()
         # Warning: do not confuse settings
-        # - reviewer_acknowledgement      (from rev to ed: rev accepts assignment)
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts/declines assignment)
         # - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
         message_subject = render_template_from_setting(
             setting_group_name="email_subject",
@@ -833,9 +836,9 @@ class EvaluateReview:
             notify_actor=communication_utils.should_notify_actor(),
         )
 
-    def _log_reviewer_thanking_him(self, context: dict[str, Any]):
+    def _log_reviewer_thanking_acceptance(self, context: dict[str, Any]):
         # Warning: do not confuse settings
-        # - reviewer_acknowledgement      (from rev to ed: rev accepts assignment)
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts/declines assignment)
         # - review_accept_acknowledgement (from ed to rev: ed thanks rev for accepting)
         message_subject = render_template_from_setting(
             setting_group_name="email_subject",
@@ -865,6 +868,42 @@ class EvaluateReview:
         )
 
     def _log_decline(self):
+        context = self._get_accept_message_context()
+        self._log_editor_of_reviewer_decline(context)
+        self._log_reviewer_acknowledging_decline(context)
+
+    def _log_editor_of_reviewer_decline(self, context):
+        # Warning: same setting as for _log_editor_of_reviewer_acceptance()
+        # Warning: do not confuse settings
+        # - reviewer_acknowledgement      (from rev to ed: rev accepts/declines assignment)
+        # - review_decline_acknowledgement (from ed to rev: ed thanks rev for decline)
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_reviewer_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="reviewer_acknowledgement",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.assignment.reviewer,
+            recipients=[self.assignment.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+        )
+
+    def _log_reviewer_acknowledging_decline(self, context):
         message_subject = get_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_decline_acknowledgement",
@@ -883,7 +922,7 @@ class EvaluateReview:
             message_subject=message_subject,
             message_body=message_body,
             actor=self.assignment.reviewer,
-            recipients=[self.assignment.editor],
+            recipients=[self.assignment.reviewer],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1206,10 +1245,15 @@ class AuthorHandleRevision:
             "skip": False,
             "revision": self.revision,
             "editor": self.editor,
+            "default_editor_assign_reviewer_days": get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_editor_assign_reviewer_days",
+                journal=self.revision.article.journal,
+            ).processed_value,
         }
 
     def _was_under_appeal(self) -> bool:
-        """Returns True if the paper was under appeal"""
+        """Return True if the paper was under appeal."""
         return self.revision.type == ArticleWorkflow.Decisions.OPEN_APPEAL
 
     def _notify_reviewers(self):

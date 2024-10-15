@@ -633,29 +633,32 @@ def test_decline_invite(
         assert review_assignment_invited_user.is_complete
 
     if reason:
-        assert Message.objects.count() == 2
-        # Message related to the reviewer declining the assignment
-        message = Message.objects.last()
+        # See also test_logic.test_handle_accept_invite_reviewer()
+        assert Message.objects.count() == 3
+        # Message related to the reviewer accepting the assignment
+        message = Message.objects.get(recipients__in=[review_assignment_invited_user.editor])
         assert message.actor == invited_user
         assert list(message.recipients.all()) == [review_assignment_invited_user.editor]
-        message_subject = get_setting(
+        context = {
+            "article": review_assignment_invited_user.article,
+            "request": request,
+            "review_assignment": review_assignment_invited_user,
+            "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment_invited_user.id}),
+        }
+        message_subject = render_template_from_setting(
             setting_group_name="email_subject",
-            setting_name="subject_review_decline_acknowledgement",
-            journal=review_assignment_invited_user.article.journal,
-        ).processed_value
-        message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="review_decline_acknowledgement",
+            setting_name="subject_reviewer_acknowledgement",
             journal=review_assignment_invited_user.article.journal,
             request=request,
-            context={
-                "article": review_assignment_invited_user.article,
-                "request": request,
-                "review_assignment": review_assignment_invited_user,
-                "review_url": reverse(
-                    "wjs_review_review", kwargs={"assignment_id": review_assignment_invited_user.id}
-                ),
-            },
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="reviewer_acknowledgement",
+            journal=review_assignment_invited_user.article.journal,
+            request=request,
+            context=context,
             template_is_setting=True,
         )
         assert message.subject == message_subject
