@@ -263,6 +263,12 @@ def waiting_editor_actions(article: Article) -> bool:
 
 
 @register.filter
+def editor_can_make_decision(article: Article) -> bool:
+    """Return True if the article is waiting for an editor action."""
+    return article.articleworkflow.state in (ArticleWorkflow.ReviewStates.EDITOR_SELECTED,)
+
+
+@register.filter
 def waiting_author_actions(article: Article) -> bool:
     """Return True if the article is waiting for an author action."""
     return article.articleworkflow.state_value in (ArticleWorkflow.ReviewStates.TO_BE_REVISED,)
