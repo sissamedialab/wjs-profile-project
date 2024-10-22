@@ -21,6 +21,7 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 from wjs.jcom_profile.utils import render_template_from_setting
 
+from . import communication_utils
 from .forms__production import (
     EOSendBackToTypesetterForm,
     EsmFileForm,
@@ -529,19 +530,22 @@ def typesettertestsgalleygeneration_wrapper(
 ):
     """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for async processing."""
     # See also logic__production.finishpublication_wrapper().
-
-    # TODO: review me wrt
-    # - wjs.jcom_profile.tests.conftest.fake_request and
-    # - utils.management.commands.test_fire_event.create_fake_request
     assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
     request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
 
-    logic_instance = TypesetterTestsGalleyGeneration(
-        assignment=assignment,
-        request=request,
-    )
-
-    logic_instance.run()
+    try:
+        logic_instance = TypesetterTestsGalleyGeneration(
+            assignment=assignment,
+            request=request,
+        )
+        logic_instance.run()
+    except Exception as e:
+        communication_utils.notify_async_event(
+            message_subject="Errors during galley generation",
+            message_body=e,
+            recipients=[assignment.typesetter],
+            article=assignment.round.article,
+        )
 
 
 class GalleyGenerationView(BaseRelatedViewsMixin, TemplateView):

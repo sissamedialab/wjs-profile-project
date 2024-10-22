@@ -786,7 +786,7 @@ class AttachGalleys:
         return self.path
 
     def unpack_zip_from_jcomassistant(self) -> Path:
-        """Unpack a zip
+        """Unpack a zip.
 
         Create and use a temporary folder.
         The caller should clean up if necessary.
@@ -853,14 +853,14 @@ class AttachGalleys:
                 return (False, f"Missing {extension} file")
         return (True, None)
 
-    def download_and_store_article_file(self, image_source_url: Path):
-        """Downaload a media file and link it to the article."""
+    def download_and_store_article_file(self, image_source_url: Path, galley: Galley):
+        """Downaload a media file and link it to the galley."""
         if not image_source_url.exists():
             logger.error(f"Img {image_source_url.resolve()} does not exist. {os.getcwd()=}")
         image_name = image_source_url.name
         image_file = File(open(image_source_url, "rb"), name=image_name)
         new_file: JanewayFile = save_galley_image(
-            self.article.get_render_galley,
+            galley=galley,
             request=self.request,
             uploaded_file=image_file,
             label=image_name,  # [*]
@@ -872,17 +872,16 @@ class AttachGalleys:
         # this idea.
         return new_file
 
-    def mangle_images(self):
-        """Download all <img>s in the article's galley and adapt the "src" attribute."""
-        render_galley = self.article.get_render_galley
-        galley_file: JanewayFile = render_galley.file
+    def mangle_images(self, galley: Galley):
+        """Download all <img>s in the galley and adapt the "src" attribute."""
+        galley_file: JanewayFile = galley.file
         galley_string: str = galley_file.get_file(self.article)
         html: HtmlElement = lxml.html.fromstring(galley_string)
         images = html.findall(".//img")
         for image in images:
             img_src = image.attrib["src"].split("?")[0]
             img_src = self.path / img_src
-            img_obj: JanewayFile = self.download_and_store_article_file(img_src)
+            img_obj: JanewayFile = self.download_and_store_article_file(img_src, galley)
             # TBV: the `src` attribute is relative to the article's URL
             image.attrib["src"] = img_obj.label
 
@@ -914,7 +913,7 @@ class AttachGalleys:
             html_prettify=False,
         )
         self._check_html_galley_mimetype(galley)
-        self.mangle_images()
+        self.mangle_images(galley)
         return galley
 
     def _check_html_galley_mimetype(self, galley: Galley):
@@ -927,8 +926,6 @@ class AttachGalleys:
                 logger.warning(f"Wrong mime type {galley.file.mime_type} for {galley}")
             galley.file.mime_type = expected_mimetype
             galley.file.save()
-        self.article.render_galley = galley
-        self.article.save()
 
     def save_epub(self):
         """Set the first epub file as EPUB galley."""
@@ -1094,7 +1091,7 @@ class TypesetterTestsGalleyGeneration:
 
     def _get_and_save_galleys(self):
         """
-        Use Jcom Assistent to render the galleys and then attach them to the article.
+        Use Jcom Assistant to render the galleys and then attach them to the article.
 
         If settings.JCOMASSISTANT_MOCK_FILE is set, use the path as a mock response file instead of contacting
         the JCOM Assistant service.
@@ -1102,17 +1099,22 @@ class TypesetterTestsGalleyGeneration:
         # TODO: wrap in try/except and contact typ on errors
         # e.g. ConnectionError janeway-services.ud.sissamedialab.it Name or service not known
         if settings.JCOMASSISTANT_MOCK_FILE:
-            return self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
-        response = self._jcom_assistant_client()
+            galleys_created = self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
+        else:
+            response = self._jcom_assistant_client()
+            # Unpack the response; this also "attach" the galleys to the article because of how Janeway's save_galley
+            # works (which is useful to use because we do want the files to be saved in the filesystem in the article's
+            # folder).
+            galleys_created = AttachGalleys(
+                archive_with_galleys=response.content,
+                article=self.assignment.round.article,
+                request=self.request,
+            ).run()
 
-        # Unpack the response and "attach" the galleys to the article...
-        galleys_created = AttachGalleys(
-            archive_with_galleys=response.content,
-            article=self.assignment.round.article,
-            request=self.request,
-        ).run()
+        # Detach the galleys from the article: A.galley_set should contain only publication-ready galleys
+        Galley.objects.filter(id__in=[g.id for g in galleys_created]).update(article=None)
 
-        # ... and save them to the TA also
+        # Attach the gallyes to the TA
         self.assignment.galleys_created.set(galleys_created)
 
     def _check_queries_in_tex_src(self):
@@ -1139,8 +1141,7 @@ class TypesetterTestsGalleyGeneration:
             )
             return
         self._clean_galleys()
-        if not self._get_and_save_galleys():
-            return
+        self._get_and_save_galleys()
         self._check_queries_in_tex_src()
         context = self._get_message_context()
         self._log_operation(context)
@@ -1389,17 +1390,7 @@ class BeginPublication:
                 " File added to archive and hoping for the best.",
             )
 
-        # Replace the article.source_files (only one item) with the just modified sources
-        # TODO: we could store the source files in two places:
-        # - article.source_files
-        # - last TA.files_to_typeset
-        # now we use TA, because we must keep a history of them source files.
-        # But we should probably
-        # - keep the latest sources on the article
-        # - keep the history in the TA:
-        #   every time the typ UploadFile,
-        #   store the reference to the files bot in TA and article
-
+        # Keep the files we have just modified in ArticleWorkflow.publication_galleys_source_file
         final_sources: JanewayFile = save_file_to_article(
             file_to_handle=File(open(tempfilename, "rb"), name=file_name.replace(".tex", ".zip")),
             article=self.workflow.article,
@@ -1408,9 +1399,11 @@ class BeginPublication:
             description="Source files for final galleys",
             replace=None,
         )
-        assert self.workflow.article.source_files.count() == 1, "Too many source files. Expected exactly one!"
-        self.workflow.article.source_files.first().delete()  # TODO: verify that `delete` also unlinks!
-        self.workflow.article.source_files.set((final_sources,))
+        if self.workflow.publication_galleys_source_file:
+            # Note that core.File.delete() also unlinks the related filesystem file
+            self.workflow.publication_galleys_source_file.delete()
+        self.workflow.publication_galleys_source_file = final_sources
+        self.workflow.save()
         os.unlink(tempfilename)
 
     def _prepare_source(self, source_file: BytesIO) -> BytesIO:
@@ -1532,7 +1525,7 @@ class FinishPublication:
     # TODO: refactor with TypesetterTestsGalleyGeneration methods
     def _jcom_assistant_client(self) -> requests.Response:
         assistant = JcomAssistantClient(
-            archive_with_files_to_process=self.workflow.article.source_files.first(),
+            archive_with_files_to_process=self.workflow.publication_galleys_source_file,
             user=self.user,
         )
         response = assistant.ask_jcomassistant_to_process()
@@ -1548,8 +1541,12 @@ class FinishPublication:
             request=self.request,
         ).run()
         self.workflow.article.galley_set.set(galleys_created)
-        # This flag is set by AttachGalleys that we have just run
+
+        # The "galleys-ok" flag is set by AttachGalleys that we have just run
         if self.workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED:
+            if html_galleys := [g for g in galleys_created if g.label == "HTML"]:
+                self.workflow.article.render_galley = html_galleys[0]
+                self.workflow.article.save()
             return True
         else:
             communication_utils.notify_async_event(

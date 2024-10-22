@@ -117,10 +117,10 @@ def create_mock_zip():
     inmemory_zip = io.BytesIO()
     with zipfile.ZipFile(inmemory_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
         zipf.writestr("file1.txt", "This is the content of file 1.")
-        zipf.write(html_filepath)
-        zipf.write(epub_filepath)
-        zipf.write(pdf_filepath)
-        zipf.write(log_filepath)
+        zipf.write(filename=html_filepath, arcname=html_filepath.name)
+        zipf.write(filename=epub_filepath, arcname=epub_filepath.name)
+        zipf.write(filename=pdf_filepath, arcname=pdf_filepath.name)
+        zipf.write(filename=log_filepath, arcname=log_filepath.name)
     inmemory_zip.seek(0)
     return inmemory_zip
 

@@ -68,7 +68,7 @@ from .test_helpers import (
     ThreadedHTTPServer,
     _create_review_assignment,
     _submit_review,
-    create_mock_tar_gz,
+    create_mock_zip,
 )
 
 TEST_FILES_EXTENSION = ".santaveronica"
@@ -516,22 +516,8 @@ def _create_rfp_article(
     article.section.wjssection.pubid_and_tex_sectioncode = "A"
     article.section.wjssection.save()
 
-    # At this point of their life, articles should already have one (and only one) source file
-    if article.source_files.count() == 0:
-        # the upstream fixtures did not oblige: let's fix the problem;
-        # create a dummy file, with nothing on the filesystem
-        # a janeway file can apparently exists without django file (e.g. DjangoFile(file=BytesIO(b"hi"), name="x.zip"))
-        janeway_file = File.objects.create(
-            mime_type="application/zip",
-            original_filename="original_filename.zip",
-            uuid_filename="uf.zip",
-            label="label",
-            description="description",
-            owner=article.correspondence_author,
-            is_galley=False,
-            article_id=article.pk,
-        )
-        article.source_files.set((janeway_file,))
+    # Reminder: source files for the (publication) galleys are in the latest typesetting assignment, not in the
+    # Article.source_files
 
     article.articleworkflow.production_flag_no_queries = True
     article.articleworkflow.production_flag_no_checks_needed = True
@@ -809,7 +795,7 @@ def mock_jcomassistant_post():
 
     response = requests.models.Response()
     response.status_code = 200
-    response._content = create_mock_tar_gz().getvalue()
+    response._content = create_mock_zip().getvalue()
 
     with mock.patch.object(requests, "post", return_value=response) as mocked_requests__post:
         yield mocked_requests__post

@@ -356,7 +356,7 @@ def is_user_article_reviewer(article: ArticleWorkflow, user: Account) -> bool:
 
 @register.filter
 def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
-    """Returns if user is an Author for the article."""
+    """Return True if user is the corresponding author of the article."""
     return permissions.is_article_author(article, user)
 
 
