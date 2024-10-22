@@ -3033,21 +3033,29 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         if (
             self.article.large_image_file == self.attachment
             or self.article.thumbnail_image_file == self.attachment
-            or self.article.render_galley == self.attachment
+            or (self.article.render_galley and self.article.render_galley.file == self.attachment)
+            # TBV: check also article.meta_image (ImageField)
         ):
             related_instances.append(self.article)
         for related_field in [
             self.article.manuscript_files,
             self.article.data_figure_files,
             self.article.source_files,
-            self.article.supplementary_files,
         ]:
+            # Reminder: in a m2m field, pk=pk or pk__in=[pk] are equivalent
             if related_field.filter(pk=self.attachment.pk).exists():
                 related_instances.append(self.article)
-        # ArticleWorkflow's files
-        # FIXME: might need to add articleworkflow.publication_galleys_source_file because of specs#1048
-        if self.article.articleworkflow.supplementary_files_at_acceptance.filter(file__pk=self.attachment.pk).exists():
+        if self.article.supplementary_files.filter(file__pk=self.attachment.pk).exists():
             related_instances.append(self.article)
+
+        # ArticleWorkflow's files
+        for aw in [
+            self.article.articleworkflow.supplementary_files_at_acceptance.filter(file__pk=self.attachment.pk).first(),
+            self.article.articleworkflow.publication_galleys_source_file,
+        ]:
+            if aw:
+                related_instances.append(self.article)
+
         # EditorRevisionRequest's files
         for err in [
             EditorRevisionRequest.objects.filter(cover_letter_file=self.attachment).first(),
@@ -3058,19 +3066,22 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         ]:
             if err:
                 related_instances.append(err)
+
         # WorkflowReviewAssignment's files (reviewers' report files)
         if wra := WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first():
             related_instances.append(wra)
+
         # TypesettingAssignment's files
         for ta in [
             TypesettingAssignment.objects.filter(files_to_typeset__pk=self.attachment.pk).first(),
-            TypesettingAssignment.objects.filter(galleys_created__pk=self.attachment.pk).first(),
+            TypesettingAssignment.objects.filter(galleys_created__file__pk=self.attachment.pk).first(),
         ]:
             if ta:
                 related_instances.append(ta)
+
         # GalleyProofing's files
         for gp in [
-            GalleyProofing.objects.filter(proofed_files__pk=self.attachment.pk).first(),
+            GalleyProofing.objects.filter(proofed_files__file__pk=self.attachment.pk).first(),
             GalleyProofing.objects.filter(annotated_files__pk=self.attachment.pk).first(),
         ]:
             if gp:

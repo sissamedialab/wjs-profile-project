@@ -418,7 +418,6 @@ def test_typ_marks_unpublishable(
     assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
 
 
-@pytest.mark.skip("To be fixed in #918")
 @pytest.mark.django_db
 def test_typesetter_galley_generation(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
@@ -428,18 +427,15 @@ def test_typesetter_galley_generation(
     caplog,
 ):
     """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
-    typesetting_assignment = (
-        assigned_to_typesetter_article_with_files_to_typeset.typesettinground_set.first().typesettingassignment
-    )
+    article = assigned_to_typesetter_article_with_files_to_typeset
+    typesetting_assignment = article.articleworkflow.latest_typesetting_assignment()
     url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
     response = client.post(url)
 
     assert mock_jcomassistant_post.call_args.kwargs["url"] == settings.JCOMASSISTANT_URL
     assert response.status_code == 302
-    assert response.url == reverse(
-        "wjs_article_details", kwargs={"pk": assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}
-    )
+    assert response.url == reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.pk})
 
     galleys_created = typesetting_assignment.galleys_created.all()
     assert galleys_created.count() == 3
@@ -452,7 +448,7 @@ def test_typesetter_galley_generation(
     caplog.set_level(logging.ERROR)
     TypesetterTestsGalleyGeneration(typesetting_assignment, fake_request).run()
     assert len(mail.outbox) == 1
-    assert "galley generation failed to start" in mail.outbox[0].subject
+    assert "Galley generation failed to start" in mail.outbox[0].subject
     assert "Galley generation failed to start" in caplog.text
 
 
@@ -585,7 +581,6 @@ def test_automatic_preamble_generation(
         assert piece in rendered_preamble
 
 
-@pytest.mark.skip("To be fixed in #918")
 @pytest.mark.django_db
 def test_production_flag_galleys_ok(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
@@ -594,10 +589,26 @@ def test_production_flag_galleys_ok(
     zip_with_tex_without_query,
 ):
     """Test the production flag galleys_ok correctly indicates the status of the galleys."""
-    typesetting_assignment = (
-        assigned_to_typesetter_article_with_files_to_typeset.typesettinground_set.get().typesettingassignment
-    )
+    article = assigned_to_typesetter_article_with_files_to_typeset
+    typesetting_assignment = article.articleworkflow.latest_typesetting_assignment()
+
+    # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
+    article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED.value
+    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    client.post(url, data={"file_to_upload": zip_with_tex_without_query(article)})
+    article.refresh_from_db()
+    assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED.value
+
+    # Test that when the archive conditions are met the flag is set to TEST_PASSED
+    url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    client.post(url)
+    article.refresh_from_db()
+    assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED.value
+
     # Test that when the generation failed the flag is set to TEST_FAILED
+    mail.outbox = []
     with mock.patch(
         "plugins.wjs_review.logic__production.AttachGalleys._check_conditions",
         return_value=(False, "I am a teapot"),
@@ -605,11 +616,8 @@ def test_production_flag_galleys_ok(
         url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
         response = client.post(url)
-        assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
-        assert (
-            assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
-            == ArticleWorkflow.GalleysStatus.TEST_FAILED
-        )
+        article.refresh_from_db()
+        assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_FAILED.value
 
         # [Just a reminder for me]
         # Even if the generation failed, the typesetter did not see (django) message indicating the issue in the
@@ -617,30 +625,8 @@ def test_production_flag_galleys_ok(
         messages = list(get_messages(response.wsgi_request))
         assert not any("I am a teapot" in message.message for message in messages)
 
-    # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
-    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
-    client.force_login(typesetting_assignment.typesetter)
-    client.post(
-        url, data={"file_to_upload": zip_with_tex_without_query(assigned_to_typesetter_article_with_files_to_typeset)}
-    )
-    assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
-    assert (
-        assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
-        == ArticleWorkflow.GalleysStatus.NOT_TESTED
-    )
-    # Test that when the archive conditions are met the flag is set to TEST_PASSED
-    with mock.patch(
-        "plugins.wjs_review.logic__production.AttachGalleys._check_conditions",
-        return_value=(True, None),
-    ):
-        url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
-        client.force_login(typesetting_assignment.typesetter)
-        client.post(url)
-        assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
-        assert (
-            assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.production_flag_galleys_ok
-            == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-        )
+        assert mail.outbox[0].subject == "Galleys unpacking and attachment failed"
+        assert "I am a teapot" in mail.outbox[0].body
 
 
 @pytest.mark.django_db
@@ -742,7 +728,6 @@ def test_publication(
     # TODO: turn the eid into a property stored into `article.page_numbers`?
 
 
-@pytest.mark.skip("To be fixed in #918")
 @pytest.mark.django_db
 def test_publication_with_fake_galley_generation(
     rfp_article: Article,
@@ -765,7 +750,7 @@ def test_publication_with_fake_galley_generation(
     ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
-    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
+    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert workflow.article.galley_set.count() == 3
 
 
@@ -781,12 +766,12 @@ def test_publication_multiple_articles(
     jcom_user: JCOMProfile,
     http_server: ThreadedHTTPServer,
 ):
-    """Publication proceeds with correctly even if one article's final galleys fail.
+    """Publication proceeds correctly even if one article's final galleys fail.
 
     Here we simulate an issue with three articles:
     - the first is correctly published
     - the second begins publication, but the final step fails
-    - the this is correctly published
+    - the third is correctly published
     - infrastrucute problems are fixed and the second can correctly finish publication
     """
     typ = jcom_user
@@ -817,7 +802,8 @@ def test_publication_multiple_articles(
         service = BeginPublication(workflow=a1.articleworkflow, user=typ, request=fake_request)
         service.run()
     a1.refresh_from_db()
-    assert a1.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
+    # during tests, async processes are made sync, so we should be published, not publication-in-progress
+    assert a1.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert a1.get_identifier("pubid").endswith("A01")
 
     a2 = article_factory(
@@ -831,7 +817,7 @@ def test_publication_multiple_articles(
     with override_settings(
         JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error"
     ):
-        #                                                            ⮴ 💩 ⮵
+        #                                                                                           ⮴ 💩 ⮵
         service = BeginPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         with pytest.raises(ValueError):
             service.run()
@@ -857,7 +843,7 @@ def test_publication_multiple_articles(
         service = BeginPublication(workflow=a3.articleworkflow, user=typ, request=fake_request)
         service.run()
     a3.refresh_from_db()
-    assert a3.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
+    assert a3.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert a3.get_identifier("pubid").endswith("A03")
 
     # retry a2: expect change in the state, but not in the pubid etc.
@@ -868,7 +854,7 @@ def test_publication_multiple_articles(
         #    ⚠  Finish! (not "Begin")
         service.run()
     a2.refresh_from_db()
-    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
+    assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert a2.get_identifier("pubid").endswith("A02")
 
 

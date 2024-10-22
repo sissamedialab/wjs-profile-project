@@ -352,6 +352,16 @@ class ArticleWorkflow(TimeStampedModel):
         blank=True,
         related_name="+",
     )
+
+    publication_galleys_source_file = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Source file of the published galleys, prepared by the system from the last TA source files"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
     # production flags
     production_flag_no_queries = models.BooleanField(
         default=False, verbose_name=_("The latest typesetted files contain no queries for the author")
