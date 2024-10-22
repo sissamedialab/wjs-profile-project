@@ -2545,24 +2545,29 @@ class HandleEditorDeclinesAssignment:
             "editor": self.editor,
             "director": self.director,
             "article": self.assignment.article,
-            "decline_reason_value": self.form_data.get("decline_reason")[0],
-            "decline_reason_label": self.form_data.get("decline_reason")[1],
+            "decline_reason": dict(PastEditorAssignment.DeclineReasons.choices).get(
+                self.form_data.get("decline_reason"),
+            ),
             "decline_text": self.form_data.get("decline_text", None),
         }
 
     def _log_director(self):
         """Log a message to the Director containing information about the motivation of the declination."""
-        message_subject = get_setting(
+        context = self._get_message_context()
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="editor_decline_assignment_subject",
             journal=self.assignment.article.journal,
-        ).processed_value
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="editor_decline_assignment_default",
             journal=self.assignment.article.journal,
             request=self.request,
-            context=self._get_message_context(),
+            context=context,
             template_is_setting=True,
         )
         communication_utils.log_operation(

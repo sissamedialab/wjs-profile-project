@@ -548,19 +548,18 @@ Replaces Janeway's review_assignment.
 <p><b>{{ article.section.name }} to review:</b><br>
 {{ article.title }}
 </p>
-<p><b>Link to web page:</b><br>
+<p><b>Please
 {% if reviewer.jcomprofile.invitation_token %}
-    <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ review_assignment.access_code }}">accept/decline this invite to review</a>
 {% else %}
-    <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id %}?access_code={{ review_assignment.access_code }}">Click here to review</a>
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=review_assignment.id %}?access_code={{ review_assignment.access_code }}">accept/decline this invite to review</a>
 {% endif %}
-</p>
-<p><b>Please accept/decline this invite to review by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
+            by {{ acceptance_due_date|date:"Y-m-d" }}.</b></p>
 <p>
 {% if already_reviewed %}
     <br>
 {% else %}
-    {{ article.journal.name }} is a diamond-open-access journal focusing on research in science communication.<br>
+    {{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
     Its scope is available <a href="{{ base_url }}/site/about-jcom/#heading1">here</a>.
     <br><br>
     Its <a href="{{ base_url }}/site/editorial-team/">editorial board</a> relies on the
@@ -568,20 +567,16 @@ Replaces Janeway's review_assignment.
     publishes and hopes that you will be able to help on this occasion.
     <br>
     More information about the Journal’s ethical policy is
-    available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>
+    available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>.
     <br><br>
     It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
 {% endif %}
-<br>The {{ article.section.name }} you are being asked to review is available on the link provided above,
-together with the buttons to accept or decline this invite and tools to communicate with the
-Editor in charge.
-<br><br>
 All the necessary information and instructions to do the review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
 <br><br>
 If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
 <a href="{{ base_url }}/site/authors/">here</a>.
 <br><br>
-Do not hesitate to contact the Editor in charge or the Editorial Office for any further information or assistance that you may need.
+Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
 </p>
 """,
             "translations": {},
@@ -998,7 +993,7 @@ Since it is far in the future it might be worth checking.
         subject_editor_decline_assignment_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Editor declined assignment",
+            "value": "Editor {{ editor.last_name }} declined assignment",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1024,7 +1019,7 @@ Since it is far in the future it might be worth checking.
 <br><br>
 I regret to inform you that [...] I am unable to handle the {{ article.section.name }} "{{ article.title }}" by {{ article.correspondence_author.full_name }} for the following reasons:
 <br><br>
-{{ decline_reason_label }}
+{{ decline_reason }}
 <br><br>
 {% if decline_text %}
 Additional comments:

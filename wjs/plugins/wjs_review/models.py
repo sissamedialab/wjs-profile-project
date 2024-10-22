@@ -40,6 +40,7 @@ from submission.models import Article, Section
 from tinymce.widgets import TinyMCE
 from utils import setting_handler
 from utils.logger import get_logger
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.models import Correspondence
@@ -1346,15 +1347,14 @@ class Message(TimeStampedModel):
     def render_message(self, recipient: Account) -> dict[str, str]:
         """Render the message content for the given recipient."""
         notification_body = self.body
+        if self.message_type == Message.MessageTypes.SYSTEM and self.SPLIT_MARKER in notification_body:
+            notification_body, __ = notification_body.split(self.SPLIT_MARKER)
+            notification_body = f"{notification_body} {self._render_read_more(recipient)}"
 
         header = self._render_header(recipient)
         footer = self._render_footer(recipient)
 
         notification_body = f"{header}{notification_body}{footer}"
-
-        if self.message_type == Message.MessageTypes.SYSTEM and self.SPLIT_MARKER in notification_body:
-            notification_body, __ = notification_body.split(self.SPLIT_MARKER)
-            notification_body = f"{notification_body} {self._render_read_more(recipient)}"
 
         notification_body_text = html2text.html2text(notification_body)
 
@@ -1377,6 +1377,9 @@ class Message(TimeStampedModel):
             return
         if self.message_type == Message.MessageTypes.NOTE:
             return
+
+        if not from_email:
+            from_email = get_setting("general", "from_address", self.journal).processed_value
 
         for recipient in self.recipients.all():
             body = self.render_message(recipient)

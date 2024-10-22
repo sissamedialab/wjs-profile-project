@@ -23,6 +23,7 @@ from ..logic import (
 )
 from ..models import (
     ArticleWorkflow,
+    Message,
     ProphyAccount,
     ProphyCandidate,
     WjsEditorAssignment,
@@ -207,6 +208,7 @@ def notify_coauthors_article_submission(**kwargs):
             recipients=[coauthor],
             flag_as_read=False,
             flag_as_read_by_eo=True,
+            verbosity=Message.MessageVerbosity.EMAIL,
         )
 
 

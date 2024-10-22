@@ -361,7 +361,7 @@ def test_invite_function_creates_inactive_user(
         setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
-        context={"article": assigned_article},
+        context={"article": assigned_article, "reviewer": invited_user},
         template_is_setting=True,
     )
     acceptance_url = f"{gdpr_acceptance_url}?access_code={assigned_article.reviewassignment_set.first().access_code}"
