@@ -1256,6 +1256,10 @@ class AuthorHandleRevision:
         """Return True if the paper was under appeal."""
         return self.revision.type == ArticleWorkflow.Decisions.OPEN_APPEAL
 
+    def _was_technical_revision(self) -> bool:
+        """Return True if the revision was really a metadata-update."""
+        return self.revision.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION
+
     def _notify_reviewers(self):
         """
         Send notifications to all reviewers of unsubmitted revisions.
@@ -1335,6 +1339,37 @@ class AuthorHandleRevision:
             flag_as_read_by_eo=True,
         )
 
+    def _notify_author(self):
+        """Send a receipt notification to the author."""
+        subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_revisions_complete_receipt",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="revisions_complete_receipt",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=None,
+            article=self.revision.article,
+            message_subject=subject,
+            message_body=body,
+            recipients=[self.revision.article.correspondence_author],
+            verbosity=Message.MessageVerbosity.EMAIL,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
     def _notify_editor_with_appeal(self):
         """Send notification to the editor informing that the paper was under appeal."""
         message_subject = get_setting(
@@ -1360,12 +1395,14 @@ class AuthorHandleRevision:
         )
 
     def _log_operation(self):
-        """Send notifications to editor and reviewers."""
+        """Send notifications to editor and reviewers and a receipt to the author."""
         if self._was_under_appeal():
             self._notify_editor_with_appeal()
         else:
             self._notify_editor()
         self._notify_reviewers()
+        if not self._was_technical_revision():
+            self._notify_author()
 
     def _save_author_note(self):
         self.revision.author_note = self.form_data.get("author_note", "")

@@ -232,13 +232,13 @@ class AssignTypesetter:
     def _log_operation(self, context) -> Message:
         """Log the operation."""
         message_subject = get_setting(
-            setting_group_name="wjs_review",
-            setting_name="typesetting_assignment_subject",
+            setting_group_name="email_subject",
+            setting_name="subject_typesetter_notification",
             journal=self.article.journal,
         ).processed_value
         message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="typesetting_assignment_body",
+            setting_group_name="email",
+            setting_name="typesetter_notification",
             journal=self.article.journal,
             request=self.request,
             context=context,
@@ -686,17 +686,14 @@ class AuthorSendsCorrections:
 
     def _log_operation(self, context) -> Message:
         """Log the operation."""
-        message_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="author_sends_corrections_subject",
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_notify_typesetter_proofing_changes",
             journal=self.article.journal,
-            request=self.request,
-            context=context,
-            template_is_setting=True,
-        )
+        ).processed_value
         message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="author_sends_corrections_body",
+            setting_group_name="email",
+            setting_name="notify_typesetter_proofing_changes",
             journal=self.article.journal,
             request=self.request,
             context=context,
@@ -914,6 +911,7 @@ class AttachGalleys:
         )
         self._check_html_galley_mimetype(galley)
         self.mangle_images(galley)
+        logger.debug(f"HTML galley {label} set onto {self.article.id}")
         return galley
 
     def _check_html_galley_mimetype(self, galley: Galley):
@@ -1038,44 +1036,6 @@ class TypesetterTestsGalleyGeneration:
         response = assistant.ask_jcomassistant_to_process()
         return response
 
-    def _get_message_context(self):
-        """Get the context for the message template."""
-        return {
-            "article": self.assignment.round.article,
-        }
-
-    def _log_operation(self, context) -> Message:
-        """Log the operation."""
-        message_subject = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="typesetting_generated_galleys_subject",
-            journal=self.assignment.round.article.journal,
-            request=self.request,
-            context=context,
-            template_is_setting=True,
-        )
-        message_body = render_template_from_setting(
-            setting_group_name="wjs_review",
-            setting_name="typesetting_generated_galleys_body",
-            journal=self.assignment.round.article.journal,
-            request=self.request,
-            context=context,
-            template_is_setting=True,
-        )
-        message = communication_utils.log_operation(
-            article=self.assignment.round.article,
-            message_subject=message_subject,
-            message_body=message_body,
-            actor=None,
-            recipients=[
-                self.assignment.typesetter,
-            ],
-            verbosity=Message.MessageVerbosity.FULL,
-            flag_as_read=True,
-            flag_as_read_by_eo=True,
-        )
-        return message
-
     def _mock_jcom_assistant_client(self, path_to_mock_file):
         """
         Invoke :py:class:`AttachGalleys` with a mock JCOM Assistant response file to run the class without access
@@ -1117,17 +1077,6 @@ class TypesetterTestsGalleyGeneration:
         # Attach the gallyes to the TA
         self.assignment.galleys_created.set(galleys_created)
 
-    def _check_queries_in_tex_src(self):
-        """Fixme.
-
-        This is a stub. ATM, blindly record that there are not queries.
-
-        TODO: fixme in specs#718
-        """
-        self.assignment.round.article.articleworkflow.production_flag_no_queries = True
-        self.assignment.round.article.articleworkflow.save()
-        logger.warning(f"{self.assignment.round.article.articleworkflow.production_flag_no_queries=}")
-
     def run(self) -> None:
         if not self._check_conditions():
             # This logic is generally called asynchronously, so we don't
@@ -1142,9 +1091,20 @@ class TypesetterTestsGalleyGeneration:
             return
         self._clean_galleys()
         self._get_and_save_galleys()
-        self._check_queries_in_tex_src()
-        context = self._get_message_context()
-        self._log_operation(context)
+
+        # Note that the check for queries in tex src is done when a new source file is uploaded.
+
+        communication_utils.notify_async_event(
+            message_subject="Galleys are ready",
+            message_body=f"""Dear {self.request.user.full_name},
+<br><br>
+Galleys for the {self.assignment.round.article.section.name} {self.assignment.round.article.pk} are ready.
+<br>
+Please go to the <a href="{self.assignment.round.article.articleworkflow.url}">web page</a>
+""",
+            recipients=[self.request.user],
+            article=self.assignment.round.article,
+        )
 
 
 @dataclasses.dataclass
@@ -1221,11 +1181,36 @@ class ReadyForPublication:
         self.workflow.article.stage = STAGE_READY_FOR_PUBLICATION
         self.workflow.article.save()
 
+    def _log_operation(self):
+        """Add operation to timeline."""
+        subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_production_complete",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        body = get_setting(
+            setting_group_name="email",
+            setting_name="production_complete",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        message = communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=subject,
+            message_body=body,
+            actor=None,
+            recipients=[communication_utils.get_eo_user(self.workflow.article)],
+            verbosity=Message.MessageVerbosity.TIMELINE,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+        return message
+
     def run(self):
         with transaction.atomic():
             if not self._check_conditions():
                 raise ValueError("Paper not yet ready for publication. For assitance, contact the EO.")
             self._update_state()
+            self._log_operation()
         return self.workflow
 
 
@@ -1597,6 +1582,41 @@ Please retry and contact assistance is the problem persists.
             **workflow_kwargs,
         )
 
+    def _get_context(self):
+        """Return a context suitable to render the notification message."""
+        return {
+            "article": self.workflow.article,
+        }
+
+    def _log_operation(self, context) -> Message:
+        """Log the operation."""
+        message_subject = get_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_author_publication",
+            journal=self.workflow.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="author_publication",
+            journal=self.workflow.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        message = communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[
+                self.workflow.article.correspondence_author,
+            ],
+            verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+        return message
+
     def run(self):
         with transaction.atomic():
             green_light, reason = self.check_conditions()
@@ -1604,6 +1624,7 @@ Please retry and contact assistance is the problem persists.
                 raise ValueError(f"Final falley generation cannot be started. {reason}")
             if self.generate_final_galleys():
                 self.update_state()
+                self._log_operation(self._get_context())
         return self.workflow
 
 

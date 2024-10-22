@@ -1151,58 +1151,6 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
-    def typesetter_is_assigned_message() -> tuple[SettingValue, ...]:
-        subject_typesetting_assignment: SettingParams = {
-            "name": "typesetting_assignment_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject for typesetting assignment."),
-            "description": _(
-                "The subject of the notification that is sent to the typesetter when he is assigned to an article.",
-            ),
-            "is_translatable": False,
-        }
-        subject_typesetting_assignment_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Typesetter assigned",
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            subject_typesetting_assignment,
-            subject_typesetting_assignment_setting_value,
-            subject_typesetting_assignment["name"],
-            force=force,
-        )
-        typesetter_is_assigned_setting: SettingParams = {
-            "name": "typesetting_assignment_body",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Default message for assignment of a Typesetter."),
-            "description": _(
-                "The body of the notification that is sent to the typesetter when he is assigned to an article.",
-            ),
-            "is_translatable": False,
-        }
-        typesetter_is_assigned_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear {{ typesetter.full_name }},
-<br><br>
-You have been assigned [...] the {{ article.section.name }} {{ article.id }}.
-
-Please visit: the manuscript <a href="{{ article.articleworkflow.url }}">web page</a>
-""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            typesetter_is_assigned_setting,
-            typesetter_is_assigned_setting_value,
-            typesetter_is_assigned_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2
-
     def eo_is_assigned_message() -> tuple[SettingValue, ...]:
         subject_eo_assignment: SettingParams = {
             "name": "eo_assignment_subject",
@@ -1265,7 +1213,7 @@ Please visit: the manuscript <a href="{{ article.articleworkflow.url }}">web pag
         subject_proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Ready for proofreading.",
+            "value": "Ready for proofreading",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1290,7 +1238,7 @@ Please visit: the manuscript <a href="{{ article.articleworkflow.url }}">web pag
             "setting": None,
             "value": """Dear Dr. {{ author.full_name }},
 <br><br>
-Please proof-read within 1 week [...] the pdf version of your typeset {{ article.section.name }}.
+Please proof-read the pdf version of your typeset {{ article.section.name }} within 1 week [...].
 <br><br>
 Only a limited number of the following kind of corrections are acceptable at this stage:
 <br><br>
@@ -1300,7 +1248,7 @@ Only a limited number of the following kind of corrections are acceptable at thi
 <li> mistakes or updating in references
 </ul>
 <br><br>
-<strong>Important</strong>: please reply to the queries on the first page of your  {{ article.section.name }}.
+<strong>Important</strong>: please reply to the queries on the first page of your {{ article.section.name }}.
 <br><br>
 On your  {{ article.section.name }} web page you will find both a text area and a tool to upload the annotated pdf files. Please choose either or both tools to send your answers and any request for corrections back to us.
 <br>
@@ -1318,106 +1266,6 @@ Thank you and best regards,
             proofreading_request_setting,
             proofreading_request_setting_value,
             proofreading_request_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2
-
-    def author_sends_corrections_message() -> tuple[SettingValue, ...]:
-        subject_author_sends_corrections: SettingParams = {
-            "name": "author_sends_corrections_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject for author sending corrections."),
-            "description": _(
-                "The subject of the notification that is sent to the typesetter when the author sends corrections.",
-            ),
-            "is_translatable": False,
-        }
-        subject_author_sends_corrections_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Author proofread manuscript",
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            subject_author_sends_corrections,
-            subject_author_sends_corrections_setting_value,
-            subject_author_sends_corrections["name"],
-            force=force,
-        )
-        author_sends_corrections_setting: SettingParams = {
-            "name": "author_sends_corrections_body",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Body for author sending corrections nofitication."),
-            "description": _(
-                "The body of the notification that is sent to the typesetter when the author sends corrections.",
-            ),
-            "is_translatable": False,
-        }
-        author_sends_correction_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear {{ typesetter.full_name }},
-<br><br>
-Author {{ article.correspondence_author.full_name }} has sent corrections [...] for the {{ article.section.name }} {{ article.id }}.
-""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            author_sends_corrections_setting,
-            author_sends_correction_setting_value,
-            author_sends_corrections_setting["name"],
-            force=force,
-        )
-        return setting_1, setting_2
-
-    def typesetting_generated_galleys_message() -> tuple[SettingValue, ...]:
-        subject_typesetting_generated_galleys: SettingParams = {
-            "name": "typesetting_generated_galleys_subject",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Subject for galleys generated."),
-            "description": _(
-                "The subject of the notification that is sent to the typesetter when Galleys are generated.",
-            ),
-            "is_translatable": False,
-        }
-        subject_typesetting_generated_galleys_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": "Galleys are ready",
-            "translations": {},
-        }
-        setting_1 = create_customization_setting(
-            subject_typesetting_generated_galleys,
-            subject_typesetting_generated_galleys_setting_value,
-            subject_typesetting_generated_galleys["name"],
-            force=force,
-        )
-        typesetting_generated_galleys_setting: SettingParams = {
-            "name": "typesetting_generated_galleys_body",
-            "group": wjs_review_settings_group,
-            "types": "text",
-            "pretty_name": _("Body of galleys generated notification."),
-            "description": _(
-                "The body of the notification that is sent to the typesetter when Galleys are generated.",
-            ),
-            "is_translatable": False,
-        }
-        typesetting_generated_galleys_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": """Dear {{ typesetter.full_name }},
-<br><br>
-Galleys for the {{ article.section.name }} {{ article.id }} are ready.
-""",
-            "translations": {},
-        }
-        setting_2 = create_customization_setting(
-            typesetting_generated_galleys_setting,
-            typesetting_generated_galleys_setting_value,
-            typesetting_generated_galleys_setting["name"],
             force=force,
         )
         return setting_1, setting_2
@@ -1739,13 +1587,16 @@ Thank you and best regards,
         eo_send_back_to_typesetting_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": """
-            Ciao {{ typesetter.first_name }},
-
-            ti rimango il paper {{ workflow }} per <inserire motivo>.
-
-            Grazie, {{ user.first_name }}
-            """,
+            "value": """Ciao {{ typesetter.first_name }},
+<br><br>
+ti rimando il paper {{ article.articleworkflow }} per
+<br>
+...inserire motivo...
+<br><br>
+Grazie,
+<br>
+{{ user.first_name }}
+""",
             "translations": {},
         }
         setting_2 = create_customization_setting(
@@ -1829,11 +1680,8 @@ Thank you and best regards,
         csv_writer.write_settings(due_date_far_future_message())
         csv_writer.write_settings(editor_decline_assignment_messages())
         csv_writer.write_settings(editor_assigns_themselves_as_reviewer_message())
-        csv_writer.write_settings(typesetter_is_assigned_message())
         csv_writer.write_settings(article_requires_proofreading_message())
         csv_writer.write_settings(eo_is_assigned_message())
-        csv_writer.write_settings(author_sends_corrections_message())
-        csv_writer.write_settings(typesetting_generated_galleys_message())
         csv_writer.write_settings(editor_deassign_reviewer_messages())
         csv_writer.write_settings(eo_opens_appeal_message())
         csv_writer.write_settings(author_withdraws_preprint_message())
