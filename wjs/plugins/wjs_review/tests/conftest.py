@@ -518,11 +518,22 @@ def _create_rfp_article(
 
     # Reminder: source files for the (publication) galleys are in the latest typesetting assignment, not in the
     # Article.source_files
+    ta = article.articleworkflow.latest_typesetting_assignment()
+    request.user = ta.typesetter
+    UploadFile(
+        typesetter=ta.typesetter,
+        request=request,
+        assignment=ta,
+        file_to_upload=_zip_with_tex_without_query(article),
+    ).run()
 
     article.articleworkflow.production_flag_no_queries = True
     article.articleworkflow.production_flag_no_checks_needed = True
     article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-    article.galley_set.set(_create_generic_galleys(article=article))
+    article.articleworkflow.latest_typesetting_assignment().galleys_created.set(
+        # FIXME! the files on the filesystem don't exist!
+        _create_generic_galleys(article=article),
+    )
     article.articleworkflow.save()
     ReadyForPublication(workflow=article.articleworkflow, user=user).run()
     article.refresh_from_db()
@@ -868,7 +879,9 @@ def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
         tex_content = source.read()
     tex_content = tex_content.replace(
         rb"\begin{document}",
-        b"\\noproofs{This is not a sample query in the document}\n\n\\begin{document}",
+        rb"""\newcommand\noproofs[1]{\relax}
+\noproofs{This is not a sample query in the document}
+\begin{document}""",
     )
     file_obj = io.BytesIO()
     with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
@@ -946,6 +959,8 @@ def _jump_article_to_rfp(article: Article, typesetter: Account, request: HttpReq
     ta: TypesettingAssignment = AssignTypesetter(article, typesetter, request).run()
     assert ta.typesetter == typesetter
     article.refresh_from_db()
+
+    # Upload typesetted source files
     request.user = typesetter
     UploadFile(
         typesetter=typesetter,
@@ -953,24 +968,12 @@ def _jump_article_to_rfp(article: Article, typesetter: Account, request: HttpReq
         assignment=ta,
         file_to_upload=_zip_with_tex_without_query(article),
     ).run()
+
+    # TODO: generate TA galleys
     article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
     article.articleworkflow.production_flag_no_checks_needed = True
     article.articleworkflow.production_flag_no_queries = True
     article.articleworkflow.save()
-
-    # TBV: the need to manually set "source_files" here probably indicates a bug: neither UpoadFile nor
-    # TypesetterTestsGalleyGeneration set this field. This is related to specs#862
-    janeway_file = File.objects.create(
-        mime_type="application/zip",
-        original_filename="original_filename.zip",
-        uuid_filename="uf.zip",
-        label="label",
-        description="description",
-        owner=article.correspondence_author,
-        is_galley=False,
-        article_id=article.pk,
-    )
-    article.source_files.set((janeway_file,))
 
     ReadyForPublication(article.articleworkflow, typesetter).run()
     article.refresh_from_db()

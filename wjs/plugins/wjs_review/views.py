@@ -3090,5 +3090,5 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         return related_instances
 
     def get(self, request, *args, **kwargs):
-        """Serves an article file."""
+        """Serve an article file."""
         return core_files.serve_file(request, self.attachment, self.article)

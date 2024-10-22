@@ -1,4 +1,5 @@
 from django.contrib import admin
+from submission.admin import ArticleAdmin
 
 from .models import (
     ArticleWorkflow,
@@ -67,3 +68,24 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
     list_display = ["article_id", "review_round_id", "report_form_answers"]
     list_filter = ["article"]
     search_fields = ["article"]
+
+
+class ArticleWorkflowInline(admin.StackedInline):
+    """Helper class to "inline" AW in Article."""
+
+    model = ArticleWorkflow
+    fields = [
+        "state",
+        "eo_in_charge",
+        # "supplementary_files_at_acceptance", can't really choose anything...
+        "publication_galleys_source_file",
+        "production_flag_no_queries",
+        "production_flag_galleys_ok",
+        "production_flag_no_checks_needed",
+        "latest_state_change",
+        "latex_desc",
+        "social_media_short_description",
+    ]
+
+
+ArticleAdmin.inlines.append(ArticleWorkflowInline)

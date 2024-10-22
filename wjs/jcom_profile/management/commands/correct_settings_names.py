@@ -5,6 +5,7 @@ Una-tantum command needed because of name changed during specs#901.
 
 from core.models import Setting, SettingValue
 from django.core.management.base import BaseCommand
+from django.utils.translation import gettext_lazy as _
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -93,6 +94,12 @@ class Command(BaseCommand):
             "review_invitation_message_subject",
             "review_decision_revision_request_body",  # replaced by request_revision**s**
             "review_decision_revision_request_subject",
+            "typesetting_assignment_subject",  # replaced by typesetter_notification
+            "typesetting_assignment_body",
+            "author_sends_corrections_subject",  # replaced by notify_typesetter_proofing_changes
+            "author_sends_corrections_body",
+            "typesetting_generated_galleys_subject",  # hardcoded as async-event notification
+            "typesetting_generated_galleys_body",
         )
         for setting_name in settings_to_drop:
             logger.debug(f"Dropping {setting_name}")
@@ -183,6 +190,22 @@ Thank you and best regards,
             """{% if revision.type == "tech_revisions" %}Metadata updated{% else %}Resubmitted{% endif %}""",
         )
 
+        update_setting_default(
+            "revisions_complete_receipt",
+            "email",
+            """Dear {{ revision.article.correspondence_author.full_name }},
+<br><br>
+Thank you for resubmitting "{{ revision.article.safe_title }}".
+We will be in touch with further information at the end of the review process
+as soon as possible.
+<br><br>
+Best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_revisions_complete_receipt", "email_subject", """Resubmitted""")
+
         # Review invitation / assignment
 
         update_setting_default(
@@ -255,8 +278,10 @@ Best regards,
 {{ request.user.signature|safe }}<br>
 {{ article.journal.code }} Editor in charge
 """,
-            description="""The default body of the notification sent to the reviewer when editor deassigned him.
-This can be modified by the operator.""",
+            description=_(
+                """The default body of the notification sent to the reviewer when editor deassigned him.
+This can be modified by the operator."""
+            ),
         )
         update_setting_default("subject_review_withdrawl", "email_subject", "Invite to review withdrawn")
 
@@ -454,6 +479,94 @@ Thank you and regards,
 """,
         )
         update_setting_default("subject_request_revisions", "email_subject", "Revision requested")
+
+        update_setting_default(
+            "typesetter_notification",
+            "email",
+            """Dear {{ typesetter.full_name }},
+<br><br>
+You have been assigned [...] the {{ article.section.name }} {{ article.id }}.
+
+Please visit the <a href="{{ article.articleworkflow.url }}">{{ article.section.name }}'s web page</a>
+""",
+        )
+        update_setting_default("subject_typesetter_notification", "email_subject", "Typesetter assigned")
+
+        update_setting_default(
+            "notify_typesetter_proofing_changes",
+            "email",
+            """Dear {{ typesetter.full_name }},
+<br><br>
+Author {{ article.correspondence_author.full_name }} has sent corrections [...]
+for the {{ article.section.name }} {{ article.id }}.
+""",
+        )
+        update_setting_default(
+            "subject_notify_typesetter_proofing_changes",
+            "email_subject",
+            "Author proofread manuscript",
+        )
+
+        update_setting_default("typesetter_complete_notification", "email", "NOT USED IN WJS")
+        update_setting_default("subject_typesetter_complete_notification", "email_subject", "NOT USED IN WJS")
+        update_setting_default("typeset_ack", "email", "NOT USED IN WJS")
+        update_setting_default("subject_typeset_ack", "email_subject", "NOT USED IN WJS")
+        update_setting_default("typeset_reopened", "email", "NOT USED IN WJS")
+        update_setting_default("subject_typeset_reopened", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_proofing_manager", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_proofing_manager", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_proofreader_complete", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_proofreader_complete", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_proofreader_assignment", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_proofreader_assignment", "email_subject", "NOT USED IN WJS")
+        update_setting_default("thank_proofreaders_and_typesetters", "email", "NOT USED IN WJS")
+        update_setting_default("subject_thank_proofreaders_and_typesetters", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_editor_proofing_complete", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_editor_proofing_complete", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_proofreader_cancelled", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_proofreader_cancelled", "email_subject", "NOT USED IN WJS")
+        update_setting_default("typesetter_corrections_complete", "email", "NOT USED IN WJS")
+        update_setting_default("subject_typesetter_corrections_complete", "email_subject", "NOT USED IN WJS")
+        update_setting_default("copyedit_updated", "email", "NOT USED IN WJS")
+        update_setting_default("subject_copyedit_updated", "email_subject", "NOT USED IN WJS")
+        update_setting_default("copyedit_deleted", "email", "NOT USED IN WJS")
+        update_setting_default("subject_copyedit_deleted", "email_subject", "NOT USED IN WJS")
+        update_setting_default("typeset_deleted", "email", "NOT USED IN WJS")
+        update_setting_default("subject_typeset_deleted", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_proofreader_edited", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_proofreader_edited", "email_subject", "NOT USED IN WJS")
+        update_setting_default("notify_correction_cancelled", "email", "NOT USED IN WJS")
+        update_setting_default("subject_notify_correction_cancelled", "email_subject", "NOT USED IN WJS")
+        update_setting_default("author_copyedit_deleted", "email", "NOT USED IN WJS")
+        update_setting_default("subject_author_copyedit_deleted", "email_subject", "NOT USED IN WJS")
+
+        update_setting_default("production_complete", "email", "Production Complete")
+        update_setting_default("subject_production_complete", "email_subject", "Production Complete")
+
+        update_setting_default(
+            "author_publication",
+            "email",
+            """Dear {{ article.correspondence_author.full_name }}
+<br><br>
+We are pleased to inform you that your manuscript, "{{ article.title }}",
+is set for publication on {{ article.date_published|date:'Y-m-d' }}.
+<br><br>
+You may want to consider one or more of the following in order to promote your research:
+<br>
+<ul>
+<li>Email a link to your paper to colleagues</li>
+<li>Write a blog post about your paper</li>
+<li>Upload it to your institutional repository or a subject repository.</li>
+<li>Add to Wikipedia
+    <a href="https://en.wikipedia.org/wiki/Wikipedia:Research_help/Scholars_and_experts">where appropriate</a></li>
+</ul>
+<br>
+Regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_author_publication", "email_subject", "Publication")
 
 
 def update_setting_default(name, group, value, description=None):

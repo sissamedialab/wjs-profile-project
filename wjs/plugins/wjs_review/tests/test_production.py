@@ -763,7 +763,7 @@ def test_publication_multiple_articles(
     issue_factory,
     review_settings,
     fake_request: HttpRequest,
-    jcom_user: JCOMProfile,
+    create_jcom_user: Callable,
     http_server: ThreadedHTTPServer,
 ):
     """Publication proceeds correctly even if one article's final galleys fail.
@@ -774,8 +774,9 @@ def test_publication_multiple_articles(
     - the third is correctly published
     - infrastrucute problems are fixed and the second can correctly finish publication
     """
-    typ = jcom_user
-    jcom_user.add_account_role(constants.TYPESETTER_ROLE, journal)
+    author = create_jcom_user("AUTHOR")
+    typ = create_jcom_user("TYP")
+    typ.add_account_role(constants.TYPESETTER_ROLE, journal)
     issue = issue_factory(journal=journal, volume=1, issue="02")
     article_section = section_factory(name="article", journal=journal)
     # HHHHHAAAAAAAAA!!!!!!! without the refresh below, I get a NotNullViolation: for column "journal_id" of
@@ -794,6 +795,7 @@ def test_publication_multiple_articles(
         section=article_section,
         primary_issue=issue,
         date_published=timezone.now(),
+        correspondence_author=author,
     )
     _jump_article_to_rfp(a1, typ, fake_request)
     with override_settings(
@@ -812,6 +814,7 @@ def test_publication_multiple_articles(
         section=article_section,
         primary_issue=issue,
         date_published=timezone.now(),
+        correspondence_author=author,
     )
     _jump_article_to_rfp(a2, typ, fake_request)
     with override_settings(
@@ -835,6 +838,7 @@ def test_publication_multiple_articles(
         section=article_section,
         primary_issue=issue,
         date_published=timezone.now(),
+        correspondence_author=author,
     )
     _jump_article_to_rfp(a3, typ, fake_request)
     with override_settings(
