@@ -236,7 +236,7 @@ Kind regards,
         update_setting_default(
             "subject_review_assignment",
             "email_subject",
-            "Invite to review",
+            "{{ reviewer.full_name }} invited to review",
         )
 
         update_setting_default("review_request_sent", "email", "NOT USED IN WJS")
@@ -291,7 +291,7 @@ This can be modified by the operator."""
             "email",
             """Dear Dr. {{ editor.full_name }},
 <br><br>
-Please connect to the manuscript <a href="{{ article.articleworkflow.url }}">web page</a> to handle [...]
+Please connect to the manuscript web page to handle [...]
 this {{ article.section.name }} as editor-in-charge.
 <br><br>
 Kindly select 2 reviewers within {{ default_editor_assign_reviewer_days }} days.
@@ -327,7 +327,7 @@ Best regards,
         update_setting_default(
             "subject_reviewer_acknowledgement",
             "email_subject",
-            """Reviewer {{ review_assignment.reviewer.full_name }}’s reply to invite""",
+            """Reviewer {{ review_assignment.reviewer.full_name }} {% if review_assignment.date_accepted %}accepted{% elif review_assignment.date_declined %}declined{% else %}-configuration error-{% endif %} invite""",  # NOQA E501
             # Warning: here we are "casting in stone" the reviewer's name (i.e. we could'nt hide them from the timeline
             # if we wanted to), but these message are not visible by the authors anyway
         )
@@ -393,7 +393,11 @@ Best regards,
 {{ article.journal.code }} Journal
 """,
         )
-        update_setting_default("subject_review_complete_acknowledgement", "email_subject", """Review received""")
+        update_setting_default(
+            "subject_review_complete_acknowledgement",
+            "email_subject",
+            "Review by {{ review_assignment.reviewer.full_name }} received",
+        )
 
         update_setting_default(
             "review_complete_reviewer_acknowledgement",

@@ -178,7 +178,7 @@ def add_coauthors_submission_email_settings(force: bool = False) -> tuple[Settin
         "value": """Dear {{ author.full_name}}, <br>
 <br>
 This is to confirm that {{ article.correspondence_author.full_name }} has just submitted
-the {{ article.section.name }} "{{ article.title }}" to {{ article.journal }} on your behalf.<br>
+the {{ article.section.name }} "{{ article.title }}" to {{ article.journal.name }} on your behalf.<br>
 <br>
 Please update your user profile and acknowledge the privacy notice, if needed,
 from <a href="{{ article.journal.site_url }}{% url 'core_edit_profile' %}">here</a>

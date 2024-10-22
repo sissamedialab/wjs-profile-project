@@ -200,7 +200,6 @@ def test_assign_to_editor(
         template_is_setting=True,
     )
     assert message_to_editor.body == editor_assignment_message
-    assert article.articleworkflow.url in message_to_editor.body
     assert message_to_editor.message_type == Message.MessageTypes.SYSTEM
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
     if current_user_editor:
@@ -282,7 +281,7 @@ def test_assign_to_reviewer_hijacked(
         setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
-        context={"article": assigned_article},
+        context={"article": assigned_article, "reviewer": normal_user.janeway_account},
         template_is_setting=True,
     )
 
@@ -454,7 +453,7 @@ def test_assign_to_reviewer(
         setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
-        context={"article": assigned_article},
+        context={"article": assigned_article, "reviewer": normal_user.janeway_account},
         template_is_setting=True,
     )
     url = reverse(
@@ -589,7 +588,14 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         )
     else:
         assert revision_request_message_body in raw(mail_to_correspondence_author.body)
-    assert mail_to_correspondence_author.from_email == settings.DEFAULT_FROM_EMAIL
+    assert (
+        mail_to_correspondence_author.from_email
+        == get_setting(
+            "general",
+            "from_address",
+            assigned_article.journal,
+        ).processed_value
+    )
     assert mail_to_correspondence_author.from_email != section_editor.email
     assert list(mail_to_correspondence_author.recipients()) == [assigned_article.correspondence_author.email]
 
@@ -857,7 +863,7 @@ def test_invite_reviewer(
         setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
-        context={"article": assigned_article},
+        context={"article": assigned_article, "reviewer": invited_user.janeway_account},
         template_is_setting=True,
     )
     url = reverse(
@@ -873,7 +879,7 @@ def test_invite_reviewer(
     assert len(emails) == 1
     assert review_assignment_subject in emails[0].subject
     assert assigned_article.journal.code in emails[0].subject
-    assert "is a diamond-open-access" in emails[0].body
+    assert "is a diamond open-access" in emails[0].body
     assert acceptance_url in emails[0].body.replace("\n", "")  # ATM, URL is broken by newline... why???
     assert "random message" in emails[0].body
     # Check messages
@@ -882,7 +888,7 @@ def test_invite_reviewer(
     assert message_to_invited_user.subject == review_assignment_subject
     assert "random message" in message_to_invited_user.body
     assert acceptance_url in message_to_invited_user.body
-    assert "is a diamond-open-access" in message_to_invited_user.body
+    assert "is a diamond open-access" in message_to_invited_user.body
     assert message_to_invited_user.message_type == Message.MessageTypes.SYSTEM
     assert message_to_invited_user.actor == section_editor.janeway_account
     assert list(message_to_invited_user.recipients.all()) == [invited_user.janeway_account]
@@ -1257,7 +1263,7 @@ def test_invite_reviewer_but_user_already_exists(
         setting_name="subject_review_assignment",
         journal=assigned_article.journal,
         request=fake_request,
-        context={},
+        context={"reviewer": normal_user.janeway_account},
         template_is_setting=True,
     )
     message_to_reviewer = Message.objects.get(subject=subject_from_setting)
@@ -1362,21 +1368,25 @@ def test_submit_review_messages(
     assert message_to_the_reviewer.body == reviewer_message_body
     assert message_to_the_reviewer.message_type == Message.MessageTypes.SYSTEM
     message_to_the_editor = Message.objects.get(recipients__pk=review_assignment.editor.pk)
-    editor_message_subject = get_setting(
+    context = {
+        "review_assignment": review_assignment,
+        "article": assigned_article,
+    }
+    editor_message_subject = render_template_from_setting(
         setting_group_name="email_subject",
         setting_name="subject_review_complete_acknowledgement",
         journal=assigned_article.journal,
-    ).processed_value
+        request=fake_request,
+        context=context,
+        template_is_setting=True,
+    )
     assert message_to_the_editor.subject == editor_message_subject
     editor_message_body = render_template_from_setting(
         setting_group_name="email",
         setting_name="review_complete_acknowledgement",
         journal=assigned_article.journal,
         request=fake_request,
-        context={
-            "review_assignment": review_assignment,
-            "article": assigned_article,
-        },
+        context=context,
         template_is_setting=True,
     )
     assert message_to_the_editor.body == editor_message_body.replace("<br/>", "<br>")  # FIXME: janeway settings?
