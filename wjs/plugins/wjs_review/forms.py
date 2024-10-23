@@ -319,8 +319,14 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
         if not self.instance.article.comments_editor:
             self.fields["author_note_visible"].widget = forms.HiddenInput()
         if prophy_account:
+            # Cleanup None values where they could be
+            if prophy_account.middle_name in [None, "None"]:
+                prophy_account.middle_name = ""
+            if prophy_account.suffix in [None, "None"]:
+                prophy_account.suffix = ""
             self.initial = {
-                "first_name": f"{prophy_account.first_name} {prophy_account.middle_name}",
+                # Add .strip() to remove trailing spaces in case of empty middle_name
+                "first_name": f"{prophy_account.first_name} {prophy_account.middle_name}".strip(),
                 "last_name": prophy_account.last_name,
                 "suffix": prophy_account.suffix,
                 "email": prophy_account.email,
