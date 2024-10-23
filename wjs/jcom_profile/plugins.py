@@ -5,7 +5,7 @@ from django.views.generic import UpdateView
 
 
 class BaseConfigUpdateView(UpdateView):
-    template_name = "plugins/pluginconfig_form.html"
+    template_name = "jcom_profile/plugins/pluginconfig_form.html"
 
     def _get_translated_fields(self):
         """Gets the translated fields from the list of view fields."""
