@@ -22,7 +22,7 @@
                     <ul class="no-top-margin browser-default">
                         <li>
                             {% blocktrans with password_length=request.press.password_length %}
-                                Your password should be {{ password_length }} characters.
+                                Your password should be at least {{ password_length }} characters.
                             {% endblocktrans %}
                         </li>
                         {% if request.press.password_upper %}

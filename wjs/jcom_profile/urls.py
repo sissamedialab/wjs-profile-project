@@ -164,6 +164,11 @@ urlpatterns = [
     ),
     path("keywords/", KeywordListView.as_view(), name="keywords_list"),
     path("search_authors/<int:article_id>/", AuthorSearchView.as_view(), name="author_search"),
+    path(
+        "registration_success",
+        views.registration_success,
+        name="registration_success",
+    ),
 ]
 
 # Some experimental / Easter-egg URLs

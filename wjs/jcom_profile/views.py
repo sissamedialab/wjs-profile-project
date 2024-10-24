@@ -165,7 +165,7 @@ def register(request):
                 "Your account has been created, please follow the"
                 "instructions in the email that has been sent to you.",
             )
-            return redirect(reverse("core_login"))
+            return redirect(reverse("registration_success"))
 
     template = "core/accounts/register.html"
     context = {
@@ -173,6 +173,10 @@ def register(request):
     }
 
     return render(request, template, context)
+
+
+def registration_success(request):
+    return render(request, "core/accounts/registration_success.html")
 
 
 def confirm_gdpr_acceptance(request, token):
