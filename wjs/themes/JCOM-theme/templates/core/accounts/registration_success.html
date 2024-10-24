@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load foundation %}
+{% load i18n %}
+{% block body %}
+    <div class="row">
+        <div class="col s12">
+            <h2 class="main-title">{% trans "Thank you for registering!" %}</h2>
+            <div class="card-panel">
+              {% blocktrans %}
+                To complete your registration, please check your email inbox for a message from {{ request.journal.code }}.
+                Inside the email, you'll find a link to confirm your account.
+                <p><b>Important:</b></p>
+              {% endblocktrans %}
+              <ul class="no-top-margin browser-default">
+                <li>
+                  {% blocktrans %}You must click the confirmation link in the email to activate your account.{% endblocktrans %}
+                </li>
+                <li>
+                  {% blocktrans %}Once your account is confirmed, you’ll be able to log in.{% endblocktrans %}
+                </li>
+              </ul>
+              <p>{% blocktrans %}If you didn’t receive the email, please check your spam folder.{% endblocktrans %}</p>
+            </div>
+        </div>
+    </div>
+{% endblock body %}
+{% block footer %}
+{% endblock footer %}
