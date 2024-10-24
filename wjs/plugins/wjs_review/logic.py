@@ -2001,11 +2001,9 @@ class PostponeRevisionRequestDueDate:
         return self.form_data["date_due"] >= max_date
 
     def _get_message_context(self) -> Dict[str, Any]:
-        assignment = self.revision_request.review_round.reviewassignment_set.last()
         return {
             "article": self.revision_request.article,
             "request": self.request,
-            "reviewer": assignment.reviewer,
             "EO": communication_utils.get_eo_user(self.revision_request.article),
             "editor": self.revision_request.editor,
             "date_due": self.form_data["date_due"],
