@@ -329,6 +329,7 @@ class Prophy:
         if q_filters:
             prophy_accounts_candidates = prophy_accounts_candidates.filter(q_filters)
 
+        prophy_accounts_candidates = prophy_accounts_candidates.distinct()
         return prophy_accounts_candidates.order_by("-is_active", "-prophycandidate__score", "name")
 
     def get_prophy_upload_enabled(self):
