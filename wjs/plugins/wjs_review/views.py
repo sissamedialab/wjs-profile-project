@@ -321,7 +321,14 @@ class EditorArchived(EditorPending):
             article__editorassignment__editor__in=[self.request.user],
         )
         past_assignment = Q(article__past_editor_assignments__editor__in=[self.request.user])
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(state_past | past_assignment)
+        # It can happen that an Editor is de-assigned and then reassigned again. Without the following line the article
+        # will appear both in Pending and Archived listings.
+        active_assignment = Q(article__editorassignment__editor__in=[self.request.user]) & Q(
+            state__in=states_when_article_is_considered_in_review
+        )
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
+            state_past | (past_assignment & ~active_assignment)
+        )
 
 
 class EOPending(ArticleWorkflowBaseMixin):
