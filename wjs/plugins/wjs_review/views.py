@@ -1583,15 +1583,6 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         return self.current_reviews.filter(date_declined__isnull=False)
 
     @property
-    def open_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
-        """Return accepted but not completed reviews for the current review round."""
-        return self.current_reviews.filter(
-            date_complete__isnull=True,
-            date_accepted__isnull=False,
-            date_declined__isnull=True,
-        )
-
-    @property
     def pending_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return not completed reviews for the current review round."""
         return self.current_reviews.filter(
@@ -1603,9 +1594,8 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         context = super().get_context_data(**kwargs)
         context["declined_reviews"] = self.declined_reviews
         context["submitted_reviews"] = self.submitted_reviews
-        context["open_reviews"] = self.open_reviews
         context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
-        context["open_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.open_reviews])
+        context["pending_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.pending_reviews])
         return context
 
 
