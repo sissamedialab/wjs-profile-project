@@ -581,9 +581,7 @@ class DecisionForm(forms.ModelForm):
         required=False,
     )
     withdraw_notice = WjsMiniHTMLFormField(
-        label=_("Courtesy notes for reviewers who did not send review"),
-        help_text=_("This message will be sent to reviewers that have unfinished review assignments."),
-        required=False,
+        label=_("Courtesy notes for reviewers who did not send review"), required=False
     )
     date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     state = forms.CharField(widget=forms.HiddenInput(), required=False)

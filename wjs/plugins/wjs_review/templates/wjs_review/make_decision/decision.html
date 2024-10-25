@@ -3,7 +3,7 @@
 {% load wjs_review wjs_articles wjs_tags %}
 {% block content_wrapper %}
   {% translate "Reviewers: " as reviewers_text %}
-  {% translate "Please parte here all reviewer comments that you with to send the Author. Feel free to modify them as you see fit. After clicking \"Send\", the Author will receive them as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
+  {% translate "Please paste here all reviewer comments that you with to send the Author. Feel free to modify them as you see fit. After clicking \"Send\", the Author will receive them as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
   {% article_css_classes workflow as article_classes %}
   <div class="container mb-3">
     <div class="row">
@@ -24,7 +24,9 @@
             <h5>{% translate "Title" %}</h5>
             {{ workflow.article.title }}
           </div>
-          {% include "wjs_review/make_decision/elements/report_forms_table.html" %}
+          {% if submitted_reviews %}
+            {% include "wjs_review/make_decision/elements/report_forms_table.html" %}
+          {% endif %}
           {% get_available_transitions workflow as transitions %}
           {% csrf_token %}
           {% bootstrap_form_errors form layout='inline' %}
@@ -43,7 +45,7 @@
           {% if form.decision_editor_report %}{% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}{% endif %}
           {% include "wjs_review/make_decision/elements/review_files_table.html" %}
           {% if form.withdraw_notice %}
-            {% with courtesy_notes_reviwers=reviewers_text|concat:open_reviewers_list %}
+            {% with courtesy_notes_reviwers=reviewers_text|concat:pending_reviewers_list %}
               {% bootstrap_field form.withdraw_notice label_class="fw-bold" addon_before=courtesy_notes_reviwers addon_before_class=None %}
             {% endwith %}
           {% endif %}
