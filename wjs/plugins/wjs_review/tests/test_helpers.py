@@ -10,7 +10,7 @@ import html2text
 from core.models import Workflow, WorkflowElement
 from django.http import HttpRequest
 from journal.models import Journal
-from review.models import ReviewAssignment, ReviewForm
+from review.models import ReviewAssignment
 from submission import models as submission_models
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -63,7 +63,6 @@ def _create_review_assignment(
 
 def _submit_review(
     review_assignment: ReviewAssignment,
-    review_form: ReviewForm,
     fake_request: HttpRequest,
     submit_final: bool = True,
 ) -> WorkflowReviewAssignment:
