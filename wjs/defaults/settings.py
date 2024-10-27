@@ -349,3 +349,5 @@ WJS_ARTICLE_KEYWORDS_LIMITS = {
         "max": 3,
     },
 }
+
+WJS_RESTRICT_DIRECTOR_HIJACKING = False
