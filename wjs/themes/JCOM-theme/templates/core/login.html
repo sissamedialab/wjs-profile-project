@@ -49,7 +49,7 @@
                                 </ul>
                                 {% blocktrans %}Please <b>avoid multiple registrations</b>{% endblocktrans %}
                                 {% blocktrans %}as you would not be able to access your previous records, if any. Do not hesitate to contact the Editorial Office at{% endblocktrans %}
-                                <a href="mailto:jcom-eo@jcom.sissa.it">jcom-eo@jcom.sissa.it</a>
+                                <a href="mailto:{{ journal_settings.general.main_contact }}">{{ journal_settings.general.main_contact }}</a>
                                 {% blocktrans %}for assistance.{% endblocktrans %}
                             </div>
                         {% endif %}
