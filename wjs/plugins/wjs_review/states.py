@@ -596,6 +596,14 @@ class EditorSelected(BaseState):
             custom_get_url=get_review_url,
         ),
         ReviewAssignmentAction(
+            permission=permissions.is_article_editor,
+            condition=conditions.review_done,
+            name="read review",
+            label="Read Review",
+            view_name="",
+            custom_get_url=get_review_url,
+        ),
+        ReviewAssignmentAction(
             permission=permissions.has_eo_role_by_article,
             condition=conditions.review_done,
             name="read review",

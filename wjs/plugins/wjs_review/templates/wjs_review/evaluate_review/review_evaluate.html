@@ -27,12 +27,12 @@
           </div>
           <div class="card-body px-2 py-2">
             <div class="title-area mb-3">
-              <h5>Title</h5>
+              <h5>{% translate "Title" %}</h5>
               {{ assignment.article.title }}
             </div>
             <div class="title-area mb-3">
-              <h5>Abstract</h5>
-              {{ assignment.article.abstract }}
+              <h5>{% translate "Abstract" %}</h5>
+              {{ assignment.article.abstract|safe }}
             </div>
             {% csrf_token %}
             <div class="accordion accordion-flush border bg-transparent" id="metadata">
