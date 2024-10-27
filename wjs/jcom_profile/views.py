@@ -1125,7 +1125,7 @@ def eo_home(request):
     return render(request, "eo/home.html")
 
 
-@user_passes_test(lambda user: base_permissions.can_hijack_user_role(get_hijacker()))
+@user_passes_test(lambda user: get_hijacker() and base_permissions.can_hijack_user_role(get_hijacker(), user))
 def set_notify_hijack(request):
     """Toggle silent hijacking."""
     if request.method == "POST":

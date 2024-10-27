@@ -410,3 +410,50 @@ def test_director_can_change_editor_parameters(journal, roles, admin, editor, ke
     assert editor_parameters.brake_on == brake_on
     for keyword in EditorKeyword.objects.filter(editor_parameters=editor_parameters):
         assert keyword.weight == weight
+
+
+@pytest.mark.parametrize(
+    "user_role,hijacked,success",
+    (
+        ("eo", "section-editor", True),
+        ("eo", "user", True),
+        ("director", "section-editor", True),
+        ("director", "user", not settings.WJS_RESTRICT_DIRECTOR_HIJACKING),
+        ("section-editor", "section-editor", False),
+        ("section-editor", "user", False),
+        (None, "section-editor", False),
+        (None, "user", False),
+    ),
+)
+@pytest.mark.django_db
+def test_set_notify_hijack_normal_user(
+    client, user_role, hijacked, success, eo_user, director, normal_user, section_editor
+):
+    if user_role == "eo":
+        user = eo_user
+    elif user_role == "director":
+        user = director
+    elif user_role == "section-editor":
+        user = section_editor
+    else:
+        user = normal_user
+    if hijacked == "section-editor":
+        hijacked_user = section_editor
+    else:
+        hijacked_user = normal_user
+    client.force_login(user)
+    response = client.post(reverse("hijack:acquire"), data={"user_pk": hijacked_user.pk})
+    if success:
+        assert response.status_code == 302
+        client.force_login(hijacked_user)
+        client.session["hijack_history"] = [user._meta.pk.value_to_string(user)]
+    else:
+        assert response.status_code == 403
+    response = client.post(reverse("set_notify_hijack"))
+    if success:
+        assert response.status_code == 302
+        assert client.session["silent_hijack"] is True
+    else:
+        assert response.status_code == 302
+        assert response["Location"].startswith("/JCOM/login/")
+        assert "silent_hijack" not in client.session
