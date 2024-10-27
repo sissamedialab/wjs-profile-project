@@ -1561,7 +1561,13 @@ class JCOMReportForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("name/email")}),
     )
-    editor_cover_letter = WjsMiniHTMLFormField(label=_("Cover letter (for the Editor in charge)"), required=True)
+    editor_cover_letter = WjsMiniHTMLFormField(
+        label=_("Cover letter (for the Editor in charge)"),
+        required=True,
+        error_messages={
+            "required": _("Cover letter (for the Editor in charge) is required."),
+        },
+    )
     author_review = WjsMiniHTMLFormField(label=_("Review (for the Author)"), required=False)
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(
@@ -1584,16 +1590,25 @@ class JCOMReportForm(forms.Form):
         author_file = cleaned_data.get("author_file")
         # follow_up_action is required only if recommendation is to revise_minor or revise_major
         if conflict_of_interest == "yes":
-            self.add_error("conflict_of_interest", _("You cannot declare that you have a conflict of interest."))
+            self.add_error(
+                "conflict_of_interest",
+                _(
+                    "Your review cannot be uploaded since you have declared"
+                    " a conflict of interest. Please go to the article web page and "
+                    "use “write a message” to discuss with the Editor in charge "
+                    "whether you should send your review."
+                ),
+            )
         if recommendation in ["revise_minor", "revise_major"]:
             if not follow_up_action:
                 self.add_error("follow_up_action", _("This field is required if the recommendation is to revise."))
         if not author_review and not author_file:
-            raise forms.ValidationError(
+            self.add_error(
+                "author_review",
                 _(
                     'At least one of "Review (to be sent to Authors)" or "Files (to be sent to Authors)" must be '
                     "provided."
-                )
+                ),
             )
         return cleaned_data
 
