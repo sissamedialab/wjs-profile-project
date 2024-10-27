@@ -1250,6 +1250,7 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
     incomplete_review_only = False
     use_access_code = True
     allow_anonymous_access = True
+    allow_editor_access = True
 
     def load_initial(self, request, *args, **kwargs):
         if self.allow_anonymous_access and request.user.is_anonymous:
@@ -1290,8 +1291,8 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
 
 class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
     template_name = "wjs_review/submit_review/review_submit.html"
-    title = _("Sumbit review")
-    use_access_code = False
+    title = _("Submit review")
+    use_access_code = True
 
     @property
     def allow_draft(self):

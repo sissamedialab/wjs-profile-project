@@ -1,5 +1,5 @@
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.template import Context
 from django.views.generic import DetailView
 from review.models import ReviewAssignment
@@ -65,6 +65,21 @@ class OpenReviewMixin(DetailView):
     incomplete_review_only = True
     "Filter queryset to exclude completed reviews."
     use_access_code = False
+    """
+    Allow anonymous users accessing the views via query string to access the review.
+
+    It's required in all the steps of the review process:
+
+    - Evaluate to allow user to accept / reject the review
+    - Submit to allow user to submit the review right after accepting the review
+    - End to allow user to see the outcome of the review submission
+    """
+    allow_editor_access = False
+    """
+    Allow editors to access the review.
+
+    Used to grant access to editors to the completed review data.
+    """
 
     @property
     def access_code(self):
@@ -82,7 +97,12 @@ class OpenReviewMixin(DetailView):
             queryset = queryset.filter(access_code=self.access_code)
         elif self.request.user.is_authenticated:
             if not base_permissions.has_eo_role(self.request.user):
-                queryset = queryset.filter(reviewer=self.request.user)
+                filters = Q(reviewer=self.request.user)
+                if self.allow_editor_access:
+                    filters |= Q(editor=self.request.user)
+                queryset = queryset.filter(filters)
+        else:
+            queryset = queryset.none()
         return queryset
 
     def get_context_data(self, **kwargs) -> Context:

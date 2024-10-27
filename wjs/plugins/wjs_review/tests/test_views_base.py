@@ -335,9 +335,10 @@ def test_wjs_evaluate_review_direct(review_assignment, client):
 @pytest.mark.django_db
 def test_wjs_evaluate_review_token(review_assignment_invited_user, client):
     token = review_assignment_invited_user.reviewer.jcomprofile.invitation_token
+    access_code = review_assignment_invited_user.access_code
     response = client.get(
         f"/{review_assignment_invited_user.article.journal.code}/plugins/wjs-review-articles/"
-        f"review/{review_assignment_invited_user.pk}/evaluate/{token}/"
+        f"review/{review_assignment_invited_user.pk}/evaluate/{token}/?access_code={access_code}"
     )
     assert response.status_code == 200
 
