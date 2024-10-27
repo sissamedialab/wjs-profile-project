@@ -52,7 +52,7 @@ HCAPTCHA_SITEKEY = ""
 HCAPTCHA_SECRET = ""
 
 # ORCID Settings
-ENABLE_ORCID = True
+ENABLE_ORCID = False
 ORCID_API_URL = "http://pub.orcid.org/v1.2_rc7/"
 ORCID_URL = "https://orcid.org/oauth/authorize"
 ORCID_TOKEN_URL = "https://pub.orcid.org/oauth/token"
