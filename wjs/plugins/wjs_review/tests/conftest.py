@@ -650,10 +650,9 @@ def review_assignment(
 def submitted_review_assignment(
     review_assignment: WorkflowReviewAssignment,
     fake_request: HttpRequest,
-    review_form: review_models.ReviewForm,
 ) -> WorkflowReviewAssignment:
     """Create a submitted review assignment for reviewer users."""
-    return _submit_review(review_assignment=review_assignment, review_form=review_form, fake_request=fake_request)
+    return _submit_review(review_assignment=review_assignment, fake_request=fake_request)
 
 
 @pytest.fixture

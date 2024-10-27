@@ -481,7 +481,6 @@ class TestReviewerDeclines:
         ).run()
         test_helpers._submit_review(
             review_assignment=bernardos_review_assignment,
-            review_form=review_form,
             fake_request=fake_request,
         )
 
@@ -735,7 +734,7 @@ class TestReviewerSubmits:
 
         # This is the interesting part: the reviewer submits his review and reminders magically change!
         fake_request.user = review_assignment.reviewer
-        test_helpers._submit_review(review_assignment, review_form, fake_request, submit_final=True)
+        test_helpers._submit_review(review_assignment, fake_request, submit_final=True)
 
         # And these are the important tests:
         editor_reminders = Reminder.objects.filter(
@@ -810,7 +809,7 @@ class TestReviewerSubmits:
 
         # ... and not the interesting part: after the second reviewer submits his review, there is one submitted review
         # and no more pending reviews, so the editor-should-make-decision reminders are created.
-        test_helpers._submit_review(review_assignment_r2, review_form, fake_request)
+        test_helpers._submit_review(review_assignment_r2, fake_request)
         assert (
             Reminder.objects.filter(
                 content_type=ContentType.objects.get_for_model(editor_assignment),
@@ -864,7 +863,7 @@ class TestReviewerSubmits:
             request=fake_request,
         ).run()
 
-        test_helpers._submit_review(review_assignment_r1, review_form, fake_request)
+        test_helpers._submit_review(review_assignment_r1, fake_request)
         assert (
             Reminder.objects.filter(
                 content_type=ContentType.objects.get_for_model(editor_assignment),
@@ -1014,7 +1013,6 @@ def test_reminders_handling_for_reviewer_cycle(
 
     test_helpers._submit_review(
         review_assignment=assignment,
-        review_form=review_form,
         fake_request=fake_request,
     )
     # I'm checking only the reminders for the reviewer, because I should have some other rimenders for the editor.

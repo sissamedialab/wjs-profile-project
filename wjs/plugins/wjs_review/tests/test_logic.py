@@ -1295,7 +1295,7 @@ def test_submit_review(
     assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
     assert assigned_article.reviewassignment_set.filter(is_complete=False).count() == 1
     fake_request.user = review_assignment.reviewer
-    _submit_review(review_assignment, review_form, fake_request, submit_final)
+    _submit_review(review_assignment, fake_request, submit_final)
     assert assigned_article.reviewassignment_set.all().count() == 1
     assert assigned_article.reviewassignment_set.filter(date_declined__isnull=True).count() == 1
 
@@ -1337,7 +1337,7 @@ def test_submit_review_messages(
 
     fake_request.user = review_assignment.reviewer
     assert Message.objects.count() == 1
-    _submit_review(review_assignment, review_form, fake_request, submit_final)
+    _submit_review(review_assignment, fake_request, submit_final)
     assert Message.objects.count() == 3
     message_to_the_reviewer = (
         Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).order_by("created").last()
@@ -1846,7 +1846,7 @@ def test_handle_editor_decision(
         reviewer_user=jcom_user,
         assigned_article=assigned_article,
     )
-    _submit_review(review_2, review_form, fake_request)
+    _submit_review(review_2, fake_request)
     # Ensure initial data is consistent: review_2 is accepted and complete, review_assignment is not
     assert assigned_article.reviewassignment_set.all().count() == 2
     assert assigned_article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
@@ -2496,7 +2496,7 @@ def test_handle_withdraw_review_assignment(
         reviewer_user=jcom_user,
         assigned_article=assigned_article,
     )
-    _submit_review(submitted_review, review_form, fake_request)
+    _submit_review(submitted_review, fake_request)
     accepted_review = _create_review_assignment(
         fake_request=fake_request,
         reviewer_user=jcom_user,
