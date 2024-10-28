@@ -1,22 +1,37 @@
 """Views."""
 
 import calendar
+from collections import namedtuple
+from datetime import timedelta
 from io import BytesIO
 
 import mariadb
 import requests
+from django import forms
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Min
+from django.db.models import Count, Min, Q
 from django.http import FileResponse
+from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.timezone import now
 from django.views.generic import ListView, TemplateView, View
+from django.views.generic.edit import FormView
 from identifiers.models import CrossrefStatus
+from journal.models import Issue, Journal
+from plugins.typesetting.models import TypesettingAssignment
+from plugins.wjs_review.models import ArticleWorkflow
 from requests.auth import HTTPBasicAuth
-from submission.models import Article
+from submission.models import Article, Section
 from utils.logger import get_logger
 
+from wjs.jcom_profile import constants
+
+from .forms import FilterForm
 from .plugin_settings import GROUP_ACCOUNTING
+
+Account = get_user_model()
 
 # TODO: add specific permission to plugin and use PermissionRequiredMixin?
 logger = get_logger(__name__)
@@ -191,3 +206,290 @@ class DOIsCount(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
         context["counts"] = result
         return context
+
+
+class BaseStatsFormView(FormView):
+    """Base for stats views."""
+
+    template_name = "wjs_stats/articles.html"
+    form_class = FilterForm
+    success_url = reverse_lazy("wjs_stats_articles")
+
+    def get_form(self, form_class=None):
+        if form_class is None:
+            form_class = self.get_form_class()
+        form = super().get_form(form_class)
+
+        # Select only issues from this journal
+        form.fields["issues"].queryset = Issue.objects.filter(journal=self.request.journal)
+        return form
+
+    def get_initial(self):
+        # Set initial data for the form
+        initial = super().get_initial()
+        initial["from_date"] = now().date() - timedelta(days=30)
+        initial["to_date"] = now().date()
+        try:
+            initial["issues"] = Issue.objects.latest("id")
+        except Issue.DoesNotExist:
+            initial["issues"] = None
+        return initial
+
+
+class TypesettersStatsView(BaseStatsFormView):
+    """Stats about typesetters."""
+
+    template_name = "wjs_stats/typesetters.html"
+
+    def form_valid(self, form):
+        """Get stats for typesetters."""
+        from_date = form.cleaned_data["from_date"]
+        to_date = form.cleaned_data["to_date"]
+        issues = form.cleaned_data["issues"]
+
+        Result = namedtuple("Result", ["typesetter", "tic", "uploaded", "published"])
+        results = []
+
+        typesetters = Account.objects.filter(
+            accountrole__journal=self.request.journal,
+            accountrole__role__slug=constants.TYPESETTER_ROLE,
+        )
+        for typesetter in typesetters:
+            # ### Taken in charge
+            query = TypesettingAssignment.objects.filter(
+                typesetter=typesetter,
+                assigned__gte=from_date,
+                assigned__lt=to_date,
+                round__round_number=1,
+            )
+            if issues:
+                query = query.filter(round__article__primary_issue__in=issues)
+            tic = query.count()
+
+            # ### Uploaded
+            query = TypesettingAssignment.objects.filter(
+                typesetter=typesetter,
+                completed__gte=from_date,
+                completed__lt=to_date,
+            )
+            if issues:
+                query = query.filter(round__article__primary_issue__in=issues)
+            uploaded = query.count()
+
+            # ### Published
+            query = TypesettingAssignment.objects.filter(
+                typesetter=typesetter,
+                round__article__date_published__gte=from_date,
+                round__article__date_published__lt=to_date,
+            ).distinct()
+            if issues:
+                query = query.filter(round__article__primary_issue__in=issues)
+            published = query.count()
+
+            results.append(Result(typesetter.full_name, tic, uploaded, published))
+
+        context = self.get_context_data(form=form)
+        context["results"] = results
+        return self.render_to_response(context)
+
+
+class BaseCounter:
+    """Base class for article counters (submitted, accepted, ...)."""
+
+    def __init__(self, form: forms.Form, journal: Journal):
+        """Extract data from the form."""
+        self.from_date = form.cleaned_data["from_date"]
+        self.to_date = form.cleaned_data["to_date"]
+        self.issues = form.cleaned_data["issues"]
+        self.journal = journal
+
+    def __call__():
+        raise NotImplementedError()
+
+
+class CounterSubmitted(BaseCounter):
+    """Submitted articles.
+
+    Use the date when the submission "finished" (i.e. date_submitted, not date_start).
+    """
+
+    def __call__(self):
+        queryset = Section.objects.filter(journal=self.journal)
+        filters = Q(article__date_submitted__gte=self.from_date) & Q(article__date_submitted__lt=self.to_date)
+        # Warning: don't apply the filters to the queryset, because you'll loose sections that have no paper; i.e. your
+        # results list will be shorter.
+
+        if self.issues:
+            filters &= Q(article__primary_issue__in=self.issues.values_list("pk", flat=True))
+
+        # This does the "group-by"
+        queryset = queryset.annotate(articles_count=Count("article", filter=filters))
+
+        # keep the total at the beginning of our results list
+        result = [
+            0,
+        ]
+        for section in queryset.order_by("name"):
+            result[0] = result[0] + section.articles_count
+            result.append(section.articles_count)
+
+        return result
+
+
+class CounterAccepted(BaseCounter):
+    """Accepted papers."""
+
+    def __call__(self):
+        queryset = Section.objects.filter(journal=self.journal)
+        filters = (
+            Q(article__articleworkflow__decisions__decision=ArticleWorkflow.Decisions.ACCEPT)
+            # TBV: is is possible that a "decision" is created one day and modified another day?
+            & Q(article__articleworkflow__decisions__created__gte=self.from_date)
+            & Q(article__articleworkflow__decisions__created__lt=self.to_date)
+        )
+        if self.issues:
+            filters &= Q(article__primary_issue__in=self.issues)
+
+        queryset = queryset.annotate(articles_count=Count("article", filter=filters))
+
+        result = [0]
+        for section in queryset.order_by("name"):
+            result[0] = result[0] + section.articles_count
+            result.append(section.articles_count)
+
+        return result
+
+
+class CounterPublished(BaseCounter):
+    """Published papers."""
+
+    def __call__(self):
+        queryset = Section.objects.filter(journal=self.journal)
+        filters = (
+            Q(article__date_published__gte=self.from_date)
+            & Q(article__date_published__lt=self.to_date)
+            & Q(journal=self.journal)
+        )
+        if self.issues:
+            filters &= Q(article__primary_issue__in=self.issues)
+
+        queryset = queryset.annotate(
+            articles_count=Count(
+                "article",
+                filter=filters,
+            )
+        )
+
+        result = [0]
+        for section in queryset.order_by("name"):
+            result[0] = result[0] + section.articles_count
+            result.append(section.articles_count)
+
+        return result
+
+
+class CounterRejected(BaseCounter):
+    """Rejected papers."""
+
+    def __call__(self):
+        queryset = Section.objects.filter(journal=self.journal)
+        filters = (
+            Q(article__articleworkflow__decisions__decision=ArticleWorkflow.Decisions.REJECT)
+            & Q(article__articleworkflow__decisions__created__gte=self.from_date)
+            & Q(article__articleworkflow__decisions__created__lt=self.to_date)
+        )
+        if self.issues:
+            filters &= Q(article__primary_issue__in=self.issues)
+
+        queryset = queryset.annotate(articles_count=Count("article", filter=filters))
+
+        result = [0]
+        for section in queryset.order_by("name"):
+            result[0] = result[0] + section.articles_count
+            result.append(section.articles_count)
+
+        return result
+
+
+class CounterNotSuitable(BaseCounter):
+    """Not-suitable papers."""
+
+    def __call__(self):
+        queryset = Section.objects.filter(journal=self.journal)
+        filters = (
+            Q(article__articleworkflow__decisions__decision=ArticleWorkflow.Decisions.NOT_SUITABLE)
+            & Q(article__articleworkflow__decisions__created__gte=self.from_date)
+            & Q(article__articleworkflow__decisions__created__lt=self.to_date)
+        )
+        if self.issues:
+            filters &= Q(article__primary_issue__in=self.issues)
+
+        queryset = queryset.annotate(articles_count=Count("article", filter=filters))
+
+        result = [0]
+        for section in queryset.order_by("name"):
+            result[0] = result[0] + section.articles_count
+            result.append(section.articles_count)
+
+        return result
+
+
+class CounterWithdrawn(BaseCounter):
+    """Withdrawn papers."""
+
+    def __call__(self):
+        queryset = Section.objects.filter(journal=self.journal)
+        filters = (
+            Q(article__articleworkflow__state=ArticleWorkflow.ReviewStates.WITHDRAWN)
+            & Q(article__articleworkflow__latest_state_change__gte=self.from_date)
+            & Q(article__articleworkflow__latest_state_change__lt=self.to_date)
+        )
+        if self.issues:
+            filters &= Q(article__primary_issue__in=self.issues)
+
+        queryset = queryset.annotate(articles_count=Count("article", filter=filters))
+
+        result = [0]
+        for section in queryset.order_by("name"):
+            result[0] = result[0] + section.articles_count
+            result.append(section.articles_count)
+
+        return result
+
+
+class CounterPending(BaseCounter):
+    """Pending papers."""
+
+    def __call__(self):
+        # TODO: postponed to specs#1106
+        # - date_created >= from
+        # - decision != revision-request && decisions__created < to
+        # - not withdrawn ??? state == withdrawn && latest_state_change >= to
+        return ["NA"] * (Section.objects.filter(journal=self.journal).count() + 1)
+
+
+class ArticlesStatsView(BaseStatsFormView):
+    """Stats about articles."""
+
+    def form_valid(self, form):
+        counts = {}
+        # TODO: see tables in https://gitlab.sissamedialab.it/wjs/specs/-/issues/644#note_28419
+
+        counts["submitted"] = CounterSubmitted(form, self.request.journal)()
+        counts["accepted"] = CounterAccepted(form, self.request.journal)()
+        counts["published"] = CounterPublished(form, self.request.journal)()
+        counts["rejected"] = CounterRejected(form, self.request.journal)()
+        counts["not suitable"] = CounterNotSuitable(form, self.request.journal)()
+        counts["withdrawn"] = CounterWithdrawn(form, self.request.journal)()
+        counts["pending"] = CounterPending(form, self.request.journal)()
+
+        context = self.get_context_data(form=form)
+        context["counts"] = counts
+        # build a list of section names e.g. ["article", "book review", ...]
+        # NB: the order is the same as that used in the queries
+        sections = Section.objects.filter(journal=self.request.journal).order_by("name").values_list("name", flat=True)
+        context["sections"] = ["tot", *sections]
+
+        # include a reference to each issue selected, so that the web page can point to the issue
+        context["issues"] = Issue.objects.filter(id__in=form.cleaned_data["issues"])
+        return self.render_to_response(context)

@@ -3,6 +3,12 @@
     Newsletter recipients count
 {% endblock title %}
 {% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
     <h2>Newsletter recipients count</h2>
     <p>
         Via Munin.

@@ -1,0 +1,74 @@
+{% extends "admin/core/base.html" %}
+{% load django_bootstrap5 wjs_tags %}
+{% block title %}
+  WJS Stats
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+  </style>
+{% endblock css %}
+{% block head %}
+  {{ form.media }}
+{% endblock head %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>Articles count</h2>
+    <div class="row expanded">
+      <div class="large-3 columns end">
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <button class="button" type="submit">Filter</button>
+        </form>
+      </div>
+    </div>
+    {% if counts %}
+      <div class="row expanded">
+        <div class="large-6 columns end">
+          <h2>Period from {{ form.from_date.value }} to {{ form.to_date.value }}</h2>
+          {% if issues %}
+            {% translate "Janeway Manager" as manager_label %}
+            <div>
+              <p>Issues examined:</p>
+              <ul>
+                {% for issue in issues %}
+                  {% url 'manage_issues_id' issue.pk as manage_issue_url %}
+                  <li>
+                    <a href="{% url 'journal_issue' issue_id=issue.pk %}">{{ issue|display_title:True }}</a>
+                    {% bootstrap_button button_class="btn-outline-primary btn-sm" href=manage_issue_url target="_blank" title=manager_label content='⚙' %}
+                    {# replace the gear char with icon ...i class="bi bi-gear"... #}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        {% endif %}
+        <table border="1">
+          <thead>
+            <tr>
+              <th></th>
+              {% for section in sections %}<th>{{ section }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for key, values in counts.items %}
+              <tr>
+                <th>{{ key }}</th>
+                {% for section_value in values %}<td>{{ section_value }}</td>{% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </section>
+{% endblock body %}
