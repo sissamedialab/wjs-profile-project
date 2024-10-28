@@ -26,7 +26,7 @@
     {% elif workflow|is_user_article_editor:request.user %}
       {% url "wjs_article_decision" pk=workflow.pk as make_decision_url %}
     {% endif %}
-    {% if make_decision_url %}
+    {% if make_decision_url and article|editor_can_make_decision %}
       {% bootstrap_button "Make decision" href=make_decision_url button_class="btn-primary" %}
     {% endif %}
     {% if workflow|is_user_article_author:request.user %}

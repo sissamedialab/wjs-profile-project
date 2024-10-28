@@ -626,6 +626,12 @@ class DecisionForm(forms.ModelForm):
         self.fields["date_due"].widget.attrs["min"] = self.today
         if self.date_due_max:
             self.fields["date_due"].widget.attrs["max"] = self.date_due_max
+        if not self.hide_decision:
+            self.fields["decision"].choices = [
+                choice
+                for choice in self.fields["decision"].choices
+                if choice[0] != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+            ]
 
     def _clean_date_due_depending_on_decision(self):
         """Validate the due date with respect to the decision."""
