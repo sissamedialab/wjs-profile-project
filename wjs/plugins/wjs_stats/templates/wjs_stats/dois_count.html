@@ -10,6 +10,12 @@
     </style>
 {% endblock css %}
 {% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
     <table>
         <thead>
             <tr>

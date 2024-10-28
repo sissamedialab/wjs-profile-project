@@ -1,0 +1,65 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+  WJS Stats
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+  </style>
+{% endblock css %}
+{% block head %}
+  {{ form.media }}
+{% endblock head %}
+  {% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>Typesetters stats</h2>
+    <div class="row expanded">
+      <div class="large-3 columns end">
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <button class="button" type="submit">Filter</button>
+        </form>
+      </div>
+    </div>
+    {% if results %}
+      <div class="row expanded">
+        <div class="large-6 columns end">
+          <h2>
+            Period from {{ form.from_date.value }} to {{ form.to_date.value }} on issues
+            {% for issue in form.issues.value %}{{ issue }}{% endfor %}FIXME
+          </h2>
+          <div>{{ intro|safe }}</div>
+          <table border="1">
+            <thead>
+              <tr>
+                <th>Typesetter</th>
+                <th>taken in charge</th>
+                <th>uploaded</th>
+                <th>published</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for result in results %}
+                <tr>
+                  <th>{{ result.typesetter }}</th>
+                  <td>{{ result.tic }}</td>
+                  <td>{{ result.uploaded }}</td>
+                  <td>{{ result.published }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+{% endblock body %}
