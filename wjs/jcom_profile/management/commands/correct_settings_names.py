@@ -464,7 +464,7 @@ Best regards,
             "email",
             """{% load fqdn %}Dear Dr. {{ article.correspondence_author.full_name }},
 <br><br>
-Please connect to <a href="{{ article.articleworkflow.url }}">{{ article.section.name }}'s web page</a>
+Please connect to your {{ article.section.name }}'s web page
 to read the review and [...]
 submit the  requested {% if minor_revision %}minor{% endif %} revision by {{ revision.date_due }}.
 <br><br>

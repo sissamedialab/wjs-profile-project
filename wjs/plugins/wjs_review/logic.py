@@ -1335,7 +1335,7 @@ class AuthorHandleRevision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read=False,
+            flag_as_read=True,
             flag_as_read_by_eo=True,
         )
 

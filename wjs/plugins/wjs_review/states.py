@@ -864,6 +864,15 @@ class Rejected(BaseState):
         ),
     ) + BaseState.article_actions
 
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
+        """
+        Rifle through the situations that require attention.
+        """
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        return ""
+
 
 class UnderAppeal(BaseState):
     """Under appeal after rejection"""
@@ -887,9 +896,7 @@ class UnderAppeal(BaseState):
 
     @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        if attention_flag := conditions.author_appealsubmission_is_late(article):
-            return attention_flag
-        return ""
+        return "Appeal to submit"
 
 
 class PaperMightHaveIssues(BaseState):

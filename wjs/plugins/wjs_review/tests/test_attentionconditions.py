@@ -327,7 +327,8 @@ def test_author_appeal_is_late(
     state_cls = getattr(states, workflow.state)
     expected = expected.date()
 
-    assert state_cls.article_requires_attention(article=article, user=author) == f"Appeal is {days_past} days late"
+    # author's attention condition is always active in this state and reports a simple message
+    assert state_cls.article_requires_attention(article=article, user=author) == "Appeal to submit"
     # if EO visits "my editor pages" he sees the paper under appeal with an attention condition
     assert (
         state_cls.article_requires_attention(article=article, user=section_editor)
