@@ -1,5 +1,5 @@
 {% if review.date_complete %}
-  <a href="#" title="TODO: link to a page showing the report">{% translate "Report sent" %}</a> {{ review.date_complete|date:"d-M" }}
+  <a href="{% url 'wjs_review_end' review.pk %}" title="Page showing the report">{% translate "Report sent" %}</a> {{ review.date_complete|date:"d-M" }}
 {% elif review.date_accepted %}
   {% blocktranslate with date=review.date_due|date:"d-M" %}Report due {{ date }}{% endblocktranslate %}
 {% else %}

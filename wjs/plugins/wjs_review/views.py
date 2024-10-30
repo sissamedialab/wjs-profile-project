@@ -149,16 +149,16 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
     related_views: Dict[str, Dict[str, str]] = {
         constants.EO_GROUP: {
             "wjs_review_eo_pending": _("Pending preprints"),
-            "wjs_review_eo_archived": _("Archived preprints"),
             "wjs_review_eo_production": _("Production"),
-            "wjs_review_eo_workon": _("Search preprints"),
+            "wjs_review_eo_archived": _("Archived preprints"),
             "wjs_review_eo_issues_list": _("Pending Issues"),
+            "wjs_review_eo_workon": _("Search preprints"),
         },
         constants.DIRECTOR_ROLE: {
             "wjs_review_director_pending": _("Pending preprints"),
             "wjs_review_director_archived": _("Archived preprints"),
-            "wjs_review_director_workon": _("Search preprints"),
             "wjs_review_director_issues_list": _("Pending Issues"),
+            "wjs_review_director_workon": _("Search preprints"),
         },
         constants.SECTION_EDITOR_ROLE: {
             "wjs_review_list": _("Pending preprints"),
@@ -175,8 +175,8 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
         },
         constants.TYPESETTER_ROLE: {
             "wjs_review_typesetter_pending": _("Pending preprints"),
-            "wjs_review_typesetter_workingon": _("Working on"),
             "wjs_review_typesetter_archived": _("Archived preprints"),
+            "wjs_review_typesetter_workingon": _("Working on"),
         },
     }
     extra_links: Dict[str, str]
