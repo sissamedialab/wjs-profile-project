@@ -287,7 +287,7 @@ class ReviewAssignmentAction:
     permission: Optional[Callable] = None
     assignment_permission: Optional[Callable] = None
     confirm: str = ""
-    button_class: str = "btn-primary"
+    button_class: str = "btn-outline-primary"
 
     def __post_init__(self):
         if self.is_modal:
