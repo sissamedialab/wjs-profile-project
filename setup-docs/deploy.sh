@@ -60,10 +60,13 @@ function deploy_janeway() {
     echo "Deploying branch $JANEWAY_BRANCH into $JANEWAY_ROOT"
     cd "$JANEWAY_ROOT"
     git pull --ff-only https://"${DEPLOY_TOKEN_USER}":"${DEPLOY_TOKEN_PASSWORD}"@gitlab.sissamedialab.it/wjs/janeway.git $JANEWAY_BRANCH
+    "$PIP" install -r requirements.txt
+    # TODO: might want to `pip install wjs.jcom-profile` to allow for newer packages from wjs
     cd "$MANAGE_DIR"
-    "$PYTHON" manage.py migrate
-    "$PYTHON" manage.py collectstatic --noinput
-    "$PYTHON" manage.py compilemessages --settings core.settings
+    "$PYTHON" -mmanage migrate
+    "$PYTHON" -mmanage sync_translation_fields --noinput
+    "$PYTHON" -mmanage collectstatic --noinput
+    "$PYTHON" -mmanage compilemessages --settings core.settings
 
     touch --no-dereference "$UWSGI_VASSAL"
 }
@@ -88,17 +91,17 @@ function deploy_wjs() {
 
     cd "$MANAGE_DIR"
 
-    "$PYTHON" manage.py create_custom_settings
+    "$PYTHON" -mmanage create_custom_settings
 
-    "$PYTHON" manage.py link_plugins
-    "$PYTHON" manage.py install_themes
-    "$PYTHON" manage.py create_role Director
+    "$PYTHON" -mmanage link_plugins
+    "$PYTHON" -mmanage install_themes
+    "$PYTHON" -mmanage create_role Director
 
-    "$PYTHON" manage.py migrate
-    "$PYTHON" manage.py sync_translation_fields --noinput
+    "$PYTHON" -mmanage migrate
+    "$PYTHON" -mmanage sync_translation_fields --noinput
 
-    "$PYTHON" manage.py build_assets
-    "$PYTHON" manage.py collectstatic --noinput
+    "$PYTHON" -mmanage build_assets
+    "$PYTHON" -mmanage collectstatic --noinput
 
     touch --no-dereference "$UWSGI_VASSAL"
 }
@@ -168,11 +171,11 @@ case "$SSH_ORIGINAL_COMMAND" in
         echo "Not implemented!"
         exit 1
         ;;
+    # Install a given tag on test:
     # Don't be too generous with the pattern here: watch out for sh injections!
     # Remember Bobby Tables https://xkcd.com/327/
     "deploy-test-wjs:"+([[:word:]]))
         set_test_variables
-        # Install a given tag:
         TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs://')
         echo "Installing wjs.jcom_profile at ${TAGNAME}"
         deploy_wjs "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
