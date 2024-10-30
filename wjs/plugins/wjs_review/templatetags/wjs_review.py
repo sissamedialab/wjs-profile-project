@@ -18,6 +18,7 @@ from django.utils import timezone
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
+from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
     ReviewAssignment,
@@ -45,6 +46,7 @@ from ..logic__visibility import get_recipient_label
 from ..models import (
     ArticleWorkflow,
     EditorDecision,
+    EditorRevisionRequest,
     Message,
     MessageThread,
     ProphyAccount,
@@ -244,6 +246,24 @@ def get_status_date_label(article: Article) -> str:
         ).first()
         if assignment:
             return assignment.assigned.strftime("%d-%b")
+    if workflow.state_value in (
+        ArticleWorkflow.ReviewComputedStates.RESUBMITTED_MINOR_REVISION,
+        ArticleWorkflow.ReviewComputedStates.RESUBMITTED_MAJOR_REVISION,
+    ):
+        revision_request = (
+            EditorRevisionRequest.objects.filter(
+                article=article,
+                type__in=(
+                    EditorialDecisions.MINOR_REVISIONS.value,
+                    EditorialDecisions.MAJOR_REVISIONS.value,
+                    EditorialDecisions.OPEN_APPEAL.value,
+                ),
+            )
+            .order_by("date_completed")
+            .last()
+        )
+        if revision_request:
+            return revision_request.date_completed.strftime("%d-%b")
     return ""
 
 
@@ -257,8 +277,9 @@ def active_revision_request(article: Article) -> Optional[QuerySet[LogEntry]]:
 def waiting_editor_actions(article: Article) -> bool:
     """Return True if the article is waiting for an editor action."""
     return article.articleworkflow.state_value in (
-        ArticleWorkflow.ReviewComputedStates.WAITING_FOR_DECISION,
         ArticleWorkflow.ReviewComputedStates.ASSIGNED_TO_EDITOR,
+        ArticleWorkflow.ReviewComputedStates.RESUBMITTED_MINOR_REVISION,
+        ArticleWorkflow.ReviewComputedStates.RESUBMITTED_MAJOR_REVISION,
     )
 
 
