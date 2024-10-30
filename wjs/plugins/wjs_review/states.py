@@ -885,6 +885,13 @@ class UnderAppeal(BaseState):
             view_name="do_revisions",
             custom_get_url=get_do_revision_url,
         ),
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="confirms previous manuscript",
+            label="Confirm previous version",
+            view_name="do_revisions",
+            custom_get_url=get_confirm_version_url,
+        ),
     ) + BaseState.article_actions
 
     @classmethod
