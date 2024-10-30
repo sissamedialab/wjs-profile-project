@@ -1,4 +1,6 @@
 .run-tests:
+  tags:
+    - fast-test
   stage: test
   image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
 
@@ -31,7 +33,7 @@
     - cp setup_environment /usr/local/bin/
     - setup_environment
     - cd /janeway/src
-    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -n 12 --reverse -m "not fix_labels" --create-db
+    - pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -n 6 --reverse -m "not fix_labels" --create-db
 
 
 # lintme:
