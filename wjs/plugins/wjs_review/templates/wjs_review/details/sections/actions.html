@@ -31,10 +31,10 @@
     {% url "wjs_article_reminders" pk=workflow.pk as article_reminders %}
     {% url "manage_archive_article" article_id=article.pk as article_manage %}
     {% url "admin:submission_article_change" article.pk as article_admin %}
-    {% bootstrap_button href=add_note title=note_title button_class="btn-primary" content=note_label %}
-    {% bootstrap_button href=add_message title=message_title button_class="btn-secondary" content=message_label %}
+    {% bootstrap_button href=add_note title=note_title button_class="btn-outline-primary" content=note_label %}
+    {% bootstrap_button href=add_message title=message_title button_class="btn-outline-secondary" content=message_label %}
     {% if workflow|is_user_article_supervisor:request.user %}
-      {% bootstrap_button href=article_reminders title=reminders_title button_class="btn-secondary" content=reminders_label %}
+      {% bootstrap_button href=article_reminders title=reminders_title button_class="btn-outline-secondary" content=reminders_label %}
       {% bootstrap_button href=article_manage title=manage_title target="_blank" button_class="btn-outline-secondary" content=manage_label %}
       {% bootstrap_button href=article_admin title=admin_title target="_blank" button_class="btn-outline-secondary" content=admin_label %}
     {% endif %}

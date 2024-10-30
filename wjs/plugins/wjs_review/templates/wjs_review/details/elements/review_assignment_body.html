@@ -34,7 +34,7 @@
     {% include "wjs_review/details/elements/actions_button.html" with is_button=True %}
   {% endfor %}
   {% if request.user != assignment.reviewer and show_name %}
-    {% bootstrap_button content=write_message_label href=add_message title=send_message_label button_class="btn-secondary" %}
+    {% bootstrap_button content=write_message_label href=add_message title=send_message_label button_class="btn-outline-secondary" %}
   {% endif %}
   {% hijack_button user=assignment.reviewer size="medium" %}
 </div>
