@@ -409,13 +409,13 @@ def test_typ_marks_unpublishable(
     url = reverse("wjs_toggle_publishable", kwargs={"pk": assigned_to_typesetter_article.articleworkflow.pk})
     typesetter = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment.typesetter
     client.force_login(typesetter)
-    assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
-    client.post(url)
-    assigned_to_typesetter_article.refresh_from_db()
     assert not assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
     client.post(url)
     assigned_to_typesetter_article.refresh_from_db()
     assert assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
+    client.post(url)
+    assigned_to_typesetter_article.refresh_from_db()
+    assert not assigned_to_typesetter_article.articleworkflow.production_flag_no_checks_needed
 
 
 @pytest.mark.django_db
@@ -489,8 +489,11 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
     workflow.state = initial_state
     workflow.save()
 
-    # article is not "ready"
-    assert workflow.production_flag_no_checks_needed is True
+    # These are the default states of the production flags:
+    assert workflow.production_flag_no_checks_needed is False
+    assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED.value
+    assert workflow.production_flag_no_queries is False
+    # so the article is not "ready for publication"
     assert workflow.can_be_set_rfp() is False
 
     # the rfp action should not be visible to the author in the status page
@@ -518,9 +521,9 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
     assert any("Paper not yet ready for publication" in message.message for message in messages)
     assert workflow.state == initial_state
 
-    # not, let's make the paper ready
+    # now, let's make the paper ready
+    workflow.production_flag_no_checks_needed = True
     workflow.production_flag_no_queries = True
-    workflow.production_flag_galleys_ok = True
     workflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
     workflow.save()
     assert workflow.can_be_set_rfp() is True
@@ -651,7 +654,7 @@ def test_typesetter_takes_in_charge(
         == ArticleWorkflow.GalleysStatus.NOT_TESTED
     )
     assert ready_for_typesetter_article.articleworkflow.production_flag_no_queries is False
-    assert ready_for_typesetter_article.articleworkflow.production_flag_no_checks_needed
+    assert ready_for_typesetter_article.articleworkflow.production_flag_no_checks_needed is False
 
 
 @pytest.mark.django_db

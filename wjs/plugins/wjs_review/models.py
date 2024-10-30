@@ -376,7 +376,7 @@ class ArticleWorkflow(TimeStampedModel):
         verbose_name=_("The status of the latest galleys"),
     )
     production_flag_no_checks_needed = models.BooleanField(
-        default=True, verbose_name=_("No special check is required on the latest typesetted files")
+        default=False, verbose_name=_("No special check is required on the latest typesetted files")
     )
 
     latest_state_change = models.DateTimeField(default=timezone.now, null=True, blank=True)

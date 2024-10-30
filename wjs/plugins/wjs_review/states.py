@@ -942,6 +942,7 @@ class ReadyForTypesetter(BaseState):
             name="typ takes in charge",
             label="Take in charge",
             view_name="wjs_typ_take_in_charge",
+            is_post=True,
         ),
     ) + BaseState.article_actions
 
