@@ -75,6 +75,7 @@ MEDIALAB_DOI_JOURNAL_NUMBER = {
 
 class WjsMiniHTMLFormField(MiniHTMLFormField):
     def __init__(self, *args, **kwargs):
+        height = kwargs.pop("height", "30rem")
         super().__init__(*args, **kwargs)
         self.bleach_options["tags"] = ["span", "em", "i", "b", "strong", "sup", "sub", "u", "br", "a"]
         self.bleach_options["attributes"] = {"a": ["href", "title", "target"]}
@@ -85,7 +86,7 @@ class WjsMiniHTMLFormField(MiniHTMLFormField):
                     "menubar": "",
                     "forced_root_block": "div",
                     "toolbar": "bold italic link numlist charmap",
-                    "height": "30rem",
+                    "height": height,
                     "resize": True,
                     "elementpath": False,
                 }

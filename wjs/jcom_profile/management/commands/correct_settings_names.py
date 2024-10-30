@@ -571,6 +571,15 @@ Regards,
 """,
         )
         update_setting_default("subject_author_publication", "email_subject", "Publication")
+        update_setting_default(
+            "file_submission_guidelines",
+            "general",
+            """
+Please upload the latest manuscript file. Separately upload any figures or data files needed during peer review.
+With "Accepted formats for manuscript file: .docx, .odt. Your manuscript file will be converted into pdf format.
+You can check the output in the last step of the submission process and come back here if corrections are needed.
+        """,
+        )
 
 
 def update_setting_default(name, group, value, description=None):

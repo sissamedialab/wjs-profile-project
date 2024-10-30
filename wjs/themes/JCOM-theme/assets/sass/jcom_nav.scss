@@ -31,3 +31,22 @@
 @import "global";
 @import "flaticon";
 @import "sideNav";
+
+.help-text {
+  margin-top: 0;
+}
+
+.errorlist {
+  color: color("red", "base");
+  font-weight: bold;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+small.error {
+  color: color("red", "base");
+  font-size: 0.9rem;
+  font-weight: bold;
+  padding-top: -10px;
+}
