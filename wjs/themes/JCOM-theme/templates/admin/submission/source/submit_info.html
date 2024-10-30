@@ -32,7 +32,7 @@
                         <h2>{% trans 'Basic Information' %}</h2>
                     </div>
                     <div class="content">
-                        {% include "elements/forms/errors.html" with form=form %}
+                        {% include "admin/elements/forms/errors.html" with form=form %}
                         <div class="{% if request.journal.submissionconfiguration.subtitle %}large-6{% else %}large-12{% endif %} columns">
                             {{ form.title|foundation }}
                         </div>
@@ -84,6 +84,7 @@
                                       </p>
                                         {{ form.keywords }}
                                         {{ form.keywords.help_text}}
+                                        {{ form.keywords.errors}}
                                     </div>
                                 </div>
                             </div>

@@ -50,6 +50,7 @@ def default_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignmen
             role=Role.objects.get(slug="section-editor"),
         ).values_list("user")
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=editors)
+    parameters = parameters.exclude(editor__in=article.authors.all())
     if parameters:
         request = get_current_request()
         annotated_parameters = parameters.annotate(
@@ -77,6 +78,7 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
             role=Role.objects.get(slug="director"),
         ).values_list("user")
         parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=directors)
+    parameters = parameters.exclude(editor__in=article.authors.all())
     if parameters:
         request = get_current_request()
         annotated_parameters = parameters.annotate(

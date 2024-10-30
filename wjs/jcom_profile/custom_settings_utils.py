@@ -498,7 +498,21 @@ def add_submission_settings(journal: Journal, force: bool = False) -> tuple[Sett
             journal=journal, value="wjs.jcom_profile.forms.KeywordSelectionArticleInfoSubmit", translations={}
         ),
     )
-    return (setting_1, setting_2, setting_3, setting_4)
+    setting_5 = patch_setting(
+        PatchSettingParams(name="submit_submit_start_form_general_version", group=general_settings_group),
+        PatchSettingValueParams(journal=journal, value="wjs.jcom_profile.forms.WjsArticleStart", translations={}),
+    )
+    setting_6 = patch_setting(
+        PatchSettingParams(name="submit_submit_review_form_general_version", group=general_settings_group),
+        PatchSettingValueParams(
+            journal=journal, value="wjs.jcom_profile.forms.WjsSubmissionCommentsForm", translations={}
+        ),
+    )
+    setting_7 = patch_setting(
+        PatchSettingParams(name="limit_manuscript_types", group=general_settings_group),
+        PatchSettingValueParams(journal=journal, value="on", translations={}),
+    )
+    return setting_1, setting_2, setting_3, setting_4, setting_5, setting_6, setting_7
 
 
 class SettingsCSVWrapper:

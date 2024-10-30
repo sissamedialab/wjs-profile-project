@@ -65,14 +65,16 @@
                         </li>
                     </ul>
                     <ul>
-                        {% if request.user.is_authenticated %}
+                      {% if not hide_account %}
+                          {% if request.user.is_authenticated %}
+                              <li>
+                                  <a class="dropdown-trigger" href="#!" data-target="account">{% trans "Account" %}<i class="material-icons right">arrow_drop_down</i></a>
+                              </li>
+                         {% else %}
                             <li>
-                                <a class="dropdown-trigger" href="#!" data-target="account">{% trans "Account" %}<i class="material-icons right">arrow_drop_down</i></a>
+                              <a href="{% url 'core_login' %}">{% trans "Login" %}</a>
                             </li>
-                       {% else %}
-                          <li>
-                            <a href="{% url 'core_login' %}">{% trans "Login" %}</a>
-                          </li>
+                        {% endif %}
                       {% endif %}
                     </ul>
                 </div>

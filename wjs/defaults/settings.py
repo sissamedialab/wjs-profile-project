@@ -140,18 +140,12 @@ WJS_REVIEW_CHECK_FUNCTIONS = {
 
 # Functions that determine which editor is assigned to an article
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
-    # Currently we must use these assignment functions because editors are not fully setup in test environment
-    # and assignment by the EO is not active yet (to be completed with
-    # https://gitlab.sissamedialab.it/wjs/specs/-/issues/659)
-    None: "plugins.wjs_review.events.assignment.assign_editor_random",
-    "JCOM": "plugins.wjs_review.events.assignment.assign_editor_random",
-    # Commented to let always pick a random editor
-    # None: "wjs_review.events.assignment.default_assign_editors_to_articles",
-    # "JCOM": "wjs_review.events.assignment.jcom_assign_editors_to_articles",
+    None: "plugins.wjs_review.events.assignment.default_assign_editors_to_articles",
+    "JCOM": "plugins.wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
 WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS = {
-    None: "plugins.wjs_review.events.assignment.assign_eo_random",
+    None: "plugins.wjs_review.events.assignment.assign_eo_to_articles",
 }
 
 # Functions that check if a just-accepted article might have issues

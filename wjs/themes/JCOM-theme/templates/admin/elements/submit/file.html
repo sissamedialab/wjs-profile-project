@@ -7,7 +7,7 @@
             <h5><i class="fa fa-upload">&nbsp;</i>{% trans "Add New File" %}</h5>
         </div>
         <div class="card-section">
-            <small>{% include "elements/forms/errors.html" with form=form %}</small>
+            <small>{% include "admin/elements/forms/errors.html" with form=form %}</small>
             {% if modaltype == 'manuscript' %}
                 {{ journal_settings.general.manuscript_file_submission_instructions|safe }}
                 <form method="post" enctype="multipart/form-data">

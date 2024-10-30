@@ -14,9 +14,9 @@
               {% endif %}
             </a>
             <div class="d-flex flex-column">
-                {% if core_edit_profile %}
-                <a class="btn btn-link d-flex align-items-center text-decoration-none" href="{{ core_edit_profile }}">{{ request.user.get_full_name }} <span class="fs-3 ms-3"><i class="bi bi-person-circle"></i></span></a>
-                {% endif %}
+              {% if core_edit_profile and request.user.is_authenticated %}
+               <a class="btn btn-link d-flex align-items-center text-decoration-none" href="{{ core_edit_profile }}">{{ request.user.get_full_name }} <span class="fs-3 ms-3"><i class="bi bi-person-circle"></i></span></a>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -37,7 +37,8 @@
                     </li>
                   {% endfor %}
                 {% elif request.user.is_anonymous %}
-                {% else %}
+                  {# line intentionally left blank #}
+                {% elif DEBUG %}
                   <div class="text-bg-warning">
                   DEFINE <span class="font-monospace">related_views</span> in {{ view }}
                   </div>
@@ -48,9 +49,11 @@
                 <ul class="nav">
                   {% block top_menu %}
                   {% endblock top_menu %}
-                  <li class="nav-item">
-                    {% include "wjs_review/base/elements/user_menu.html" %}
-                  </li>
+                  {% if request.user.is_authenticated %}
+                    <li class="nav-item">
+                      {% include "wjs_review/base/elements/user_menu.html" %}
+                    </li>
+                  {% endif %}
                 </ul>
               </nav>
           </div>

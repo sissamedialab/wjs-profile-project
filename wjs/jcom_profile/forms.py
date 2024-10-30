@@ -17,8 +17,14 @@ from easy_select2.widgets import Select2Multiple
 from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
 from journal.models import Issue
+from plugins.wjs_review.models import WjsMiniHTMLFormField
 from submission import models as submission_models
-from submission.forms import ArticleInfoSubmit, SelectIssueForm
+from submission.forms import (
+    ArticleInfoSubmit,
+    ArticleStart,
+    SelectIssueForm,
+    SubmissionCommentsForm,
+)
 from submission.models import Keyword, Section
 from utils import logic as utils_logic
 from utils.forms import CaptchaForm, JanewayTranslationModelForm
@@ -539,12 +545,15 @@ class SelectSpecialIssueForm(SelectIssueForm):
         queryset=None,
         required=False,
         blank=True,
-        empty_label=_("No selection"),
+        empty_label=_("First standard issue available"),
         widget=forms.RadioSelect(),
+        label=_("Choose the issue of publication"),
     )
 
 
 class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
+    title = WjsMiniHTMLFormField(label=_("Title"), height="8rem")
+    abstract = WjsMiniHTMLFormField(label=_("Abstract"))
     keywords = forms.ModelMultipleChoiceField(
         queryset=Keyword.objects.none(),
         label=_("Keywords"),
@@ -594,3 +603,17 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
             instance.keywords.add(*posted_keywords)
 
         return instance
+
+
+class WjsSubmissionCommentsForm(SubmissionCommentsForm):
+    comments_editor = WjsMiniHTMLFormField(label=_("Comments for the Editor"), height="14rem", required=False)
+
+
+class WjsArticleStart(ArticleStart):
+    competing_interests = WjsMiniHTMLFormField(
+        label=_("Competing interests"),
+        height="15rem",
+        help_text=_(
+            "If you have any conflict of interests in the publication of this article please state them here."
+        ),
+    )

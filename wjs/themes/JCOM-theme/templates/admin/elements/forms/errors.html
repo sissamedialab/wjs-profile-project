@@ -1,0 +1,7 @@
+{% if form.errors %}
+  <ul>
+    {% if form.non_field_errors %}
+      {{ form.non_field_errors }}
+    {% endif %}
+  </ul>
+{% endif %}
