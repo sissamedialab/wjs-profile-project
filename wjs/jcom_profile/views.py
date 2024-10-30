@@ -1119,12 +1119,6 @@ class PublishedArticlesListView(FormMixin, ListView):
         return context
 
 
-@user_passes_test(lambda user: base_permissions.has_eo_role(user))
-def eo_home(request):
-    """Redirect to the list of articles."""
-    return render(request, "eo/home.html")
-
-
 @user_passes_test(lambda user: get_hijacker() and base_permissions.can_hijack_user_role(get_hijacker(), user))
 def set_notify_hijack(request):
     """Toggle silent hijacking."""

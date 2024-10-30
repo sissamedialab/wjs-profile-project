@@ -444,11 +444,10 @@ class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
             return self.get(self.request, *self.args, **self.kwargs)
 
 
-class TogglePublishableFlagView(HtmxMixin, AuthenticatedUserPassesTest, TemplateView):
+class TogglePublishableFlagView(HtmxMixin, AuthenticatedUserPassesTest, View):
     """Typesetter toggles `production_flag_no_checks_needed` flag."""
 
     model = ArticleWorkflow
-    template_name = "wjs_review/elements/article_actions_button.html"
 
     def load_initial(self, request, *args, **kwargs):
         super().load_initial(request, *args, **kwargs)

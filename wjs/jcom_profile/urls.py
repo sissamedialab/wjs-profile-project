@@ -150,12 +150,6 @@ urlpatterns = [
         views.DrupalAuthorsRedirect.as_view(),
         name="drupal_author_redirect",
     ),
-    # Redirects - end
-    path(
-        "dashboard/eo/",
-        views.eo_home,
-        name="dashboard_eo",
-    ),
     # Set notify flag
     path(
         "set_notify/",
