@@ -556,11 +556,15 @@ def test_wjs_list_annotated_files(stage_proofing_article, client):
 @pytest.mark.django_db
 def test_wjs_toggle_publishable(assigned_to_typesetter_article_with_files_to_typeset, typesetter, client):
     client.force_login(typesetter)
-    response = client.get(
-        f"/plugins/wjs-review-articles/paper_publishable/"
-        f"{assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.pk}/"
+    article = assigned_to_typesetter_article_with_files_to_typeset
+    response = client.post(
+        f"/{article.journal.code}/plugins/wjs-review-articles/paper_publishable/" f"{article.articleworkflow.pk}/"
     )
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert (
+        response.headers["Location"]
+        == f"/{article.journal.code}/plugins/wjs-review-articles/status/{article.articleworkflow.pk}/"
+    )
 
 
 @pytest.mark.django_db
