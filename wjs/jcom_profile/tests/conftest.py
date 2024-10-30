@@ -443,13 +443,18 @@ def sections(journal):
 
 
 def _article(admin, coauthor, journal, sections, submitted=False):
+    if submitted:
+        date_started = date_submitted = now() - timedelta(days=random.randint(10, 20))
+    else:
+        date_started = date_submitted = None
     article = submission_models.Article.objects.create(
         abstract="Abstract",
         journal=journal,
         title="Title",
         correspondence_author=admin,
         owner=admin,
-        date_submitted=now() - timedelta(days=random.randint(1, 10)) if submitted else None,
+        date_submitted=date_submitted,
+        date_started=date_started,
         section=random.choice(sections),
         language="eng",
     )
