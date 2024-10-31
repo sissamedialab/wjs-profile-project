@@ -13,8 +13,6 @@
       {% endfor %}
     </ul>
     <p>{% translate "Upload a new file to replace the existing one." %}</p>
-  {% else %}
-    <p>{% translate "Please upload the typesetting files." %}</p>
   {% endif %}
   <form id="upload-typeset" hx-encoding="multipart/form-data" hx-post="{% url "wjs_typesetter_upload_files" pk=assignment.pk %}" hx-target="#htmxModalContent">
     {% csrf_token %}

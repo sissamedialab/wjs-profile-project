@@ -137,7 +137,7 @@ class TypesetterArchived(TypesetterPending):
 class TypesetterUploadFiles(AuthenticatedUserPassesTest, UpdateView):
     """View allowing the typesetter to upload files."""
 
-    title = _("Files to typeset")
+    title = _("Upload typeset preprint")
     model = TypesettingAssignment
     form_class = TypesetterUploadFilesForm
     template_name = "wjs_review/details/typesetter_upload_files.html"

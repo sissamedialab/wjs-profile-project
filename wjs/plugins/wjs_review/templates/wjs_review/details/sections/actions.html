@@ -2,6 +2,14 @@
 {% if current_review_assignment %}
   {% include "wjs_review/details/elements/review_assignment_main.html" with assignment=current_review_assignment version=versions.0 %}
 {% endif %}
+{% if pending_proofs_version %}
+  <div id="production" class="card border border-1 mb-4">
+    <h5 class="card-header fw-bolder">{% translate "Production" %}</h5>
+    <div class="card-body">
+      {% include "wjs_review/details/elements/production_galleyproofing.html" with version=pending_proofs_version %}
+    </div>
+  </div>
+{% endif %}
 {% get_article_actions workflow "" as actions %}
 {% if actions %}
 <div class="card border border-1 mb-4">

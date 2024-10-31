@@ -963,7 +963,7 @@ class TypesetterSelected(BaseState):
         ArticleAction(
             permission=permissions.is_article_typesetter,
             name="uploads sources",  # this pairs with the one above ⮵
-            label="Upload sources",
+            label="Upload typeset preprint",
             view_name="wjs_typesetter_upload_files",
             custom_get_url=get_url_with_typesetting_assignment_pk,
             is_modal=True,

@@ -12,7 +12,7 @@
         {% if include_path %}
           {% include include_path %}
         {% else %}
-          {{ modal_body|safe }}
+          {{ modal_body|linebreaksbr|safe }}
         {% endif %}
       </div>
     </div>
