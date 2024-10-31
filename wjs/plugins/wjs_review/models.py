@@ -1036,6 +1036,8 @@ class ArticleWorkflow(TimeStampedModel):
             rounds = self.article.typesettinground_set.all().order_by("-round_number")
         elif permissions.is_article_supervisor(self.article.articleworkflow, user):
             rounds = self.article.typesettinground_set.all().order_by("-round_number")
+        elif permissions.is_article_editor(self.article.articleworkflow, user):
+            rounds = self.article.typesettinground_set.all().order_by("-round_number")
         elif permissions.is_article_typesetter(self.article.articleworkflow, user):
             rounds = self.article.typesettinground_set.filter(typesettingassignment__typesetter=user).order_by(
                 "-round_number"
