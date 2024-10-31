@@ -16,6 +16,7 @@
       <h3 class="page-title">{{ view.title }}</h3>
     </div>
   </div>
+  {% include "wjs_review/evaluate_review/elements/info.html" %}
   <div class="row">
     <div class="col-lg-9 col-md-7">
         <div class="card border border-1">
@@ -41,21 +42,17 @@
             {% include "wjs_review/elements/author_cover_letter.html" %}
             <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
               {% csrf_token %}
+
               <div class="row">
                 <div class="col-sm-4 mb-1 mt-3">
                   {% bootstrap_field form.date_due label_class="fw-bold" %}
                 </div>
               </div>
-              <div class="row">
-                {% bootstrap_form_errors form layout='inline' %}
-                <div class="col">
-                  {% bootstrap_field form.accept_gdpr %}
-                </div>
-              </div>
               {% bootstrap_field form.additional_comments label_class="fw-bold" %}
-                {% bootstrap_button button_type="submit" button_class="btn-success" content=accept_label|safe  name="reviewer_decision" value=1 %}
-                {% bootstrap_button button_type="submit" button_class="btn-outline-danger" content=decline_label|safe name="reviewer_decision" value=0 %}
-                {% include "wjs_review/base/elements/back.html" with workflow=assignment.article.articleworkflow %}
+              {% bootstrap_field form.accept_gdpr %}
+              {% bootstrap_button button_type="submit" button_class="btn-success" content=accept_label|safe  name="reviewer_decision" value=1 %}
+              {% bootstrap_button button_type="submit" button_class="btn-outline-danger" content=decline_label|safe name="reviewer_decision" value=0 %}
+              {% include "wjs_review/base/elements/back.html" with workflow=assignment.article.articleworkflow %}
             </form>
           </div>
         </div>

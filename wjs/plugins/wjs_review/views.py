@@ -1198,6 +1198,18 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
         Even if the form is valid, checks in :py:class:`logic.EvaluateReview` -called by form.save- may fail as well.
         """
         try:
+            messages.add_message(
+                self.request,
+                messages.SUCCESS,
+                _(
+                    "Thank you for accepting to upload "
+                    "your review by %s. If you are ready to "
+                    "upload your review right now please fill in the form below, "
+                    'otherwise just exit the page and click "upload review" '
+                    "from the manuscript web page in due time."
+                )
+                % form.cleaned_data["date_due"],
+            )
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
