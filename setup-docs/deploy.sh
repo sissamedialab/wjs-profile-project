@@ -118,6 +118,9 @@ function set_pp_variables() {
     VENV_BIN=/home/wjs/.virtualenvs/janeway-pp-1.5/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-pp.ini
     JANEWAY_BRANCH=wjs-develop
+    # Permit install pre-release pkgs in pre-prod
+    # this allows us to test pkg install when needed.
+    PIP_PRE="yes please"
 }
 
 function set_dev_variables() {
