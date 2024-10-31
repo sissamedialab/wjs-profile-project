@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 from importlib import import_module
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from uuid import uuid4
 
 from core import files as core_files
@@ -21,6 +21,9 @@ from submission.models import Article
 from utils.logger import get_logger
 from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
+
+from . import constants
+from .models import JCOMProfile
 
 logger = get_logger(__name__)
 
@@ -300,3 +303,30 @@ def create_rich_fake_request(journal: Journal, settings: dict, user: Account = N
     engine = import_module(settings.SESSION_ENGINE)
     fake_request.session = engine.SessionStore()
     return fake_request
+
+
+def get_eo_user(obj: Union[Article, Journal]) -> Account:
+    """Return the EO system user."""
+    if isinstance(obj, Article):
+        code = obj.journal.code.lower()
+    else:
+        code = obj.code.lower()
+
+    email = f"{code}-eo@{code}.sissa.it"
+    account, created = Account.objects.get_or_create(
+        email=email,
+        defaults={
+            "username": email,
+            "first_name": "",
+            "last_name": f"{code.upper()} Editorial Office",
+            "is_active": True,
+        },
+    )
+    if created:
+        from django.contrib.auth.models import Group
+
+        account.groups.add(Group.objects.get(name=constants.EO_GROUP))
+        # Ugly hack to workaround the problem that when I save a JCOMProfile, the corresponding Account gets "cleaned"
+        JCOMProfile.objects.filter(janeway_account=account.pk).update(gdpr_checkbox=True)
+        logger.warning(f"Create system EO account {email}")
+    return account

@@ -17,9 +17,9 @@ from submission import models as submission_models
 
 from wjs.jcom_profile.constants import DIRECTOR_MAIN_ROLE, DIRECTOR_ROLE
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.utils import render_template
+from wjs.jcom_profile.utils import get_eo_user, render_template
 
-from ..communication_utils import get_eo_user, update_date_send_reminders
+from ..communication_utils import update_date_send_reminders
 from ..conditions import any_reviewer_is_late_after_reminder
 from ..logic import (
     AssignToEditor,

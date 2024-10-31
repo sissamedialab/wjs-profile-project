@@ -10,8 +10,8 @@ from submission.models import Keyword, Section
 
 from wjs.jcom_profile import constants, permissions
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
+from wjs.jcom_profile.utils import get_eo_user
 
-from .communication_utils import get_eo_user
 from .managers import ArticleWorkflowQuerySet
 from .models import ArticleWorkflow, Message, Reminder
 

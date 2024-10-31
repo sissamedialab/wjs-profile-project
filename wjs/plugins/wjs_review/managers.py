@@ -56,7 +56,8 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         :return: the queryset with unread messages
         :rtype: QuerySet
         """
-        from .communication_utils import get_eo_user
+        from wjs.jcom_profile.utils import get_eo_user
+
         from .models import Message
 
         messages = Message.objects.filter(

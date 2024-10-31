@@ -3,7 +3,7 @@ import csv
 from django.core.management.base import BaseCommand
 from journal.models import Journal
 
-from wjs.jcom_profile.custom_settings_utils import export_reminders, export_to_csv
+from wjs.jcom_profile.custom_settings_utils import export_to_csv
 
 
 class Command(BaseCommand):
@@ -25,6 +25,8 @@ class Command(BaseCommand):
         journal = Journal.objects.get(code=options["journal"])
         application = options["application"]
         if application == "reminders":
+            from plugins.wjs_review.plugin_settings import export_reminders
+
             export_reminders(journal=journal)
         else:
             settings_list_csv = options.get("settings_list_csv")

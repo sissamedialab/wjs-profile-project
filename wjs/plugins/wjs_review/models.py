@@ -1305,7 +1305,7 @@ class Message(TimeStampedModel):
 
     def _get_header_context(self, recipient: Account) -> dict:
         """Return the context for the header template."""
-        from .communication_utils import get_eo_user
+        from wjs.jcom_profile.utils import get_eo_user
 
         message_url = self.get_absolute_url()
         message_url = self.journal.site_url(message_url)

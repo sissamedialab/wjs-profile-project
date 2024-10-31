@@ -53,13 +53,10 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.mixins import HtmxMixin
 from wjs.jcom_profile.models import IssueParameters
+from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
-from .communication_utils import (
-    get_eo_user,
-    get_messages_related_to_me,
-    group_messages_by_version,
-)
+from .communication_utils import get_messages_related_to_me, group_messages_by_version
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,

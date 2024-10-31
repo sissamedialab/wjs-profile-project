@@ -53,7 +53,11 @@ import wjs.jcom_profile.permissions
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import has_eo_role
-from wjs.jcom_profile.utils import generate_token, render_template_from_setting
+from wjs.jcom_profile.utils import (
+    generate_token,
+    get_eo_user,
+    render_template_from_setting,
+)
 
 from . import communication_utils, permissions
 from .events.assignment import dispatch_assignment
@@ -751,7 +755,7 @@ class EvaluateReview:
             "request": self.request,
             "review_assignment": self.assignment,
             "reviewer": self.assignment.reviewer,
-            "EO": communication_utils.get_eo_user(self.assignment.article),
+            "EO": get_eo_user(self.assignment.article),
             "editor": self.editor,
             "date_due": self.form_data["date_due"],
         }
@@ -795,7 +799,7 @@ class EvaluateReview:
             message_subject=message_subject,
             message_body=message_body,
             verbosity=Message.MessageVerbosity.EMAIL,
-            recipients=[communication_utils.get_eo_user(article)],
+            recipients=[get_eo_user(article)],
         )
 
     def _log_accept(self):
@@ -2004,7 +2008,7 @@ class PostponeRevisionRequestDueDate:
         return {
             "article": self.revision_request.article,
             "request": self.request,
-            "EO": communication_utils.get_eo_user(self.revision_request.article),
+            "EO": get_eo_user(self.revision_request.article),
             "editor": self.revision_request.editor,
             "date_due": self.form_data["date_due"],
         }
@@ -2028,7 +2032,7 @@ class PostponeRevisionRequestDueDate:
             message_subject=message_subject,
             message_body=message_body,
             verbosity=Message.MessageVerbosity.EMAIL,
-            recipients=[communication_utils.get_eo_user(self.revision_request.article)],
+            recipients=[get_eo_user(self.revision_request.article)],
         )
 
     def _log_author_if_date_due_is_postponed(self):
@@ -2175,7 +2179,7 @@ class HandleMessage:
 
         allowed_recipients = Account.objects.all()
         # EO system user is always available
-        users_pk = [communication_utils.get_eo_user(article).pk]
+        users_pk = [get_eo_user(article).pk]
 
         # The actor himself is always available also
         users_pk.append(actor.pk)
@@ -2372,7 +2376,7 @@ class PostponeReviewerDueDate:
             "request": self.request,
             "review_assigment": self.assignment,
             "reviewer": self.assignment.reviewer,
-            "EO": communication_utils.get_eo_user(self.assignment.article),
+            "EO": get_eo_user(self.assignment.article),
             "editor": self.editor,
             "date_due": self.form_data["date_due"],
         }
@@ -2426,7 +2430,7 @@ class PostponeReviewerDueDate:
             message_subject=message_subject,
             message_body=message_body,
             verbosity=Message.MessageVerbosity.EMAIL,
-            recipients=[communication_utils.get_eo_user(self.assignment.article)],
+            recipients=[get_eo_user(self.assignment.article)],
         )
 
     def _save_reviewer_date_due(self):
@@ -2870,9 +2874,7 @@ class WithdrawPreprint:
             message_subject=self.form_data.get("notification_subject"),
             message_body=self.form_data.get("notification_body"),
             actor=self.workflow.article.correspondence_author,
-            recipients=[
-                (current_editor if current_editor else communication_utils.get_eo_user(self.workflow.article))
-            ],
+            recipients=[(current_editor if current_editor else get_eo_user(self.workflow.article))],
         )
 
     def _check_typesetter_conditions(self) -> bool:

@@ -22,9 +22,9 @@ from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.utils import render_template
+from wjs.jcom_profile.utils import get_eo_user, render_template
 
-from ..communication_utils import get_director_user, get_eo_user
+from ..communication_utils import get_director_user
 from ..models import (
     Account,
     EditorRevisionRequest,

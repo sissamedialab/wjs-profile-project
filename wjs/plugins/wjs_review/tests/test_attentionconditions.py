@@ -10,8 +10,9 @@ from review import models as review_models
 from submission.models import Article
 
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.utils import get_eo_user
 
-from .. import communication_utils, states
+from .. import states
 from ..logic import AssignToReviewer, EvaluateReview, HandleDecision
 from ..models import (
     ArticleWorkflow,
@@ -88,7 +89,7 @@ def test_author_revision_is_late(
 
     author = article.correspondence_author
     section_editor = WjsEditorAssignment.objects.get_current(article).editor
-    eo = communication_utils.get_eo_user(article)
+    eo = get_eo_user(article)
 
     days_past = 5
     expected = localtime(now() + timezone.timedelta(days=-days_past))  # note the "-": the author is late!
@@ -210,7 +211,7 @@ def test_author_technicalrevision_is_late(
 
     author = article.correspondence_author
     section_editor = WjsEditorAssignment.objects.get_current(article).editor
-    eo = communication_utils.get_eo_user(article)
+    eo = get_eo_user(article)
 
     days_past = 5
     expected = localtime(now() + timezone.timedelta(days=-days_past))  # note the "-": the author is late!
@@ -315,7 +316,7 @@ def test_author_appeal_is_late(
     )
 
     author = article.correspondence_author
-    eo = communication_utils.get_eo_user(article)
+    eo = get_eo_user(article)
     section_editor = openappeal_err.editor
     assert section_editor == eo
 
@@ -358,7 +359,7 @@ def test_author_proofing_is_late(
     )
 
     author = article.correspondence_author
-    eo = communication_utils.get_eo_user(article)
+    eo = get_eo_user(article)
     typesetter = assignment.round.typesettingassignment.typesetter
 
     days_past = 5
@@ -387,7 +388,7 @@ def test_needs_assignment(assigned_article: Article, director: JCOMProfile):
     workflow = article.articleworkflow
 
     author = article.correspondence_author
-    eo = communication_utils.get_eo_user(article)
+    eo = get_eo_user(article)
     editor_assignment = WjsEditorAssignment.objects.get_current(article)
     section_editor = editor_assignment.editor
 

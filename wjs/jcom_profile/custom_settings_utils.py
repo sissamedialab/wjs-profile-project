@@ -6,7 +6,6 @@ from core.models import Setting, SettingGroup, SettingValue
 from django.conf import settings
 from django.utils.translation import gettext as _
 from journal.models import Journal
-from plugins.wjs_review.reminders.settings import ReminderManager, ReminderSetting
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -564,40 +563,6 @@ class SettingsCSVWrapper:
                     continue
 
 
-class RemindersCSVWrapper:
-    settings_fields = [
-        "reminder code",
-        "reminder",
-        "subject",
-        "body",
-        "actor",
-        "recipient",
-        "days_after",
-    ]
-
-    def __init__(self, writer: Optional[csv.DictWriter]):
-        self.csv_writer = writer
-        self.discovered_settings = []
-        self.journal = []
-
-    def _get_setting_data(self, reminder_setting: ReminderSetting):
-        return {
-            "reminder code": reminder_setting.code,
-            "reminder": reminder_setting.code.label,
-            "subject": reminder_setting.subject,
-            "body": reminder_setting.body,
-            "actor": reminder_setting.actor,
-            "recipient": reminder_setting.recipient,
-            "days_after": reminder_setting.days_after,
-        }
-
-    def export_reminders(self, journal: Journal):
-        if self.csv_writer:
-            for reminder_class in ReminderManager.__subclasses__():
-                for reminder_setting in reminder_class.reminders.values():
-                    self.csv_writer.writerow(self._get_setting_data(reminder_setting))
-
-
 @contextmanager
 def export_to_csv_manager(application):
     """
@@ -643,11 +608,3 @@ def export_to_csv(application: str, journal: Journal, settings_list: tuple[dict[
         csv_writer.writeheader()
         wrapper = SettingsCSVWrapper(csv_writer)
         wrapper.export_settings(journal, settings_list)
-
-
-def export_reminders(journal: Journal):
-    with open("settings_reminders.csv", "w") as f:
-        csv_writer = csv.DictWriter(f, fieldnames=RemindersCSVWrapper.settings_fields)
-        csv_writer.writeheader()
-        wrapper = RemindersCSVWrapper(csv_writer)
-        wrapper.export_reminders(journal)

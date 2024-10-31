@@ -19,9 +19,8 @@ from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile import constants
-from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
-from wjs.jcom_profile.utils import render_template_from_setting
+from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
 from .models import Message, MessageRecipients, Reminder, WjsEditorAssignment
 
@@ -87,33 +86,6 @@ def get_system_user() -> Account:
             "is_staff": True,
         },
     )
-    return account
-
-
-def get_eo_user(obj: Union[Article, Journal]) -> Account:
-    """Return the EO system user."""
-    if isinstance(obj, Article):
-        code = obj.journal.code.lower()
-    else:
-        code = obj.code.lower()
-
-    email = f"{code}-eo@{code}.sissa.it"
-    account, created = Account.objects.get_or_create(
-        email=email,
-        defaults={
-            "username": email,
-            "first_name": "",
-            "last_name": f"{code.upper()} Editorial Office",
-            "is_active": True,
-        },
-    )
-    if created:
-        from django.contrib.auth.models import Group
-
-        account.groups.add(Group.objects.get(name=constants.EO_GROUP))
-        # Ugly hack to workaround the problem that when I save a JCOMProfile, the corresponding Account gets "cleaned"
-        JCOMProfile.objects.filter(janeway_account=account.pk).update(gdpr_checkbox=True)
-        logger.warning(f"Create system EO account {email}")
     return account
 
 

@@ -18,9 +18,9 @@ from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from submission.models import Article
 
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
+from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
-from .communication_utils import get_eo_user
 from .logic import states_when_article_is_considered_archived
 from .models import (
     ArticleWorkflow,
