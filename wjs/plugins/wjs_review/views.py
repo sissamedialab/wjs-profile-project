@@ -118,6 +118,7 @@ from .models import (
     MessageRecipients,
     PermissionAssignment,
     Reminder,
+    TypesettingVersion,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
@@ -1026,6 +1027,21 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             )
             return qs.first()
 
+    def pending_proofs_version(self, production_versions: List[TypesettingVersion]) -> Union[TypesettingVersion, bool]:
+        """
+        If the author uploaded proofs for the version before the current one, return the GalleyProofing.
+        Otherwise, return False.
+        """
+        # From TypesettingVersion seems hard to retrieve the information if the author uploaded proofs for the previous
+        # version and if he did, to get the TypesettingVersion object. This is because for the latest
+        # TypesettingVersion, the GalleyProofing is always empty, since the action that fills It also creates
+        # a new version.
+        if permissions.is_article_typesetter(self.object, self.request.user):
+            if len(production_versions) > 1:
+                if production_versions[1].has_proofing_files:
+                    return production_versions[1]
+        return False
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = self.get_form(self.request.GET)
@@ -1044,7 +1060,9 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             states_when_article_is_considered_in_production + states_when_article_is_considered_archived
         ):
             context["review_versions"] = self.object.get_review_versions(self.request.user)
-            context["production_versions"] = self.object.get_production_versions(self.request.user)
+            production_versions = self.object.get_production_versions(self.request.user)
+            context["production_versions"] = production_versions
+            context["pending_proofs_version"] = self.pending_proofs_version(production_versions)
             context["production"] = True
         return context
 
