@@ -16,3 +16,9 @@
 .tagit-new {
   display: none;
 }
+
+.helper-text.form-error {
+  color: color("red", "base");
+  font-size: 0.9rem;
+  padding-top: -10px;
+}
