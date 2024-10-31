@@ -6,11 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import html2text
 from core import models as core_models
-from core.model_utils import (
-    JanewayBleachCharField,
-    JanewayBleachField,
-    MiniHTMLFormField,
-)
+from core.model_utils import JanewayBleachCharField, JanewayBleachField
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -37,13 +33,12 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
-from tinymce.widgets import TinyMCE
 from utils import setting_handler
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.constants import EO_GROUP
-from wjs.jcom_profile.models import Correspondence
+from wjs.jcom_profile.models import Correspondence, WjsMiniHTMLFormField
 from wjs.jcom_profile.utils import render_template
 
 from . import permissions
@@ -71,26 +66,6 @@ MEDIALAB_DOI_JOURNAL_NUMBER = {
     "JCOM": "2",
     "JCOMAL": "3",
 }
-
-
-class WjsMiniHTMLFormField(MiniHTMLFormField):
-    def __init__(self, *args, **kwargs):
-        height = kwargs.pop("height", "30rem")
-        super().__init__(*args, **kwargs)
-        self.bleach_options["tags"] = ["span", "em", "i", "b", "strong", "sup", "sub", "u", "br", "a"]
-        self.bleach_options["attributes"] = {"a": ["href", "title", "target"]}
-        if isinstance(self.widget, TinyMCE):
-            self.widget.mce_attrs.update(
-                {
-                    "plugins": "link lists charmap",
-                    "menubar": "",
-                    "forced_root_block": "div",
-                    "toolbar": "bold italic link numlist charmap",
-                    "height": height,
-                    "resize": True,
-                    "elementpath": False,
-                }
-            )
 
 
 class WjsBleachCharField(JanewayBleachCharField):

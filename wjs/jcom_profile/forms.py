@@ -17,7 +17,6 @@ from easy_select2.widgets import Select2Multiple
 from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
 from journal.models import Issue
-from plugins.wjs_review.models import WjsMiniHTMLFormField
 from submission import models as submission_models
 from submission.forms import (
     ArticleInfoSubmit,
@@ -31,7 +30,13 @@ from utils.forms import CaptchaForm, JanewayTranslationModelForm
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
-from .models import EditorAssignmentParameters, EditorKeyword, JCOMProfile, Recipient
+from .models import (
+    EditorAssignmentParameters,
+    EditorKeyword,
+    JCOMProfile,
+    Recipient,
+    WjsMiniHTMLFormField,
+)
 from .settings_helpers import get_article_language_choices, get_journal_language_choices
 from .templatetags.wjs_tags import display_title
 
