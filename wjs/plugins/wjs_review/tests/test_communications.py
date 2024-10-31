@@ -27,9 +27,9 @@ from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import get_hijacker
+from wjs.jcom_profile.utils import get_eo_user
 
 from ..communication_utils import (
-    get_eo_user,
     get_messages_related_to_me,
     log_operation,
     should_notify_actor,

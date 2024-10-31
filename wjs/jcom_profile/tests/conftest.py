@@ -22,9 +22,6 @@ from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType
-
-# Warning: dependency with wjs_review plugin
-from plugins.wjs_review import communication_utils
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Section
@@ -66,7 +63,7 @@ from wjs.jcom_profile.models import (
     EditorKeyword,
     JCOMProfile,
 )
-from wjs.jcom_profile.utils import create_rich_fake_request, generate_token
+from wjs.jcom_profile.utils import create_rich_fake_request, generate_token, get_eo_user
 
 fake = Faker()
 
@@ -288,7 +285,7 @@ def eo_group() -> Group:
 @pytest.fixture()
 def eo_user(journal, eo_group) -> JCOMProfile:
     """Create EO user."""
-    eo = communication_utils.get_eo_user(journal)
+    eo = get_eo_user(journal)
     eo.refresh_from_db()
     # Editor assignment parameters are required for EO in charge assignment
     EditorAssignmentParameters.objects.create(editor=eo, journal=journal, workload=10)

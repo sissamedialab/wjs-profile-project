@@ -27,9 +27,8 @@ from submission.models import Article
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
-from wjs.jcom_profile.utils import render_template
+from wjs.jcom_profile.utils import get_eo_user, render_template
 
-from ..communication_utils import get_eo_user
 from ..logic__production import (
     BeginPublication,
     FinishPublication,

@@ -21,7 +21,6 @@ from django.views.generic.edit import FormView
 from identifiers.models import CrossrefStatus
 from journal.models import Issue, Journal
 from plugins.typesetting.models import TypesettingAssignment
-from plugins.wjs_review.models import ArticleWorkflow
 from requests.auth import HTTPBasicAuth
 from submission.models import Article, Section
 from utils.logger import get_logger
@@ -35,6 +34,11 @@ Account = get_user_model()
 
 # TODO: add specific permission to plugin and use PermissionRequiredMixin?
 logger = get_logger(__name__)
+
+try:
+    from plugins.wjs_review.models import ArticleWorkflow
+except ImportError:
+    logger.warning("Plugin wjs-review not installed. Some stats not available; some links might break!")
 
 
 class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):

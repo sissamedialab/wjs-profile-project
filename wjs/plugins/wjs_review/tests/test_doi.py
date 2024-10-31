@@ -3,12 +3,12 @@
 # TODO: ask Iacopo why relative imports don't work... from ..utils import generate_doi
 import pytest
 from django.utils import timezone
-from plugins.wjs_review.management.commands.populate_wjs_section import (
+from plugins.wjs_review.models import ArticleWorkflow
+
+from wjs.jcom_profile.constants import (
     JCOM_SECTION_TO_DOISECTIONCODE,
     JCOM_SECTION_TO_PUBIDSECTIONCODE,
 )
-from plugins.wjs_review.models import ArticleWorkflow
-
 from wjs.jcom_profile.utils import generate_doi
 
 CASES = (

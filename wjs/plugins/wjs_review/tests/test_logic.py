@@ -22,9 +22,12 @@ from submission.models import Article, Keyword
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.utils import generate_token, render_template_from_setting
+from wjs.jcom_profile.utils import (
+    generate_token,
+    get_eo_user,
+    render_template_from_setting,
+)
 
-from .. import communication_utils
 from ..communication_utils import get_system_user
 from ..events.handlers import (
     dispatch_eo_assignment,
@@ -1164,7 +1167,7 @@ def test_handle_update_due_date_in_evaluate_review_far_in_the_future_triggers_a_
     # One new message created
     assert Message.objects.count() == 2
     eo_message = Message.objects.get(subject=eo_message_subject)
-    assert list(eo_message.recipients.all()) == [communication_utils.get_eo_user(review_assignment.article)]
+    assert list(eo_message.recipients.all()) == [get_eo_user(review_assignment.article)]
 
     # check that the due date is updated
     # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date object
@@ -2661,7 +2664,7 @@ def test_postpone_due_date(
     Message.objects.all().delete()
     review_assignment.refresh_from_db()
     mail.outbox = []
-    eo_user = communication_utils.get_eo_user(assigned_article)
+    eo_user = get_eo_user(assigned_article)
 
     fake_request.user = review_assignment.editor
     initial_date_due = review_assignment.date_due

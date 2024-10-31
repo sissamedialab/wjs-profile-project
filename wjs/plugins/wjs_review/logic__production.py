@@ -59,6 +59,7 @@ from wjs.jcom_profile.import_utils import (
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import (
     create_rich_fake_request,
+    get_eo_user,
     render_template,
     render_template_from_setting,
 )
@@ -120,7 +121,7 @@ class VerifyProductionRequirements:
             message_body=message_body,
             actor=None,
             recipients=[
-                communication_utils.get_eo_user(self.articleworkflow.article),
+                get_eo_user(self.articleworkflow.article),
             ],
             verbosity=Message.MessageVerbosity.FULL,
         )
@@ -1198,7 +1199,7 @@ class ReadyForPublication:
             message_subject=subject,
             message_body=body,
             actor=None,
-            recipients=[communication_utils.get_eo_user(self.workflow.article)],
+            recipients=[get_eo_user(self.workflow.article)],
             verbosity=Message.MessageVerbosity.TIMELINE,
             flag_as_read=True,
             flag_as_read_by_eo=True,

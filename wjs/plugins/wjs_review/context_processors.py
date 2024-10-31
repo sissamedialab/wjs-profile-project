@@ -2,11 +2,10 @@ from .models import PermissionAssignment
 
 
 def visibility_flags(request):
-    """
-    This context processor injects the visibility flags enum.
+    """Inject the visibility flags enum.
 
     :param request: the active request
-    :return: dictionary containing DATE_FORMAT / DATETIME_FORMAT
+    :return: dictionary containing permission and binary-permission choices
     """
     return {
         "PermissionType": PermissionAssignment.PermissionType,

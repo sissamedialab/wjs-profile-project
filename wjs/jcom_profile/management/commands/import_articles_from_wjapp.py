@@ -18,7 +18,6 @@ from django.db.models import Q
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
-from plugins.wjs_review.communication_utils import get_eo_user
 from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -60,7 +59,7 @@ from wjs.jcom_profile.management.commands.import_from_wjapp import (
     SECTIONS_MAPPING,
     check_mappings,
 )
-from wjs.jcom_profile.utils import create_rich_fake_request
+from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
 
 
 class UnknownSection(Exception):
