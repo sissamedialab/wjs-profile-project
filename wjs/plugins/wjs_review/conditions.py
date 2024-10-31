@@ -113,6 +113,13 @@ def no_tech_revision_request(workflow: ArticleWorkflow, user: Account) -> str:
     return ""
 
 
+def review_accepted_not_completed(assignment: WorkflowReviewAssignment, user: Account) -> str:
+    """Tell if this review is not done but accepted"""
+    if assignment.date_accepted and not assignment.is_complete:
+        return "Review accepted but not completed."
+    return ""
+
+
 def review_not_accepted(assignment: WorkflowReviewAssignment, user: Account) -> str:
     """Tell if this review assignment has not been accepted."""
     if not assignment.date_accepted and not assignment.date_declined:

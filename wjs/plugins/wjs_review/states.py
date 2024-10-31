@@ -581,7 +581,7 @@ class EditorSelected(BaseState):
         ),
         ReviewAssignmentAction(
             assignment_permission=permissions.is_assignment_reviewer,
-            condition=conditions.review_not_done,
+            condition=conditions.review_accepted_not_completed,
             name="decline review",
             label="Decline Review",
             view_name="wjs_reviewer_decline_review",

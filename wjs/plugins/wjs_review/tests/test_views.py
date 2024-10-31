@@ -442,7 +442,7 @@ def test_accept_invite(
     else:
         # No new message created
         assert Message.objects.count() == 1
-        assert "You must accept GDPR to continue" in response.content.decode()
+        assert "Please acknowledge the privacy policy to continue" in response.content.decode()
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
@@ -521,7 +521,7 @@ def test_accept_invite_date_due_in_the_future(
     else:
         # No new message created
         assert Message.objects.count() == 1
-        assert "You must accept GDPR to continue" in response.content.decode()
+        assert "Please acknowledge the privacy policy to continue" in response.content.decode()
         assert not invited_user.is_active
         assert not invited_user.jcomprofile.gdpr_checkbox
         assert invited_user.jcomprofile.invitation_token
@@ -565,9 +565,9 @@ def test_accept_invite_but_date_due_in_the_past(
     assert response.context_data["form"].errors["date_due"] == ["Date must be in the future"]
 
     if accept_gdpr:
-        assert "You must accept GDPR to continue" not in response.content.decode()
+        assert "Please acknowledge the privacy policy to continue" not in response.content.decode()
     else:
-        assert "You must accept GDPR to continue" in response.content.decode()
+        assert "Please acknowledge the privacy policy to continue" in response.content.decode()
     # No new message created, in any case
     assert Message.objects.count() == 1
 
