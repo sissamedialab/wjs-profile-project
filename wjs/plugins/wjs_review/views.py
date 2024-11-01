@@ -1064,6 +1064,8 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             context["production_versions"] = production_versions
             context["pending_proofs_version"] = self.pending_proofs_version(production_versions)
             context["production"] = True
+            # During production we want to show review versions too (for authorized users)
+            context["review"] = True
         return context
 
 
