@@ -1943,11 +1943,12 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         we include the correct values here also for good practice.
 
         """
-        default_subject = (
-            f"Re: {self.source_message.subject}"
-            if self.source_message
-            else _(f"Message from {self.get_sender_label()}")
-        )
+        if self.source_message:
+            default_subject = f"Re: {self.source_message.subject}"
+        elif self.note:
+            default_subject = f"{self.get_sender_label()}'s note"
+        else:
+            default_subject = f"Message from {self.get_sender_label()}"
         to_be_forwarded_to = self.get_to_be_forwarded_to()
         return {
             "actor": self.request.user.pk,

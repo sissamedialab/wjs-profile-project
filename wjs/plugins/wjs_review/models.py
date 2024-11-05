@@ -1435,11 +1435,12 @@ class PastEditorAssignment(models.Model):
     class DeclineReasons(models.TextChoices):
         """Reasons that an Editor can select when declining an assignment."""
 
-        JCOM_BUSY = "JCOM_BUSY", _("already too busy with JCOM editorial work")
-        BUSY = "BUSY", _("too busy in general")
-        OUTSIDE_EXPERTISE = "OUTSIDE_EXPERTISE", _("paper outside my area of expertise")
-        NO_REVIEWER = "NO_REVIEWER", _("unable to find an appropriate reviewer")
-        OTHER = "OTHER", _("other")
+        EMPTY = "", _("Select a decline reason")
+        JCOM_BUSY = "JCOM_BUSY", _("Already too busy with JCOM editorial work")
+        BUSY = "BUSY", _("Too busy in general")
+        OUTSIDE_EXPERTISE = "OUTSIDE_EXPERTISE", _("Paper outside my area of expertise")
+        NO_REVIEWER = "NO_REVIEWER", _("Unable to find an appropriate reviewer")
+        OTHER = "OTHER", _("Other")
 
     article = models.ForeignKey(
         Article,

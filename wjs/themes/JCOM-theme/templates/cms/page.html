@@ -53,6 +53,10 @@
     $(window).on("load", function() {
       setTocCardPosition(".cms-page .card-content");
       $(".scrollspy").scrollSpy();
+      setTimeout(() => {
+        const selectedH = $(document.location.hash);
+        $("html, body").animate({ scrollTop: selectedH.offset().top - 35 }, 500);
+      }, 200);
     });
     $(document).scroll(function() {
       setTocCardPosition(this);
