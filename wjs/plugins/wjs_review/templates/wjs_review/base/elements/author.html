@@ -1,8 +1,7 @@
 <div>
   {# FIXME: profession field must be update to reflect actual content #}
-  {{ author.get_full_name }}{% if author.jcomprofile.profession %} · <strong>{{ author.jcomprofile.get_profession_display }}</strong>{% endif %}
+  <strong>{{ author.get_full_name }}</strong>{% if author.jcomprofile.profession %} · {{ author.jcomprofile.get_profession_display }}{% endif %} ·
+  {% if author.affiliation %}<span class="fst-italic">{{ author.affiliation }}</span>{% endif %}
   {% if corresponding %}<i class="bi bi-envelope"></i>{% endif %}
-  {% if author.affiliation %}
-    <div class="float-end fst-italic ps-4 fs-7 ">{{ author.affiliation }}</div>{% endif %}
   {% if author.biography %}<p>{{ author.biography|striptags }}</p>{% endif %}
 </div>

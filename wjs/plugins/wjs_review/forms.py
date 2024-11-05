@@ -945,6 +945,7 @@ class MessageRecipientForm(forms.Form):
 class MessageForm(forms.ModelForm):
     attachment = forms.FileField(required=False, label=_("Optional attachment"))
     recipients = forms.ModelMultipleChoiceField(queryset=None, required=True, widget=forms.widgets.HiddenInput())
+    subject = forms.CharField(label=_("Title"))
 
     class Meta:
         model = Message
