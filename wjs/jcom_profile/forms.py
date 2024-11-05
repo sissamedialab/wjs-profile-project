@@ -546,7 +546,7 @@ class IssueModelChoiceField(forms.ModelChoiceField):
 class SelectSpecialIssueForm(SelectIssueForm):
     """Used to choose the destination special issue during submission."""
 
-    primary_issue = IssueModelChoiceField(
+    projected_issue = IssueModelChoiceField(
         queryset=None,
         required=False,
         blank=True,

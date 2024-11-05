@@ -328,8 +328,7 @@ def test_workload_decrease_editor(
             section=random.choice(sections),
         )
         if is_special_issue:
-            second_article.primary_issue = special_issue_without_articles
-            second_article.save()
+            special_issue_without_articles.articles.add(second_article)
             second_article.refresh_from_db()
 
         url = reverse("submit_review", args=(second_article.pk,))
@@ -349,8 +348,7 @@ def test_workload_decrease_editor(
             section=random.choice(sections),
         )
         if is_special_issue:
-            third_article.primary_issue = special_issue_without_articles
-            third_article.save()
+            special_issue_without_articles.articles.add(third_article)
             third_article.refresh_from_db()
 
         assert get_expected_editor(article_editors, third_article) != first_editor
@@ -421,8 +419,7 @@ def test_workload_decrease_eo(
             section=random.choice(sections),
         )
         if is_special_issue:
-            second_article.primary_issue = special_issue_without_articles
-            second_article.save()
+            special_issue_without_articles.articles.add(second_article)
             second_article.refresh_from_db()
 
         url = reverse("submit_review", args=(second_article.pk,))

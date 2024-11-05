@@ -506,8 +506,10 @@ def _create_rfp_article(
     request: HttpRequest,
 ) -> Article:
     """Create an article ready for publication."""
-    article.primary_issue = issue
-    article.save()
+    issue.articles.add(article)
+    # we must reload article from db as Article.primary_issue is set by a signal triggered by
+    # m2m save, and thus our in memory article object has no knowledge of that change
+    article.refresh_from_db()
 
     # Force the article to have a section named "article" to ease pubid/doi generation
     article.section.name = "Article"

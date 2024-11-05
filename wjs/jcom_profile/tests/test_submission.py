@@ -302,8 +302,8 @@ class TestInfoStage:
             journal=journal_with_three_sections,
             owner=coauthor.janeway_account,
         )
-        article.primary_issue = special_issue_with_all_sections
-        article.save()
+        special_issue_with_all_sections.articles.add(article)
+        article.refresh_from_db()
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)
@@ -340,8 +340,8 @@ class TestInfoStage:
             journal=journal_with_three_sections,
             owner=admin,
         )
-        article.primary_issue = special_issue_with_two_sections
-        article.save()
+        special_issue_with_two_sections.articles.add(article)
+        article.refresh_from_db()
 
         url = reverse("submit_info", args=(article.pk,))
         request = rf.get(url)

@@ -693,10 +693,9 @@ class Command(BaseCommand):
         # `issue.order_articles_in_sections(sort_field='date_published',
         # order='asc')` in journal.views.mange_issues
 
-        article.primary_issue = issue
-        article.save()
         issue.articles.add(article)
         issue.save()
+        article.refresh_from_db()
         logger.debug("  %s - issue (%s)", raw_data["field_id"], issue.id)
 
     def create_new_issue(self, article, raw_data) -> journal_models.Issue:
