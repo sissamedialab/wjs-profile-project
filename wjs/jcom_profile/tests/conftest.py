@@ -742,9 +742,10 @@ def editors(roles, journal):
 
 @pytest.fixture
 def special_issue(article, special_issue_without_articles):
-    article.primary_issue = special_issue_without_articles
-    article.save()
-
+    special_issue_without_articles.articles.add(article)
+    # we must reload article from db as Article.primary_issue is set by a signal triggered by
+    # m2m save, and thus our in memory article object has no knowledge of that change
+    article.refresh_from_db()
     return special_issue_without_articles
 
 

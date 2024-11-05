@@ -140,10 +140,8 @@ def test_doi_generation_jcom__independent(
     assert article.page_numbers is None
 
     issue.articles.add(article)
-    # NB: primary_issue must be explicitly set!
-    assert article.primary_issue != issue
-    article.primary_issue = issue
-    article.save()
+    article.refresh_from_db()
+    assert article.primary_issue == issue
 
     assert article.articleworkflow.compute_doi() == expected_doi
     assert article.articleworkflow.compute_pubid() == expected_pubid

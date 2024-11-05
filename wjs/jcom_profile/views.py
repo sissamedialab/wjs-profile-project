@@ -799,8 +799,8 @@ class IMUStep2(TemplateView):
         )
         article.save()  # why doesn't it get saved using `create`?!?
         article.authors.set([author])
-        article.primary_issue = self.special_issue
-        article.save()
+        self.special_issue.articles.add(article)
+        article.refresh_from_db()
         return article
 
 

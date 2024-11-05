@@ -532,10 +532,9 @@ class Command(BaseCommand):
             defaults={"order": section_order},
         )
 
-        article.primary_issue = issue
-        article.save()
         issue.articles.add(article)
         issue.save()
+        article.refresh_from_db()
         logger.debug(f"Issue {issue.volume}({issue.issue}) set for {pubid}")
 
     def set_license(self, article):
