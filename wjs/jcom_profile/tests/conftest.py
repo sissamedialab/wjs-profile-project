@@ -146,9 +146,23 @@ def set_fixed_time():
 
     If the environment variable FIXED_TIME_TEST is set, the time is fixed to 2024-01-14 23:34:45 +00:00 for all tests.
 
-    This is useful to to run tests locally on a fixed time to avoid flaky tests that depend on the current time.
+    This is useful to run tests locally on a fixed time which triggers timezone issues, to ensure tests are not
+    dependent on current time.
     """
     with freeze_time("2024-01-14 23:34:45 +00:00", tick=True):
+        yield
+
+
+@pytest.fixture(autouse=os.environ.get("MIDDAY_TIME_TEST", False), scope="session")
+def set_midday_time():
+    """
+    Set a fixed time for all tests.
+
+    If the environment variable MIDDAY_TIME_TEST is set, the time is fixed to 2024-01-14 12:34:45 +00:00 for all tests.
+
+    This is useful to run tests locally on a fixed time that guarantees there is not timezone issue.
+    """
+    with freeze_time("2024-01-14 12:34:45 +00:00", tick=True):
         yield
 
 

@@ -29,13 +29,13 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
+from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils, conditions
 from .logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
-    BaseDeassignEditor,
     DeselectReviewer,
     EvaluateReview,
     HandleDecision,
@@ -46,8 +46,8 @@ from .logic import (
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
+    SupervisorChangeEditorAssignment,
     WithdrawPreprint,
-    render_template_from_setting,
 )
 from .models import (
     ArticleWorkflow,
@@ -1277,38 +1277,33 @@ class SupervisorAssignEditorForm(forms.ModelForm):
                 initial=False,
             )
 
-    def get_logic_instance(self) -> AssignToEditor:
-        """Instantiate :py:class:`AssignToEditor` class."""
-        return AssignToEditor(
-            editor=self.cleaned_data["editor"],
-            article=self.instance.article,
-            request=self.request,
-        )
-
-    def get_deassignment_logic_instance(self) -> Optional[BaseDeassignEditor]:
+    def get_logic_instance(self) -> SupervisorChangeEditorAssignment | AssignToEditor:
         """
-        Instantiate :py:class:`DeassignFromEditor` class.
+        Instantiate :py:class:`AssignToEditor` class or :py:class:`SupervisorChangeEditorAssignment` to handle action.
 
-        If no existing assignment is found, return None (ie: no deassignment is needed).
+        If the article has no current assignment, it means the article is being assigned to an editor for the first
+        time and we can call plain AssignToEditor service. Otherwise, we call SupervisorChangeEditorAssignment
+        that handles existing review assignments as well as re-assigning the article to a new editor and removing the
+        previous one.
         """
         try:
             assignment = WjsEditorAssignment.objects.get_current(self.instance)
-            # FIXME: this class is too basic to handle this situazion, to be addressed in issue 155
-            return BaseDeassignEditor(
-                # Like in the view, assume that there is only one editorassignment for each article,
-                # the condition in the logic will double-check it.
+            return SupervisorChangeEditorAssignment(
+                article=self.instance.article,
                 assignment=assignment,
-                editor=assignment.editor,
+                new_editor=self.cleaned_data["editor"],
                 request=self.request,
             )
         except WjsEditorAssignment.DoesNotExist:
-            return None
+            return AssignToEditor(
+                editor=self.cleaned_data["editor"],
+                article=self.instance.article,
+                request=self.request,
+            )
 
     def save(self, commit: bool = True):
         try:
             service = self.get_logic_instance()
-            if service_deassignment := self.get_deassignment_logic_instance():
-                service_deassignment.run()
             service.run()
         except ValidationError as e:
             self.add_error(None, e)
