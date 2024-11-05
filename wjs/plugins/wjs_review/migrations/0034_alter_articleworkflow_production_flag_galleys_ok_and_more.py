@@ -120,8 +120,8 @@ class Migration(migrations.Migration):
             name="permission",
             field=models.CharField(
                 choices=[
-                    ("all", "visible (editor's and reviewer's identity revealed)"),
-                    ("no_names", "visible (editor’s identity NOT revealed)"),
+                    ("all", "visible (identity revealed)"),
+                    ("no_names", "visible (identity NOT revealed)"),
                     ("deny", "not visibile"),
                 ],
                 default="no_names",

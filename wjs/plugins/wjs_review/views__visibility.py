@@ -45,9 +45,10 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
         self.user = Account.objects.get(pk=kwargs["user_id"])
 
     def test_func(self):
-        return is_article_editor(self.workflow, self.request.user) or is_article_supervisor(
-            self.workflow, self.request.user
-        )
+        return (
+            is_article_editor(self.workflow, self.request.user)
+            or is_article_supervisor(self.workflow, self.request.user)
+        ) and self.request.user != self.user
 
     @property
     def title(self):

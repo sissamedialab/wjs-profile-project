@@ -66,6 +66,15 @@ class UserPermissionsForm(forms.Form):
             else:
                 self.fields["permission_secondary"].widget = forms.HiddenInput()
         self.fields["permission"].label = f"{self.object.permission_label} (target: {self.object.__class__.__name__})"
+        try:
+            subject = self.object.permission_subject
+            self.fields["permission"].choices = [
+                (value, label.format(subject))
+                for value, label in PermissionAssignment.CustomLabelPermissionType.choices
+            ]
+        except AttributeError:
+            # Not all models have a permission_subject attribute, in this case we keep the default choices labels
+            pass
         self.fields["permission_secondary"].label = (
             f"{self.fields['permission_secondary'].label} (target: {self.object.__class__.__name__})"
         )
