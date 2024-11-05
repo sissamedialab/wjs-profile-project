@@ -77,6 +77,7 @@ from .models import (
     EditorRevisionRequest,
     Message,
     PastEditorAssignment,
+    PermissionAssignment,
     Reminder,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
@@ -273,6 +274,10 @@ class AssignToEditor:
 
     def _update_state(self):
         """Run FSM transition."""
+        if self.workflow.state == ArticleWorkflow.ReviewStates.REJECTED:
+            # If we are here, EO is opening an appeal on a rejected paper.
+            # The state transition is managed elsewhere.
+            return
         if can_proceed(self.workflow.director_selects_editor):
             self.workflow.director_selects_editor()
         else:
@@ -283,12 +288,14 @@ class AssignToEditor:
         is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
         state_condition_to_be_selected = can_proceed(self.workflow.director_selects_editor)
         state_condition_assign_different_editor = can_proceed(self.workflow.editor_assign_different_editor)
+        # When EO opens appeals (for rejected papers), she chooses an editor and we can endup here.
+        state_rejected = self.workflow.state == ArticleWorkflow.ReviewStates.REJECTED
         exist_other_assignments = (
             WjsEditorAssignment.objects.get_all(self.article).exclude(editor=self.editor).count() > 1
         )
         return (
             is_section_editor
-            and (state_condition_to_be_selected or state_condition_assign_different_editor)
+            and (state_condition_to_be_selected or state_condition_assign_different_editor or state_rejected)
             and not exist_other_assignments
         )
 
@@ -387,6 +394,7 @@ class AssignToReviewer:
     form_data: Dict[str, Any]
     request: HttpRequest
     assignment: Optional[WorkflowReviewAssignment] = None
+    log_operation: bool = True
 
     @staticmethod
     def check_reviewer_conditions(workflow: ArticleWorkflow, reviewer: Account) -> bool:
@@ -605,7 +613,8 @@ class AssignToReviewer:
             if not self.assignment:
                 raise ValueError(_("Cannot assign review"))
             context = self._get_message_context()
-            self._log_operation(context=context)
+            if self.log_operation:
+                self._log_operation(context=context)
             self._create_reviewevaluate_reminders()
             self._delete_editorselectreviewer_reminders()
         return self.assignment
@@ -1422,36 +1431,133 @@ class AuthorHandleRevision:
 
 
 @dataclasses.dataclass
-class WithdrawReviewRequests:
+class DeselectReviewer:
     """
-    Mark review requests as withdrawn and log a personalized message.
+    Low-level logic to remove reviewer assignment.
+    """
 
-    Similar to DeselectReviewer.
+    assignment: WorkflowReviewAssignment
+    editor: Account
+    request: HttpRequest
+    send_reviewer_notification: bool
+    form_data: Dict[str, Any]
+    log_operation: bool = True
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "editor": self.editor,
+            "assignment": self.assignment,
+        }
+
+    def _log_operation(self):
+        """Log a message to the reviewer containing information about the motivation of the deassignment."""
+        if self.send_reviewer_notification:
+            verbosity = Message.MessageVerbosity.FULL
+            message_body = self.form_data.get("notification_body")
+            recipients = [self.assignment.reviewer]
+        else:
+            verbosity = Message.MessageVerbosity.TIMELINE
+            message_body = ""
+            recipients = []
+
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=self.form_data.get("notification_subject"),
+            message_body=message_body,
+            verbosity=verbosity,
+            actor=self.editor,
+            recipients=recipients,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    @staticmethod
+    def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
+        """Check if the editor (who does the operation) is the article's editor."""
+        return is_article_editor_or_eo(assignment.article.articleworkflow, editor)
+
+    def check_conditions(self):
+        """Check if the conditions for the deassignment are met."""
+        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
+        return editor_conditions
+
+    def _withdraw_assignment(self) -> bool:
+        """
+        Withdraw the assignment.
+        """
+        self._delete_reviewer_reminders()
+        handle_reviewer_deassignment_reminders(self.assignment)
+        self.assignment.withdraw()
+        if self.log_operation:
+            self._log_operation()
+        return True
+
+    def _delete_reviewer_reminders(self):
+        """Delete all reminders for the deassigned reviewer."""
+
+        ReviewerShouldWriteReviewReminderManager(self.assignment).delete()
+        ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).delete()
+
+    def run(self) -> bool:
+        with transaction.atomic():
+            conditions = self.check_conditions()
+            if not conditions:
+                raise ValueError(_("Transition conditions not met"))
+            success = self._withdraw_assignment()
+            return success
+
+
+@dataclasses.dataclass
+class WithdrawIncompleteReviews:
+    """
+    Withdraw all incomplete review requests of an article.
+
+    Use :py:class:`DeselectReviewer` to withdraw a single review request.
     """
 
     article: Article
     request: HttpRequest
-    subject_name: tuple[str, str]
-    body_name: tuple[str, str]
-    context: Dict[str, Any]
-    user: Account = None
+    subject_name: tuple[str, str] | None = None
+    body_name: tuple[str, str] | None = None
+    context: Dict[str, Any] | None = None
+    actor: Account = None
+    extra_filters: Dict[str, Any] = None
     form_data: dict = None
     """If provided, use the form's data for the message body instead of gettig it from a setting."""
+    log_operation: bool = True
+    """If set to false, no message is created (not even in the timeline)."""
 
-    def run(self):
-        for assignment in self.article.reviewassignment_set.filter(is_complete=False):
-            assignment.withdraw()
+    def check_conditions(self) -> bool:
+        """
+        Check if the conditions for the deassignment are met.
 
-            self._log_review_withdraw(reviewer=assignment.reviewer)
+        If log_operation is True, context and body_name and subject_name must be set.
+        If False, no check is needed.
+        """
+        content_settings_set = self.body_name and self.subject_name
+        context_set = bool(self.context)
+        return not self.log_operation or (context_set and content_settings_set)
 
-    def _log_review_withdraw(self, reviewer: Account):
-        self.context["recipient"] = reviewer
+    def _get_current_review_assignments(self) -> QuerySet[WorkflowReviewAssignment]:
+        qs = WorkflowReviewAssignment.objects.filter(
+            article=self.article,
+            is_complete=False,
+        )
+        if self.extra_filters:
+            qs = qs.filter(**self.extra_filters)
+        return qs
+
+    def _prepare_message(self, assignment: WorkflowReviewAssignment) -> tuple[str, str]:
+        context = {**self.context, "reviewer": assignment.reviewer}
         review_withdraw_subject = render_template_from_setting(
             setting_group_name=self.subject_name[1],
             setting_name=self.subject_name[0],
             journal=self.article.journal,
             request=self.request,
-            context=self.context,
+            context=context,
             template_is_setting=True,
         )
         if self.form_data and "withdraw_notice" in self.form_data:
@@ -1462,21 +1568,33 @@ class WithdrawReviewRequests:
                 setting_name=self.body_name[0],
                 journal=self.article.journal,
                 request=self.request,
-                context=self.context,
+                context=context,
                 template_is_setting=True,
             )
-        communication_utils.log_operation(
-            actor=self.user,
-            article=self.article,
-            message_subject=review_withdraw_subject,
-            recipients=[reviewer],
-            message_body=review_withdraw_message,
-            verbosity=Message.MessageVerbosity.FULL,
-            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
-            notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read=True,
-            flag_as_read_by_eo=True,
-        )
+        return review_withdraw_message, review_withdraw_subject
+
+    def run(self) -> list[WorkflowReviewAssignment]:
+        conditions = self.check_conditions()
+        if not conditions:
+            raise ValueError(_("Transition conditions not met"))
+        assignments = []
+        with transaction.atomic():
+            for assignment in self._get_current_review_assignments():
+                message_body, message_subject = self._prepare_message(assignment)
+
+                DeselectReviewer(
+                    assignment=assignment,
+                    editor=self.actor,
+                    request=self.request,
+                    send_reviewer_notification=self.log_operation,
+                    log_operation=self.log_operation,
+                    form_data={
+                        "notification_subject": message_subject,
+                        "notification_body": message_body,
+                    },
+                ).run()
+                assignments.append(assignment)
+        return assignments
 
 
 @dataclasses.dataclass
@@ -1925,13 +2043,13 @@ class HandleDecision:
         """
         Mark unfinished review requests as withdrawn.
         """
-        service = WithdrawReviewRequests(
+        service = WithdrawIncompleteReviews(
             article=self.workflow.article,
             request=self.request,
             subject_name=("editor_deassign_reviewer_subject", "wjs_review"),
             body_name=("editor_deassign_reviewer_default", "wjs_review"),
             context=email_context,
-            user=self.user,
+            actor=self.user,
             form_data=self.form_data,
         )
         service.run()
@@ -2528,6 +2646,98 @@ class BaseDeassignEditor:
 
 
 @dataclasses.dataclass
+class SupervisorChangeEditorAssignment:
+    article: Article
+    assignment: WjsEditorAssignment
+    new_editor: Account
+    request: HttpRequest
+
+    def _deassign_current_editor(self) -> Account:
+        """Deassigns the current editor using existing :py:class:`BaseDeassignEditor` logic."""
+        past_assignment = BaseDeassignEditor(
+            assignment=self.assignment, editor=self.assignment.editor, request=self.request
+        ).run()
+        return past_assignment.editor
+
+    def _assign_new_editor(self) -> WjsEditorAssignment:
+        """Assigns newly selected editor using our existing logic."""
+        return AssignToEditor(
+            editor=self.new_editor,
+            article=self.article,
+            request=self.request,
+        ).run()
+
+    def _migrate_review_assignments(self, old_editor: Account):
+        """
+        Migrate review assignments from the old editor to the new editor.
+
+        Replace editor for existing review assignments for the current review round and assign permissions to the old
+        editor on completed review assignments.
+        """
+        assignments = WorkflowReviewAssignment.objects.filter(
+            editor=old_editor, article=self.assignment.article, review_round=self.assignment.review_rounds.first()
+        )
+        for assignment in assignments:
+            if assignment.is_complete:
+                PermissionAssignment.objects.create(
+                    content_type_id=ContentType.objects.get_for_model(assignment).pk,
+                    object_id=assignment.pk,
+                    user=old_editor,
+                    permission=PermissionAssignment.PermissionType.ALL,
+                    permission_secondary=PermissionAssignment.BinaryPermissionType.ALL,
+                )
+            self._migrate_assignment_reminders(old_editor, assignment)
+        assignments.update(editor=self.new_editor)
+
+    def _migrate_assignment_reminders(self, old_editor: Account, assignment: WorkflowReviewAssignment):
+        """
+        Migrate reminders from the old editor to the new editor.
+
+        Replace editor for unsent reminders for the current article.
+        """
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(assignment),
+            object_id=assignment.pk,
+            date_sent__isnull=True,
+            recipient=old_editor,
+        ).update(recipient=self.new_editor)
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(assignment),
+            object_id=assignment.pk,
+            date_sent__isnull=True,
+            actor=old_editor,
+        ).update(actor=self.new_editor)
+
+    def _migrate_article_reminders(self, old_editor: Account):
+        """
+        Migrate reminders from the old editor to the new editor.
+
+        Replace editor for unsent reminders for the current article.
+        """
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(self.article),
+            object_id=self.article.pk,
+            date_sent__isnull=True,
+            recipient=old_editor,
+        ).update(recipient=self.new_editor)
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(self.article),
+            object_id=self.article.pk,
+            date_sent__isnull=True,
+            actor=old_editor,
+        ).update(actor=self.new_editor)
+
+    def run(self):
+        with transaction.atomic():
+            old_editor = self.assignment.editor
+            new_assignment = self._assign_new_editor()
+            self._migrate_review_assignments(old_editor)
+            self._migrate_article_reminders(old_editor)
+            self._deassign_current_editor()
+            return new_assignment
+
+
+@dataclasses.dataclass
 class HandleEditorDeclinesAssignment:
     """
     Handle disassociation of an editor from an article followed by a declination of editor assignment.
@@ -2538,8 +2748,9 @@ class HandleEditorDeclinesAssignment:
     request: HttpRequest
     form_data: Dict[str, Any]
     director: Optional[Account] = None
-    # FIXME! explain why this is optional / when it is useful
-    # see also the re-definition of self.director in run()
+    """
+    Director is loaded at runtime to send decline notifications. It's not meant to be set when initializing the class.
+    """
 
     def _get_message_context(self):
         """Get the context for the message template."""
@@ -2587,13 +2798,13 @@ class HandleEditorDeclinesAssignment:
 
     def _withdraw_unfinished_review_requests(self):
         """Mark unfinished review requests as withdrawn."""
-        service = WithdrawReviewRequests(
+        service = WithdrawIncompleteReviews(
             article=self.assignment.article,
             request=self.request,
             subject_name=("editor_decline_assignment__for_reviewers_subject", "wjs_review"),
             body_name=("editor_decline_assignment__for_reviewers_body", "wjs_review"),
             context=self._get_message_context(),
-            user=self.editor,
+            actor=self.editor,
             form_data={},
         )
         service.run()
@@ -2615,97 +2826,15 @@ class HandleEditorDeclinesAssignment:
 
     def run(self) -> PastEditorAssignment:
         with transaction.atomic():
-            try:
-                past_assignment = BaseDeassignEditor(self.assignment, self.editor, self.request).run()
-                self._save_decline_info(past_assignment)
-                self._withdraw_unfinished_review_requests()
-            except ValueError:
-                raise
+            self._withdraw_unfinished_review_requests()
+            past_assignment = BaseDeassignEditor(self.assignment, self.editor, self.request).run()
+            self._save_decline_info(past_assignment)
             self._create_director_reminder()
             self._update_state()
             self.director = communication_utils.get_director_user(self.assignment.article)
             if self.request.user == self.editor and self.director:
                 self._log_director()
             return past_assignment
-
-
-@dataclasses.dataclass
-class DeselectReviewer:
-    """
-    Remove reviewer assignment.
-
-    Similar to WithdrawReviewRequests.
-    """
-
-    assignment: WorkflowReviewAssignment
-    editor: Account
-    request: HttpRequest
-    send_reviewer_notification: bool
-    form_data: Dict[str, Any]
-
-    def _get_message_context(self):
-        """Get the context for the message template."""
-        return {
-            "editor": self.editor,
-            "assignment": self.assignment,
-        }
-
-    def _log_operation(self):
-        """Log a message to the reviewer containing information about the motivation of the deassignment."""
-        if self.send_reviewer_notification:
-            verbosity = Message.MessageVerbosity.FULL
-            message_body = self.form_data.get("notification_body")
-            recipients = [self.assignment.reviewer]
-        else:
-            verbosity = Message.MessageVerbosity.TIMELINE
-            message_body = ""
-            recipients = []
-
-        communication_utils.log_operation(
-            article=self.assignment.article,
-            message_subject=self.form_data.get("notification_subject"),
-            message_body=message_body,
-            verbosity=verbosity,
-            actor=self.editor,
-            recipients=recipients,
-            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
-            notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read=True,
-            flag_as_read_by_eo=True,
-        )
-
-    @staticmethod
-    def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
-        """Check if the editor (who does the operation) is the article's editor."""
-        return is_article_editor_or_eo(assignment.article.articleworkflow, editor)
-
-    def check_conditions(self):
-        """Check if the conditions for the deassignment are met."""
-        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
-        return editor_conditions
-
-    def _withdraw_assignment(self) -> bool:
-        """
-        Withdraw the assignment.
-        """
-        self._delete_reviewer_reminders()
-        handle_reviewer_deassignment_reminders(self.assignment)
-        self.assignment.withdraw()
-        self._log_operation()
-        return True
-
-    def _delete_reviewer_reminders(self):
-        """Delete all reminders for the deassigned reviewer."""
-        ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).delete()
-        ReviewerShouldWriteReviewReminderManager(self.assignment).delete()
-
-    def run(self) -> bool:
-        with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
-                raise ValueError(_("Transition conditions not met"))
-            success = self._withdraw_assignment()
-            return success
 
 
 @dataclasses.dataclass
@@ -2790,14 +2919,18 @@ class OpenAppeal:
             recipients=[self.article.correspondence_author],
         )
 
-    def deassign_current_editor(self):
-        """Deassigns the current editor using our existing logic."""
-        current_assignment = WjsEditorAssignment.objects.get_current(article=self.article)
-        BaseDeassignEditor(assignment=current_assignment, editor=current_assignment.editor, request=self.request).run()
+    def update_editor(self):
+        """
+        Update the editor assignment.
 
-    def assign_new_editor(self):
-        """Assigns newly selected editor using our existing logic."""
-        BaseAssignToEditor(editor=self.new_editor, article=self.article, request=self.request).run()
+        Use :py:class:`SupervisorChangeEditorAssignment` to update the editor assignment.
+        """
+        SupervisorChangeEditorAssignment(
+            article=self.article,
+            assignment=WjsEditorAssignment.objects.get_current(self.article),
+            new_editor=self.new_editor,
+            request=self.request,
+        ).run()
 
     def run(self):
         with transaction.atomic():
@@ -2805,8 +2938,7 @@ class OpenAppeal:
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
             if not self._is_current_editor(self.article, self.new_editor):
-                self.deassign_current_editor()
-                self.assign_new_editor()
+                self.update_editor()
             self._handle_decision()
             self._log_author()
 
@@ -2846,7 +2978,7 @@ class WithdrawPreprint:
 
     def _close_review_assignments(self):
         """Close all the review assignments and log reviewers."""
-        service = WithdrawReviewRequests(
+        service = WithdrawIncompleteReviews(
             article=self.workflow.article,
             request=self.request,
             subject_name=("preprint_withdrawn_subject", "wjs_review"),

@@ -2790,7 +2790,6 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
 
     def form_valid(self, form):
         """If the form is valid, save the assignment and return a response."""
-        form.save()
         self.edit_permissions = form.assign_permissions
         self.selected_editor = form.cleaned_data["editor"]
         return super().form_valid(form)

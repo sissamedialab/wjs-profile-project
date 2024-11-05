@@ -2949,7 +2949,7 @@ def test_deassign_reviewer_existing_assignment(
     extra_assignment_state: bool,
 ):
     """
-    When reviewer is deassigned, but other, created reminders depend on existing assignments.
+    When reviewer is deassigned created reminders depend on existing assignments.
     """
     # extra assignment in
     extra_assignment = _create_review_assignment(
@@ -3078,18 +3078,65 @@ def test_deassign_reviewer_no_editor(
 
 @pytest.mark.django_db
 def test_assign_different_editor(
-    assigned_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest
+    assigned_article: Article,
+    normal_user: JCOMProfile,
+    eo_user: Account,
+    fake_request: HttpRequest,
+    create_jcom_user: Callable,
+    review_form,
 ):
-    """Assigned editor can be changed by EO."""
+    """
+    Assigned editor can be changed by EO.
+
+    When switching editor, RA and reminders are updated silently to the new editor.
+    """
     normal_user.add_account_role("section-editor", assigned_article.journal)
     current_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     form_data = {
         "editor": normal_user.pk,
         "state": assigned_article.articleworkflow.state,
     }
+    reviewer1 = create_jcom_user("reviewer1")
+    reviewer2 = create_jcom_user("reviewer2")
+    accepted_ra = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer1,
+        assigned_article=assigned_article,
+    )
+    EvaluateReview(
+        assignment=accepted_ra,
+        reviewer=accepted_ra.reviewer,
+        editor=accepted_ra.editor,
+        request=fake_request,
+        form_data={"reviewer_decision": "1", "accept_gdpr": True},
+        token="",
+    ).run()
+    pending_ra = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer2,
+        assigned_article=assigned_article,
+    )
+    assert accepted_ra.editor == current_editor
+    assert pending_ra.editor == current_editor
     editors = Account.objects.get_editors_with_keywords(assigned_article, current_editor)
     assert current_editor not in editors
     assert normal_user.janeway_account in editors
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(accepted_ra),
+            object_id=accepted_ra.pk,
+            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        ).count()
+        == 2
+    )
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(pending_ra),
+            object_id=pending_ra.pk,
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        ).count()
+        == 3
+    )
     form = SupervisorAssignEditorForm(
         data=form_data,
         user=eo_user,
@@ -3102,6 +3149,73 @@ def test_assign_different_editor(
     assigned_article.refresh_from_db()
     assignment = WjsEditorAssignment.objects.get_current(assigned_article.articleworkflow)
     assert assignment.editor == normal_user.janeway_account
+    accepted_ra.refresh_from_db()
+    pending_ra.refresh_from_db()
+    assert accepted_ra.editor == normal_user.janeway_account
+    assert pending_ra.editor == normal_user.janeway_account
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(accepted_ra),
+            object_id=accepted_ra.pk,
+            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+            recipient=normal_user,
+        ).count()
+        == 1
+    )
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(accepted_ra),
+            object_id=accepted_ra.pk,
+            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+            recipient=reviewer1,
+        ).count()
+        == 1
+    )
+
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(pending_ra),
+            object_id=pending_ra.pk,
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+            actor=normal_user,
+        ).count()
+        == 2
+    )
+    assert (
+        Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(pending_ra),
+            object_id=pending_ra.pk,
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+            recipient=normal_user,
+        ).count()
+        == 1
+    )
+
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(accepted_ra),
+        object_id=accepted_ra.pk,
+        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        recipient=current_editor,
+    ).exists()
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(accepted_ra),
+        object_id=accepted_ra.pk,
+        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        actor=current_editor,
+    ).exists()
+
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(pending_ra),
+        object_id=pending_ra.pk,
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        recipient=current_editor,
+    ).exists()
+    assert not Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(pending_ra),
+        object_id=pending_ra.pk,
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        actor=current_editor,
+    ).exists()
 
 
 @pytest.mark.django_db

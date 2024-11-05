@@ -23,10 +23,12 @@ from ..models import (
     ArticleWorkflow,
     EditorRevisionRequest,
     Message,
+    PastEditorAssignment,
     WjsEditorAssignment,
 )
+from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..views import EditorArchived, SelectReviewer
+from ..views import EditorArchived, SelectReviewer, SupervisorAssignEditor
 
 
 @pytest.mark.parametrize(
@@ -879,3 +881,66 @@ def test_editor_archived(
     assert qs.count() == 2
     assert accepted.articleworkflow in qs
     assert past_assigned.articleworkflow in qs
+
+
+@pytest.mark.django_db
+def test_eo_select_editor(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    eo_user: JCOMProfile,
+    review_settings,
+):
+    """An EO can select an editor for an article without an existing editor."""
+    submitted_workflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    submitted_workflow.save()
+    fake_request.user = eo_user.janeway_account
+    fake_request.method = "POST"
+    fake_request.POST = {"editor": section_editor.janeway_account.pk}
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+    form = view.get_form()
+    assert form.is_valid()
+    response = view.form_valid(form)
+    assert response.status_code == 302
+    submitted_workflow.refresh_from_db()
+    assert is_article_editor(submitted_workflow, section_editor.janeway_account)
+    assert WjsEditorAssignment.objects.get(article=submitted_workflow.article).editor == section_editor.janeway_account
+
+
+@pytest.mark.django_db
+def test_eo_select_new_editor(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
+    review_settings,
+):
+    """An EO can select an editor for an article with an existing editor."""
+    normal_user.janeway_account.add_account_role("section-editor", assigned_article.journal)
+    old_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    fake_request.user = eo_user.janeway_account
+    fake_request.method = "POST"
+    fake_request.POST = {"editor": normal_user.janeway_account.pk}
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (assigned_article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = assigned_article.articleworkflow
+    form = view.get_form()
+    assert form.is_valid()
+    response = view.form_valid(form)
+    assert response.status_code == 302
+    assigned_article.articleworkflow.refresh_from_db()
+    assert is_article_editor(assigned_article.articleworkflow, normal_user.janeway_account)
+    assert not is_article_editor(assigned_article.articleworkflow, old_editor)
+    assert (
+        WjsEditorAssignment.objects.get(article=assigned_article.articleworkflow.article).editor
+        == normal_user.janeway_account
+    )
+    assert PastEditorAssignment.objects.get(article=assigned_article.articleworkflow.article).editor == old_editor
