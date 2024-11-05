@@ -14,7 +14,7 @@
                         <span>{{ field.label }}</span>
                     {% endif %}
                     {% for error in field.errors %}
-                        <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+                        <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
                     {% endfor %}
 
             </label>
@@ -46,7 +46,7 @@
 
             </ul>
             {% for error in field.errors %}
-                <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+                <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
             {% endfor %}
 
             {% if field.help_text %}
@@ -70,7 +70,7 @@
                         <span>{{ field.label }}</span>
                     {% endif %}
                     {% for error in field.errors %}
-                        <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+                        <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
                     {% endfor %}
             </label>
             {% if field.help_text %}
@@ -90,7 +90,7 @@
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
 
         {% for error in field.errors %}
-            <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+            <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
         {% endfor %}
 
         {% if field.help_text %}
@@ -110,7 +110,7 @@
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
 
         {% for error in field.errors %}
-            <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+            <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
         {% endfor %}
 
         {% if field.help_text %}
@@ -136,7 +136,7 @@
                 {% endif %}
 
                 {% for error in field.errors %}
-                    <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+                    <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
                 {% endfor %}
 
                 {% if field.help_text %}
@@ -159,7 +159,7 @@
                 {% endif %}
 
                 {% for error in field.errors %}
-                    <span class="help-block {{ form.error_css_class }}">{{ error }}</span>
+                    <span class="help-block helper-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</span>
                 {% endfor %}
 
                 {% if field.help_text %}
@@ -183,7 +183,7 @@
             {% endif %}
 
             {% for error in field.errors %}
-                <p class="help-block orange-text {{ form.error_css_class }}">{{ error }}</p>
+                <p class="help-block orange-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</p>
                 {% endfor %}
 
             {% if field.help_text %}
@@ -197,7 +197,7 @@
         <div class="col {{ classes.label }} {{ classes.value }} {{ classes.single_value }} {% if field.field.required %}{{ form.required_css_class|default:"required_field" }}{% endif %}">
 
             {% for error in field.errors %}
-                <p class="help-block orange-text {{ form.error_css_class }}">{{ error }}</p>
+                <p class="help-block orange-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</p>
             {% endfor %}
 
             <div class="file-field input-field">
@@ -225,7 +225,7 @@
             {% endif %}
 
             {% for error in field.errors %}
-                <p class="help-block orange-text {{ form.error_css_class }}">{{ error }}</p>
+                <p class="help-block orange-text {{ form.error_css_class|default:"form-error" }}">{{ error }}</p>
                 {% endfor %}
 
             {% if field.help_text %}
