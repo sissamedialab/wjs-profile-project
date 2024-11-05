@@ -13,6 +13,7 @@ from wjs.jcom_profile import permissions as base_permissions
 from . import permissions
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     PastEditorAssignment,
     PermissionAssignment,
     WjsEditorAssignment,
@@ -287,6 +288,8 @@ class EditorPermissionChecker(BasePermissionChecker):
             past_editor = PastEditorAssignment.objects.filter(editor=self.user, article=self.instance.article).exists()
             return past_editor
         if isinstance(self.instance, EditorAssignment):
+            return self.instance.editor == self.user
+        if isinstance(self.instance, EditorDecision):
             return self.instance.editor == self.user
         if isinstance(self.instance, RevisionRequest):
             return self.instance.editor == self.user

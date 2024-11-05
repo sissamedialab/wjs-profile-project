@@ -104,6 +104,7 @@ def _create_rr_objects(
                 workflow=article.articleworkflow,
                 review_round=review_round,
                 decision=article.articleworkflow.Decisions.MINOR_REVISION,
+                editor=editor,
             ),
         )
         revision.append(
@@ -595,7 +596,7 @@ def test_permission_form_view_setup_editor(
     |   1 | ReviewAssignment 1 R2 |                       | 2     | editor 2              |
     |   2 | ReviewAssignment 2 R2 |                       | 2     | editor 2              |
     |   3 | ReviewAssignment 3 R2 |                       | 2     | editor 2              |
-    |   4 | EditorDecision R2     | revision req R2       | **2** |                       |
+    |   4 | EditorDecision R2     | revision req R2       | **2** | editor 2              |
     |   5 | RevisionRequest R1    | revision author cover | 2     | editor 1              |
     |   6 | ReviewAssignment 1 R1 |                       | 1     | editor 1              |
     |   7 | ReviewAssignment 2 R1 |                       | 1     | editor 1              |
@@ -653,8 +654,6 @@ def test_permission_form_view_setup_editor(
     assert objs[4].round == 2
     assert not objs[4].author_notes
 
-    # FIXME: is this true?
-    # EditorRevisionRequest is "duplicated" in next review round for selecting author notes
     assert isinstance(objs[5].object, EditorRevisionRequest)
     assert objs[5].round == 2
     assert objs[5].author_notes
@@ -682,11 +681,11 @@ def test_permission_form_view_setup_editor(
         if index == 0:
             assert item["permission"] == PermissionAssignment.PermissionType.ALL
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        elif index in (4, 5, 6, 7, 8, 9):
+        elif index in (5, 6, 7, 8, 9):
             # Objects of the previous review round
             assert item["permission"] == PermissionAssignment.PermissionType.DENY
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
-        elif index in (1, 2, 3, 10):
+        elif index in (1, 2, 3, 4, 10):
             # Objects of the current review round
             assert item["permission"] == PermissionAssignment.PermissionType.ALL
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
@@ -708,11 +707,11 @@ def test_permission_form_view_setup_editor(
         if index == 0:
             assert item["permission"] == PermissionAssignment.PermissionType.DENY
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY
-        elif index in (5, 6, 7, 8, 10):
+        elif index in (5, 6, 7, 8, 9, 10):
             # Objects of the previous review round
             assert item["permission"] == PermissionAssignment.PermissionType.ALL
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
-        elif index in (1, 2, 3, 4, 9):
+        elif index in (1, 2, 3, 4):
             # Objects of the current review round
             assert item["permission"] == PermissionAssignment.PermissionType.DENY
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.DENY

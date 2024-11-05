@@ -113,6 +113,7 @@ states_when_article_is_considered_archived = [
     ArticleWorkflow.ReviewStates.REJECTED,
     ArticleWorkflow.ReviewStates.NOT_SUITABLE,
     ArticleWorkflow.ReviewStates.PUBLISHED,
+    ArticleWorkflow.ReviewStates.UNDER_APPEAL,
 ]
 
 # "In review" means articles that are
@@ -249,7 +250,7 @@ class BaseAssignToEditor:
     def run(self) -> WjsEditorAssignment:
         with transaction.atomic():
             assignment = self._assign_editor()
-            return assignment
+        return assignment
 
 
 @dataclasses.dataclass
@@ -288,7 +289,7 @@ class AssignToEditor:
         is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
         state_condition_to_be_selected = can_proceed(self.workflow.director_selects_editor)
         state_condition_assign_different_editor = can_proceed(self.workflow.editor_assign_different_editor)
-        # When EO opens appeals (for rejected papers), she chooses an editor and we can endup here.
+        # When EO opens appeals (for rejected papers), she chooses an editor and we can end up here.
         state_rejected = self.workflow.state == ArticleWorkflow.ReviewStates.REJECTED
         exist_other_assignments = (
             WjsEditorAssignment.objects.get_all(self.article).exclude(editor=self.editor).count() > 1
@@ -2058,6 +2059,7 @@ class HandleDecision:
         """Store decision information."""
         decision = EditorDecision.objects.create(
             workflow=self.workflow,
+            editor=self.user,
             review_round=self.workflow.article.current_review_round_object(),
             decision=self.form_data["decision"],
             decision_editor_report=self.form_data["decision_editor_report"],

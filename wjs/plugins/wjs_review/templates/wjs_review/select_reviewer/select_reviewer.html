@@ -2,7 +2,7 @@
 {% load django_bootstrap5 static wjs_permissions wjs_review %}
 
 {% block content_wrapper %}
-  {% user_has_access_to workflow=workflow user=request.user target=workflow.article permission_type="all" as has_full_access %}
+  {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=PermissionType.ALL as has_full_access %}
 
   <div class="container mb-3">
     <div class="row">

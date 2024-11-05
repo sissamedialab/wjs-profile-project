@@ -1059,6 +1059,9 @@ class EditorDecision(TimeStampedModel):
         on_delete=models.PROTECT,
         related_name="decisions",
     )
+    editor = models.ForeignKey(
+        Account, verbose_name=_("Editor"), on_delete=models.PROTECT, related_name="editor_decisions"
+    )
     review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     decision = models.CharField(max_length=255, choices=ArticleWorkflow.Decisions.choices)
     decision_editor_report = models.TextField(blank=True, null=True)
@@ -1075,6 +1078,12 @@ class EditorDecision(TimeStampedModel):
         return EditorRevisionRequest.objects.get(
             article=self.workflow.article,
             review_round=self.review_round,
+        )
+
+    def get_editor_assignment(self):
+        return WjsEditorAssignment.objects.get(
+            article=self.workflow.article,
+            review_rounds=self.review_round,
         )
 
     @property

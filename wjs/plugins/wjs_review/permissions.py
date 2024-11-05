@@ -331,7 +331,7 @@ def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     :param user: The user to check for role.
     :type user: Account
 
-    :return: True if the user has section editor or reviewer role on the journal, False otherwise.
+    :return: True if the user is a curent editor for the given article, False otherwise.
     :rtype: bool
     """
     from .models import WjsEditorAssignment
@@ -339,6 +339,27 @@ def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     return (
         has_any_editor_role_by_article(instance, user)
         and WjsEditorAssignment.objects.get_all(instance).filter(editor=user).exists()
+    )
+
+
+def is_past_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is an editor and has :py:class:`PastEditorAssignment` to the given article.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is a past editor for the given article, False otherwise.
+    :rtype: bool
+    """
+    from .models import PastEditorAssignment
+
+    return (
+        has_any_editor_role_by_article(instance, user)
+        and PastEditorAssignment.objects.filter(article=instance.article, editor=user).exists()
     )
 
 
