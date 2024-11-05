@@ -546,6 +546,7 @@ class EditorSelected(BaseState):
             querystring_params={"decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION},
         ),
     ) + BaseState.article_actions
+
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
             assignment_permission=permissions.is_assignment_reviewer,
@@ -626,7 +627,7 @@ class EditorSelected(BaseState):
             view_name="wjs_deselect_reviewer",
         ),
         ReviewAssignmentAction(
-            permission=permissions.is_article_pure_editor_or_eo,
+            assignment_permission=permissions.can_see_reviewer_name,
             condition=conditions.review_not_done,
             name="set visibility",
             label='Set visibility rights <i class="bi bi-sliders"></i>',

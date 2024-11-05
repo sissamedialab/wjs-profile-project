@@ -629,3 +629,27 @@ def is_person_working_on_article(instance: "ArticleWorkflow", user: Account) -> 
         or is_article_supervisor(instance, user)
         or is_article_reviewer(instance, user)
     )
+
+
+def can_see_reviewer_name(assignment: "WorkflowReviewAssignment", user: Account) -> bool:
+    """
+    Check if the user can see the reviewer name.
+
+    :param assignment: An instance of the WorkflowReviewAssignment class.
+    :type assignment: WorkflowReviewAssignment
+    :param user: The user to check for role.
+    :type user: Account
+    :return: True if the user can see the reviewer name
+    :rtype: bool
+    """
+    from .logic__visibility import PermissionChecker
+    from .models import PermissionAssignment
+
+    is_editor = is_article_pure_editor_or_eo
+
+    return is_editor and PermissionChecker()(
+        assignment.article.articleworkflow,
+        user,
+        assignment,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )

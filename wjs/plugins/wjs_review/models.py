@@ -1090,6 +1090,11 @@ class EditorDecision(TimeStampedModel):
     def permission_label(self) -> str:
         return _(f"Editor {self.get_revision_request().editor}'s report")
 
+    @property
+    def permission_subject(self) -> Account:
+        """Return the subject of the custom permission."""
+        return self.editor
+
 
 class Message(TimeStampedModel):
     """A generic message.
@@ -1485,6 +1490,11 @@ class EditorRevisionRequest(RevisionRequest):
     def permission_label(self) -> str:
         return _(f"Editor {self.editor}'s report")
 
+    @property
+    def permission_subject(self) -> Account:
+        """Return the subject of the custom permission."""
+        return self.editor
+
 
 class WorkflowReviewAssignment(ReviewAssignment):
     """
@@ -1527,6 +1537,11 @@ class WorkflowReviewAssignment(ReviewAssignment):
     @property
     def permission_label(self) -> str:
         return _(f"Reviewer {self.reviewer}'s report")
+
+    @property
+    def permission_subject(self) -> Account:
+        """Return the subject of the custom permission."""
+        return self.reviewer
 
     @property
     def previous_review_round(self) -> Optional[ReviewRound]:
@@ -1633,14 +1648,27 @@ class PermissionAssignment(TimeStampedModel):
     class PermissionType(models.TextChoices):
         """Full set of permissions."""
 
-        ALL = "all", _("visible (editor's and reviewer's identity revealed)")
-        NO_NAMES = "no_names", _("visible (editor’s identity NOT revealed)")
+        ALL = "all", _("visible (identity revealed)")
+        NO_NAMES = "no_names", _("visible (identity NOT revealed)")
         DENY = "deny", _("not visibile")
 
     class BinaryPermissionType(models.TextChoices):
         """Subset of PermissionType for basic allow / deny check."""
 
         ALL = "all", _("visible")
+        DENY = "deny", _("not visibile")
+
+    class CustomLabelPermissionType(models.TextChoices):
+        """
+        Permission types with customisable labels.
+
+        This set of choices must only be used to define UserPermissionsForm.permission.choices when labels must be
+        customised to include name/role of the person the permission subject (ie: the person whose data the permission
+        grant/deny control).
+        """
+
+        ALL = "all", _("visible ({}’s identity revealed)")
+        NO_NAMES = "no_names", _("visible ({}’s identity NOT revealed)")
         DENY = "deny", _("not visibile")
 
     user = models.ForeignKey(Account, verbose_name=_("User"), on_delete=models.CASCADE)
