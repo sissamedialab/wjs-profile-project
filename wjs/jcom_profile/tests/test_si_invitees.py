@@ -175,4 +175,4 @@ class TestSIInvitees:
         assert html.find(f".//input[@value='{si_no_invitees.id}']") is not None
         assert html.find(f".//input[@value='{si_vodka.id}']") is not None
         assert html.find(f".//input[@value='{si_lafestadellemedie.id}']") is None
-        assert len(html.findall(".//input[@name='primary_issue']")) == 3  # 2 SIs + normal submission
+        assert len(html.findall(".//input[@name='projected_issue']")) == 3  # 2 SIs + normal submission

@@ -125,8 +125,7 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
             # These info are stored in editor_revisions, but they are intended more
             # as the author's introduction to the next round/version,
             # and not as the author's answer to the revision request
-            # Therefore we duplicate the object with author_notes flag, and move it to the next round
-            # It will be rendered twice but using different set of fields
+            # Therefore we mark editor_revision as being object of the next round
             + [
                 PermissionTargetObject(
                     object_type=editor_revisions_type.pk,

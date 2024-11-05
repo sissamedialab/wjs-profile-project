@@ -58,8 +58,8 @@ def user_has_access_to(
     .. block:: html
 
         {% for review in round.reviewassignment_set.all %}
-            {% user_has_access_to workflow user review PermissionType.ALL as all_access %}
-            {% user_has_access_to workflow user review PermissionType.NO_NAMES as no_names %}
+            {% user_has_access_to workflow=workflow user=user target=review permission_type=PermissionType.ALL review_round=round.round_number as all_access %}     # noqa
+            {% user_has_access_to workflow=workflow user=user target=review permission_type=PermissionType.NO_NAMES review_round=round.round_number as no_names %}  # noqa
             {% if no_names %}
                 <div class="card-body">
                     Assignment {{ assignment.id }}{% if all_access %} to {{ assignment.reviewer }}{% endif %}.

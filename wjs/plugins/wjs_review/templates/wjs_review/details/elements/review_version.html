@@ -11,44 +11,46 @@
       <div class="vstack gap-3">
         <div>
           {% for decision in version.decisions %}
-            {% user_has_access_to workflow user decision PermissionType.ALL as all_files %}
-            {% user_has_access_to workflow user decision PermissionType.NO_NAMES as no_names %}
+            {% user_has_access_to workflow=workflow user=request.user target=decision permission_type=PermissionType.ALL review_round=version.number as all_access %}
+            {% user_has_access_to workflow=workflow user=request.user target=decision permission_type=PermissionType.NO_NAMES review_round=version.number as no_names %}
             {% if no_names or all_files %}
-              {% include "wjs_review/details/elements/review_decision.html" with show_name=all_files %}
+              {% if decision.decision != "open_appeal" %}
+                {% include "wjs_review/details/elements/review_decision.html" with show_name=all_files %}
+              {% endif %}
             {% endif %}
           {% endfor %}
         </div>
         <div>
           {% for revision in version.revision_requests %}
-            {% user_has_access_to workflow user revision PermissionType.ALL as all_files %}
-            {% user_has_access_to workflow user revision PermissionType.NO_NAMES as no_names %}
+            {% user_has_access_to workflow=workflow user=request.user target=revision permission_type=PermissionType.ALL review_round=version.number as all_access %}
+            {% user_has_access_to workflow=workflow user=request.user target=revision permission_type=PermissionType.NO_NAMES review_round=version.number as no_names %}
             {% if no_names or all_files %}
               {% include "wjs_review/details/elements/review_revision.html" with article_info=revision %}
             {% endif %}
           {% empty %}
-            {% user_has_access_to workflow user workflow PermissionType.ALL as all_files %}
-            {% user_has_access_to workflow user workflow PermissionType.NO_NAMES as no_names %}
+            {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=PermissionType.ALL review_round=version.number as all_access %}
+            {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=PermissionType.NO_NAMES review_round=version.number as no_names %}
             {% if no_names or all_files %}
               {% include "wjs_review/details/elements/review_revision.html" with article_info=workflow.article %}
             {% endif %}
           {% endfor %}
         </div>
         {% if version.number == 1 %}
-          {% user_has_access_to workflow user workflow BinaryPermissionType.ALL secondary_permission=True as all_files %}
+          {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as all_files %}
           {% if all_files and article.comments_editor %}
             <div>
               {% include "wjs_review/details/elements/review_cover.html" %}
             </div>
           {% endif %}
         {% elif version.main_revision %}
-          {% user_has_access_to workflow user version.main_revision BinaryPermissionType.ALL secondary_permission=True as all_files %}
+          {% user_has_access_to workflow=workflow user=request.user target=version.main_revision permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as all_files %}
           {% if all_files and version.main_revision.author_note %}
             <div>
               {% include "wjs_review/details/elements/review_cover.html" %}
             </div>
           {% endif %}
         {% endif %}
-        {% if workflow|is_user_article_reviewer:request.user or workflow|is_user_article_manager:request.user %}
+        {% if workflow|is_user_article_reviewer:request.user or workflow|is_user_article_manager:request.user or workflow|is_user_past_article_editor:request.user %}
           <div class="vstack gap-4">
             {% for stage, assignments in version.assignments_by_stage.items %}
               {% include "wjs_review/details/elements/review_assignment_list.html" %}

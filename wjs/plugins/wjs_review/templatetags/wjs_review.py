@@ -364,6 +364,12 @@ def is_user_article_editor(article: ArticleWorkflow, user: Account) -> bool:
 
 
 @register.filter
+def is_user_past_article_editor(article: ArticleWorkflow, user: Account) -> bool:
+    """Returns if user is a past editor of the article."""
+    return permissions.is_past_article_editor(article, user)
+
+
+@register.filter
 def is_user_director(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a Director."""
     return permissions.has_director_role_by_article(article, user)
