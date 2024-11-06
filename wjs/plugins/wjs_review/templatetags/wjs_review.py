@@ -332,6 +332,15 @@ def message_read_by_all(message: Message) -> bool:
 
 
 @register.filter
+def message_read_by_me(message: Message, user: Account) -> bool:
+    """Return True if the message has been read by user (and user is recipient)."""
+    return message.recipients.filter(
+        messagerecipients__read=False,
+        messagerecipients__recipient=user.pk,
+    ).exists()
+
+
+@register.filter
 def assignment_requires_attention_tt(assignment: ReviewAssignment, user: Account = None):
     """Tell if the assignment requires attention.
 

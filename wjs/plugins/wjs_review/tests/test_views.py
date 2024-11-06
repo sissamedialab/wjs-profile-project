@@ -646,6 +646,7 @@ def test_decline_invite(
             "request": request,
             "review_assignment": review_assignment_invited_user,
             "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment_invited_user.id}),
+            "additional_comments": reason,
         }
         message_subject = render_template_from_setting(
             setting_group_name="email_subject",

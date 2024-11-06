@@ -775,6 +775,8 @@ class EvaluateReview:
             "article": self.assignment.article,
             "request": self.request,
             "review_assignment": self.assignment,
+            # NB: don't confuse with assignment.comments_for_editor
+            "additional_comments": self.form_data["additional_comments"],
             "review_url": reverse("wjs_review_review", kwargs={"assignment_id": self.assignment.id}),
             # Please note that this same context is used also for notifications to the editor (who don't have access to
             # the `review_url` page)
@@ -785,6 +787,8 @@ class EvaluateReview:
             "article": self.assignment.article,
             "request": self.request,
             "review_assignment": self.assignment,
+            # NB: don't confuse with assignment.comments_for_editor
+            "additional_comments": self.form_data["additional_comments"],
         }
 
     def _log_postpone_too_far_in_the_future(self):
@@ -877,6 +881,8 @@ class EvaluateReview:
             actor=None,
             recipients=[self.assignment.reviewer],
             verbosity=Message.MessageVerbosity.EMAIL,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -935,8 +941,11 @@ class EvaluateReview:
             article=self.assignment.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=self.assignment.reviewer,
+            actor=None,
             recipients=[self.assignment.reviewer],
+            verbosity=Message.MessageVerbosity.EMAIL,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )
@@ -1125,13 +1134,21 @@ class SubmitReview:
         - To the reviewer(s) (settings: {subject_,}review_complete_reviewer_acknowledgement)
         - To the editor(s): (settings: {subject_,}review_complete_acknowledgement)
         """
-        # Message to the reviewer
+        context = self._get_reviewer_message_context()
+        if self.assignment.reviewer != self.assignment.editor:
+            self._thank_reviewer(context)
+            self._notify_editor(context, verbosity=Message.MessageVerbosity.FULL)
+        else:
+            self._notify_editor(context, verbosity=Message.MessageVerbosity.TIMELINE)
+
+    def _thank_reviewer(self, context: dict):
+        """Send thank-you message to reviewer."""
         reviewer_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_complete_reviewer_acknowledgement",
             journal=self.assignment.article.journal,
             request=self.request,
-            context=self._get_reviewer_message_context(),
+            context=context,
             template_is_setting=True,
         )
         reviewer_message_body = render_template_from_setting(
@@ -1139,28 +1156,28 @@ class SubmitReview:
             setting_name="review_complete_reviewer_acknowledgement",
             journal=self.assignment.article.journal,
             request=self.request,
-            context=self._get_reviewer_message_context(),
+            context=context,
             template_is_setting=True,
         )
-        if self.assignment.reviewer == self.assignment.editor:
-            verbosity = Message.MessageVerbosity.EMAIL
-        else:
-            verbosity = Message.MessageVerbosity.FULL
         communication_utils.log_operation(
             # no actor as it's a system message
             article=self.assignment.article,
             message_subject=reviewer_message_subject,
             message_body=reviewer_message_body,
             recipients=[self.assignment.reviewer],
-            verbosity=verbosity,
+            verbosity=Message.MessageVerbosity.EMAIL,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
-        # Message to the editor
+
+    def _notify_editor(self, context, verbosity):
+        """Send notification to editor."""
         editor_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_complete_acknowledgement",
             journal=self.assignment.article.journal,
             request=self.request,
-            context=self._get_reviewer_message_context(),
+            context=context,
             template_is_setting=True,
         )
         editor_message_body = render_template_from_setting(
@@ -1168,7 +1185,7 @@ class SubmitReview:
             setting_name="review_complete_acknowledgement",
             journal=self.assignment.article.journal,
             request=self.request,
-            context=self._get_reviewer_message_context(),
+            context=context,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -1178,6 +1195,8 @@ class SubmitReview:
             message_body=editor_message_body,
             recipients=[self.assignment.editor],
             verbosity=verbosity,
+            flag_as_read=False if verbosity == Message.MessageVerbosity.FULL else True,
+            flag_as_read_by_eo=True,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
         )

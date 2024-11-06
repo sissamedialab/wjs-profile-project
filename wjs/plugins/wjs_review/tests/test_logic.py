@@ -911,8 +911,12 @@ def test_handle_accept_invite_reviewer(
 
     invited_user = review_assignment_invited_user.reviewer
     assignment = assigned_article.reviewassignment_set.first()
-
-    evaluate_data = {"reviewer_decision": "1", "accept_gdpr": accept_gdpr}
+    additional_comments = "Additional comments"
+    evaluate_data = {
+        "reviewer_decision": "1",
+        "accept_gdpr": accept_gdpr,
+        "additional_comments": additional_comments,
+    }
 
     # Message related to the editor assignment
     assert Message.objects.count() == 1
@@ -949,6 +953,7 @@ def test_handle_accept_invite_reviewer(
             "request": fake_request,
             "review_assignment": assignment,
             "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
+            "additional_comments": additional_comments,
         }
 
         message_subject = render_template_from_setting(
@@ -1006,8 +1011,12 @@ def test_handle_decline_invite_reviewer(
     invited_user = review_assignment_invited_user.reviewer
     assignment = assigned_article.reviewassignment_set.first()
     fake_request.GET = {"access_code": assignment.access_code}
-
-    evaluate_data = {"reviewer_decision": "0", "accept_gdpr": accept_gdpr}
+    additional_comments = "Additional comments"
+    evaluate_data = {
+        "reviewer_decision": "0",
+        "accept_gdpr": accept_gdpr,
+        "additional_comments": additional_comments,
+    }
 
     # Message related to the editor assignment
     assert Message.objects.count() == 1
@@ -1036,6 +1045,7 @@ def test_handle_decline_invite_reviewer(
         "request": fake_request,
         "review_assignment": assignment,
         "review_url": reverse("wjs_review_review", kwargs={"assignment_id": assignment.id}),
+        "additional_comments": additional_comments,
     }
     message_subject = render_template_from_setting(
         setting_group_name="email_subject",
@@ -2894,7 +2904,7 @@ def test_deassign_reviewer(
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
             token="",
         ).run()
     # reset messages from article fixture processing
@@ -2963,7 +2973,7 @@ def test_deassign_reviewer_existing_assignment(
             reviewer=extra_assignment.reviewer,
             editor=extra_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "0", "accept_gdpr": True},
+            form_data={"reviewer_decision": "0", "accept_gdpr": True, "additional_comments": "Additional comments"},
             token="",
         ).run()
     elif extra_assignment_state == "accepted":
@@ -2972,7 +2982,7 @@ def test_deassign_reviewer_existing_assignment(
             reviewer=extra_assignment.reviewer,
             editor=extra_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
             token="",
         ).run()
     elif extra_assignment_state == "completed":
@@ -3044,7 +3054,7 @@ def test_deassign_reviewer_no_editor(
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "1", "accept_gdpr": True},
+            form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
             token="",
         ).run()
     # reset messages from article fixture processing
@@ -3108,7 +3118,7 @@ def test_assign_different_editor(
         reviewer=accepted_ra.reviewer,
         editor=accepted_ra.editor,
         request=fake_request,
-        form_data={"reviewer_decision": "1", "accept_gdpr": True},
+        form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
         token="",
     ).run()
     pending_ra = _create_review_assignment(
