@@ -375,7 +375,7 @@ def test_reviewer_accepts__deletes_some_reminders(
         assignment=service__assign_reviewer.assignment,
         reviewer=service__assign_reviewer.reviewer,
         editor=service__assign_reviewer.editor,
-        form_data={"reviewer_decision": "1"},
+        form_data={"reviewer_decision": "1", "additional_comments": "Additional comments"},
         request=fake_request,
         token="",
     )
@@ -489,7 +489,7 @@ class TestReviewerDeclines:
             assignment=review_assignment,
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
-            form_data={"reviewer_decision": "0"},
+            form_data={"reviewer_decision": "0", "additional_comments": "Additional comments"},
             request=fake_request,
             token="",
         ).run()
@@ -581,7 +581,7 @@ class TestReviewerDeclines:
             assignment=review_assignment,
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
-            form_data={"reviewer_decision": "0"},
+            form_data={"reviewer_decision": "0", "additional_comments": "Additional comments"},
             request=fake_request,
             token="",
         ).run()
@@ -658,7 +658,7 @@ class TestReviewerDeclines:
             assignment=review_assignment,
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
-            form_data={"reviewer_decision": "0"},
+            form_data={"reviewer_decision": "0", "additional_comments": "Additional comments"},
             request=fake_request,
             token="",
         ).run()
@@ -798,7 +798,7 @@ class TestReviewerSubmits:
             assignment=review_assignment_r1,
             reviewer=r1,
             editor=editor,
-            form_data={"reviewer_decision": "0"},
+            form_data={"reviewer_decision": "0", "additional_comments": "Additional comments"},
             request=fake_request,
             token="",
         ).run()
@@ -994,7 +994,7 @@ def test_reminders_handling_for_reviewer_cycle(
         assignment=assignment,
         reviewer=assignment.reviewer,
         editor=assignment.editor,
-        form_data={"reviewer_decision": "1"},
+        form_data={"reviewer_decision": "1", "additional_comments": "Additional comments"},
         request=fake_request,
         token="",
     )
@@ -1237,7 +1237,7 @@ def test_three_papers_three_reviewers(
         assignment=assignment_A_r2,
         reviewer=ra2,
         editor=e1,
-        form_data={"reviewer_decision": "1", "date_due": t2},
+        form_data={"reviewer_decision": "1", "date_due": t2, "additional_comments": "Additional comments"},
         request=fake_request,
         token="",
     ).run()
@@ -1276,7 +1276,7 @@ def test_three_papers_three_reviewers(
         assignment=assignment_D_r1,
         reviewer=rd1,
         editor=e2,
-        form_data={"reviewer_decision": "1", "date_due": t1},
+        form_data={"reviewer_decision": "1", "date_due": t1, "additional_comments": "Additional comments"},
         request=fake_request,
         token="",
     ).run()
@@ -1792,6 +1792,7 @@ class TestResetDate:
                 form_data={
                     "reviewer_decision": "2",
                     "date_due": new_date_due,
+                    "additional_comments": "Additional comments",
                 },
                 request=fake_request,
                 token="",
@@ -1832,6 +1833,7 @@ class TestResetDate:
             form_data={
                 "reviewer_decision": "2",
                 "date_due": new_date_due,
+                "additional_comments": "Additional comments",
             },
             request=fake_request,
             token="",
@@ -1856,7 +1858,7 @@ class TestResetDate:
             assignment=review_assignment,
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
-            form_data={"reviewer_decision": "1", "accept_gdpr": 1},
+            form_data={"reviewer_decision": "1", "accept_gdpr": 1, "additional_comments": "Additional comments"},
             request=fake_request,
             token="",
         ).run()
@@ -1884,6 +1886,7 @@ class TestResetDate:
                 "reviewer_decision": "1",
                 "accept_gdpr": 1,
                 "date_due": new_date_due,
+                "additional_comments": "Additional comments",
             },
             request=fake_request,
             token="",

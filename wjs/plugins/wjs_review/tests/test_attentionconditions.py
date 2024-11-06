@@ -478,7 +478,10 @@ def test_reviewer_is_late(
         assignment=assignment,
         reviewer=reviewer.janeway_account,
         editor=section_editor,
-        form_data={"reviewer_decision": "1"},  # "1" means "accept"
+        form_data={
+            "reviewer_decision": "1",  # "1" means "accept"
+            "additional_comments": "Additional comments",
+        },
         request=fake_request,
         token="",
     ).run()

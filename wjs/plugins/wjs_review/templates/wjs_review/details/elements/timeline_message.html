@@ -3,10 +3,10 @@
   <div class="me-1" title="{{ message.message_type }}">
     <i class="bi {{ message|message_type_icon }}"></i>
   </div>
-  <div class="me-1 flex-grow-1">
+  <div class="me-1 flex-grow-1 {% if message|message_read_by_me:request.user %}fw-bold{% endif %}">
     {% if message.message_type == message.MessageTypes.NOTE %}
       <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">
-        <b>{% translate "Personal note" %}</b>
+        {% translate "Personal note" %}
       </a>
       <br>
       {{ message.subject }}
@@ -19,7 +19,7 @@
         {{ message.subject }}
       </a>
       <br>
-      <small><b>{{ message.actor }}</b> {% if message.recipients.exists %} -> <b>{{ message.recipients.all|join:", " }}</b>{% endif %}</small>
+      <small>{{ message.actor }} {% if message.recipients.exists %} -> {{ message.recipients.all|join:", " }}{% endif %}</small>
     {% endif %}
   </div>
   <div class="align-self-start text-end" title="{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}">

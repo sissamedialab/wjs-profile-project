@@ -110,7 +110,7 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
                     object=self.workflow,
                     round=1,  # "Fake" review round to tag the initial submission, to order it before all the other
                     author_notes=True,
-                    date_reference=self.workflow.article.date_submitted or self.workflow.article.date_created,
+                    date_reference=self.workflow.article.date_submitted or self.workflow.article.date_started,
                 )
             ]
             + [
