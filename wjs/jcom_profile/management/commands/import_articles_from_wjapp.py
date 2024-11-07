@@ -11,6 +11,7 @@ from core import files
 from core.middleware import GlobalRequestMiddleware
 from core.models import Account
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File as DjangoFile
 from django.core.management.base import BaseCommand
@@ -26,7 +27,10 @@ from plugins.wjs_review.logic import (
     EditorRevisionRequest,
     EvaluateReview,
     HandleDecision,
+    HandleEditorDeclinesAssignment,
+    OpenAppeal,
     SubmitReview,
+    WithdrawPreprint,
     WorkflowReviewAssignment,
     render_template_from_setting,
 )
@@ -35,6 +39,7 @@ from plugins.wjs_review.models import (
     EditorDecision,
     Message,
     MessageRecipients,
+    PastEditorAssignment,
     WjsEditorAssignment,
 )
 from plugins.wjs_review.utils import get_report_form
@@ -49,6 +54,7 @@ from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.management.commands.import_from_drupal import (
     JOURNALS_DATA,
@@ -59,6 +65,7 @@ from wjs.jcom_profile.management.commands.import_from_wjapp import (
     SECTIONS_MAPPING,
     check_mappings,
 )
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
 
 
@@ -179,6 +186,34 @@ class Command(BaseCommand):
         # create article and section
         article, preprintid, main_author = self.create_article(current_version_row)
 
+        # TODO: get article last saved country and profession
+        #       necessary conversion from wjapp country and profession tables.
+        #       see import utilities for country mapping
+        #
+        # profession
+        #
+        # wjs
+        # TBV: actual valus in wjs are 2,3,4 seems out of range of jcom_profile models -> PROFESSIONS (0-3)
+        #
+        # wjapp
+        # +---------------+--------------+--------------------------------------------------------------------------+
+        # | professionCod | professionId | name                                                                     |
+        # +---------------+--------------+--------------------------------------------------------------------------+
+        # |             1 | str          | A researcher in S&T studies, science communication or neighbouring field |
+        # |             2 | stp          | A practitioner in S&T (e.g. journalist, museum staff, writer, ...)       |
+        # |             3 | sci          | An active scientist                                                      |
+        # |             4 | oth          | Other                                                                    |
+        # +---------------+--------------+--------------------------------------------------------------------------+
+        #
+        # profession map: wjapp professionCod -1
+
+        profession = self.read_document_author_data(document_cod)
+
+        if profession:
+            main_author.jcomprofile.profession = profession["professionCod"] - 1
+            main_author.jcomprofile.save()
+            main_author.save()
+
         self.set_section(article, section)
 
         # article keywords
@@ -210,6 +245,16 @@ class Command(BaseCommand):
                 if action_manager := globals().get(action["actionID"]):
                     # "actionID" is something like SYS_ASS_ED, that is also
                     # the name of a class defined in this module
+                    #
+                    # To find papers when some action has been executed, try something like:
+                    # set @action = 'ED_REF_DOC';
+                    # select d.prePrintID from Action a
+                    #   left join Action_History ah using (actionCod)
+                    #   left join Version v using (versionCod)
+                    #   left join Document d using (documentCod)
+                    # where a.actionID = @action
+                    # order by d.submissionDate desc
+                    # limit 3;
                     action_manager(
                         action=action,
                         connection=self.connection,
@@ -293,9 +338,11 @@ d.eoInChargeCod,
 u2.lastname AS eoInCharge_lastname,
 u2.firstname AS eoInCharge_firstname,
 u2.email AS eoInCharge_email,
+u2.privacy AS eoInCharge_privacy,
 u1.lastname AS author_lastname,
 u1.firstname AS author_firstname,
 u1.email AS author_email,
+u1.privacy AS author_privacy,
 v.versionCod,
 v.versionNumber,
 v.versionTitle,
@@ -317,6 +364,29 @@ AND d.preprintId = %(preprintid)s
         row = cursor_article.fetchone()
         cursor_article.close()
         return row
+
+    def read_document_author_data(self, document_cod):
+        """Read profession from document author data.
+
+        Warning: always return data of the latest correspondence author,
+        even for earlier versions where the corresponding-author was someone else
+        """
+
+        cursor_profession = self.connection.cursor(dictionary=True)
+        query_profession = """
+SELECT
+professionCod
+FROM
+Document_Author
+WHERE
+        documentCod=%(document_cod)s
+ORDER BY documentAuthorCod DESC
+LIMIT 1
+"""
+        cursor_profession.execute(query_profession, {"document_cod": document_cod})
+        profession = cursor_profession.fetchone()
+        cursor_profession.close()
+        return profession
 
     def read_article_keywords(self, version_cod):
         """Read article keywords."""
@@ -366,11 +436,13 @@ ah.agentCod,
 u1.lastname AS agentLastname,
 u1.firstname AS agentFirstname,
 u1.email AS agentEmail,
+u1.privacy AS agentPrivacy,
 ah.userCod AS targetCod,
 u2.lastname AS targetLastname,
 u2.firstname AS targetFirstname,
 u2.email AS targetEmail,
 u2.editorWorkload AS targetEditorWorkload,
+u2.privacy AS targetPrivacy,
 ah.realAgentCod,
 ah.actionDate,
 a.actionID
@@ -492,6 +564,7 @@ ORDER BY ah.actionDate
             row["author_lastname"],
             row["author_firstname"],
             row["author_email"],
+            row["author_privacy"],
         )
 
         eo_in_charge = account_get_or_create_check_correspondence(
@@ -500,6 +573,7 @@ ORDER BY ah.actionDate
             row["eoInCharge_lastname"],
             row["eoInCharge_firstname"],
             row["eoInCharge_email"],
+            row["eoInCharge_privacy"],
         )
 
         if not main_author.check_role(self.journal, "author"):
@@ -690,7 +764,7 @@ ORDER BY ah.actionDate
 #
 
 
-def account_get_or_create_check_correspondence(source, user_cod, last_name, first_name, imported_email):
+def account_get_or_create_check_correspondence(source, user_cod, last_name, first_name, imported_email, privacy):
     """Get a user account - check Correspondence and eventually create new account."""
 
     # ex: source: jcom, jcomal, prophy, ...
@@ -742,6 +816,19 @@ def account_get_or_create_check_correspondence(source, user_cod, last_name, firs
         account.is_active = True
         account.save()
 
+    # set gdpr checkbox. privacy in wjapp can be 'Y', 'N' or empty string
+    if not account.jcomprofile.gdpr_checkbox:
+        if privacy == "Y":
+            account.jcomprofile.gdpr_checkbox = True
+        elif privacy == "N":
+            account.jcomprofile.gdpr_checkbox = False
+        else:
+            # if we don't have a clear value we do nothing (which generally result in
+            # the checkbox to be false, which is safe)
+            pass
+        account.jcomprofile.save()
+        account.save()
+
     return account
 
 
@@ -774,6 +861,52 @@ def newlines_text_to_html(message: str) -> str:
 @dataclass
 class ImportCorrespondenceManager:
     """Data class that manages the import of all the correspondence of the wjapp imported version."""
+
+    # short description of all the correspondence types (all the wjapp journals)
+    #
+    # DOC LAYER EMAIL: EMAIL
+    # DOC LAYER COVERLETTER: CVLETT
+    # DOC LAYER REFEREE REPORT:REREP
+    # DOC LAYER EDITOR REPORT:EDREP
+    # DOC LAYER ANNOTATION:ANNOT
+    # DOC LAYER TPS ANNOTATION:TPSAN
+    # DOC LAYER PM ANNOTATION:PMANN
+    # DOC LAYER PUM ANNOTATION: PUMANN
+    # DOC LAYER AU ANNOTATION: AUANN
+    # DOC LAYER ED ANNOTATION: EDANN
+    #
+    # TO ADMIN EMAIL: TOADE
+    # FROM ADMIN EMAIL: FRADE
+    # ED TO AUT EMAIL: ETOAE
+    # AUT TO ED EMAIL: ATOEE
+    # TO PM EMAIL: TOPME
+    # TO PUM EMAIL: TOPUM
+    # FROM PM EMAIL: FRPME
+    # FROM PUM EMAIL: FRPUM
+    # TO DIR EMAIL: TODIE
+    # FROM DIR EMAIL: FRDIE
+    # TO ASSISTDIR EMAIL: TOASDIE
+    # FROM ASSISTDIR EMAIL: FRASDIE
+    # FROM SUD EMAIL: FRSUD
+    # TO SUD EMAIL: TOSUD
+    # FROM MOB EMAIL: FRMOB
+    # TO MOB EMAIL: TOMOB
+    #
+    # DOC LAYER REMINDER: REMIN
+    #
+    # First distintion for reminders
+    # DOC LAYER EDITOR REMINDER: EDREM
+    # DOC LAYER REFEREE REMINDER: REREM
+    # DOC LAYER AUTHOR REMINDER: AUREM
+    #
+    # Second distintion for reminders
+    # DOC LAYER EDITOR REFEREE REMINDER: EREMR
+    # DOC LAYER EDITOR AUTHOR REMINDER : EREMA
+    # DOC LAYER ADMIN EDITOR REMINDER: AREME
+    # DOC LAYER ADMIN REFEREE REMINDER: AREMR
+    # DOC LAYER ADMIN AUTHOR REMINDER: AREMA
+    # DOC LAYER PM AUTHOR REMINDER: PREMA
+    # DOC LAYER PM TYPESETTER REMINDER: PREMT
 
     connection: mariadb.Connection
     session: requests.sessions.Session
@@ -831,13 +964,18 @@ class ImportCorrespondenceManager:
             "FRASDIE",
             "FRDIE",
             "FRPUM",
-            "PUMANN",
             "TOASDIE",
             "TODIE",
         ]
 
+        # PUMANN can have no authors: JCOM_002N_0724
+        self.types_with_auth_OR_recipient = [
+            "PUMANN",
+        ]
+
         self.managed_types_list = (
             self.types_with_auth_and_recipient
+            + self.types_with_auth_OR_recipient
             + self.types_from_admin_list
             + self.types_to_admin_list
             + self.types_skipped
@@ -848,6 +986,15 @@ class ImportCorrespondenceManager:
             # as wjs msg.recipient added from wjapp: recipient, reader, readerCC
             # readerBCC are excluded by the query on wjapp
             (author_from_wjapp, message_recipients_no_bcc) = self.read_message_author_recipients(m["documentLayerCod"])
+
+            if (
+                author_from_wjapp
+                and message_recipients_no_bcc
+                and (m["documentLayerType"] in self.types_with_auth_and_recipient)
+            ):
+                message_type = Message.MessageTypes.USER
+            else:
+                message_type = Message.MessageTypes.SYSTEM
 
             # managed types
             if m["documentLayerType"] not in self.managed_types_list:
@@ -866,6 +1013,9 @@ class ImportCorrespondenceManager:
             if m["documentLayerType"] in self.types_from_admin_list:
                 # author set directly, not read from wjapp
                 author = get_eo_user(self.journal)
+            elif not author_from_wjapp and (m["documentLayerType"] in self.types_with_auth_OR_recipient):
+                # case like JCOM_002N_0724
+                author = get_eo_user(self.journal)
             else:
                 if not author_from_wjapp:
                     raise RuntimeError(f"msg {m['documentLayerCod']} Missing author. type {m['documentLayerType']}")
@@ -877,6 +1027,7 @@ class ImportCorrespondenceManager:
                     author_from_wjapp[0]["lastname"],
                     author_from_wjapp[0]["firstname"],
                     author_from_wjapp[0]["email"],
+                    author_from_wjapp[0]["privacy"],
                 )
 
             with freezegun.freeze_time(
@@ -888,6 +1039,7 @@ class ImportCorrespondenceManager:
                     body=newlines_text_to_html(m["documentLayerText"]),
                     content_type=ContentType.objects.get_for_model(self.article),
                     object_id=self.article.id,
+                    message_type=message_type,
                 )
                 logger.debug(f"msg {m['documentLayerCod']} imported: {m['documentLayerSubject']}")
 
@@ -905,6 +1057,7 @@ class ImportCorrespondenceManager:
                         msg_rec["lastname"],
                         msg_rec["firstname"],
                         msg_rec["email"],
+                        msg_rec["privacy"],
                     )
                     if recipient not in msg.recipients.all():
                         msg.recipients.add(recipient)
@@ -912,6 +1065,9 @@ class ImportCorrespondenceManager:
                 # management of special cases
                 # TBV: correct management of this type?
                 if not msg.recipients.exists() and m["documentLayerType"] in ("FRDIE", "TOPUM"):
+                    msg.recipients.add(get_eo_user(self.journal))
+
+                if not msg.recipients.exists() and m["documentLayerType"] in self.types_with_auth_OR_recipient:
                     msg.recipients.add(get_eo_user(self.journal))
 
                 # error if no recipients at all from wjapp and not added eo_user
@@ -991,7 +1147,8 @@ ur.userCod,
 ur.userType,
 u.lastname,
 u.firstname,
-u.email
+u.email,
+u.privacy
 FROM User_Rights ur
 LEFT JOIN User u USING (userCod)
 WHERE
@@ -1342,6 +1499,7 @@ class EditorAssignmentAction(BaseActionManager):
         editor_lastname = self.action["targetLastname"]
         editor_firstname = self.action["targetFirstname"]
         editor_email = self.action["targetEmail"]
+        editor_privacy = self.action["targetPrivacy"]
         editor_assign_date = self.action["actionDate"]
         editor_maxworkload = self.action["targetEditorWorkload"]
 
@@ -1355,6 +1513,7 @@ class EditorAssignmentAction(BaseActionManager):
                 editor_firstname,
                 editor_email,
                 editor_assign_date,
+                editor_privacy,
             )
 
             # added attribute editor parameters
@@ -1365,7 +1524,9 @@ class EditorAssignmentAction(BaseActionManager):
                 self.import_files()
 
     # TODO: check why new review_round is not created
-    def set_editor(self, editor_cod, editor_lastname, editor_firstname, editor_email, editor_assign_date):
+    def set_editor(
+        self, editor_cod, editor_lastname, editor_firstname, editor_email, editor_assign_date, editor_privacy
+    ):
         """Assign the editor.
 
         Also create the editor's Account if necessary.
@@ -1376,6 +1537,7 @@ class EditorAssignmentAction(BaseActionManager):
             editor_lastname,
             editor_firstname,
             editor_email,
+            editor_privacy,
         )
 
         # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
@@ -1494,6 +1656,288 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
     """Manages action ADMIN_ASS_N_ED."""
 
 
+class AdminOpensAppealAction(BaseActionManager):  # noqa N801
+    """Admin opens appeal: wjapp action admin accepts appeal."""
+
+    def run(self):
+        """Admin opens appeal."""
+        self.check_editor_set()
+
+        self.revision_interval_days = get_setting(
+            "wjs_review",
+            "default_author_appeal_revision_days",
+            self.journal,
+        ).process_value()
+
+        # we need to get the admin user who did the action and the open-appeal action is done by this user
+        admin_cod = self.action["agentCod"]
+        admin_lastname = self.action["agentLastname"]
+        admin_firstname = self.action["agentFirstname"]
+        admin_email = self.action["agentEmail"]
+        admin_privacy = self.action["agentPrivacy"]
+        admin_opens_appeal_date = self.action["actionDate"]
+
+        admin = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            admin_cod,
+            admin_lastname,
+            admin_firstname,
+            admin_email,
+            admin_privacy,
+        )
+
+        if not has_eo_role(admin):
+            eo_group, _ = Group.objects.get_or_create(name=constants.EO_GROUP)
+            logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
+            admin.groups.add(eo_group)
+
+        request = create_fake_request(user=None, journal=self.journal)
+        request.user = admin
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(admin_opens_appeal_date),
+        ):
+            logger.debug(f"Admin {admin} opens appeal {self.article.pk}")
+
+            # the related message is imported with the general correspondence
+            OpenAppeal(
+                new_editor=self.get_current_editor(),
+                article=self.article,
+                request=request,
+            ).run()
+
+
+class ADMIN_ACC_APP(AdminOpensAppealAction):  # noqa N801
+    """Manages wjapp action ADMIN_ACC_APP."""
+
+
+class ADMIN_ACC_APP_NEW_ED(AdminOpensAppealAction):  # noqa N801
+    """Manages wjapp action ADMIN_ACC_APP_NEW_ED."""
+
+
+class AU_WITHD_DOC(BaseActionManager):  # noqa N801
+    """Author withdraws paper: wjapp action AU_WITHD_DOC."""
+
+    def run(self):
+        # Author withdraws paper
+
+        self.check_editor_set()
+        self.author_withdrawn(self.read_author_withdrawn_message())
+
+    def author_withdrawn(self, author_withdrawn_message):
+        """Author withdraws preprint."""
+
+        author_withdrawn_date = self.action["actionDate"]
+        author = self.article.correspondence_author
+        assert author.last_name == self.action["agentLastname"]
+        assert author.first_name == self.action["agentFirstname"]
+        assert author.email == self.action["agentEmail"]
+
+        request = create_fake_request(user=None, journal=self.journal)
+        request.user = author
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(author_withdrawn_date),
+        ):
+            logger.debug(f"Author {author} withdraws {self.article}")
+
+            # it is saved in TextField therefore not converted to html
+            withdrawn_subject = author_withdrawn_message.get("documentLayerSubject")
+            withdrawn_message = newlines_text_to_html(author_withdrawn_message.get("documentLayerText"))
+
+            self.imported_document_layer_cod_list.append(author_withdrawn_message.get("documentLayerCod"))
+
+            WithdrawPreprint(
+                workflow=self.article.articleworkflow,
+                request=request,
+                form_data={
+                    "notification_subject": withdrawn_subject,
+                    "notification_body": withdrawn_message,
+                },
+            ).run()
+
+    def read_author_withdrawn_message(self):
+        """Read author withdraws message."""
+
+        cursor_author_withdrawn_message = self.connection.cursor(buffered=True, dictionary=True)
+
+        # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
+        # from editor, in a certain time range (5") respect to the action_date
+
+        # NOTE: condition on documentLayerSubject not used because:
+        #      - wjapp maintenace "change documentType" let old preprintid in
+        #        Document_Layer (and Attachments)
+        #      - exist documentLayerSubject customized by the editor
+        #      - imported _version_cod ensures to retrive the correct article
+
+        query_author_withdrawn_message = """
+SELECT
+dl.documentLayerSubject,
+dl.documentLayerCod,
+dl.documentLayerText
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(agent_cod)s
+AND dl.documentLayerType='ATOEE'
+AND ur.userType='author'
+AND dl.submissionDate>=%(action_date)s
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+ORDER BY dl.submissionDate
+"""
+        cursor_author_withdrawn_message.execute(
+            query_author_withdrawn_message,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "agent_cod": self.action["agentCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_author_withdrawn_message.rowcount != 1:
+            logger.error(
+                f"Found {cursor_author_withdrawn_message.rowcount} author withdraws messages: {self.preprintid}"
+            )
+            author_withdrawn_message = None
+        else:
+            author_withdrawn_message = cursor_author_withdrawn_message.fetchone()
+        cursor_author_withdrawn_message.close()
+        return author_withdrawn_message
+
+
+class ED_REF_DOC(BaseActionManager):  # noqa N801
+    """Editor declines assignment: wjapp action ED_REF_DOC."""
+
+    def run(self):
+        # Editor declines assignment
+
+        self.check_editor_set()
+        self.editor_declines(self.read_editor_decline_message())
+
+    def editor_declines(self, editor_decline_message):
+        """Editor declines."""
+
+        editor_declines_date = self.action["actionDate"]
+        editor = self.get_current_editor()
+        assert editor.last_name == self.action["agentLastname"]
+        assert editor.first_name == self.action["agentFirstname"]
+        assert editor.email == self.action["agentEmail"]
+
+        request = create_fake_request(user=None, journal=self.journal)
+        request.user = editor
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(editor_declines_date),
+        ):
+            logger.debug(f"Editor {editor} declines {self.article.pk}")
+
+            # it is saved in TextField therefore not converted to html
+            decline_message = editor_decline_message.get("documentLayerText")
+
+            self.imported_document_layer_cod_list.append(editor_decline_message.get("documentLayerCod"))
+
+            HandleEditorDeclinesAssignment(
+                assignment=WjsEditorAssignment.objects.get_all(self.article.articleworkflow).get(editor=editor),
+                editor=editor,
+                request=request,
+                form_data={
+                    "decline_reason": PastEditorAssignment.DeclineReasons.BUSY.label,
+                    "decline_text": decline_message,
+                },
+            ).run()
+
+    def read_editor_decline_message(self):
+        """Read Editor decline assignment message."""
+
+        cursor_editor_decline_message = self.connection.cursor(buffered=True, dictionary=True)
+
+        # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
+        # from editor, in a certain time range (5") respect to the action_date
+
+        # NOTE: condition on documentLayerSubject not used because:
+        #      - wjapp maintenace "change documentType" let old preprintid in
+        #        Document_Layer (and Attachments)
+        #      - exist documentLayerSubject customized by the editor
+        #      - imported _version_cod ensures to retrive the correct article
+
+        query_editor_decline_message = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerText
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(agent_cod)s
+AND dl.documentLayerType='TOADE'
+AND ur.userType='author'
+AND dl.submissionDate>=%(action_date)s
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+ORDER BY dl.submissionDate
+"""
+        cursor_editor_decline_message.execute(
+            query_editor_decline_message,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "agent_cod": self.action["agentCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_editor_decline_message.rowcount != 1:
+            logger.error(
+                f"Found {cursor_editor_decline_message.rowcount} editor decline messages"
+                f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+            )
+            editor_decline_message = None
+        else:
+            editor_decline_message = cursor_editor_decline_message.fetchone()
+        cursor_editor_decline_message.close()
+        return editor_decline_message
+
+
+class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
+    """Editor assigns her/him self as reviewer."""
+
+    def run(self):
+        self.check_editor_set()
+        editor = reviewer = self.get_current_editor()
+        logger.debug(f"Creating review assignment of {self.article.id} to editor as reviewer")
+
+        request = create_fake_request(user=None, journal=self.journal)
+        request.user = editor
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(self.action["actionDate"]),
+        ):
+            # default message from settings
+            # TODO: verify message sent by the logic
+
+            interval_days = get_setting(
+                "wjs_review",
+                "acceptance_due_date_days",
+                self.journal,
+            )
+            # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
+            # using freeze_time now() is refereeAssignDate
+            date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
+
+            form_data = {
+                "acceptance_due_date": date_due,
+                "message": "VALUE NOT USED",
+            }
+            review_assignment = AssignToReviewer(
+                reviewer=reviewer,
+                workflow=self.article.articleworkflow,
+                editor=editor,
+                form_data=form_data,
+                request=request,
+            ).run()
+
+        return review_assignment
+
+
 class ReviewAssignmentAction(BaseActionManager):
     """Review assignment management.
 
@@ -1532,6 +1976,7 @@ class ReviewAssignmentAction(BaseActionManager):
                 "refereeLastName": self.action["targetLastname"],
                 "refereeFirstName": self.action["targetFirstname"],
                 "refereeEmail": self.action["targetEmail"],
+                "refereePrivacy": self.action["targetPrivacy"],
                 "refereeAssignDate": self.action["actionDate"],
                 "report_due_date": None,
                 "refereeAcceptDate": None,
@@ -1553,6 +1998,7 @@ refereeCod,
 u.lastName  AS refereeLastName,
 u.firstName AS refereeFirstName,
 u.email     AS refereeEmail,
+u.privacy   AS refereePrivacy,
 assignDate  AS refereeAssignDate,
 refereeReportDeadlineDate AS report_due_date,
 acceptDate AS refereeAcceptDate
@@ -1632,6 +2078,7 @@ ORDER BY dl.submissionDate
             reviewer_data["refereeLastName"],
             reviewer_data["refereeFirstName"],
             reviewer_data["refereeEmail"],
+            reviewer_data["refereePrivacy"],
         )
         logger.debug(f"Creating review assignment of {self.article.id} to reviewer {reviewer}")
 
@@ -1739,6 +2186,7 @@ class DeselectReviewerAction(BaseActionManager):
         reviewer_lastname = self.action["targetLastname"]
         reviewer_firstname = self.action["targetFirstname"]
         reviewer_email = self.action["targetEmail"]
+        reviewer_privacy = self.action["targetPrivacy"]
         reviewer_deselection_date = self.action["actionDate"]
 
         reviewer = account_get_or_create_check_correspondence(
@@ -1747,6 +2195,7 @@ class DeselectReviewerAction(BaseActionManager):
             reviewer_lastname,
             reviewer_firstname,
             reviewer_email,
+            reviewer_privacy,
         )
 
         review_assignment = WorkflowReviewAssignment.objects.filter(
@@ -1918,6 +2367,7 @@ ORDER BY dl.submissionDate
         reviewer_lastname = self.action["agentLastname"]
         reviewer_firstname = self.action["agentFirstname"]
         reviewer_email = self.action["agentEmail"]
+        reviewer_privacy = self.action["agentPrivacy"]
         reviewer_declines_date = self.action["actionDate"]
 
         reviewer = account_get_or_create_check_correspondence(
@@ -1926,6 +2376,7 @@ ORDER BY dl.submissionDate
             reviewer_lastname,
             reviewer_firstname,
             reviewer_email,
+            reviewer_privacy,
         )
 
         request = create_fake_request(user=None, journal=self.journal)
@@ -1952,7 +2403,6 @@ ORDER BY dl.submissionDate
 
             decline_reason = newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
             self.imported_document_layer_cod_list.append(reviewer_decline_message.get("documentLayerCod"))
-            logger.debug(f"append reviewer decline message: {self.imported_document_layer_cod_list=}")
 
             EvaluateReview(
                 assignment=review_assignment,
@@ -2050,6 +2500,7 @@ ORDER BY dl.submissionDate
         reviewer_lastname = self.action["agentLastname"]
         reviewer_firstname = self.action["agentFirstname"]
         reviewer_email = self.action["agentEmail"]
+        reviewer_privacy = self.action["agentPrivacy"]
         reviewer_report_date = self.action["actionDate"]
 
         reviewer = account_get_or_create_check_correspondence(
@@ -2058,6 +2509,7 @@ ORDER BY dl.submissionDate
             reviewer_lastname,
             reviewer_firstname,
             reviewer_email,
+            reviewer_privacy,
         )
 
         # filter and last() not get() to manage JCOM_008A_0324 with 2 review assignments
@@ -2254,7 +2706,6 @@ ORDER BY dl.submissionDate
             )
 
         self.imported_document_layer_cod_list.append(wjapp_editor_report.get("documentLayerCod"))
-        logger.debug(f"append editor report message {self.imported_document_layer_cod_list=}")
 
         return revision
 
@@ -2360,7 +2811,6 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         self.article.refresh_from_db()
 
         self.imported_document_layer_cod_list.append(author_note.get("documentLayerCod"))
-        logger.debug(f"append cover letter message {self.imported_document_layer_cod_list=}")
 
         if self.importfiles:
             self.import_files()
@@ -2391,7 +2841,7 @@ AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='CVLETT'
 AND ur.userType='author'
 AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 6 SECOND)
 ORDER BY dl.submissionDate
 """
         cursor_cover_letter_message.execute(
@@ -2421,6 +2871,10 @@ class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action AU_SUB_REV_WMC."""
 
 
+class AU_SUB_NEW_VER(AuthorSubmitRevisionAction):  # noqa N801
+    """Manages wjapp action AU_SUB_NEW_VER (appeal)."""
+
+
 class SelectCoauthorAction(BaseActionManager):
     """Coauthor selection management."""
 
@@ -2431,6 +2885,7 @@ class SelectCoauthorAction(BaseActionManager):
         coauthor_lastname = self.action["targetLastname"]
         coauthor_firstname = self.action["targetFirstname"]
         coauthor_email = self.action["targetEmail"]
+        coauthor_privacy = self.action["targetPrivacy"]
         coauthor_assign_date = self.action["actionDate"]
 
         # coauthor data
@@ -2440,6 +2895,7 @@ class SelectCoauthorAction(BaseActionManager):
             coauthor_lastname,
             coauthor_firstname,
             coauthor_email,
+            coauthor_privacy,
         )
         logger.debug(f"Creating coauthor of {self.article.id} user: {coauthor}")
 
