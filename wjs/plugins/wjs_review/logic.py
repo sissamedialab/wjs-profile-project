@@ -2342,6 +2342,13 @@ class HandleMessage:
                 article.journal,
             ).processed_value:
                 users_pk.extend(_get_directors(article))
+            # current editor
+            try:
+                users_pk.extend(_get_current_editor(article))
+            except WjsEditorAssignment.DoesNotExist:
+                # authors of paper in "IncompleteSubmission" state might want to write to EO or director even before
+                # any editor has been assigned to their paper
+                pass
         # Director(s) can write to:
         elif permissions.has_director_role_by_article(instance=articleworkflow, user=actor):
             # the Corresponding author
