@@ -191,6 +191,23 @@ Thank you and best regards,
         )
 
         update_setting_default(
+            "unassign_editor",
+            "email",
+            """Dear {{ editor.full_name }},
+<br><br>
+This is to inform you that you have been deselected as Editor in charge
+of the {{ article.section.name }} "{{ article.safe_title }}"
+and therefore it is no longer necessary that you handle its review process.
+<br><br>
+We regret in advance any inconvenience that this may cause and thank you for your cooperation.
+<br><br>
+Best regards,<br>
+{{ article.journal.code }} Journal
+""",
+        )
+        update_setting_default("subject_unassign_editor", "email_subject", """Deselected as Editor in charge""")
+
+        update_setting_default(
             "revisions_complete_receipt",
             "email",
             """Dear {{ revision.article.correspondence_author.full_name }},

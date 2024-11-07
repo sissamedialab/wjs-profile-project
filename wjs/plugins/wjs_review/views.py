@@ -2708,7 +2708,7 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
         return initial
 
 
-class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
+class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
     """
     If the user is an editor of a special issue, they will be able to assign the paper to a different editor
     """
@@ -2716,7 +2716,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
     model = ArticleWorkflow
     form_class = SupervisorAssignEditorForm
     template_name = "wjs_review/assign_editor/select_editor.html"
-    title = _("Select an Editor")
+    title = _("Change Editor")
     context_object_name = "workflow"
     edit_permissions: bool = False
     selected_editor: Account = None
@@ -2760,7 +2760,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
         except WjsEditorAssignment.DoesNotExist:
             return None
 
-    def _editors_with_keywords(self) -> QuerySet[Account]:
+    def _editors_with_keywords(self, search_text) -> QuerySet[Account]:
         """
         Provides a list of available editors annotated with related keywords.
 
@@ -2771,28 +2771,46 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, UpdateView):
             current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
         except WjsEditorAssignment.DoesNotExist:
             current_editor = None
-        return Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
+        qs = Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
             pk__in=article_authors
         )
+        if self.htmx:
+            search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
+            qs = qs.filter(search_filters)
+        return qs
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial["search"] = self.request.GET.get("search", None)
+        return initial
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
-        context["editors_with_keywords"] = self._editors_with_keywords()
+        search_text = self.request.GET.get("search", None)
+        context["editors_with_keywords"] = self._editors_with_keywords(search_text)
         context["current_editor"] = self._get_current_editor()
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
+        search_text = self.request.GET.get("search", None)
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
-        kwargs["selectable_editors"] = self._editors_with_keywords()
+        kwargs["selectable_editors"] = self._editors_with_keywords(search_text)
         return kwargs
+
+    def get_template_names(self) -> List[str]:
+        """Select the template based on the request type."""
+        if self.htmx:
+            if self.request.headers.get("Hx-Trigger-Name") == "search-editor-form":
+                return ["wjs_review/assign_editor/elements/editor_table.html"]
+        return ["wjs_review/assign_editor/select_editor.html"]
 
     def form_valid(self, form):
         """If the form is valid, save the assignment and return a response."""
         self.edit_permissions = form.assign_permissions
-        self.selected_editor = form.cleaned_data["editor"]
+        self.selected_editor = form.cleaned_data["selected_editor"]
         return super().form_valid(form)
 
 

@@ -19,6 +19,8 @@ from journal.models import Journal
 from submission.models import Article, Keyword
 from utils.logger import get_logger
 
+from wjs.jcom_profile import constants
+
 from .models import (
     ArticleWorkflow,
     ProphyCandidate,
@@ -33,14 +35,14 @@ Account = get_user_model()
 
 def get_available_users_by_role(
     journal: Journal,
-    role: str,
+    role_slugs: list[str],
     exclude: Optional[Iterable] = None,
     filters: Optional[Q] = None,
 ) -> QuerySet:
     """Get users by role and journal, excluding a list of users and applying filters."""
     users_ids = AccountRole.objects.filter(
         journal=journal,
-        role__slug=role,
+        role__slug__in=role_slugs,
     ).values_list("user_id", flat=True)
     qs = Account.objects.filter(pk__in=users_ids)
     if exclude:
@@ -279,7 +281,10 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
     """
     article_keywords_ids = list(article.keywords.values_list("id", flat=True))
 
-    editors = self.filter(accountrole__role__slug="section-editor", accountrole__journal=article.journal)
+    editors = self.filter(
+        accountrole__role__slug__in=[constants.EDITOR_ROLE, constants.SECTION_EDITOR_ROLE],
+        accountrole__journal=article.journal,
+    )
 
     if current_editor:
         editors = editors.exclude(
