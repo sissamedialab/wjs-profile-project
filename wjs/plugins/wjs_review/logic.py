@@ -10,6 +10,7 @@ import datetime
 import shutil
 import tarfile
 import tempfile
+import time
 from copy import copy
 from io import BytesIO
 from pathlib import Path
@@ -2014,6 +2015,7 @@ class HandleDecision:
         context = self._get_message_context(revision)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
+        time.sleep(0.2)
         if self.form_data["decision"] in [
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
