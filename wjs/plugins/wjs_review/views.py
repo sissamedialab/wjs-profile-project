@@ -154,6 +154,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
         },
         constants.DIRECTOR_ROLE: {
             "wjs_review_director_pending": _("Pending preprints"),
+            "wjs_review_director_production": _("Production"),
             "wjs_review_director_archived": _("Archived preprints"),
             "wjs_review_director_issues_list": _("Pending Issues"),
             "wjs_review_director_workon": _("Search preprints"),
@@ -563,6 +564,23 @@ class DirectorArchived(DirectorPending):
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_archived_for_review)
             .exclude(article__authors=self.request.user)
+        )
+
+
+class DirectorProduction(DirectorPending):
+    title = _("Papers in production")
+    table_configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
+    ordering = ["-article__date_accepted"]
+
+    def _apply_base_filters(self, qs):
+        """
+        Get all articles in production.
+
+        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
+        sure to use the original method.
+        """
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
+            state__in=states_when_article_is_considered_in_production,
         )
 
 

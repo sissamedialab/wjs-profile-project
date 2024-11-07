@@ -5,8 +5,12 @@
     <th scope="col">{% translate "Authors" %}</th>
     <th scope="col">{% translate "Title" %}</th>
     <th scope="col">{% translate "Status" %}</th>
-    <th scope="col">{% translate "Editor" %}</th>
-    <th scope="col">{% translate "Reviewers" %}</th>
+    {% if view.table_configuration_options.table_type == "production" %}
+      <th scope="col">{% translate "Typesetter" %}</th>
+    {% elif view.table_configuration_options.table_type == "review" %}
+      <th scope="col">{% translate "Editor" %}</th>
+      <th scope="col">{% translate "Reviewers" %}</th>
+    {% endif %}
     <th scope="col">{% translate "Notes" %}</th>
   </tr>
   </thead>
@@ -23,11 +27,10 @@
     searching: false,
     ordering: true,
     paging: false,
-    {% if view.table_configuration_options.table_type == "production" %}
     order: [[ 0, "desc" ]],
+    {% if view.table_configuration_options.table_type == "production" %}
     columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }]
     {% elif view.table_configuration_options.table_type == "review" %}
-    order: [[ 0, "desc" ]],
     columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
     {% endif %}
   });

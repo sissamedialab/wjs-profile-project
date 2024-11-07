@@ -20,7 +20,7 @@
     </span>
   </div>
   <div class="my-1">
-    {% if publish_status %}
+    {% if publish_status and publishable_symbol %}
       {% if workflow.production_flag_no_checks_needed %}
         <span title="publishable">🟢</span>
       {% else %}
