@@ -2622,6 +2622,7 @@ class BaseDeassignEditor:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
+    message_body: Optional[str] = None
 
     @staticmethod
     def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
@@ -2632,6 +2633,41 @@ class BaseDeassignEditor:
         """Check if the conditions for the assignment are met."""
         editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
         return editor_conditions
+
+    def _log_past_editor(self):
+        """Log a message to the deassigned Editor."""
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_unassign_editor",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context={},
+            template_is_setting=True,
+        )
+        if not self.message_body:
+            self.message_body = render_template_from_setting(
+                setting_group_name="email",
+                setting_name="unassign_editor",
+                journal=self.assignment.article.journal,
+                request=self.request,
+                context={
+                    "article": self.assignment.article,
+                    "editor": self.editor,
+                },
+                template_is_setting=True,
+            )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=self.message_body,
+            verbosity=Message.MessageVerbosity.FULL,
+            actor=self.request.user,
+            recipients=[self.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=False,
+            flag_as_read_by_eo=True,
+        )
 
     def _delete_assignment(self) -> PastEditorAssignment:
         """
@@ -2651,6 +2687,7 @@ class BaseDeassignEditor:
 
         past.review_rounds.add(*migrated_review_rounds)
         self.assignment.delete()
+        self._log_past_editor()
         return past
 
     def _delete_editor_reminders(self):
@@ -2672,11 +2709,15 @@ class SupervisorChangeEditorAssignment:
     assignment: WjsEditorAssignment
     new_editor: Account
     request: HttpRequest
+    deassignment_message: Optional[str] = None
 
     def _deassign_current_editor(self) -> Account:
         """Deassigns the current editor using existing :py:class:`BaseDeassignEditor` logic."""
         past_assignment = BaseDeassignEditor(
-            assignment=self.assignment, editor=self.assignment.editor, request=self.request
+            assignment=self.assignment,
+            editor=self.assignment.editor,
+            request=self.request,
+            message_body=self.deassignment_message,
         ).run()
         return past_assignment.editor
 
@@ -2751,10 +2792,10 @@ class SupervisorChangeEditorAssignment:
     def run(self):
         with transaction.atomic():
             old_editor = self.assignment.editor
-            new_assignment = self._assign_new_editor()
             self._migrate_review_assignments(old_editor)
             self._migrate_article_reminders(old_editor)
             self._deassign_current_editor()
+            new_assignment = self._assign_new_editor()
             return new_assignment
 
 

@@ -1,22 +1,20 @@
 {% load django_bootstrap5 wjs_review wjs_tags %}
 {% translate "Select" as select_label %}
-<form method="post">
-  {% csrf_token %}
-  {% for user in users %}
-    <tr>
-      <td>{{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}</td>
-      {% if workflow.article.journal|show_editor_keywords %}
-        <td>{{ user.matching_keywords|join:", " }}</td>
-        <td>{{ user.num_shared_kwds }}</td>
-      {% endif %}
-      <td class="d-flex align-items-center">
-        {% bootstrap_button name="editor" content=select_label value=user.pk %}
-        {% with field_name="set_permissions_"|concat:user.pk %}
-          {% with field=form|keyvalue:field_name %}
-            {% bootstrap_field field wrapper_class="ms-3 align-self-center" %}
-          {% endwith %}
-        {% endwith %}
-      </td>
-    </tr>
-  {% endfor %}
-</form>
+{% translate "Search" as search_label %}
+{% translate "Reset" as reset_label %}
+{% url "wjs_assign_editor" workflow.pk as search_editor %}
+{% for user in users %}
+  <tr>
+    <td>{{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}</td>
+    {% if workflow.article.journal|show_editor_keywords %}
+      <td>{{ user.matching_keywords|join:", " }}</td>
+      <td>{{ user.num_shared_kwds }}</td>
+    {% endif %}
+    <td>
+      {{ user.managed_issue.issue_title }}
+    </td>
+    <td>
+      <input class="form-check-input" type="radio" name="selected_editor" id="selected-editor-{{ user.pk }}" {% if form.cleaned_data.selected_editor == user.pk %}checked{% endif %} value={{ user.pk }}>
+    </td>
+  </tr>
+{% endfor %}

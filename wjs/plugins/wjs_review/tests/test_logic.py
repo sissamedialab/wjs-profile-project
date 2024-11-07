@@ -3103,8 +3103,9 @@ def test_assign_different_editor(
     normal_user.add_account_role("section-editor", assigned_article.journal)
     current_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     form_data = {
-        "editor": normal_user.pk,
+        "selected_editor": normal_user.pk,
         "state": assigned_article.articleworkflow.state,
+        "note_for_past_editor": "custom deassign message",
     }
     reviewer1 = create_jcom_user("reviewer1")
     reviewer2 = create_jcom_user("reviewer2")
@@ -3237,8 +3238,9 @@ def test_assign_new_editor(
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
     article.articleworkflow.save()
     form_data = {
-        "editor": normal_user.pk,
+        "selected_editor": normal_user.pk,
         "state": article.articleworkflow.state,
+        "note_for_past_editor": "test",
     }
     editors = Account.objects.get_editors_with_keywords(article)
     assert normal_user.janeway_account in editors

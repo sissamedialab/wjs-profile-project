@@ -1258,8 +1258,15 @@ class DeselectReviewerForm(forms.Form):
 
 
 class SupervisorAssignEditorForm(forms.ModelForm):
-    editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
+    selected_editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
+    note_for_past_editor_subject = forms.CharField(required=False, disabled=True, label=_("Subject"))
+    note_for_past_editor = WjsMiniHTMLFormField(
+        label=_("Message"),
+        required=True,
+    )
+    search = forms.CharField(required=False, label=_("Search..."))
+    set_visibility_rights = forms.BooleanField(label=_("Set visibility rights"), initial=False, required=False)
 
     class Meta:
         model = ArticleWorkflow
@@ -1270,13 +1277,42 @@ class SupervisorAssignEditorForm(forms.ModelForm):
         self.request = kwargs.pop("request")
         self.editors = kwargs.pop("selectable_editors")
         super().__init__(*args, **kwargs)
-        self.fields["editor"].queryset = self.editors
-        for editor in self.editors:
-            self.fields[f"set_permissions_{editor.pk}"] = forms.BooleanField(
-                label=_(mark_safe('<i class="bi bi-sliders"></i>')),
-                required=False,
-                initial=False,
+        self.fields["selected_editor"].queryset = self.editors
+
+        try:
+            assignment = WjsEditorAssignment.objects.get_current(self.instance)
+        except WjsEditorAssignment.DoesNotExist:
+            self.current_editor_assignment = None
+        else:
+            self.current_editor_assignment = assignment
+
+        # initialize the note for the old editor with a default message
+        if not self.data.get("note_for_past_editor", None):
+            self.initial["note_for_past_editor"] = render_template_from_setting(
+                setting_group_name="email",
+                setting_name="unassign_editor",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context=self.get_message_context(),
+                template_is_setting=True,
             )
+            # subject is fixed; we always render it from the setting;
+            # (this also avoids pesky users tampering with it)
+            self.initial["note_for_past_editor_subject"] = render_template_from_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_unassign_editor",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context={},
+                template_is_setting=True,
+            )
+
+    def get_message_context(self):
+        """Build a context suitable to render the unassign_editor message."""
+        return {
+            "editor": self.current_editor_assignment.editor if self.current_editor_assignment else None,
+            "article": self.instance.article,
+        }
 
     def get_logic_instance(self) -> SupervisorChangeEditorAssignment | AssignToEditor:
         """
@@ -1292,12 +1328,13 @@ class SupervisorAssignEditorForm(forms.ModelForm):
             return SupervisorChangeEditorAssignment(
                 article=self.instance.article,
                 assignment=assignment,
-                new_editor=self.cleaned_data["editor"],
+                new_editor=self.cleaned_data["selected_editor"],
                 request=self.request,
+                deassignment_message=self.cleaned_data["note_for_past_editor"],
             )
         except WjsEditorAssignment.DoesNotExist:
             return AssignToEditor(
-                editor=self.cleaned_data["editor"],
+                editor=self.cleaned_data["selected_editor"],
                 article=self.instance.article,
                 request=self.request,
             )
@@ -1314,8 +1351,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
 
     @property
     def assign_permissions(self):
-        editor = self.cleaned_data["editor"]
-        return self.cleaned_data.get(f"set_permissions_{editor.pk}", False)
+        return self.cleaned_data.get("set_visibility_rights", None)
 
 
 class ForwardMessageForm(forms.ModelForm):

@@ -1,24 +1,46 @@
 {% load django_bootstrap5 static wjs_review %}
 {% translate "Search" as search_label %}
 {% translate "Reset" as reset_label %}
-
-<div class="card">
-  <div class="card-body">
-    <table class="table table-hover table-striped table-bordered mt-4" id="editors">
-      <thead class="bg-light">
-      <tr>
-        <th scope="col" class="col-3">{% translate "Name" %}</th>
-        {% if workflow.article.journal|show_editor_keywords %}
-          <th scope="col" class="col-4">{% translate "Keywords" %}</th>
-          <th scope="col" class="col-2">{% translate "N. Matching Keywords" %}</th>
-        {% endif %}
-        <th scope="col" class="col-1">{% translate "Action" %}</th>
-      </tr>
-      </thead>
-      <tbody>
-      {% include "wjs_review/assign_editor/elements/editor_list.html" with users=editors_with_keywords %}
-      </tbody>
-    </table>
-    {% include "wjs_review/base/elements/pagination.html" %}
+<div id="select-editor-table">
+  {% blocktrans %}Find editor{% endblocktrans %}
+  <div class="d-flex gap-2 align-items-start">
+    {% bootstrap_field form.search show_label=False %}
+    <button type="button" class="btn btn-primary"
+            name="search-editor-form"
+            hx-get="{{ search_editor }}"
+            hx-target="#select-editor-table"
+            hx-include="[name='search']"
+            id="search-btn">
+      {{ search_label }}
+    </button>
   </div>
+  {% if form.cleaned_data and not form.cleaned_data.selected_editor == user.pk %}
+    <span class="text-danger">
+      {% translate "No selected editor" %}
+    </span>
+  {% endif %}
+  <table id="editors" class="table table-hover table-striped table-bordered mt-4">
+    <thead class="bg-light">
+    <tr>
+      <th scope="col" class="col-3">{% translate "New Editor" %}</th>
+      {% if workflow.article.journal|show_editor_keywords %}
+        <th scope="col" class="col-4">{% translate "Keywords" %}</th>
+        <th scope="col" class="col-2">{% translate "N. Matching Keywords" %}</th>
+      {% endif %}
+      <th scope="col" class="col-1">{% translate "Special Issue" %}</th>
+      <th scope="col" class="col-1">{% translate "Select" %}</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% include "wjs_review/assign_editor/elements/editor_list.html" with users=editors_with_keywords %}
+    </tbody>
+  </table>
 </div>
+<script>
+document.getElementById('id_search').addEventListener('keydown', function(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    document.querySelector('#search-btn').click();
+  }
+});
+</script>

@@ -897,7 +897,7 @@ def test_eo_select_editor(
     submitted_workflow.save()
     fake_request.user = eo_user.janeway_account
     fake_request.method = "POST"
-    fake_request.POST = {"editor": section_editor.janeway_account.pk}
+    fake_request.POST = {"selected_editor": section_editor.janeway_account.pk, "note_for_past_editor": "test"}
     view = SupervisorAssignEditor()
     view.request = fake_request
     view.args = (submitted_workflow.article.pk,)
@@ -926,7 +926,7 @@ def test_eo_select_new_editor(
     old_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = eo_user.janeway_account
     fake_request.method = "POST"
-    fake_request.POST = {"editor": normal_user.janeway_account.pk}
+    fake_request.POST = {"selected_editor": normal_user.janeway_account.pk, "note_for_past_editor": "test"}
     view = SupervisorAssignEditor()
     view.request = fake_request
     view.args = (assigned_article.pk,)
