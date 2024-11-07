@@ -763,7 +763,7 @@ class ArticleWorkflow(TimeStampedModel):
 
     @transition(
         field=state,
-        source=ReviewStates.UNDER_APPEAL,
+        source=[ReviewStates.UNDER_APPEAL, ReviewStates.REJECTED],
         target=ReviewStates.EDITOR_SELECTED,
         permission=permissions.is_article_author,
         # TODO: conditions=[],

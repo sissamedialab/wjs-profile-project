@@ -1915,13 +1915,18 @@ def test_handle_editor_decision(
         template_is_setting=True,
     )
 
-    # Message body is taken from the form, not from the setting.
-    # (the setting was used to initialize the form).
-    review_withdraw_message_body = form_data["withdraw_notice"]
-
-    if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-        assert Message.objects.count() == 1
-    elif decision not in (ArticleWorkflow.Decisions.TECHNICAL_REVISION,):
+    # In all the cases except technical revision, pending review assignments are
+    # withdrawn. In this case the reviewer receive a message to notify this
+    # At this stage two messages exist:
+    # - first message: RA withdraw notice to the reviewer, created in any case
+    #   (which is always created before any further action thus it's guaranteed to be the first message in the queue)
+    # - second message: decision specific message
+    # In order to avoid duplicated code, we test the withdraw messages here and then remove withdraw notifications
+    # to test condition-specific messages futher down the test
+    # TECHNICAL_REVISION does not cause a withdrawal of the review assignment, so it's skipped here
+    if decision not in (ArticleWorkflow.Decisions.TECHNICAL_REVISION,):
+        # Message body is taken from the form, not from the setting as we use the setting only to initialize the form
+        review_withdraw_message_body = form_data["withdraw_notice"]
         assert Message.objects.count() == 2
         withdrawn_review_message = Message.objects.order_by("created").first()
         assert withdrawn_review_message.subject == review_withdraw_message_subject
@@ -2134,11 +2139,14 @@ def test_handle_editor_decision(
         assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
         assert assigned_article.articleworkflow.state == final_state
         # Prepare subject and body
-        technical_revision_message_subject = get_setting(
+        technical_revision_message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="technical_revision_subject",
             journal=assigned_article.journal,
-        ).processed_value
+            request=fake_request,
+            context={"article": assigned_article},
+            template_is_setting=True,
+        )
         technical_revision_message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="technical_revision_body",
@@ -2168,6 +2176,7 @@ def test_handle_editor_decision(
         # Check that one email is sent by us (and not by Janeway)
         assert len(mail.outbox) == 1
         reject_mail = mail.outbox[0]
+        assert reject_mail.recipients() == [assigned_article.correspondence_author.email]
         assert technical_revision_message_subject in reject_mail.subject
         # If message must be split, check that the first part is in the email body
         if Message.SPLIT_MARKER in technical_revision_message_body:
@@ -2175,6 +2184,7 @@ def test_handle_editor_decision(
         else:
             assert technical_revision_message_body in raw(reject_mail.body)
 
+    # Assert conditions on model instances
     if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
         # All review assignments are marked as complete; the one that was pending when the editor decision was take is
         # marked as "withdrawn".
@@ -2211,6 +2221,7 @@ def test_handle_editor_decision(
 def test_author_handle_revision(
     assigned_article: submission_models.Article,
     fake_request: HttpRequest,
+    review_assignment: review_models.ReviewAssignment,
     decision: str,
 ):
     """
@@ -2240,6 +2251,9 @@ def test_author_handle_revision(
         user=WjsEditorAssignment.objects.get_current(assigned_article).editor,
         request=fake_request,
     )
+
+    # we need a stable ordering of the messages because we pick them in specific order
+    messages = Message.objects.all().order_by("created")
     if decision not in HandleDecision._decision_handlers:
         with pytest.raises(ValidationError):
             handle.run()
@@ -2279,11 +2293,101 @@ def test_author_handle_revision(
         assigned_article.refresh_from_db()
         assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
         if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            technical_revision_message_subject = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="technical_revision_subject",
+                journal=assigned_article.journal,
+                request=fake_request,
+                context={"article": assigned_article},
+                template_is_setting=True,
+            )
+            technicalrevisions_complete_reviewer_notification_subject = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="technicalrevisions_complete_reviewer_notification_subject",
+                journal=assigned_article.journal,
+                request=fake_request,
+                context={"article": assigned_article},
+                template_is_setting=True,
+            )
             assert assigned_article.title == "title"
             assert assigned_article.abstract == "abstract"
             assert assigned_article.current_review_round() == original_review_round
+            assert messages.count() == 4
+            # messages.all()[0] contains reviewer invitation, ignore it
+            # Author notification
+            review_withdraw_notification = messages.all()[1]
+            assert review_withdraw_notification.actor == editor
+            assert list(review_withdraw_notification.recipients.all()) == [assigned_article.correspondence_author]
+            assert review_withdraw_notification.subject == technical_revision_message_subject
+            # Editor notification for updated metadata
+            technical_revision_submission_editor_message = messages.all()[2]
+            assert technical_revision_submission_editor_message.actor == get_system_user()
+            assert list(technical_revision_submission_editor_message.recipients.all()) == [editor]
+            assert (
+                technical_revision_submission_editor_message.subject
+                == technicalrevisions_complete_reviewer_notification_subject
+            )
+            # Reviewer notification for updated metadata
+            technical_revision_submission_reviewer_message = messages.all()[3]
+            assert technical_revision_submission_reviewer_message.actor == editor
+            assert list(technical_revision_submission_reviewer_message.recipients.all()) == [
+                review_assignment.reviewer
+            ]
+            assert (
+                technical_revision_submission_reviewer_message.subject
+                == technicalrevisions_complete_reviewer_notification_subject
+            )
         else:
             assert assigned_article.current_review_round() == original_review_round + 1
+            subject_request_revisions = render_template_from_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_request_revisions",
+                journal=assigned_article.journal,
+                request=fake_request,
+                context={"article": assigned_article},
+                template_is_setting=True,
+            )
+            review_withdraw_notification_subject = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="editor_deassign_reviewer_subject",
+                journal=assigned_article.journal,
+                request=fake_request,
+                context={"article": assigned_article},
+                template_is_setting=True,
+            )
+            subject_revisions_complete_receipt_subject = render_template_from_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_revisions_complete_receipt",
+                journal=assigned_article.journal,
+                request=fake_request,
+                context={"article": assigned_article},
+                template_is_setting=True,
+            )
+            assert assigned_article.current_review_round() == original_review_round + 1
+            assert messages.count() == 5
+            # messages.all()[0] contains reviewer invitation, ignore it
+            # Withdraw notification to reviewer
+            review_withdraw_notification = messages.all()[1]
+            assert review_withdraw_notification.actor == editor
+            assert review_withdraw_notification.subject == review_withdraw_notification_subject
+            assert list(review_withdraw_notification.recipients.all()) == [review_assignment.reviewer]
+            # Author notification for revision request
+            request_revisions_editor_message = messages.all()[2]
+            assert request_revisions_editor_message.actor == editor
+            assert list(request_revisions_editor_message.recipients.all()) == [assigned_article.correspondence_author]
+            assert request_revisions_editor_message.subject == subject_request_revisions
+            # Editor notification for revision submission
+            subject_revisions_complete_editor_message = messages.all()[3]
+            assert subject_revisions_complete_editor_message.actor == get_system_user()
+            assert list(subject_revisions_complete_editor_message.recipients.all()) == [review_assignment.editor]
+            assert subject_revisions_complete_editor_message.subject == subject_revisions_complete_receipt_subject
+            # Author notification of successful revision submission
+            subject_revisions_complete_reviewer_message = messages.all()[4]
+            assert subject_revisions_complete_reviewer_message.actor == get_system_user()
+            assert list(subject_revisions_complete_reviewer_message.recipients.all()) == [
+                assigned_article.correspondence_author
+            ]
+            assert subject_revisions_complete_reviewer_message.subject == subject_revisions_complete_receipt_subject
         assert revision.author_note == "author_note"
 
 
