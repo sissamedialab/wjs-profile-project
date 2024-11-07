@@ -32,19 +32,25 @@
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" %}
     </td>
-    <td>
-      {% with editor_assignment_data=article|article_current_editor %}
-        {{ editor_assignment_data.editor }}
-        {% if not view.table_configuration_options.hide_editor_age and workflow.article|waiting_editor_actions %}
-          <div title="assigned">{{ editor_assignment_data.days_elapsed }} {% translate "days" %}</div>
+    {% if view.table_configuration_options.table_type == "production" %}
+      <td>
+        {{ article|article_current_typesetter }}
+      </td>
+    {% elif view.table_configuration_options.table_type == "review" %}
+      <td>
+        {% with editor_assignment_data=article|article_current_editor %}
+          {{ editor_assignment_data.editor }}
+          {% if not view.table_configuration_options.hide_editor_age and workflow.article|waiting_editor_actions %}
+            <div title="assigned">{{ editor_assignment_data.days_elapsed }} {% translate "days" %}</div>
+          {% endif %}
+        {% endwith %}
+      </td>
+      <td>
+        {% if workflow.state == "EditorSelected" %}
+          {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
         {% endif %}
-      {% endwith %}
-    </td>
-    <td>
-      {% if workflow.state == "EditorSelected" %}
-        {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
-      {% endif %}
-    </td>
+      </td>
+    {% endif %}
     <td title="latest EO note">
       {% last_user_note target=workflow.article as note %}
       {% if note %}

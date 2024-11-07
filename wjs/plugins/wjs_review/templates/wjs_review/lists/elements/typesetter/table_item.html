@@ -12,10 +12,10 @@
       <a href="{% url 'wjs_article_details' workflow.pk %}" class="fw-bold">{{ article.pk }}</a>
     </td>
     <td>
-      <span title="Last status change TODO workflow.date_last_transition">{{ workflow.latest_state_change|timesince }} since last state change</span>
+      <span title="{% translate "Last status change" %}">{{ workflow.latest_state_change|days_since }} {% translate "days since last state change" %}</span>
     </td>
     <td class="align-bottom position-relative {% if attention_flag %}fw-bolder{% endif %}">
-      {% include "wjs_review/lists/elements/table_item_status.html" with publish_status=True %}
+      {% include "wjs_review/lists/elements/table_item_status.html" with publish_status=True publishable_symbol=False %}
     </td>
     <td>
       {{ article.primary_issue|internal_title|default:"—" }}
