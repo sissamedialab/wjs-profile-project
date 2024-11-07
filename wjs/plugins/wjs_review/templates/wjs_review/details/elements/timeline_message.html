@@ -11,19 +11,31 @@
       <br>
       {{ message.subject }}
     {% elif message.message_type == message.MessageTypes.SYSTEM %}
-      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">
-        {{ message.subject }}
-      </a>
+      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">{{ message.subject }}</a>
     {% else %}
-      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">
-        {{ message.subject }}
-      </a>
+      <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}">{{ message.subject }}</a>
       <br>
-      <small>{{ message.actor }} {% if message.recipients.exists %} -> {{ message.recipients.all|join:", " }}{% endif %}</small>
+      <small>
+        {% if message.actor != user %}
+          {% hide_real_name message.actor to=user on=article %}
+        {% else %}
+          {{ message.actor }}
+        {% endif %}
+        {% if message.recipients.exists %}
+          <i class="bi bi-arrow-right"></i>
+          {% for recipient in message.recipients.all %}
+            {# djlint:off #}{% hide_real_name recipient to=user on=article %}{% if not forloop.last %},{% endif %}{# djlint:on #}
+          {% endfor %}
+        {% endif %}
+      </small>
     {% endif %}
   </div>
-  <div class="align-self-start text-end" title="{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}">
-    <small><i>{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}</i></small><br>
-    <small title="{% translate "Message has been read by all the recipients" %}">{% if message|message_read_by_all %}<i class="bi bi-check2-all"></i>{% endif %}</small>
+  <div class="align-self-start text-end"
+       title="{{ message.created|timesince }} {% translate "ago" %}">
+    <small><i>{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}</i></small>
+    <br>
+    <small title="{% translate "Message has been read by all the recipients" %}">
+      {% if message|message_read_by_all %}<i class="bi bi-check2-all"></i>{% endif %}
+    </small>
   </div>
 </div>

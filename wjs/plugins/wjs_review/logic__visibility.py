@@ -8,6 +8,7 @@ from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review.models import EditorAssignment, ReviewAssignment, RevisionRequest
 from submission.models import Article
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import permissions
@@ -34,11 +35,13 @@ def get_recipient_label(workflow: ArticleWorkflow, user: Account, recipient: Acc
         return real_name
     else:
         if permissions.is_article_typesetter(instance=workflow, user=recipient):
-            return "typesetter"
+            return constants.LABELS[constants.DIRECTOR_MAIN_ROLE]
         elif permissions.is_article_editor(instance=workflow, user=recipient):
-            return "editor"
+            return constants.LABELS[constants.EDITOR_ROLE]
+        elif permissions.is_article_reviewer(instance=workflow, user=recipient):
+            return constants.LABELS[constants.REVIEWER_ROLE]
         else:
-            return real_name
+            return "Undisclosed name"
 
 
 @dataclasses.dataclass
