@@ -523,7 +523,7 @@ def test_message_addressing(
 
     # Author
     # ======
-    assert HandleMessage.can_write_to(author, assigned_article, editor) is False
+    assert HandleMessage.can_write_to(author, assigned_article, editor) is True
     assert HandleMessage.can_write_to(author, assigned_article, reviewer) is False
     assert HandleMessage.can_write_to(author, assigned_article, author) is True
     assert HandleMessage.can_write_to(author, assigned_article, director) is author_can_contact_director
@@ -638,7 +638,7 @@ def test_allowed_recipients_for_actor(
     assert author in allowed_recipients
     assert reviewer_1 not in allowed_recipients
     assert reviewer_2 not in allowed_recipients
-    assert editor not in allowed_recipients
+    assert editor in allowed_recipients
     assert past_editor not in allowed_recipients
     assert (director in allowed_recipients) is author_can_contact_director
     assert eo_system_user in allowed_recipients

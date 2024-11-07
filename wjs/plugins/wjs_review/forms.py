@@ -49,6 +49,7 @@ from .logic import (
     SupervisorChangeEditorAssignment,
     WithdrawPreprint,
 )
+from .logic__visibility import get_recipient_label
 from .models import (
     ArticleWorkflow,
     EditorRevisionRequest,
@@ -927,7 +928,8 @@ class MessageRecipientForm(forms.Form):
     """
 
     recipient = forms.ModelChoiceField(
-        queryset=None, widget=forms.widgets.Select(attrs={"class": "rounded-0 rounded-start"})
+        queryset=None,
+        widget=forms.widgets.Select(attrs={"class": "rounded-0 rounded-start"}),
     )
 
     def __init__(self, *args, **kwargs):
@@ -939,7 +941,13 @@ class MessageRecipientForm(forms.Form):
             actor=actor,
             article=article,
         )
-        self.fields["recipient"].queryset = allowed_recipients  # used at display
+        self.fields["recipient"].queryset = allowed_recipients
+        # Use logic__visibility to hide the name of the recipient if necessary:
+        self.fields["recipient"].label_from_instance = lambda obj: get_recipient_label(
+            workflow=article.articleworkflow,
+            user=actor,
+            recipient=obj,
+        )
 
 
 class MessageForm(forms.ModelForm):
