@@ -1461,7 +1461,6 @@ class DeselectReviewer:
     request: HttpRequest
     send_reviewer_notification: bool
     form_data: Dict[str, Any]
-    log_operation: bool = True
 
     def _get_message_context(self):
         """Get the context for the message template."""
@@ -1479,7 +1478,7 @@ class DeselectReviewer:
         else:
             verbosity = Message.MessageVerbosity.TIMELINE
             message_body = ""
-            recipients = []
+            recipients = [self.assignment.reviewer]
 
         communication_utils.log_operation(
             article=self.assignment.article,
@@ -1511,8 +1510,7 @@ class DeselectReviewer:
         self._delete_reviewer_reminders()
         handle_reviewer_deassignment_reminders(self.assignment)
         self.assignment.withdraw()
-        if self.log_operation:
-            self._log_operation()
+        self._log_operation()
         return True
 
     def _delete_reviewer_reminders(self):
@@ -1547,19 +1545,12 @@ class WithdrawIncompleteReviews:
     extra_filters: Dict[str, Any] = None
     form_data: dict = None
     """If provided, use the form's data for the message body instead of gettig it from a setting."""
-    log_operation: bool = True
-    """If set to false, no message is created (not even in the timeline)."""
 
     def check_conditions(self) -> bool:
-        """
-        Check if the conditions for the deassignment are met.
-
-        If log_operation is True, context and body_name and subject_name must be set.
-        If False, no check is needed.
-        """
+        """Check if context and body_name and subject_name must be set."""
         content_settings_set = self.body_name and self.subject_name
         context_set = bool(self.context)
-        return not self.log_operation or (context_set and content_settings_set)
+        return context_set and content_settings_set
 
     def _get_current_review_assignments(self) -> QuerySet[WorkflowReviewAssignment]:
         qs = WorkflowReviewAssignment.objects.filter(
@@ -1601,13 +1592,11 @@ class WithdrawIncompleteReviews:
         with transaction.atomic():
             for assignment in self._get_current_review_assignments():
                 message_body, message_subject = self._prepare_message(assignment)
-
                 DeselectReviewer(
                     assignment=assignment,
                     editor=self.actor,
                     request=self.request,
-                    send_reviewer_notification=self.log_operation,
-                    log_operation=self.log_operation,
+                    send_reviewer_notification=True,
                     form_data={
                         "notification_subject": message_subject,
                         "notification_body": message_body,
