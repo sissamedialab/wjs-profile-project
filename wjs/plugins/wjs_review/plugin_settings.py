@@ -31,7 +31,7 @@ JANEWAY_VERSION = "1.5.0"
 MANAGER_URL = f"{SHORT_NAME}_manager"
 
 IS_WORKFLOW_PLUGIN = True
-JUMP_URL = f"{SHORT_NAME}_article"
+JUMP_URL = "wjs_article_details"
 HANDSHAKE_URL = f"{SHORT_NAME}_list"
 ARTICLE_PK_IN_HANDSHAKE_URL = True
 STAGE = f"{SHORT_NAME}_plugin"
