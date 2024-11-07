@@ -2931,9 +2931,10 @@ def test_deassign_reviewer(
         assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__isnull=True).count() == 0
     else:
-        assert len(mail.outbox) == 0  # no email has been sent
-        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
-        assert Message.objects.filter(recipients__isnull=True).count() == 1
+        # no email has been sent, but the Message still has the reviewer as recipient
+        assert len(mail.outbox) == 0
+        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
+        assert Message.objects.filter(recipients__isnull=True).count() == 0
     # Reminders are modified
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),
@@ -3014,8 +3015,8 @@ def test_deassign_reviewer_existing_assignment(
     assert review_assignment.decision == "withdrawn"
 
     assert Message.objects.count() == 1
-    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 0
-    assert Message.objects.filter(recipients__isnull=True).count() == 1
+    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
+    assert Message.objects.filter(recipients__isnull=True).count() == 0
     assert len(mail.outbox) == 0  # no email has been sent
     # Reminders are modified
     assert not Reminder.objects.filter(
