@@ -8,7 +8,7 @@
             <h2 class="main-title">{% trans "Thank you for registering!" %}</h2>
             <div class="card-panel">
               {% blocktrans %}
-                To complete your registration, please check your email inbox for a message from {{ request.journal.code }}.
+                To complete your registration, please check your email inbox for a message from <b>{{ no_reply_email }}</b>.
                 Inside the email, you'll find a link to confirm your account.
                 <p><b>Important:</b></p>
               {% endblocktrans %}

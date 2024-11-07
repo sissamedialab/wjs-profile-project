@@ -36,6 +36,7 @@ from security.decorators import has_journal
 from submission import models as submission_models
 from submission.models import Keyword, Section
 from utils.logger import get_logger
+from utils.setting_handler import get_setting
 
 from . import forms
 from . import permissions as base_permissions
@@ -176,7 +177,11 @@ def register(request):
 
 
 def registration_success(request):
-    return render(request, "core/accounts/registration_success.html")
+    from_email = get_setting("general", "from_address", request.journal).processed_value
+    context = {
+        "no_reply_email": from_email,
+    }
+    return render(request, "core/accounts/registration_success.html", context)
 
 
 def confirm_gdpr_acceptance(request, token):
