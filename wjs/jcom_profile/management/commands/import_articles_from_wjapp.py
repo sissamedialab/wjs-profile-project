@@ -19,6 +19,7 @@ from django.db.models import Q
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -34,6 +35,7 @@ from plugins.wjs_review.logic import (
     WorkflowReviewAssignment,
     render_template_from_setting,
 )
+from plugins.wjs_review.logic__production import AssignTypesetter
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     EditorDecision,
@@ -183,6 +185,10 @@ class Command(BaseCommand):
 
         logger.debug(f"""Importing {preprintid}""")
 
+        if publicationid:
+            logger.error(f"Published article {publicationid} import blocked.")
+            return
+
         # create article and section
         article, preprintid, main_author = self.create_article(current_version_row)
 
@@ -271,7 +277,21 @@ class Command(BaseCommand):
                         action_triggers_import_files=False,
                     ).run()
                 else:
-                    logger.warning(f"Action {action['actionID']} not yet managed.")
+                    managed_in_import_correspondence = [
+                        "ED_REMINDS_REF",
+                        "ADMIN_REMINDS_AUTH",
+                        "ED_REMINDS_AUTH",
+                        "ADMIN_REMINDS_REF",
+                        "ADMIN_REMINDS_ED",
+                        "SYS_REMINDS_DIR",
+                        "SYS_REMINDS_ED",
+                        "SYS_REMINDS_REF",
+                        "SYS_REMINDS_AUT",
+                    ]
+                    if action["actionID"] in managed_in_import_correspondence:
+                        logger.debug(f"Action {action['actionID']} managed in import correspondence.")
+                    else:
+                        logger.warning(f"Action {action['actionID']} not yet managed.")
 
             # set_authors bios
             self.set_authors_bios(imported_version_bios_text, article, imported_version_num)
@@ -465,6 +485,114 @@ ORDER BY ah.actionDate
     # functions to set data in wjs
     #
 
+    def reset_article_data(self, article):
+        """Reset article data for re-import of the article"""
+
+        # clean some data related to the article
+        for err in EditorRevisionRequest.objects.filter(article=article):
+
+            err.cover_letter_file.delete()
+
+            for f in err.manuscript_files.all():
+                f.unlink_file()
+                f.delete()
+
+            for f in err.data_figure_files.all():
+                f.unlink_file()
+                f.delete()
+
+            for f in err.source_files.all():
+                f.unlink_file()
+                f.delete()
+
+            for f in err.article.supplementary_files.all():
+                f.file.unlink_file()
+                f.file.delete()
+                f.delete()
+
+            err.delete()
+
+        # TBV: delete WorkflowReviewAssignment's files (reviewers' report files)
+        for wra in WorkflowReviewAssignment.objects.filter(article=article):
+            if wra.review_file:
+                wra.review_file.unlink_file()
+                wra.review_file.delete()
+
+        WorkflowReviewAssignment.objects.filter(article=article).delete()
+
+        for rr in ReviewRound.objects.filter(article=article):
+            EditorDecision.objects.filter(review_round=rr).delete()
+
+        ReviewRound.objects.filter(article__id=article.id).delete()
+
+        # necessary to delete
+        Message.objects.filter(object_id=article.id).delete()
+
+        # NOTE: the galley must never be deleted: they are never created by the import
+        # and if already present (published article) must remain
+
+        # TODO: supplementary_files are similar, but different:
+        # - if paper is in review (not yet accepted), do nothing
+        # - if paper is in production (after acceptance, before publication)
+        #   - attachments of latest version be moved to `A.supplementary_files` (this simulates the typesetter
+        #     uploading them and ensures they will be "published")
+        # - (optional) if paper is published, we can add attachments of the accepted version as
+        #   A.AW.supplementary_files_at_acceptance
+
+        for f in article.manuscript_files.all():
+            f.unlink_file()
+            f.delete()
+
+        for f in article.data_figure_files.all():
+            f.unlink_file()
+            f.delete()
+
+        for f in article.source_files.all():
+            f.unlink_file()
+            f.delete()
+
+        for f in article.data_figure_files.all():
+            f.unlink_file()
+            f.delete()
+
+        # TBV: delete  ArticleWorkflow's files
+        for f in article.articleworkflow.supplementary_files_at_acceptance.all():
+            logger.error(f"{f=}")
+            f.unlink_file()
+            f.delete()
+
+        # TBV: delete TypesettingAssignment's files
+        for ta in TypesettingAssignment.objects.filter(round__article=article):
+            for f in ta.files_to_typeset.all():
+                logger.error(f"{f=}")
+                f.unlink_file()
+                f.delete()
+
+        TypesettingAssignment.objects.filter(round__article=article).delete()
+        TypesettingRound.objects.filter(article=article).delete()
+
+        RevisionRequest.objects.filter(article__id=article.id).delete()
+        ReviewAssignment.objects.filter(article__id=article.id).delete()
+        EditorAssignment.objects.filter(article__id=article.id).delete()
+        submission_models.KeywordArticle.objects.filter(article__id=article.id).delete()
+        article.articleworkflow.delete()
+
+        submission_models.ArticleAuthorOrder.objects.filter(article__id=article.id).delete()
+        article.authors.clear()
+
+        submission_models.ArticleStageLog.objects.filter(article__id=article.id).delete()
+        article.stage = submission_models.STAGE_UNASSIGNED
+
+        # Note: the article object is not deleted, only the data are reset
+        #
+        # There are objects related to the article that are not deleted
+        # because are reused:
+        #
+        # Frozen authors: not to delete
+        # Galleys: not to delete
+        # identifiers: not to delete
+        # ProphyCandidates: not to delete. if resent to prophy they will be updated.
+
     def create_article(self, row):
         """Create the article."""
 
@@ -480,79 +608,13 @@ ORDER BY ah.actionDate
             # that we are re-importing.
             logger.warning(
                 f"Re-importing existing article {preprintid} at {article.id} "
-                f"The {article.id} here will disappear because of the delete() below",
+                f"The {article.id} data and files will be cleaned before to re-import.",
             )
-
-            # clean some data related to the article
-            for err in EditorRevisionRequest.objects.filter(article=article):
-
-                err.cover_letter_file.delete()
-
-                for f in err.manuscript_files.all():
-                    f.unlink_file()
-                    f.delete()
-
-                for f in err.data_figure_files.all():
-                    f.unlink_file()
-                    f.delete()
-
-                for f in err.source_files.all():
-                    f.unlink_file()
-                    f.delete()
-
-                for f in err.article.supplementary_files.all():
-                    f.file.unlink_file()
-                    f.file.delete()
-                    f.delete()
-
-                err.delete()
-
-            WorkflowReviewAssignment.objects.filter(article=article).delete()
-            for rr in ReviewRound.objects.filter(article=article):
-                EditorDecision.objects.filter(review_round=rr).delete()
-
-            # necessary to delete
-            Message.objects.filter(object_id=article.id).delete()
-
-            # NOTE: the galley must never be deleted: they are never created by the import
-            # and if already present (published article) must remain
-
-            # TODO: supplementary_files are similar, but different:
-            # - if paper is in review (not yet accepted), do nothing
-            # - if paper is in production (after acceptance, before publication)
-            #   - attachments of latest version be moved to `A.supplementary_files` (this simulates the typesetter
-            #     uploading them and ensures they will be "published")
-            # - (optional) if paper is published, we can add attachments of the accepted version as
-            #   A.AW.supplementary_files_at_acceptance
-
-            for f in article.manuscript_files.all():
-                f.unlink_file()
-                f.delete()
-
-            for f in article.data_figure_files.all():
-                f.unlink_file()
-                f.delete()
-
-            for f in article.source_files.all():
-                f.unlink_file()
-                f.delete()
-
-            for f in article.data_figure_files.all():
-                f.unlink_file()
-                f.delete()
-
-            # after delete the id is lost
-            article_id_check = article.id
-
-            article.delete()
-
-            assert RevisionRequest.objects.filter(article__id=article_id_check).count() == 0
-            assert ReviewAssignment.objects.filter(article__id=article_id_check).count() == 0
-            assert ReviewRound.objects.filter(article__id=article_id_check).count() == 0
-
-        article = submission_models.Article.objects.create(
-            journal=self.journal,
-        )
+            self.reset_article_data(article)
+        else:
+            article = submission_models.Article.objects.create(
+                journal=self.journal,
+            )
         article.title = row["versionTitle"]
         article.abstract = row["versionAbstract"]
         article.imported = True
@@ -856,6 +918,14 @@ def newlines_text_to_html(message: str) -> str:
     message = message.replace("\n", "<br>")
     message = message.replace("\r", "<br>")
     return message
+
+
+def noop(*args, **kwdargs):
+    """Do nothing.
+
+    Used to disabled WJS automated messages.
+    """
+    pass
 
 
 @dataclass
@@ -1700,6 +1770,8 @@ class AdminOpensAppealAction(BaseActionManager):  # noqa N801
             logger.debug(f"Admin {admin} opens appeal {self.article.pk}")
 
             # the related message is imported with the general correspondence
+            # the automated message is disabled
+            OpenAppeal._log_author = noop
             OpenAppeal(
                 new_editor=self.get_current_editor(),
                 article=self.article,
@@ -1927,6 +1999,8 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
                 "acceptance_due_date": date_due,
                 "message": "VALUE NOT USED",
             }
+            # the automated message is disable
+            AssignToReviewer._log_operation = noop
             review_assignment = AssignToReviewer(
                 reviewer=reviewer,
                 workflow=self.article.articleworkflow,
@@ -2143,11 +2217,13 @@ ORDER BY dl.submissionDate
                 with freezegun.freeze_time(
                     rome_timezone.localize(reviewer_data["refereeAcceptDate"]),
                 ):
+                    # the automated message is disabled
+                    EvaluateReview._log_accept = noop
                     EvaluateReview(
                         assignment=review_assignment,
                         reviewer=reviewer,
                         editor=self.get_current_editor(),
-                        form_data={"reviewer_decision": "1", "accept_gdpr": True},
+                        form_data={"reviewer_decision": "1", "additional_comments": "", "accept_gdpr": True},
                         request=request,
                         token=None,
                     ).run()
@@ -2214,6 +2290,8 @@ class DeselectReviewerAction(BaseActionManager):
         with freezegun.freeze_time(
             rome_timezone.localize(reviewer_deselection_date),
         ):
+            # the automated message is disabled
+            DeselectReviewer._log_operation = noop
             DeselectReviewer(
                 assignment=review_assignment,
                 editor=review_assignment.editor,
@@ -2401,14 +2479,18 @@ ORDER BY dl.submissionDate
         ):
             logger.debug(f"Reviewer {reviewer} declines {self.article}")
 
-            decline_reason = newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
-            self.imported_document_layer_cod_list.append(reviewer_decline_message.get("documentLayerCod"))
+            additional_comments = newlines_text_to_html(reviewer_decline_message.get("documentLayerText"))
 
+            # TBV: not added to imported document layer list because the decline action does not save the message.
+            # therefore the import of the message happens with the general correspondence.
+
+            # the automated message is disabled
+            EvaluateReview._log_decline = noop
             EvaluateReview(
                 assignment=review_assignment,
                 reviewer=reviewer,
                 editor=self.get_current_editor(),
-                form_data={"reviewer_decision": "0", "decline_reason": decline_reason, "accept_gdpr": True},
+                form_data={"reviewer_decision": "0", "additional_comments": additional_comments, "accept_gdpr": True},
                 request=request,
                 token=None,
             ).run()
@@ -2564,6 +2646,9 @@ ORDER BY dl.submissionDate
             # SubmitReview does not validate the form.
             # the form is validated in view ReviewSubmit -> ReportForm.save()
             # and SubmitReview is called only afterwards
+
+            # the automated message is disabled
+            SubmitReview._log_operation = noop
             submit = SubmitReview(
                 assignment=review_assignment,
                 form=form,
@@ -2660,7 +2745,6 @@ ORDER BY dl.submissionDate
 
         wjapp_editor_report = self.read_editor_report_message()
         editor_report_date = self.action["actionDate"]
-
         # the (current) default review form element for editor cover letter
         # has a rich-text/html widget.  Text from wjapp formatted to html
         wjapp_editor_cover_letter_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerText"))
@@ -2691,6 +2775,17 @@ ORDER BY dl.submissionDate
                 "date_due": date_due,
             }
 
+            # TODO: fix JCOM_004A_0424 exception: WjsEditorAssignment matching query does not exist
+
+            # the automated message are disabled
+            # TODO: ex: JCOM_002N_0824 Subject: Invite to review withdrawn
+            # is not disabled on rejection
+            HandleDecision._log_accept = noop
+            HandleDecision._log_decline = noop
+            HandleDecision._log_not_suitable = noop
+            HandleDecision._log_revision_request = noop
+            HandleDecision._log_requires_resubmission = noop
+            HandleDecision._log_technical_revision_request = noop
             handle = HandleDecision(
                 workflow=self.article.articleworkflow,
                 form_data=form_data,
@@ -2800,6 +2895,8 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         with freezegun.freeze_time(
             rome_timezone.localize(author_report_date),
         ):
+            # the automated message is disabled
+            AuthorHandleRevision._log_operation = noop
             service = AuthorHandleRevision(
                 revision=revision_request,
                 form_data=form_data,
@@ -2918,3 +3015,54 @@ class AU_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
 
 class ADMIN_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
     """Manages wjapp action ADMIN_SELECTS_COAUT."""
+
+
+# PRODUCTION
+
+
+class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
+    """Manages wjapp action TYP_TAKES_CHARGE."""
+
+    def run(self):
+        """Assign the typesetter.
+
+        Also create the typesetter's Account if necessary.
+        """
+
+        typesetter_cod = self.action["agentCod"]
+        typesetter_lastname = self.action["agentLastname"]
+        typesetter_firstname = self.action["agentFirstname"]
+        typesetter_email = self.action["agentEmail"]
+        typesetter_privacy = self.action["agentPrivacy"]
+        typesetter_assign_date = self.action["actionDate"]
+
+        if typesetter_cod:
+            typesetter = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                typesetter_cod,
+                typesetter_lastname,
+                typesetter_firstname,
+                typesetter_email,
+                typesetter_privacy,
+            )
+            if not typesetter.check_role(self.journal, "typesetter"):
+                typesetter.add_account_role("typesetter", self.journal)
+
+            logger.debug(f"Assign typ: {typesetter.last_name} {typesetter.first_name} onto {self.article.pk}")
+            request = create_fake_request(user=None, journal=self.journal)
+            # TODO: appears "mock user full name" in the message
+            request.user = typesetter
+
+            with freezegun.freeze_time(
+                rome_timezone.localize(typesetter_assign_date),
+            ):
+                typesetting_assignment = AssignTypesetter(
+                    article=self.article,
+                    typesetter=typesetter,
+                    request=request,
+                ).run()
+                self.article.save()
+                logger.debug(f"typesetting assignment {typesetting_assignment=}")
+
+            self.article.refresh_from_db()
+            return typesetter
