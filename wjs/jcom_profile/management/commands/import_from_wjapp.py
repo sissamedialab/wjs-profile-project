@@ -17,6 +17,7 @@ from pathlib import Path
 
 import lxml.etree
 import lxml.html
+import pycountry
 from core.models import Account
 from django.core.files import File
 from django.core.management.base import BaseCommand
@@ -214,7 +215,11 @@ class Command(BaseCommand):
             attach_service.article = article
 
             main_basefilename = main_wjapp_xml_filename.replace(".xml", "")
-            main_lang = map_language(main_xml_obj.find("//document/language_id").text)
+            if language_tag := main_xml_obj.find("//document/language_id"):
+                main_lang = map_language(language_tag.text)
+            else:
+                logger.info("No language found in XML, setting English")
+                main_lang = pycountry.languages.get(alpha_2="en")
 
             if num_papers > 1:
                 label_suffix = f" ({main_lang.alpha_2})"
