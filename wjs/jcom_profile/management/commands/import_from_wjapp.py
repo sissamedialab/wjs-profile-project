@@ -215,7 +215,8 @@ class Command(BaseCommand):
             attach_service.article = article
 
             main_basefilename = main_wjapp_xml_filename.replace(".xml", "")
-            if language_tag := main_xml_obj.find("//document/language_id"):
+            language_tag = main_xml_obj.find("//document/language_id")
+            if language_tag is not None:
                 main_lang = map_language(language_tag.text)
             else:
                 logger.info("No language found in XML, setting English")
