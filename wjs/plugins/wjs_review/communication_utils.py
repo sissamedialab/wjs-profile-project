@@ -19,6 +19,7 @@ from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile import constants
+from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
@@ -57,9 +58,21 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
 
     # Get messages for this article...
     by_article = Q(Q(content_type=content_type) & Q(object_id=object_id))
-    if user.is_superuser or has_eo_role(user) or has_director_role(journal=article.journal, user=user):
-        # if I am a director/EO/staff, in that case I see all messages, using a dummy filter
-        by_current_user = Q(pk__gt=0)
+    if user.is_superuser or has_eo_role(user):
+        # if I am a EO/staff, in that case I see all messages, using a dummy filter, excluding personal notes; but
+        # personal notes from an EO are shared by all EO
+        by_current_user = Q(
+            Q(message_type=Message.MessageTypes.NOTE) & Q(actor__groups__name=EO_GROUP),
+        ) | Q(
+            ~Q(message_type=Message.MessageTypes.NOTE) & Q(pk__gt=0),
+        )
+    elif has_director_role(journal=article.journal, user=user):
+        # if I am a director, in that case I see all messages, using a dummy filter, excluding personal notes
+        by_current_user = Q(
+            Q(message_type=Message.MessageTypes.NOTE) & Q(actor=user),
+        ) | Q(
+            ~Q(message_type=Message.MessageTypes.NOTE) & Q(pk__gt=0),
+        )
     else:
         # if they have some relation with me
         by_current_user = Q(Q(recipients__in=[user]) | Q(actor=user))

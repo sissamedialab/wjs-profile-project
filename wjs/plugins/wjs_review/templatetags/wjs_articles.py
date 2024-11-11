@@ -82,7 +82,7 @@ def last_user_note(context, target, user=None):
         recipients=user,
         message_type=Message.MessageTypes.NOTE,
     ).order_by("-created")
-    return personal_notes.last() or ""
+    return personal_notes.first() or ""
 
 
 @register.simple_tag()
@@ -97,7 +97,7 @@ def last_eo_note(target):
         actor__groups__name=EO_GROUP,
         message_type=Message.MessageTypes.NOTE,
     ).order_by("-created")
-    return eo_notes.last() or ""
+    return eo_notes.first() or ""
 
 
 @register.filter
