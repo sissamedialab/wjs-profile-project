@@ -992,7 +992,10 @@ class MessageForm(forms.ModelForm):
         if self.hide_recipients:
             self.fields["recipients"].widget = forms.widgets.HiddenInput()
         if self.note:
+            # The recipients of a personal note is only the actor;
+            # it is automatically set during clean()
             self.fields["recipients"].required = False
+            self.fields["subject"].required = False
         initial_recipients = []
         if self.initial.get("recipients"):
             initial_recipients = [{"recipient": recipient} for recipient in self.initial["recipients"]]
@@ -1043,13 +1046,13 @@ class MessageForm(forms.ModelForm):
         if self.initial.get("to_be_forwarded_to"):
             # to_be_forwarded_to cannot be customized by the user, so we always inject the initial value
             clean_data["to_be_forwarded_to"] = self.initial["to_be_forwarded_to"]
+        if self.hide_recipients:
+            clean_data["recipients"] = self.initial["recipients"]
         if self.note:
             clean_data["message_type"] = Message.MessageTypes.NOTE
             clean_data["recipients"] = [self.actor]
         else:
             clean_data["message_type"] = Message.MessageTypes.USER
-        if self.hide_recipients:
-            clean_data["recipients"] = self.initial["recipients"]
         return clean_data
 
     # TODO: IMPORTANT: enforce security:
@@ -1060,8 +1063,13 @@ class MessageForm(forms.ModelForm):
         to a specific article are not managed.
         """
         with transaction.atomic():
-            instance = super().save()
+            instance: Message = super().save()
             instance.recipients.set(self.cleaned_data["recipients"])
+            if self.note:
+                # All personal notes are considered "read"
+                # ATM (24W11) personal notes only have _one_ recipient (the actor), but this way
+                # we allow for future changes (for instance, if EO want to share notes with typ)
+                MessageRecipients.objects.filter(message=instance).update(read=True)
             if self.cleaned_data["attachment"]:
                 if instance.content_type.model_class() != Article:
                     # TODO: where do we save attachements of messages not related to articles?

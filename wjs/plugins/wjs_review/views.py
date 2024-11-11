@@ -1962,11 +1962,11 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
 
         """
         if self.source_message:
-            default_subject = f"Re: {self.source_message.subject}"
+            default_subject = f"{_('Re:')} {self.source_message.subject}"
         elif self.note:
-            default_subject = f"{self.get_sender_label()}'s note"
+            default_subject = ""
         else:
-            default_subject = f"Message from {self.get_sender_label()}"
+            default_subject = f"{_('Message from')} {self.get_sender_label()}"
         to_be_forwarded_to = self.get_to_be_forwarded_to()
         return {
             "actor": self.request.user.pk,
