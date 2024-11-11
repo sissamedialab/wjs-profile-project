@@ -214,8 +214,8 @@ class Command(BaseCommand):
             attach_service.article = article
 
             main_basefilename = main_wjapp_xml_filename.replace(".xml", "")
-            main_lang = map_language(main_xml_obj.find("//document").get("lang"))
-            main_xml_obj.find("//document").get("lang")
+            main_lang = map_language(main_xml_obj.find("//document/language_id").text)
+
             if num_papers > 1:
                 label_suffix = f" ({main_lang.alpha_2})"
             else:
@@ -521,6 +521,8 @@ class Command(BaseCommand):
 
         if article.section.name in NON_PEER_REVIEWED:
             article.peer_reviewed = False
+
+        article.save()
 
         # Must ensure that a SectionOrdering exists for this issue,
         # otherwise issue.articles.add() will fail.
