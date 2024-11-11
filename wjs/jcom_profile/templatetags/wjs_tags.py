@@ -19,7 +19,7 @@ register = template.Library()
 @register.filter
 def keyvalue(dictionary, key):
     """Return the value of dict[key]."""
-    return dictionary[key]
+    return dictionary.get(key, "---")
 
 
 @register.filter

@@ -2615,17 +2615,29 @@ ORDER BY dl.submissionDate
 
         # we leave empty those fields that don't exist in wjapp and
         # that do not have a "mandatory" value (such as no-conflict-of-interests).
+
         report_form = get_report_form(self.journal)
+
+        # with the data in this example the form would be valid, but the imported report
+        # have not this data. The Key error on the template report_form_summary.html
+        # has been solved in template tag "keyvalue"
+        #
+        # conflict_of_interest: "no",
+        # structure_and_writing_style: "Good",
+        # originality: "Good",
+        # scope_and_methods: "Good",
+        # argument_and_discussion: "Good",
+        # recommendation: "publish",
+        # editor_cover_letter: formatted_cover_letter_message,
+        # author_review: formatted_report_message,
+
+        # Note: form not valid because has empty values
         jcom_report_form_data = {
             "conflict_of_interest": "no",
-            "structure_and_writing_style": "",
-            "originality": "",
-            "scope_and_methods": "",
-            "argument_and_discussion": "",
-            "recommendation": "",
             "editor_cover_letter": formatted_cover_letter_message,
             "author_review": formatted_report_message,
         }
+
         form = report_form(
             data=jcom_report_form_data, review_assignment=review_assignment, request=request, submit_final=True
         )
