@@ -1494,7 +1494,7 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
     form_class = DecisionForm
     template_name = "wjs_review/make_decision/decision.html"
     context_object_name = "workflow"
-    title = _("Make decision")
+    title = _("Make decision (EO)")
 
     def test_func(self):
         """Verify that only EO can access."""

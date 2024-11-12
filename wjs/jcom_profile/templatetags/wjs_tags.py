@@ -23,7 +23,7 @@ def keyvalue(dictionary, key):
 
     Raise KeyError if key is not in dictionary.
     """
-    return dictionary.get(key, "----")
+    return dictionary[key]
 
 
 @register.filter
