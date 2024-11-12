@@ -335,7 +335,7 @@ WJS_ARTICLE_LANGUAGES = {
             "eng",
             _("English"),
         ),
-        ("deu", "German"),
+        ("deu", _("German")),
         ("fra", _("French")),
         ("esp", _("Spanish")),
         ("por", _("Portuguese")),
