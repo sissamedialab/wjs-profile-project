@@ -18,8 +18,22 @@ register = template.Library()
 
 @register.filter
 def keyvalue(dictionary, key):
-    """Return the value of dict[key]."""
-    return dictionary.get(key, "---")
+    """
+    Return the value of dict[key].
+
+    Raise KeyError if key is not in dictionary.
+    """
+    return dictionary.get(key, "----")
+
+
+@register.filter
+def get_value(dictionary, key):
+    """
+    Return the value of get(key, "").
+
+    Do not raise KeyError if key is not in dictionary.
+    """
+    return dictionary.get(key, "")
 
 
 @register.filter

@@ -1,5 +1,4 @@
-{% load django_bootstrap5 static %}
-{% load wjs_review wjs_tags %}
+{% load django_bootstrap5 static wjs_review wjs_tags %}
 <!-- djlint:off -->
 {% translate "<i class=\"bi bi-clipboard-fill\"></i> Read the review" as read_review_label %}
 {% translate "<i class=\"bi bi-clipboard-fill\"></i> Read cover letter" as read_cover_letter_label %}
@@ -12,7 +11,7 @@
     <tr>
       <th class="col-2"></th>
       {% for review in submitted_reviews %}
-          <th class="col-2">{{ review.reviewer }}</th>
+        <th class="col-2">{{ review.reviewer }}</th>
       {% endfor %}
     </tr>
   </thead>
@@ -22,30 +21,30 @@
         {% if field_name != 'author_file_title' and field_name != 'conflict_of_interest' and field_name != 'review_file' and field_name != 'author_review' %}
           <th>{% translate field.label %}</th>
           {% for review in submitted_reviews %}
-              {% if field_name != 'editor_cover_letter' %}
-                <td>
-                {% with answer_value=review.workflowreviewassignment.report_form_answers|keyvalue:field_name %}
-                    {% if field.choices %}
-                      {% for choice_value, choice_label in field.choices %}
-                        {% if choice_value == answer_value %}
-                          {{ choice_label }}
-                        {% endif %}
-                      {% endfor %}
-                    {% else %}
-                      {{ answer_value }}
+            {% if field_name != 'editor_cover_letter' %}
+              <td>
+              {% with answer_value=review.workflowreviewassignment.report_form_answers|get_value:field_name %}
+                {% if field.choices %}
+                  {% for choice_value, choice_label in field.choices %}
+                    {% if choice_value == answer_value %}
+                      {{ choice_label }}
                     {% endif %}
-                  {% endwith %}
-                </td>
-              {% elif field_name == 'editor_cover_letter' %}
-                {% with modal_id="editor_cover_letter_modal-"|concat:review.pk modal_target="#editor_cover_letter_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|keyvalue:'editor_cover_letter' %}
-                <td>
-                  {% bootstrap_button type="button" content=read_cover_letter_label button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
-                  {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_cover_letter_modal_title modal_body=modal_content %}
-                </td>
-                {% endwith %}
-              {% else %}
-                <td></td>
-              {% endif %}
+                  {% endfor %}
+                {% else %}
+                  {{ answer_value }}
+                {% endif %}
+              {% endwith %}
+              </td>
+            {% elif field_name == 'editor_cover_letter' %}
+              {% with modal_id="editor_cover_letter_modal-"|concat:review.pk modal_target="#editor_cover_letter_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|keyvalue:'editor_cover_letter' %}
+              <td>
+                {% bootstrap_button type="button" content=read_cover_letter_label button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+                {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_cover_letter_modal_title modal_body=modal_content %}
+              </td>
+              {% endwith %}
+            {% else %}
+              <td></td>
+            {% endif %}
           {% endfor %}
         {% endif %}
       </tr>
@@ -64,12 +63,12 @@
           {% endwith %}
         {% endfor %}
       </tr>
-       <tr>
-       <th class="ps-4">{% translate "Files" %}</th>
+      <tr>
+        <th class="ps-4">{% translate "Files" %}</th>
         {% for review in submitted_reviews %}
           {% if review.review_file %}
             <td>
-            {% include "wjs_review/make_decision/elements/author_file_download.html" %}
+              {% include "wjs_review/make_decision/elements/author_file_download.html" %}
             </td>
           {% else %}
             <td></td>

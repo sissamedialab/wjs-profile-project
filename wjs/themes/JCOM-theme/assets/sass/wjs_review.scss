@@ -212,4 +212,27 @@ table.table-bordered.dataTable .table-borderless td {
   background-color: #0d6efd;
 }
 
+.table.table-small-font > tbody {
+  font-size: 14px;
+}
+
+.table.table-bordered.table-border-medium {
+  border-color: $gray-500;
+  border-width: 2px !important;
+
+  .table-warning {
+    border-color: $gray-500;
+  }
+}
+
+.table-reviewers {
+  .border-end {
+    border-right: 0 !important;
+  }
+
+  .border-bottom {
+    border-bottom-color: $gray-500 !important;
+  }
+}
+
 @import "bootstrap/scss/bootstrap";

@@ -1,7 +1,7 @@
 {% load django_bootstrap5 hijack %}
 {% if target_user and request.user|can_hijack:target_user %}
   <!-- djlint:off -->
-  {% translate "Impersonate <i class=\"bi bi-person-badge\"></i>" as impersonate_label %}
+  {% translate "<i class=\"bi bi-person-badge\"></i>" as impersonate_label %}
   <!-- djlint:on -->
   {% translate "Write a message" as write_message_title %}
 
