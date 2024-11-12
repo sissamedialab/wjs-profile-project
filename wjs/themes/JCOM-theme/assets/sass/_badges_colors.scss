@@ -105,7 +105,7 @@ $color-state-PaperHasEditorReport: #b3de69;
 $hover-state-PaperHasEditorReport: darken($color-state-PaperHasEditorReport, 10%);
 $color-state-Accepted: #fccde5;
 $hover-state-Accepted: darken($color-state-Accepted, 10%);
-$color-state-TypesetterSelected: #d9d9d9;
+$color-state-TypesetterSelected: #4a7528;
 $hover-state-TypesetterSelected: darken($color-state-TypesetterSelected, 10%);
 $color-state-PaperMightHaveIssues: #bc80bd;
 $hover-state-PaperMightHaveIssues: darken($color-state-PaperMightHaveIssues, 10%);
@@ -160,90 +160,65 @@ $hover-section-4: darken($color-section-4, 10%);
 $color-section-7: #fb8072;
 $hover-section-7: darken($color-section-7, 10%);
 
+$badge-radius: 1em;
+
 span.badge {
   // The first section id (&-1) is for JCOM, the second (&-11) for JCOMAL
   &.color-section {
     &-1,
     &-11 {
       background-color: #88ccee; // article
+      border-radius: $badge-radius;
       color: #000;
-
-      &:hover {
-        background-color: #bae2f7;
-      }
     }
 
     &-2,
     &-17 {
       background-color: #882255; // editorial
-
-      &:hover {
-        background-color: #d44c90;
-      }
+      border-radius: $badge-radius;
     }
 
     &-3,
     &-16 {
       background-color: #ddcc77; // practice insight
+      border-radius: $badge-radius;
       color: #000;
-
-      &:hover {
-        background-color: #fff3b9;
-      }
     }
 
     &-4,
     &-15 {
       background-color: #aa4499; // book review
-
-      &:hover {
-        background-color: #ffa5f0;
-      }
+      border-radius: $badge-radius;
     }
 
     &-5,
     &-14 {
       background-color: #44aa99; // essay
-
-      &:hover {
-        background-color: #7ae7d5;
-      }
+      border-radius: $badge-radius;
     }
 
     &-6 {
       background-color: #332288; // conference review
-
-      &:hover {
-        background-color: #5847af;
-      }
+      border-radius: $badge-radius;
     }
 
     &-7,
     &-12 {
       background-color: #117733; // commentary
-
-      &:hover {
-        background-color: #3fb968;
-      }
+      border-radius: $badge-radius;
     }
 
     &-8,
     &-13 {
       background-color: #cc6677; // letter
-
-      &:hover {
-        background-color: #fc9eae;
-      }
+      border-radius: $badge-radius;
     }
 
     &-9,
     &-10,
     &-18 {
       background-color: #e48100; // review article
-
-      &:hover {
-        background-color: #ffcc8a;
-      }
+      border-radius: $badge-radius;
     }
   }
   &.color-state {
@@ -457,6 +432,7 @@ span.badge {
 
     &-ReadyForTypesetter {
       background-color: $color-state-ReadyForTypesetter;
+      color: #000;
 
       &:hover {
         background-color: $hover-state-ReadyForTypesetter;
@@ -507,146 +483,92 @@ span.badge {
   .color-section {
     &-1 {
       background-color: $color-section-1;
-
-      &:hover {
-        background-color: $hover-section-1;
-      }
+      border-radius: $badge-radius;
     }
 
     &-11 {
       background-color: $color-section-11;
-
-      &:hover {
-        background-color: $hover-section-11;
-      }
+      border-radius: $badge-radius;
     }
 
     &-12 {
       background-color: $color-section-12;
-
-      &:hover {
-        background-color: $hover-section-12;
-      }
+      border-radius: $badge-radius;
     }
 
     &-13 {
       background-color: $color-section-13;
-
-      &:hover {
-        background-color: $hover-section-13;
-      }
+      border-radius: $badge-radius;
     }
 
     &-17 {
       background-color: $color-section-17;
-
-      &:hover {
-        background-color: $hover-section-17;
-      }
+      border-radius: $badge-radius;
     }
 
     &-2 {
       background-color: $color-section-2;
-
-      &:hover {
-        background-color: $hover-section-2;
-      }
+      border-radius: $badge-radius;
     }
 
     &-18 {
       background-color: $color-section-18;
-
-      &:hover {
-        background-color: $hover-section-18;
-      }
+      border-radius: $badge-radius;
     }
 
     &-10 {
       background-color: $color-section-10;
-
-      &:hover {
-        background-color: $hover-section-10;
-      }
+      border-radius: $badge-radius;
     }
 
     &-16 {
       background-color: $color-section-16;
-
-      &:hover {
-        background-color: $hover-section-16;
-      }
+      border-radius: $badge-radius;
     }
 
     &-9 {
       background-color: $color-section-9;
-
-      &:hover {
-        background-color: $hover-section-9;
-      }
+      border-radius: $badge-radius;
     }
 
     &-8 {
       background-color: $color-section-8;
-
-      &:hover {
-        background-color: $hover-section-8;
-      }
+      border-radius: $badge-radius;
     }
 
     &-14 {
       background-color: $color-section-14;
-
-      &:hover {
-        background-color: $hover-section-14;
-      }
+      border-radius: $badge-radius;
     }
 
     &-5 {
       background-color: $color-section-5;
-
-      &:hover {
-        background-color: $hover-section-5;
-      }
+      border-radius: $badge-radius;
     }
 
     &-3 {
       background-color: $color-section-3;
-
-      &:hover {
-        background-color: $hover-section-3;
-      }
+      border-radius: $badge-radius;
     }
 
     &-6 {
       background-color: $color-section-6;
-
-      &:hover {
-        background-color: $hover-section-6;
-      }
+      border-radius: $badge-radius;
     }
 
     &-15 {
       background-color: $color-section-15;
-
-      &:hover {
-        background-color: $hover-section-15;
-      }
+      border-radius: $badge-radius;
     }
 
     &-4 {
       background-color: $color-section-4;
-
-      &:hover {
-        background-color: $hover-section-4;
-      }
+      border-radius: $badge-radius;
     }
 
     &-7 {
       background-color: $color-section-7;
-
-      &:hover {
-        background-color: $hover-section-7;
-      }
+      border-radius: $badge-radius;
     }
   }
 }

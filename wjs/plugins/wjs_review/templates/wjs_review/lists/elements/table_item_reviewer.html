@@ -11,7 +11,7 @@
     It seems that Janeway is "overloading" the semantic of the decision field.
   {% endcomment %}
   {% if review_assignments %}
-    <table class="table table-sm table-borderless">
+    <table class="table table-sm table-borderless table-reviewers">
       {% for review in review_assignments %}
         <tr class="border-bottom">
           <td class="border-end bg-transparent">{{ review.reviewer.full_name }}</td>

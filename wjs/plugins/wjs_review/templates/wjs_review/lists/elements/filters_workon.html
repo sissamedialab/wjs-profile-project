@@ -1,46 +1,26 @@
 {% load django_bootstrap5 %}
 
-<div class="row mb-3">
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.article_identifiers size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.correspondence_author size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.author size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.abstract_or_title size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.author_country size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2 d-flex justify-content-between">
-    {% bootstrap_button button_type="submit" button_class="btn-outline-primary" name="search" layout="floating" value=1 content="Search" size="sm" %}
-    <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary btn-sm">Reset filters</a>
-  </div>
+{% translate "Search" as search_label %}
+{% translate "Reset filters" as reset_label %}
+<div class="row gap-4 mb-3">
+  {% bootstrap_field filter.form.article_identifiers size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.abstract_or_title size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.correspondence_author size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.author size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.author_country size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.author_institution size="sm" wrapper_class="table-filter col" placeholder="" %}
 </div>
-<div class="row mb-3">
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.editor size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.reviewer size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.typesetter size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.eo_in_charge size="sm" wrapper_class="" show_label=False %}
-  </div>
-  <div class="col-sm-2">
-    {% bootstrap_field filter.form.author_institution size="sm" wrapper_class="" show_label=False %}
-  </div>
+<div class="row gap-4 mb-3">
+  {% bootstrap_field filter.form.editor size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.reviewer size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.typesetter size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% bootstrap_field filter.form.eo_in_charge size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% if filter.form.language %}
-    <div class="col-sm-2">
-      {% bootstrap_field filter.form.language size="sm" wrapper_class="" show_label=False %}
-    </div>
+    {% bootstrap_field filter.form.language size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% endif %}
+  <div class="d-flex justify-content-end align-items-end gap-4 col">
+    <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary btn-sm">{{ reset_label }}</a>
+    {% bootstrap_button button_type="submit" button_class="btn-primary" name="search" layout="floating" value=1 content=search_label size="sm" %}
+  </div>
 </div>
 {% include "wjs_review/lists/elements/filters_visibility.html" %}

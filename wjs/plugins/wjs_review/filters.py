@@ -106,32 +106,32 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
     language = django_filters.ChoiceFilter(
         field_name="article__language",
         label=_("Language"),
-        empty_label=_("Languages: All"),
+        empty_label=_("All"),
     )
     keywords = django_filters.ModelChoiceFilter(
         field_name="article__keywords",
         queryset=Keyword.objects.all(),
         label=_("Keywords"),
-        empty_label=_("Keywords: All"),
+        empty_label=_("All"),
     )
     section = SectionFilterFilter(
         field_name="article__section",
         queryset=Section.objects.all(),
         label=_("Article type"),
-        empty_label=_("Article types: All"),
+        empty_label=_("All"),
     )
     special_issue = SpecialIssueFilter(
         field_name="article__primary_issue",
         queryset=Issue.objects.none(),
         label=_("Special Issue"),
-        empty_label=_("Special Issue: All"),
+        empty_label=_("All"),
     )
     status = django_filters.ChoiceFilter(
         choices=[],
         field_name="state",
         method="filter_status",
         label=_("Status"),
-        empty_label=_("Status: All"),
+        empty_label=_("All"),
     )
     editor = django_filters.CharFilter(
         field_name="article__editorassignment__editor",
@@ -324,7 +324,7 @@ class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
         field_name="eo_in_charge",
         method="filter_user",
         label=_("EO in charge"),
-        empty_label=_("EO in charge: All"),
+        empty_label=_("All"),
         queryset=Account.objects.filter(groups__name=constants.EO_GROUP),
     )
 
