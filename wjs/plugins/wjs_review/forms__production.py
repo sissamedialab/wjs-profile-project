@@ -144,7 +144,9 @@ class WriteToTypMessageForm(forms.Form):
 
 class UploadAnnotatedFilesForm(forms.ModelForm):
     file = forms.FileField(required=False)
-    notes = forms.CharField(widget=forms.Textarea, required=False)
+    notes = WjsMiniHTMLFormField(
+        required=False, label=_("List of requested corrections and/or reply to typesetter's queries")
+    )
     action = forms.ChoiceField(
         required=False,
         choices=(
