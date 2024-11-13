@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.safestring import mark_safe
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
+from PIL import Image
 from review.forms import GeneratedForm
 from review.models import (
     ReviewAssignment,
@@ -25,6 +26,7 @@ from review.models import (
     ReviewFormElement,
 )
 from submission.models import Article
+from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
@@ -64,6 +66,26 @@ from .models import (
 )
 
 Account = get_user_model()
+logger = get_logger(__name__)
+
+
+def min_size_validator(min_width, min_height):
+    """Validate that an uploaded image meets a minimum size requirement."""
+
+    def validate_image(image):
+        try:
+            img = Image.open(image)
+            width, height = img.size
+        except Exception as e:
+            logger.error(
+                f"The following exeption was raised while trying to open the image: {e}. Invalid image uploaded:"
+                f" {image}. If this happens often, please check where min_size_validator is used and review the UI/UX."
+            )
+            raise ValidationError(_("Uploaded file is not an image."))
+        if width < min_width or height < min_height:
+            raise ValidationError(_(f"Image must be at least {min_width}x{min_height} pixels."))
+
+    return validate_image
 
 
 class BaseInviteSelectReviewerForm(forms.Form):
@@ -1452,7 +1474,14 @@ class TimelineFilterForm(forms.Form):
 
 
 class ArticleExtraInformationUpdateForm(forms.ModelForm):
-    social_media_image = forms.ImageField(required=False, label=_("Social media image"))
+    social_media_image = forms.ImageField(
+        required=False,
+        label=_("Image for social media - .JPG/.PNG, recommended size 1200x630 pixels " "(minimum 600x315 pixels)"),
+        validators=[min_size_validator(600, 315)],
+        widget=forms.ClearableFileInput(
+            attrs={"accept": ".png, .jpg, .jpeg"},
+        ),
+    )
     english_title = forms.CharField(label=_("Article title - English language"))
     english_abstract = WjsMiniHTMLFormField(label=_("Article abstract - English language"))
 
@@ -1475,7 +1504,9 @@ class ArticleExtraInformationUpdateForm(forms.ModelForm):
 
         needs_english = conditions.journal_requires_english_content(self.instance.article.journal)
         is_published_piecemeal = conditions.article_is_published_piecemeal(self.instance)
-
+        self.fields["social_media_short_description"].label = _(
+            "Short description for social media - max 250 " "characters"
+        )
         # If no conditions are met, fields list is empty but this is not an issue as at least on condition must be met
         # for the view to be accessible.
         if not needs_english:
@@ -1484,6 +1515,15 @@ class ArticleExtraInformationUpdateForm(forms.ModelForm):
         if not is_published_piecemeal:
             del self.fields["social_media_image"]
             del self.fields["social_media_short_description"]
+
+    def clean_social_media_short_description(self):
+        social_media_short_description = self.cleaned_data.get("social_media_short_description")
+        if len(social_media_short_description) > 250:
+            self.add_error(
+                "social_media_short_description",
+                (_("Short description for social media must be 250 characters or less")),
+            )
+        return social_media_short_description
 
     def save(self, commit=True):
         instance = super().save(commit)

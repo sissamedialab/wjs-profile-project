@@ -11,15 +11,6 @@
     </div>
   </div>
   <div class="container mb-3">
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">{% translate "About this page" %}</h5>
-        <div class="card-text">{% blocktranslate %}<p>Please provide image and text suitable for a social-media post.</p>{% endblocktranslate %}
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="container mb-3">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
       {% bootstrap_form form %}

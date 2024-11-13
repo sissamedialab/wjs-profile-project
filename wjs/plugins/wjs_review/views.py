@@ -2922,7 +2922,7 @@ class ForwardMessage(BaseRelatedViewsMixin, CreateView):
 
 
 class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
-    title = _("Update Article Information")
+    title = _("Send short description and image for social media")
     model = ArticleWorkflow
     template_name = "wjs_review/details/articleworkflow_form.html"
     form_class = ArticleExtraInformationUpdateForm

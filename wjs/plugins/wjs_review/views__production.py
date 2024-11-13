@@ -360,7 +360,7 @@ class DeleteSupplementaryFileView(HtmxMixin, AuthenticatedUserPassesTest, Templa
 class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
     """View to allow the author to list, upload and delete annotated files."""
 
-    title = _("Send corrections")
+    title = _("Send corrections/reply to queries")
     model = GalleyProofing
     form_class = UploadAnnotatedFilesForm
     context_object_name = "galleyproofing"

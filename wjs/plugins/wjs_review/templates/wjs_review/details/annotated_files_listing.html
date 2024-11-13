@@ -1,7 +1,8 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static wjs_permissions %}
-
 {% block content_wrapper %}
+{% translate "Add Notes" as add_notes_label %}
+{% translate "Send Corrections" as send_label %}
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
@@ -13,14 +14,63 @@
     <div class="card mb-3">
       <div class="card-body">
         <h5 class="card-title">{% translate "About this page" %}</h5>
-        <div class="card-text">{% blocktranslate %}<p>Provide information</p>{% endblocktranslate %}
+        <div class="card-text">
+          {% blocktranslate %}
+          <dl>
+            <dd>Please use the "upload file" function or the text area below to send your corrections and/or reply to the typesetter’s queries.</dd>
+            <dd>NB: if you select a file, please do not forget to click "upload file" to confirm it.</dd>
+            <dd>The only corrections acceptable at this stage are the following:</dd>
+            <dd>
+              <ul>
+                <li>layout (i.e., wrong floating of figures or tables),</li>
+                <li>spelling mistakes</li>
+                <li>mistakes or updating in references</li>
+              </ul>
+            </dd>
+            <dd>All requests for correction must clearly state where they should be implemented in the document (page number, paragraph and line) and specify both the old (wrong) version and the correction.</dd>
+            <dd>If the typesetter's queries request you to send a short description and an image for social media, please upload them through the dedicated link from your manuscript web page.</dd>
+          </dl>
+          {% endblocktranslate %}
         </div>
       </div>
     </div>
   </div>
   <div class="container mb-3">
-    <div id="proofing-notes">
+    <form method="post" action="{{ update_files_url }}" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% bootstrap_form_errors form type="non_fields" %}
+      <div class="mb-3" id="error-messages">
+      </div>
+      <div id="proofing-notes">
       {% include "wjs_review/details/elements/typesetting_annotate_files.html" %}
+        </div>
+      <div class="mb-3">
+        {% bootstrap_field form.notes placeholder='' onchange="enableSendCorrections()" %}
+      </div>
+      <div class="mb-3">
+        {% bootstrap_button name="action" value="send_corrections" content=send_label disabled=disable_send_corrections %}
+        {% include "wjs_review/base/elements/back.html" with workflow=article.articleworkflow %}
+      </div>
+    </form>
     </div>
-  </div>
+<script>
+  /**
+   * Enable the send corrections button if notes or annotated files are provided.
+   *
+   * Function is meant to be called on page load or when the notes field is changed.
+   */
+  const enableSendCorrections = () => {
+    const annotationFiles = document.querySelectorAll('.annotation-files');
+    const sendButton = document.querySelector('button[name="action"][value="send_corrections"]');
+    const notes = tinymce.get('id_notes').getContent({ format: 'text' }).trim();
+    sendButton.disabled = notes === '' && annotationFiles.length === 0;
+  };
+  document.addEventListener('DOMContentLoaded', function() {
+    enableSendCorrections();
+    tinymce.get('id_notes').on('input', enableSendCorrections);
+  });
+  document.addEventListener('htmx:afterOnLoad', function() {
+    enableSendCorrections();
+  });
+</script>
 {% endblock content_wrapper %}
