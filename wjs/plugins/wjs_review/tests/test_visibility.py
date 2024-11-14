@@ -8,6 +8,7 @@ from django.http import HttpRequest
 from django.utils import timezone
 from faker import Faker
 from freezegun import freeze_time
+from journal.models import Issue
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
@@ -339,6 +340,106 @@ def test_article_detail_permission_director(
         fake_request.user = normal_user
     view_obj.setup(fake_request, pk=assigned_article.pk)
     assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_detail_permission_special_issue_editor(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    jcom_user: Account,
+    special_issue: Issue,
+    normal_user: Account,
+    journal_factory,
+    expected: bool,
+):
+    """Access to article detail view is allowed for special issue of the article journal."""
+    view_obj = ArticleDetails()
+    jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, special_issue.journal)
+    special_issue.managing_editors.add(jcom_user)
+    special_issue.articles.add(assigned_article)
+    if expected:
+        fake_request.user = jcom_user
+    else:
+        normal_user.add_account_role(constants.SECTION_EDITOR_ROLE, special_issue.journal)
+        fake_request.user = normal_user
+    view_obj.setup(fake_request, pk=assigned_article.pk)
+    assert view_obj.test_func() == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "expected",
+    (
+        True,
+        False,
+    ),
+)
+def test_article_objects_permission_special_issue_editor(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    jcom_user: Account,
+    special_issue: Issue,
+    normal_user: Account,
+    journal_factory,
+    create_jcom_user: Callable,
+    expected: bool,
+):
+    """Access article related objects is allowed for special issue of the article journal."""
+    jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, special_issue.journal)
+    special_issue.managing_editors.add(jcom_user)
+    special_issue.articles.add(assigned_article)
+    if expected:
+        test_user = jcom_user
+    else:
+        normal_user.add_account_role(constants.SECTION_EDITOR_ROLE, special_issue.journal)
+        test_user = normal_user
+    current_editor_assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+
+    revisions, reviews, decisions = _create_rr_objects(
+        assigned_article,
+        current_editor_assignment.editor,
+        assigned_article.current_review_round_object(),
+        create_jcom_user,
+    )
+
+    for revision in revisions:
+        assert (
+            PermissionChecker()(
+                assigned_article.articleworkflow,
+                test_user,
+                revision,
+                permission_type=PermissionAssignment.PermissionType.ALL,
+            )
+            == expected
+        )
+    for review in reviews:
+        assert (
+            PermissionChecker()(
+                assigned_article.articleworkflow,
+                test_user,
+                review,
+                permission_type=PermissionAssignment.PermissionType.ALL,
+            )
+            == expected
+        )
+
+    for decision in decisions:
+        assert (
+            PermissionChecker()(
+                assigned_article.articleworkflow,
+                test_user,
+                decision,
+                permission_type=PermissionAssignment.PermissionType.ALL,
+            )
+            == expected
+        )
 
 
 @pytest.mark.django_db

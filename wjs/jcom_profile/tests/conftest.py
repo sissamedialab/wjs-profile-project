@@ -213,6 +213,21 @@ def jcom_user(create_jcom_user: Callable[[Optional[str]], JCOMProfile]) -> JCOMP
     return create_jcom_user()
 
 
+@pytest.fixture(scope="function")
+def user_with_role(
+    request,
+    eo_user: JCOMProfile,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    journal: journal_models.Journal,
+) -> JCOMProfile:
+    if request.param == "eo":
+        return eo_user
+    else:
+        user = create_jcom_user()
+        user.add_account_role(request.param, journal)
+        return user
+
+
 @pytest.fixture
 def roles():
     roles_path = os.path.join(django_settings.BASE_DIR, ROLES_RELATIVE_PATH)
@@ -760,7 +775,10 @@ def special_issue_without_articles(editors, journal, director_role, sections):
         issue_type=IssueType.objects.get(journal=journal, code="collection"),
     )
     special_issue.allowed_sections.set(Section.objects.filter(journal=journal).order_by("?")[:3])
-    special_issue.editors.set(editors)
+    # An Issue can have "editors" or "managing_editor".
+    # The firsts are used by Janeway, while the "managing" editor are used by WJS and
+    # have some director-like permissions on the articles of the issue.
+    special_issue.managing_editors.set(editors)
 
     return special_issue
 

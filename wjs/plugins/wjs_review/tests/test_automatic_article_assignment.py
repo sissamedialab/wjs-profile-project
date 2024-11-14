@@ -145,7 +145,7 @@ def test_default_special_issue_articles_automatic_assignment(
     article_editors = None
 
     if has_editors:
-        article_editors = special_issue.editors.all()
+        article_editors = special_issue.managing_editors.all()
 
     with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
         client = Client()
@@ -220,7 +220,7 @@ def test_jcom_special_issue_articles_automatic_assignment(
     article_editors = None
 
     if has_editors:
-        article_editors = special_issue.editors.all()
+        article_editors = special_issue.managing_editors.all()
 
     with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
         client = Client()
@@ -286,7 +286,7 @@ def test_workload_decrease_editor(
     """
 
     if is_special_issue:
-        article_editors = article.primary_issue.editors.all()
+        article_editors = article.primary_issue.managing_editors.all()
     else:
         if assignment_function == WJS_ARTICLE_ASSIGNMENT_FUNCTIONS:
             article_editors = editors
