@@ -1503,6 +1503,20 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.id,))
 
+    @property
+    def current_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
+        """Return the reviews for the current review round for the article."""
+        return WorkflowReviewAssignment.objects.filter(
+            review_round=self.object.article.current_review_round_object(),
+        )
+
+    @property
+    def submitted_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
+        """Return the submitted reviews for the current review round."""
+        return self.current_reviews.filter(date_complete__isnull=False, date_accepted__isnull=False).exclude(
+            decision="withdrawn"
+        )
+
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
@@ -1539,7 +1553,8 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["hide_reviews"] = True
+        context["submitted_reviews"] = self.submitted_reviews
+        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
         return context
 
 
@@ -1575,6 +1590,8 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         # kwargs["data"] "wins" over self.request.GET because it's the form data sent by the user.
         # But kwargs["data"] is not always present, so I try to be as safe as possible. Hope this is not "unreadable"
         decision = kwargs.get("data", {}).get("decision", self.request.GET.get("decision", None))
+        if decision:
+            self.title = ArticleWorkflow.Decisions(decision).label
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["initial"] = {"decision": decision}
@@ -1642,12 +1659,6 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         )
 
     @property
-    def declined_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
-        """Return the declined reviews for the current review round."""
-        # Attention: this does not return withdrawn reviews, is this what's intended?
-        return self.current_reviews.filter(date_declined__isnull=False)
-
-    @property
     def pending_reviews(self) -> QuerySet[WorkflowReviewAssignment]:
         """Return not completed reviews for the current review round."""
         return self.current_reviews.filter(
@@ -1657,7 +1668,6 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["declined_reviews"] = self.declined_reviews
         context["submitted_reviews"] = self.submitted_reviews
         context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
         context["pending_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.pending_reviews])
