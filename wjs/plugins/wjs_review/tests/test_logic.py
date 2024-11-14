@@ -15,7 +15,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.timezone import localtime, now
 from faker import Faker
-from plugins.wjs_review.templatetags.wjs_articles import last_eo_note, last_user_note
+from journal import models as journal_models
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, Keyword
@@ -28,6 +28,7 @@ from wjs.jcom_profile.utils import (
     render_template_from_setting,
 )
 
+from .. import permissions
 from ..communication_utils import get_system_user
 from ..events.handlers import (
     dispatch_eo_assignment,
@@ -74,6 +75,7 @@ from ..reminders.settings import (
     ReviewerShouldEvaluateAssignmentReminderManager,
     ReviewerShouldWriteReviewReminderManager,
 )
+from ..templatetags.wjs_articles import last_eo_note, last_user_note
 from ..utils import get_report_form
 from ..views import ArticleRevisionUpdate
 from .test_helpers import (
@@ -160,7 +162,7 @@ def test_assign_to_editor(
         fake_request.user = section_editor.janeway_account
     else:
         fake_request.user = director.janeway_account
-    article.stage = "Unsubmitted"
+    article.stage = submission_models.STAGE_UNSUBMITTED
     article.save()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
@@ -173,10 +175,11 @@ def test_assign_to_editor(
     assert article.reviewround_set.count() == 0
 
     assignment = service.run()
+
     workflow = assignment.article.articleworkflow
     assert workflow.article == article
     article.refresh_from_db()
-    assert article.stage == "Assigned"
+    assert article.stage == submission_models.STAGE_ASSIGNED
     assert WjsEditorAssignment.objects.get_all(article).count() == 1
     assert WjsEditorAssignment.objects.get_current(article).editor == section_editor.janeway_account
     assert article.reviewround_set.count() == 1
@@ -209,6 +212,65 @@ def test_assign_to_editor(
         assert message_to_editor.actor == get_system_user()
     else:
         assert message_to_editor.actor == director.janeway_account
+
+
+@pytest.mark.parametrize(
+    "user_with_role,si,initial_state,expected",
+    (
+        ("eo", True, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, True),
+        ("eo", True, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, True),
+        ("eo", True, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, True),
+        ("eo", False, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, True),
+        ("eo", False, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, True),
+        ("eo", False, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, True),
+        ("director", True, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, True),
+        ("director", True, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, True),
+        ("director", True, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, True),
+        ("director", False, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, True),
+        ("director", False, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, True),
+        ("director", False, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, True),
+        ("section-editor", True, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, True),
+        ("section-editor", True, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, True),
+        ("section-editor", True, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, True),
+        ("section-editor", False, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, False),
+        ("section-editor", False, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, False),
+        ("section-editor", False, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, False),
+        ("reviewer", True, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, False),
+        ("reviewer", True, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, False),
+        ("reviewer", True, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, False),
+        ("reviewer", False, ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION, False),
+        ("reviewer", False, ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED, False),
+        ("reviewer", False, ArticleWorkflow.ReviewStates.EDITOR_SELECTED, False),
+    ),
+    indirect=["user_with_role"],
+)
+@pytest.mark.django_db
+def test_user_is_article_supervisor(
+    review_settings,
+    fake_request: HttpRequest,
+    article: submission_models.Article,
+    section_editor: JCOMProfile,
+    special_issue: journal_models.Issue,
+    user_with_role,
+    si,
+    initial_state,
+    expected,
+):
+    """A user is article supervisor only when EO/director or special issue editor."""
+    fake_request.user = user_with_role.janeway_account
+    article.stage = submission_models.STAGE_UNSUBMITTED
+    article.save()
+    article.articleworkflow.state = initial_state
+    article.articleworkflow.save()
+    if si:
+        special_issue.articles.add(article)
+        special_issue.managing_editors.add(user_with_role)
+        article.refresh_from_db()
+
+    if expected:
+        assert permissions.is_article_supervisor(article.articleworkflow, user_with_role)
+    else:
+        assert not permissions.is_article_supervisor(article.articleworkflow, user_with_role)
 
 
 @pytest.mark.django_db

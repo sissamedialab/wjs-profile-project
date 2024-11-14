@@ -496,7 +496,8 @@ def is_special_issue_editor(instance: "ArticleWorkflow", user: Account) -> bool:
     """
 
     is_special_issue_editor = instance.article.issues.filter(managing_editors=user).exists()
-    return is_special_issue_editor
+    has_editor_role = base_permissions.has_section_editor_role(instance.article.journal, user)
+    return is_special_issue_editor and has_editor_role
 
 
 def is_any_special_issue_editor(journal: Journal, user: Account) -> bool:
@@ -645,9 +646,9 @@ def can_see_reviewer_name(assignment: "WorkflowReviewAssignment", user: Account)
     from .logic__visibility import PermissionChecker
     from .models import PermissionAssignment
 
-    is_editor = is_article_pure_editor_or_eo
+    has_editor_role = is_article_pure_editor_or_eo(assignment.article.articleworkflow, user)
 
-    return is_editor and PermissionChecker()(
+    return has_editor_role and PermissionChecker()(
         assignment.article.articleworkflow,
         user,
         assignment,

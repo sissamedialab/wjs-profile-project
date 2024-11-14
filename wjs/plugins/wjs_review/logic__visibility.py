@@ -304,6 +304,54 @@ class EditorPermissionChecker(BasePermissionChecker):
 
 
 @dataclasses.dataclass
+class SpecialIssueEditorPermissionChecker(EditorPermissionChecker):
+    def check_default(
+        self,
+        permission_type: PermissionAssignment.PermissionType = "",
+        secondary_permission: bool = False,
+        review_round: Optional[int] = None,
+    ) -> bool:
+        """
+        Check if the user has the permission to access :py:attr:`instance` by default as special issue editor.
+
+        This allows special editor to fully access objects linked to an article part of a special issue they are
+        managing (in addition to the normal editor permissions).
+
+        :param permission_type: The permission set to check for.
+        :type permission_type: PermissionAssignment.PermissionType
+        :param secondary_permission: Check secondary set of permissions.
+        :type secondary_permission: bool
+        :param review_round: Check permission for a specific review round. If 0 current review round is used,
+            if None review round check is not used.
+        :type review_round: Optional[int]
+        :return: True if the user has the permission, False otherwise.
+        :rtype: bool
+        """
+        editor_default = super().check_default(permission_type, secondary_permission, review_round)
+
+        if isinstance(self.instance, Article):
+            workflow_object = self.instance.articleworkflow
+        if isinstance(self.instance, ArticleWorkflow):
+            workflow_object = self.instance
+        if isinstance(self.instance, EditorAssignment):
+            workflow_object = self.instance.article.articleworkflow
+        if isinstance(self.instance, EditorDecision):
+            workflow_object = self.instance.workflow
+        if isinstance(self.instance, RevisionRequest):
+            workflow_object = self.instance.article.articleworkflow
+        if isinstance(self.instance, ReviewAssignment):
+            workflow_object = self.instance.article.articleworkflow
+        if isinstance(self.instance, PastEditorAssignment):
+            workflow_object = self.instance.article.articleworkflow
+        if isinstance(self.instance, TypesettingAssignment):
+            workflow_object = self.instance.round.article.articleworkflow
+        if isinstance(self.instance, GalleyProofing):
+            workflow_object = self.instance.round.article.articleworkflow
+        has_permission = editor_default or permissions.is_special_issue_editor(workflow_object, self.user)
+        return has_permission
+
+
+@dataclasses.dataclass
 class TypesetterPermissionChecker(BasePermissionChecker):
     def check_default(
         self,
@@ -460,7 +508,7 @@ class PermissionChecker:
     _permission_classes = {
         permissions.has_admin_role_by_article: SuperUserPermissionChecker,
         permissions.has_director_role_by_article: DirectorPermissionChecker,
-        permissions.is_special_issue_editor: EditorPermissionChecker,  # TODO: TBD
+        permissions.is_special_issue_editor: SpecialIssueEditorPermissionChecker,
         permissions.has_typesetter_role_by_article: TypesetterPermissionChecker,
         permissions.has_section_editor_role_by_article: EditorPermissionChecker,
         permissions.has_reviewer_role_by_article: ReviewerPermissionChecker,
