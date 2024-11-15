@@ -674,3 +674,20 @@ def get_role_label(role) -> str:
     :rtype: str
     """
     return role_label(role)
+
+
+@register.simple_tag()
+def is_current_version(workflow: ArticleWorkflow, version: ReviewRound | TypesettingRound) -> bool:
+    article = version.article
+    try:
+        latest_typesetting_round = workflow.latest_typesetting_assignment().round
+    except AttributeError:
+        latest_typesetting_round = None
+    if latest_typesetting_round:
+        if isinstance(version, ReviewRound):
+            return False
+        return version.pk == latest_typesetting_round.pk
+    else:
+        if isinstance(version, ReviewRound):
+            return version.pk == article.current_review_round_object().pk
+    return False

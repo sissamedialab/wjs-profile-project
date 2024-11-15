@@ -1470,7 +1470,6 @@ class TimelineFilterForm(forms.Form):
             (Message.MessageTypes.SYSTEM, _("System")),
         ),
     )
-    current_version = forms.IntegerField(widget=forms.HiddenInput(), required=False)
 
 
 class ArticleExtraInformationUpdateForm(forms.ModelForm):
