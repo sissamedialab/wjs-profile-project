@@ -18,7 +18,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
 from identifiers import models as identifiers_models
-from journal.models import Journal
+from journal.models import Issue, IssueType, Journal
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic import (
     AssignToEditor,
@@ -226,7 +226,13 @@ class Command(BaseCommand):
         keywords = self.read_article_keywords(version_cod)
         self.set_keywords(article, keywords)
 
-        # TODO: set article issue
+        # article special issue
+        special_issue = self.read_article_special_issue(document_cod)
+        self.set_article_special_issue(article, special_issue)
+
+        # article notes
+        document_notes = self.read_article_document_notes(document_cod)
+        self.set_article_document_notes(article, document_notes)
 
         # read all version versionNum, versionCod
         versions = self.read_versions_data(document_cod)
@@ -425,6 +431,53 @@ WHERE
             keywords.append(rk["keywordName"])
         cursor_keywords.close()
         return keywords
+
+    def read_article_special_issue(self, document_cod):
+        """Read article special issue."""
+        cursor_special_issue = self.connection.cursor(dictionary=True)
+        query_special_issue = """
+SELECT
+si.issueCod,
+si.name,
+si.description,
+si.longname,
+si.editorCod AS editor_cod,
+u.firstname AS editor_firstname,
+u.lastname AS editor_lastname,
+u.email AS editor_email,
+u.privacy AS editor_privacy
+FROM Document d
+LEFT JOIN Special_Issue si USING (issueCod)
+LEFT JOIN User u ON (si.editorCod=u.userCod)
+WHERE documentCod=%(document_cod)s
+"""
+        cursor_special_issue.execute(query_special_issue, {"document_cod": document_cod})
+        special_issue = cursor_special_issue.fetchone()
+        cursor_special_issue.close()
+        return special_issue
+
+    def read_article_document_notes(self, document_cod):
+        """Read article notes."""
+        cursor_document_notes = self.connection.cursor(dictionary=True)
+        query_document_notes = """
+SELECT
+dn.documentNoteCod,
+dn.documentNoteID,
+dn.documentNoteContent,
+dn.submissionDate,
+dn.authorCod AS note_author_cod,
+u.firstname AS note_author_firstname,
+u.lastname AS note_author_lastname,
+u.email AS note_author_email,
+u.privacy AS note_author_privacy
+FROM Document_Note dn
+LEFT JOIN User u ON (dn.authorCod=u.userCod)
+WHERE documentCod=%(document_cod)s
+"""
+        cursor_document_notes.execute(query_document_notes, {"document_cod": document_cod})
+        document_notes = cursor_document_notes.fetchall()
+        cursor_document_notes.close()
+        return document_notes
 
     def read_versions_data(self, document_cod):
         """Read article versions data."""
@@ -794,6 +847,84 @@ ORDER BY ah.actionDate
             logger.debug(f"Keyword {kwd_word} set at order {order}")
             article.keywords.add(keyword)
         article.save()
+
+    def set_article_special_issue(self, article, special_issue):
+        """Set article special issue"""
+
+        # in wjapp this means that is a normal article without special issue
+        if "Normal" == special_issue["name"]:
+            return
+
+        editor_special_issue = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            special_issue["editor_cod"],
+            special_issue["editor_lastname"],
+            special_issue["editor_firstname"],
+            special_issue["editor_email"],
+            special_issue["editor_privacy"],
+        )
+
+        issue_short_name = special_issue["name"]
+        issue_title = special_issue["longname"]
+        issue_description = special_issue["description"]
+
+        issue_type__code = "collection"
+        issue_type = IssueType.objects.get(
+            code=issue_type__code,
+            journal=self.journal,
+        )
+
+        issue, _ = Issue.objects.get_or_create(
+            journal=self.journal,
+            issue_type=issue_type,
+            short_name=issue_short_name,
+            defaults={
+                "issue_description": issue_description,
+                "date_open": article.date_submitted,
+                "issue_title": issue_title,
+            },
+        )
+        issue.managing_editors.add(editor_special_issue)
+
+        # if title, description have been changed we want to keep the last
+        issue.issue_title = issue_title
+        issue.issue_description = issue_description
+
+        # date_open is set on the older submission date imported
+        if issue.date_open > article.date_submitted:
+            issue.date_open = article.date_submitted
+
+        issue.articles.add(article)
+        issue.save()
+        # Note from: wjs/jcom_profile/tests/conftest.py
+        # we must reload article from db as Article.primary_issue is set by a signal triggered by
+        # m2m save, and thus our in memory article object has no knowledge of that change
+        article.refresh_from_db()
+        return issue
+
+    def set_article_document_notes(self, article, document_notes):
+        """Set article notes from wjapp document notes"""
+
+        for dn in document_notes:
+            note_author = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                dn["note_author_cod"],
+                dn["note_author_lastname"],
+                dn["note_author_firstname"],
+                dn["note_author_email"],
+                dn["note_author_privacy"],
+            )
+            with freezegun.freeze_time(
+                rome_timezone.localize(dn["submissionDate"]),
+            ):
+                document_note = Message.objects.create(
+                    actor=note_author,
+                    body=newlines_text_to_html(dn["documentNoteContent"]),
+                    content_type=ContentType.objects.get_for_model(article),
+                    object_id=article.id,
+                    message_type=Message.MessageTypes.NOTE,
+                )
+                document_note.recipients.add(note_author)
 
     def debug_list_article_files_imported(self, article):
         """Log debug of all files imported also historical"""
@@ -2511,7 +2642,7 @@ class REF_REF(ReviewerDeclineAction):  # noqa N801
 
 
 class REF_ACC(BaseActionManager):  # noqa N801
-    """Reviewer send report management: wjapp action REF_SENDS_REP."""
+    """Reviewer accepts the review: wjapp action REF_ACC."""
 
     def run(self):
         logger.warning("REF_ACC managed in ReviewAssignmentAction but without reviewer confirmation message")
@@ -2605,13 +2736,13 @@ ORDER BY dl.submissionDate
         request.user = reviewer
         submit_final = True
 
-        # the (current) default review form element "Cover letter for the Editor (confidential)"
-        # has a rich-text/html widget.  Text from wjapp formatted to html
-        formatted_cover_letter_message = newlines_text_to_html(wjapp_report.get("documentLayerText"))
+        # the (current) default review form element "Cover letter (for the Editor in charge)""
+        # is a WjsMiniHTMLFormField. Text from wjapp must not be formatted to html.
+        formatted_cover_letter_message = wjapp_report.get("documentLayerText")
 
-        # the (current) default review form element "Report text (to be sent to authors)"
-        # has a rich-text/html widget. Text from wjapp formatted to html
-        formatted_report_message = newlines_text_to_html(wjapp_report.get("documentLayerOnlyTex"))
+        # the (current) default review form element "Review (for the Author)"
+        # is a WjsMiniHTMLFormField. Text from wjapp must not be formatted to html.
+        formatted_report_message = wjapp_report.get("documentLayerOnlyTex")
 
         # we leave empty those fields that don't exist in wjapp and
         # that do not have a "mandatory" value (such as no-conflict-of-interests).
