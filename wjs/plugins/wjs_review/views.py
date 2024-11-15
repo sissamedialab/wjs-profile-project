@@ -1881,9 +1881,9 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         if self.source_message:
             return _('Reply to message "%s"') % self.source_message.subject
         if self.to_author:
-            return _("Write a message to the author")
+            return _("Write to author")
         if self.to_typesetter:
-            return _("Write a message to the typesetter")
+            return _("Write to typesetter")
         return _("Write a message")
 
     def get_default_recipients(self):
