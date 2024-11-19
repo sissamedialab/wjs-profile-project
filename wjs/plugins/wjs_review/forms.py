@@ -1636,6 +1636,7 @@ class JCOMReportForm(forms.Form):
         ("Good", _("Good")),
         ("Excellent", _("Excellent")),
     ]
+    EVALUATION_CHOICES_NOT_APPLICABLE = EVALUATION_CHOICES + [("Not applicable", _("Not applicable"))]
     RECOMMENDATION_CHOICES = [
         ("", "---"),
         ("publish", _("It can be published in this form.")),
@@ -1676,9 +1677,11 @@ class JCOMReportForm(forms.Form):
         choices=EVALUATION_CHOICES, label=_("Structure and Writing Style"), required=True
     )
     originality = forms.ChoiceField(choices=EVALUATION_CHOICES, label=_("Originality"), required=True)
-    scope_and_methods = forms.ChoiceField(choices=EVALUATION_CHOICES, label=_("Scope and Methods"), required=True)
+    scope_and_methods = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Scope and Methods"), required=True
+    )
     argument_and_discussion = forms.ChoiceField(
-        choices=EVALUATION_CHOICES, label=_("Argument and Discussion"), required=True
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Argument and Discussion"), required=True
     )
     # RECOMMENDATION
     recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label=_("Recommendation"), required=True)
@@ -1693,7 +1696,12 @@ class JCOMReportForm(forms.Form):
         label=_("Cover letter (for the Editor in charge)"),
         required=True,
         error_messages={
-            "required": _("Cover letter (for the Editor in charge) is required."),
+            "required": mark_safe(
+                _(
+                    "Cover letter (for the Editor in charge) is required.<br> Important: if you had "
+                    "uploaded a file, this will need to be uploaded again."
+                )
+            ),
         },
     )
     author_review = WjsMiniHTMLFormField(label=_("Review (for the Author)"), required=False)
@@ -1733,10 +1741,7 @@ class JCOMReportForm(forms.Form):
         if not author_review and not author_file:
             self.add_error(
                 "author_review",
-                _(
-                    'At least one of "Review (to be sent to Authors)" or "Files (to be sent to Authors)" must be '
-                    "provided."
-                ),
+                _('Please provide either "Review (to be sent to Authors)" and/or "Files (to be sent to Authors)'),
             )
         return cleaned_data
 
