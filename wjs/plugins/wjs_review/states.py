@@ -391,8 +391,8 @@ class BaseState:
         ),
         ArticleAction(
             permission=permissions.is_article_author,
-            name="withdraw preprint",
-            label="Withdraw",
+            name="Withdraw manuscript",
+            label="Withdraw manuscript",
             view_name="wjs_author_withdraw_preprint",
             condition=conditions.can_withdraw_preprint,
         ),

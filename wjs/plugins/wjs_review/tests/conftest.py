@@ -156,6 +156,17 @@ def assigned_article(fake_request, submitted_article, section_editor, review_set
     return _assign_article(fake_request, submitted_article, section_editor)
 
 
+@pytest.fixture
+def assigned_article_with_reviewer(
+    fake_request: HttpRequest,
+    reviewer: JCOMProfile,  # noqa: F405
+    assigned_article: submission_models.Article,  # noqa: F405
+    review_form: review_models.ReviewForm,
+) -> Article:
+    assignment = _create_review_assignment(fake_request, reviewer, assigned_article)
+    return assignment.article
+
+
 def _accept_article(
     fake_request: HttpRequest,
     article: Article,

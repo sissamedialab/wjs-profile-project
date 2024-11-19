@@ -1458,17 +1458,10 @@ class DeselectReviewer:
     """
 
     assignment: WorkflowReviewAssignment
-    editor: Account
+    actor: Account
     request: HttpRequest
     send_reviewer_notification: bool
     form_data: Dict[str, Any]
-
-    def _get_message_context(self):
-        """Get the context for the message template."""
-        return {
-            "editor": self.editor,
-            "assignment": self.assignment,
-        }
 
     def _log_operation(self):
         """Log a message to the reviewer containing information about the motivation of the deassignment."""
@@ -1486,7 +1479,7 @@ class DeselectReviewer:
             message_subject=self.form_data.get("notification_subject"),
             message_body=message_body,
             verbosity=verbosity,
-            actor=self.editor,
+            actor=self.actor,
             recipients=recipients,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
@@ -1495,13 +1488,13 @@ class DeselectReviewer:
         )
 
     @staticmethod
-    def _check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
-        """Check if the editor (who does the operation) is the article's editor."""
-        return is_article_editor_or_eo(assignment.article.articleworkflow, editor)
+    def _check_editor_conditions(assignment: WorkflowReviewAssignment, actor: Account) -> bool:
+        """Check if the actor is the article's editor or the EO."""
+        return is_article_editor_or_eo(assignment.article.articleworkflow, actor)
 
     def check_conditions(self):
         """Check if the conditions for the deassignment are met."""
-        editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
+        editor_conditions = self._check_editor_conditions(self.assignment, self.actor)
         return editor_conditions
 
     def _withdraw_assignment(self) -> bool:
@@ -1539,13 +1532,13 @@ class WithdrawIncompleteReviews:
 
     article: Article
     request: HttpRequest
+    actor: Account
     subject_name: tuple[str, str] | None = None
     body_name: tuple[str, str] | None = None
     context: Dict[str, Any] | None = None
-    actor: Account = None
     extra_filters: Dict[str, Any] = None
     form_data: dict = None
-    """If provided, use the form's data for the message body instead of gettig it from a setting."""
+    """If provided, use the form's data for the message body instead of getting it from a setting."""
 
     def check_conditions(self) -> bool:
         """Check if context and body_name and subject_name must be set."""
@@ -1563,7 +1556,7 @@ class WithdrawIncompleteReviews:
         return qs
 
     def _prepare_message(self, assignment: WorkflowReviewAssignment) -> tuple[str, str]:
-        context = {**self.context, "reviewer": assignment.reviewer}
+        context = {**self.context, "recipient": assignment.reviewer}
         review_withdraw_subject = render_template_from_setting(
             setting_group_name=self.subject_name[1],
             setting_name=self.subject_name[0],
@@ -1595,7 +1588,7 @@ class WithdrawIncompleteReviews:
                 message_body, message_subject = self._prepare_message(assignment)
                 DeselectReviewer(
                     assignment=assignment,
-                    editor=self.actor,
+                    actor=self.actor,
                     request=self.request,
                     send_reviewer_notification=True,
                     form_data={
@@ -3050,7 +3043,7 @@ class OpenAppeal:
 
 @dataclasses.dataclass
 class WithdrawPreprint:
-    """Withdraw preprint."""
+    """Withdraw manuscript."""
 
     workflow: ArticleWorkflow
     request: HttpRequest
@@ -3089,6 +3082,7 @@ class WithdrawPreprint:
             subject_name=("preprint_withdrawn_subject", "wjs_review"),
             body_name=("preprint_withdrawn_body", "wjs_review"),
             context={"article": self.workflow.article},
+            actor=get_eo_user(self.workflow.article),
         )
         service.run()
 

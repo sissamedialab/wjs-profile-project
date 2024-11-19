@@ -3073,9 +3073,9 @@ class AdminOpensAppealView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
 
 
 class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
-    """View for author to withdraw preprint."""
+    """View for author to withdraw his manuscript."""
 
-    title = _("Withdraw Preprint")
+    title = _("Withdraw manuscript")
     model = ArticleWorkflow
     form_class = WithdrawPreprintForm
     success_url = reverse_lazy("wjs_review_author_archived")

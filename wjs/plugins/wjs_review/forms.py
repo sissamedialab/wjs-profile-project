@@ -1614,7 +1614,7 @@ class WithdrawPreprintForm(forms.Form):
         return WithdrawPreprint(
             workflow=self.instance,
             request=self.request,
-            form_data=self.data,
+            form_data=self.cleaned_data,
         )
 
     def save(self, commit=True):
