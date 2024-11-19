@@ -18,7 +18,6 @@ from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from submission.models import Article
 
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
-from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
 from .logic import states_when_article_is_considered_archived
@@ -208,9 +207,7 @@ def has_unread_message(article: Article, recipient: Account) -> str:
 
     Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
     """
-    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(
-        recipient, journal=article.journal
-    ).filter(article_id=article.pk)
+    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(recipient).filter(article_id=article.pk)
     if article_has_unread_messages.exists():
         return "You have unread messages"
     else:
@@ -472,12 +469,6 @@ def pending_edit_metadata_request(workflow: ArticleWorkflow, user: Account) -> O
     ).order_by()
     if pending_revision_requests.exists():
         return pending_revision_requests.last()
-
-
-def eo_has_unread_messages(article: Article) -> str:
-    """Tell if EO has any unread message for the current article."""
-    eo_user = get_eo_user(article.journal)
-    return has_unread_message(article=article, recipient=eo_user)
 
 
 def reviewer_acceptdecline_is_late(article: Article) -> str:

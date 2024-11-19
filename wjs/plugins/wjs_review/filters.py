@@ -10,7 +10,6 @@ from submission.models import Keyword, Section
 
 from wjs.jcom_profile import constants, permissions
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
-from wjs.jcom_profile.utils import get_eo_user
 
 from .logic__visibility import get_recipient_label
 from .managers import ArticleWorkflowQuerySet
@@ -67,12 +66,10 @@ def eo_status_choices() -> list[tuple[str, str]]:
     initialization.
     """
     return [
-        ("with_unread_messages", _("With any unread messages")),
-        ("my_unread_messages", _("With personal unread messages")),
-        ("eo_unread_messages", _("With any unread messages by EO")),
-        ("with_reviews", _("With assigned reviews for current review round")),
-        ("with_pending_reviews", _("With pending reviews for current review round")),
-        ("with_all_completed_reviews", _("No pending review request")),
+        ("with_unread_messages", _("With unread messages")),
+        ("submitted_re", _("(Re)Submitted")),
+        ("with_pending_reviews", _("Being reviewed")),
+        ("waiting_for_decision", _("Waiting for decision")),
     ]
 
 
@@ -84,11 +81,10 @@ def status_choices() -> list[tuple[str, str]]:
     initialization.
     """
     return [
-        ("with_unread_messages", _("With any unread messages")),
-        ("my_unread_messages", _("With personal unread messages")),
-        ("with_reviews", _("With assigned reviews for current review round")),
-        ("with_pending_reviews", _("With pending reviews for current review round")),
-        ("with_all_completed_reviews", _("No pending review request")),
+        ("with_unread_messages", _("With unread messages")),
+        ("submitted_re", _("(Re)Submitted")),
+        ("with_pending_reviews", _("Being reviewed")),
+        ("waiting_for_decision", _("Waiting for decision")),
     ]
 
 
@@ -274,18 +270,14 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         :return: the filtered queryset
         :rtype: QuerySet
         """
-        if value == "eo_unread_messages":
-            return queryset.with_unread_messages(get_eo_user(self.request.journal), journal=self.request.journal)
-        if value == "my_unread_messages":
-            return queryset.with_unread_messages(self.request.user, journal=self.request.journal)
         if value == "with_unread_messages":
-            return queryset.with_unread_messages(journal=self.request.journal)
-        if value == "with_reviews":
-            return queryset.with_reviews()
+            return queryset.with_unread_messages(self.request.user, other_users_messages=True)
+        if value == "submitted_re":
+            return queryset.submitted_re()
         if value == "with_pending_reviews":
             return queryset.with_pending_reviews()
-        if value == "with_all_completed_reviews":
-            return queryset.with_all_completed_reviews()
+        if value == "waiting_for_decision":
+            return queryset.waiting_for_decision()
         if value:
             return queryset.filter(**{name: value})
         return queryset
