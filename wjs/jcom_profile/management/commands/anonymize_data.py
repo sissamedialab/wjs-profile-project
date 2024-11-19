@@ -12,6 +12,8 @@
 See specs#585
 """
 
+import random
+
 import faker
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -19,6 +21,8 @@ from django.core.management.base import BaseCommand
 from django.db.models import F, Value
 from django.db.models.functions import Concat
 from journal.models import Journal
+from plugins.wjs_review.models import Message
+from submission.models import Article
 from utils import setting_handler
 from utils.logger import get_logger
 
@@ -27,11 +31,19 @@ Account = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Anoymize users"  # NOQA
+    help = "Anoymize data"  # NOQA
+
+    def add_arguments(self, parser):
+        """Add arguments to command."""
+        parser.add_argument(
+            "-t",
+            "--titles",
+            action="store_true",
+            help="Also anonimize titles of non-published papers.",
+        )
 
     def handle(self, *args, **options):
         """Command entry point."""
-
         # Safety net: refuse to run on production
         if not hasattr(settings, "DEBUG"):
             # This cannot happen, because janeway_global_settings defines DEBUG, but...
@@ -57,6 +69,9 @@ class Command(BaseCommand):
             ),
         )
         anonymize_users(accounts)
+        anonymize_message_subjects()
+        if options["titles"]:
+            anonymize_titles()
         disable_crossref()
         delete_crossref_credentials()
 
@@ -87,6 +102,33 @@ def anonymize_emails(accounts):
         email=Concat(F("id"), Value("@invalid.com")),
         username=Concat(F("id"), Value("@invalid.com")),
     )
+
+
+def anonymize_titles():
+    """Set a random title on non-published papers."""
+    fake = faker.Faker()
+    for article in Article.objects.filter(date_published__isnull=True):
+        article.title = fake.sentence(nb_words=random.randint(5, 13)).title()
+        article.save()
+
+
+def anonymize_message_subjects():
+    """Anonymize some message subjects."""
+    Message.objects.filter(subject__endswith="invited to review").update(subject="⋆⋆⋆ invited to review")
+
+    Message.objects.filter(
+        subject__startswith="Editor",
+        subject__endswith="declined assignment",
+    ).update(subject="Editor ⋆⋆⋆ declined assignment")
+
+    Message.objects.filter(
+        subject__startswith="Reviewer",
+        subject__endswith="declined invite",
+    ).update(subject="Reviewer ⋆⋆⋆ declined invite")
+    Message.objects.filter(
+        subject__startswith="Reviewer",
+        subject__endswith="accepted invite",
+    ).update(subject="Reviewer ⋆⋆⋆ accepted invite")
 
 
 def disable_crossref():
