@@ -4,7 +4,6 @@ from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import F, OuterRef, Q, QuerySet, Subquery
-from journal.models import Journal
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 
@@ -15,90 +14,80 @@ if TYPE_CHECKING:
 
 
 class ArticleWorkflowQuerySet(models.QuerySet):
-    def _latest_review_round(self) -> Subquery:
+    def _latest_review_round(self, mode: str) -> Subquery:
         """
-        Return a subquery to extract the latest review round for each article.
+        Return a subquery to extract the latest review round. Depending on the mode, the latest review round relevant
+        for Revision or the latest review round relevant for Review.
 
         :return: the subquery to extract the latest review round for each article
         :rtype: Subquery
         """
-        return Subquery(
-            ReviewAssignment.objects.filter(article=OuterRef("article_id"))
-            .order_by("-review_round__round_number")
-            .values("review_round")[:1],
-        )
+        isnull_condition = mode == "review"
+        latest_review_round = ReviewAssignment.objects.filter(
+            article=OuterRef("article_id"),
+            review_round__editorrevisionrequest__isnull=isnull_condition,
+        ).order_by("-review_round__round_number")
+        return Subquery(latest_review_round.values("review_round")[:1])
 
-    def _latest_review_round_number(self) -> Subquery:
+    def _latest_review_round_number(self, mode: str) -> Subquery:
         """
-        Return a subquery to extract the latest review round number for each article.
+        Return a subquery to extract the latest review round number. Depending on the mode, the latest review round
+        relevant for Revision or the latest review round relevant for Review.
 
         :return: the subquery to extract the latest review round number for each article
         :rtype: Subquery
         """
-        return Subquery(
-            ReviewAssignment.objects.filter(article=OuterRef("article_id"))
-            .order_by("-review_round__round_number")
-            .values("review_round__round_number")[:1],
-        )
+        isnull_condition = mode == "review"
+        latest_review_round = ReviewAssignment.objects.filter(
+            article=OuterRef("article_id"),
+            review_round__editorrevisionrequest__isnull=isnull_condition,
+        ).order_by("-review_round__round_number")
+        return Subquery(latest_review_round.values("review_round__round_number")[:1])
 
-    def with_unread_messages(self, user: Account = None, journal: Journal | None = None) -> QuerySet:
+    def with_unread_messages(self, user: Account = None, other_users_messages: bool = False) -> QuerySet:
         """
-        Return articles with unread messages for the current user.
-
-        If the user is an EO, it will also return articles with :py:attr:`Message.read_by_eo` flag False.
-
+        Returns every unread message the user has visibility on or every unread message whose recipient is the user.
+        Also returns ones with read_by_eo=False for EO.
         :param user: the user to filter the unread messages for
         :type user: Account
 
-        :param journal: the current journal
-        :type journal: Journal
+        :param other_users_messages: filter every message the user has visibility on
+        :type other_users_messages: bool
 
         :return: the queryset with unread messages
         :rtype: QuerySet
         """
-        from wjs.jcom_profile.utils import get_eo_user
-
         from .models import Message
 
-        messages = Message.objects.filter(
-            content_type=ContentType.objects.get_for_model(Article),
-            messagerecipients__read=False,
-        )
-        try:
-            account = user.janeway_account
-        except AttributeError:
-            account = user
-        if account:
-            is_eo_user = account == get_eo_user(journal) if journal else False
-            if not is_eo_user:
-                filters = Q(messagerecipients__read=False, messagerecipients__recipient=account)
-            else:
-                filters = Q(read_by_eo=False)
-            if has_eo_role(account) and not is_eo_user:
-                filters |= Q(read_by_eo=False)
-            if filters:
-                messages = messages.filter(filters)
+        messages = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article))
+        filters = Q(messagerecipients__read=False)
+        if not other_users_messages:
+            filters &= Q(messagerecipients__recipient=user)
+        if has_eo_role(user):
+            filters |= Q(read_by_eo=False)
+        messages = messages.filter(filters)
         return self.filter(article_id__in=Subquery(messages.values_list("object_id", flat=True)))
 
-    def annotate_review_round(self) -> QuerySet:
+    def annotate_review_round(self, mode: str) -> QuerySet:
         """
-        Annotate the latest review round ID and its number.
-
         Provide the latest review round in every queryset object. This is useful not only for filtering, but also
         at the template level, to show the current review round number.
 
         You must be aware that only the review round **ID** is provided, not the review round object itself.
 
+        Depening if called with "review" or "revision" option, returns the only latest relevant review round in each
+        scenario.
         :return: the queryset with the latest review round ID and its number
         :rtype: QuerySet
         """
-        return self.annotate(review_round_id=self._latest_review_round()).annotate(
-            round_number=self._latest_review_round_number(),
+        queryset = self.annotate(review_round_id=self._latest_review_round(mode)).annotate(
+            round_number=self._latest_review_round_number(mode)
         )
+        return queryset.filter(review_round_id__isnull=False, round_number__isnull=False)
 
     def with_reviews(self) -> QuerySet:
         """Return ArticleWorkflow with any reviewassignment for the latest review round."""
-        return self.annotate_review_round().filter(
+        return self.annotate_review_round("review").filter(
             article__reviewassignment__isnull=False,
             article__reviewassignment__review_round=F("review_round_id"),
         )
@@ -107,9 +96,25 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         """Return ArticleWorkflow with pending reviewassignment for the latest review round."""
         return self.with_reviews().filter(article__reviewassignment__is_complete=False)
 
-    def with_all_completed_reviews(self) -> QuerySet:
+    def waiting_for_decision(self) -> QuerySet:
         """Return ArticleWorkflow with no pending reviewassignment for the latest review round."""
-        return self.with_reviews().exclude(article__reviewassignment__is_complete=False)
+        return (
+            self.with_reviews()
+            .filter(state__in=["EditorSelected", "ToBeRevised"])
+            .exclude(
+                Q(article__reviewassignment__is_complete=False)
+                | Q(article__reviewassignment__date_declined__isnull=False)
+                | Q(article__reviewassignment__decision="withdrawn")
+            )
+        )
+
+    def submitted_re(self) -> QuerySet:
+        """Return ArticleWorkflow with no open review requests and Assigned to Editor state articles, appeal submitted
+        and major/minor revisions submitted."""
+        with_open_revisions = self.annotate_review_round("revision").exclude(
+            article__revisionrequest__date_completed__isnull=False,
+        )
+        return with_open_revisions | self.filter(article__reviewassignment__isnull=True)
 
 
 class WjsEditorAssignmentQuerySet(models.QuerySet):

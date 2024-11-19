@@ -680,7 +680,7 @@ class EditorSelected(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
-        if attention_flag := conditions.eo_has_unread_messages(article):
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):
             return attention_flag

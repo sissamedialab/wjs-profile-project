@@ -121,12 +121,10 @@ def test_staffarticleworkflowfilter_filter_status(
         fake_request.user = section_editor
 
     filters = {
-        "my_unread_messages": "with_unread_messages",
         "with_unread_messages": "with_unread_messages",
-        "with_reviews": "with_reviews",
+        "submitted_re": "submitted_re",
         "with_pending_reviews": "with_pending_reviews",
-        "with_all_completed_reviews": "with_all_completed_reviews",
-        "eo_unread_messages": "with_unread_messages",
+        "waiting_for_decision": "waiting_for_decision",
     }
 
     for status_filter, qs_method in filters.items():
@@ -137,13 +135,7 @@ def test_staffarticleworkflowfilter_filter_status(
                 request=fake_request,
                 journal=journal,
             )
-            if status_filter == "eo_unread_messages":
-                if user_type == "eo":
-                    assert status_filter in dict(article_filterer.filters["status"].field.choices)
-                else:
-                    assert status_filter not in dict(article_filterer.filters["status"].field.choices)
-            else:
-                assert status_filter in dict(article_filterer.filters["status"].field.choices)
+            assert status_filter in dict(article_filterer.filters["status"].field.choices)
             # call the filter method, it must be called low level because filter_queryset asserts that return value
             # is a queryset which is not in this case because we mocked it
             article_filterer.filters["status"].filter(workflows, status_filter)
@@ -170,12 +162,10 @@ def test_eoarticleworkflowfilter_filter_status(
     fake_request.user = eo_user
 
     filters = {
-        "my_unread_messages": "with_unread_messages",
         "with_unread_messages": "with_unread_messages",
-        "with_reviews": "with_reviews",
+        "submitted_re": "submitted_re",
         "with_pending_reviews": "with_pending_reviews",
-        "with_all_completed_reviews": "with_all_completed_reviews",
-        "eo_unread_messages": "with_unread_messages",
+        "waiting_for_decision": "waiting_for_decision",
     }
     for status_filter, qs_method in filters.items():
         with patch(f"plugins.wjs_review.models.ArticleWorkflowQuerySet.{qs_method}") as mock_queryset:
