@@ -3,15 +3,19 @@ import random
 import pytest
 from core import models as core_models
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core import mail
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from django.utils.timezone import now
+from journal.models import Journal
 from submission import models as submission_models
 from submission.models import Keyword, Section
 from utils import setting_handler
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import (
     EditorAssignmentParameters,
     EditorKeyword,
@@ -23,6 +27,8 @@ from wjs.jcom_profile.tests.conftest import (
     _journal_factory,
 )
 from wjs.jcom_profile.utils import generate_token
+
+Account = get_user_model()
 
 
 @pytest.mark.django_db
@@ -237,20 +243,21 @@ def test_submitting_user_is_main_author_when_setting_is_on(
         assert not article.correspondence_author
 
 
-@pytest.mark.parametrize("user_role", ("staff", "editor", "section-editor", "other"))
+@pytest.mark.parametrize("user_role", ("eo", "editor", "section-editor", "other"))
 @pytest.mark.django_db
-def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_staff_or_editor(
+def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_eo_or_editor(
     user,
     roles,
     user_role,
     journal,
+    eo_group,
 ):
     jcom_user = JCOMProfile.objects.get(janeway_account=user)
     jcom_user.gdpr_checkbox = True
     jcom_user.is_active = True
     # User are staff or editor
-    if user_role == "staff":
-        jcom_user.is_staff = True
+    if user_role == "eo":
+        jcom_user.janeway_account.groups.add(Group.objects.get(name=constants.EO_GROUP))
     elif user_role != "other":
         user.add_account_role(user_role, journal)
     jcom_user.save()
@@ -261,7 +268,7 @@ def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_st
     url = f"/{journal.code}/profile/"
     response = client.get(url)
     assert response.status_code == 200
-    if user_role in ["staff", "section-editor"]:
+    if user_role in ["eo", "section-editor"]:
         assert ASSIGNMENT_PARAMETERS_SPAN in response.content.decode()
 
 
@@ -347,26 +354,34 @@ def test_assignment_parameter_button_is_present_in_editors_interface_if_the_user
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("user_role", ("staff", "editor"))
-def test_director_can_change_editor_keywords(journal, roles, user_role, user):
-    client = Client()
-    jcom_user = JCOMProfile.objects.get(janeway_account=user)
-    jcom_user.gdpr_checkbox = True
-    jcom_user.is_active = True
-    # User are staff or editor
+@pytest.mark.parametrize("user_role", ("staff", "eo", "section-editor", "director"))
+def test_director_can_change_editor_keywords(
+    journal: Journal,
+    roles,
+    user: Account,
+    eo_group,
+    section_editor,
+    user_role,
+):
+    user.jcomprofile.gdpr_checkbox = True
+    user.is_active = True
+
     if user_role == "staff":
-        jcom_user.is_staff = True
+        user.is_staff = True
+        user.save()
+    elif user_role in ["section-editor", "director"]:
+        user.add_account_role(user_role, journal)
+        user.refresh_from_db()
+    elif user_role == "eo":
+        user.groups.add(Group.objects.get(name=constants.EO_GROUP))
 
-    elif user_role == "editor":
-        user.add_account_role("editor", journal)
-    jcom_user.save()
+    client = Client()
+    client.force_login(user)
 
-    client.force_login(jcom_user)
-
-    url = f"/{journal.code}/update/parameters/{jcom_user.janeway_account.pk}/"
+    url = f"/{journal.code}/update/parameters/{section_editor.janeway_account.pk}/"
     response = client.get(url)
 
-    if user_role == "staff":
+    if user_role in ["staff", "eo", "director"]:
         assert response.status_code == 200
     else:
         assert response.status_code == 403

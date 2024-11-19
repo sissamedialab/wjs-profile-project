@@ -440,6 +440,7 @@ def test_message_addressing(
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     reviewer: JCOMProfile,
     director: JCOMProfile,
+    main_director: JCOMProfile,
     admin: JCOMProfile,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
@@ -508,7 +509,8 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(editor, assigned_article, editor) is True
     assert HandleMessage.can_write_to(editor, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(editor, assigned_article, author) is True
-    assert HandleMessage.can_write_to(editor, assigned_article, director) is True
+    assert HandleMessage.can_write_to(editor, assigned_article, director) is False
+    assert HandleMessage.can_write_to(editor, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(editor, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(editor, assigned_article, past_editor) is False
 
@@ -517,7 +519,8 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(reviewer, assigned_article, editor) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, author) is False
-    assert HandleMessage.can_write_to(reviewer, assigned_article, director) is True
+    assert HandleMessage.can_write_to(reviewer, assigned_article, director) is False
+    assert HandleMessage.can_write_to(reviewer, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, past_editor) is False
 
@@ -526,18 +529,30 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(author, assigned_article, editor) is True
     assert HandleMessage.can_write_to(author, assigned_article, reviewer) is False
     assert HandleMessage.can_write_to(author, assigned_article, author) is True
-    assert HandleMessage.can_write_to(author, assigned_article, director) is author_can_contact_director
+    assert HandleMessage.can_write_to(author, assigned_article, director) is False
+    assert HandleMessage.can_write_to(author, assigned_article, main_director) is author_can_contact_director
     assert HandleMessage.can_write_to(author, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(author, assigned_article, past_editor) is False
 
     # Director
     # ======
-    assert HandleMessage.can_write_to(director, assigned_article, editor) is True
-    assert HandleMessage.can_write_to(director, assigned_article, reviewer) is True
-    assert HandleMessage.can_write_to(director, assigned_article, author) is True
-    assert HandleMessage.can_write_to(director, assigned_article, director) is True
+    assert HandleMessage.can_write_to(director, assigned_article, editor) is False
+    assert HandleMessage.can_write_to(director, assigned_article, reviewer) is False
+    assert HandleMessage.can_write_to(director, assigned_article, author) is False
+    assert HandleMessage.can_write_to(director, assigned_article, director) is True  # everyone can write to themselves
+    assert HandleMessage.can_write_to(director, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(director, assigned_article, eo_system_user) is True
-    assert HandleMessage.can_write_to(director, assigned_article, past_editor) is True
+    assert HandleMessage.can_write_to(director, assigned_article, past_editor) is False
+
+    # Main Director
+    # ======
+    assert HandleMessage.can_write_to(main_director, assigned_article, editor) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, reviewer) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, author) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, director) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, main_director) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, eo_system_user) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, past_editor) is True
 
 
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
@@ -546,6 +561,7 @@ def test_allowed_recipients_for_actor(
     assigned_article: submission_models.Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,
+    main_director: JCOMProfile,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
     author_can_contact_director: bool,
@@ -573,9 +589,8 @@ def test_allowed_recipients_for_actor(
     # Let's make all actors point directly to the Janeway's account (i.e. not to the JCOMProfile), because it's easier
     # to use.
     editor: Account = WjsEditorAssignment.objects.get_current(assigned_article).editor
-
     director: Account = director.janeway_account
-
+    main_director: Account = main_director.janeway_account
     eo_system_user: Account = get_eo_user(assigned_article)
 
     # The fixture `review_settings` ensures that all needed (journal) settings exist, but we still need to set the
@@ -618,7 +633,8 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 in allowed_recipients
     assert editor in allowed_recipients
     assert past_editor not in allowed_recipients
-    assert director in allowed_recipients
+    assert director not in allowed_recipients
+    assert main_director in allowed_recipients
     assert eo_system_user in allowed_recipients
 
     # Reviewer
@@ -629,7 +645,8 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
     assert past_editor not in allowed_recipients
-    assert director in allowed_recipients
+    assert director not in allowed_recipients
+    assert main_director in allowed_recipients
     assert eo_system_user in allowed_recipients
 
     # Author
@@ -640,12 +657,25 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
     assert past_editor not in allowed_recipients
-    assert (director in allowed_recipients) is author_can_contact_director
+    assert director not in allowed_recipients
+    assert (main_director in allowed_recipients) is author_can_contact_director
     assert eo_system_user in allowed_recipients
 
     # Director
     # ======
     allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=director, article=assigned_article)
+    assert author not in allowed_recipients
+    assert reviewer_1 not in allowed_recipients
+    assert reviewer_2 not in allowed_recipients
+    assert editor not in allowed_recipients
+    assert past_editor not in allowed_recipients
+    assert director in allowed_recipients
+    assert main_director in allowed_recipients
+    assert eo_system_user in allowed_recipients
+
+    # Main director
+    # ======
+    allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=main_director, article=assigned_article)
     assert author in allowed_recipients
     assert reviewer_1 in allowed_recipients
     assert reviewer_2 in allowed_recipients

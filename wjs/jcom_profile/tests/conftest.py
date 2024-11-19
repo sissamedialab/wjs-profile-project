@@ -285,6 +285,13 @@ def coauthor():
 
 
 @pytest.fixture()
+def author(create_jcom_user, roles, journal, keywords):
+    jcom_user = create_jcom_user("author")
+    jcom_user.add_account_role(constants.AUTHOR_ROLE, journal)
+    return jcom_user
+
+
+@pytest.fixture()
 def editor(create_jcom_user, roles, journal, keywords):
     jcom_user = create_jcom_user("editor")
     jcom_user.add_account_role(constants.EDITOR_ROLE, journal)
@@ -330,6 +337,13 @@ def normal_user(create_jcom_user, roles, journal, keywords) -> JCOMProfile:
 def director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("director")
     jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
+    return jcom_user
+
+
+@pytest.fixture()
+def main_director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
+    jcom_user = create_jcom_user("Mario main director")
+    jcom_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal)
     return jcom_user
 
 
@@ -468,7 +482,7 @@ def sections(journal):
     return submission_models.Section.objects.filter(pk__in=sections_pk)
 
 
-def _article(admin, coauthor, journal, sections, submitted=False):
+def _article(author, coauthor, journal, sections, submitted=False):
     if submitted:
         date_started = date_submitted = now() - timedelta(days=random.randint(10, 20))
     else:
@@ -477,14 +491,14 @@ def _article(admin, coauthor, journal, sections, submitted=False):
         abstract="Abstract",
         journal=journal,
         title="Title",
-        correspondence_author=admin,
-        owner=admin,
+        correspondence_author=author,
+        owner=author,
         date_submitted=date_submitted,
         date_started=date_started,
         section=random.choice(sections),
         language="eng",
     )
-    article.authors.add(admin, coauthor)
+    article.authors.add(author, coauthor)
     for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:
         file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
         article.manuscript_files.add(file_obj)
@@ -498,13 +512,13 @@ def _article(admin, coauthor, journal, sections, submitted=False):
 
 
 @pytest.fixture
-def article(admin, coauthor, journal, sections):
-    return _article(admin, coauthor, journal, sections)
+def article(author, coauthor, journal, sections):
+    return _article(author, coauthor, journal, sections)
 
 
 @pytest.fixture
-def submitted_article(admin, coauthor, journal, sections):
-    return _article(admin, coauthor, journal, sections, submitted=True)
+def submitted_article(author, coauthor, journal, sections):
+    return _article(author, coauthor, journal, sections, submitted=True)
 
 
 def _create_submitted_articles(journal: journal_models.Journal, count: int = 10) -> List[submission_models.Article]:
@@ -540,7 +554,7 @@ def create_submitted_articles() -> Callable[[journal_models.Journal, int], List[
     return _create_submitted_articles
 
 
-def _create_published_articles(admin, editor, journal, sections, keywords, items=10):
+def _create_published_articles(author, editor, journal, sections, keywords, items=10):
     """Create articles in published stage - Function version.
 
     Corresponding author (owner), keywords and section are random.
@@ -553,7 +567,7 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
     # and returning a blanket "all" queryset would include sections articles by those fixtures
     articles_pk = []
     for i in range(items):
-        owner = random.choice([admin, editor])
+        owner = random.choice([author, editor])
         article = submission_models.Article.objects.create(
             abstract=f"Abstract{i}",
             journal=journal,
@@ -582,11 +596,11 @@ def _create_published_articles(admin, editor, journal, sections, keywords, items
 
 
 @pytest.fixture
-def published_articles(admin, editor, journal, sections, keywords):
+def published_articles(author, editor, journal, sections, keywords):
     """Create articles in published stage - Fixture version.
 
     Corresponding author (owner), keywords and section are random"""
-    return _create_published_articles(admin, editor, journal, sections, keywords)
+    return _create_published_articles(author, editor, journal, sections, keywords)
 
 
 @pytest.fixture

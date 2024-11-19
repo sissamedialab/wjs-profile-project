@@ -12,6 +12,7 @@ from wjs.jcom_profile import constants, permissions
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 from wjs.jcom_profile.utils import get_eo_user
 
+from .logic__visibility import get_recipient_label
 from .managers import ArticleWorkflowQuerySet
 from .models import ArticleWorkflow, Message, Reminder
 
@@ -370,6 +371,12 @@ class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):
 
 
 class MessageFilter(django_filters.FilterSet):
+    """A filter-set to allow the user to filter the messages in the messages page.
+
+    Do not confuse with the form to filter the timeline
+    (see forms.TimelinFilterForm).
+    """
+
     actor_recipients = django_filters.ModelChoiceFilter(
         method="filter_actor_recipients",
         label=_("Filter by sender/recipient"),
@@ -385,7 +392,8 @@ class MessageFilter(django_filters.FilterSet):
         empty_label=_("Filter by type"),
         choices=(
             ("", _("All")),
-            (Message.MessageTypes.USER, _("User")),
+            (Message.MessageTypes.USER, _("User messages")),
+            (Message.MessageTypes.NOTE, _("User notes")),
             (Message.MessageTypes.SYSTEM, _("System")),
         ),
     )
@@ -395,10 +403,23 @@ class MessageFilter(django_filters.FilterSet):
         fields = ["actor_recipients"]
 
     def __init__(self, *args, **kwargs):
+        """Prepare the actor/recipients filter.
+
+        Keep only actors and recipients that appear in any message,
+        and ensure that their name are hidden if needed by
+        patching the filter's field's label_from_instance method.
+        """
+        workflow = kwargs.pop("workflow")
+        user = kwargs.pop("user")
         super().__init__(*args, **kwargs)
         actors = self.queryset.values_list("actor", flat=True)
         recipients = self.queryset.values_list("messagerecipients__recipient", flat=True)
         self.filters["actor_recipients"].queryset = Account.objects.filter(Q(pk__in=actors) | Q(pk__in=recipients))
+        self.filters["actor_recipients"].field.label_from_instance = lambda obj: get_recipient_label(
+            workflow=workflow,
+            user=user,
+            recipient=obj,
+        )
 
     def filter_content(self, queryset: QuerySet, name: str, value: str):
         if value:

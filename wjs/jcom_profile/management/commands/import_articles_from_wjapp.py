@@ -691,7 +691,7 @@ ORDER BY ah.actionDate
             row["eoInCharge_privacy"],
         )
 
-        if not main_author.check_role(self.journal, "author"):
+        if not main_author.check_role(self.journal, "author", staff_override=False):
             main_author.add_account_role("author", self.journal)
         article.owner = main_author
         article.authors.add(main_author)
@@ -1743,7 +1743,7 @@ class EditorAssignmentAction(BaseActionManager):
 
         # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
         # article.
-        if not editor.check_role(self.journal, "section-editor"):
+        if not editor.check_role(self.journal, "section-editor", staff_override=False):
             editor.add_account_role("section-editor", self.journal)
 
         logger.debug(f"Assigning {editor.last_name} {editor.first_name} onto {self.article.pk}")
@@ -3144,7 +3144,7 @@ class SelectCoauthorAction(BaseActionManager):
         with freezegun.freeze_time(
             rome_timezone.localize(coauthor_assign_date),
         ):
-            if not coauthor.check_role(self.journal, "author"):
+            if not coauthor.check_role(self.journal, "author", staff_override=False):
                 coauthor.add_account_role("author", self.journal)
             self.article.authors.add(coauthor)
             self.article.save()

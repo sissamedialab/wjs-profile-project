@@ -3,6 +3,8 @@
 from django.template.loader import render_to_string
 from django.utils.translation import gettext as _
 
+from . import permissions
+
 
 def extra_core_fields_hook(request_context):
     """Add hook to render extra profile fields."""
@@ -17,7 +19,11 @@ def extra_edit_profile_parameters_hook(request_context):
     user = request_context.request.user
     journal = request_context.request.journal
     rendered = ""
-    if user and journal and user.check_role(journal, "section-editor"):
+    if (
+        user
+        and journal
+        and (user.check_role(journal, "section-editor", staff_override=False) or permissions.has_eo_role(user))
+    ):
         template_name = "elements/accounts/extra_edit_profile_card_block.html"
         rendered = render_to_string(
             template_name,

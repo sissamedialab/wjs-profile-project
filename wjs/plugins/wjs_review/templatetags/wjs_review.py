@@ -676,8 +676,22 @@ def get_role_label(role) -> str:
     return role_label(role)
 
 
-@register.simple_tag()
-def is_current_version(workflow: ArticleWorkflow, version: ReviewRound | TypesettingRound) -> bool:
+@register.simple_tag(takes_context=True)
+def is_current_version(
+    context: Dict[str, Any],
+    workflow: ArticleWorkflow,
+    version: ReviewRound | TypesettingRound,
+) -> bool:
+    """Tess if the given version (which is not a Version) is the current one.
+
+    This tt is used to identify which version-accordion to collapse/expand.
+
+    When messages are filtered, we want to open all version, so if the filter criteria is present in the request, then
+    we just return True every time.
+
+    """
+    if "message_type" in context.request.GET:
+        return True
     article = version.article
     try:
         latest_typesetting_round = workflow.latest_typesetting_assignment().round

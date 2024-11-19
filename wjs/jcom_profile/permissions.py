@@ -135,7 +135,7 @@ def has_section_editor_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has section editor role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, constants.SECTION_EDITOR_ROLE)
+    return user.check_role(journal, constants.SECTION_EDITOR_ROLE, staff_override=False)
 
 
 def has_editor_role(journal: Journal, user: Account) -> bool:
@@ -151,7 +151,7 @@ def has_editor_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has editor role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, constants.EDITOR_ROLE)
+    return user.check_role(journal, constants.EDITOR_ROLE, staff_override=False)
 
 
 def has_any_editor_role(journal: Journal, user: Account) -> bool:
@@ -183,7 +183,7 @@ def has_author_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has author role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, constants.AUTHOR_ROLE)
+    return user.check_role(journal, constants.AUTHOR_ROLE, staff_override=False)
 
 
 def has_director_role(journal: Journal, user: Account) -> bool:
@@ -199,7 +199,39 @@ def has_director_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has director role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, constants.DIRECTOR_ROLE)
+    return user.check_role(journal, constants.DIRECTOR_ROLE, staff_override=False)
+
+
+def has_main_director_role(journal: Journal, user: Account) -> bool:
+    """
+    Check if the given user has _main_ director role for the given journal.
+
+    :param journal: An instance of the Journal class.
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has main director role for the journal, False otherwise.
+    :rtype: bool
+    """
+    return user.check_role(journal, constants.DIRECTOR_MAIN_ROLE, staff_override=False)
+
+
+def has_any_director_role(journal: Journal, user: Account) -> bool:
+    """
+    Check if the given user has either the director or the main director role for the given journal.
+
+    :param journal: An instance of the Journal class.
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has director or main director role for the journal, False otherwise.
+    :rtype: bool
+    """
+    return has_director_role(journal, user) or has_main_director_role(journal, user)
 
 
 def has_reviewer_role(journal: Journal, user: Account) -> bool:
@@ -217,7 +249,7 @@ def has_reviewer_role(journal: Journal, user: Account) -> bool:
     :return: True if the user has reviewer role for the journal, False otherwise.
     :rtype: bool
     """
-    return user.check_role(journal, constants.REVIEWER_ROLE)
+    return user.check_role(journal, constants.REVIEWER_ROLE, staff_override=False)
 
 
 def has_admin_role(journal: Journal, user: Account) -> bool:

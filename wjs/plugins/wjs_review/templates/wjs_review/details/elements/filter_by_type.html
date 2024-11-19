@@ -5,7 +5,7 @@
   </button>
   <ul class="dropdown-menu">
     {% for status, label in form.message_type.field.choices %}
-      <li><a class="dropdown-item {% if status == form.cleaned_data.message_type %}active{% endif %}" hx-get="{{ request.path }}" hx-trigger="click" hx-target="#timeline" hx-swap="outerHTML" hx-vals='{"message_type": "{{ status }}", "version": "{{ version.pk }}"}'>{{ label }}</a></li>
+      <li><a class="dropdown-item {% if status == form.cleaned_data.message_type %}active{% endif %}" hx-get="{{ request.path }}" hx-trigger="click" hx-target="#timeline" hx-swap="outerHTML" hx-vals='{"message_type": "{{ status }}"}'>{{ label|safe }}</a></li>
     {% endfor %}
   </ul>
 </div>

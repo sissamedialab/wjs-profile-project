@@ -17,7 +17,7 @@ class EditorRequiredMixin(UserPassesTestMixin):
     def test_func(self):
         if self.request.user.is_anonymous:
             return False
-        is_section_editor = self.request.user.check_role(self.request.journal, "section-editor")
+        is_section_editor = self.request.user.check_role(self.request.journal, "section-editor", staff_override=False)
         return is_section_editor
 
 

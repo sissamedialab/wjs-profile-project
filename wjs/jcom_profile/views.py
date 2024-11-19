@@ -39,6 +39,7 @@ from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from . import forms
+from . import permissions
 from . import permissions as base_permissions
 from .drupal_redirect_views import (  # noqa F401
     DrupalAuthorsRedirect,
@@ -246,20 +247,20 @@ class EditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
     template_name = "submission/update_editor_parameters.html"
     raise_exception = True
 
-    def test_func(self):  # noqa
-        user = self.request.user
-        journal = self.request.journal
-        return user.check_role(
-            journal,
-            "section-editor",
+    def test_func(self):
+        user, journal = self.request.user, self.request.journal
+        return (
+            # Not adding user.is_staff, because assignment parameters have meaning only for EO or editor
+            user.check_role(journal, "section-editor", staff_override=False)
+            or permissions.has_eo_role(user)
         )
 
-    def get_object(self, queryset=None):  # noqa
+    def get_object(self, queryset=None):
         editor, journal = self.request.user, self.request.journal
         parameters, _ = EditorAssignmentParameters.objects.get_or_create(editor=editor, journal=journal)
         return parameters
 
-    def get_success_url(self):  # noqa
+    def get_success_url(self):
         messages.add_message(
             self.request,
             messages.SUCCESS,
@@ -280,16 +281,20 @@ class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
     template_name = "submission/director_update_editor_parameters.html"
     raise_exception = True
 
-    def test_func(self):  # noqa
+    def test_func(self):
         """Give access to EO and directors."""
-        user = self.request.user
-        journal = self.request.journal
-        return base_permissions.has_eo_or_director_role(journal=journal, user=user)
+        user, journal = self.request.user, self.request.journal
+        return user.is_staff or base_permissions.has_eo_or_director_role(journal=journal, user=user)
 
-    def get_object(self, queryset=None):  # noqa
+    def get_object(self, queryset=None):
         editor_pk, journal = self.kwargs.get("editor_pk"), self.request.journal
         editor = JCOMProfile.objects.get(pk=editor_pk)
-        if not (editor.check_role(journal, "editor") or editor.check_role(journal, "section-editor")):
+        # Assignment parameters have meaning only for editor and EO
+        if not (
+            base_permissions.has_eo_role(editor)
+            or editor.check_role(journal, "editor", staff_override=False)
+            or editor.check_role(journal, "section-editor", staff_override=False)
+        ):
             raise Http404()
         parameters, _ = EditorAssignmentParameters.objects.get_or_create(editor=editor, journal=journal)
         return parameters

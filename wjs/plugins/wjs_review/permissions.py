@@ -149,6 +149,46 @@ def has_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> 
     return base_permissions.has_director_role(instance.article.journal, user)
 
 
+def has_main_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the given user has the main director role for the article's journal.
+
+    If the director is the author of the article, he can't be considered as a director for the article.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has the main director role for the journal, False otherwise.
+    :rtype: bool
+    """
+    if is_one_of_the_authors(instance, user):
+        return False
+    return base_permissions.has_main_director_role(instance.article.journal, user)
+
+
+def has_any_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the given user has the director or main director role for the article's journal.
+
+    If the director is the author of the article, he can't be considered as a director for the article.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user has the director or main director role for the journal, False otherwise.
+    :rtype: bool
+    """
+    if is_one_of_the_authors(instance, user):
+        return False
+    return base_permissions.has_any_director_role(instance.article.journal, user)
+
+
 def has_admin_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the user is staff, also meaning EO.
@@ -547,7 +587,7 @@ def has_typesetter_role_by_article(instance: "ArticleWorkflow", user: Account) -
     :return: True if the user has the typesetter role for the journal of the given article.
     :rtype: bool
     """
-    return user.check_role(instance.article.journal, "typesetter")
+    return user.check_role(instance.article.journal, "typesetter", staff_override=False)
 
 
 def is_article_typesetter(instance: "ArticleWorkflow", user: Account) -> bool:
