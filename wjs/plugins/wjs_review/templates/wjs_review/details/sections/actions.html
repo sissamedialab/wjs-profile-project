@@ -1,4 +1,4 @@
-{% load django_bootstrap5 i18n wjs_review %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
 {% if current_review_assignment %}
   {% include "wjs_review/details/elements/review_assignment_main.html" with assignment=current_review_assignment version=versions.0 %}
 {% endif %}
@@ -42,8 +42,10 @@
     {% url "admin:submission_article_change" article.pk as article_admin %}
     {% bootstrap_button href=add_note title=note_title button_class="btn-outline-primary" content=note_label %}
     {% bootstrap_button href=add_message title=message_title button_class="btn-outline-secondary" content=message_label %}
-    {% if workflow|is_user_article_supervisor:request.user %}
+    {% if workflow|is_user_article_supervisor:request.user and actions %}
       {% bootstrap_button href=article_reminders title=reminders_title button_class="btn-outline-secondary" content=reminders_label %}
+    {% endif %}
+    {% if request.user|is_user_eo %}
       {% bootstrap_button href=article_manage title=manage_title target="_blank" button_class="btn-outline-secondary" content=manage_label %}
       {% bootstrap_button href=article_admin title=admin_title target="_blank" button_class="btn-outline-secondary" content=admin_label %}
     {% endif %}
