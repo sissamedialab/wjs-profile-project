@@ -4,7 +4,6 @@
 {% block breadcrumbs %}{% endblock breadcrumbs %}
 
 {% block content_wrapper %}
-  {% with article=workflow.article %}
     {% user_has_access_to workflow=workflow user=request.user target=article permission_type=PermissionType.ALL as has_full_access %}
     {% user_has_access_to workflow=workflow user=request.user target=article permission_type=PermissionType.NO_NAMES as has_blind_access %}
     <div class="container mb-3">
@@ -29,5 +28,4 @@
         </div>
       </div>
     </div>
-  {% endwith %}
 {% endblock content_wrapper %}

@@ -287,7 +287,7 @@ class AssignToEditor:
         self.workflow.save()
 
     def _check_conditions(self) -> bool:
-        is_section_editor = self.editor.check_role(self.request.journal, "section-editor")
+        is_section_editor = self.editor.check_role(self.request.journal, "section-editor", staff_override=False)
         state_condition_to_be_selected = can_proceed(self.workflow.director_selects_editor)
         state_condition_assign_different_editor = can_proceed(self.workflow.editor_assign_different_editor)
         # When EO opens appeals (for rejected papers), she chooses an editor and we can end up here.
@@ -2223,7 +2223,7 @@ class HandleMessage:
 
     @staticmethod
     def allowed_recipients_for_actor(actor: Account, article: Article) -> QuerySet[Account]:
-        """Return the list of allowed recipients for the actor of the message.
+        """Return the list of allowed recipients for the given actor.
 
         This method is used to build the queryset for the recipient ModelChoiceField in the MessageForm, and possibly
         other places.
@@ -2236,12 +2236,27 @@ class HandleMessage:
             :param article_obj: Article
             :type article_obj: Article
 
-            :return: List of director ids for current review round.
+            :return: List of director ids for the article journal.
             :rtype: FlatValuesListIterable
             """
             return Account.objects.filter(
                 accountrole__journal=article_obj.journal,
                 accountrole__role__slug=constants.DIRECTOR_ROLE,
+            ).values_list("pk", flat=True)
+
+        def _get_main_director(article_obj: Article) -> FlatValuesListIterable:
+            """
+            Get the main director for the article journal.
+
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List of main director ids for the article journal.
+            :rtype: FlatValuesListIterable
+            """
+            return Account.objects.filter(
+                accountrole__journal=article_obj.journal,
+                accountrole__role__slug=constants.DIRECTOR_MAIN_ROLE,
             ).values_list("pk", flat=True)
 
         def _get_correspondening_author(article_obj: Article) -> list[int]:
@@ -2311,23 +2326,24 @@ class HandleMessage:
         # EO system user is always available
         users_pk = [get_eo_user(article).pk]
 
-        # The actor himself is always available also
-        users_pk.append(actor.pk)
-
         articleworkflow = article.articleworkflow
 
         # Editor can write to:
         if permissions.is_article_editor(instance=articleworkflow, user=actor):
-            # the journal's director(s)
-            users_pk.extend(_get_directors(article))
+            # himself
+            users_pk.append(actor.pk)
+            # the journal's main director
+            users_pk.extend(_get_main_director(article))
             # the Corresponding author
             users_pk.extend(_get_correspondening_author(article))
             # all the article's reviewers
             users_pk.extend(_get_reviewers(article))
         # Reviewers can write to:
         elif permissions.is_article_reviewer(instance=articleworkflow, user=actor):
-            # the journal's director(s)
-            users_pk.extend(_get_directors(article))
+            # himself
+            users_pk.append(actor.pk)
+            # the journal's main director
+            users_pk.extend(_get_main_director(article))
             # "His" editor(s): only the editor that created the ReviewAssigment for this reviewer
             # I.e. not _all_ paper's editor. Other alternatives:
             # - all editors, e.g.: article.articleworkflow.get_editor_assignments()
@@ -2335,13 +2351,15 @@ class HandleMessage:
             users_pk.extend(_get_connected_editors(article, actor))
         # Author(s) can write to:
         elif permissions.is_article_author(instance=articleworkflow, user=actor):
-            # the journal's director(s) (if permitted by the journal configuration)
+            # himself
+            users_pk.append(actor.pk)
+            # the journal's main director (if permitted by the journal configuration)
             if get_setting(
                 "wjs_review",
                 "author_can_contact_director",
                 article.journal,
             ).processed_value:
-                users_pk.extend(_get_directors(article))
+                users_pk.extend(_get_main_director(article))
             # current editor
             try:
                 users_pk.extend(_get_current_editor(article))
@@ -2349,16 +2367,43 @@ class HandleMessage:
                 # authors of paper in "IncompleteSubmission" state might want to write to EO or director even before
                 # any editor has been assigned to their paper
                 pass
-        # Director(s) can write to:
+        # Director(s) (not main!) can write to:
         elif permissions.has_director_role_by_article(instance=articleworkflow, user=actor):
+            # himself
+            users_pk.append(actor.pk)
+            # the main director
+            users_pk.extend(_get_main_director(article))
+        # Director(s) can write to:
+        elif permissions.has_main_director_role_by_article(instance=articleworkflow, user=actor):
+            # himself
+            users_pk.append(actor.pk)
             # the Corresponding author
             users_pk.extend(_get_correspondening_author(article))
             # all the article's reviewers
             users_pk.extend(_get_reviewers(article))
             # current editor
             users_pk.extend(_get_current_editor(article))
-            # past editors editor
+            # past editors
             users_pk.extend(_get_past_editors(article))
+            # all directors
+            users_pk.extend(_get_directors(article))
+        # EO can write to:
+        elif permissions.has_eo_role_by_article(instance=articleworkflow, user=actor):
+            # NB: not to himself
+            # an EO person is considered as already present in the list because of the EO system user
+
+            # the Corresponding author
+            users_pk.extend(_get_correspondening_author(article))
+            # all the article's reviewers
+            users_pk.extend(_get_reviewers(article))
+            # current editor
+            users_pk.extend(_get_current_editor(article))
+            # past editors
+            users_pk.extend(_get_past_editors(article))
+            # the main director
+            users_pk.extend(_get_main_director(article))
+            # all directors
+            users_pk.extend(_get_directors(article))
 
         return allowed_recipients.filter(pk__in=users_pk)
 

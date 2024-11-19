@@ -32,7 +32,21 @@ class WjsMiniHTMLFormField(MiniHTMLFormField):
     def __init__(self, *args, **kwargs):
         height = kwargs.pop("height", "30rem")
         super().__init__(*args, **kwargs)
-        self.bleach_options["tags"] = ["span", "em", "i", "b", "strong", "sup", "sub", "u", "br", "a"]
+        self.bleach_options["tags"] = [
+            "a",
+            "b",
+            "br",
+            "em",
+            "i",
+            "li",
+            "ol",
+            "p",
+            "span",
+            "strong",
+            "sub",
+            "sup",
+            "u",
+        ]
         self.bleach_options["attributes"] = {"a": ["href", "title", "target"]}
         if isinstance(self.widget, TinyMCE):
             self.widget.mce_attrs.update(

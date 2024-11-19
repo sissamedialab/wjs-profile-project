@@ -34,6 +34,7 @@ from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils, conditions
+from .communication_utils import MESSAGE_TYPE_ICONS
 from .logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -1460,14 +1461,32 @@ class ForwardMessageForm(forms.ModelForm):
 
 
 class TimelineFilterForm(forms.Form):
+    """A form to allow user to filter timeline items.
+
+    Do not confuse with the filter of the messages page
+    (see filters.MessageFilter).
+    """
+
     message_type = forms.ChoiceField(
         required=False,
         label=_("Filter by type"),
         choices=(
-            ("", _("All")),
-            (Message.MessageTypes.USER, _("User")),
-            (Message.MessageTypes.NOTE, _("Notes")),
-            (Message.MessageTypes.SYSTEM, _("System")),
+            (
+                "",
+                f'<i class="bi {MESSAGE_TYPE_ICONS.get(None)}"></i> {_("All")}',
+            ),
+            (
+                Message.MessageTypes.USER,
+                f'<i class="bi {MESSAGE_TYPE_ICONS.get(Message.MessageTypes.USER)}"></i> {_("User messages")}',
+            ),
+            (
+                Message.MessageTypes.NOTE,
+                f'<i class="bi {MESSAGE_TYPE_ICONS.get(Message.MessageTypes.NOTE)}"></i> {_("User notes")}',
+            ),
+            (
+                Message.MessageTypes.SYSTEM,
+                f'<i class="bi {MESSAGE_TYPE_ICONS.get(Message.MessageTypes.SYSTEM)}"></i> {_("System")}',
+            ),
         ),
     )
 

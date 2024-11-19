@@ -95,6 +95,7 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
+    HandleMessage,
     render_template_from_setting,
     states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_for_review,
@@ -1084,6 +1085,10 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             context["production"] = True
             # During production we want to show review versions too (for authorized users)
             context["review"] = True
+        # We explicitly set the article in the context because it is often used in templatetags
+        # and, when the view answers to an HTMX request, the rendered templates might not define it
+        # (as in `{% with article=workflow.article %}...`)
+        context["article"] = context["workflow"].article
         return context
 
 
@@ -1725,11 +1730,18 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         """Return the list of messages that the user is entitled to see for this article."""
         return get_messages_related_to_me(user=self.request.user, article=self.article)
 
+    def get_filterset_kwargs(self, filterset_class):
+        kwargs = super().get_filterset_kwargs(filterset_class)
+        kwargs["workflow"] = self.workflow
+        kwargs["user"] = self.request.user
+        return kwargs
+
     def get_context_data(self, **kwargs):
         """Add the article to the context."""
         context = super().get_context_data(**kwargs)
         context["workflow"] = self.article.articleworkflow
         context["article"] = self.article
+        context["messagetype_note"] = Message.MessageTypes.NOTE
         # Retrieve manytomany through model:
         # - self.get_queryset() gives Messages
         # - the toggle form wants MessageRecipients (because the "read" flag is in the through-table)
@@ -1886,17 +1898,74 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
             return _("Write to typesetter")
         return _("Write a message")
 
-    def get_default_recipients(self):
+    def get_default_recipients(self) -> list[int]:
         """Return the default recipients for the message."""
         if self.source_message:
-            recipients = list(self.source_message.messagerecipients_set.all().values_list("recipient", flat=True)) + [
-                self.source_message.actor.pk
-            ]
-            return list(filter(lambda x: x != self.request.user.pk, recipients))
+            # The recipients of a reply are:
+            # - the recipients of the original message
+            # - add the sender of the original message
+            # - remove the current user
+            # - all people with EO group must be replaced by (only one) EO system-user
+            # - remove non-allowed recipients (e.g., if the editor writes to reviewer and author, and the author
+            #   replies, we must remove the reviewer from the author's recipients); do this _after_ replacing the EO
+            #   people
+            #
+            # I'm using dictionaries because they behave a bit like sets but preserve ordering
+
+            recipients = {self.source_message.actor.pk: None}
+
+            recipients.update(
+                dict.fromkeys(self.source_message.messagerecipients_set.all().values_list("recipient", flat=True)),
+            )
+
+            # Usually, when u1 writes to u2 and u3, our reply recipients list, at this point, contains [u1, u2, u3]. If
+            # u2 is replying, we should pop it from the list (no one replies to herself, except maybe my wife).
+            #
+            # However, when someone writes to EO, the EO system user is added to the recipients, e.g. [u1, eo, u3], but
+            # no real person access the system with that user, so we cannot blindly pop the user's id
+            eo_user = get_eo_user(self.article)
+            if self.request.user.pk in recipients:
+                recipients.pop(self.request.user.pk)
+            # It is also possible that EO clicks "reply" on a system message, in this case no EO user appears either as
+            # actor or recipient.
+            elif eo_user.pk in recipients:
+                recipients.pop(eo_user.pk)
+
+            eos = Account.objects.filter(
+                id__in=recipients,
+                groups__name__in=[constants.EO_GROUP],
+            ).values_list("id", flat=True)
+            if eos:
+                # remove all users with EO group and replace with EO system-user
+                # put the EO system-user in the place of the first EO person
+                done = False
+                new_dict = {}
+                for k in recipients.keys():
+                    if k in eos:
+                        if not done:
+                            new_dict[eo_user.pk] = None
+                            done = True
+                            continue
+                        else:
+                            continue
+                    else:
+                        new_dict[k] = None
+                recipients = new_dict
+
+            allowed_recipients = set(
+                HandleMessage.allowed_recipients_for_actor(
+                    actor=self.request.user,
+                    article=self.article,
+                ).values_list("id", flat=True)
+            )
+            recipients_ids = [k for k in recipients.keys() if k in allowed_recipients]
+            return recipients_ids
+
         if self.to_author:
             # If the message is directly to the author, the EO is the default recipient
             # (used, for instance, when typ writes to au with EO moderation)
             return [get_eo_user(self.workflow.article).pk]
+
         if self.to_typesetter:
             # If the message is to the typesetter, the typesetter is the default recipient
             return [

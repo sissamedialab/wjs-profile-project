@@ -32,7 +32,8 @@ MESSAGE_TYPE_ICONS = {
     Message.MessageTypes.SYSTEM: "bi-gear-fill",
     Message.MessageTypes.HIJACK: "bi-gear-fill",
     Message.MessageTypes.NOTE: "bi-pencil-fill",
-    None: "bi-chat-square-text",
+    Message.MessageTypes.USER: "bi-chat-square-text",
+    None: "bi-funnel-fill",
 }
 
 

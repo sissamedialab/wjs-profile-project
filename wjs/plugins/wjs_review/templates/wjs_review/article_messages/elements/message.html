@@ -30,8 +30,10 @@
         </div>
       {% endif %}
       <div class="d-flex justify-content-end mt-3">
-        {% url "wjs_message_reply" pk=workflow.pk original_message_pk=message.pk as reply_url %}
-        <a class="btn btn-outline-primary ms-1 btn-sm" href="{{ reply_url }}"><i class="bi bi-arrow-90deg-left"></i> {% translate "Reply" %}</a>
+        {% if message.message_type != messagetype_note %}
+          {% url "wjs_message_reply" pk=workflow.pk original_message_pk=message.pk as reply_url %}
+          <a class="btn btn-outline-primary ms-1 btn-sm" href="{{ reply_url }}"><i class="bi bi-arrow-90deg-left"></i> {% translate "Reply" %}</a>
+        {% endif %}
         {% if request.user|is_user_eo and message|should_message_be_forwarded %}
           {% url "wjs_message_forward" original_message_pk=message.pk as forward_url %}
           <a class="btn btn-outline-primary ms-1 btn-sm" href="{{ forward_url }}"><i class="bi bi-arrow-90deg-right"></i> {% translate "Forward" %}</a>
