@@ -24,6 +24,7 @@ from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
+    BaseDeassignEditor,
     DeselectReviewer,
     EditorRevisionRequest,
     EvaluateReview,
@@ -31,6 +32,7 @@ from plugins.wjs_review.logic import (
     HandleEditorDeclinesAssignment,
     OpenAppeal,
     SubmitReview,
+    SupervisorChangeEditorAssignment,
     WithdrawPreprint,
     WorkflowReviewAssignment,
     render_template_from_setting,
@@ -283,6 +285,11 @@ class Command(BaseCommand):
                         action_triggers_import_files=False,
                     ).run()
                 else:
+                    # ADMIN_RESETS_ED is skipped, only loaded the message as correspondence
+                    # the following action to reassign a new editor is managed with wjs logic
+                    # The "fake" new version of wjapp is not created on wjs.
+                    # It is managed like it was a reassign editor ADMIN_ASS_N_ED in the same version
+                    # ex. JCOM_010A_1123 has the 3 actions: ED_SEL_N_ED ADMIN_RESETS_ED ADMIN_ASS_N_ED
                     managed_in_import_correspondence = [
                         "ED_REMINDS_REF",
                         "ADMIN_REMINDS_AUTH",
@@ -293,6 +300,7 @@ class Command(BaseCommand):
                         "SYS_REMINDS_ED",
                         "SYS_REMINDS_REF",
                         "SYS_REMINDS_AUT",
+                        "ADMIN_RESETS_ED",
                     ]
                     if action["actionID"] in managed_in_import_correspondence:
                         logger.debug(f"Action {action['actionID']} managed in import correspondence.")
@@ -1732,7 +1740,7 @@ class EditorAssignmentAction(BaseActionManager):
 
         Also create the editor's Account if necessary.
         """
-        editor = account_get_or_create_check_correspondence(
+        self.editor_to_assign = account_get_or_create_check_correspondence(
             self.journal.code.lower(),
             editor_cod,
             editor_lastname,
@@ -1743,34 +1751,41 @@ class EditorAssignmentAction(BaseActionManager):
 
         # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
         # article.
-        if not editor.check_role(self.journal, "section-editor", staff_override=False):
-            editor.add_account_role("section-editor", self.journal)
+        if not self.editor_to_assign.check_role(self.journal, "section-editor", staff_override=False):
+            self.editor_to_assign.add_account_role("section-editor", self.journal)
 
-        logger.debug(f"Assigning {editor.last_name} {editor.first_name} onto {self.article.pk}")
+        logger.debug(
+            f"Assigning {self.editor_to_assign.last_name} {self.editor_to_assign.first_name} onto {self.article.pk}"
+        )
 
-        # TODO: we need a function in the logic to reassign a new editor to the article.
-        #       As temporary replacement we delete the editor assignments for the article
-        EditorAssignment.objects.filter(article=self.article).delete()
+        self.ed_assign_request = create_fake_request(user=None, journal=self.journal)
+        GlobalRequestMiddleware.process_request(self.ed_assign_request)
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(editor_assign_date),
+        ):
+            self.run_business_logic()
+
+        self.article.refresh_from_db()
+        return self.editor_to_assign
+
+    def run_business_logic(self):
+        """Default editor-assignment logic.
+
+        This method can be overridden by derived classes to tweak the assignment operation.
+        """
 
         # Manually move into a state where editor assignment can take place
         # TODO: check if this is not the case already...
         self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
         self.article.articleworkflow.save()
 
-        request = create_fake_request(user=None, journal=self.journal)
-        GlobalRequestMiddleware.process_request(request)
-
-        with freezegun.freeze_time(
-            rome_timezone.localize(editor_assign_date),
-        ):
-            AssignToEditor(
-                article=self.article,
-                editor=editor,
-                request=request,
-            ).run()
-            self.article.save()
-        self.article.refresh_from_db()
-        return editor
+        AssignToEditor(
+            article=self.article,
+            editor=self.editor_to_assign,
+            request=self.ed_assign_request,
+        ).run()
+        self.article.save()
 
     def read_editor_parameters(self, editor_cod):
         """Read editor parameters."""
@@ -1852,9 +1867,37 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
 class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
     """Manages action ED_SEL_N_ED."""
 
+    def run_business_logic(self):
+        """Editor selects new editor."""
+
+        # ex. JCOM_010A_1123
+        BaseDeassignEditor._log_past_editor = noop
+        AssignToEditor._log_operation = noop
+        SupervisorChangeEditorAssignment(
+            article=self.article,
+            assignment=WjsEditorAssignment.objects.filter(article=self.article).latest(),
+            new_editor=self.editor_to_assign,
+            request=self.ed_assign_request,
+        ).run()
+        self.article.save()
+
 
 class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
     """Manages action ADMIN_ASS_N_ED."""
+
+    def run_business_logic(self):
+        """Admin selects new editor."""
+
+        # ex. JCOM_010A_1123
+        BaseDeassignEditor._log_past_editor = noop
+        AssignToEditor._log_operation = noop
+        SupervisorChangeEditorAssignment(
+            article=self.article,
+            assignment=WjsEditorAssignment.objects.filter(article=self.article).latest(),
+            new_editor=self.editor_to_assign,
+            request=self.ed_assign_request,
+        ).run()
+        self.article.save()
 
 
 class AdminOpensAppealAction(BaseActionManager):  # noqa N801
@@ -3188,7 +3231,7 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
                 typesetter_email,
                 typesetter_privacy,
             )
-            if not typesetter.check_role(self.journal, "typesetter"):
+            if not typesetter.check_role(self.journal, "typesetter", staff_override=False):
                 typesetter.add_account_role("typesetter", self.journal)
 
             logger.debug(f"Assign typ: {typesetter.last_name} {typesetter.first_name} onto {self.article.pk}")
