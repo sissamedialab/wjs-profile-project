@@ -3079,7 +3079,7 @@ def test_deassign_reviewer(
     mail.outbox = []
     run = DeselectReviewer(
         assignment=review_assignment,
-        editor=review_assignment.editor,
+        actor=review_assignment.editor,
         request=fake_request,
         send_reviewer_notification=send_reviewer_notification,
         form_data={"notification_subject": "subject", "notification_body": "body"},
@@ -3170,7 +3170,7 @@ def test_deassign_reviewer_existing_assignment(
     mail.outbox = []
     run = DeselectReviewer(
         assignment=review_assignment,
-        editor=review_assignment.editor,
+        actor=review_assignment.editor,
         request=fake_request,
         send_reviewer_notification=False,  # ⇦ don't send the email!
         form_data={"notification_subject": "subject", "notification_body": "body"},
@@ -3230,7 +3230,7 @@ def test_deassign_reviewer_no_editor(
     with pytest.raises(ValueError):
         DeselectReviewer(
             assignment=review_assignment,
-            editor=editors[0],
+            actor=editors[0],
             request=fake_request,
             send_reviewer_notification=True,
             form_data={"notification_subject": "subject", "notification_body": "body"},
@@ -3465,6 +3465,7 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
     [
         "article",
         "assigned_article",
+        "assigned_article_with_reviewer",
         "accepted_article",
         "ready_for_typesetter_article",
         "assigned_to_typesetter_article",
@@ -3479,19 +3480,19 @@ def test_author_withdraws_preprint(
     fake_request: HttpRequest,
     review_settings,
 ):
-    """Check if author can withdraw preprint in different scenarios."""
+    """Check if author can Withdraw manuscript in different scenarios."""
     article = request.getfixturevalue(fixture_article)
     incomplete_submission = article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
     under_appeal_state = article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
     fake_request.user = article.correspondence_author
     form_data = {
-        "notification_subject": "Test subject",
         "notification_body": "Test body",
     }
     form = WithdrawPreprintForm(
         data=form_data,
         request=fake_request,
         instance=article.articleworkflow,
+        initial={"notification_subject": "Test subject"},
     )
 
     form.is_valid()

@@ -2425,7 +2425,7 @@ class DeselectReviewerAction(BaseActionManager):
             DeselectReviewer._log_operation = noop
             DeselectReviewer(
                 assignment=review_assignment,
-                editor=review_assignment.editor,
+                actor=review_assignment.editor,
                 request=request,
                 send_reviewer_notification=False,
                 form_data={
