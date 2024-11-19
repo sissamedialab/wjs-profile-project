@@ -19,6 +19,17 @@
                     </label>
                 </div>
             {% endfor %}
+            <!-- djlint:off -->
+            <div class="mb-3" id="conflict-message" style="display:none;">
+            <!-- djlint:on -->
+              <p class="text-danger">
+                {% blocktranslate%}
+                  Your review cannot be uploaded since you have declared a conflict of interest.
+                  Please go to the article web page and use “write a message” to discuss with the
+                  Editor in charge whether you should send your review.
+                {% endblocktranslate %}
+              </p>
+            </div>
         </div>
         <div class="mb-3">
             {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title' %}
@@ -36,7 +47,7 @@
         {% endif %}
         <div class="col">
             {% translate "Submit" as submit_label %}
-            {% bootstrap_button button_type="submit" name="submit_report" value=1 content=submit_label %}
+            {% bootstrap_button id="submit-btn" button_type="submit" name="submit_report" value=1 content=submit_label %}
         </div>
     </div>
 </form>
@@ -76,4 +87,26 @@ document.addEventListener('DOMContentLoaded', function() {
         followUpField.addEventListener('change', updateFormVisibility);
     }
 });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const conflictRadios = document.querySelectorAll('input[name="{{ form.conflict_of_interest.name }}"]');
+        const submitButton = document.getElementById('submit-btn');
+        const conflictMessage = document.getElementById('conflict-message');
+
+        function toggleConflict(radio) {
+            const isConflict = radio.value === "yes";
+            submitButton.disabled = isConflict;
+            conflictMessage.style.display = isConflict ? 'block' : 'none';
+        }
+
+        conflictRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                toggleConflict(radio);
+            });
+
+            if (radio.checked) {
+                toggleConflict(radio);
+            }
+        });
+    });
 </script>
