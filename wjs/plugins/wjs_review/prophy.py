@@ -7,7 +7,7 @@ import jwt
 import requests
 from core.models import Account
 from django.conf import settings
-from django.db.models import F, Q, QuerySet, Subquery, Value
+from django.db.models import F, OuterRef, Q, QuerySet, Subquery, Value
 from django.http import QueryDict
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from utils.logger import get_logger
@@ -304,6 +304,13 @@ class Prophy:
             article=self.article,
             prophy_account__correspondence__isnull=True,
         )
+
+        # Create a subquery to get the score for each author
+        score_subquery = ProphyCandidate.objects.filter(
+            prophy_account_id=OuterRef("pk"),
+            article=self.article,
+        ).values("score")
+
         prophy_accounts_candidates = ProphyAccount.objects.filter(
             id__in=Subquery(article_candidates.values("prophy_account")),
         ).annotate(
@@ -319,6 +326,7 @@ class Prophy:
             wjs_is_prophy_candidate=Value(True),
             wjs_is_only_prophy=Value(True),
             wjs_prophy_auth_url=Value(settings.PROPHY_AUTH),
+            wjs_prophy_score=Subquery(score_subquery),
         )
         q_filters = None
         if search_data.get("search"):
@@ -330,7 +338,8 @@ class Prophy:
             prophy_accounts_candidates = prophy_accounts_candidates.filter(q_filters)
 
         prophy_accounts_candidates = prophy_accounts_candidates.distinct()
-        return prophy_accounts_candidates.order_by("-is_active", "-prophycandidate__score", "name")
+        # Note: using in order by "-prophycandidate__score" gives duplicates
+        return prophy_accounts_candidates.order_by("-is_active", "-wjs_prophy_score", "name")
 
     def get_prophy_upload_enabled(self):
         prophy_upload_enabled_value = get_setting(
