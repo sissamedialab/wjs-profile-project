@@ -450,7 +450,7 @@ class EditorToBeSelected(BaseState):
         ArticleAction(
             permission=permissions.is_article_supervisor,
             name="select editor",
-            label="Select Editor",
+            label="Select new Editor",
             view_name="wjs_assign_editor",
         ),
     )
@@ -492,7 +492,7 @@ class EditorSelected(BaseState):
         ArticleAction(
             permission=permissions.is_article_supervisor,
             name="select editor",
-            label="Select editor",
+            label="Select new Editor",
             view_name="wjs_assign_editor",
         ),
         ArticleAction(

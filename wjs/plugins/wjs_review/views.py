@@ -2813,7 +2813,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
     model = ArticleWorkflow
     form_class = SupervisorAssignEditorForm
     template_name = "wjs_review/assign_editor/select_editor.html"
-    title = _("Change Editor")
+    title = _("Select new Editor")
     context_object_name = "workflow"
     edit_permissions: bool = False
     selected_editor: Account = None
@@ -2871,6 +2871,8 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         qs = Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
             pk__in=article_authors
         )
+        qs = qs.annotate_final_reviews_in_timeframe(datetime.timedelta(days=365))
+        qs = qs.annotate_pending_reviews_in_timeframe(datetime.timedelta(days=365))
         if self.htmx:
             search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
             qs = qs.filter(search_filters)

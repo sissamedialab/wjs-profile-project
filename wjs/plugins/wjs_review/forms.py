@@ -1322,6 +1322,8 @@ class SupervisorAssignEditorForm(forms.ModelForm):
             assignment = WjsEditorAssignment.objects.get_current(self.instance)
         except WjsEditorAssignment.DoesNotExist:
             self.current_editor_assignment = None
+            self.fields["note_for_past_editor"].required = False
+            self.fields["note_for_past_editor_subject"].required = False
         else:
             self.current_editor_assignment = assignment
 

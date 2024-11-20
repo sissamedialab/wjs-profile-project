@@ -1,3 +1,4 @@
+import datetime
 from typing import Iterable, Optional
 
 from core.models import AccountRole
@@ -15,12 +16,14 @@ from django.db.models import (
     When,
 )
 from django.http import QueryDict
+from django.utils.timezone import now
 from journal.models import Journal
 from submission.models import Article, Keyword
 from utils.logger import get_logger
 
 from wjs.jcom_profile import constants
 
+from .logic import states_where_article_is_considered_editor_completed
 from .models import (
     ArticleWorkflow,
     ProphyCandidate,
@@ -318,6 +321,44 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
         editor.matching_keywords = list(matching_keywords)
 
     return editors
+
+
+def annotate_final_reviews_in_timeframe(self, timeframe: datetime.timedelta) -> QuerySet[Account]:
+    """
+    Annotate the number of articles assigned to the editor which are in a final decision state in the review process.
+    """
+    states = Q(
+        editorassignment__article__articleworkflow__state__in=states_where_article_is_considered_editor_completed
+    )
+    return self.annotate(
+        final_reviews=Count(
+            "editorassignment",
+            filter=Q(
+                editorassignment__assigned__gte=now() - timeframe,
+            )
+            & states,
+            distinct=True,
+        ),
+    )
+
+
+def annotate_pending_reviews_in_timeframe(self, timeframe: datetime.timedelta) -> QuerySet[Account]:
+    """
+    Annotate the number of articles assigned to the editor which are not in a final decision state.
+    """
+    states = Q(
+        editorassignment__article__articleworkflow__state__in=states_where_article_is_considered_editor_completed
+    )
+    return self.annotate(
+        pending_reviews=Count(
+            "editorassignment",
+            filter=Q(
+                editorassignment__assigned__gte=now() - timeframe,
+            )
+            & ~states,
+            distinct=True,
+        ),
+    )
 
 
 def annotate_ordering_score(self, current_editor: Account) -> QuerySet[Account]:

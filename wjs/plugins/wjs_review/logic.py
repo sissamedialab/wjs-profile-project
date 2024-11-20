@@ -167,6 +167,22 @@ states_when_article_is_considered_author_pending = [
     ArticleWorkflow.ReviewStates.UNDER_APPEAL,
 ]
 
+states_where_article_is_considered_editor_completed = [
+    ArticleWorkflow.ReviewStates.WITHDRAWN,
+    ArticleWorkflow.ReviewStates.REJECTED,
+    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ArticleWorkflow.ReviewStates.ACCEPTED,
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+    ArticleWorkflow.ReviewStates.PUBLISHED,
+    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+    ArticleWorkflow.ReviewStates.SEND_TO_EDITOR_FOR_CHECK,
+    ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS,
+]
+
 
 def handle_reviewer_deassignment_reminders(assignment: WorkflowReviewAssignment):
     """Create reminders for the editor.
@@ -349,6 +365,7 @@ class AssignToEditor:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _create_editor_should_select_reviewer_reminders(self):
@@ -2701,7 +2718,7 @@ class BaseDeassignEditor:
             recipients=[self.editor],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read=False,
+            flag_as_read=True,
             flag_as_read_by_eo=True,
         )
 
