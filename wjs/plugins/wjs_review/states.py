@@ -882,7 +882,7 @@ class UnderAppeal(BaseState):
         ArticleAction(
             permission=permissions.is_article_author,
             name="author submits appeal",
-            label="Submit appeal",
+            label="Submit revision",
             view_name="do_revisions",
             custom_get_url=get_do_revision_url,
         ),
