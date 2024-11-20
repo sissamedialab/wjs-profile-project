@@ -63,6 +63,7 @@ from ..models import (
     EditorDecision,
     EditorRevisionRequest,
     Message,
+    MessageRecipients,
     PastEditorAssignment,
     PermissionAssignment,
     Reminder,
@@ -3394,6 +3395,41 @@ def test_assign_different_editor(
         code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
         actor=current_editor,
     ).exists()
+    assert Message.objects.count() == 6
+    # messages 1-4 are generated from the data setup part of the test
+    removed_editor_msg = Message.objects.all()[4]
+    assert list(removed_editor_msg.recipients.all()) == [current_editor]
+    editor_unassignment_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_unassign_editor",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "article": assigned_article,
+        },
+        template_is_setting=True,
+    )
+    assert removed_editor_msg.subject == editor_unassignment_subject
+    assert removed_editor_msg.read_by_eo
+    assert removed_editor_msg.recipients.all().count() == 1
+    assert MessageRecipients.objects.get(message=removed_editor_msg, recipient=current_editor).read
+
+    assigned_editor_msg = Message.objects.all()[5]
+    assert list(assigned_editor_msg.recipients.all()) == [normal_user.janeway_account]
+    editor_assignment_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_editor_assignment",
+        journal=assigned_article.journal,
+        request=fake_request,
+        context={
+            "article": assigned_article,
+        },
+        template_is_setting=True,
+    )
+    assert assigned_editor_msg.subject == editor_assignment_subject
+    assert assigned_editor_msg.read_by_eo
+    assert assigned_editor_msg.recipients.all().count() == 1
+    assert not MessageRecipients.objects.get(message=assigned_editor_msg, recipient=normal_user.janeway_account).read
 
 
 @pytest.mark.django_db
@@ -3407,7 +3443,6 @@ def test_assign_new_editor(
     form_data = {
         "selected_editor": normal_user.pk,
         "state": article.articleworkflow.state,
-        "note_for_past_editor": "test",
     }
     editors = Account.objects.get_editors_with_keywords(article)
     assert normal_user.janeway_account in editors
@@ -3423,6 +3458,23 @@ def test_assign_new_editor(
     article.refresh_from_db()
     assignment = WjsEditorAssignment.objects.get_current(article.articleworkflow)
     assert assignment.editor == normal_user.janeway_account
+    assert Message.objects.count() == 1
+    msg = Message.objects.first()
+    assert list(msg.recipients.all()) == [normal_user.janeway_account]
+    message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_editor_assignment",
+        journal=article.journal,
+        request=fake_request,
+        context={
+            "article": article,
+        },
+        template_is_setting=True,
+    )
+    assert msg.subject == message_subject
+    assert msg.read_by_eo
+    assert msg.recipients.all().count() == 1
+    assert not MessageRecipients.objects.get(message=msg, recipient=normal_user.janeway_account).read
 
 
 @pytest.mark.django_db
