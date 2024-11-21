@@ -574,7 +574,7 @@ class EditorSelected(BaseState):
         ),
         ReviewAssignmentAction(
             permission=permissions.is_article_editor_or_eo,
-            condition=conditions.review_not_done,
+            condition=conditions.review_not_done_and_user_not_reviewer,
             name="postpone reviewer due date",
             label="Change due date",
             view_name="wjs_postpone_reviewer_due_date",

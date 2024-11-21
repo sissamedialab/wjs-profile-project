@@ -1100,6 +1100,8 @@ class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
     pk_url_kwarg = "pk"
 
     def get_success_url(self) -> str:
+        if permissions.is_article_editor(self.object.article.articleworkflow, self.request.user):
+            return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
         return reverse("wjs_review_reviewer_pending")
 
     def get_form_kwargs(self) -> Dict[str, Any]:
@@ -2659,6 +2661,7 @@ class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
         """Fetch the WorkflowReviewAssignment instance for easier processing."""
         super().load_initial(request, *args, **kwargs)
         self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
+        self.is_user_editor = permissions.is_article_editor(self.object.article.articleworkflow, self.request.user)
 
     def test_func(self):
         """User must be the article's editor"""
@@ -2667,14 +2670,14 @@ class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
             raise Http404(_("This review has already been completed."))
         if self.reviewer:
             return permissions.is_article_reviewer(articleworkflow, self.request.user)
-        return permissions.is_article_editor(articleworkflow, self.request.user) or base_permissions.has_eo_role(
-            self.request.user
-        )
+        return self.is_user_editor or base_permissions.has_eo_role(self.request.user)
 
     @property
     def title(self):
         if self.reviewer:
-            return _("Postpone Due Date")
+            if self.is_user_editor:
+                return _("Change due date")
+            return _("Postpone due date")
         return _("Postpone report due date")
 
     def get_form_kwargs(self) -> Dict[str, Any]:

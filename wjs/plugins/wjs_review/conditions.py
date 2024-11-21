@@ -101,6 +101,11 @@ def review_not_done(assignment: WorkflowReviewAssignment, user: Account) -> str:
     return "Review pending."
 
 
+def review_not_done_and_user_not_reviewer(assignment: WorkflowReviewAssignment, user: Account) -> str:
+    """Tell if this review is not done and the editor is not the reviewer."""
+    return review_not_done(assignment, user) and not assignment.reviewer == user
+
+
 def no_tech_revision_request(workflow: ArticleWorkflow, user: Account) -> str:
     """Tell if there is no technical revision request."""
     if not EditorRevisionRequest.objects.filter(
