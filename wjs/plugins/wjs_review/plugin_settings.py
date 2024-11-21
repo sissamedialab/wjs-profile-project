@@ -9,6 +9,8 @@ from utils import plugins
 from utils.logger import get_logger
 
 from wjs.jcom_profile.custom_settings_utils import (
+    PatchSettingParams,
+    PatchSettingValueParams,
     SettingParams,
     SettingValueParams,
     create_customization_setting,
@@ -590,25 +592,10 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             setting_3_p["name"],
             force=force,
         )
-
-        default_review_days_setting: SettingParams = {
-            "name": "default_review_days",
-            "group": general_group,
-            "types": "number",
-            "pretty_name": _("Default number of days for review"),
-            "description": _(
-                "The default number of days before a review assignment is due.",
-            ),
-            "is_translatable": False,
-        }
-        default_review_days_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": 5,
-            "translations": {},
-        }
-        if force:
-            setting_4 = patch_setting(default_review_days_setting, default_review_days_setting_value)
+        setting_4 = patch_setting(
+            PatchSettingParams(name="default_review_days", group=general_group),
+            PatchSettingValueParams(journal=None, value=21, translations={}),
+        )
         default_editor_assign_reviewer_days_setting: SettingParams = {
             "name": "default_editor_assign_reviewer_days",
             "group": wjs_review_settings_group,
@@ -789,8 +776,32 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             default_author_appeal_revision_days_setting["name"],
             force=force,
         )
+        # refs 1159
+        default_review_report_days_setting: SettingParams = {
+            "name": "default_review_report_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Default number of days for the review report"),
+            "description": _(
+                """The default number of days for reviewer to submit the review report. Don't confuse with "default review days" which see.""",
+            ),
+            "is_translatable": False,
+        }
+        default_review_report_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 21,
+            "translations": {},
+        }
+        setting_13 = create_customization_setting(
+            default_review_report_days_setting,
+            default_review_report_days_setting_value,
+            default_review_report_days_setting["name"],
+            force=force,
+        )
         return (
             setting_3,
+            setting_4,
             setting_5,
             setting_6,
             setting_7,
@@ -799,6 +810,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             setting_10,
             setting_11,
             setting_12,
+            setting_13,
         )
 
     def author_can_contact_director() -> tuple[SettingValue, ...]:
