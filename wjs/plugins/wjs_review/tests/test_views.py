@@ -379,6 +379,29 @@ def test_invite_function_creates_inactive_user(
     assert list(message_to_reviewer.recipients.all()) == [invited_user.janeway_account]
 
 
+@pytest.mark.django_db
+def test_wjs_evaluate_review_date_due_initial_value(
+    client: Client,
+    review_assignment_invited_user: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """Check that the initial value of the EvaluateReviewForm date_due field is today() + setting."""
+    # The user is irrelevant in this test, I just copy-pasted the "setup" code from another test
+    invited_user = review_assignment_invited_user.reviewer
+    url = reverse(
+        "wjs_evaluate_review", args=(review_assignment_invited_user.pk, invited_user.jcomprofile.invitation_token)
+    )
+    url = f"{url}?access_code={review_assignment_invited_user.access_code}"
+    response = client.get(url)
+    default_review_days = get_setting(
+        setting_group_name="general",
+        setting_name="default_review_days",
+        journal=review_assignment_invited_user.article.journal,
+    ).processed_value
+    initial_date = now().date() + datetime.timedelta(days=default_review_days)
+    assert response.context["form"].initial["date_due"] == initial_date
+
+
 @pytest.mark.parametrize("accept_gdpr", (True, False))
 @pytest.mark.django_db
 def test_accept_invite(

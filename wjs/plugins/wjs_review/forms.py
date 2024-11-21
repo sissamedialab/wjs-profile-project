@@ -455,15 +455,19 @@ class EvaluateReviewForm(forms.ModelForm):
         choices=(("1", _("Accept")), ("0", _("Reject")), ("2", _("Update"))),
         required=True,
     )
+    # refs https://gitlab.sissamedialab.it/wjs/specs/-/issues/1159
+    # To remove the placeholder, add `placeholder=""` to the {% bootstrap_field %} tag in the template
     additional_comments = WjsMiniHTMLFormField(
-        label=_("Additional comments for the editor in charge"),
+        label=_("Additional comments for the editor-in-charge"),
         required=False,
     )
     accept_gdpr = forms.BooleanField(required=False)
     # https://docs.djangoproject.com/en/3.2/ref/forms/widgets/#dateinput
     # By default DateInput is an <input type="text">
     date_due = forms.DateField(
-        required=False, widget=forms.DateInput(attrs={"type": "date"}), label=_("Your review is expected by")
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        label=_("If you accept the invite, your review is expected by"),
     )
 
     class Meta:
@@ -487,6 +491,11 @@ class EvaluateReviewForm(forms.ModelForm):
             self.fields["reviewer_decision"].required = False
         if self.instance.date_due:
             self.fields["date_due"].widget.attrs["min"] = self.instance.date_due
+        default_review_days = self.instance.article.journal.get_setting(
+            group_name="general",
+            setting_name="default_review_days",
+        )
+        self.initial["date_due"] = now().date() + datetime.timedelta(days=default_review_days)
 
     def clean_date_due(self):
         date_due = self.cleaned_data.get("date_due", None)

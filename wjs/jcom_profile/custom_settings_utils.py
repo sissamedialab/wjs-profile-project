@@ -49,7 +49,7 @@ class PatchSettingParams(TypedDict):
 
 
 class PatchSettingValueParams(TypedDict):
-    journal: Journal
+    journal: Journal | None
     value: Union[str, int, bool, float]
     translations: dict
 

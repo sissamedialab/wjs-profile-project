@@ -48,7 +48,7 @@
                   {% bootstrap_field form.date_due label_class="fw-bold" %}
                 </div>
               </div>
-              {% bootstrap_field form.additional_comments label_class="fw-bold" %}
+              {% bootstrap_field form.additional_comments placeholder="" label_class="fw-bold" %}
               {% bootstrap_field form.accept_gdpr %}
               {% bootstrap_button button_type="submit" button_class="btn-success" content=accept_label|safe  name="reviewer_decision" value=1 %}
               {% bootstrap_button button_type="submit" button_class="btn-outline-danger" content=decline_label|safe name="reviewer_decision" value=0 %}
