@@ -37,12 +37,13 @@ class Prophy:
 
             pdf_path = ""
             all_manuscripts = self.article.manuscript_files.all()
-            for file in all_manuscripts:
-                if "PDF" in file.label:
-                    # TODO: verify if label PDF is correct for main pdf
-                    # TODO: do not use path but function of article
-                    pdf_path = f"{settings.BASE_DIR}/files/articles/{self.article.id}/{file.uuid_filename}"
-                    break
+
+            if all_manuscripts.count() != 1:
+                logger.error(f"Got {all_manuscripts.count()} manuscripts for {self.article.id}; expected 1!")
+                return output
+
+            manuscript_file = all_manuscripts.first()
+            pdf_path = f"{self.article.folder_path()}/{manuscript_file.uuid_filename}"
 
             if not os.path.exists(pdf_path):
                 logger.warning(f"pdf file of the manuscript does not exists: {self.article.id}")
@@ -79,7 +80,7 @@ class Prophy:
 
             if response.status_code == 200:
                 self.store_json(response.text)
-                logger.debug(f"response stored for article {self.article.id}")
+                logger.debug(f"Prophy response stored for article {self.article.id}")
                 output = response.text
                 # TODO: log_operation on success (to be shown in timeline)
             else:
