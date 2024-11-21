@@ -49,7 +49,7 @@ from .drupal_redirect_views import (  # noqa F401
     JcomIssueRedirect,
 )
 from .mixins import HtmxMixin
-from .models import EditorAssignmentParameters, JCOMProfile, Recipient
+from .models import JCOMProfile, Recipient, StaffWorkloadParameters
 from .newsletter.service import NewsletterMailerService
 from .permissions import get_hijacker
 from .utils import generate_token
@@ -239,10 +239,10 @@ def confirm_gdpr_acceptance(request, token):
     return render(request, template, context)
 
 
-class EditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
+class StaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
     """Change editor's own submission parameters."""
 
-    model = EditorAssignmentParameters
+    model = StaffWorkloadParameters
     form_class = forms.UpdateAssignmentParametersForm
     template_name = "submission/update_editor_parameters.html"
     raise_exception = True
@@ -257,7 +257,7 @@ class EditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
 
     def get_object(self, queryset=None):
         editor, journal = self.request.user, self.request.journal
-        parameters, _ = EditorAssignmentParameters.objects.get_or_create(editor=editor, journal=journal)
+        parameters, _ = StaffWorkloadParameters.objects.get_or_create(user=editor, journal=journal)
         return parameters
 
     def get_success_url(self):
@@ -269,15 +269,15 @@ class EditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
         return reverse("assignment_parameters")
 
 
-class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
+class DirectorStaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
     """Change editors parameters as journal director.
 
     Use formsets to update EditorKeyword instances weights.
 
     """
 
-    model = EditorAssignmentParameters
-    form_class = forms.DirectorEditorAssignmentParametersForm
+    model = StaffWorkloadParameters
+    form_class = forms.DirectorStaffWorkloadParametersForm
     template_name = "submission/director_update_editor_parameters.html"
     raise_exception = True
 
@@ -296,7 +296,7 @@ class DirectorEditorAssignmentParametersUpdate(UserPassesTestMixin, UpdateView):
             or editor.check_role(journal, "section-editor", staff_override=False)
         ):
             raise Http404()
-        parameters, _ = EditorAssignmentParameters.objects.get_or_create(editor=editor, journal=journal)
+        parameters, _ = StaffWorkloadParameters.objects.get_or_create(user=editor, journal=journal)
         return parameters
 
     def get_context_data(self, **kwargs):  # noqa

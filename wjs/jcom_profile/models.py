@@ -114,28 +114,27 @@ class Correspondence(models.Model):
         return f"{self.account} <{self.account.email}> @ {self.source}"
 
 
-class EditorAssignmentParameters(models.Model):
-    # FIXME: Change keywords field when Keyword will be linked to a specific Journal
-    keywords = models.ManyToManyField("submission.Keyword", through="EditorKeyword", blank=True)
-    editor = models.ForeignKey("core.Account", on_delete=models.CASCADE)
+class StaffWorkloadParameters(models.Model):
+    keywords = models.ManyToManyField("submission.Keyword", through="StaffKeyword", blank=True)
+    user = models.ForeignKey("core.Account", on_delete=models.CASCADE)
     journal = models.ForeignKey("journal.Journal", on_delete=models.CASCADE)
     workload = models.PositiveSmallIntegerField(default=0)
     brake_on = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
-        unique_together = ("editor", "journal")
+        unique_together = ("user", "journal")
 
-    def __str__(self):  #
-        return f"{self.editor} - Assignment parameters"
+    def __str__(self):  # NOQA: D105
+        return f"{self.user} - Assignment parameters"
 
 
-class EditorKeyword(models.Model):
-    editor_parameters = models.ForeignKey(EditorAssignmentParameters, on_delete=models.CASCADE)
+class StaffKeyword(models.Model):
+    parameters = models.ForeignKey(StaffWorkloadParameters, on_delete=models.CASCADE)
     keyword = models.ForeignKey("submission.Keyword", on_delete=models.CASCADE)
     weight = models.PositiveIntegerField(default=0)
 
     def __str__(self):  # NOQA: D105
-        return f"{self.editor_parameters.editor} - Editor keyword: {self.keyword}"
+        return f"{self.parameters.user} - Editor keyword: {self.keyword}"
 
 
 class IssueParameters(models.Model):

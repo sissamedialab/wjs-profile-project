@@ -11,10 +11,10 @@ from submission.models import Keyword
 
 from wjs.jcom_profile.models import (
     Correspondence,
-    EditorAssignmentParameters,
-    EditorKeyword,
     JCOMProfile,
     Recipient,
+    StaffKeyword,
+    StaffWorkloadParameters,
 )
 
 admin.site.unregister(Account)
@@ -45,12 +45,12 @@ class CorrespondenceAdmin(admin.ModelAdmin):
     search_fields = ["account__last_name", "email", "account__email"]
 
 
-@admin.register(EditorAssignmentParameters)
-class EditorAssignmentParametersAdmin(admin.ModelAdmin):
+@admin.register(StaffWorkloadParameters)
+class StaffWorkloadParametersAdmin(admin.ModelAdmin):
     """Helper class to "admin" editor assignment parameters."""
 
 
-@admin.register(EditorKeyword)
+@admin.register(StaffKeyword)
 class EditorKeywordAdmin(admin.ModelAdmin):
     """Helper class to "admin" editor keyword."""
 

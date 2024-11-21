@@ -1811,14 +1811,14 @@ WHERE editorCod=%(editor_cod)s
     def set_editor_parameters(self, editor_parameters, editor_maxworkload):
         """Set the editor parameters.
 
-        - max-workload (EditorAssignmentParameters workload)
-        - keyword      (EditorKeyword into EditorAssignmentParameters keywords)
+        - max-workload (StaffWorkloadParameters workload)
+        - keyword      (EditorKeyword into StaffWorkloadParameters keywords)
         - kwd weight   (EditorKeyword weight)
         """
 
         if editor_parameters:
-            assignment_parameters, eap_created = wjs_models.EditorAssignmentParameters.objects.get_or_create(
-                editor=self.get_current_editor(),
+            assignment_parameters, eap_created = wjs_models.StaffWorkloadParameters.objects.get_or_create(
+                user=self.get_current_editor(),
                 journal=self.journal,
             )
         else:
@@ -1834,7 +1834,7 @@ WHERE editorCod=%(editor_cod)s
         assignment_parameters.save()
 
         # delete all existing editor kwds
-        wjs_models.EditorKeyword.objects.filter(editor_parameters=assignment_parameters).delete()
+        wjs_models.StaffKeyword.objects.filter(editor_parameters=assignment_parameters).delete()
 
         # create all new editor kwds
         for ep in editor_parameters:
@@ -1846,7 +1846,7 @@ WHERE editorCod=%(editor_cod)s
                 logger.warning(
                     f'Created keyword "{kwd_word}" for editor {self.get_current_editor()}. Please check!',
                 )
-            wjs_models.EditorKeyword.objects.create(
+            wjs_models.StaffKeyword.objects.create(
                 editor_parameters=assignment_parameters,
                 keyword=keyword,
                 weight=kwd_weight,

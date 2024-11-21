@@ -16,11 +16,7 @@ from submission.models import Keyword, Section
 from utils import setting_handler
 
 from wjs.jcom_profile import constants
-from wjs.jcom_profile.models import (
-    EditorAssignmentParameters,
-    EditorKeyword,
-    JCOMProfile,
-)
+from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.tests.conftest import (
     ASSIGNMENT_PARAMETERS_SPAN,
     _create_published_articles,
@@ -321,11 +317,11 @@ def test_update_editor_assignment_parameters(section_editor, roles, keywords, jo
     response = client.post(url, data)
     assert response.status_code == 302
 
-    assignment_parameters = EditorAssignmentParameters.objects.get(editor=section_editor, journal=journal)
-    editor_keywords = assignment_parameters.editorkeyword_set.all()
+    assignment_parameters = StaffWorkloadParameters.objects.get(user=section_editor, journal=journal)
+    staff_keywords = assignment_parameters.staffkeyword_set.all()
     assert assignment_parameters.workload == workload
     for keyword in keywords:
-        assert keyword.word in list(editor_keywords.values_list("keyword__word", flat=True))
+        assert keyword.word in list(staff_keywords.values_list("keyword__word", flat=True))
 
 
 @pytest.mark.django_db
@@ -389,9 +385,9 @@ def test_director_can_change_editor_keywords(
 
 @pytest.mark.django_db
 def test_director_can_change_editor_parameters(journal, roles, admin, editor, keywords):
-    editor_parameters = EditorAssignmentParameters.objects.create(editor=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
     for keyword in keywords:
-        EditorKeyword.objects.create(keyword=keyword, editor_parameters=editor_parameters)
+        StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     brake_on = 10
     weight = 7
     client = Client()
@@ -401,7 +397,7 @@ def test_director_can_change_editor_parameters(journal, roles, admin, editor, ke
     response = client.get(url)
     assert response.status_code == 200
 
-    data = {"workload": editor_parameters.workload, "brake_on": brake_on, "csrf_token": response.context["csrf_token"]}
+    data = {"workload": parameters.workload, "brake_on": brake_on, "csrf_token": response.context["csrf_token"]}
 
     formset = response.context["formset"]
     for field in "TOTAL_FORMS", "INITIAL_FORMS", "MIN_NUM_FORMS", "MAX_NUM_FORMS":
@@ -420,10 +416,10 @@ def test_director_can_change_editor_parameters(journal, roles, admin, editor, ke
     response_post = client.post(url, data)
     assert response_post.status_code == 302
 
-    editor_parameters.refresh_from_db()
+    parameters.refresh_from_db()
 
-    assert editor_parameters.brake_on == brake_on
-    for keyword in EditorKeyword.objects.filter(editor_parameters=editor_parameters):
+    assert parameters.brake_on == brake_on
+    for keyword in StaffKeyword.objects.filter(parameters=parameters):
         assert keyword.weight == weight
 
 

@@ -296,8 +296,8 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
 
     editors = editors.annotate(
         num_shared_kwds=Count(
-            "editorassignmentparameters__keywords",
-            filter=Q(editorassignmentparameters__keywords__id__in=article_keywords_ids),
+            "staffworkloadparameters__keywords",
+            filter=Q(staffworkloadparameters__keywords__id__in=article_keywords_ids),
             distinct=True,
         ),
     )
@@ -314,7 +314,7 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
 
     for editor in editors:
         matching_keywords = (
-            Keyword.objects.filter(editorassignmentparameters__editor=editor, id__in=article_keywords_ids)
+            Keyword.objects.filter(staffworkloadparameters__user=editor, id__in=article_keywords_ids)
             .distinct()
             .values_list("word", flat=True)
         )

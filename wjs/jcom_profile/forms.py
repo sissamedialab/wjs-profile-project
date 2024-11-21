@@ -31,10 +31,10 @@ from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from .models import (
-    EditorAssignmentParameters,
-    EditorKeyword,
     JCOMProfile,
     Recipient,
+    StaffKeyword,
+    StaffWorkloadParameters,
     WjsMiniHTMLFormField,
 )
 from .settings_helpers import get_article_language_choices, get_journal_language_choices
@@ -189,24 +189,23 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
 class UpdateAssignmentParametersForm(forms.ModelForm):
     keywords = forms.ModelMultipleChoiceField(
         label=_("Keywords"),
-        queryset=Keyword.objects.all(),
+        queryset=Keyword.objects.none(),
         # TODO: Ad this in app.css .select2-container {width: 100% !important;}
         widget=Select2Multiple(),
         required=False,
     )
 
     class Meta:
-        model = EditorAssignmentParameters
+        model = StaffWorkloadParameters
         fields = ("workload",)
 
     def __init__(self, *args, **kwargs):
-        """Know your kwds."""
+        """Setup initial keywords and filter keywords queryset by journal."""
         if "initial" not in kwargs:
             kwargs["initial"] = {}
-
         kwargs["initial"]["keywords"] = kwargs["instance"].keywords.all()
-
         super().__init__(*args, **kwargs)
+        self.fields["keywords"].queryset = self.instance.journal.keywords.all().order_by("word")
 
     def save(self, commit=True):
         """Save m2m with through and with not _meta.auto_created."""
@@ -215,18 +214,18 @@ class UpdateAssignmentParametersForm(forms.ModelForm):
 
         kwds = self.cleaned_data["keywords"]
         for kwd in kwds:
-            through, _ = EditorKeyword.objects.get_or_create(keyword=kwd, editor_parameters=instance)
+            through, _ = StaffKeyword.objects.get_or_create(keyword=kwd, parameters=instance)
             # don't look at weight, because the editor does not set it
             # (it is managed by the director).
             # ... through.weight = ...
 
-        EditorKeyword.objects.filter(editor_parameters=instance).exclude(keyword__in=kwds).delete()
+        StaffKeyword.objects.filter(parameters=instance).exclude(keyword__in=kwds).delete()
         return instance
 
 
-class DirectorEditorAssignmentParametersForm(forms.ModelForm):
+class DirectorStaffWorkloadParametersForm(forms.ModelForm):
     class Meta:
-        model = EditorAssignmentParameters
+        model = StaffWorkloadParameters
         fields = [
             "brake_on",
             "workload",
@@ -243,7 +242,7 @@ class EditorKeywordForm(forms.ModelForm):
     field_order = ["keyword_str", "weight"]
 
     class Meta:
-        model = EditorKeyword
+        model = StaffKeyword
         fields = ["weight"]
 
     def __init__(self, *args, **kwargs):  # noqa
@@ -256,9 +255,9 @@ class EditorKeywordForm(forms.ModelForm):
 
 
 EditorKeywordFormset = inlineformset_factory(
-    EditorAssignmentParameters,
-    EditorKeyword,
-    fk_name="editor_parameters",
+    StaffWorkloadParameters,
+    StaffKeyword,
+    fk_name="parameters",
     extra=0,
     can_delete=False,
     form=EditorKeywordForm,
