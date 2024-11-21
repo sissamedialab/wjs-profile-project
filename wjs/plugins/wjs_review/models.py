@@ -2,11 +2,12 @@
 
 import dataclasses
 import datetime
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Protocol, Union
 
 import html2text
 from core import models as core_models
 from core.model_utils import JanewayBleachCharField, JanewayBleachField
+from core.models import File
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -110,8 +111,42 @@ def process_submission(workflow, **kwargs) -> "ArticleWorkflow.ReviewStates":
         return workflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES
 
 
+class Version(Protocol):
+    round: ReviewRound | TypesettingRound  # noqa
+    started_on: Optional[timezone.datetime]
+    number: int
+
+
 @dataclasses.dataclass
-class Version:
+class AuthorCoverLetter:
+    """Represent the cover letter from an author.
+
+    This can be either some text or a file or both.
+    These info are saved in different models. See :py:class:`ReviewVersion`.
+    """
+
+    text: str
+    """
+    The text provided by the author as a cover letter.
+    """
+    file: File | None
+    """
+    The file provided by the author as a cover letter.
+    """
+    object: Optional[Union[Article, "EditorRevisionRequest"]] = None  # noqa
+    """
+    Object storing cover letter data.
+
+    It's mainly used to check permissions.
+    """
+
+    @property
+    def has_content(self):
+        return bool(self.text or self.file)
+
+
+@dataclasses.dataclass
+class ReviewVersion:
     """
     Collects all the elements related to a version of an article.
 
@@ -176,21 +211,95 @@ class Version:
         return stack
 
     @property
-    def main_revision(self) -> Optional["EditorRevisionRequest"]:
-        """
-        Return the main revision request for the version.
+    def cover_letter(self) -> AuthorCoverLetter:
+        """Return the author's cover letter.
 
-        As the list of revision requests is ordered by reveres date, picks the latest one if it's a major or minor
-        revision request, if not return None. As Major and Minor revision requests are the "final" ones, there cannot
-        be technical reviews after one of those.
+        If this is the first review version, the cover letter is taken from the Article,
+        otherwise it's taken from the (Editor)RevisionRequest of the round before the current one.
         """
-        if self.revision_requests:
-            latest = self.revision_requests[0]
-            if latest.type in (
-                ArticleWorkflow.Decisions.MAJOR_REVISION.value,
-                ArticleWorkflow.Decisions.MINOR_REVISION.value,
-            ):
-                return latest
+        if self.previous_round_revision:
+            return AuthorCoverLetter(
+                text=self.previous_round_revision.author_note,
+                file=self.previous_round_revision.cover_letter_file,
+                object=self.previous_round_revision,
+            )
+        else:
+            return AuthorCoverLetter(
+                text=self.review_round.article.comments_editor,
+                file=None,
+                object=self.review_round.article,
+            )
+
+    @property
+    def file_container(self) -> Union[Article, "EditorRevisionRequest"]:
+        """
+        Return the file container for the version.
+
+        The file container is the object that contains the files and notes upon which the current revision round has
+        been evaluated.
+        """
+        # ERR-1 tracks files of V-1, but latest version does not have associated ERR
+        if self.current_round_revision:
+            return self.current_round_revision
+        else:
+            return self.review_round.article
+
+    def _get_revision_by_round(self, number) -> Optional["EditorRevisionRequest"]:
+        if self.revision_requests and number:
+            requests = [
+                request
+                for request in self.revision_requests
+                if request.review_round.round_number == number
+                and request.type
+                in (
+                    ArticleWorkflow.Decisions.MAJOR_REVISION.value,
+                    ArticleWorkflow.Decisions.MINOR_REVISION.value,
+                )
+            ]
+            return requests[0] if requests else None
+        return None
+
+    @cached_property
+    def previous_round_revision(self) -> Optional["EditorRevisionRequest"]:
+        """
+        Return the revision request for the previous round of the version.
+
+        We need the previous revision request as it's the one that contains the the files and notes upon which
+        the current revision round is being evaluated.
+
+        The previous round revision requests are filtered by type as Major and Minor revision requests are the "final"
+        ones, there cannot be technical reviews after one of those and we assume only one of them is present.
+        """
+        return self._get_revision_by_round(self.number - 1)
+
+    @cached_property
+    def current_round_revision(self) -> Optional["EditorRevisionRequest"]:
+        """
+        Return the revision request for the current round.
+
+        The current round revision requests are filtered by type as Major and Minor revision requests are the "final"
+        ones, there cannot be technical reviews after one of those and we assume only one of them is present.
+        """
+        return self._get_revision_by_round(self.number)
+
+    def final_decision(self) -> Optional["EditorDecision"]:
+        """
+        Return the final decision of the version.
+
+        The final decision is the one that closes the review round an either terminate the whole review process or
+        pass the article back to the author for actions.
+        """
+        if self.decisions:
+            decisions = [
+                decision
+                for decision in self.decisions
+                if decision.decision
+                not in (
+                    ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
+                    ArticleWorkflow.Decisions.OPEN_APPEAL.value,
+                )
+            ]
+            return decisions[0] if decisions else None
         return None
 
 
@@ -974,7 +1083,7 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: WRITEME!
         pass
 
-    def get_review_versions(self, user: Account) -> list[Version]:
+    def get_review_versions(self, user: Account) -> list[ReviewVersion]:
         """
         Generates the list of version for the current article.
 
@@ -984,7 +1093,7 @@ class ArticleWorkflow(TimeStampedModel):
         :param user: The user for which the versions are generated.
         :type user: Account
         :return: The list of versions the user has rights on.
-        :rtype: list[Version]
+        :rtype: list[ReviewVersion]
         """
         from .logic__visibility import PermissionChecker
 
@@ -1003,7 +1112,7 @@ class ArticleWorkflow(TimeStampedModel):
                     revisions |= EditorRevisionRequest.objects.filter(
                         article=self.article, review_round__round_number=review_round.round_number - 1
                     )
-                version = Version(
+                version = ReviewVersion(
                     review_round=review_round,
                     latest=index == 0,
                     decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
@@ -1074,12 +1183,6 @@ class EditorDecision(TimeStampedModel):
     def __str__(self):
         return f"{self.decision} (Article {self.workflow.article.id}-{self.review_round.round_number})"
 
-    def get_revision_request(self):
-        return EditorRevisionRequest.objects.get(
-            article=self.workflow.article,
-            review_round=self.review_round,
-        )
-
     def get_editor_assignment(self):
         return WjsEditorAssignment.objects.get(
             article=self.workflow.article,
@@ -1088,7 +1191,7 @@ class EditorDecision(TimeStampedModel):
 
     @property
     def permission_label(self) -> str:
-        return _(f"Editor {self.get_revision_request().editor}'s report")
+        return _(f"Editor {self.editor}'s report")
 
     @property
     def permission_subject(self) -> Account:
@@ -1466,6 +1569,12 @@ class EditorRevisionRequest(RevisionRequest):
     """Extend Janeway's RevisionRequest model to add review round reference."""
 
     review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
+    editor_decision = models.OneToOneField(
+        EditorDecision,
+        verbose_name=_("Editor decision"),
+        on_delete=models.PROTECT,
+        related_name="revision_request",
+    )
     cover_letter_file = models.FileField(blank=True, null=True, verbose_name=_("Cover letter file"))
     article_history = models.JSONField(blank=True, null=True, verbose_name=_("Article history"))
     manuscript_files = models.ManyToManyField("core.File", blank=True, related_name="+")

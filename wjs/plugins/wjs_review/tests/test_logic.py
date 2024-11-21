@@ -1952,7 +1952,10 @@ def test_handle_editor_decision(
     )
     editor_decision = handle.run()
     try:
-        revision = editor_decision.get_revision_request()
+        revision = EditorRevisionRequest.objects.get(
+            article=assigned_article, review_round=assigned_article.current_review_round_object()
+        )
+        assert revision.editor_decision == editor_decision
     except EditorRevisionRequest.DoesNotExist:
         pass
     assigned_article.refresh_from_db()

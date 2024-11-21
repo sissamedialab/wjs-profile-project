@@ -1468,7 +1468,7 @@ def test_three_papers_three_reviewers(
         user=e2,
         request=fake_request,
     ).run()
-    rr_d_a = decision_d_a.get_revision_request()
+    rr_d_a = decision_d_a.revision_request
     Message.objects.all().delete()
     caplog.clear()
 

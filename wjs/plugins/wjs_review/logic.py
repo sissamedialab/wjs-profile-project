@@ -1892,13 +1892,18 @@ class HandleDecision:
             flag_as_read_by_eo=True,
         )
 
-    def _accept_article(self) -> Article:
+    def _accept_article(self, decision: EditorDecision) -> Article:
         """
         Accept article.
 
         - Call janeway accept_article
         - Advance workflow state
         - Trigger ON_ARTICLE_ACCEPTED event
+
+        :param decision: instance of the editor decision for the revision request
+        :type decision: EditorDecision
+        :return: instance of the article
+        :rtype: Article
         """
         self.workflow.article.accept_article()
         # FIXME: Remove after syncing with upstream to include commit fd0464d
@@ -1914,7 +1919,7 @@ class HandleDecision:
         self._log_accept(context)
         return self.workflow.article
 
-    def _decline_article(self) -> Article:
+    def _decline_article(self, decision: EditorDecision) -> Article:
         """
         Decline article.
 
@@ -1925,6 +1930,11 @@ class HandleDecision:
         - Call janeway decline_article
         - Advance workflow state
         - Trigger ON_ARTICLE_DECLINED event
+
+        :param decision: instance of the editor decision for the revision request
+        :type decision: EditorDecision
+        :return: instance of the article
+        :rtype: Article
         """
         self.workflow.article.decline_article()
 
@@ -1938,13 +1948,18 @@ class HandleDecision:
         self._log_decline(context)
         return self.workflow.article
 
-    def _not_suitable_article(self) -> Article:
+    def _not_suitable_article(self, decision: EditorDecision) -> Article:
         """
         Mark article as not suitable.
 
         - Call janeway decline_article
         - Advance workflow state
         - Trigger ON_ARTICLE_DECLINED event
+
+        :param decision: instance of the editor decision for the revision request
+        :type decision: EditorDecision
+        :return: instance of the article
+        :rtype: Article
         """
         self.workflow.article.decline_article()
 
@@ -1961,12 +1976,17 @@ class HandleDecision:
         self._log_not_suitable(context)
         return self.workflow.article
 
-    def _requires_resubmission(self) -> Article:
+    def _requires_resubmission(self, decision: EditorDecision) -> Article:
         """
         Mark article as requires resubmission.
 
         - Change workflow state
         - Trigger ON_ARTICLE_DECLINED event
+
+        :param decision: instance of the editor decision for the revision request
+        :type decision: EditorDecision
+        :return: instance of the article
+        :rtype: Article
         """
         self.workflow.admin_or_system_requires_revision()
         self.workflow.save()
@@ -1976,13 +1996,18 @@ class HandleDecision:
         self._log_requires_resubmission(context)
         return self.workflow.article
 
-    def _technical_revision_article(self):
+    def _technical_revision_article(self, decision: EditorDecision) -> EditorRevisionRequest:
         """
         Ask for article technical revision.
 
         - Create EditorRevisionRequest
         - Store historical article metadata / files
         - Send notification to author
+
+        :param decision: instance of the editor decision for the revision request
+        :type decision: EditorDecision
+        :return: instance of the revision request
+        :rtype: EditorRevisionRequest
         """
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_requires_a_revision()
@@ -1995,6 +2020,7 @@ class HandleDecision:
             date_due=self.form_data["date_due"],
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
+            editor_decision=decision,
         )
         self._assign_article_data(revision)
         context = self._get_message_context(revision)
@@ -2004,12 +2030,17 @@ class HandleDecision:
         ).create()
         return revision
 
-    def _revision_article(self):
+    def _revision_article(self, decision: EditorDecision) -> EditorRevisionRequest:
         """
         Ask for article revision.
 
         - Update workflow and article states
         - Creare EditorRevisionRequest
+
+        :param decision: instance of the editor decision for the revision request
+        :type decision: EditorDecision
+        :return: instance of the revision request
+        :rtype: EditorRevisionRequest
         """
         if self.form_data["decision"] in [
             ArticleWorkflow.Decisions.MINOR_REVISION,
@@ -2030,6 +2061,7 @@ class HandleDecision:
             date_due=self.form_data["date_due"],
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
+            editor_decision=decision,
         )
         self._assign_article_data(revision)
         context = self._get_message_context(revision)
@@ -2132,7 +2164,7 @@ class HandleDecision:
             self._mark_send_review_file()
             handler = self._decision_handlers.get(self.form_data["decision"], None)
             if handler:
-                getattr(self, handler)()
+                getattr(self, handler)(decision)
                 self._delete_editor_reminders()
             return decision
 
