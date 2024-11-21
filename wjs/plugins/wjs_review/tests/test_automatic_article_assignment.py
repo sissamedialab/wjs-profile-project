@@ -11,7 +11,7 @@ from django.test import Client, override_settings
 from django.urls import reverse
 from submission.models import Article
 
-from wjs.jcom_profile.models import EditorAssignmentParameters
+from wjs.jcom_profile.models import StaffWorkloadParameters
 
 from ..models import WjsEditorAssignment
 
@@ -48,18 +48,18 @@ def get_expected_editor(editors, article):
     if not editors:
         return None
     parameters = (
-        EditorAssignmentParameters.objects.filter(
-            editor__in=editors,
+        StaffWorkloadParameters.objects.filter(
+            user__in=editors,
             journal=article.journal,
         )
         .annotate(
-            assignment_count=Count("editor__editorassignment"),
+            assignment_count=Count("user__editorassignment"),
             available_workload=F("workload") - F("assignment_count"),
         )
         .order_by("-available_workload", "id")
         .first()
     )
-    return parameters.editor
+    return parameters.user
 
 
 def get_expected_eo(editors, article):
@@ -72,19 +72,19 @@ def get_expected_eo(editors, article):
     if not editors:
         return None
     parameters = (
-        EditorAssignmentParameters.objects.filter(
-            editor__in=editors,
+        StaffWorkloadParameters.objects.filter(
+            user__in=editors,
             journal=article.journal,
         )
         .annotate(
-            assignment_count=Count("editor__articleworkflow__eo_in_charge"),
+            assignment_count=Count("user__articleworkflow__eo_in_charge"),
             available_workload=F("workload") - F("assignment_count"),
         )
         .order_by("-available_workload", "id")
         .first()
     )
 
-    return parameters.editor
+    return parameters.user
 
 
 @pytest.mark.parametrize(
@@ -303,8 +303,8 @@ def test_workload_decrease_editor(
         client.force_login(admin)
         url = reverse("submit_review", args=(article.pk,))
         for editor in article_editors:
-            parameter = EditorAssignmentParameters.objects.get(
-                editor=editor,
+            parameter = StaffWorkloadParameters.objects.get(
+                user=editor,
                 journal=article.journal,
             )
             parameter.workload = 100
@@ -314,7 +314,7 @@ def test_workload_decrease_editor(
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
         article.refresh_from_db()
-        EditorAssignmentParameters.objects.get(editor=first_editor, journal=article.journal).refresh_from_db()
+        StaffWorkloadParameters.objects.get(user=first_editor, journal=article.journal).refresh_from_db()
 
         editor_assignment = WjsEditorAssignment.objects.get(article=article)
         assert editor_assignment.editor == first_editor
@@ -379,10 +379,10 @@ def test_workload_decrease_eo(
 
     eo_1 = create_jcom_user("eo_1")
     eo_1.groups.add(eo_group)
-    EditorAssignmentParameters.objects.create(editor=eo_1, journal=article.journal, workload=10)
+    StaffWorkloadParameters.objects.create(user=eo_1, journal=article.journal, workload=10)
     eo_2 = create_jcom_user("eo_2")
     eo_2.groups.add(eo_group)
-    EditorAssignmentParameters.objects.create(editor=eo_2, journal=article.journal, workload=10)
+    StaffWorkloadParameters.objects.create(user=eo_2, journal=article.journal, workload=10)
     article_editors = Account.objects.filter(groups__name="EO")
 
     with override_settings(WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS=EO_ARTICLE_ASSIGNMENT_FUNCTIONS):
@@ -395,8 +395,8 @@ def test_workload_decrease_eo(
         client.force_login(admin)
         url = reverse("submit_review", args=(article.pk,))
         for editor in article_editors:
-            parameter = EditorAssignmentParameters.objects.get(
-                editor=editor,
+            parameter = StaffWorkloadParameters.objects.get(
+                user=editor,
                 journal=article.journal,
             )
             parameter.workload = 100

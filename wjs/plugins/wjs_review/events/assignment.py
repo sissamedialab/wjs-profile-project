@@ -14,7 +14,7 @@ from submission.models import Article
 from utils.logic import get_current_request
 
 from wjs.jcom_profile.constants import EO_GROUP
-from wjs.jcom_profile.models import EditorAssignmentParameters
+from wjs.jcom_profile.models import StaffWorkloadParameters
 
 if TYPE_CHECKING:
     from ..models import WjsEditorAssignment
@@ -25,7 +25,7 @@ Account = get_user_model()
 
 def get_special_issue_parameters(article):
     """
-    Get special issue EditorAssignmentParameters depending on article special issue editors.
+    Get special issue StaffWorkloadParameters depending on article special issue editors.
 
     :param article: The assigned article.
     :return: The Editor assignment parameters for a special issue article.
@@ -35,9 +35,9 @@ def get_special_issue_parameters(article):
         for issue in article.issues.filter(issue_type__code="collection")
         for editor in issue.managing_editors.all()
     ]
-    return EditorAssignmentParameters.objects.filter(
+    return StaffWorkloadParameters.objects.filter(
         journal=article.journal,
-        editor__in=editors,
+        user__in=editors,
     )
 
 
@@ -53,17 +53,17 @@ def default_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignmen
             journal=article.journal,
             role=Role.objects.get(slug="section-editor"),
         ).values_list("user")
-        parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=editors)
-    parameters = parameters.exclude(editor__in=article.authors.all())
+        parameters = StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=editors)
+    parameters = parameters.exclude(user__in=article.authors.all())
     if parameters:
         request = get_current_request()
         annotated_parameters = parameters.annotate(
-            assignment_count=Count("editor__editorassignment"),
+            assignment_count=Count("user__editorassignment"),
             available_workload=F("workload") - F("assignment_count"),
         )
         if parameter := annotated_parameters.order_by("-available_workload", "id").first():
             assignment = BaseAssignToEditor(
-                editor=parameter.editor, article=article, request=request, first_assignment=True
+                editor=parameter.user, article=article, request=request, first_assignment=True
             ).run()
             return assignment
 
@@ -81,17 +81,17 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
             journal=article.journal,
             role=Role.objects.get(slug="director"),
         ).values_list("user")
-        parameters = EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=directors)
-    parameters = parameters.exclude(editor__in=article.authors.all())
+        parameters = StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=directors)
+    parameters = parameters.exclude(user__in=article.authors.all())
     if parameters:
         request = get_current_request()
         annotated_parameters = parameters.annotate(
-            assignment_count=Count("editor__editorassignment"),
+            assignment_count=Count("user__editorassignment"),
             available_workload=F("workload") - F("assignment_count"),
         )
         if parameter := annotated_parameters.order_by("-available_workload", "id").first():
             assignment = BaseAssignToEditor(
-                editor=parameter.editor, article=article, request=request, first_assignment=True
+                editor=parameter.user, article=article, request=request, first_assignment=True
             ).run()
             return assignment
 
@@ -118,15 +118,15 @@ def assign_editor_random(**kwargs) -> Optional["WjsEditorAssignment"]:
         return assignment
 
 
-def assign_eo_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]:
+def assign_eo_to_articles(**kwargs) -> Optional["Account"]:
     """Assign EO to article based on their workload."""
     article = kwargs["article"]
 
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     parameter = (
-        EditorAssignmentParameters.objects.filter(journal=article.journal, editor__in=eo_users)
+        StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=eo_users)
         .annotate(
-            assignment_count=Count("editor__articleworkflow__eo_in_charge"),
+            assignment_count=Count("user__articleworkflow__eo_in_charge"),
             available_workload=F("workload") - F("assignment_count"),
         )
         .order_by("-available_workload", "id")
@@ -134,10 +134,10 @@ def assign_eo_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]:
     )
 
     if parameter:
-        return parameter.editor
+        return parameter.user
 
 
-def assign_eo_random(**kwargs) -> Optional["WjsEditorAssignment"]:
+def assign_eo_random(**kwargs) -> Optional["Account"]:
     """Assign a random EO member, for test purposes."""
     return Account.objects.filter(groups__name=EO_GROUP).order_by("?").first()
 
@@ -151,7 +151,7 @@ def dispatch_assignment(**kwargs) -> Optional["WjsEditorAssignment"]:
     return assignment_function(**kwargs)
 
 
-def dispatch_eo_assignment(**kwargs) -> Optional[Account]:
+def dispatch_eo_assignment(**kwargs):
     """
     Dispatch EO assignment.
 

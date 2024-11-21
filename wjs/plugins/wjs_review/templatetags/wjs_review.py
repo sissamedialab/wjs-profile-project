@@ -31,7 +31,7 @@ from utils.logger import get_logger
 from utils.models import LogEntry
 
 from wjs.jcom_profile.constants import role_label
-from wjs.jcom_profile.models import EditorAssignmentParameters
+from wjs.jcom_profile.models import StaffWorkloadParameters
 
 from .. import communication_utils, permissions, states
 from ..communication_utils import MESSAGE_TYPE_ICONS
@@ -492,13 +492,13 @@ def get_max_workload(editor: Account, journal: Journal) -> int:
     """Get the maximum workload for the given editor and journal."""
     # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
     try:
-        eap = EditorAssignmentParameters.objects.get(editor=editor, journal=journal)
-    except EditorAssignmentParameters.DoesNotExist:
+        eap = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
+    except StaffWorkloadParameters.DoesNotExist:
         logger.error(f"Editor {editor} is not correctly setup on {journal.code}")
         return 0
-    except EditorAssignmentParameters.MultipleObjectsReturned:
+    except StaffWorkloadParameters.MultipleObjectsReturned:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
-        eap = EditorAssignmentParameters.objects.filter(editor=editor, journal=journal).first()
+        eap = StaffWorkloadParameters.objects.filter(user=editor, journal=journal).first()
     return eap.workload
 
 
@@ -519,13 +519,13 @@ def get_editor_keywords(editor: Account, journal: Journal) -> List[str]:
     """Get the keywords for the given editor and journal."""
     # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
     try:
-        eap = EditorAssignmentParameters.objects.get(editor=editor, journal=journal)
-    except EditorAssignmentParameters.DoesNotExist:
+        eap = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
+    except StaffWorkloadParameters.DoesNotExist:
         logger.error(f"Editor {editor} is not correctly setup on {journal.code}")
         return []
-    except EditorAssignmentParameters.MultipleObjectsReturned:
+    except StaffWorkloadParameters.MultipleObjectsReturned:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
-        eap = EditorAssignmentParameters.objects.filter(editor=editor, journal=journal).first()
+        eap = StaffWorkloadParameters.objects.filter(user=editor, journal=journal).first()
     return [k.word for k in eap.keywords.all()]
 
 

@@ -21,12 +21,12 @@ urlpatterns = [
     path("search/", views.PublishedArticlesListView.as_view(), name="search"),
     path(
         "update/parameters/",
-        views.EditorAssignmentParametersUpdate.as_view(),
+        views.StaffWorkloadParametersUpdate.as_view(),
         name="assignment_parameters",
     ),
     path(
         "update/parameters/<int:editor_pk>/",
-        views.DirectorEditorAssignmentParametersUpdate.as_view(),
+        views.DirectorStaffWorkloadParametersUpdate.as_view(),
         name="assignment_parameters",
     ),
     #

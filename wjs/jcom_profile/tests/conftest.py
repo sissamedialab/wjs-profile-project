@@ -58,11 +58,7 @@ from wjs.jcom_profile.factories import (
     UserFactory,
     yesterday,
 )
-from wjs.jcom_profile.models import (
-    EditorAssignmentParameters,
-    EditorKeyword,
-    JCOMProfile,
-)
+from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.utils import create_rich_fake_request, generate_token, get_eo_user
 
 fake = Faker()
@@ -324,7 +320,7 @@ def eo_user(journal, eo_group) -> JCOMProfile:
     eo = get_eo_user(journal)
     eo.refresh_from_db()
     # Editor assignment parameters are required for EO in charge assignment
-    EditorAssignmentParameters.objects.create(editor=eo, journal=journal, workload=10)
+    StaffWorkloadParameters.objects.create(user=eo, journal=journal, workload=10)
     return eo.jcomprofile
 
 
@@ -715,12 +711,13 @@ def clear_script_prefix_fix():
 
 
 @pytest.fixture
-def keywords():
+def keywords(journal):
     # we must explicitly determine the created keywords because articles might be created by other fixtures
     # and returning a blanket "all" queryset would include sections articles by those fixtures
     keywords_pk = []
     for i in range(10):
         word = submission_models.Keyword.objects.create(word=f"{i}-keyword")
+        journal.keywords.add(word)
         keywords_pk.append(word.pk)
     return submission_models.Keyword.objects.filter(pk__in=keywords_pk)
 
@@ -736,8 +733,8 @@ def directors(director_role, journal):
             last_name=f"Director{i}",
             is_active=True,
         )
-        EditorAssignmentParameters.objects.create(
-            editor=user_director.janeway_account,
+        StaffWorkloadParameters.objects.create(
+            user=user_director.janeway_account,
             journal=journal,
             workload=random.randint(1, 10),
         )
@@ -759,8 +756,8 @@ def editors(roles, journal):
         )
         user_editor.janeway_account.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
 
-        EditorAssignmentParameters.objects.create(
-            editor=user_editor.janeway_account,
+        StaffWorkloadParameters.objects.create(
+            user=user_editor.janeway_account,
             journal=journal,
             workload=random.randint(1, 10),
         )
@@ -842,9 +839,9 @@ def editors_with_keywords(create_jcom_user, journal, keywords):
     }
 
     for editor_kws, kws in keyword_associations.items():
-        editor_params = EditorAssignmentParameters.objects.create(editor=editor_kws, journal=journal)
+        params = StaffWorkloadParameters.objects.create(user=editor_kws, journal=journal)
         for kw in kws:
-            EditorKeyword.objects.create(editor_parameters=editor_params, keyword=kw)
+            StaffKeyword.objects.create(parameters=params, keyword=kw)
 
     return editors_kws
 
