@@ -4,9 +4,7 @@
   {% translate "Author notes" as notes_label %}
   {% translate "Read" as open_label %}
   <div>
-    <h6>
-      <b>{{ notes_label }}</b>: {% bootstrap_button button_class="btn-link" data_bs_toggle="modal" data_bs_target="#author_notes" content=open_label %}
-    </h6>
+    {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target="#author_notes" content=notes_label %}
     {% include "wjs_review/base/elements/modal.html" with modal_id="author_notes" modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
   </div>
 {% endif %}

@@ -97,24 +97,24 @@ def _create_rr_objects(
                     editor=editor,
                     review_round=review_round,
                     date_due=timezone.now() + timedelta(days=5),
-                ),
+                )
             )
     with freeze_time(_now - timedelta(days=_delta + 1)):
-        decisions.append(
-            EditorDecision.objects.create(
-                workflow=article.articleworkflow,
-                review_round=review_round,
-                decision=article.articleworkflow.Decisions.MINOR_REVISION,
-                editor=editor,
-            ),
+        decision = EditorDecision.objects.create(
+            workflow=article.articleworkflow,
+            review_round=review_round,
+            decision=article.articleworkflow.Decisions.MINOR_REVISION,
+            editor=editor,
         )
+        decisions.append(decision)
         revision.append(
             EditorRevisionRequest.objects.create(
                 article=article,
                 editor=editor,
                 review_round=review_round,
                 date_due=timezone.now() + timedelta(days=5),
-            ),
+                editor_decision=decision,
+            )
         )
     return revision, review, decisions
 

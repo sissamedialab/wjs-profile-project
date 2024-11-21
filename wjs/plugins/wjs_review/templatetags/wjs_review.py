@@ -705,3 +705,12 @@ def is_current_version(
         if isinstance(version, ReviewRound):
             return version.pk == article.current_review_round_object().pk
     return False
+
+
+@register.filter()
+def editor_decision_is_final(decision: EditorDecision) -> bool:
+    """Return True if the editor decision is a final decision (not open-appeal/technical revision)."""
+    return decision.decision not in (
+        ArticleWorkflow.Decisions.OPEN_APPEAL,
+        ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+    )

@@ -105,7 +105,7 @@ def test_author_revision_is_late(
         user=section_editor,
         request=fake_request,
     ).run()
-    revision_request = editor_decision.get_revision_request()
+    revision_request = editor_decision.revision_request
     article.refresh_from_db()
 
     assert workflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
@@ -227,7 +227,7 @@ def test_author_technicalrevision_is_late(
         user=section_editor,
         request=fake_request,
     ).run()
-    revision_request = editor_decision.get_revision_request()
+    revision_request = editor_decision.revision_request
     article.refresh_from_db()
 
     assert workflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
