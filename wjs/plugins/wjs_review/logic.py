@@ -1275,7 +1275,16 @@ class AuthorHandleRevision:
     user: Account
     request: HttpRequest
 
+    def _store_data(self):
+        """Copy article metadata from intermediate EditorRevisionRequest to the article."""
+        if self.revision.title:
+            self.revision.article.title = self.revision.title
+        if self.revision.abstract:
+            self.revision.article.abstract = self.revision.abstract
+        self.revision.article.save()
+
     def _confirm_revision(self):
+        """Mark the revision as completed"""
         self.revision.date_completed = timezone.now()
         self.revision.save()
 
@@ -1461,6 +1470,7 @@ class AuthorHandleRevision:
 
     def run(self):
         with transaction.atomic():
+            self._store_data()
             self._confirm_revision()
             self._save_author_note()
             self._trigger_complete_event(self.revision, self.request)
@@ -1986,7 +1996,7 @@ class HandleDecision:
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
         )
-        self._assign_files(revision)
+        self._assign_article_data(revision)
         context = self._get_message_context(revision)
         self._log_technical_revision_request(context)
         AuthorShouldSubmitTechnicalRevisionReminderManager(
@@ -2021,7 +2031,7 @@ class HandleDecision:
             editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
         )
-        self._assign_files(revision)
+        self._assign_article_data(revision)
         context = self._get_message_context(revision)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
@@ -2044,12 +2054,14 @@ class HandleDecision:
             ).create()
         return revision
 
-    def _assign_files(self, revision: EditorRevisionRequest):
+    def _assign_article_data(self, revision: EditorRevisionRequest):
         """Assign files to the revision request to keep track of the changes."""
         revision.manuscript_files.set(self.workflow.article.manuscript_files.all())
         revision.data_figure_files.set(self.workflow.article.data_figure_files.all())
         revision.supplementary_files.set(self.workflow.article.supplementary_files.all())
         revision.source_files.set(self.workflow.article.source_files.all())
+        revision.title = self.workflow.article.title
+        revision.abstract = self.workflow.article.abstract
 
         # We store the old Keywords' "word" instead of their ids. Doing so allows us to maintain a memory of the
         # original kwds even if they have been modified or deleted.
@@ -3254,9 +3266,7 @@ class ConvertManuscriptToPdf:
                 label="Manuscript File",
             )
 
-        for file in self.article.source_files.all():
-            file.unlink_file()
-            file.delete()
+        self.article.source_files.clear()
         self.article.source_files.set(self.article.manuscript_files.all())
         self.article.manuscript_files.clear()
         self.article.manuscript_files.add(generated_manuscript)

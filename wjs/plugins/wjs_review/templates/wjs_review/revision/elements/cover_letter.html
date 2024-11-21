@@ -22,29 +22,28 @@
           {% csrf_token %}
           {# djlint:off #}
           {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload Cover letter" as upload_label %}
-          {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Replace Cover letter" as replace_label %}
+          {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Replace / Remove Cover letter" as replace_label %}
           {% translate "<i class=\"bi bi-cloud-arrow-down-fill\"></i> Download Cover letter" as download_label %}
-          {% translate "<i class=\"bi bi-pencil-square\"></i> Save Cover Letter as draft" as draft_label %}
+          {% translate "<i class=\"bi bi-pencil-square\"></i> Save Cover Letter" as draft_label %}
           {# djlint:on #}
           {% bootstrap_form_errors form layout='inline' %}
           {% bootstrap_field form.author_note show_label=False show_help=False %}
-          {% bootstrap_button button_class="btn-outline-secondary" button_type="submit" name="save_cover_letter" value=1 content=draft_label %}
-          {% blocktranslate %}
-            <p>
-              Please enter your cover letter either as a text (above) or as a file (button "Upload Cover letter" below).
-            </p>
-            <p>
-              If you insert a text you can save it as a draft to avoid losing its content in case you need to stop and resume
-              submission at a later time.
-            </p>
-          {% endblocktranslate %}
-          {% if revision_request.editorrevisionrequest.cover_letter_file %}
-            {% url 'wjs_upload_file' revision_request.article_id revision_request.pk as upload_url %}
-            {% bootstrap_button button_class="btn-secondary" href=upload_url content=replace_label %}
-            {% bootstrap_button button_class="btn-outline-secondary" href=evision_request.editorrevisionrequest.cover_letter_file.url content=download_label %}
+          {% bootstrap_button button_class="btn-secondary" button_type="submit" name="save_cover_letter" value=1 content=draft_label %}
+          <p class="my-3">
+            {% blocktranslate %}
+              Please enter your cover letter as a text (above) and/or as a file (button "Upload Cover letter" below).
+            {% endblocktranslate %}
+          </p>
+          {% if view.confirm_version %}
+            {% url 'wjs_upload_cover_letter_file_confirm' revision_request.article_id revision_request.pk as upload_url %}
           {% else %}
             {% url 'wjs_upload_cover_letter_file' revision_request.article_id revision_request.pk as upload_url %}
-            {% bootstrap_button button_class="btn-secondary" href=upload_url content=upload_label %}
+          {% endif %}
+          {% if revision_request.editorrevisionrequest.cover_letter_file %}
+            {% bootstrap_button button_class="btn-outline-secondary" href=upload_url content=replace_label %}
+            {% bootstrap_button button_class="btn-secondary" href=revision_request.editorrevisionrequest.cover_letter_file.url content=download_label %}
+          {% else %}
+            {% bootstrap_button button_class="btn-outline-secondary" href=upload_url content=upload_label %}
           {% endif %}
         </form>
       </div>

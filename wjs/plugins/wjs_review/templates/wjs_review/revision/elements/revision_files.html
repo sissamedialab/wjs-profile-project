@@ -20,25 +20,36 @@
         {% translate "Submit revision" as submit_label %}
         {% csrf_token %}
         {# djlint:off #}
-        {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload preprint" as preprint_label %}
+        {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload manuscript" as manuscript_label %}
         {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload supplementary material" as supplementary_label %}
         {# djlint:on #}
         {% url 'wjs_upload_article_file' article.pk revision_request.pk "manuscript" as upload_url %}
         {% url 'wjs_upload_article_file' article.pk revision_request.pk "data" as upload_supplementary_url %}
         <div class="mb-3">
-          <h6 class="card-title"><b>{% translate "Preprint files" %}</b></h6>
+          <h6 class="card-title"><b>{% translate "Manuscript files" %}</b></h6>
           {% blocktranslate %}
-            <p>Please upload the revised version of your preprint and any supplementary material that you would like to be considered for publication.</p>
+            <p>Please upload the revised version of your manuscript and any supplementary material that you would like to be considered for publication.</p>
+            <p>You must provide a cover letter to be able to update the article files.</p>
           {% endblocktranslate %}
-          {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.manuscript_files.all file_type="manuscript" enable_upload=True %}
-          {% if not article.manuscript_files.exists %}
-            {% bootstrap_button button_class="btn-secondary" content=preprint_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_url hx_target="#htmxModalContent" %}
+          {% if revision_request.has_changed_manuscript_files %}
+            {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.manuscript_files.all file_type="manuscript" enable_upload=False enable_delete=True %}
+          {% else %}
+            {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.manuscript_files.none file_type="manuscript" enable_upload=False enable_delete=True %}
+          {% endif %}
+          {% if revision_request.author_note %}
+            {% bootstrap_button button_class="btn-secondary" content=manuscript_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_url hx_target="#htmxModalContent" %}
+          {% else %}
+            {% bootstrap_button button_class="btn-secondary" disabled=1 content=manuscript_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_url hx_target="#htmxModalContent" %}
           {% endif %}
         </div>
         <div class="mb-3">
-          <h6 class="card-title"><b>{% translate "Supplementary material" %}</b></h6>
-          {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.data_figure_files.all file_type="data" enable_upload=True %}
-          {% bootstrap_button button_class="btn-secondary" content=supplementary_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_supplementary_url hx_target="#htmxModalContent" %}
+          <h6 class="card-title"><b>{% translate "Data and figure files" %}</b></h6>
+          {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.data_figure_files.all file_type="data" enable_upload=False enable_delete=True %}
+          {% if revision_request.author_note %}
+            {% bootstrap_button button_class="btn-secondary" content=supplementary_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_supplementary_url hx_target="#htmxModalContent" %}
+          {% else %}
+            {% bootstrap_button button_class="btn-secondary" disabled=1 content=supplementary_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_supplementary_url hx_target="#htmxModalContent" %}
+          {% endif %}
         </div>
       </div>
     </div>

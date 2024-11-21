@@ -21,8 +21,30 @@
       <div class="card-body">
         <form name="do_revision" id="do_revision" method="post" action="{{ request.path_info }}#finishing">
           {% csrf_token %}
-          {% if not form.confirm_cover_metadata and not form.confirm_version %}
-            <p>{% translate "When you have completed your revision and finished writing your cover letter, click the 'Upload' button below to finish. Please note that you will not be able to make any further changes to your letter or revision once you click 'Upload'" %}</p>
+          {% if form.confirm_version %}
+          <p>
+            {% blocktranslate %}
+              Please make sure you have saved the cover letter to the editor before continuing.<br>
+              Once this is done, check the box below and click the 'Upload' button.<br>
+              Please note that you will not be able to make any further changes after clicking 'Upload'.<br>
+            {% endblocktranslate %}
+          </p>
+          {% elif not form.confirm_cover_metadata %}
+          <p>
+            {% blocktranslate %}
+              Please make sure you have saved any updates to the metadata, the cover letter to the editor and uploaded all the files.<br>
+              Once this is done, check the boxes below and click the 'Upload' button.<br>
+              Please note that you will not be able to make any further changes after clicking 'Upload'<br>
+            {% endblocktranslate %}
+          </p>
+          {% elif technical_revision %}
+          <p>
+            {% blocktranslate %}
+              Please make sure you have saved both the metadata updates and the cover letter to the editor before continuing.<br>
+              Once this is done, check the box below and click the 'Upload' button.<br>
+              Please note that you will not be able to make any further changes after clicking 'Upload'.<br>
+            {% endblocktranslate %}
+          </p>
           {% endif %}
           {% if form.confirm_title %}{% bootstrap_field form.confirm_title %}{% endif %}
           {% if form.confirm_styles %}{% bootstrap_field form.confirm_styles %}{% endif %}

@@ -28,22 +28,12 @@
           {% translate "<i class=\"bi bi-cloud-check-fill\"></i> Confirm the current version of all files" as confirm_label %}
           {# djlint:om#}
           <div class="mb-3">
-            <h6 class="card-title"><b>{% translate "Preprint files" %}</b></h6>
+            <h6 class="card-title"><b>{% translate "Manuscript files" %}</b></h6>
             {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.manuscript_files.all file_type="manuscript" type_label=manuscript_label %}
           </div>
           <div class="mb-3">
             <h6 class="card-title"><b>{% translate "Data files" %}</b></h6>
             {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.data_figure_files.all file_type="data" type_label=data_label %}
-          </div>
-          <div class="mb-3">
-            {% if object.confirm_previous_version %}
-              <p>{% translate "You have confirmed the current version" %}</p>
-            {% else %}
-              <form method="post" action="{{ request.path_info }}#previous_version">
-                {% csrf_token %}
-                {% bootstrap_button button_class="btn-secondary" button_type="submit" name="confirm_previous_version" value=1 content=confirm_label %}
-              </form>
-            {% endif %}
           </div>
         {% endwith %}
       </div>

@@ -2272,12 +2272,15 @@ def test_handle_editor_decision(
 
 
 @pytest.mark.parametrize(
-    "decision",
+    "decision,confirm_version",
     (
-        ArticleWorkflow.Decisions.MINOR_REVISION,
-        ArticleWorkflow.Decisions.MAJOR_REVISION,
-        ArticleWorkflow.Decisions.TECHNICAL_REVISION,
-        "something",
+        (ArticleWorkflow.Decisions.MINOR_REVISION, True),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, False),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, True),
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, False),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
+        ("something", False),
     ),
 )
 @pytest.mark.django_db
@@ -2286,6 +2289,7 @@ def test_author_handle_revision(
     fake_request: HttpRequest,
     review_assignment: review_models.ReviewAssignment,
     decision: str,
+    confirm_version: bool,
 ):
     """
     Author submitting a revision change the article state.
@@ -2315,8 +2319,6 @@ def test_author_handle_revision(
         request=fake_request,
     )
 
-    # we need a stable ordering of the messages because we pick them in specific order
-    messages = Message.objects.all().order_by("created")
     if decision not in HandleDecision._decision_handlers:
         with pytest.raises(ValidationError):
             handle.run()
@@ -2324,36 +2326,53 @@ def test_author_handle_revision(
         handle.run()
         assigned_article.refresh_from_db()
         revision = EditorRevisionRequest.objects.get(article=assigned_article)
+        view_obj = ArticleRevisionUpdate()
+        view_obj.object = revision
+        view_obj.confirm_version = confirm_version
+        form_class = view_obj.get_form_class()
 
         if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-            form_class = model_forms.modelform_factory(
-                submission_models.Article,
-                fields=ArticleRevisionUpdate.meta_data_fields,
-            )
-            form_data = {
+            edit_form_class = view_obj._get_metadata_form_class()
+            edit_form_data = {
                 "title": "title",
                 "abstract": "abstract",
             }
-            form = form_class(data=form_data, instance=assigned_article)
-            assert form.is_valid()
-            form.save()
-
-        form_data = {
-            "author_note": "author_note",
-            "confirm_title": "on",
-            "confirm_styles": "on",
-            "confirm_blind": "on",
-            "confirm_cover": "on",
-        }
-        form = EditorRevisionRequestEditForm(data=form_data, instance=revision)
+            edit_form = edit_form_class(data=edit_form_data, instance=revision)
+            assert edit_form.is_valid()
+            edit_form.save()
+            if confirm_version:
+                confirm_form_data = {
+                    "author_note": "author_note_confirm",
+                    "confirm_version": "on",
+                }
+            else:
+                confirm_form_data = {
+                    "author_note": "author_note_edit",
+                    "confirm_cover_metadata": "on",
+                }
+        else:
+            if confirm_version:
+                confirm_form_data = {
+                    "author_note": "author_note_confirm",
+                    "confirm_version": "on",
+                }
+            else:
+                confirm_form_data = {
+                    "author_note": "author_note_edit",
+                    "confirm_title": "on",
+                    "confirm_styles": "on",
+                    "confirm_blind": "on",
+                    "confirm_cover": "on",
+                }
+        form = form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
         assert form.is_valid()
         form.save()
 
-        fake_request.user = author
-        author = assigned_article.correspondence_author
-        handler = AuthorHandleRevision(revision=revision, form_data=form_data, user=author, request=fake_request)
-        handler.run()
+        form.finish()
         assigned_article.refresh_from_db()
+        revision.refresh_from_db()
+        # we need a stable ordering of the messages because we pick them in specific order
+        messages = Message.objects.all().order_by("created")
         assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
         if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             technical_revision_message_subject = render_template_from_setting(
@@ -2378,10 +2397,10 @@ def test_author_handle_revision(
             assert messages.count() == 4
             # messages.all()[0] contains reviewer invitation, ignore it
             # Author notification
-            review_withdraw_notification = messages.all()[1]
-            assert review_withdraw_notification.actor == editor
-            assert list(review_withdraw_notification.recipients.all()) == [assigned_article.correspondence_author]
-            assert review_withdraw_notification.subject == technical_revision_message_subject
+            metadata_change_open_notification = messages.all()[1]
+            assert metadata_change_open_notification.actor == editor
+            assert list(metadata_change_open_notification.recipients.all()) == [assigned_article.correspondence_author]
+            assert metadata_change_open_notification.subject == technical_revision_message_subject
             # Editor notification for updated metadata
             technical_revision_submission_editor_message = messages.all()[2]
             assert technical_revision_submission_editor_message.actor == get_system_user()
@@ -2435,23 +2454,24 @@ def test_author_handle_revision(
             assert review_withdraw_notification.subject == review_withdraw_notification_subject
             assert list(review_withdraw_notification.recipients.all()) == [review_assignment.reviewer]
             # Author notification for revision request
-            request_revisions_editor_message = messages.all()[2]
-            assert request_revisions_editor_message.actor == editor
-            assert list(request_revisions_editor_message.recipients.all()) == [assigned_article.correspondence_author]
-            assert request_revisions_editor_message.subject == subject_request_revisions
+            request_revisions_author_message = messages.all()[2]
+            assert request_revisions_author_message.actor == editor
+            assert list(request_revisions_author_message.recipients.all()) == [assigned_article.correspondence_author]
+            assert request_revisions_author_message.subject == subject_request_revisions
             # Editor notification for revision submission
-            subject_revisions_complete_editor_message = messages.all()[3]
-            assert subject_revisions_complete_editor_message.actor == get_system_user()
-            assert list(subject_revisions_complete_editor_message.recipients.all()) == [review_assignment.editor]
-            assert subject_revisions_complete_editor_message.subject == subject_revisions_complete_receipt_subject
+            revision_complete_editor_message = messages.all()[3]
+            assert revision_complete_editor_message.actor == get_system_user()
+            assert list(revision_complete_editor_message.recipients.all()) == [review_assignment.editor]
+            assert revision_complete_editor_message.subject == subject_revisions_complete_receipt_subject
             # Author notification of successful revision submission
-            subject_revisions_complete_reviewer_message = messages.all()[4]
-            assert subject_revisions_complete_reviewer_message.actor == get_system_user()
-            assert list(subject_revisions_complete_reviewer_message.recipients.all()) == [
-                assigned_article.correspondence_author
-            ]
-            assert subject_revisions_complete_reviewer_message.subject == subject_revisions_complete_receipt_subject
-        assert revision.author_note == "author_note"
+            revision_complete_author_message = messages.all()[4]
+            assert revision_complete_author_message.actor == get_system_user()
+            assert list(revision_complete_author_message.recipients.all()) == [assigned_article.correspondence_author]
+            assert revision_complete_author_message.subject == subject_revisions_complete_receipt_subject
+        if confirm_version:
+            assert revision.author_note == "author_note_confirm"
+        else:
+            assert revision.author_note == "author_note_edit"
 
 
 @pytest.mark.parametrize(

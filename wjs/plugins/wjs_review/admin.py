@@ -4,6 +4,7 @@ from submission.admin import ArticleAdmin
 from .models import (
     ArticleWorkflow,
     EditorDecision,
+    EditorRevisionRequest,
     LatexPreamble,
     ProphyAccount,
     ProphyCandidate,
@@ -59,6 +60,19 @@ class EditorDecisionAdmin(admin.ModelAdmin):
 
     list_display = ["workflow", "decision", "decision_editor_report"]
     list_filter = ["decision"]
+
+
+@admin.register(EditorRevisionRequest)
+class EditorRevisionRequestAdmin(admin.ModelAdmin):
+    """Helper class to "admin" EditorDecision."""
+
+    list_display = ["article", "editor", "round_number"]
+    list_filter = ["editor"]
+    search_fields = ["article__title", "article__pk"]
+    exclude = ["supplementary_files", "manuscript_files", "data_figure_files", "source_files"]
+
+    def round_number(self, obj):
+        return obj.review_round.round_number
 
 
 @admin.register(WorkflowReviewAssignment)

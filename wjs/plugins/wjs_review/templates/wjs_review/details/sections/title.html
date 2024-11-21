@@ -21,7 +21,7 @@
     {% endif %}
   </div>
   <div class="d-flex align-items-center gap-3">
-    {% if workflow|is_user_director:request.user or request.user|is_user_eo %}
+    {% if request.user|is_user_eo %}
       {% url "wjs_article_admin_decision" pk=workflow.pk as make_decision_url %}
     {% elif workflow|is_user_article_editor:request.user %}
       {% url "wjs_article_decision" pk=workflow.pk as make_decision_url %}
