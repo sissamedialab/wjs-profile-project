@@ -3,18 +3,52 @@
     <h5 class="card-title">{% translate "Information" %}</h5>
   </div>
   <div class="card-body">
+  {% if view.confirm_version %}
     {% blocktranslate with editor_name=revision_request.editor.full_name %}
       <p>
-        You are going to submit a revised version of your preprint.
+        You have chosen to have the previous version of your manuscript reconsidered for publication.
+      </p>
+      <ol>
+        <li>Check your manuscript’s file(s). If any file needs changes, please go back and click “submit revision”.</li>
+        <li>
+          Add a cover letter (text and/or file) to the editor in charge, which the editor in charge may choose to share with any selected reviewer(s). Make sure you <strong>save your cover letter before completing the resubmission</strong> to avoid losing its content.
+        </li>
+        <li>
+          Check the box in the “Finishing up” section
+        </li>
+        <li>
+          Click “Upload”.
+        </li>
+      </ol>
+      Please make sure you <strong>save any updates to the metadata and the cover letter to avoid losing their content</strong>.
+    {% endblocktranslate %}
+  {% elif technical_revision %}
+
+    {% blocktranslate with editor_name=revision_request.editor.full_name %}
+      <p>
+        You have been allowed to update your manuscript’s metadata.
+      </p>
+      <ol>
+        <li>Enter the new metadata in the form below and save them,</li>
+        <li>Add a cover letter to the editor and save it,</li>
+        <li>Check the box in the “Finishing up” section,</li>
+        <li>Click “Upload”.</li>
+      </ol>
+      Please make sure you <strong>save any updates to the metadata and the cover letter to avoid losing their content</strong>.
+    {% endblocktranslate %}
+  {% else %}
+    {% blocktranslate with editor_name=revision_request.editor.full_name %}
+      <p>
+        You are going to submit a revised version of your manuscript.
       </p>
       <ol>
         <li>Update the metadata, if needed.
         </li>
         <li>
-          Add a cover letter to the editor, which will be visible to any selected reviewer by default.
+          Add a cover letter (text and/or file) to the editor in charge, which the editor in charge may choose to share with any selected reviewer(s).
         </li>
         <li>
-          Submit the source file of your revised preprint and any necessary supplementary files.
+          Submit the source file of your revised manuscript and any necessary supplementary files.
         </li>
         <li>
           Check the boxes in the “Finishing up” section.
@@ -23,7 +57,9 @@
           Click “Upload”.
         </li>
       </ol>
+      Please make sure you <strong>save any updates to the metadata and the cover letter to avoid losing their content</strong>.
     {% endblocktranslate %}
+  {% endif %}
     {% if revision_request.editor_note %}
       <h6>{% translate "Editor report" %}
       </h6>

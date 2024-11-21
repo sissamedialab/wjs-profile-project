@@ -13,7 +13,7 @@
       {% include "wjs_review/revision/elements/meta_data.html" %}
     {% endif %}
     {% include "wjs_review/revision/elements/cover_letter.html" %}
-    {% if revision_request.type != "tech_revisions" and not view.confirm_version %}
+    {% if not technical_revision and not view.confirm_version %}
       {% include "wjs_review/revision/elements/revision_files.html" %}
     {% endif %}
     {% include "wjs_review/revision/elements/finishing.html" %}

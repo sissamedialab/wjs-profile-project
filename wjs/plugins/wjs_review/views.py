@@ -2178,6 +2178,7 @@ class UploadRevisionAuthorCoverLetterFile(BaseRelatedViewsMixin, UpdateView):
     pk_url_kwarg = "revision_id"
     template_name = "wjs_review/revision/upload_revision_author_cover_letter_file.html"
     form_class = UploadRevisionAuthorCoverLetterFileForm
+    confirm_version = False
 
     def test_func(self):
         """User must be corresponding author of the article."""
@@ -2207,6 +2208,10 @@ class UploadRevisionAuthorCoverLetterFile(BaseRelatedViewsMixin, UpdateView):
 
     def get_success_url(self):
         """Redirect to the article details page."""
+        if self.confirm_version:
+            return reverse(
+                "confirm_version", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk}
+            )
         return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
 
 
@@ -2223,16 +2228,11 @@ class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
     def title(self):
         if self.file_type == "manuscript":
             if self.original_file:
-                return _("Replace preprint")
-            return _("Upload preprint")
-        # FIXME: Cover letter management not yet implemented
-        if self.file_type == "cover_letter":
-            if self.original_file:
-                return _("Replace cover letter")
-            return _("Upload cover letter")
+                return _("Replace manuscript")
+            return _("Upload manuscript")
         if self.original_file:
-            return _("Replace supplementary material")
-        return _("Upload supplementary material")
+            return _("Replace data and figure file")
+        return _("Upload data and figure file")
 
     def test_func(self):
         """User must be corresponding author of the article."""
@@ -2245,6 +2245,16 @@ class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
             pk=self.kwargs[self.pk_url_kwarg],
             article__correspondence_author=self.request.user,
         ).exists()
+
+    def get_initial(self):
+        initial = super().get_initial()
+        if self.file_type == "manuscript":
+            initial["label"] = self.request.journal.submissionconfiguration.submission_file_text
+        else:
+            initial["label"] = get_setting(
+                "styling", "submission_figures_data_title", self.request.journal
+            ).process_value()
+        return initial
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -2434,26 +2444,22 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         save_metadata = bool(self.request.POST.get("save_metadata"))
-        save_metadata_draft = bool(self.request.POST.get("save_metadata_draft"))
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["save_cover_letter"] = bool(self.request.POST.get("save_cover_letter"))
-        kwargs["confirm_previous_version"] = bool(self.request.POST.get("confirm_previous_version"))
         # when saving metadata form main view form must not be instantiated as submitted
         # so we remove data / files to skip form instantiation and validation
-        if save_metadata or save_metadata_draft:
+        if save_metadata:
             del kwargs["data"]
             del kwargs["files"]
         if kwargs.get("data"):
             d = kwargs["data"].copy()
-            # when finishing the revision, we need to set author note / confirm_previous_version data because
-            # author note / confirm_previous_version and finishing form
+            # when finishing the revision, we need to set author note data because
+            # author note and finishing form
             # are in the same django form but split in two different HTML forms due to the page layout
             if not kwargs["save_cover_letter"]:
                 d["author_note"] = self.object.author_note
-            if not kwargs["confirm_previous_version"]:
-                d["confirm_previous_version"] = self.object.confirm_previous_version
             kwargs["data"] = d
         return kwargs
 
@@ -2461,12 +2467,9 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         """
         Generate a MetadataForm class for the article.
 
-        Unless we are saving draft data, the form is generated for :py:class:`Article`, otherwise for
-        :py:class:`EditorRevisionRequest`.
+        Form stores data in :py:class:`EditorRevisionRequest`.
         """
-        if bool(self.request.POST.get("save_metadata_draft")):
-            return model_forms.modelform_factory(EditorRevisionRequest, fields=self.meta_data_fields)
-        return model_forms.modelform_factory(Article, fields=self.meta_data_fields)
+        return model_forms.modelform_factory(EditorRevisionRequest, fields=self.meta_data_fields)
 
     def _get_metadata_form(self) -> Optional[model_forms.BaseModelForm]:
         """
@@ -2477,10 +2480,6 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         form_class = self._get_metadata_form_class()
 
         if self.request.POST.get("save_metadata"):
-            meta_data_form = form_class(self.request.POST, instance=self.object.article)
-            meta_data_form.is_valid()
-            return meta_data_form
-        elif self.request.POST.get("save_metadata_draft"):
             meta_data_form = form_class(self.request.POST, instance=self.object)
             meta_data_form.is_valid()
             return meta_data_form
@@ -2516,12 +2515,8 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         meta_data_form = self._get_metadata_form()
         meta_data_save = False
         if meta_data_form and meta_data_form.is_valid():
-            if self.request.POST.get("save_metadata"):
-                self.object.article = meta_data_form.save()
-                meta_data_save = True
-            elif self.request.POST.get("save_metadata_draft"):
-                meta_data_form.save()
-                meta_data_save = True
+            meta_data_form.save()
+            meta_data_save = True
         if not meta_data_save:
             self.object = form.save()
         return self.render_to_response(self.get_context_data(form=form))
@@ -2545,6 +2540,7 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         context["revision"] = self._get_revisions()[0]
         context["meta_data_form"] = self._get_metadata_form()
         context["save_metadata"] = bool(self.request.POST.get("save_metadata"))
+        context["technical_revision"] = self.object.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION
         return context
 
 

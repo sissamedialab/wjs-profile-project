@@ -182,6 +182,11 @@ urlpatterns = [
         name="wjs_upload_cover_letter_file",
     ),
     path(
+        "article/<int:article_id>/revision/<int:revision_id>/upload-cover/confirm/",
+        UploadRevisionAuthorCoverLetterFile.as_view(confirm_version=True),
+        name="wjs_upload_cover_letter_file_confirm",
+    ),
+    path(
         "article/<int:article_id>/revision/<int:revision_id>/upload/<str:file_type>/",
         UploadRevisionFile.as_view(),
         name="wjs_upload_article_file",

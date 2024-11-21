@@ -775,8 +775,6 @@ class UploadArticleForm(forms.Form):
         label = self.cleaned_data["label"]
         file_type = self.cleaned_data["file_type"]
         article = self.instance.article
-        if self.original_file:
-            self.original_file.delete()
         if file_type in ["manuscript", "data"]:
             new_file = files.save_file_to_article(
                 uploaded_file,
@@ -785,8 +783,16 @@ class UploadArticleForm(forms.Form):
                 label=label,
             )
             if file_type == "manuscript":
+                if self.original_file:
+                    # unlink the original file from manytomany, file object is not modified as it might be referenced
+                    # elsewhere
+                    article.manuscript_files.remove(self.original_file)
                 article.manuscript_files.set([new_file])
             if file_type == "data":
+                if self.original_file:
+                    # unlink the original file from manytomany, file object is not modified as it might be referenced
+                    # elsewhere
+                    article.data_figure_files.remove(self.original_file)
                 article.data_figure_files.add(new_file)
             self.new_file = new_file
         else:
@@ -803,6 +809,7 @@ class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
 
 
 class BaseEditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
+    author_note = WjsMiniHTMLFormField(label=_("Author notes"), required=True)
 
     class Meta:
         model = EditorRevisionRequest
@@ -887,11 +894,14 @@ class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
         errors = []
         if not self.cleaned_data.get("confirm_version", False):
             errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
-        if not self.instance.confirm_previous_version:
-            errors.append(_("You must confirm the current version."))
         if not self.instance.author_note and not self.instance.cover_letter_file:
             errors.append(_("You must provide a cover letter."))
         return errors
+
+    def finish(self) -> EditorRevisionRequest:
+        self.instance.confirm_previous_version = True
+        self.instance.save()
+        return super().finish()
 
 
 class EditorRevisionRequestEditForm(BaseEditorRevisionRequestEditForm):
@@ -941,6 +951,8 @@ class EditorRevisionRequestEditForm(BaseEditorRevisionRequestEditForm):
             errors.append(_("You must confirm that the cover letter lists and describes the changes."))
         if not self.instance.author_note and not self.instance.cover_letter_file:
             errors.append(_("You must provide a cover letter."))
+        if not self.instance.article.manuscript_files.exists() or not self.instance.has_changed_manuscript_files:
+            errors.append(_("You must provide a manuscript."))
         return errors
 
 
