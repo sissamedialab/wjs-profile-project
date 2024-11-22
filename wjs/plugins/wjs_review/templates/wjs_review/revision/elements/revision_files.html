@@ -36,7 +36,8 @@
           {% else %}
             {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.manuscript_files.none file_type="manuscript" enable_upload=False enable_delete=True %}
           {% endif %}
-          {% if revision_request.author_note %}
+          {# Uploading files is enabled only if cover letter is provided, either as file or text #}
+          {% if revision_request.author_note or revision_request.cover_letter_file %}
             {% bootstrap_button button_class="btn-secondary" content=manuscript_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_url hx_target="#htmxModalContent" %}
           {% else %}
             {% bootstrap_button button_class="btn-secondary" disabled=1 content=manuscript_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_url hx_target="#htmxModalContent" %}
@@ -45,7 +46,8 @@
         <div class="mb-3">
           <h6 class="card-title"><b>{% translate "Data and figure files" %}</b></h6>
           {% include "wjs_review/revision/elements/update_versions_files.html" with files=article.data_figure_files.all file_type="data" enable_upload=False enable_delete=True %}
-          {% if revision_request.author_note %}
+          {# Uploading files is enabled only if cover letter is provided, either as file or text #}
+          {% if revision_request.author_note or revision_request.cover_letter_file %}
             {% bootstrap_button button_class="btn-secondary" content=supplementary_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_supplementary_url hx_target="#htmxModalContent" %}
           {% else %}
             {% bootstrap_button button_class="btn-secondary" disabled=1 content=supplementary_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_supplementary_url hx_target="#htmxModalContent" %}
