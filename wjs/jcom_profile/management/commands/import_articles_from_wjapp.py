@@ -2052,6 +2052,59 @@ ORDER BY dl.submissionDate
         return author_withdrawn_message
 
 
+class ADMIN_WITHD_DOC(BaseActionManager):  # noqa N801
+    """Admin withdraws paper: wjapp action ADMIN_WITHD_DOC."""
+
+    def run(self):
+        # Admin withdraws paper ex. JCOM_005A_0224
+
+        self.check_editor_set()
+
+        admin_cod = self.action["agentCod"]
+        admin_lastname = self.action["agentLastname"]
+        admin_firstname = self.action["agentFirstname"]
+        admin_email = self.action["agentEmail"]
+        admin_privacy = self.action["agentPrivacy"]
+        admin_withdrawn_date = self.action["actionDate"]
+
+        admin = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            admin_cod,
+            admin_lastname,
+            admin_firstname,
+            admin_email,
+            admin_privacy,
+        )
+
+        if not has_eo_role(admin):
+            eo_group, _ = Group.objects.get_or_create(name=constants.EO_GROUP)
+            logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
+            admin.groups.add(eo_group)
+
+        request = create_fake_request(user=None, journal=self.journal)
+
+        # admin can not withdrawn in wjs
+        request.user = self.article.correspondence_author
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(admin_withdrawn_date),
+        ):
+            logger.debug(f"Admin {admin} withdraws {self.article}")
+
+            # message imported as correspondence because this action is executed by the author, not the admin
+            WithdrawPreprint._log_supervisor = noop
+            WithdrawPreprint._log_typesetter = noop
+            DeselectReviewer._log_operation = noop
+            WithdrawPreprint(
+                workflow=self.article.articleworkflow,
+                request=request,
+                form_data={
+                    "notification_subject": "NOT IMPORTED",
+                    "notification_body": "NOT IMPORTED",
+                },
+            ).run()
+
+
 class ED_REF_DOC(BaseActionManager):  # noqa N801
     """Editor declines assignment: wjapp action ED_REF_DOC."""
 
@@ -2173,8 +2226,7 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
                 "acceptance_due_date": date_due,
                 "message": "VALUE NOT USED",
             }
-            # the automated message is disable
-            AssignToReviewer._log_operation = noop
+            # the automated message is not disabled otherwise the action does not appear in the timeline
             review_assignment = AssignToReviewer(
                 reviewer=reviewer,
                 workflow=self.article.articleworkflow,
@@ -2658,8 +2710,6 @@ ORDER BY dl.submissionDate
             # TBV: not added to imported document layer list because the decline action does not save the message.
             # therefore the import of the message happens with the general correspondence.
 
-            # the automated message is disabled
-            EvaluateReview._log_decline = noop
             EvaluateReview(
                 assignment=review_assignment,
                 reviewer=reviewer,
@@ -2675,13 +2725,33 @@ ORDER BY dl.submissionDate
 class EQ1_REF_REF(ReviewerDeclineAction):  # noqa N801
     """Manages wjapp action EQ1_REF_REF."""
 
+    # automated message disabled
+    EvaluateReview._log_decline = noop
+
 
 class GT1_REF_REF(ReviewerDeclineAction):  # noqa N801
     """Manages wjapp action GT1_REF_REF."""
 
+    # automated message disabled
+    EvaluateReview._log_decline = noop
+
 
 class REF_REF(ReviewerDeclineAction):  # noqa N801
     """Manages wjapp action REF_REF."""
+
+    # automated message disabled
+    EvaluateReview._log_decline = noop
+
+
+class ED_NEED_REF(ReviewerDeclineAction):  # noqa N801
+    """Manages wjapp action "editor needs referee"."""
+
+    # in wjapp this action means that the editor stops to review her/him self
+    # the article and will assign referees (in wjs declines as reviewer)
+
+    # the automated message is not disabled for ED_NEED_REF
+    # otherwise the action does not appear in the timeline
+    # ex. JCOM_004A_0924
 
 
 class REF_ACC(BaseActionManager):  # noqa N801
