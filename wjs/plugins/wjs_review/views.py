@@ -86,6 +86,7 @@ from .forms import (
     SelectReviewerForm,
     SupervisorAssignEditorForm,
     TimelineFilterForm,
+    ToggleDisableRemindersForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
@@ -2589,7 +2590,12 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
         super().load_initial(request, *args, **kwargs)
-        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+        if self.request.resolver_match.url_name == "wjs_article_reminders":
+            self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+            self.assignment = None
+        elif self.request.resolver_match.url_name == "wjs_article_toggle_reminders":
+            self.assignment = get_object_or_404(WorkflowReviewAssignment, pk=self.kwargs["pk"])
+            self.workflow = self.assignment.article.articleworkflow
 
     def test_func(self):
         """Let's show reminders only to EO or director."""
@@ -2621,6 +2627,11 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     def get_queryset(self):
         """Get reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
         qs = super().get_queryset()
+        if self.assignment:
+            return qs.filter(
+                content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
+                object_id=self.assignment.id,
+            ).order_by("-date_due")
         review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).values_list("pk")
         reviewer_reminders = Q(
             content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
@@ -2639,7 +2650,40 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         context = super().get_context_data(**kwargs)
         context["workflow"] = self.workflow
         context["article"] = self.workflow.article
+        reminders = Reminder.objects.filter(id__in=self.get_queryset())
+        eo_forms = {
+            reminder.id: ToggleDisableRemindersForm(instance=reminder, prefix=f"toggle-reminder-{reminder.pk}")
+            for reminder in reminders
+        }
+        context["eo_forms"] = eo_forms
         return context
+
+
+class ToggleDisableReminders(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
+    """A view to let the EO enable/disable reminders."""
+
+    model = Reminder
+    form_class = ToggleDisableRemindersForm
+    template_name = "wjs_review/reminders/elements/eo_toggle_reminder.html"
+    context_object_name = "reminder"
+
+    def test_func(self):
+        """User must be part of the EO."""
+        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+
+    def get_object(self, queryset=None):
+        return get_object_or_404(
+            self.model,
+            pk=self.kwargs["reminder_id"],
+        )
+
+    def form_valid(self, form):
+        """If the form is valid, save the associate model (the flag on the Reminder disabled).
+
+        Then, just return a response with the flag template rendered. I.e. do not redirect anywhere.
+        """
+        self.object = form.save()
+        return self.render_to_response(self.get_context_data(form=form, message=self.object))
 
 
 class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):

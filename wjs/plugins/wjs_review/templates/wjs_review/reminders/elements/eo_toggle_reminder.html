@@ -1,0 +1,18 @@
+{% load django_bootstrap5 %}
+{% url "wjs_eo_toggle_reminder" reminder_id=reminder.pk as toggle_reminder_url %}
+<div id="toggle-reminder-{{ reminder.pk }}">
+  <form name="toggle-reminder-{{ reminder.pk }}" autocomplete="off"
+        hx-target="#toggle-reminder-{{ reminder.pk }}"
+        hx-post="{{ toggle_reminder_url }}"
+        hx-trigger="click"
+        hx-swap="outerHTML">
+
+    <div class="form-group">
+      {% if reminder.disabled %}
+        {% bootstrap_button type="submit" button_class="btn btn-danger" content="Disabled" %}
+      {% else %}
+        {% bootstrap_button type="submit" button_class="btn btn-success" content="Enabled" %}
+      {% endif %}
+    </div>
+  </form>
+</div>

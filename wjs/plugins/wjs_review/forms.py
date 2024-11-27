@@ -61,6 +61,7 @@ from .models import (
     MessageThread,
     PastEditorAssignment,
     ProphyAccount,
+    Reminder,
     WjsEditorAssignment,
     WjsMiniHTMLFormField,
     WorkflowReviewAssignment,
@@ -1828,3 +1829,14 @@ class EditorDeclinesAssignmentForm(forms.Form):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class ToggleDisableRemindersForm(forms.ModelForm):
+    class Meta:
+        model = Reminder
+        fields = ["disabled"]
+
+    def save(self, commit=True):
+        self.instance.refresh_from_db()
+        self.instance.disabled = not self.instance.disabled
+        return super().save(commit=commit)
