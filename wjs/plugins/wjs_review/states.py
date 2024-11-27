@@ -617,7 +617,7 @@ class EditorSelected(BaseState):
             condition=conditions.review_not_done,
             name="disable reminders",
             label="Disable reminders",
-            view_name="WRITEME!",
+            view_name="wjs_article_toggle_reminders",
         ),
         ReviewAssignmentAction(
             permission=permissions.is_article_pure_editor_or_eo,
