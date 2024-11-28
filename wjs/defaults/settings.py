@@ -337,11 +337,11 @@ WJS_ARTICLE_LANGUAGES = {
         ),
         ("deu", _("German")),
         ("fra", _("French")),
-        ("esp", _("Spanish")),
+        ("spa", _("Spanish")),
         ("por", _("Portuguese")),
         ("ita", _("Italian")),
     ],
-    "JCOMAL": [("esp", _("Spanish")), ("por", _("Portuguese"))],
+    "JCOMAL": [("spa", _("Spanish")), ("por", _("Portuguese"))],
 }
 
 WJS_ARTICLE_KEYWORDS_LIMITS = {

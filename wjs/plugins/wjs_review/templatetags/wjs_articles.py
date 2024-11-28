@@ -28,6 +28,7 @@ from ..models import (
     EditorRevisionRequest,
     Message,
     WjsEditorAssignment,
+    WjsSection,
     WorkflowReviewAssignment,
 )
 
@@ -266,3 +267,11 @@ def get_ordered_articles(issue: Issue) -> QuerySet[Article]:
         order=ArticleOrdering.objects.filter(issue=issue, article=OuterRef("pk")).values_list("order", flat=True)
     )
     return q.order_by("-date_published", "order")
+
+
+@register.inclusion_tag("wjs_review/templatetags/sections_info.html", takes_context=True)
+def wjs_section_information(context, default_section=None):
+    """Return the section information."""
+    request = context["request"]
+    sections = WjsSection.objects.filter(journal=request.journal)
+    return {"sections": sections, "default_section": int(default_section) if default_section else 0}

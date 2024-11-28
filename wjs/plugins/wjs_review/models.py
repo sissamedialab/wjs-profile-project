@@ -2047,3 +2047,7 @@ class WjsSection(Section):
     section = models.OneToOneField(Section, on_delete=models.CASCADE, primary_key=True, parent_link=True)
     doi_sectioncode = models.CharField(max_length=2, null=True, blank=True)
     pubid_and_tex_sectioncode = models.CharField(max_length=1, null=True, blank=True)
+    description = JanewayBleachField(blank=True, default="")
+
+    class Meta:
+        verbose_name = _("WJS Section")

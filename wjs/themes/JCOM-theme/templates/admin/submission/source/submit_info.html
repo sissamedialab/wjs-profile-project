@@ -3,6 +3,7 @@
 {% load static %}
 {% load foundation %}
 {% load i18n %}
+{% load wjs_articles %}
 
 {% block title-section %}{% trans "Article Info" %}{% endblock %}
 {% block css %}
@@ -59,7 +60,7 @@
                             </div>
                         {% endif %}
 
-                        <div class="large-{{ request.journal.submissionconfiguration.lang_section_license_width }} columns end">
+                        <div class="large-{{ request.journal.submissionconfiguration.lang_section_license_width }} columns">
                             {{ form.section|foundation }}
                         </div>
 
@@ -71,8 +72,9 @@
                         {% endif %}
 
 
+                        <div class="clearfix"></div>
                         {% if request.journal.submissionconfiguration.keywords %}
-                            <div class="large-12 columns">
+                            <div class="large-6 columns">
                                 <div class="row expanded">
                                     <div class="large-12 columns">
                                         <label for="id_keywords">{% trans 'Keywords' %}</label>
@@ -89,6 +91,9 @@
                                 </div>
                             </div>
                         {% endif %}
+                        <div class="large-6 columns end">
+                            {% wjs_section_information form.data.section %}
+                        </div>
                     </div>
 
                     <div class="clearfix"></div>

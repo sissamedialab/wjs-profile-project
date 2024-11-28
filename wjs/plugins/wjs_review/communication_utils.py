@@ -332,6 +332,10 @@ def group_messages_by_version(
         **{tr.date_created: tr for tr in typesetting_rounds},
         **{rr.date_started: rr for rr in review_rounds},
     }
+    # when a paper is newly submitted and there is no review-round yet, we return an "unset" version
+    # (the template knows how to process this)
+    if not cutoff_dates:
+        return {"unset": list(messages)}
     # Prepare a data structure to accomodate messages grouped by review-date
     timeline = {cutoff_dates[d]: [] for d in list(cutoff_dates.keys())}
 
