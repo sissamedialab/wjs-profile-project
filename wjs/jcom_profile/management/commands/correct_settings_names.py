@@ -604,6 +604,63 @@ You can check the output in the last step of the submission process and come bac
         """,
         )
 
+        update_setting_default("subject_password_reset", "email_subject", "Password reset request")
+        update_setting_default(
+            "password_reset",
+            "email",
+            """<p>Dear {{ reset_token.account.full_name }},
+<br>
+<br>
+Someone (probably you) has requested to reset your password in {{ request.journal.code }}.
+<br>
+<br>
+You can reset your password at the following link:</p>
+<p>{{ core_reset_password_url }}</p>
+<p>In case you did not make this request, please just ignore this message.</p>
+""",
+        )
+        update_setting_default(
+            "new_user_registration",
+            "email",
+            """<p>Dear {{ user.full_name }},
+<br>
+<br>
+Thank you for registering to {{ request.journal.name }}.
+You can confirm your account at the following link:
+</p>
+<p>{{ core_confirm_account_url }}</p>
+""",
+        )
+        update_setting_default("subject_new_user_registration", "email_subject", "New Registration")
+        # For "user_email_change" we keep the default.
+        update_setting_default("subject_user_email_change", "email_subject", "Email Change Notification")
+
+        update_setting_default("reader_publication_notification", "email", "NOT USED IN WJS")
+        update_setting_default("subject_reader_publication_notification", "email_subject", "NOT USED IN WJS")
+        # For "bounced_email_notification" (and subject) we keep the defaults.
+        update_setting_default(
+            "author_publication",
+            "email",
+            """<p>Dear {{ article.correspondence_author.full_name }},
+<br>
+<br>
+We are pleased to inform you that your manuscript,
+"{{ article.safe_title }}",
+is set for publication on {{ article.date_published|date:'Y-m-d' }}.
+</p>
+<p>You may want to consider one or more of the following in order to promote your research:</p>
+<ul>
+<li>Email a link to your paper to colleagues</li>
+<li>Write a blog post about your paper</li>
+<li>Upload it to your institutional repository or a subject repository.</li>
+<li>Add to Wikipedia
+<a href="https://en.wikipedia.org/wiki/Wikipedia:Research_help/Scholars_and_experts">where appropriate</a></li>
+</ul>
+<p>Regards,
+""",
+        )
+        update_setting_default("subject_author_publication", "email_subject", "Publication")
+
 
 def update_setting_default(name, group, value, description=None):
     """Patch a setting's default value."""
