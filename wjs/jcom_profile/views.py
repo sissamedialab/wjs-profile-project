@@ -1156,10 +1156,14 @@ class AuthorSearchView(HtmxMixin, LoginRequiredMixin, ListView):
         qs = super().get_queryset()
         search_text = self.request.GET.get("author_search_text", "")
         if search_text:
+            search_text = search_text.strip()
+            orcid_search = search_text if search_text.startswith("http") else f"https://orcid.org/{search_text}"
+
             qs = qs.filter(
                 Q(first_name__icontains=search_text)
                 | Q(last_name__icontains=search_text)
                 | Q(email__icontains=search_text)
+                | Q(orcid=orcid_search)
                 | Q(orcid=search_text)
             )
         else:

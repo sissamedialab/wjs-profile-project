@@ -1,10 +1,15 @@
 {% load django_bootstrap5 i18n wjs_review %}
 <div id="timeline" class="card border border-1">
   <h5 class="card-header fw-bolder">{% translate "Timeline" %}</h5>
-  <div class="card-body">
+  <div class="card-body">{% if not timeline_messages.unset %}
+    {% comment %}
+    	if timeline_messages.unset is defined, it means we have not started a ReviewAssignment yet
+      so we don't need to display the filter by type (because we likely have 1 message or a handful at most
+    {% endcomment %}
     <div class="mb-2 text-end">
       {% include "wjs_review/details/elements/filter_by_type.html" %}
     </div>
+  {% endif %}
     <div class="accordion" id="timeline-accordion">
       {% for version, messages in timeline_messages.items %}
         {% include "wjs_review/details/elements/timeline_version.html" with version=version messages=messages %}

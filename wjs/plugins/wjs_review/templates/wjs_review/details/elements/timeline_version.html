@@ -1,25 +1,48 @@
 {% load django_bootstrap5 wjs_review %}
 {% if messages %}
-  {% is_current_version workflow=workflow version=version as is_current %}
-  <div class="accordion-item">
-    <h2 class="accordion-header" id="timeline-{{ version.pk }}">
-      <button class="accordion-button{% if not is_current %} collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-timeline-{{ version.pk }}" aria-expanded="{% if is_current %}true{% else %}false{% endif %}" aria-controls="collapse-timeline-{{ version.pk }}">
-      {# Here "version" can refer either to a ReviewRound or a TypesettingRound; the first has "date_started", the second has "date_created" #}
-      {% if version.date_started %}
-        {% translate "Version" %} {{ version.round_number }}
-      {% else %}
-        {% translate "Production Version" %} {{ version.round_number }}
-      {% endif %}
-      </button>
-    </h2>
-    <div id="collapse-timeline-{{ version.pk }}" class="accordion-collapse collapse{% if is_current %} show{% endif %}" aria-labelledby="heading-{{ version.pk }}">
-      <div class="accordion-body d-flex flex-column gap-4">
-      <div class="d-flex flex-column gap-2">
-        {% for message in messages %}
-          {% include "wjs_review/details/elements/timeline_message.html" %}
-        {% endfor %}
-      </div>
+  {% if version == "unset" %}
+    {% comment %}
+      If version is set to unset (e.g. in the case of a new submission), we default to the first version (check else clause below), else
+      "version" is a ReviewRound or a TypesettingRound; the first has "date_started", the second has "date_created"
+    {% endcomment %}
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="timeline-1">
+        <button class="accordion-button" type="button">
+          {% translate "Version" %} 1
+        </button>
+      </h2>
+      <div class="accordion-collapse collapse show" aria-labelledby="timeline-1">
+        <div class="accordion-body d-flex flex-column gap-4">
+          <div class="d-flex flex-column gap-2">
+            {% for message in messages %}
+              {% include "wjs_review/details/elements/timeline_message.html" %}
+            {% endfor %}
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+    {% else %}
+    {% is_current_version workflow=workflow version=version as is_current %}
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="timeline-{{ version.pk }}">
+        <button class="accordion-button{% if not is_current %} collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-timeline-{{ version.pk }}"
+                aria-expanded="{% if is_current %}true{% else %}false{% endif %}" aria-controls="collapse-timeline-{{ version.pk }}">
+          {% if version.date_started %}
+            {% translate "Version" %} {{ version.round_number }}
+          {% else %}
+            {% translate "Production Version" %} {{ version.round_number }}
+          {% endif %}
+        </button>
+      </h2>
+      <div id="collapse-timeline-{{ version.pk }}" class="accordion-collapse collapse{% if is_current %} show{% endif %}" aria-labelledby="timeline-{{ version.pk }}">
+        <div class="accordion-body d-flex flex-column gap-4">
+          <div class="d-flex flex-column gap-2">
+            {% for message in messages %}
+              {% include "wjs_review/details/elements/timeline_message.html" %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 {% endif %}
