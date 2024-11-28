@@ -34,7 +34,7 @@
             <strong>{% trans "Current Email Address" %}:</strong> {{ request.user.email }}
           </p>
           {{ form.email|materializecss }}
-          <button type="submit" name="email" class="btn btn-warning">
+          <button type="submit" name="change_email" class="btn btn-warning">
             {% trans "Update Email Address" %}
           </button>
         </form>
