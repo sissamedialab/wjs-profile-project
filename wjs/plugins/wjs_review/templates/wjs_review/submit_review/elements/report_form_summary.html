@@ -60,7 +60,7 @@
        <tr>
        <th class="ps-4">{% translate "Files" %}</th>
           <td>
-          {% include "wjs_review/make_decision/elements/author_file_download.html" %}
+          {% include "wjs_review/make_decision/elements/author_file_download.html" with review=assignment %}
           </td>
       </tr>
     {% endif %}
