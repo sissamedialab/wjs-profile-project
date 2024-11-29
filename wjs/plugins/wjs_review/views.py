@@ -1687,7 +1687,7 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     All messages of a certain user that are related to an article.
     """
 
-    title = _("Messages")
+    title = _("Messages and notes")
     model = Message
     template_name = "wjs_review/article_messages/article_messages.html"
     context_object_name = "messages_list"
@@ -1726,7 +1726,7 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
                 url=reverse("wjs_article_details", kwargs={"pk": self.article.articleworkflow.pk}),
                 title=str(self.article.articleworkflow),
             ),
-            BreadcrumbItem(url=self.request.path, title=_("Messages"), current=True),
+            BreadcrumbItem(url=self.request.path, title=_("Messages and notes"), current=True),
         ]
 
     def get_queryset(self):
@@ -1884,7 +1884,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
                 ),
                 BreadcrumbItem(
                     url=reverse("wjs_article_messages", kwargs={"pk": self.article.articleworkflow.pk}),
-                    title=_("Messages"),
+                    title=_("Messages and notes"),
                 ),
                 BreadcrumbItem(url=self.request.path, title=self.title, current=True),
             ]
@@ -3009,7 +3009,7 @@ class ForwardMessage(BaseRelatedViewsMixin, CreateView):
             ),
             BreadcrumbItem(
                 url=reverse("wjs_article_messages", kwargs={"pk": self.workflow.pk}),
-                title=_("Messages"),
+                title=_("Messages and notes"),
             ),
             BreadcrumbItem(url=self.request.path, title=self.title, current=True),
         ]
