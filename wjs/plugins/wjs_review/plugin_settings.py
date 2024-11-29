@@ -90,10 +90,10 @@ def set_default_plugin_settings(force: bool = False):
 
     def acceptance_due_date() -> tuple[SettingValue, ...]:
         acceptance_days_setting: SettingParams = {
-            "name": "acceptance_due_date_days",
+            "name": "default_review_acceptance_days",
             "group": wjs_review_settings_group,
             "types": "number",
-            "pretty_name": _("Default acceptance due date timeframe"),
+            "pretty_name": _("Default number of days for review invite acceptance"),
             "description": _(
                 "Default number of days from current date to set acceptance_due_date.",
             ),
@@ -592,10 +592,6 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             setting_3_p["name"],
             force=force,
         )
-        setting_4 = patch_setting(
-            PatchSettingParams(name="default_review_days", group=general_group),
-            PatchSettingValueParams(journal=None, value=21, translations={}),
-        )
         default_editor_assign_reviewer_days_setting: SettingParams = {
             "name": "default_editor_assign_reviewer_days",
             "group": wjs_review_settings_group,
@@ -776,32 +772,8 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             default_author_appeal_revision_days_setting["name"],
             force=force,
         )
-        # refs 1159
-        default_review_report_days_setting: SettingParams = {
-            "name": "default_review_report_days",
-            "group": wjs_review_settings_group,
-            "types": "number",
-            "pretty_name": _("Default number of days for the review report"),
-            "description": _(
-                """The default number of days for reviewer to submit the review report. Don't confuse with "default review days" which see.""",
-            ),
-            "is_translatable": False,
-        }
-        default_review_report_days_setting_value: SettingValueParams = {
-            "journal": None,
-            "setting": None,
-            "value": 21,
-            "translations": {},
-        }
-        setting_13 = create_customization_setting(
-            default_review_report_days_setting,
-            default_review_report_days_setting_value,
-            default_review_report_days_setting["name"],
-            force=force,
-        )
         return (
             setting_3,
-            setting_4,
             setting_5,
             setting_6,
             setting_7,
@@ -810,7 +782,6 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             setting_10,
             setting_11,
             setting_12,
-            setting_13,
         )
 
     def author_can_contact_director() -> tuple[SettingValue, ...]:

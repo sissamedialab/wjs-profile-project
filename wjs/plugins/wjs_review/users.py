@@ -100,6 +100,10 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
     qs = qs.annotate_is_prophy_candidate(workflow.article)
     qs = qs.annotate_is_only_prophy()
 
+    # stats-like info
+    qs = qs.annotate_count_reviewer_pending_reviews()
+    qs = qs.annotate_count_reviewed_papers_in_timeframe(datetime.timedelta(days=365))
+
     if user_type := search_data.get("user_type"):
         if user_type == "known":
             qs = qs.annotate_worked_with_me(current_editor)
@@ -369,4 +373,68 @@ def annotate_ordering_score(self, current_editor: Account) -> QuerySet[Account]:
             default=Value(0),
             output_field=IntegerField(),
         )
+    )
+
+
+def annotate_count_reviewer_pending_reviews(self) -> QuerySet[Account]:
+    """Count the number of pending review assignments that the user has."""
+    # Adapted from https://djangocentral.com/how-to-use-subquery-in-django/
+    # but see also annotate_final_reviews_in_timeframe() for an alternative that might be faster.
+    _pending_count = Subquery(
+        WorkflowReviewAssignment.objects.pending()
+        .filter(reviewer_id=OuterRef("id"))
+        .values("reviewer")  # group WRA by reviewer
+        .annotate(count=Count("reviewer"))
+        .values("count")
+    )
+    return self.annotate(
+        count_reviewer_pending_reviews=_pending_count,
+    )
+
+
+def annotate_count_reviewer_completed_reviews_in_timeframe(self, timeframe: datetime.timedelta) -> QuerySet[Account]:
+    """Count the number of completed review assignments that the user did in the given timeframe."""
+    # Not used as of Nov.2024, but keeping as ti might be useful in the future.
+    # Adapted from https://djangocentral.com/how-to-use-subquery-in-django/
+    _count = Subquery(
+        WorkflowReviewAssignment.objects.completed()
+        .filter(
+            reviewer_id=OuterRef("id"),
+            date_complete__gte=now() - timeframe,
+        )
+        .values("reviewer")  # group WRA by reviewer
+        .annotate(count=Count("reviewer"))
+        .values("count")
+    )
+    return self.annotate(
+        count_reviewer_completed_reviews_in_timeframe=_count,
+    )
+
+
+def annotate_count_reviewed_papers_in_timeframe(self, timeframe: datetime.timedelta) -> QuerySet[Account]:
+    """Count the number of papers with completed review assignments that the user saw in the given timeframe.
+
+    I.e., if the reviewer saw 2 papers, but did 3 reviews (2 for one paper and 1 for the other one),
+    the number will be "2".
+
+    """
+    # Adapted from https://djangocentral.com/how-to-use-subquery-in-django/
+    _seen_articles = Subquery(
+        Article.objects.filter(
+            reviewassignment__reviewer_id=OuterRef("id"),
+            reviewassignment__is_complete=True,
+        )
+        .exclude(
+            Q(reviewassignment__date_declined__isnull=False) | Q(reviewassignment__decision="withdrawn"),
+        )
+        .order_by()  # must drop Article's default ordering or we get extra grouping
+        .values("reviewassignment__reviewer_id")  # group by reviewer, in order to get only one group
+        # count the distinct articles
+        # (note that annotate() + distinct(fields) is not implemented)
+        .annotate(count=Count("id", distinct=True))
+        .values("count")
+    )
+
+    return self.annotate(
+        count_reviewed_papers_in_timeframe=_seen_articles,
     )

@@ -1,6 +1,6 @@
 {% load django_bootstrap5 i18n static %}
 {% translate "Close" as close_label %}
-{% translate "Assign" as assign_label %}
+{% translate "Select" as select_label %}
 {% url "wjs_article_details" workflow.pk as article_details %}
 <div class="modal-header">
   <h5 class="modal-title" id="htmxModalLabel">{% translate "Select a Reviewer" %}</h5>
@@ -12,7 +12,7 @@
     <script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
     <script>
       document.addEventListener("htmx:configRequest", function(event) {
-        if(["preview-btn-select", "update-btn-select", "assign-editor"].indexOf(event.target.id) > -1) {
+        if(["preview-btn-select", "update-btn-select", "assign-reviewer"].indexOf(event.target.id) > -1) {
           bindTinymce(event, "message");
         }
       });
@@ -25,9 +25,9 @@
     {% bootstrap_form form %}
     {% include "wjs_review/select_reviewer/elements/author_note.html" %}
     <div class="d-flex justify-content-between mt-3">
-      {% bootstrap_button button_type="button" id="preview-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#messagePreviewCollapse" aria_expanded="false" aria_controls="messagePreviewCollapse" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" %}
+      {% bootstrap_button button_type="button" id="preview-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Preview" data_bs_toggle="collapse" data_bs_target="#messagePreviewCollapse" aria_expanded="false" aria_controls="messagePreviewCollapse" %}
       {% bootstrap_button button_type="button" id="update-btn-select" name="assign-reviewer-message" value="1" button_class="btn-outline-secondary" hx_post=wjs_select_reviewer hx_target="#reviewer-message-preview" hx_swap="outerHTML" content="Update Preview" style="display:none;" %}
-      {% bootstrap_button button_type="submit" id="assign-editor" content=assign_label %}
+      {% bootstrap_button button_type="submit" id="assign-reviewer" content=select_label %}
     </div>
     <div class="collapse mt-3" id="messagePreviewCollapse">
       {% include "wjs_review/select_reviewer/elements/select_reviewer_message_preview.html" %}

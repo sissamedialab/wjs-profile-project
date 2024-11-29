@@ -1,9 +1,14 @@
 import pytest
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Max
+from django.utils import timezone
+from plugins.wjs_review.models import WorkflowReviewAssignment
 from submission.models import Article
 
 from ..models import ArticleWorkflow, Message
+
+Account = get_user_model()
 
 
 @pytest.mark.django_db
@@ -101,3 +106,87 @@ def test_with_unread_messages(create_set_of_articles_with_assignments, normal_us
     eo_message.messagerecipients_set.create(recipient=eo_user, read=True)
     unread_by_eo = ArticleWorkflow.objects.with_unread_messages(user=eo_user)
     assert unread_by_eo
+
+
+@pytest.mark.django_db
+def test_count_reviewer_completed_reviews(journal, article_factory, account_factory):
+    """Test that the manager counts correctly."""
+
+    a1 = article_factory(journal=journal)
+    a2 = article_factory(journal=journal)
+    assert a1.title != a2.title
+
+    r1 = account_factory()
+    r2 = account_factory()
+    assert r1.first_name != r2.first_name
+
+    _now = timezone.now()
+    a1_r1_1 = WorkflowReviewAssignment.objects.create(
+        article=a1,
+        reviewer=r1,
+        is_complete=True,
+        date_due=_now,
+        date_complete=_now,
+    )
+    assert WorkflowReviewAssignment.objects.completed().get() == a1_r1_1
+    a1_r1_2 = WorkflowReviewAssignment.objects.create(
+        article=a1,
+        reviewer=r1,
+        is_complete=True,
+        date_due=_now,
+        date_complete=_now,
+    )
+    assert WorkflowReviewAssignment.objects.completed().count() == 2
+    assert WorkflowReviewAssignment.objects.completed().order_by("-id").first() == a1_r1_2
+
+    a2_r1_1 = WorkflowReviewAssignment.objects.create(
+        article=a2,
+        reviewer=r1,
+        is_complete=True,
+        date_due=_now,
+        date_complete=_now,
+    )
+    assert WorkflowReviewAssignment.objects.completed().filter(article=a2).get() == a2_r1_1
+
+    # The assignment of the second reviewer is here only to enrich our DB
+    WorkflowReviewAssignment.objects.create(
+        article=a1,
+        reviewer=r2,  # ⇦
+        is_complete=True,
+        date_due=_now,
+        date_complete=_now,
+    )
+
+    # sanity check
+    assert (
+        WorkflowReviewAssignment.objects.filter(
+            reviewer=r1,
+        )
+        .completed()
+        .count()
+        == 3
+    )
+
+    # ⋆
+    qs = Account.objects.filter(
+        pk=r1.id,
+    ).annotate_count_reviewed_papers_in_timeframe(
+        timezone.timedelta(days=1),
+    )
+    assert qs.get().count_reviewed_papers_in_timeframe == 2
+
+    # let's also check r2, since it's easy
+    assert (
+        WorkflowReviewAssignment.objects.filter(
+            reviewer=r2,
+        )
+        .completed()
+        .count()
+        == 1
+    )
+    qs = Account.objects.filter(
+        pk=r2.id,
+    ).annotate_count_reviewed_papers_in_timeframe(
+        timezone.timedelta(days=1),
+    )
+    assert qs.get().count_reviewed_papers_in_timeframe == 1

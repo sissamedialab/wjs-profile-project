@@ -7,7 +7,7 @@
 {% url "wjs_select_reviewer" workflow.pk as search_reviewer %}
 {% url "wjs_invite_reviewer" workflow.pk as invite_reviewer %}
 {% url "wjs_message_write" pk=workflow.pk recipient_id=eo_user.pk as contact_eo %}
-<div class="mb-3">
+<div class="mb-3" id="select-reviewer-table">
   <div class="card">
     <div class="card-body">
       <form name="search-reviewer-form" hx-get="{{ search_reviewer }}" hx-trigger="submit" hx-target="#select-reviewer-table">
@@ -16,8 +16,8 @@
           <div class="d-flex gap-2 align-items-start">
             {% bootstrap_field search_form.search show_label=False %}
             {% bootstrap_field search_form.user_type show_label=False %}
-            {% bootstrap_button button_type=link button_class="btn-outline-secondary" href=request.path content=reset_label %}
             {% bootstrap_button button_type="submit" content=search_label %}
+            {% bootstrap_button button_type=link button_class="btn-outline-secondary" href=request.path content=reset_label %}
           </div>
       <a class="btn btn-warning" target="_blank" href="{{ contact_eo }}">{% translate "Contact EO to update reviewer email" %}</a>
 
@@ -33,6 +33,8 @@
           <th scope="col" class="col-4">{% translate "Email" %}</th>
           <!-- djlint:on -->
           <th scope="col" class="col-2" title="{% translate "Past | prophy | notes | declined-or-removed |" %}">{% translate "Flags" %}</th>
+          <th scope="col" class="col-1" title="{% translate "Number of reviews that this person is currently working on, i.e. assigned but not completed." %}">{% translate "Pending reviews" %}</th>
+          <th scope="col" class="col-1" title="{% translate "Number of papers that this person has reviewed (wrote a report for) at least once, in the last year." %}">{% translate "Completed reviews" %}</th>
           <th scope="col" class="col-3" title="{% translate "Gray out if already-assigned | author-of-paper | disabled" %}">{% translate "Action" %}</th>
         </tr>
         </thead>

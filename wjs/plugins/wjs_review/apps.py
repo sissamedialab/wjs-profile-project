@@ -14,8 +14,9 @@ class WjsReviewConfig(AppConfig):
         from . import signals, users  # noqa: F401
 
         # Monkeypatch AccountQuerySet / AccountManager to add custom method
-        # We have to both classes because to be able to use the function both as Account.objects.filter_reviewers()
-        # and Account.objects.all().filter_reviewers()
+        # We have to do both classes to be able to use the function both as
+        # - Account.objects.filter_reviewers() and
+        # - Account.objects.all().filter_reviewers()  # noqa
         AccountManager.filter_reviewers = users.filter_reviewers
         AccountManager.get_reviewers_choices = users.get_reviewers_choices
         AccountManager.get_editors_with_keywords = users.get_editors_with_keywords
@@ -23,6 +24,8 @@ class WjsReviewConfig(AppConfig):
         AccountManager.annotate_is_author = users.annotate_is_author
         AccountManager.annotate_is_active_reviewer = users.annotate_is_active_reviewer
         AccountManager.annotate_is_last_round_reviewer = users.annotate_is_last_round_reviewer
+        AccountManager.annotate_count_reviewer_pending_reviews = users.annotate_count_reviewer_pending_reviews
+        AccountManager.annotate_count_reviewed_papers_in_timeframe = users.annotate_count_reviewed_papers_in_timeframe
 
         AccountQuerySet.filter_reviewers = users.filter_reviewers
         AccountQuerySet.get_reviewers_choices = users.get_reviewers_choices
@@ -33,6 +36,8 @@ class WjsReviewConfig(AppConfig):
         AccountQuerySet.annotate_is_author = users.annotate_is_author
         AccountQuerySet.annotate_is_active_reviewer = users.annotate_is_active_reviewer
         AccountQuerySet.annotate_is_last_round_reviewer = users.annotate_is_last_round_reviewer
+        AccountQuerySet.annotate_count_reviewer_pending_reviews = users.annotate_count_reviewer_pending_reviews
+        AccountQuerySet.annotate_count_reviewed_papers_in_timeframe = users.annotate_count_reviewed_papers_in_timeframe
 
         AccountManager.annotate_has_currently_completed_review = users.annotate_has_currently_completed_review
         AccountManager.annotate_has_completed_review_in_the_previous_round = (

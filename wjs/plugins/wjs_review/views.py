@@ -749,8 +749,11 @@ class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, E
         return kwargs
 
 
-class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
-    """
+class SelectReviewerView(
+    BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView
+):
+    """Select user as reviewer.
+
     View only checks the login status at view level because the permissions are checked by the queryset by using
     :py:class:`WjsEditorAssignment` relation with the current user.
     """
@@ -918,7 +921,7 @@ class SelectReviewer(BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixi
             return super().form_invalid(form)
 
 
-class InviteReviewer(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
+class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
     """Invite external users as reviewers.
 
     The user is created as inactive and his/her account is marked

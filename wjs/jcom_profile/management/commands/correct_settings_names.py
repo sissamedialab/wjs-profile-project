@@ -100,6 +100,8 @@ class Command(BaseCommand):
             "author_sends_corrections_body",
             "typesetting_generated_galleys_subject",  # hardcoded as async-event notification
             "typesetting_generated_galleys_body",
+            "acceptance_due_date_days",  # replaced by default_review_acceptance_days (see also J. defaul_review_days)
+            "default_review_report_days",  # was a "copy" of J. defaul_review_days
         )
         for setting_name in settings_to_drop:
             logger.debug(f"Dropping {setting_name}")
@@ -228,7 +230,7 @@ Best regards,
         update_setting_default(
             "review_assignment",
             "email",
-            """Dear {{ reviewer.full_name }},<br>
+            """Dear {{ reviewer.full_name|default:"colleague" }},<br>
 {% if already_reviewed %}
     I am writing to ask for your help in reviewing the revised version of the {{ article.section.name }}
 titled "{{ article.title }}" for which you have been so kind as to review the previous version.
@@ -604,6 +606,7 @@ You can check the output in the last step of the submission process and come bac
         """,
         )
 
+        update_setting_default("default_review_days", "general", 21)
         update_setting_default("subject_password_reset", "email_subject", "Password reset request")
         update_setting_default(
             "password_reset",

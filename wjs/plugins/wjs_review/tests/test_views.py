@@ -28,7 +28,7 @@ from ..models import (
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..views import EditorArchived, SelectReviewer, SupervisorAssignEditor
+from ..views import EditorArchived, SelectReviewerView, SupervisorAssignEditor
 
 
 @pytest.mark.parametrize(
@@ -189,7 +189,7 @@ def test_select_reviewer_queryset_for_editor(
     """An editor can only access SelectReviewer for their own articles."""
     fake_request.user = section_editor.janeway_account
 
-    view = SelectReviewer()
+    view = SelectReviewerView()
     view.request = fake_request
     qs = view.get_queryset()
     assert qs.count() == 1
@@ -207,7 +207,7 @@ def test_select_reviewer_queryset_for_non_editor(
 
     fake_request.user = reviewer.janeway_account
 
-    view = SelectReviewer()
+    view = SelectReviewerView()
     view.request = fake_request
     qs = view.get_queryset()
     assert qs.count() == 0
@@ -333,7 +333,10 @@ def test_invite_function_creates_inactive_user(
         "suffix": "Suffix",
         "email": "email@email.it",
         "message": "random message",
-        "acceptance_due_date": now().date() + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_DAYS),
+        "acceptance_due_date": now().date()
+        + datetime.timedelta(
+            days=fake_request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
+        ),
     }
     response = client.post(url, data=data)
     assert response.status_code == 302
