@@ -2,7 +2,7 @@
 {% load django_bootstrap5 static wjs_permissions wjs_tags %}
 
 {% block breadcrumbs_right %}
-  {% translate "Go to messages history" as list_label %}
+  {% translate "Go to all messages and notes" as list_label %}
   {% url "wjs_article_messages" pk=workflow.pk as list_url %}
   <div class="nav">
     {% include "wjs_review/base/elements/breadcrumb_items.html" with url=list_url title=list_label %}
