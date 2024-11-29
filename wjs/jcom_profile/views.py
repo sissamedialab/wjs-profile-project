@@ -65,8 +65,8 @@ def edit_profile(request):
     # copied from core.views.py::edit_profile:358ss
 
     if request.POST:
-        if "email" in request.POST:
-            email_address = request.POST.get("email_address")
+        if "change_email" in request.POST:
+            email_address = request.POST.get("email")
             try:
                 validate_email(email_address)
                 try:
