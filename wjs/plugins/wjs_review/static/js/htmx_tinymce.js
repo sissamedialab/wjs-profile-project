@@ -4,7 +4,7 @@
  * We must manually update the form data before the form is submitted by saving the tinymce content to the textarea and
  * copying the content to the htmx request parameters.
  *
- * It myst be called with:
+ * It must be called with:
  *
  * document.addEventListener("htmx:configRequest", function(event) {
  *    bindTinymce(event, <form-name>);

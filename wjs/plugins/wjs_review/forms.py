@@ -6,6 +6,7 @@ from core import files as core_files
 from core import models as core_models
 from core.forms import ConfirmableForm
 from core.models import File
+from dateutil.parser import parse
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -90,72 +91,6 @@ def min_size_validator(min_width, min_height):
     return validate_image
 
 
-class BaseInviteSelectReviewerForm(forms.Form):
-    acceptance_due_date = forms.DateField(label=_("Reviewer should accept/decline invite by"), required=False)
-    message_subject = forms.CharField(
-        label=_("Message Subject"),
-        required=False,
-        widget=forms.TextInput(
-            attrs={
-                "readonly": "readonly",
-                "disabled": "disabled",
-                "class": "form-control",
-            }
-        ),
-    )
-    message = WjsMiniHTMLFormField(label=_("Message"), required=False)
-    author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._today = now().date()
-        # refs #648
-        # https://gitlab.sissamedialab.it/wjs/specs/-/issues/648
-        self.date_value = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_DAYS)
-        self.date_min = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
-        self.date_max = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
-        date_attrs = {
-            "type": "date",
-            "value": self.date_value,
-            "min": self.date_min,
-            "max": self.date_max,
-        }
-        self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
-
-    def clean_acceptance_due_date(self):
-        """Ensure that the due date is in the future.
-
-        We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
-        """
-        acceptance_due_date = self.cleaned_data["acceptance_due_date"]
-        if not acceptance_due_date:
-            return acceptance_due_date
-        if acceptance_due_date < now().date():
-            raise forms.ValidationError(_("Date must be in the future"))
-        if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
-            raise forms.ValidationError(_(f"Date must be between {self.date_min} and {self.date_max}"))
-        return acceptance_due_date
-
-    def clean_logic(self):
-        """Run logic instance's check_conditions method."""
-        if not self.get_logic_instance(self.cleaned_data).check_conditions():
-            raise forms.ValidationError(_("Assignment conditions not met."))
-
-    def clean(self) -> Dict[str, Any]:
-        """Run clean_logic method and return cleaned data."""
-        self.clean_logic()
-        return self.cleaned_data
-
-    def save(self, commit: bool = True):
-        try:
-            service = self.get_logic_instance(self.cleaned_data)
-            service.run()
-        except ValidationError as e:
-            self.add_error(None, e)
-            raise
-        return self.instance
-
-
 class ArticleReviewStateForm(forms.ModelForm):
     action = forms.ChoiceField(choices=[])
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
@@ -193,6 +128,119 @@ class ArticleReviewStateForm(forms.ModelForm):
         return instance
 
 
+class BaseInviteSelectReviewerForm(forms.Form):
+    acceptance_due_date = forms.DateField(label=_("Reviewer should accept/decline invite by"), required=False)
+    message_subject = forms.CharField(
+        label=_("Message Subject"),
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "readonly": "readonly",
+                "disabled": "disabled",
+                "class": "form-control",
+            }
+        ),
+    )
+    message = WjsMiniHTMLFormField(label=_("Message"), required=False)
+    author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop("request")
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+
+        c_data = self.data.copy()
+        c_data["state"] = self.instance.state
+        self.data = c_data
+
+        self._today = now().date()
+        # specs #648 #1158
+        self.default_acceptance_due_date = self._today + datetime.timedelta(
+            days=self.request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
+        )
+        self.date_min = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
+        self.date_max = self._today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
+        date_attrs = {
+            "type": "date",
+            "value": self.default_acceptance_due_date,
+            "min": self.date_min,
+            "max": self.date_max,
+        }
+        self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
+        if not self.data.get("acceptance_due_date", None):
+            self.data["acceptance_due_date"] = self.default_acceptance_due_date
+
+    def _prepare_message_and_subject(self):
+        """Prepare the default message and subject.
+
+        The context used in rendering these settings might change if we are
+        - selecting an existing user
+        - inviting a new user (either a Prophy account or a new user entirely)
+
+        To allow for this, derived classes should define/ovverride their own get_message_context methods.
+
+        Also, this part is not included in the default initialization (__init__) because SelectReviewerForm also deals
+        with the case editor-selects-himself as reviewer, where this is not necessary.
+
+        """
+        message_context = self.get_message_context()
+        if not self.data.get("message", None):
+            default_message_rendered = render_template_from_setting(
+                setting_group_name="email",
+                setting_name="review_assignment",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context=message_context,
+                template_is_setting=True,
+            )
+            self.data["message"] = default_message_rendered
+            self.fields["message"].initial = default_message_rendered
+
+        default_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_review_assignment",
+            journal=self.instance.article.journal,
+            request=self.request,
+            context=message_context,
+            template_is_setting=True,
+        )
+        self.data["message_subject"] = default_subject
+        self.fields["message_subject"].initial = default_subject
+
+    def clean_acceptance_due_date(self):
+        """Ensure that the due date is in the future.
+
+        We don't see any valid reason for a reviewer to change the date and move it into the past 🙂
+        """
+        acceptance_due_date = self.cleaned_data["acceptance_due_date"]
+        if not acceptance_due_date:
+            return acceptance_due_date
+        if acceptance_due_date < now().date():
+            raise forms.ValidationError(_("Date must be in the future"))
+        if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
+            raise forms.ValidationError(_(f"Date must be between {self.date_min} and {self.date_max}"))
+        return acceptance_due_date
+
+    def clean_logic(self):
+        """Run logic instance's check_conditions method."""
+        if not self.get_logic_instance(self.cleaned_data).check_conditions():
+            raise forms.ValidationError(_("Assignment conditions not met."))
+
+    def clean(self) -> Dict[str, Any]:
+        """Run clean_logic method and return cleaned data."""
+        self.clean_logic()
+        return self.cleaned_data
+
+    def save(self, commit: bool = True):
+        try:
+            service = self.get_logic_instance(self.cleaned_data)
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        return self.instance
+
+
 class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
     reviewer = forms.ModelChoiceField(
         label=_("Reviewer"), queryset=Account.objects.none(), widget=forms.HiddenInput, required=False
@@ -204,21 +252,8 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop("user")
-        self.request = kwargs.pop("request")
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
         super().__init__(*args, **kwargs)
-        interval_days = get_setting(
-            "wjs_review",
-            "acceptance_due_date_days",
-            self.instance.article.journal,
-        )
-        default_acceptance_due_date = self._today + datetime.timedelta(days=interval_days.process_value())
-        self.initial["acceptance_due_date"] = default_acceptance_due_date
-        c_data = self.data.copy()
-        c_data["state"] = self.instance.state
-        self.data = c_data
-
         if not self.instance.article.comments_editor:
             self.fields["author_note_visible"].widget = forms.HiddenInput()
 
@@ -231,30 +266,11 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
             # we can load default data
             self.fields["message"].required = True
             self.fields["reviewer"].required = True
-            if not self.data.get("acceptance_due_date", None):
-                self.data["acceptance_due_date"] = default_acceptance_due_date
             if not self.data.get("author_note_visible", None):
                 default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
                 self.data["author_note_visible"] = default_visibility
-            if not self.data.get("message", None):
-                default_message_rendered = render_template_from_setting(
-                    setting_group_name="email",
-                    setting_name="review_assignment",
-                    journal=self.instance.article.journal,
-                    request=self.request,
-                    context=self.get_message_context(),
-                    template_is_setting=True,
-                )
-                self.data["message"] = default_message_rendered
-            default_subject = render_template_from_setting(
-                setting_group_name="email_subject",
-                setting_name="subject_review_assignment",
-                journal=self.instance.article.journal,
-                request=self.request,
-                context=self.get_message_context(),
-                template_is_setting=True,
-            )
-            self.data["message_subject"] = default_subject
+
+            self._prepare_message_and_subject()
 
         self.fields["reviewer"].queryset = Account.objects.get_reviewers_choices(self.instance)
 
@@ -295,7 +311,10 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         return cleaned_data
 
     def get_logic_instance(self, cleaned_data: Dict[str, Any]) -> AssignToReviewer:
-        """Instantiate :py:class:`AssignToReviewer` class."""
+        """Instantiate :py:class:`AssignToReviewer` class.
+
+        The logic class will be used during the form's save to check for logic-related errors.
+        """
         return AssignToReviewer(
             reviewer=cleaned_data["reviewer"],
             workflow=self.instance,
@@ -310,21 +329,6 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         )
 
 
-class ReviewerSearchForm(forms.Form):
-    search = forms.CharField(required=False, label=_("Name"))
-    user_type = forms.ChoiceField(
-        required=False,
-        choices=[
-            ("", "---"),
-            ("all", "All"),
-            ("past", "Reviewed previous version"),
-            ("known", "My reviewer archive"),
-            ("declined", "Declined/removed from previous version"),
-            ("prophy", "Suggested by Prophy"),
-        ],
-    )
-
-
 class InviteUserForm(BaseInviteSelectReviewerForm):
     """Used by staff to invite external users for review activities."""
 
@@ -334,21 +338,34 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
     email = forms.EmailField(label=_("Email"))
 
     def __init__(self, *args, **kwargs):
-        self.request = kwargs.pop("request")
         self.instance = kwargs.pop("instance")
-        self.user = kwargs.pop("user")
-        prophy_account = None
+        self.prophy_account = None
         if "prophy_account_id" in kwargs:
+            # FIXME: breaks badly if filter returns an empty queryset
             prophy_account = ProphyAccount.objects.filter(author_id=kwargs.pop("prophy_account_id"))[0]
-        super().__init__(*args, **kwargs)
-        if not self.instance.article.comments_editor:
-            self.fields["author_note_visible"].widget = forms.HiddenInput()
-        if prophy_account:
             # Cleanup None values where they could be
             if prophy_account.middle_name in [None, "None"]:
                 prophy_account.middle_name = ""
             if prophy_account.suffix in [None, "None"]:
                 prophy_account.suffix = ""
+            # Set the attribute full_name, that could be used in the template of the initial message
+            # (adapted from Account.full_name())
+            prophy_account.full_name = " ".join(
+                [
+                    piece
+                    for piece in [
+                        prophy_account.first_name,
+                        prophy_account.middle_name,
+                        prophy_account.last_name,
+                        prophy_account.suffix,
+                    ]
+                    if piece
+                ]
+            )
+            self.prophy_account = prophy_account
+
+        super().__init__(*args, **kwargs)
+        if self.prophy_account:
             self.initial = {
                 # Add .strip() to remove trailing spaces in case of empty middle_name
                 "first_name": f"{prophy_account.first_name} {prophy_account.middle_name}".strip(),
@@ -356,46 +373,38 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
                 "suffix": prophy_account.suffix,
                 "email": prophy_account.email,
             }
-        if not self.data.get("acceptance_due_date", None):
-            interval_days = get_setting(
-                "wjs_review",
-                "acceptance_due_date_days",
-                self.instance.article.journal,
-            )
-            self.data["acceptance_due_date"] = self._today + datetime.timedelta(days=interval_days.process_value())
-        if not self.data.get("message", None):
-            default_message_rendered = render_template_from_setting(
-                setting_group_name="email",
-                setting_name="review_assignment",
-                journal=self.instance.article.journal,
-                request=self.request,
-                context={"article": self.instance.article, "journal": self.instance.article.journal},
-                template_is_setting=True,
-            )
-            self.fields["message"].initial = default_message_rendered
-        default_subject = render_template_from_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_review_assignment",
-            journal=self.instance.article.journal,
-            request=self.request,
-            context={
-                "article": self.instance.article,
-            },
-            template_is_setting=True,
-        )
-        self.fields["message_subject"].initial = default_subject
+        if not self.instance.article.comments_editor:
+            self.fields["author_note_visible"].widget = forms.HiddenInput()
+
+        self._prepare_message_and_subject()
 
     def get_message_context(self):
-        # TODO: consider using SelectReviewerForm as in scenario_review._assign_reviewer_via_plugin_logic()
+        # TODO: refactor message-preview code!
+        # A behavior similar to what we do here can be found in:
+        # - SelectReviewerForm.get_message_context
+        # - logic.AssignReviewer._get_message_context
+
+        # Ensure that acceptance_due_date is a date object
+        # (otherwise it won't be rendered in the template)
+        if acceptance_due_date := self.data.get("acceptance_due_date", ""):
+            if isinstance(acceptance_due_date, str):
+                acceptance_due_date = parse(acceptance_due_date).date()
+        else:
+            acceptance_due_date = ""
         return {
             "article": self.instance.article,
-            "review_assignment": WorkflowReviewAssignment(id=1, access_code="sample"),
+            "reviewer": self.prophy_account,
+            "review_assignment": WorkflowReviewAssignment(id=1, access_code="sample", article=self.instance.article),
             "user_message_content": self.data.get("message", ""),
-            "acceptance_due_date": self.data.get("acceptance_due_date", ""),
+            "acceptance_due_date": acceptance_due_date,
         }
 
     def get_logic_instance(self, cleaned_data: Dict[str, Any]) -> InviteReviewer:
-        """Instantiate :py:class:`InviteReviewer` class."""
+        """Instantiate :py:class:`InviteReviewer` class.
+
+        The logic class will be used during the form's save to check for logic-related errors.
+        """
+        # TBV: are we calling the correct logic class???
         service = InviteReviewer(
             workflow=self.instance,
             editor=self.user,
@@ -403,6 +412,21 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
             request=self.request,
         )
         return service
+
+
+class ReviewerSearchForm(forms.Form):
+    search = forms.CharField(required=False, label=_("Name"))
+    user_type = forms.ChoiceField(
+        required=False,
+        choices=[
+            ("", "---"),
+            ("all", _("All")),
+            ("past", _("Reviewed previous version")),
+            ("known", _("My reviewer archive")),
+            ("declined", _("Declined/removed from previous version")),
+            ("prophy", _("Suggested by Prophy")),
+        ],
+    )
 
 
 class DeclineReviewForm(forms.Form):

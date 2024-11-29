@@ -676,6 +676,7 @@ ORDER BY ah.actionDate
             article = submission_models.Article.objects.create(
                 journal=self.journal,
             )
+            logger.info(f"Importing new article {preprintid} at {article.id} ")
         article.title = row["versionTitle"]
         article.abstract = row["versionAbstract"]
         article.imported = True
@@ -2215,7 +2216,7 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
 
             interval_days = get_setting(
                 "wjs_review",
-                "acceptance_due_date_days",
+                "default_review_acceptance_days",
                 self.journal,
             )
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
@@ -2394,7 +2395,7 @@ ORDER BY dl.submissionDate
 
             interval_days = get_setting(
                 "wjs_review",
-                "acceptance_due_date_days",
+                "default_review_acceptance_days",
                 self.journal,
             )
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do

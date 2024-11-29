@@ -548,6 +548,8 @@ class AssignToReviewer:
             "journal": self.workflow.article.journal,
             "request": self.request,
             "user_message_content": self.form_data["message"],
+            # note that this context is also used by the form to render the defalt message
+            # so we cannot assume that the assignment (that may be fake) already has a reviewer
             "reviewer": self.form_data.get("reviewer", self.assignment.reviewer),
             "skip": False,
             "review_assignment": self.assignment,
@@ -986,8 +988,12 @@ class EvaluateReview:
 
 @dataclasses.dataclass
 class InviteReviewer:
-    """
-    Handle the decision of the reviewer to accept / decline the review and checks the conditions for the transition.
+    """Invite a user to do a review.
+
+    Users to invite can be
+    - existing users (with an Account and all)
+    - new users (with name and email provided by the editor)
+    - Prophy account (similar to "new users", but the data name and email etc. are taken from Prophy)
     """
 
     workflow: ArticleWorkflow
@@ -1025,7 +1031,8 @@ class InviteReviewer:
         return user
 
     def _get_or_create_user(self, email: str) -> JCOMProfile:
-        """
+        """Ensure that we have a real Account.
+
         The match is done via email address, and this method returns the user with the given email address,
         being it already existing or freshly created.
         The caller will be able to distinguish between "existing" or "created" user by checking invitation_token
