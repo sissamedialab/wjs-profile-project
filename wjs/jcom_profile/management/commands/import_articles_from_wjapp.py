@@ -9,7 +9,7 @@ import mariadb
 import requests
 from core import files
 from core.middleware import GlobalRequestMiddleware
-from core.models import Account
+from core.models import Account, Galley
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
@@ -37,7 +37,7 @@ from plugins.wjs_review.logic import (
     WorkflowReviewAssignment,
     render_template_from_setting,
 )
-from plugins.wjs_review.logic__production import AssignTypesetter
+from plugins.wjs_review.logic__production import AssignTypesetter, UploadFile
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     EditorDecision,
@@ -573,7 +573,7 @@ ORDER BY ah.actionDate
 
             err.delete()
 
-        # TBV: delete WorkflowReviewAssignment's files (reviewers' report files)
+        # delete WorkflowReviewAssignment's files (reviewers' report files)
         for wra in WorkflowReviewAssignment.objects.filter(article=article):
             if wra.review_file:
                 wra.review_file.unlink_file()
@@ -616,18 +616,19 @@ ORDER BY ah.actionDate
             f.unlink_file()
             f.delete()
 
-        # TBV: delete  ArticleWorkflow's files
+        # delete  ArticleWorkflow's files
         for f in article.articleworkflow.supplementary_files_at_acceptance.all():
-            logger.error(f"{f=}")
             f.unlink_file()
             f.delete()
 
-        # TBV: delete TypesettingAssignment's files
+        # delete TypesettingAssignment's files
         for ta in TypesettingAssignment.objects.filter(round__article=article):
             for f in ta.files_to_typeset.all():
-                logger.error(f"{f=}")
                 f.unlink_file()
                 f.delete()
+            for g in ta.galleys_created.all():
+                g.file.unlink_file()
+                g.file.delete()
 
         TypesettingAssignment.objects.filter(round__article=article).delete()
         TypesettingRound.objects.filter(article=article).delete()
@@ -960,6 +961,18 @@ ORDER BY ah.actionDate
             for d in e.data_figure_files.all():
                 logger.debug(f"imported: {article.id} rev round {e.review_round.round_number} data figure: {d.id} {d}")
 
+        for tr in article.typesettinground_set.all():
+            ta = tr.typesettingassignment
+            for f in ta.files_to_typeset.all():
+                logger.debug(f"imported: {article.id} TA: {ta.round} uploaded: {f.id} {f}")
+            for g in ta.galleys_created.all():
+                logger.debug(f"imported: {article.id} TA: {ta.round} uploaded: {g.id} {g}")
+            for gp in ta.round.galleyproofing_set.all():
+                logger.debug(f"imported: {article.id} TA: {ta.round} uploaded: {gp.id} {gp}")
+
+        if pgs := article.articleworkflow.publication_galleys_source_file:
+            logger.debug(f"imported: {article.id} publication galleys source uploaded: {pgs.id} {pgs}")
+
 
 #
 # general function
@@ -1060,12 +1073,25 @@ def newlines_text_to_html(message: str) -> str:
     return message
 
 
+def file_from_response(response: requests.Response, name: str) -> DjangoFile:
+    """Extract a (django) File object from the given response, and give it the given name."""
+    return DjangoFile(BytesIO(response.content), name)
+
+
 def noop(*args, **kwdargs):
     """Do nothing.
 
     Used to disabled WJS automated messages.
     """
     pass
+
+
+def noop_true(*args, **kwdargs):
+    """return True
+
+    Used to disabled WJS conditions
+    """
+    return True
 
 
 @dataclass
@@ -1331,8 +1357,9 @@ ORDER BY dl.submissionDate
                     f"msg found: {m['documentLayerCod']} {m['documentLayerType']} {m['documentLayerSubject']}"
                 )
             else:
-                logger.warning(
-                    f"msg cleaned: {m['documentLayerCod']} {m['documentLayerType']} {m['documentLayerSubject']}"
+                logger.debug(
+                    f"msg already imported: {m['documentLayerCod']} {m['documentLayerType']}"
+                    f"{m['documentLayerSubject']}"
                 )
 
         if not all_messages_not_yet_imported:
@@ -1407,6 +1434,7 @@ class BaseActionManager:
     importfiles: bool
     imported_document_layer_cod_list: list
     action_triggers_import_files: bool
+    """flag used when not all actions of a family have to import files"""
 
     def run(self):
         raise NotImplementedError
@@ -1420,7 +1448,7 @@ class BaseActionManager:
             self.connection.close()
             raise Exception
 
-    def import_files(self):
+    def import_files(self, production_version=False):
         """Downloads and save files for imported version."""
 
         # TBV: action admin resets editor will be skip in the import. New version is created when
@@ -1443,47 +1471,60 @@ class BaseActionManager:
         # attachments read data from db for each attachment (no source file name)
         #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
 
-        logger.warning(f"REVIEW ROUND: {self.article.current_review_round_object()}")
         url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
+
         # wjapp version state 22 is the published version
         if self.imported_version_state_cod == 22:
-            response_manuscript_pub = self.download_manuscript_pub_version(url_base)
+            response_manuscript_pub = self.download_manuscript_pub(url_base)
             if response_manuscript_pub.headers["Content-Length"] != "0":
-                manuscript_pub_dj = self.get_manuscript_pub(response_manuscript_pub)
+                manuscript_pub_dj = file_from_response(response_manuscript_pub, f"{self.pubid}.pdf")
                 self.save_manuscript(manuscript_pub_dj)
 
             # previous version: submission / preprintid.tar.gz
             # TODO: add or replace preprintid.tex to the zip from current_hidden where placeholders are replaced
             response_source_pub = self.download_source_pub(url_base)
             if response_source_pub.headers["Content-Length"] != "0":
-                logger.error(f"SOURCE TARGZ size: {response_source_pub.headers['Content-Length']}")
-                source_pub_dj = self.get_source_pub(response_source_pub)
+                source_pub_dj = file_from_response(response_source_pub, f"{self.preprintid}.tar.gz")
                 self.save_source_pub(source_pub_dj)
+
+        elif production_version:
+            logger.debug(f"production version: {production_version}")
+            response_pdf_galley_prod = self.download_pdf_galley_prod(url_base)
+            if response_pdf_galley_prod.headers["Content-Length"] != "0":
+                pdf_galley_prod_dj = file_from_response(response_pdf_galley_prod, f"{self.preprintid}.pdf")
+                self.save_pdf_galley(pdf_galley_prod_dj)
 
         else:
             response_manuscript = self.download_manuscript(url_base)
             if response_manuscript.headers["Content-Length"] != "0":
-                manuscript_dj = self.get_manuscript(response_manuscript)
+                manuscript_dj = file_from_response(response_manuscript, f"{self.preprintid}.pdf")
                 self.save_manuscript(manuscript_dj)
 
             (response_source, doc_type) = self.download_source(url_base)
             if response_source.headers["Content-Length"] != "0":
-                source_dj = self.get_source(response_source, doc_type)
+                source_dj = file_from_response(response_source, f"{self.preprintid}.{doc_type}")
                 self.save_source(source_dj, doc_type)
 
         # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
         # the original name of the attachment file is not imported but it is not relevant
 
-        # TBV: check on final status page JCOM_001N_0724 files appear twice in version 2
-        #      template problem?
-
         self.article.data_figure_files.clear()
         wjapp_attachments = self.read_attachments_data()
+        wjapp_prod_attachments = []
         for dff_data in wjapp_attachments:
             dff_response = self.download_wjapp_attachment(url_base, dff_data)
             if dff_response.headers["Content-Length"] != "0":
-                dff_dj = self.get_data_figure_file(dff_response, dff_data)
-                self.save_data_figure_file(dff_dj, dff_data)
+                dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
+                if production_version:
+                    wjapp_prod_attachments.append(dff_dj)
+                else:
+                    self.save_data_figure_file(dff_dj, dff_data)
+        # TODO: when production action with attachment are imported verify on the templates
+        #       if the attachment appears correctly
+        if production_version and wjapp_prod_attachments:
+            self.article.supplementary_files.set(wjapp_prod_attachments)
+
+    # published files
 
     # published version pdf
     # TODO: test when production actions are imported
@@ -1500,12 +1541,6 @@ class BaseActionManager:
             )
         return response
 
-    def get_manuscript_pub(self, response):
-        """Get pdf manuscript published file from response as DjangoFile."""
-
-        manuscript_dj = DjangoFile(BytesIO(response.content), f"{self.pubid}.pdf")
-        return manuscript_dj
-
     # published version source TARGZ (from previous version)
     def download_source_pub(self, url_base):
         """Download tar gz source from previous version of imported version."""
@@ -1520,12 +1555,6 @@ class BaseActionManager:
                 f"check wjapp login credentials empty file tar.gz downloaded: {response.headers['Content-Length']}"
             )
         return response
-
-    def get_source_pub(self, response):
-        """Get tar.gz source file from response as DjangoFile."""
-
-        source_pub_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.tar.gz")
-        return source_pub_dj
 
     def save_source_pub(self, response):
         """Save typesetter source tar.gz TA.files_to_typeset"""
@@ -1548,11 +1577,73 @@ class BaseActionManager:
             )
         return response
 
-    def get_manuscript(self, response):
-        """Extract pdf manuscript from response as DjangoFile."""
+    # production version files
 
-        manuscript_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.pdf")
-        return manuscript_dj
+    def download_pdf_galley_prod(self, url_base):
+        """Download pdf galley for production imported version."""
+
+        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
+        logger.debug(f"{file_url=}")
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty pdf galley downloaded: {response.headers['Content-Length']}"
+            )
+        return response
+
+    def save_pdf_galley(self, pdf_galley_dj):
+        """Save PDF production version in TA.galleys_created"""
+
+        assignment = self.article.articleworkflow.latest_typesetting_assignment()
+
+        # necessary to avoid errors until action "back to typesetter"
+        # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
+        # in JCOM_017A_0624
+        assignment.galleys_created.clear()
+
+        assert not assignment.galleys_created.exists(), (
+            f"We have {assignment.galleys_created.count()} galleys on the TA "
+            f"for round {assignment.round.round_number}. Expected none!"
+        )
+
+        pdf_galley_file = files.save_file_to_article(
+            pdf_galley_dj,
+            self.article,
+            assignment.typesetter,
+        )
+        pdf_galley = Galley.objects.create(file=pdf_galley_file, label="PDF", type="pdf", article=self.article)
+        assignment.galleys_created.add(pdf_galley)
+        assignment.round.article.articleworkflow.save()
+
+        return
+
+    # production version source TARGZ
+    def file_source_prod(self):
+        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
+
+        response_source_prod = self.download_source_prod(url_base)
+        if response_source_prod.headers["Content-Length"] != "0":
+            source_prod_dj = file_from_response(response_source_prod, f"{self.preprintid}.tar.gz")
+
+        return source_prod_dj
+
+    def download_source_prod(self, url_base):
+        """Download tar gz source from production imported version."""
+
+        file_url = (
+            f"{url_base}{self.preprintid}/{self.imported_version_num}/submission/{self.preprintid}.tar.gz&fileType=gz"
+        )
+        logger.debug(f"production source: {file_url=}")
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty file tar.gz downloaded: {response.headers['Content-Length']}"
+            )
+        return response
+
+    # review files
 
     def download_source(self, url_base):
         """Download docx/doc source for imported version."""
@@ -1586,12 +1677,6 @@ class BaseActionManager:
             )
 
         return (response, doc_type)
-
-    def get_source(self, response, doc_type):
-        """Extract source docx/doc from response as DjangoFile."""
-
-        source_dj = DjangoFile(BytesIO(response.content), f"{self.preprintid}.{doc_type}")
-        return source_dj
 
     def save_manuscript(self, manuscript_dj):
         """Save PDF manuscript"""
@@ -1646,12 +1731,6 @@ class BaseActionManager:
         if response.headers["Content-Length"] == "0":
             logger.error(f"check wjapp login credentials empty DFF downloaded: {response.headers['Content-Length']}")
         return response
-
-    def get_data_figure_file(self, dff_response, a_data):
-        """Return attachment file from response as DjangoFile."""
-
-        dff_dj = DjangoFile(BytesIO(dff_response.content), f"{a_data['attachID']}.{a_data['attachFormat']}")
-        return dff_dj
 
     def save_data_figure_file(self, dff_dj, dff_data):
         """Save wjapp attachment as data figure file"""
@@ -1835,7 +1914,7 @@ WHERE editorCod=%(editor_cod)s
         assignment_parameters.save()
 
         # delete all existing editor kwds
-        wjs_models.StaffKeyword.objects.filter(editor_parameters=assignment_parameters).delete()
+        wjs_models.StaffKeyword.objects.filter(parameters=assignment_parameters).delete()
 
         # create all new editor kwds
         for ep in editor_parameters:
@@ -1848,7 +1927,7 @@ WHERE editorCod=%(editor_cod)s
                     f'Created keyword "{kwd_word}" for editor {self.get_current_editor()}. Please check!',
                 )
             wjs_models.StaffKeyword.objects.create(
-                editor_parameters=assignment_parameters,
+                parameters=assignment_parameters,
                 keyword=keyword,
                 weight=kwd_weight,
             )
@@ -1858,7 +1937,7 @@ WHERE editorCod=%(editor_cod)s
 
 @dataclass
 class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
-    """Manages action SYS_ASS_ED."""
+    """Manages action "system assigns to editor"."""
 
     def __post_init__(self):
         """Enables attribute to import files for this action"""
@@ -1866,7 +1945,7 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
 
 
 class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
-    """Manages action ED_SEL_N_ED."""
+    """Manages action "editor selects new editor"."""
 
     def run_business_logic(self):
         """Editor selects new editor."""
@@ -1884,7 +1963,7 @@ class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
 
 
 class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
-    """Manages action ADMIN_ASS_N_ED."""
+    """Manages action "admin assigns new editor"."""
 
     def run_business_logic(self):
         """Admin selects new editor."""
@@ -1902,7 +1981,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
 
 
 class AdminOpensAppealAction(BaseActionManager):  # noqa N801
-    """Admin opens appeal: wjapp action admin accepts appeal."""
+    """Admin opens appeal: wjapp action "admin accepts appeal"."""
 
     def run(self):
         """Admin opens appeal."""
@@ -1955,15 +2034,15 @@ class AdminOpensAppealAction(BaseActionManager):  # noqa N801
 
 
 class ADMIN_ACC_APP(AdminOpensAppealAction):  # noqa N801
-    """Manages wjapp action ADMIN_ACC_APP."""
+    """Manages wjapp action "admin accepts appeal"."""
 
 
 class ADMIN_ACC_APP_NEW_ED(AdminOpensAppealAction):  # noqa N801
-    """Manages wjapp action ADMIN_ACC_APP_NEW_ED."""
+    """Manages wjapp action "admin accepts appeal with new editor"."""
 
 
 class AU_WITHD_DOC(BaseActionManager):  # noqa N801
-    """Author withdraws paper: wjapp action AU_WITHD_DOC."""
+    """Author withdraws paper: wjapp action "author withdraws document"."""
 
     def run(self):
         # Author withdraws paper
@@ -2054,7 +2133,7 @@ ORDER BY dl.submissionDate
 
 
 class ADMIN_WITHD_DOC(BaseActionManager):  # noqa N801
-    """Admin withdraws paper: wjapp action ADMIN_WITHD_DOC."""
+    """Admin withdraws paper: wjapp action "admin withdraws document"."""
 
     def run(self):
         # Admin withdraws paper ex. JCOM_005A_0224
@@ -2107,7 +2186,7 @@ class ADMIN_WITHD_DOC(BaseActionManager):  # noqa N801
 
 
 class ED_REF_DOC(BaseActionManager):  # noqa N801
-    """Editor declines assignment: wjapp action ED_REF_DOC."""
+    """Editor declines assignment: wjapp action "editor refuses document"."""
 
     def run(self):
         # Editor declines assignment
@@ -2198,7 +2277,7 @@ ORDER BY dl.submissionDate
 
 
 class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
-    """Editor assigns her/him self as reviewer."""
+    """Editor assigns her/him self as reviewer "editor acts as referee"."""
 
     def run(self):
         self.check_editor_set()
@@ -2466,11 +2545,11 @@ ORDER BY dl.submissionDate
 
 
 class ED_ASS_REF(ReviewAssignmentAction):  # noqa N801
-    """Manages wjapp action ED_ASS_REF."""
+    """Manages wjapp action "editor assigns referee"."""
 
 
 class ED_ADD_REF(ReviewAssignmentAction):  # noqa N801
-    """Manages wjapp action ED_ADD_REF."""
+    """Manages wjapp action "editor adds referee"."""
 
 
 class DeselectReviewerAction(BaseActionManager):
@@ -2482,8 +2561,6 @@ class DeselectReviewerAction(BaseActionManager):
         # EQ1_ED_REM_REF	[#referee=1]/editor removes referee (ex. JCOM_007A_0724)
         # GT1_ED_REM_REF	[#referee>1]/editor removes referee (ex. JCOM_013A_0724)
         # ED_REM_REF	editor removes referee (ex. JCOM_018A_0724)
-
-        logger.warning(f"management of {self.action['actionID']} WIP")
 
         reviewer_cod = self.action["targetCod"]
         reviewer_lastname = self.action["targetLastname"]
@@ -2586,15 +2663,15 @@ ORDER BY dl.submissionDate
 
 
 class EQ1_ED_REM_REF(DeselectReviewerAction):  # noqa N801
-    """Manages wjapp action EQ1_ED_REM_REF."""
+    """Manages wjapp action "one referee and editor removes referee"."""
 
 
 class GT1_ED_REM_REF(DeselectReviewerAction):  # noqa N801
-    """Manages wjapp action GT1_ED_REM_REF."""
+    """Manages wjapp action "more than one referee and editor removes referee"."""
 
 
 class ED_REM_REF(DeselectReviewerAction):  # noqa N801
-    """Manages wjapp action ED_REM_REF."""
+    """Manages wjapp action "editor removes referee"."""
 
 
 class ReviewerDeclineAction(BaseActionManager):
@@ -2724,21 +2801,21 @@ ORDER BY dl.submissionDate
 
 
 class EQ1_REF_REF(ReviewerDeclineAction):  # noqa N801
-    """Manages wjapp action EQ1_REF_REF."""
+    """Manages wjapp action "one referee and referee refuses"."""
 
     # automated message disabled
     EvaluateReview._log_decline = noop
 
 
 class GT1_REF_REF(ReviewerDeclineAction):  # noqa N801
-    """Manages wjapp action GT1_REF_REF."""
+    """Manages wjapp action "more than one and referee refuses"."""
 
     # automated message disabled
     EvaluateReview._log_decline = noop
 
 
 class REF_REF(ReviewerDeclineAction):  # noqa N801
-    """Manages wjapp action REF_REF."""
+    """Manages wjapp action "referee refuses"."""
 
     # automated message disabled
     EvaluateReview._log_decline = noop
@@ -2756,14 +2833,14 @@ class ED_NEED_REF(ReviewerDeclineAction):  # noqa N801
 
 
 class REF_ACC(BaseActionManager):  # noqa N801
-    """Reviewer accepts the review: wjapp action REF_ACC."""
+    """Reviewer accepts the review: wjapp action "referee accepts"."""
 
     def run(self):
-        logger.warning("REF_ACC managed in ReviewAssignmentAction but without reviewer confirmation message")
+        logger.debug("REF_ACC managed in ReviewAssignmentAction but without reviewer confirmation message")
 
 
 class REF_SENDS_REP(BaseActionManager):  # noqa N801
-    """Reviewer send report management: wjapp action REF_SENDS_REP."""
+    """Reviewer send report management: wjapp action "referee sends report"."""
 
     def run(self):
         # Reviewer send report
@@ -3064,7 +3141,7 @@ ORDER BY dl.submissionDate
 
 @dataclass
 class ED_REQ_REV(EditorDecisionAction):  # noqa N801
-    """Manages wjapp action ED_REQ_REQ: editor requires major revision."""
+    """Manages wjapp action "editor requires major revision"."""
 
     def __post_init__(self):
         """Set the specific data for major revision"""
@@ -3079,7 +3156,7 @@ class ED_REQ_REV(EditorDecisionAction):  # noqa N801
 
 @dataclass
 class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
-    """Manages wjapp action ED_ACC_DOC_WMC: editor requires minor revision."""
+    """Manages wjapp action "editor requires minor revision"."""
 
     def __post_init__(self):
         """Set the specific data for minor revision"""
@@ -3094,7 +3171,7 @@ class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
 
 @dataclass
 class ED_REJ_DOC(EditorDecisionAction):  # noqa N801
-    """Manages wjapp action ED_REJ_DOC: editor rejects."""
+    """Manages wjapp action "editor rejects document"."""
 
     def __post_init__(self):
         """Set the specific data for rejection"""
@@ -3105,7 +3182,7 @@ class ED_REJ_DOC(EditorDecisionAction):  # noqa N801
 
 @dataclass
 class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
-    """Manages wjapp action ED_CON_NOT_SUIT: editor considers not suitable."""
+    """Manages wjapp action "editor considers not suitable"."""
 
     def __post_init__(self):
         """Set the specific data for not suitable"""
@@ -3118,7 +3195,7 @@ class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
 # TO FIX: exeception
 @dataclass
 class ED_ACC_DOC(EditorDecisionAction):  # noqa N801
-    """Manages wjapp action ED_ACC_DOC: editor accepts."""
+    """Manages wjapp action "editor accepts document"."""
 
     def __post_init__(self):
         """Set the specific data for acceptance"""
@@ -3218,15 +3295,15 @@ ORDER BY dl.submissionDate
 
 
 class AU_SUB_REV(AuthorSubmitRevisionAction):  # noqa N801
-    """Manages wjapp action AU_SUB_REV."""
+    """Manages wjapp action "author submits revised version"."""
 
 
 class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
-    """Manages wjapp action AU_SUB_REV_WMC."""
+    """Manages wjapp action "author submits minor revision"."""
 
 
 class AU_SUB_NEW_VER(AuthorSubmitRevisionAction):  # noqa N801
-    """Manages wjapp action AU_SUB_NEW_VER (appeal)."""
+    """Manages wjapp action "author submits new version" (appeal)."""
 
 
 class SelectCoauthorAction(BaseActionManager):
@@ -3267,18 +3344,18 @@ class SelectCoauthorAction(BaseActionManager):
 
 
 class AU_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
-    """Manages wjapp action AU_SELECTS_COAUT."""
+    """Manages wjapp action "author selects co-author"."""
 
 
 class ADMIN_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
-    """Manages wjapp action ADMIN_SELECTS_COAUT."""
+    """Manages wjapp action "editorial office selects co-author"."""
 
 
 # PRODUCTION
 
 
 class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
-    """Manages wjapp action TYP_TAKES_CHARGE."""
+    """Manages wjapp action "typesetter takes in charge"."""
 
     def run(self):
         """Assign the typesetter.
@@ -3323,3 +3400,42 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
 
             self.article.refresh_from_db()
             return typesetter
+
+
+class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
+    """Manages wjapp action "typesetter uploads for production manager"."""
+
+    def run(self):
+
+        typesetter_uploads_date = self.action["actionDate"]
+
+        # get typesetter file tar.gz
+        if self.importfiles:
+            source_prod_dj = self.file_source_prod()
+        else:
+            # empty tar.gz when importfiles is disabled
+            # the logic action requires a file
+            source_prod_dj = DjangoFile(BytesIO(b""), f"{self.preprintid}.tar.gz")
+
+        source_prod_dj.content_type = "application/zip"
+
+        fake_request = create_fake_request(user=None, journal=self.journal)
+        ta_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        fake_request.user = ta_assignment.typesetter
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(typesetter_uploads_date),
+        ):
+            UploadFile._check_file_condition = noop_true
+            UploadFile._look_for_queries_in_archive = noop_true
+            article_with_file = UploadFile(
+                typesetter=ta_assignment.typesetter,
+                request=fake_request,
+                assignment=ta_assignment,
+                file_to_upload=source_prod_dj,
+            ).run()
+            article_with_file.articleworkflow.save()
+
+        # ex. JCOM_017A_0624
+        if self.importfiles:
+            self.import_files(production_version=True)
