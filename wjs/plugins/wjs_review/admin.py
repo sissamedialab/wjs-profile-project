@@ -60,6 +60,7 @@ class EditorDecisionAdmin(admin.ModelAdmin):
 
     list_display = ["workflow", "decision", "decision_editor_report"]
     list_filter = ["decision"]
+    search_fields = ["workflow__article__id"]
 
 
 @admin.register(EditorRevisionRequest)
@@ -81,7 +82,7 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
 
     list_display = ["article_id", "review_round_id", "report_form_answers"]
     list_filter = ["article"]
-    search_fields = ["article"]
+    search_fields = ["article__id"]
 
 
 class ArticleWorkflowInline(admin.StackedInline):

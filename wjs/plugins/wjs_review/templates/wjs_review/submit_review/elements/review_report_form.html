@@ -1,6 +1,6 @@
 {% load django_bootstrap5 i18n %}
 {% translate "If you do, please write to the Editor in charge" as conflict_interest_label %}
-{% translate "Please wither write your comments in the text area and/or upload a file" as author_review_label %}
+{% translate "Please write your comments in the text area and/or upload a file" as author_review_label %}
 <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="col">

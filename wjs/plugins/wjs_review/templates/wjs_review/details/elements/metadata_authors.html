@@ -8,7 +8,8 @@
   <div id="collapse-authors" class="accordion-collapse collapse" aria-labelledby="heading-authors" data-bs-parent="#metadata">
     <div class="accordion-body">
       <ul class="list-unstyled">
-        {% for author in article.authors.all %}
+        {% for order in article.articleauthororder_set.all %}
+        {% with author=order.author %}
           <li>
             {% if article.correspondence_author == author %}
               {% include "wjs_review/base/elements/author.html" with author=author corresponding=True %}
@@ -16,6 +17,7 @@
               {% include "wjs_review/base/elements/author.html" with author=author %}
             {% endif %}
           </li>
+        {% endwith %}
         {% endfor %}
       </ul>
     </div>
