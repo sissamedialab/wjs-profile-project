@@ -36,6 +36,7 @@ class WjsMiniHTMLFormField(MiniHTMLFormField):
             "a",
             "b",
             "br",
+            "div",
             "em",
             "i",
             "li",
