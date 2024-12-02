@@ -273,6 +273,8 @@ class TestInfoStage:
         # object, which is different from the article.owner (which is
         # a core.Account) when checked by Article.can_edit (l.1289)
         fb_article.owner = coauthor.janeway_account
+        # Oops, the one that counts is the correspondence author, we don't really care about the owner
+        fb_article.correspondence_author = coauthor.janeway_account
         fb_article.save()
 
         url = reverse("submit_info", args=(fb_article.pk,))
@@ -301,6 +303,7 @@ class TestInfoStage:
         article = article_factory.create(
             journal=journal_with_three_sections,
             owner=coauthor.janeway_account,
+            correspondence_author=coauthor.janeway_account,
         )
         special_issue_with_all_sections.articles.add(article)
         article.refresh_from_db()
@@ -369,6 +372,7 @@ class TestInfoStage:
         article = article_factory.create(
             journal=journal_with_three_sections,
             owner=coauthor.janeway_account,
+            correspondence_author=coauthor.janeway_account,
         )
         article.primary_issue = special_issue_with_two_sections
         article.save()
