@@ -1463,7 +1463,12 @@ class BeginPublication:
 
     def trigger_galley_generation(self):
         """Trigger an async process for the galley generation."""
-        async_task(finishpublication_wrapper, workflow_pk=self.workflow.pk, user_pk=self.user.pk)
+        async_task(
+            finishpublication_wrapper,
+            workflow_pk=self.workflow.pk,
+            user_pk=self.user.pk,
+            task_name="finish-publication__automatic-trigger",
+        )
 
     def run(self):
         with transaction.atomic():
