@@ -1,12 +1,17 @@
 {% load django_bootstrap5 %}
+{% load wjs_review wjs_tags %}
 <h5 id="galleyproofing-{{ version.number }}">{% translate "Author Proofreading" %}</h5>
 {% if version.galleyproofing.notes %}
   {% translate "Author notes" as notes_label %}
   {% translate "Read" as open_label %}
+  {% with author_notes_id="author_notes-"|concat:version.number %}
+    {% with target_author_notes_id="#"|concat:author_notes_id %}
   <div>
-    {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target="#author_notes" content=notes_label %}
-    {% include "wjs_review/base/elements/modal.html" with modal_id="author_notes" modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
+    {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=target_author_notes_id content=notes_label %}
+    {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
   </div>
+    {% endwith %}
+  {% endwith %}
 {% endif %}
 <div class="container">
   <div class="row">
