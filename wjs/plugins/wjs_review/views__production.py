@@ -582,7 +582,11 @@ class GalleyGenerationView(BaseRelatedViewsMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         try:
-            async_task(typesettertestsgalleygeneration_wrapper, self.kwargs["pk"])
+            async_task(
+                typesettertestsgalleygeneration_wrapper,
+                self.kwargs["pk"],
+                task_name="test-galley-generation",
+            )
         except Exception as e:
             self.error = e
             return super().get(request, *args, **kwargs)
@@ -790,6 +794,7 @@ class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):
                 finishpublication_wrapper,
                 workflow_pk=self.object.pk,
                 user_pk=self.request.user.pk,
+                task_name="finish-publication__manual-trigger",
             )
         except ValueError as e:
             messages.error(request=self.request, message=e)
