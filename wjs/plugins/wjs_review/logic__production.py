@@ -1580,7 +1580,8 @@ Please retry and contact assistance is the problem persists.
             "handshake_url": "wjs_review_list",
             "request": self.request,
             "article": self.workflow.article,
-            "switch_stage": True,
+            # Stage is already set to STAGE_PUBLISHED by import_utils.publish_article
+            "switch_stage": False,
         }
         events_logic.Events.raise_event(
             events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE,
