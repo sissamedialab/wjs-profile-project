@@ -41,6 +41,8 @@ from .views import (
     JournalEditorsView,
     Manager,
     MessageAttachmentDownloadView,
+    MessageNoteDeleteView,
+    MessageNoteUpdateView,
     PostponeRevisionRequestDueDate,
     ReviewDeclined,
     ReviewEnd,
@@ -213,6 +215,16 @@ urlpatterns = [
         name="wjs_message_write_to_typ",
     ),
     path("messages/<int:pk>/note/", WriteMessage.as_view(note=True), name="wjs_message_note"),
+    path(
+        "messages/<int:pk>/note/<int:original_message_pk>/edit/",
+        MessageNoteUpdateView.as_view(),
+        name="wjs_message_note_edit",
+    ),
+    path(
+        "messages/<int:pk>/note/<int:original_message_pk>/delete/",
+        MessageNoteDeleteView.as_view(),
+        name="wjs_message_note_delete",
+    ),
     path(
         "messages/<int:article_id>/reply/<int:original_message_pk>/", WriteMessage.as_view(), name="wjs_message_reply"
     ),

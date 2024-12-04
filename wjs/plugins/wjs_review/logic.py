@@ -2342,7 +2342,10 @@ class HandleMessage:
             :return: List of editor ids for current review round.
             :rtype: FlatValuesListIterable
             """
-            return [WjsEditorAssignment.objects.get_current(article_obj).editor.pk]
+            try:
+                return [WjsEditorAssignment.objects.get_current(article_obj).editor.pk]
+            except WjsEditorAssignment.DoesNotExist:
+                return []
 
         def _get_reviewers(article_obj: Article) -> FlatValuesListIterable:
             """

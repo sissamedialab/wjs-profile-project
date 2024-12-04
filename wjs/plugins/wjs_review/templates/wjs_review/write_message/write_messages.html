@@ -140,6 +140,16 @@
         {% bootstrap_field form.body %}
         {% if not send_back %}
           {% bootstrap_field form.attachment %}
+          {% if message.attachments.exists %}
+            <div class="d-flex align-items-center mt-1 mb-3">
+              {% for attachment in message.attachments.all %}
+                <a class="btn btn-outline-secondary btn-sm d-flex align-items-center me-2" href="{% url 'wjs_message_download_attachment' message_id=message.id attachment_id=attachment.id %}">
+                  <i class="bi bi-file-earmark-text me-1"></i> {{ attachment.original_filename }}
+                </a>
+              {% endfor %}
+              <span>{% translate "Load a new file to replace the current one" %}</span>
+            </div>
+          {% endif %}
         {% endif %}
         {% if not forward and not send_back %}
           {% bootstrap_field form.actor %}
@@ -149,7 +159,7 @@
         {% endif %}
       </div>
       {% bootstrap_button button_type="submit" name="submit" content=send_label id="id_formset_submit_button" %}
-      {% include "wjs_review/base/elements/back.html" with workflow=article.articleworkflow %}
+      {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
     </form>
   </div>
 {% endblock content_wrapper %}
