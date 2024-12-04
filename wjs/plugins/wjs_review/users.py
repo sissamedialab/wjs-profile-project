@@ -108,13 +108,13 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
         if user_type == "known":
             qs = qs.annotate_worked_with_me(current_editor)
             qs = qs.filter(wjs_worked_with_me=True)
-        if user_type == "past":
+        elif user_type == "past":
             qs = qs.filter(wjs_has_completed_review_in_the_previous_round=True)
-        if user_type == "declined":
+        elif user_type == "declined":
             qs = qs.filter(wjs_has_delined_the_previous_review_round=True)
-        if user_type == "prophy":
+        elif user_type == "prophy":
             qs = qs.filter(wjs_is_prophy_candidate=True)
-        if user_type == "all":
+        elif user_type == "all":
             pass
         else:
             logger.warning(f'Unknown (or not yet implemented) user_type "{user_type}"')
