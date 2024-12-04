@@ -459,7 +459,11 @@ class EditorToBeSelected(BaseState):
     def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
         # If a paper is in this state we can assume that there are no "live" assignments (WjsEditorAssignments), so we
         # need to check only for past assignments.
-        if latest_editor_assignment := PastEditorAssignment.objects.all().order_by("date_unassigned").last():
+        if (
+            latest_editor_assignment := PastEditorAssignment.objects.filter(article=article)
+            .order_by("date_unassigned")
+            .last()
+        ):
             waiting_days = (latest_editor_assignment.date_unassigned - article.date_submitted).days
         else:
             waiting_days = (timezone.now() - article.date_submitted).days

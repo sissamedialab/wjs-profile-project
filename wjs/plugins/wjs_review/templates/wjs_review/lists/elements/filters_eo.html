@@ -25,7 +25,7 @@
   {% endif %}
   <div class="d-flex justify-content-end align-items-end gap-4 col">
     <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary btn-sm">{{ reset_label }}</a>
-    {% bootstrap_button button_type="submit" button_class="btn-primary" name="search" layout="floating" value=1 content=search_label size="sm" %}
+    {% bootstrap_button id="id_filter_form_submit_button" button_type="submit" button_class="btn-primary" name="search" layout="floating" value=1 content=search_label size="sm" %}
   </div>
 </div>
 {% include "wjs_review/lists/elements/filters_visibility.html" %}

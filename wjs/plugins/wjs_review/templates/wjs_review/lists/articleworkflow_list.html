@@ -7,6 +7,18 @@
     {{ block.super }}
     <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
     <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
+    <script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function() {
+      document.querySelectorAll("#id_filter_form input, #id_filter_form select").forEach((item) => {
+        item.addEventListener("keypress", function(event) {
+          if (event.which === 13) {
+            event.preventDefault();
+            document.getElementById("id_filter_form_submit_button").click();
+          }
+        });
+      });
+    });
+    </script>
 {% endblock bootstrap5_extra_head %}
 
 {% block content_wrapper %}
@@ -20,7 +32,7 @@
   {% if view.show_filters %}
     {% if filter %}
       <div class="container mb-3">
-        <form method="get">
+        <form id="id_filter_form" method="get">
           {% include filter.template_name %}
         </form>
       </div>
