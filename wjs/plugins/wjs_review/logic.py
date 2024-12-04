@@ -3231,7 +3231,7 @@ class WithdrawPreprint:
 
 @dataclasses.dataclass
 class ConvertManuscriptToPdf:
-    """Use Yakunin service to convert the manuscript file uploaded by the author into a PDF"""
+    """Use Yakunin service to convert the manuscript file uploaded by the author into a PDF."""
 
     article: Article
 
@@ -3296,8 +3296,11 @@ class ConvertManuscriptToPdf:
     def handle_generated_pdf(self, unpack_dir: Path):
         # Assuming the pdf is always present if no error or critical in logs
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        # Let's call the PDF that we are storing in Janeway the same as the source file that originated it,
+        # but with extension ".pdf"
+        generated_pdf_filename = Path(self.article.manuscript_files.first().original_filename).with_suffix(".pdf")
         with generated_pdf_path.open("rb") as pdf_file:
-            generated_pdf = File(pdf_file, name=generated_pdf_path.name)
+            generated_pdf = File(pdf_file, name=generated_pdf_filename)
             generated_manuscript = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.article,
