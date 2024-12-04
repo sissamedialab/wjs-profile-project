@@ -2089,6 +2089,79 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         return response
 
 
+class MessageNoteUpdateView(BaseRelatedViewsMixin, UpdateView):
+    """A view to let the user update a personal note message."""
+
+    model = Message
+    form_class = MessageForm
+    template_name = "wjs_review/write_message/write_messages.html"
+    pk_url_kwarg = "original_message_pk"
+    title = _("Edit personal note")
+
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """User must be the recipient and the message must be a NOTE."""
+        self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
+        return self.object.actor == self.request.user and self.object.message_type == Message.MessageTypes.NOTE
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.workflow.pk}),
+                title=str(self.workflow),
+            ),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
+
+    def get_success_url(self):
+        """Redirect to the article messages' list."""
+        return reverse("wjs_article_messages", kwargs={"pk": self.workflow.pk})
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["actor"] = self.request.user
+        kwargs["target"] = self.workflow.article
+        kwargs["current_note"] = self.object
+        kwargs["note"] = True
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.workflow
+        context["note"] = True
+        return context
+
+
+class MessageNoteDeleteView(AuthenticatedUserPassesTest, DeleteView):
+    """A view to let the user delete a personal note message."""
+
+    model = Message
+    pk_url_kwarg = "original_message_pk"
+
+    def test_func(self):
+        """User must be the recipient and the message must be a NOTE."""
+        self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
+        return self.object.actor == self.request.user and self.object.message_type == Message.MessageTypes.NOTE
+
+    def get_success_url(self):
+        """Redirect to the article messages' list."""
+        return reverse("wjs_article_messages", kwargs={"pk": self.kwargs["pk"]})
+
+    def post(self, request, *args, **kwargs):
+        if file := self.object.attachments.all().first():
+            file.delete()
+        super().post(request, *args, **kwargs)
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
+
+
 class ToggleMessageReadView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     """A view to let the user toggle read/unread flag on a message."""
 

@@ -1050,6 +1050,7 @@ class MessageForm(forms.ModelForm):
         self.target = kwargs.pop("target")
         self.note = kwargs.pop("note", False)
         self.hide_recipients = kwargs.pop("hide_recipients", False)
+        self.current_note = kwargs.pop("current_note", None)
         super().__init__(*args, **kwargs)
         self.fields["subject"].required = True
         self.fields["body"].required = True
@@ -1132,6 +1133,8 @@ class MessageForm(forms.ModelForm):
         to a specific article are not managed.
         """
         with transaction.atomic():
+            if self.current_note and self.current_note.attachments.all().first() and self.cleaned_data["attachment"]:
+                self.current_note.attachments.all().first().delete()
             instance: Message = super().save()
             instance.recipients.set(self.cleaned_data["recipients"])
             if self.note:
