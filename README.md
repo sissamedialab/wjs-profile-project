@@ -1,4 +1,17 @@
-# WJS - JCOM profile
+# WJS
+
+Web Journal System is the replacement of the wjapp system for web-journal management.
+
+It builds on OLH's [Janeway](https://www.openlibhums.org/site/janeway/).
+
+
+## Documentation
+
+Please see operative details in our internal [wiki pages](https://gitlab.sissamedialab.it/wjs/specs/-/wikis/home).
+
+
+
+## Notes
 
 **Experimental**
 
