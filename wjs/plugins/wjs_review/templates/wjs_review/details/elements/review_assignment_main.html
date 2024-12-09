@@ -1,6 +1,6 @@
 {% load django_bootstrap5 static wjs_permissions wjs_review %}
 {% get_review_assignment_actions assignment as actions %}
-{% url "wjs_message_write" pk=article.pk recipient_id=assignment.reviewer.pk as add_message %}
+{% url "wjs_message_write" pk=workflow.pk recipient_id=assignment.reviewer.pk as add_message %}
 {% translate "Send message" as send_message_label %}
 <!-- djlint:off -->
 {% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as write_message_label %}

@@ -240,11 +240,11 @@ urlpatterns = [
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders
     path("status/<int:pk>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
-    path("status/<int:pk>/assignment_reminders/", ArticleReminders.as_view(), name="wjs_article_toggle_reminders"),
+    path("status/<int:pk>/assignment_reminders/", ArticleReminders.as_view(), name="wjs_reminders_per_assignment"),
     path(
         "toggle_reminder/<int:reminder_id>/",
         ToggleDisableReminders.as_view(),
-        name="wjs_eo_toggle_reminder",
+        name="wjs_toggle_reminder",
     ),
     path("journal_editors/", JournalEditorsView.as_view(), name="wjs_journal_editors"),
     path("esm_files/<int:pk>/", ListSupplementaryFileView.as_view(), name="wjs_article_esm_files"),

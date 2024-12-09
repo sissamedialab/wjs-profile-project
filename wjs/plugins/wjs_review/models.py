@@ -1723,7 +1723,7 @@ class WorkflowReviewAssignment(ReviewAssignment):
         if self.date_accepted and not self.is_complete:
             return ReviewAssignmentAttentionCondition(
                 code="pending",
-                message=_("Report deadline: %s") % date_format(self.date_due, settings.DATE_FORMAT),
+                message=_("Review due date: %s") % date_format(self.date_due, settings.DATE_FORMAT),
             )
 
 

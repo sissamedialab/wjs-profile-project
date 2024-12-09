@@ -24,7 +24,7 @@ PROFESSIONS = (
         "A practitioner in S&T" " (e.g. journalist, museum staff, writer, ...)",
     ),
     (2, "An active scientist"),
-    (3, "Other"),
+    (3, "Other profession"),
 )
 
 

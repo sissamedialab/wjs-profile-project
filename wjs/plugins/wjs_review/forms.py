@@ -1330,7 +1330,7 @@ class DeselectReviewerForm(forms.Form):
         """Instantiate :py:class:`DeselectReviewer` class."""
         return DeselectReviewer(
             assignment=self.instance,
-            editor=self.user,
+            actor=self.user,
             send_reviewer_notification=self.cleaned_data["send_notification"],
             request=self.request,
             form_data=self.data,

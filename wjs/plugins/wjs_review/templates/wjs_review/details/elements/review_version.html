@@ -28,7 +28,11 @@
             {% include "wjs_review/details/elements/review_revision.html" with article_info=version.file_container %}
           </div>
         {% endif %}
-
+        <div>
+          {% if version.number == 1 and article.fieldanswer_set.all %}
+            {% include "wjs_review/details/elements/metadata_field_answers.html" %}
+          {% endif %}
+        </div>
         {% user_has_access_to workflow=workflow user=request.user target=version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as all_files %}
         {% if all_files and version.cover_letter.has_content %}
           <div>

@@ -2648,15 +2648,18 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         if self.request.resolver_match.url_name == "wjs_article_reminders":
             self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
             self.assignment = None
-        elif self.request.resolver_match.url_name == "wjs_article_toggle_reminders":
+        elif self.request.resolver_match.url_name == "wjs_reminders_per_assignment":
             self.assignment = get_object_or_404(WorkflowReviewAssignment, pk=self.kwargs["pk"])
             self.workflow = self.assignment.article.articleworkflow
 
     def test_func(self):
-        """Let's show reminders only to EO or director."""
-        return base_permissions.has_admin_role(
+        """Let's show reminders only to EO or director or editor."""
+        is_eo_or_director = base_permissions.has_admin_role(
             self.request.journal, self.request.user
         ) or base_permissions.has_director_role(self.request.journal, self.request.user)
+        if self.assignment:
+            return is_eo_or_director or permissions.is_article_editor(self.workflow, self.request.user)
+        return is_eo_or_director
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
@@ -2706,15 +2709,15 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         context["workflow"] = self.workflow
         context["article"] = self.workflow.article
         reminders = Reminder.objects.filter(id__in=self.get_queryset())
-        eo_forms = {
+        toggle_reminder_forms = {
             reminder.id: ToggleDisableRemindersForm(instance=reminder, prefix=f"toggle-reminder-{reminder.pk}")
             for reminder in reminders
         }
-        context["eo_forms"] = eo_forms
+        context["toggle_reminder_forms"] = toggle_reminder_forms
         return context
 
 
-class ToggleDisableReminders(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
+class ToggleDisableReminders(AuthenticatedUserPassesTest, UpdateView):
     """A view to let the EO enable/disable reminders."""
 
     model = Reminder
@@ -2723,8 +2726,15 @@ class ToggleDisableReminders(HtmxMixin, AuthenticatedUserPassesTest, UpdateView)
     context_object_name = "reminder"
 
     def test_func(self):
-        """User must be part of the EO."""
-        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+        """User must EO or director or editor (of the RA)."""
+        self.object = self.get_object()
+        is_eo_or_director = base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+        is_article_editor = (
+            permissions.is_article_editor(self.object.target.article.articleworkflow, self.request.user)
+            if self.object.content_type.model_class() == WorkflowReviewAssignment
+            else False
+        )
+        return is_eo_or_director or is_article_editor
 
     def get_object(self, queryset=None):
         return get_object_or_404(
@@ -2746,6 +2756,7 @@ class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     View to allow the Editor to postpone Reviewer Report due date.
     """
 
+    title = _("Change due date")
     model = WorkflowReviewAssignment
     form_class = UpdateReviewerDueDateForm
     template_name = "wjs_review/details/update_reviewer_due_date.html"
@@ -2766,14 +2777,6 @@ class UpdateReviewerDueDate(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
         if self.reviewer:
             return permissions.is_article_reviewer(articleworkflow, self.request.user)
         return self.is_user_editor or base_permissions.has_eo_role(self.request.user)
-
-    @property
-    def title(self):
-        if self.reviewer:
-            if self.is_user_editor:
-                return _("Change due date")
-            return _("Postpone due date")
-        return _("Postpone report due date")
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()

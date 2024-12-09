@@ -397,7 +397,32 @@ class BaseState:
             condition=conditions.can_withdraw_preprint,
         ),
     )
-    review_assignment_actions = ()
+    review_assignment_actions = (
+        ReviewAssignmentAction(
+            assignment_permission=permissions.is_assignment_reviewer,
+            condition=conditions.review_done,
+            name="read review",
+            label="Read Review",
+            view_name="",
+            custom_get_url=get_review_url,
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.is_article_editor,
+            condition=conditions.review_done,
+            name="read review",
+            label="Read Review",
+            view_name="",
+            custom_get_url=get_review_url,
+        ),
+        ReviewAssignmentAction(
+            permission=permissions.has_eo_role_by_article,
+            condition=conditions.review_done,
+            name="read review",
+            label="Read Review",
+            view_name="",
+            custom_get_url=get_review_url,
+        ),
+    )
 
     @classmethod
     def article_requires_attention(cls, article: Article, user: Account) -> str:
@@ -593,35 +618,11 @@ class EditorSelected(BaseState):
             is_modal=True,
         ),
         ReviewAssignmentAction(
-            assignment_permission=permissions.is_assignment_reviewer,
-            condition=conditions.review_done,
-            name="read review",
-            label="Read Review",
-            view_name="",
-            custom_get_url=get_review_url,
-        ),
-        ReviewAssignmentAction(
-            permission=permissions.is_article_editor,
-            condition=conditions.review_done,
-            name="read review",
-            label="Read Review",
-            view_name="",
-            custom_get_url=get_review_url,
-        ),
-        ReviewAssignmentAction(
-            permission=permissions.has_eo_role_by_article,
-            condition=conditions.review_done,
-            name="read review",
-            label="Read Review",
-            view_name="",
-            custom_get_url=get_review_url,
-        ),
-        ReviewAssignmentAction(
-            permission=permissions.is_article_supervisor,
+            permission=permissions.is_article_editor_or_eo,
             condition=conditions.review_not_done,
             name="disable reminders",
             label="Disable reminders",
-            view_name="wjs_article_toggle_reminders",
+            view_name="wjs_reminders_per_assignment",
         ),
         ReviewAssignmentAction(
             permission=permissions.is_article_pure_editor_or_eo,

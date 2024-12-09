@@ -3,8 +3,8 @@
 <div id="reminder-item-{{ reminder.id }}" class="d-flex align-items-center mb-4">
   <div class="card w-75">
   <div class="position-absolute top-0 end-0 p-2">
-    {% if user_is_eo_or_director %}
-        {% include "wjs_review/reminders/elements/eo_toggle_reminder.html" with form=eo_forms|keyvalue:reminder.pk %}
+    {% if user_is_eo_or_director or workflow|is_user_article_editor:request.user %}
+        {% include "wjs_review/reminders/elements/eo_toggle_reminder.html" with form=toggle_reminder_forms|keyvalue:reminder.pk %}
     {% endif %}
   </div>
     <div class="card-header">
