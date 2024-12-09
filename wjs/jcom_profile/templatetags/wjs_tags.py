@@ -23,7 +23,10 @@ def keyvalue(dictionary, key):
 
     Raise KeyError if key is not in dictionary.
     """
-    return dictionary[key]
+    try:
+        return dictionary[key]
+    except KeyError:
+        return None
 
 
 @register.filter
@@ -33,7 +36,10 @@ def get_value(dictionary, key):
 
     Do not raise KeyError if key is not in dictionary.
     """
-    return dictionary.get(key, "")
+    try:
+        return dictionary.get(key, "")
+    except AttributeError:
+        return None
 
 
 @register.filter
