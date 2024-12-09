@@ -1,4 +1,5 @@
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django.template import Context
 from django.views.generic import DetailView
@@ -8,7 +9,7 @@ from submission import models as submission_models
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import permissions
-from .models import ArticleWorkflow, WorkflowReviewAssignment
+from .models import ArticleWorkflow, PermissionAssignment, WorkflowReviewAssignment
 
 
 class EditorRequiredMixin(UserPassesTestMixin):
@@ -100,6 +101,18 @@ class OpenReviewMixin(DetailView):
                 filters = Q(reviewer=self.request.user)
                 if self.allow_editor_access:
                     filters |= Q(editor=self.request.user)
+                    # Past editors could be given permission to access RAs.
+                    # Here we include those RAs for which the user has any kind of permission
+                    # (except, naturally, "DENY")
+                    filters |= Q(
+                        id__in=PermissionAssignment.objects.filter(
+                            user=self.request.user,
+                            content_type=ContentType.objects.get_for_model(self.model),
+                        )
+                        .exclude(permission=PermissionAssignment.PermissionType.DENY)
+                        .values_list("object_id", flat=True)
+                    )
+                    # TODO: what about director?
                 queryset = queryset.filter(filters)
         else:
             queryset = queryset.none()

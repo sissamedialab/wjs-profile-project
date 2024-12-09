@@ -670,7 +670,12 @@ def test_permission_form_view_setup_reviewer(
 
 @pytest.mark.django_db
 def test_permission_form_view_setup_editor(
-    assigned_article: Article, normal_user: Account, fake_request: HttpRequest, create_jcom_user, set_fixed_time
+    assigned_article: Article,
+    normal_user: Account,
+    eo_user: Account,
+    fake_request: HttpRequest,
+    create_jcom_user,
+    set_fixed_time,
 ):
     """
     Permissions for past and current editors are mapped to initial set of values.
@@ -737,6 +742,7 @@ def test_permission_form_view_setup_editor(
     view_obj.args = ()
     fake_request.user = normal_user.janeway_account
     view_obj.load_initial(fake_request, pk=assigned_article.articleworkflow.pk, user_id=normal_user.pk)
+    fake_request.user = eo_user
     view_obj.request = fake_request
     objs = view_obj._get_article_objects()
     # 1 article
@@ -771,7 +777,7 @@ def test_permission_form_view_setup_editor(
     assert not objs[-2].author_notes
 
     # Permissions for current user
-    fake_request.user = normal_user.janeway_account
+    view_obj.user = normal_user.janeway_account
     initial = view_obj.get_initial()
     assert len(initial) == 11
     for index, item in enumerate(initial):
@@ -792,7 +798,7 @@ def test_permission_form_view_setup_editor(
             assert item["permission_secondary"] == PermissionAssignment.BinaryPermissionType.ALL
 
     # Permissions for original editor
-    fake_request.user = past_assignment.editor
+    view_obj.user = past_assignment.editor
     view_obj = EditUserPermissions()
     view_obj.kwargs = {"pk": assigned_article.articleworkflow.pk, "user_id": past_assignment.editor.pk}
     view_obj.args = ()

@@ -90,8 +90,10 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
             article__correspondence_author=self.user
         )
         editor_revisions_type = ContentType.objects.get_for_model(EditorRevisionRequest)
-        editor_decisions = EditorDecision.objects.filter(workflow=self.workflow).exclude(
-            review_round__article__correspondence_author=self.user
+        editor_decisions = (
+            EditorDecision.objects.filter(workflow=self.workflow)
+            .exclude(review_round__article__correspondence_author=self.user)
+            .exclude(decision=ArticleWorkflow.Decisions.TECHNICAL_REVISION)
         )
         editor_decisions_type = ContentType.objects.get_for_model(EditorDecision)
         review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).exclude(
@@ -147,8 +149,31 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
                 for obj in review_assignments
             ]
         )
+
+        # remove from the list all objects that the operatord (the user that is editing the permissions) has not right
+        # to see.
+        # TODO: review me after !725 has been merged; expecially check author cover letters
+        visible_objects = filter(
+            lambda target_object: PermissionChecker()(
+                self.workflow,
+                self.request.user,  # NB: self.user is the "target user" (!= self.request.user)
+                target_object.object,
+                permission_type=PermissionAssignment.PermissionType.DENY,
+                secondary_permission=PermissionAssignment.BinaryPermissionType.DENY,
+            ),
+            target_objects,
+        )
+        # TODO: log the difference between target-objects before and after the filtering
+        #       it can indicates adjustements to the collection procedure.
+
         # sorting by object type is mainly to provide data stability during tests
-        return sorted(target_objects, key=attrgetter("round", "date_reference", "object_type"), reverse=True)
+        visible_objects = sorted(
+            visible_objects,
+            key=attrgetter("round", "date_reference", "object_type"),
+            reverse=True,
+        )
+
+        return visible_objects
 
     def _check_current_permission(
         self,
