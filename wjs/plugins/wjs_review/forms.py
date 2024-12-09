@@ -788,10 +788,11 @@ class UploadArticleForm(forms.Form):
     )
     label = forms.CharField(label=_("File label"), widget=forms.TextInput(attrs={"placeholder": "Label"}))
     file = forms.FileField(label=_("Source file"), widget=forms.FileInput())
+    next_location = forms.CharField(widget=forms.HiddenInput(), required=False)
 
     def __init__(self, *args, **kwargs):
         self.file_type = kwargs.pop("file_type", "")
-        self.instance = kwargs.pop("instance")
+        self.instance: EditorRevisionRequest = kwargs.pop("instance")
         self.user = kwargs.pop("user")
         self.original_file = kwargs.pop("original_file", None)
         self.new_file = None
@@ -809,7 +810,7 @@ class UploadArticleForm(forms.Form):
         label = self.cleaned_data["label"]
         file_type = self.cleaned_data["file_type"]
         article = self.instance.article
-        if file_type in ["manuscript", "data"]:
+        if file_type in ["manuscript", "data", "cover_letter"]:
             new_file = files.save_file_to_article(
                 uploaded_file,
                 article,
@@ -828,22 +829,23 @@ class UploadArticleForm(forms.Form):
                     # elsewhere
                     article.data_figure_files.remove(self.original_file)
                 article.data_figure_files.add(new_file)
+            if file_type == "cover_letter":
+                if self.instance.cover_letter_file:
+                    # unlink the existing file because it should not be referenced anywhere else
+                    self.instance.cover_letter_file.delete()
+                self.instance.cover_letter_file = new_file
+                self.instance.save()
             self.new_file = new_file
         else:
-            self.instance.cover_letter_file = uploaded_file
-            self.instance.save()
+            logger.error(f"Unknown file type '{file_type}' while {self.user} was uploading revision {self.instance}.")
         return self.instance
 
 
-class UploadRevisionAuthorCoverLetterFileForm(forms.ModelForm):
-    class Meta:
-        model = EditorRevisionRequest
-        fields = ["cover_letter_file"]
-        widgets = {"cover_letter_file": forms.ClearableFileInput()}
-
-
 class BaseEditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
-    author_note = WjsMiniHTMLFormField(label=_("Author notes"), required=True)
+    # Author notes (aka cover letter text) are not required, because the
+    # "cover letter" can be the text or the cover letter file or both.
+    # Subclasses will check that this condition is honored.
+    author_note = WjsMiniHTMLFormField(label=_("Author notes"), required=False)
 
     class Meta:
         model = EditorRevisionRequest

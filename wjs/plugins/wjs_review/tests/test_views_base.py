@@ -354,17 +354,6 @@ def test_wjs_declined_review(review_assignment, client):
 
 
 @pytest.mark.django_db
-def test_wjs_upload_cover_file(editor_revision, client):
-    article = editor_revision.article
-    client.force_login(article.correspondence_author)
-    response = client.get(
-        f"/{article.journal.code}/plugins/wjs-review-articles/article/{article.pk}/"
-        f"revision/{editor_revision.pk}/upload-cover/"
-    )
-    assert response.status_code == 200
-
-
-@pytest.mark.django_db
 def test_wjs_upload_manuscript(editor_revision, client):
     article = editor_revision.article
     client.force_login(article.correspondence_author)

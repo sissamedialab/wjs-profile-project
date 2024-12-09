@@ -91,7 +91,6 @@ from .forms import (
     ToggleMessageReadForm,
     UpdateReviewerDueDateForm,
     UploadArticleForm,
-    UploadRevisionAuthorCoverLetterFileForm,
     WithdrawPreprintForm,
 )
 from .logic import (
@@ -2238,62 +2237,13 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
 
 
-class UploadRevisionAuthorCoverLetterFile(BaseRelatedViewsMixin, UpdateView):
-    """
-    Basic view to upload the optional file of the author cover letter.
-
-    We keep the author's cover letter file in wjs EditorRevisionRequest model instead of in Janeway's RevisionRequest
-    model (where the covering letter/authors note text field is saved) in order to keep the plugin pluggable
-    (i.e. Janeway can still work well without wjs_review).
-
-    Also, since it's the author's direct reply to the editor's revision request, this is not semantically wrong.
-
-    """
-
-    title = _("Upload Author Cover Letter")
-    model = EditorRevisionRequest
-    pk_url_kwarg = "revision_id"
-    template_name = "wjs_review/revision/upload_revision_author_cover_letter_file.html"
-    form_class = UploadRevisionAuthorCoverLetterFileForm
-    confirm_version = False
-
-    def test_func(self):
-        """User must be corresponding author of the article."""
-        return self.model.objects.filter(
-            pk=self.kwargs[self.pk_url_kwarg],
-            article__correspondence_author=self.request.user,
-        ).exists()
-
-    @property
-    def breadcrumbs(self) -> List["BreadcrumbItem"]:
-        from .custom_types import BreadcrumbItem
-
-        return [
-            BreadcrumbItem(
-                url=reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk}),
-                title=self.object.article.articleworkflow,
-            ),
-            BreadcrumbItem(
-                url=reverse(
-                    "do_revisions",
-                    kwargs={"article_id": self.object.article.articleworkflow.pk, "revision_id": self.object.pk},
-                ),
-                title=_("Submit revision"),
-            ),
-            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
-        ]
-
-    def get_success_url(self):
-        """Redirect to the article details page."""
-        if self.confirm_version:
-            return reverse(
-                "confirm_version", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk}
-            )
-        return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
-
-
 class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
-    """ """
+    """A view to allow an author to upload files during the submission of a revision.
+
+    Uploaded files can be manuscript, data-figure files and cover letter file.
+
+    This view is intended to be used from inside a small modal.
+    """
 
     model = EditorRevisionRequest
     pk_url_kwarg = "revision_id"
@@ -2306,10 +2256,18 @@ class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
         if self.file_type == "manuscript":
             if self.original_file:
                 return _("Replace manuscript")
-            return _("Upload manuscript")
-        if self.original_file:
-            return _("Replace data and figure file")
-        return _("Upload data and figure file")
+            else:
+                return _("Upload manuscript")
+        elif self.file_type == "data":
+            if self.original_file:
+                return _("Replace data and figure file")  # FIXME! do we really replace or simply add?
+            else:
+                return _("Upload data and figure file")
+        elif self.file_type == "cover_letter":
+            if self.object.cover_letter_file:
+                return _("Replace cover letter file")
+            else:
+                return _("Upload cover letter file")
 
     def test_func(self):
         """User must be corresponding author of the article."""
@@ -2325,12 +2283,24 @@ class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
 
     def get_initial(self):
         initial = super().get_initial()
+        # We could be called either during a normal submission or during a "confirm previous version" submission. So we
+        # allow for the caller to specify where we should redirect once we have uploaded the file. If we receive
+        # something via the query-string, we store it in one of the form fields and use it after the POST.
+        initial["next_location"] = self.request.GET.get(
+            "next_location",
+            self.request.POST.get("next_location", None),
+        )
+
         if self.file_type == "manuscript":
             initial["label"] = self.request.journal.submissionconfiguration.submission_file_text
-        else:
+        elif self.file_type == "data":
             initial["label"] = get_setting(
                 "styling", "submission_figures_data_title", self.request.journal
             ).process_value()
+        elif self.file_type == "cover_letter":
+            initial["label"] = "Cover letter file"
+            # don't add the anchor       # if initial["next_location"]:
+            # or HX-Redirect won't work! #    initial["next_location"] = f"{initial['next_location']}#cover_letter"
         return initial
 
     def get_form_kwargs(self):
@@ -2380,8 +2350,17 @@ class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
         return response
 
     def get_success_url(self):
-        """Redirect to the article details page."""
-        return reverse("do_revisions", kwargs={"article_id": self.object.article.pk, "revision_id": self.object.pk})
+        if next_location := self.request.POST.get("next_location"):
+            success_url = next_location
+        else:
+            success_url = reverse(
+                "do_revisions",
+                kwargs={
+                    "article_id": self.object.article.pk,
+                    "revision_id": self.object.pk,
+                },
+            )
+        return success_url
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2408,9 +2387,9 @@ class DeleteRevisionFile(AuthenticatedUserPassesTest, DeleteView):
         ).exists()
 
     def get_success_url(self):
-        """Redirect to the article details page."""
         if self.request.POST.get("next"):
             return self.request.POST.get("next")
+
         return reverse(
             "do_revisions",
             kwargs={
