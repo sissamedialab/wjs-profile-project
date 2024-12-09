@@ -550,7 +550,8 @@ class ArticleWorkflow(TimeStampedModel):
             return self.ReviewComputedStates.IN_REVIEW.value
 
         elif completed_revision.exists():
-            revision = completed_revision.first()
+            # take that last completed revision, because non-last ones could be technical revisions
+            revision = completed_revision.last()
             return self.ReviewComputedStates("resubmitted_" + revision.type).value
 
         else:
