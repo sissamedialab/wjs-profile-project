@@ -265,10 +265,19 @@ def drop_how_to_cite(html: HtmlElement, lang="eng"):
         "eng": "How to cite",
         "spa": "Cómo citar",
         "por": "Como citar",
+        "deu": "Wie man zitiert",
+        "fra": "Comment citer",
+        "ita": "Come citare",
     }
     # It is possible that the <h2> contains <a>s, so a xpath query
     # such as .//h2[text()='How to cite'] might not be sufficient.
-    htc_h2 = [element for element in html.findall(".//h2") if how_to_cite[lang] in element.text_content()]
+    try:
+        htc_h2 = [element for element in html.findall(".//h2") if how_to_cite[lang] in element.text_content()]
+    except KeyError:
+        msg = f"No how-to-cite translation for language {lang}. HTML galley might be wrong."
+        logger.error(msg)
+        raise Exception(msg)
+
     if len(htc_h2) == 0:
         logger.warning("No How-to-cite in HTML.")
         return

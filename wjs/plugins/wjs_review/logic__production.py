@@ -896,7 +896,17 @@ class AttachGalleys:
         html_galley_text = open(html_galley_filename).read()
 
         galley_language = evince_language_from_filename_and_article(str(html_galley_filename), self.article)
-        processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
+        try:
+            processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
+        except Exception as e:
+            communication_utils.notify_async_event(
+                message_subject=f"{self.article.journal.code} {self.article.id} HTML galley generation error",
+                message_body=str(e),
+                recipients=[self.request.user],
+                article=self.article,
+            )
+            processed_html_galley_as_bytes = b"HTML galley generation error. Please contact assistance."
+
         name = "body.html"
         html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)
         label = "HTML"
