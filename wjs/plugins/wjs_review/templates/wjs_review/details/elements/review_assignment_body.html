@@ -1,7 +1,7 @@
 
 {% load django_bootstrap5 humanize static wjs_permissions wjs_review %}
 {% get_review_assignment_actions assignment as actions %}
-{% url "wjs_message_write" pk=article.pk recipient_id=assignment.reviewer.pk as add_message %}
+{% url "wjs_message_write" pk=workflow.pk recipient_id=assignment.reviewer.pk as add_message %}
 {% translate "Send message" as send_message_label %}
 <!-- djlint:off -->
 {% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as write_message_label %}
@@ -10,7 +10,7 @@
 {% if assignment.date_declined %}
   <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
   <p>{% translate "Decline date" %}: {{ assignment.date_declined|date:DATE_FORMAT }}</p>
-{% elif not assignment.date_accepted %}
+{% elif not assignment.date_accepted and not assignment.date_declined and not assignment.decision == "withdrawn" %}
   <p>{% translate "Accept/decline due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
 {% elif assignment.date_complete %}
   <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
@@ -19,7 +19,7 @@
 {% else %}
   <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
   <p>{% translate "Acceptance date" %}: {{ assignment.date_accepted|date:DATE_FORMAT }}</p>
-  <p>{% translate "Report due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
+  <p>{% translate "Review due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
 {% endif %}
 {% for reminder in assignment.unsent_reminders %}
   {% if request.user != assignment.reviewer and show_name %}

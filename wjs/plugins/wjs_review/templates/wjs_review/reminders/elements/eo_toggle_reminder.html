@@ -1,5 +1,5 @@
 {% load django_bootstrap5 %}
-{% url "wjs_eo_toggle_reminder" reminder_id=reminder.pk as toggle_reminder_url %}
+{% url "wjs_toggle_reminder" reminder_id=reminder.pk as toggle_reminder_url %}
 <div id="toggle-reminder-{{ reminder.pk }}">
   <form name="toggle-reminder-{{ reminder.pk }}" autocomplete="off"
         hx-target="#toggle-reminder-{{ reminder.pk }}"

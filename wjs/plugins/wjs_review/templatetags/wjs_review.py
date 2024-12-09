@@ -587,7 +587,7 @@ def current_typesetting_assignment(article: Article) -> Optional[TypesettingRoun
 
 
 @register.simple_tag()
-def current_editor_assigment(article: Article) -> Optional[TypesettingRound]:
+def current_editor_assignment(article: Article) -> Optional[TypesettingRound]:
     """Return the current editor assignment for the given article."""
     return WjsEditorAssignment.objects.filter(
         article=article, review_rounds=article.current_review_round_object()

@@ -6,7 +6,7 @@
 &nbsp;
 {% if workflow|is_user_article_manager:request.user %}
   {% if assignment.attention_condition %}{{ assignment.attention_condition.icon }}
-    {% elif not assignment.date_accepted and not assignment.date_declined %}[{% translate "Accept/decline due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}]
-    {% elif not assignment.is_complete %}[{% translate "Report due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}]
+    {% elif not assignment.date_accepted and not assignment.date_declined and not assignment.decision == "withdrawn" %}[{% translate "Accept/decline due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}]
+    {% elif not assignment.is_complete %}[{% translate "Review due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}]
   {% endif %}
 {% endif %}
