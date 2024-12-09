@@ -1,6 +1,8 @@
 """Import article from wjapp."""
 
 import datetime
+import os
+import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
 
@@ -19,7 +21,11 @@ from django.db.models import Q
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Issue, IssueType, Journal
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
+from plugins.typesetting.models import (
+    GalleyProofing,
+    TypesettingAssignment,
+    TypesettingRound,
+)
 from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -37,7 +43,12 @@ from plugins.wjs_review.logic import (
     WorkflowReviewAssignment,
     render_template_from_setting,
 )
-from plugins.wjs_review.logic__production import AssignTypesetter, UploadFile
+from plugins.wjs_review.logic__production import (
+    AssignTypesetter,
+    AuthorSendsCorrections,
+    RequestProofs,
+    UploadFile,
+)
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     EditorDecision,
@@ -132,6 +143,13 @@ class Command(BaseCommand):
                 logger.error(
                     f'Empty username parameter for "{login_setting}". Please ensure `username`, etc. are correct.'
                     f"Cannot login, quitting.",
+                )
+                return
+
+            if not getattr(settings, "WJAPP_JCOM_BASE_URL", None):
+                self.stderr.write(
+                    """Missing base wjapp url, import files is not possible. Please set WJAPP_JCOM_BASE_URL
+                    in your django settings to proceed.""",
                 )
                 return
 
@@ -301,6 +319,7 @@ class Command(BaseCommand):
                         "SYS_REMINDS_REF",
                         "SYS_REMINDS_AUT",
                         "ADMIN_RESETS_ED",
+                        "PM_SENDS_TO_TYP",
                     ]
                     if action["actionID"] in managed_in_import_correspondence:
                         logger.debug(f"Action {action['actionID']} managed in import correspondence.")
@@ -1326,6 +1345,16 @@ class ImportCorrespondenceManager:
         # read all messages for imported version
         # Please note that 'REREP', 'EDREP', 'CVLETT' are reviewer and editor reports and
         # author's cover letter, which are managed elsewhere.
+        #
+        # 'AUANN' is the author annotation, i.e. the corrections sent by the author to the typesetter.
+        # 'AUANN' text is contained in Document_Layer (documentLayerText), but can be associated
+        # to a file (zip, pdf, jpg, ...), which is saved in the wjapp archive in
+        # "preprintid/version/AUANN/documentLayerID/documentLayerID.file_extension".
+        # The file extension is not saved in the wjapp database.
+        #
+        # E.g. in JCOM_017A_0624/4/
+        #
+        # AUANN/JCOM_017A_0624_AUANN004381124/JCOM_017A_0624_AUANN004381124.zip
         query_all_messages = """
 SELECT
 dl.documentLayerCod,
@@ -1337,7 +1366,7 @@ dl.submissionDate
 FROM Document_Layer dl
 WHERE
     versioncod=%(imported_version_cod)s
-AND dl.documentLayerType NOT IN ('REREP', 'EDREP', 'CVLETT')
+AND dl.documentLayerType NOT IN ('REREP', 'EDREP', 'CVLETT', 'AUANN')
 ORDER BY dl.submissionDate
 """
         cursor_all_messages.execute(
@@ -1435,6 +1464,7 @@ class BaseActionManager:
     imported_document_layer_cod_list: list
     action_triggers_import_files: bool
     """flag used when not all actions of a family have to import files"""
+    url_base: str = getattr(settings, "WJAPP_JCOM_BASE_URL", None)
 
     def run(self):
         raise NotImplementedError
@@ -1471,36 +1501,34 @@ class BaseActionManager:
         # attachments read data from db for each attachment (no source file name)
         #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
 
-        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
-
         # wjapp version state 22 is the published version
         if self.imported_version_state_cod == 22:
-            response_manuscript_pub = self.download_manuscript_pub(url_base)
+            response_manuscript_pub = self.download_manuscript_pub()
             if response_manuscript_pub.headers["Content-Length"] != "0":
                 manuscript_pub_dj = file_from_response(response_manuscript_pub, f"{self.pubid}.pdf")
                 self.save_manuscript(manuscript_pub_dj)
 
             # previous version: submission / preprintid.tar.gz
             # TODO: add or replace preprintid.tex to the zip from current_hidden where placeholders are replaced
-            response_source_pub = self.download_source_pub(url_base)
+            response_source_pub = self.download_source_pub()
             if response_source_pub.headers["Content-Length"] != "0":
                 source_pub_dj = file_from_response(response_source_pub, f"{self.preprintid}.tar.gz")
                 self.save_source_pub(source_pub_dj)
 
         elif production_version:
             logger.debug(f"production version: {production_version}")
-            response_pdf_galley_prod = self.download_pdf_galley_prod(url_base)
+            response_pdf_galley_prod = self.download_pdf_galley_prod()
             if response_pdf_galley_prod.headers["Content-Length"] != "0":
                 pdf_galley_prod_dj = file_from_response(response_pdf_galley_prod, f"{self.preprintid}.pdf")
                 self.save_pdf_galley(pdf_galley_prod_dj)
 
         else:
-            response_manuscript = self.download_manuscript(url_base)
+            response_manuscript = self.download_manuscript()
             if response_manuscript.headers["Content-Length"] != "0":
                 manuscript_dj = file_from_response(response_manuscript, f"{self.preprintid}.pdf")
                 self.save_manuscript(manuscript_dj)
 
-            (response_source, doc_type) = self.download_source(url_base)
+            (response_source, doc_type) = self.download_source()
             if response_source.headers["Content-Length"] != "0":
                 source_dj = file_from_response(response_source, f"{self.preprintid}.{doc_type}")
                 self.save_source(source_dj, doc_type)
@@ -1512,7 +1540,7 @@ class BaseActionManager:
         wjapp_attachments = self.read_attachments_data()
         wjapp_prod_attachments = []
         for dff_data in wjapp_attachments:
-            dff_response = self.download_wjapp_attachment(url_base, dff_data)
+            dff_response = self.download_wjapp_attachment(dff_data)
             if dff_response.headers["Content-Length"] != "0":
                 dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
                 if production_version:
@@ -1528,10 +1556,12 @@ class BaseActionManager:
 
     # published version pdf
     # TODO: test when production actions are imported
-    def download_manuscript_pub(self, url_base):
+    def download_manuscript_pub(self):
         """Download pdf manuscript for published imported version."""
 
-        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.publicationid}.pdf&fileType=pdf"
+        file_url = (
+            f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.publicationid}.pdf&fileType=pdf"
+        )
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -1542,11 +1572,13 @@ class BaseActionManager:
         return response
 
     # published version source TARGZ (from previous version)
-    def download_source_pub(self, url_base):
+    def download_source_pub(self):
         """Download tar gz source from previous version of imported version."""
 
         previous_version = self.imported_version_num - 1
-        file_url = f"{url_base}{self.preprintid}/{previous_version}/submission/{self.preprintid}.tar.gz&fileType=gz"
+        file_url = (
+            f"{self.url_base}{self.preprintid}/{previous_version}/submission/{self.preprintid}.tar.gz&fileType=gz"
+        )
         logger.debug(f"pub source: {file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -1564,10 +1596,10 @@ class BaseActionManager:
         logger.error(f"TA not existing: {filename} not saved")
 
     # manuscript
-    def download_manuscript(self, url_base):
+    def download_manuscript(self):
         """Download pdf manuscript for imported version."""
 
-        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
+        file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -1579,10 +1611,10 @@ class BaseActionManager:
 
     # production version files
 
-    def download_pdf_galley_prod(self, url_base):
+    def download_pdf_galley_prod(self):
         """Download pdf galley for production imported version."""
 
-        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
+        file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -1620,19 +1652,19 @@ class BaseActionManager:
 
     # production version source TARGZ
     def file_source_prod(self):
-        url_base = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
 
-        response_source_prod = self.download_source_prod(url_base)
+        response_source_prod = self.download_source_prod()
         if response_source_prod.headers["Content-Length"] != "0":
             source_prod_dj = file_from_response(response_source_prod, f"{self.preprintid}.tar.gz")
 
         return source_prod_dj
 
-    def download_source_prod(self, url_base):
+    def download_source_prod(self):
         """Download tar gz source from production imported version."""
 
         file_url = (
-            f"{url_base}{self.preprintid}/{self.imported_version_num}/submission/{self.preprintid}.tar.gz&fileType=gz"
+            f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+            f"submission/{self.preprintid}.tar.gz&fileType=gz"
         )
         logger.debug(f"production source: {file_url=}")
         response = self.session.get(file_url)
@@ -1645,11 +1677,11 @@ class BaseActionManager:
 
     # review files
 
-    def download_source(self, url_base):
+    def download_source(self):
         """Download docx/doc source for imported version."""
 
         doc_type = "docx"
-        url_first_part = f"{url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}"
+        url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}"
         file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
@@ -1718,13 +1750,13 @@ class BaseActionManager:
         return
 
     # wjapp attachments - data figurs files
-    def download_wjapp_attachment(self, url_base, dff_data):
+    def download_wjapp_attachment(self, dff_data):
         """Download one wjapp attachment for imported version."""
 
         # url ex: JCOM_001A_0524/2/attachments/JCOM_001A_0524_ATTACH00360924.docx&fileType=Attachment
 
         url_end_part = f"{dff_data['attachID']}.{dff_data['attachFormat']}&fileType={dff_data['attachType']}"
-        file_url = f"{url_base}{self.preprintid}/{self.imported_version_num}/attachments/{url_end_part}"
+        file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/attachments/{url_end_part}"
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -3384,7 +3416,6 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
 
             logger.debug(f"Assign typ: {typesetter.last_name} {typesetter.first_name} onto {self.article.pk}")
             request = create_fake_request(user=None, journal=self.journal)
-            # TODO: appears "mock user full name" in the message
             request.user = typesetter
 
             with freezegun.freeze_time(
@@ -3439,3 +3470,199 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
         # ex. JCOM_017A_0624
         if self.importfiles:
             self.import_files(production_version=True)
+
+
+class Requestproofs(BaseActionManager):
+    """Manages wjapp actions "production manager sends to author"."""
+
+    def run(self):
+
+        fake_request = create_fake_request(user=None, journal=self.journal)
+        typesetting_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        fake_request.user = typesetting_assignment.typesetter
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(self.action["actionDate"]),
+        ):
+            RequestProofs._log_operation = noop
+            RequestProofs(
+                assignment=typesetting_assignment,
+                typesetter=typesetting_assignment.typesetter,
+                request=fake_request,
+                workflow=self.article.articleworkflow,
+            ).run()
+            self.article.refresh_from_db()
+            assert self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
+
+
+class PM_SENDS_FOR_PROOF_R(Requestproofs):  # noqa N801
+    """Manages wjapp action "production manager sends for proof reading"."""
+
+
+class PM_REQ_INFO(Requestproofs):  # noqa N801
+    """Manages wjapp action "production manager requires information"."""
+
+
+class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
+    """Manages wjapp action "author sends corrections"."""
+
+    def run(self):
+        # E.g. JCOM_017A_0624
+
+        author_send_corrections_date = self.action["actionDate"]
+        author_annotation_data = self.read_author_annotation()
+
+        # remember that TR are ordered by -round_number, so the "first" TR is the most recent one (!)
+        current_round: TypesettingRound = self.article.typesettinground_set.first()
+        old_typesetting_assignment: TypesettingAssignment = current_round.typesettingassignment
+        author_proofs: GalleyProofing = current_round.galleyproofing_set.get()  # we always set at most 1 GP per round
+        author_proofs.notes = author_annotation_data.get("documentLayerText")
+        author_proofs.save()
+
+        # get author anotation file if it exists
+        if self.importfiles:
+            (extension, author_annotation_file_dj) = self.get_author_annotation_file(
+                author_annotation_data.get("documentLayerID")
+            )
+            if author_annotation_file_dj and extension:
+                logger.debug(f"downloaded not empty annotation file {author_annotation_file_dj=}")
+                author_annotation_file_dj.content_type = f"application/{extension}"
+
+            if author_annotation_file_dj:
+                author_ann_file = files.save_file_to_article(
+                    author_annotation_file_dj,
+                    self.article,
+                    self.article.correspondence_author,
+                )
+                author_proofs.annotated_files.add(author_ann_file)
+
+        fake_request = create_fake_request(user=self.article.correspondence_author, journal=self.journal)
+        with freezegun.freeze_time(
+            rome_timezone.localize(author_send_corrections_date),
+        ):
+            AuthorSendsCorrections._log_operation = noop
+            AuthorSendsCorrections(
+                user=self.article.correspondence_author,
+                old_assignment=old_typesetting_assignment,
+                request=fake_request,
+            ).run()
+            self.article.refresh_from_db()
+
+    def read_author_annotation(self):
+        """Read author annotation of the imported version."""
+
+        cursor_author_annotation = self.connection.cursor(
+            buffered=True,
+            dictionary=True,
+        )
+
+        # AUANN is only one in the wjapp version
+        query_author_annotation = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerID,
+dl.documentLayerSubject,
+dl.documentLayerText
+FROM Document_Layer dl
+LEFT JOIN User_Rights ur USING (documentLayerCod)
+LEFT JOIN User u USING (userCod)
+WHERE
+    versioncod=%(imported_version_cod)s
+AND ur.userCod=%(agent_cod)s
+AND dl.documentLayerType='AUANN'
+AND ur.userType='author'
+ORDER BY dl.submissionDate
+"""
+
+        cursor_author_annotation.execute(
+            query_author_annotation,
+            {
+                "imported_version_cod": self.imported_version_cod,
+                "agent_cod": self.action["agentCod"],
+                "action_date": str(self.action["actionDate"]),
+            },
+        )
+        if cursor_author_annotation.rowcount != 1:
+            logger.error(f"Found {cursor_author_annotation.rowcount} author annotation: {self.preprintid}")
+            author_annotation = None
+        else:
+            author_annotation = cursor_author_annotation.fetchone()
+            logger.debug(f"{self.preprintid} AUANN: {author_annotation.get('documentLayerCod')}")
+        cursor_author_annotation.close()
+
+        return author_annotation
+
+    def get_author_annotation_file(self, document_layer_id):
+        """Returns annotation file if exists."""
+
+        annotation_extension = self.extract_annotation_file_extension(document_layer_id)
+        if not annotation_extension:
+            logger.debug(f"AUANN file extension missing for {document_layer_id}")
+            return (None, None)
+        response_author_ann_file = self.download_author_annotation_file(document_layer_id, annotation_extension)
+        if response_author_ann_file.headers["Content-Length"] != "0":
+            return (
+                annotation_extension,
+                file_from_response(response_author_ann_file, f"{self.preprintid}.{annotation_extension}"),
+            )
+        else:
+            logger.error(f"Empty AUANN file downloaded for {document_layer_id=}!")
+
+    def extract_annotation_file_extension(self, document_layer_id):
+        """Extract annotation file extension from compressed contribution zip., if exists.
+
+        We either return the extension, meaning that an AUANN file exists and must be download,
+        or we return None, meaning that no AUANN file exists and there it no need to download anything.
+        """
+
+        # returns the extension of the annotation file, if exists, taken it from the
+        # production zip content list. The production zip contains, if it exists, the annotation directory and file.
+        # ex. JCOM_017A_0624:
+        # if an AUANN file exists,
+        # - it will be called JCOM_017A_0624_AUANN004381124.XXX
+        #   where "JCOM_017A_0624_AUANN004381124" is the documentLayerID
+        #   (do not confuse with documentLayerCod!)
+        # - the path of the file (from the root of the production zip) will be:
+        #   AUANN/JCOM_017A_0624_AUANN004381124/JCOM_017A_0624_AUANN004381124.XXX
+        # We are interested in the "XXX" extension.
+        # The file will be downloaded directly from the main directory, because we prefer not to use, if possible,
+        # the production zip for the files, because in case of manual maintenance, the production zip
+        # will probably be out of sync (even if we can assume that the extension we are interested in is ok)
+
+        file_url = (
+            f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+            f"production/{self.preprintid}.zip&fileType=zip"
+        )
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty production zip: {response.headers['Content-Length']} {file_url=}"
+            )
+        files_zip = zipfile.ZipFile(BytesIO(response.content))
+        for filepath in files_zip.namelist():
+            # We assume that the chance of find any other file in the production zip
+            # named something similar to "...document_layer_id. ..." is minimal.
+            # Note the ending "." in the f-string below:
+            if f"{document_layer_id}." in filepath:
+                _, extension = os.path.splitext(filepath)
+                return extension.lstrip(".")
+
+    def download_author_annotation_file(self, document_layer_id, annotation_extension):
+        """Download author annotation file from AUANN directory using the extension found previously.
+
+        Example url:
+        JCOM_017A_0624/4/AUANN/JCOM_017A_0624_AUANN004381124/JCOM_017A_0624_AUANN004381124.zip&fileType=zip
+        """
+
+        file_url = (
+            f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
+            f"{document_layer_id}.{annotation_extension}&fileType={annotation_extension}"
+        )
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty AUANN file downloaded: {response.headers['Content-Length']}"
+            )
+        return response

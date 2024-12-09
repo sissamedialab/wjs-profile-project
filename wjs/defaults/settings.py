@@ -229,6 +229,9 @@ WJAPP_JCOM_IMPORT_LOGIN_PARAMS = {
     "password": "",
 }
 
+# base url for files import from wjapp (one for journal)
+WJAPP_JCOM_BASE_URL = "https://jcom.sissa.it/jcom/common/archiveFile?filePath="
+
 NO_NOTIFICATION = False
 
 ENABLE_FULL_TEXT_SEARCH = True
