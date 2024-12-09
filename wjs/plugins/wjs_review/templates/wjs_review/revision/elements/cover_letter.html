@@ -1,4 +1,4 @@
-{% load django_bootstrap5 files %}
+{% load django_bootstrap5 files wjs_tags %}
 
 <div class="row">
   <div class="col-1 col-stepper">
@@ -21,31 +21,42 @@
         <form method="post" action="{{ request.path_info }}#cover_letter">
           {% csrf_token %}
           {# djlint:off #}
-          {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload Cover letter" as upload_label %}
-          {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Replace / Remove Cover letter" as replace_label %}
-          {% translate "<i class=\"bi bi-cloud-arrow-down-fill\"></i> Download Cover letter" as download_label %}
-          {% translate "<i class=\"bi bi-pencil-square\"></i> Save Cover Letter" as draft_label %}
+          {% if revision_request.cover_letter_file %}
+            {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Replace cover letter file" as upload_label %}
+            {% translate "<i class=\"bi bi-trash3-fill\"></i>" as delete_label %}
+            {% translate "return confirm('Are you sure you want to delete this item?');" as confirm_label %}
+            {% translate "Load a new file to replace the current one" as upload_tooltip %}
+            {% url "wjs_delete_article_file" article.pk revision_request.pk revision_request.cover_letter_file.pk as delete_file_url %}
+            {% url 'download_single_file' revision_request.article.pk revision_request.cover_letter_file.pk as download_url %}
+          {% else %}
+            {% translate "<i class=\"bi bi-cloud-arrow-up-fill\"></i> Upload cover letter file" as upload_label %}
+          {% endif %}
+          {% translate "<i class=\"bi bi-pencil-square\"></i> Save cover letter" as draft_label %}
           {# djlint:on #}
+          {% url 'wjs_upload_article_file' article.pk revision_request.pk "cover_letter" as upload_url %}
           {% bootstrap_form_errors form layout='inline' %}
           {% bootstrap_field form.author_note show_label=False show_help=False %}
           {% bootstrap_button button_class="btn-secondary" button_type="submit" name="save_cover_letter" value=1 content=draft_label %}
           <p class="my-3">
             {% blocktranslate %}
-              Please enter your cover letter as a text (above) and/or as a file (button "Upload Cover letter" below).
+              Please enter your cover letter as a text (above) and/or as a file (button "Upload cover letter file" below).
             {% endblocktranslate %}
           </p>
-          {% if view.confirm_version %}
-            {% url 'wjs_upload_cover_letter_file_confirm' revision_request.article_id revision_request.pk as upload_url %}
-          {% else %}
-            {% url 'wjs_upload_cover_letter_file' revision_request.article_id revision_request.pk as upload_url %}
+          {% if revision_request.cover_letter_file %}
+          {# djlint:off #}{% with download_label="<i class=\"bi bi-file-earmark-text me-1\"></i>"|concat:revision_request.cover_letter_file.original_filename|safe %}{# djlint:on #}
+          {% bootstrap_button button_class="btn-outline-secondary" button_type="link" href=download_url content=download_label %}
+          {% endwith %}
           {% endif %}
-          {% if revision_request.editorrevisionrequest.cover_letter_file %}
-            {% bootstrap_button button_class="btn-outline-secondary" href=upload_url content=replace_label %}
-            {% bootstrap_button button_class="btn-secondary" href=revision_request.editorrevisionrequest.cover_letter_file.url content=download_label %}
-          {% else %}
-            {% bootstrap_button button_class="btn-outline-secondary" href=upload_url content=upload_label %}
-          {% endif %}
+          <input type="hidden" name="next_location" value="{{ request.path_info }}"/>
+          {% bootstrap_button button_class="btn-secondary" content=upload_label data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=upload_url hx_include="[name='next_location']" hx_target="#htmxModalContent" title=upload_tooltip %}
         </form>
+        {% if revision_request.cover_letter_file %}
+          <form method="post" action="{{ delete_file_url }}">
+            {% csrf_token %}
+            <input value="{{ request.path_info }}#cover_letter" name="next" type="hidden">
+            {% bootstrap_button name="delete" button_type="submit" button_class="btn-outline-secondary" onclick=confirm_label content=delete_label %}
+          </form>
+        {% endif %}
       </div>
     </div>
   </div>

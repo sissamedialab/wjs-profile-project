@@ -1576,7 +1576,14 @@ class EditorRevisionRequest(RevisionRequest):
         on_delete=models.PROTECT,
         related_name="revision_request",
     )
-    cover_letter_file = models.FileField(blank=True, null=True, verbose_name=_("Cover letter file"))
+    cover_letter_file = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Cover letter file"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
     article_history = models.JSONField(blank=True, null=True, verbose_name=_("Article history"))
     manuscript_files = models.ManyToManyField("core.File", blank=True, related_name="+")
     data_figure_files = models.ManyToManyField("core.File", blank=True, related_name="+")
