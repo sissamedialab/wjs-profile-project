@@ -79,6 +79,7 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
         q_filters = Q(
             Q(first_name__icontains=search_text)
             | Q(last_name__icontains=search_text)
+            | Q(middle_name__icontains=search_text)
             | Q(email__icontains=search_text)
             | Q(reviewer__article__keywords__word__icontains=search_text),
         )
