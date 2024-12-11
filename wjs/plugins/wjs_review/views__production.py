@@ -541,7 +541,7 @@ def typesettertestsgalleygeneration_wrapper(
     except Exception as e:
         communication_utils.notify_async_event(
             message_subject="Errors during galley generation",
-            message_body=e,
+            message_body=str(e),
             recipients=[assignment.typesetter],
             article=assignment.round.article,
         )
