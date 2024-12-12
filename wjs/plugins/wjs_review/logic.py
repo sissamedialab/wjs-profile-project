@@ -3239,9 +3239,23 @@ class ConvertManuscriptToPdf:
     article: Article
 
     def create_in_memory_ini_file(self) -> BytesIO:
+        """Create wjs.ini file.
+
+        This is used to control the position of the watermark that yakunin overlays on the PDF and what to write on it.
+
+        """
+        # Warning: we can be called during submission, in which case there exists no version of the paper, so we are
+        # generating the first PDF (v1) or we can be called during the revision-submission process. In the second case,
+        # a version already exists, and we are working on the PDF for the next version (that will be created when the
+        # revision-submission process is finished).
+        version_number = self.article.current_review_round()
+        if self.article.current_review_round_object():
+            # if no review-round exists, Janeway forces current_review_round to "1" anyway, but it means that we are in
+            # the first submission phase.
+            version_number += 1
         ini_content = f"""
     [wjs]
-    text = Not for distribution {self.article.journal.code} {self.article.id} v{self.article.current_review_round()}
+    text = Not for distribution {self.article.journal.code} {self.article.id} v{version_number}
     x = {settings.WATERMARK_X_POSITION}
     y = {settings.WATERMARK_Y_POSITION}
     """
