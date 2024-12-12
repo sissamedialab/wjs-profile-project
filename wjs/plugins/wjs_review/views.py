@@ -2974,7 +2974,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         )
         qs = qs.annotate_final_reviews_in_timeframe(datetime.timedelta(days=365))
         qs = qs.annotate_pending_reviews_in_timeframe(datetime.timedelta(days=365))
-        if self.htmx:
+        if search_text:
             search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
             qs = qs.filter(search_filters)
         return qs
@@ -2998,6 +2998,8 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
         kwargs["selectable_editors"] = self._editors_with_keywords(search_text)
+        if selected_editor_pk := self.request.GET.get("selected_editor", None):
+            kwargs["selected_editor"] = Account.objects.get(pk=selected_editor_pk)
         return kwargs
 
     def get_template_names(self) -> List[str]:
@@ -3005,6 +3007,8 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         if self.htmx:
             if self.request.headers.get("Hx-Trigger-Name") == "search-editor-form":
                 return ["wjs_review/assign_editor/elements/editor_table.html"]
+            elif self.request.headers.get("Hx-Trigger-Name") == "selected_editor":
+                return ["wjs_review/assign_editor/elements/new_editor_form.html"]
         return ["wjs_review/assign_editor/select_editor.html"]
 
     def form_valid(self, form):

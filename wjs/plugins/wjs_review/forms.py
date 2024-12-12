@@ -1348,11 +1348,16 @@ class DeselectReviewerForm(forms.Form):
 
 
 class SupervisorAssignEditorForm(forms.ModelForm):
-    selected_editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True)
+    selected_editor = forms.ModelChoiceField(queryset=Account.objects.none(), required=True, initial=None)
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
     note_for_past_editor_subject = forms.CharField(required=False, disabled=True, label=_("Subject"))
     note_for_past_editor = WjsMiniHTMLFormField(
-        label=_("Message"),
+        label=_("Body"),
+        required=True,
+    )
+    note_for_new_editor_subject = forms.CharField(required=False, disabled=True, label=_("Subject"))
+    note_for_new_editor = WjsMiniHTMLFormField(
+        label=_("Body"),
         required=True,
     )
     search = forms.CharField(required=False, label=_("Search..."))
@@ -1366,6 +1371,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         self.editors = kwargs.pop("selectable_editors")
+        self.selected_editor = kwargs.pop("selected_editor", None)
         super().__init__(*args, **kwargs)
         self.fields["selected_editor"].queryset = self.editors
 
@@ -1377,7 +1383,23 @@ class SupervisorAssignEditorForm(forms.ModelForm):
             self.fields["note_for_past_editor_subject"].required = False
         else:
             self.current_editor_assignment = assignment
-
+        if not self.data.get("note_for_new_editor", None):
+            self.fields["note_for_new_editor"].initial = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="editor_assignment_manual_body",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context=self.get_new_editor_message_context(),
+                template_is_setting=True,
+            )
+            self.initial["note_for_new_editor_subject"] = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="editor_assignment_manual_subject",
+                journal=self.instance.article.journal,
+                request=self.request,
+                context={},
+                template_is_setting=True,
+            )
         # initialize the note for the old editor with a default message
         if not self.data.get("note_for_past_editor", None):
             self.initial["note_for_past_editor"] = render_template_from_setting(
@@ -1385,7 +1407,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
                 setting_name="unassign_editor",
                 journal=self.instance.article.journal,
                 request=self.request,
-                context=self.get_message_context(),
+                context=self.get_old_editor_message_context(),
                 template_is_setting=True,
             )
             # subject is fixed; we always render it from the setting;
@@ -1399,10 +1421,17 @@ class SupervisorAssignEditorForm(forms.ModelForm):
                 template_is_setting=True,
             )
 
-    def get_message_context(self):
+    def get_old_editor_message_context(self):
         """Build a context suitable to render the unassign_editor message."""
         return {
             "editor": self.current_editor_assignment.editor if self.current_editor_assignment else None,
+            "article": self.instance.article,
+        }
+
+    def get_new_editor_message_context(self):
+        """Build a context suitable to render the unassign_editor message."""
+        return {
+            "editor": self.selected_editor,
             "article": self.instance.article,
         }
 
@@ -1422,6 +1451,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
                 assignment=assignment,
                 new_editor=self.cleaned_data["selected_editor"],
                 request=self.request,
+                assignment_message=self.cleaned_data["note_for_new_editor"],
                 deassignment_message=self.cleaned_data["note_for_past_editor"],
             )
         except WjsEditorAssignment.DoesNotExist:
@@ -1429,6 +1459,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
                 editor=self.cleaned_data["selected_editor"],
                 article=self.instance.article,
                 request=self.request,
+                assignment_message=self.cleaned_data["note_for_new_editor"],
             )
 
     def save(self, commit: bool = True):

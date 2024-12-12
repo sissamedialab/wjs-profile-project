@@ -1,6 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 static %}
-
 {% block bootstrap5_extra_head %}
   {{ block.super }}
   <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
@@ -18,20 +17,29 @@
 <form name="select_editor" method="post">
   {% csrf_token %}
   <div class="container mb-3">
+    {% if current_editor %}
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title">{% translate "Message for current editor" %} {{ current_editor.full_name }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="mt-3">
+              {% bootstrap_field form.note_for_past_editor_subject %}
+              {% bootstrap_field form.note_for_past_editor %}
+            </div>
+        </div>
+      </div>
+    {% endif %}
     <div class="card">
+      <div class="card-header">
+        <h5 class="card-title">{% translate "Select new editor" %}</h5>
+      </div>
       <div class="card-body">
-        {% translate "No editor" as no_editor_label %}
-        {% if current_editor %}
-          <strong>{% translate "Current editor:" %}</strong> {{ current_editor|default:no_editor_label }}
-          <div class="mt-3">
-            {% bootstrap_field form.note_for_past_editor_subject %}
-            {% bootstrap_field form.note_for_past_editor %}
-          </div>
-        {% endif %}
         {% include "wjs_review/assign_editor/elements/editor_table.html" %}
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="id_set_visibility_rights" name="set_visibility_rights" {% if form.cleaned_data.set_visibility_rights %}checked{% endif %}>
-          <label class="form-check-label" for="id_set_visibility_rights">{% translate "Set visibility rights" %}</label>
+        <!-- djlint:off -->
+        <div id="new-editor-form" style="display:none;">
+        <!-- djlint:on -->
+          {% include "wjs_review/assign_editor/elements/new_editor_form.html" %}
         </div>
         {% include "wjs_review/base/elements/pagination.html" %}
       </div>
@@ -40,4 +48,9 @@
   {% include "wjs_review/base/elements/back.html" with workflow=workflow use_div=False %}
   </div>
 </form>
+<script>
+  document.addEventListener("htmx:afterSwap", function(event) {
+    if (tinyMCE && tinyMCE.get("id_note_for_new_editor")) tinyMCE.get("id_note_for_new_editor").remove();
+  });
+</script>
 {% endblock content_wrapper %}

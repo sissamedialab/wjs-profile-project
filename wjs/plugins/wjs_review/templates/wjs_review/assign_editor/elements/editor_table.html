@@ -1,8 +1,8 @@
 {% load django_bootstrap5 static wjs_review %}
 {% translate "Search" as search_label %}
 {% translate "Reset" as reset_label %}
+<script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
 <div id="select-editor-table">
-  {% blocktrans %}Find editor{% endblocktrans %}
   <div class="d-flex gap-2 align-items-start">
     {% bootstrap_field form.search show_label=False %}
     <button type="button" class="btn btn-primary"
@@ -22,7 +22,7 @@
   <table id="editors" class="table table-hover table-striped table-bordered mt-4">
     <thead class="bg-light">
     <tr>
-      <th scope="col" class="col-3">{% translate "New Editor" %}</th>
+      <th scope="col" class="col-3">{% translate "Name" %}</th>
       {% if workflow.article.journal|show_editor_keywords %}
         <th scope="col" class="col-4">{% translate "Keywords" %}</th>
         <th scope="col" class="col-2">{% translate "N. Matching Keywords" %}</th>
