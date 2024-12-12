@@ -2,6 +2,7 @@
 
 import datetime
 import os
+import textwrap
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -46,6 +47,8 @@ from plugins.wjs_review.logic import (
 from plugins.wjs_review.logic__production import (
     AssignTypesetter,
     AuthorSendsCorrections,
+    HandleEOSendBackToTypesetter,
+    ReadyForPublication,
     RequestProofs,
     UploadFile,
 )
@@ -57,6 +60,7 @@ from plugins.wjs_review.models import (
     PastEditorAssignment,
     WjsEditorAssignment,
 )
+from plugins.wjs_review.permissions import is_article_typesetter
 from plugins.wjs_review.utils import get_report_form
 from review.models import (
     EditorAssignment,
@@ -199,6 +203,7 @@ class Command(BaseCommand):
         document_cod = current_version_row["documentCod"]
         preprintid = current_version_row["preprintId"]
         publicationid = current_version_row["publicationId"]
+        document_revision_dead_line = current_version_row["revisionDeadline"]
         section = current_version_row["documentType"]
         version_cod = current_version_row["versionCod"]
         # current_version -> row  "versionNumber"
@@ -294,6 +299,7 @@ class Command(BaseCommand):
                         journal=self.journal,
                         preprintid=preprintid,
                         publicationid=publicationid,
+                        document_revision_dead_line=document_revision_dead_line,
                         article=article,
                         imported_version_num=imported_version_num,
                         imported_version_cod=imported_version_cod,
@@ -307,7 +313,13 @@ class Command(BaseCommand):
                     # the following action to reassign a new editor is managed with wjs logic
                     # The "fake" new version of wjapp is not created on wjs.
                     # It is managed like it was a reassign editor ADMIN_ASS_N_ED in the same version
-                    # ex. JCOM_010A_1123 has the 3 actions: ED_SEL_N_ED ADMIN_RESETS_ED ADMIN_ASS_N_ED
+                    # E.g. JCOM_010A_1123 has the 3 actions: ED_SEL_N_ED ADMIN_RESETS_ED ADMIN_ASS_N_ED
+
+                    # PSTPN_REV_DEADLN is skipped because wjapp has only one date "revision deadline"
+                    # for the document, therefore it is set at the moment of the editor decision.
+                    # The related message is imported as correspondence
+                    # E.g. JCOM_001A_0419
+                    # (the date can be wrong if there are more editor decisions)
                     managed_in_import_correspondence = [
                         "ED_REMINDS_REF",
                         "ADMIN_REMINDS_AUTH",
@@ -320,6 +332,7 @@ class Command(BaseCommand):
                         "SYS_REMINDS_AUT",
                         "ADMIN_RESETS_ED",
                         "PM_SENDS_TO_TYP",
+                        "PSTPN_REV_DEADLN",  # <someone> postpones revision deadline
                     ]
                     if action["actionID"] in managed_in_import_correspondence:
                         logger.debug(f"Action {action['actionID']} managed in import correspondence.")
@@ -388,6 +401,7 @@ d.documentType,
 d.submissionDate,
 d.authorCod,
 d.eoInChargeCod,
+d.revisionDeadline,
 u2.lastname AS eoInCharge_lastname,
 u2.firstname AS eoInCharge_firstname,
 u2.email AS eoInCharge_email,
@@ -571,7 +585,9 @@ ORDER BY ah.actionDate
         # clean some data related to the article
         for err in EditorRevisionRequest.objects.filter(article=article):
 
-            err.cover_letter_file.delete()
+            if err.cover_letter_file:
+                err.cover_letter_file.unlink_file()
+                err.cover_letter_file.delete()
 
             for f in err.manuscript_files.all():
                 f.unlink_file()
@@ -753,7 +769,7 @@ ORDER BY ah.actionDate
         # JCOM_005A_0224 JCOM_003A_0424 JCOM_004Y_0424 JCOM_021A_0424 JCOM_001N_0524
         # names match problem: JCOM_028A_0724
         #
-        # There are versions ex. JCOM_002N_0324/5 (current version published) without bio
+        # There are versions e.g. JCOM_002N_0324/5 (current version published) without bio
         #
         # TODO: if there are maintenance on wjapp with changes in coauthors
         # without actions in the history, better to check also the db with
@@ -1113,6 +1129,10 @@ def noop_true(*args, **kwdargs):
     return True
 
 
+def truncate_with_ellipsis(s):
+    return textwrap.shorten(s, width=6, placeholder="...")
+
+
 @dataclass
 class ImportCorrespondenceManager:
     """Data class that manages the import of all the correspondence of the wjapp imported version."""
@@ -1194,7 +1214,7 @@ class ImportCorrespondenceManager:
         ]
 
         # types message "from admin", in wjs added eo_user as author
-        # FRPME: ex. JCOM_002A_1216, JCOM_016A_0418
+        # FRPME: e.g. JCOM_002A_1216, JCOM_016A_0418
         # TBV: TOPUM needs jcom publication manager user jcom-pum@jcom.sissa.it but set eo_user
         self.types_from_admin_list = [
             "FRPME",  # from pm (in wjs from eo_user) to someone (author, typesetter, ...)
@@ -1285,25 +1305,30 @@ class ImportCorrespondenceManager:
                     author_from_wjapp[0]["privacy"],
                 )
 
+            document_layer_subject = (
+                m["documentLayerSubject"]
+                if m["documentLayerSubject"]
+                else truncate_with_ellipsis(m["documentLayerText"])
+            )
             with freezegun.freeze_time(
                 rome_timezone.localize(m["submissionDate"]),
             ):
                 msg = Message.objects.create(
                     actor=author,
-                    subject=m["documentLayerSubject"],
+                    subject=document_layer_subject,
                     body=newlines_text_to_html(m["documentLayerText"]),
                     content_type=ContentType.objects.get_for_model(self.article),
                     object_id=self.article.id,
                     message_type=message_type,
                 )
-                logger.debug(f"msg {m['documentLayerCod']} imported: {m['documentLayerSubject']}")
+                logger.debug(f"msg {m['documentLayerCod']} imported: {document_layer_subject}")
 
                 # recipient management
 
                 # if not message_recipients_no_bcc or "recipient" not in message_recipients_no_bcc.values():
                 if m["documentLayerType"] in self.types_to_admin_list:
                     msg.recipients.add(get_eo_user(self.journal))
-                    logger.debug(f"msg {m['documentLayerCod']} add recipient eo_user {m['documentLayerSubject']}")
+                    logger.debug(f"msg {m['documentLayerCod']} add recipient eo_user {document_layer_subject}")
 
                 for msg_rec in message_recipients_no_bcc:
                     recipient = account_get_or_create_check_correspondence(
@@ -1329,7 +1354,7 @@ class ImportCorrespondenceManager:
                 if not msg.recipients.all():
                     raise RuntimeError(
                         f"msg {m['documentLayerCod']} without recipients: {self.article.id}"
-                        f" {m['documentLayerSubject']} {m['documentLayerType']} {message_recipients_no_bcc=}"
+                        f" {document_layer_subject} {m['documentLayerType']} {message_recipients_no_bcc=}"
                     )
 
         logger.debug(f"imported correspondence for {self.preprintid}/{self.imported_version_num}")
@@ -1387,7 +1412,7 @@ ORDER BY dl.submissionDate
                 )
             else:
                 logger.debug(
-                    f"msg already imported: {m['documentLayerCod']} {m['documentLayerType']}"
+                    f"msg already imported: {m['documentLayerCod']} {m['documentLayerType']} "
                     f"{m['documentLayerSubject']}"
                 )
 
@@ -1456,6 +1481,7 @@ class BaseActionManager:
     journal: Journal
     preprintid: str
     publicationid: str
+    document_revision_dead_line: datetime
     article: submission_models.Article
     imported_version_num: int
     imported_version_cod: int
@@ -1982,7 +2008,7 @@ class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
     def run_business_logic(self):
         """Editor selects new editor."""
 
-        # ex. JCOM_010A_1123
+        # e.g. JCOM_010A_1123
         BaseDeassignEditor._log_past_editor = noop
         AssignToEditor._log_operation = noop
         SupervisorChangeEditorAssignment(
@@ -2000,7 +2026,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
     def run_business_logic(self):
         """Admin selects new editor."""
 
-        # ex. JCOM_010A_1123
+        # e.g. JCOM_010A_1123
         BaseDeassignEditor._log_past_editor = noop
         AssignToEditor._log_operation = noop
         SupervisorChangeEditorAssignment(
@@ -2164,11 +2190,11 @@ ORDER BY dl.submissionDate
         return author_withdrawn_message
 
 
-class ADMIN_WITHD_DOC(BaseActionManager):  # noqa N801
-    """Admin withdraws paper: wjapp action "admin withdraws document"."""
+class AdminWithdrawn(BaseActionManager):  # noqa N801
+    """Admin withdraws paper."""
 
     def run(self):
-        # Admin withdraws paper ex. JCOM_005A_0224
+        # Admin withdraws paper e.g. JCOM_005A_0224
 
         self.check_editor_set()
 
@@ -2215,6 +2241,14 @@ class ADMIN_WITHD_DOC(BaseActionManager):  # noqa N801
                     "notification_body": "NOT IMPORTED",
                 },
             ).run()
+
+
+class ADMIN_WITHD_DOC(AdminWithdrawn):  # noqa N801
+    """Admin withdraws paper: wjapp action "admin withdraws document"."""
+
+
+class ADMIN_WITHR_APP(AdminWithdrawn):  # noqa N801
+    """Admin withdraws appeal: wjapp action "admin withdraw appeal"."""
 
 
 class ED_REF_DOC(BaseActionManager):  # noqa N801
@@ -2590,9 +2624,9 @@ class DeselectReviewerAction(BaseActionManager):
     def run(self):
         # wjapp actions for editor deselect reviewer (ex:JCOM_005N_0324)
 
-        # EQ1_ED_REM_REF	[#referee=1]/editor removes referee (ex. JCOM_007A_0724)
-        # GT1_ED_REM_REF	[#referee>1]/editor removes referee (ex. JCOM_013A_0724)
-        # ED_REM_REF	editor removes referee (ex. JCOM_018A_0724)
+        # EQ1_ED_REM_REF	[#referee=1]/editor removes referee (e.g. JCOM_007A_0724)
+        # GT1_ED_REM_REF	[#referee>1]/editor removes referee (e.g. JCOM_013A_0724)
+        # ED_REM_REF	editor removes referee (e.g. JCOM_018A_0724)
 
         reviewer_cod = self.action["targetCod"]
         reviewer_lastname = self.action["targetLastname"]
@@ -2649,7 +2683,7 @@ class DeselectReviewerAction(BaseActionManager):
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
         # from editor, in a certain time range (6") respect to the action_date
-        # ex. 6" delay JCOM_009A_0124  actionDate:  2024-04-01 16:54:02 docLayer submissionDate 2024-04-01 16:54:07
+        # e.g. 6" delay JCOM_009A_0124  actionDate:  2024-04-01 16:54:02 docLayer submissionDate 2024-04-01 16:54:07
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2861,7 +2895,7 @@ class ED_NEED_REF(ReviewerDeclineAction):  # noqa N801
 
     # the automated message is not disabled for ED_NEED_REF
     # otherwise the action does not appear in the timeline
-    # ex. JCOM_004A_0924
+    # e.g. JCOM_004A_0924
 
 
 class REF_ACC(BaseActionManager):  # noqa N801
@@ -3117,7 +3151,7 @@ ORDER BY dl.submissionDate
 
         # the (current) default review form element for editor report
         # has a rich-text/html widget.  Text from wjapp formatted to html
-        # ex. JCOM_027Y_0215 has the cover letter but not the report file
+        # e.g. JCOM_027Y_0215 has the cover letter but not the report file
         wjapp_editor_report_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
         editor_report_message = "<br><br><br><br>".join(
             filter(None, [wjapp_editor_cover_letter_message, wjapp_editor_report_message])
@@ -3132,6 +3166,14 @@ ORDER BY dl.submissionDate
             date_due = timezone.now().date()
             if self.requires_revision:
                 date_due = date_due + datetime.timedelta(days=self.revision_interval_days)
+
+            # wjapp has only one document revision dead line therefore
+            # this assignment could be not correct if this is for example the first revision request
+            # and afterwards there is another one revision request
+            # but the same problem can happen if this assignment is done
+            # during the action PSTPN_REV_DEADLN (which is managed as correspondence only)
+            if self.document_revision_dead_line.date() >= date_due:
+                date_due = self.document_revision_dead_line
 
             # TBV: date_due has to be set in the form in the case of rejection?
             form_data = {
@@ -3383,6 +3425,66 @@ class ADMIN_SELECTS_COAUT(SelectCoauthorAction):  # noqa N801
     """Manages wjapp action "editorial office selects co-author"."""
 
 
+class SwapCorrespondenceAuthor(BaseActionManager):  # noqa N801
+    """Manages wjapp action "author changes corresponding author"."""
+
+    def run(self):
+
+        # E.g. JCOM_001A_1115
+        # note: in wjapp the new corresponding author must be one of the coauthors
+
+        # This method changes the corresponding author. The related messages are loaded as correspondence
+        # for all the subclasses maintaining sender and recipient
+
+        new_author_row = self.read_new_author_data()
+        new_author = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            new_author_row["new_author_cod"],
+            new_author_row["new_author_lastname"],
+            new_author_row["new_author_firstname"],
+            new_author_row["new_author_email"],
+            new_author_row["new_author_privacy"],
+        )
+        logger.debug(f"swap corresponding author, new: {new_author}")
+        assert new_author in self.article.authors.all()
+        self.article.owner = new_author
+        self.article.correspondence_author = new_author
+        self.article.save()
+
+    def read_new_author_data(self):
+        """Read new author data."""
+
+        cursor_new_author = self.connection.cursor(dictionary=True)
+        query = """
+SELECT
+userCod AS new_author_cod,
+lastname AS new_author_lastname,
+firstname AS new_author_firstname,
+email AS new_author_email,
+privacy AS new_author_privacy
+FROM User
+WHERE
+userCod = %(new_author_cod)s
+"""
+        cursor_new_author.execute(
+            query,
+            {
+                "new_author_cod": self.action["targetCod"],
+            },
+        )
+        new_author_row = cursor_new_author.fetchone()
+        cursor_new_author.close()
+        return new_author_row
+
+
+class AU_SWAPS_CORR_AU(SwapCorrespondenceAuthor):  # noqa N801
+    """Manages wjapp action "author changes corresponding author"."""
+
+
+class ADMIN_SWAPS_CORR_AU(SwapCorrespondenceAuthor):  # noqa N801
+    """Manages wjapp action "editorial office changes corresponding author"."""
+
+
 # PRODUCTION
 
 
@@ -3467,7 +3569,7 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
             ).run()
             article_with_file.articleworkflow.save()
 
-        # ex. JCOM_017A_0624
+        # e.g. JCOM_017A_0624
         if self.importfiles:
             self.import_files(production_version=True)
 
@@ -3617,7 +3719,7 @@ ORDER BY dl.submissionDate
 
         # returns the extension of the annotation file, if exists, taken it from the
         # production zip content list. The production zip contains, if it exists, the annotation directory and file.
-        # ex. JCOM_017A_0624:
+        # e.g. JCOM_017A_0624:
         # if an AUANN file exists,
         # - it will be called JCOM_017A_0624_AUANN004381124.XXX
         #   where "JCOM_017A_0624_AUANN004381124" is the documentLayerID
@@ -3666,3 +3768,142 @@ ORDER BY dl.submissionDate
                 f"check wjapp login credentials empty AUANN file downloaded: {response.headers['Content-Length']}"
             )
         return response
+
+
+class PUM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
+    """Manages wjapp action "publication manager sends back to typesetter"."""
+
+    # NOTE this action happens after ready for publication
+    # e.g. JCOM_008A_0324
+
+    def run(self):
+
+        # we need to get the admin user who did the action
+        admin_cod = self.action["agentCod"]
+        admin_lastname = self.action["agentLastname"]
+        admin_firstname = self.action["agentFirstname"]
+        admin_email = self.action["agentEmail"]
+        admin_privacy = self.action["agentPrivacy"]
+
+        admin = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            admin_cod,
+            admin_lastname,
+            admin_firstname,
+            admin_email,
+            admin_privacy,
+        )
+
+        back_to_typ_date = self.action["actionDate"]
+        back_to_typesetter = self.read_pub_manager_annotation()
+
+        old_typesetting_assignment = self.article.typesettinground_set.first().typesettingassignment
+        assert back_to_typesetter
+        body_pub_manager_annotation = back_to_typesetter["documentLayerText"]
+        subject_pub_manager_annotation = back_to_typesetter["documentLayerSubject"]
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(back_to_typ_date),
+        ):
+            HandleEOSendBackToTypesetter(
+                workflow=self.article.articleworkflow,
+                user=admin,
+                old_assignment=old_typesetting_assignment,
+                body=body_pub_manager_annotation,
+                subject=subject_pub_manager_annotation,
+            ).run()
+
+    def read_pub_manager_annotation(self):
+        """Read publication manager annotation of the imported version."""
+
+        cursor_pub_manager_annotation = self.connection.cursor(
+            buffered=True,
+            dictionary=True,
+        )
+
+        # After wjapp action PUM_SENDS_TO_TYP the paper goes to the typesetter and when the typesetter uploads,
+        # a new version is created. Therefore there is only one PUMANN in a version and the condition does not need
+        # the agentCod or the actionDate
+        query_pub_manager_annotation = """
+SELECT
+dl.documentLayerCod,
+dl.documentLayerID,
+dl.documentLayerSubject,
+dl.documentLayerText
+FROM Document_Layer dl
+WHERE
+    versioncod=%(imported_version_cod)s
+AND dl.documentLayerType='PUMANN'
+ORDER BY dl.submissionDate
+"""
+
+        cursor_pub_manager_annotation.execute(
+            query_pub_manager_annotation,
+            {
+                "imported_version_cod": self.imported_version_cod,
+            },
+        )
+        if cursor_pub_manager_annotation.rowcount != 1:
+            logger.error(
+                f"Found {cursor_pub_manager_annotation.rowcount} publication manager annotation: "
+                f"{self.preprintid}/{self.imported_version_num}"
+            )
+            pub_manager_annotation = None
+        else:
+            pub_manager_annotation = cursor_pub_manager_annotation.fetchone()
+            logger.debug(f"{self.preprintid} PUMANN: {pub_manager_annotation.get('documentLayerCod')}")
+            self.imported_document_layer_cod_list.append(pub_manager_annotation.get("documentLayerCod"))
+
+        cursor_pub_manager_annotation.close()
+
+        return pub_manager_annotation
+
+
+@dataclass
+class DeclareReadyForPublication(BaseActionManager):
+    """Manages wjapp action "article declared ready for publication"."""
+
+    ready_for_publication_agent: Account = None
+
+    def run(self):
+
+        self.article.articleworkflow.production_flag_no_queries = True
+        self.article.articleworkflow.production_flag_no_checks_needed = True
+        self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+
+        # block of default message, wjapp message imported as correspondence
+        ReadyForPublication._log_operation = noop
+        ReadyForPublication(workflow=self.article.articleworkflow, user=self.ready_for_publication_agent).run()
+        self.article.refresh_from_db()
+        self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+
+
+@dataclass
+class PM_PUBLISHES(DeclareReadyForPublication):  # noqa N801
+    """Manages wjapp action "eo declares ready for publication"."""
+
+    def __post_init__(self):
+        """Set the specific data for eo agent, used typesetter"""
+        typesetting_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
+        self.ready_for_publication_agent = typesetting_assignment.typesetter
+
+
+@dataclass
+class TYP_PUBLISHES(DeclareReadyForPublication):  # noqa N801
+    """Manages wjapp action "typesetter declares ready for publication"."""
+
+    def __post_init__(self):
+        """Set the specific data typesetter agent"""
+        typesetting_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
+        self.ready_for_publication_agent = typesetting_assignment.typesetter
+
+
+@dataclass
+class AU_PUBLISHES(DeclareReadyForPublication):  # noqa N801
+    """Manages wjapp action "author declares ready for publication"."""
+
+    def __post_init__(self):
+        """Set the specific data for author agent"""
+        self.ready_for_publication_agent = self.article.correspondence_author
