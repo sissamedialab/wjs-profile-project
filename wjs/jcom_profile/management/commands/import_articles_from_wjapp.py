@@ -725,6 +725,7 @@ ORDER BY ah.actionDate
             row["author_firstname"],
             row["author_email"],
             row["author_privacy"],
+            self.connection,
         )
 
         eo_in_charge = account_get_or_create_check_correspondence(
@@ -734,6 +735,7 @@ ORDER BY ah.actionDate
             row["eoInCharge_firstname"],
             row["eoInCharge_email"],
             row["eoInCharge_privacy"],
+            self.connection,
         )
 
         if not main_author.check_role(self.journal, "author", staff_override=False):
@@ -907,6 +909,7 @@ ORDER BY ah.actionDate
             special_issue["editor_firstname"],
             special_issue["editor_email"],
             special_issue["editor_privacy"],
+            self.connection,
         )
 
         issue_short_name = special_issue["name"]
@@ -958,6 +961,7 @@ ORDER BY ah.actionDate
                 dn["note_author_firstname"],
                 dn["note_author_email"],
                 dn["note_author_privacy"],
+                self.connection,
             )
             with freezegun.freeze_time(
                 rome_timezone.localize(dn["submissionDate"]),
@@ -1010,11 +1014,78 @@ ORDER BY ah.actionDate
 
 
 #
-# general function
+# Begin global variables and functions section
+#
+# In this section are defined global functions and global variables used by the global funcions
+
+# global variables
+
+# to avoid the search and the load of the user notes more times
+# for the same user for the same article
+# the import of the user notes is done when is imported the user account
+user_notes_already_managed_in_this_article = []
+
+#
+# global functions
 #
 
 
-def account_get_or_create_check_correspondence(source, user_cod, last_name, first_name, imported_email, privacy):
+def read_usernotes(target_user_cod, connection):
+    """Reads the usernotes from wjapp."""
+
+    cursor_usernotes = connection.cursor(dictionary=True)
+    query_usernotes = """
+SELECT
+un.userNoteCod,
+un.userNoteID,
+un.userNoteContent,
+un.submissionDate,
+un.authorCod,
+u1.firstname AS author_firstname,
+u1.lastname AS author_lastname,
+un.targetUserCod,
+u2.firstname AS target_firstname,
+u2.lastname AS target_lastname
+FROM
+User_Note un
+LEFT JOIN User u1 ON (un.authorCod=u1.userCod)
+LEFT JOIN User u2 ON (un.targetUserCod=u2.userCod)
+WHERE
+targetUserCod = %(user_cod)s
+ORDER BY submissionDate DESC
+"""
+    cursor_usernotes.execute(
+        query_usernotes,
+        {
+            "user_cod": target_user_cod,
+        },
+    )
+    usernotes_rows = cursor_usernotes.fetchall()
+    cursor_usernotes.close()
+    return usernotes_rows
+
+
+def get_usernotes(account, usernotes_rows):
+    """Concatenate the usernotes in one string."""
+
+    if not usernotes_rows:
+        return None
+
+    usernotes = ""
+    for note in usernotes_rows:
+        usernotes += f"""
+{note.get("userNoteContent").strip()}
+
+{note.get("submissionDate")} by {note.get("author_firstname")} {note.get("author_lastname")}
+
+
+"""
+    return usernotes
+
+
+def account_get_or_create_check_correspondence(
+    source, user_cod, last_name, first_name, imported_email, privacy, connection
+):
     """Get a user account - check Correspondence and eventually create new account."""
 
     # ex: source: jcom, jcomal, prophy, ...
@@ -1079,6 +1150,20 @@ def account_get_or_create_check_correspondence(source, user_cod, last_name, firs
         account.jcomprofile.save()
         account.save()
 
+    # import of user notes
+    # E.g. JCOM_008A_0324
+    if user_cod not in user_notes_already_managed_in_this_article:
+        user_notes_already_managed_in_this_article.append(user_cod)
+        if usernotes_rows := read_usernotes(user_cod, connection):
+            usernotes = get_usernotes(account, usernotes_rows)
+            # We silently overwrite any pre-existing user-note.
+            # This is safe, because, before import, there are not notes
+            # and new imports are supposed to overwrite previous ones.
+            account.jcomprofile.usernotes = usernotes
+            account.jcomprofile.save()
+            logger.debug(f"saved {len(usernotes_rows)} usernotes for {account.id} {account.full_name()}")
+            account.save()
+
     return account
 
 
@@ -1131,6 +1216,11 @@ def noop_true(*args, **kwdargs):
 
 def truncate_with_ellipsis(s):
     return textwrap.shorten(s, width=6, placeholder="...")
+
+
+#
+# End global variables and functions section
+#
 
 
 @dataclass
@@ -1303,6 +1393,7 @@ class ImportCorrespondenceManager:
                     author_from_wjapp[0]["firstname"],
                     author_from_wjapp[0]["email"],
                     author_from_wjapp[0]["privacy"],
+                    self.connection,
                 )
 
             document_layer_subject = (
@@ -1338,6 +1429,7 @@ class ImportCorrespondenceManager:
                         msg_rec["firstname"],
                         msg_rec["email"],
                         msg_rec["privacy"],
+                        self.connection,
                     )
                     if recipient not in msg.recipients.all():
                         msg.recipients.add(recipient)
@@ -1885,6 +1977,7 @@ class EditorAssignmentAction(BaseActionManager):
             editor_firstname,
             editor_email,
             editor_privacy,
+            self.connection,
         )
 
         # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
@@ -2066,6 +2159,7 @@ class AdminOpensAppealAction(BaseActionManager):  # noqa N801
             admin_firstname,
             admin_email,
             admin_privacy,
+            self.connection,
         )
 
         if not has_eo_role(admin):
@@ -2212,6 +2306,7 @@ class AdminWithdrawn(BaseActionManager):  # noqa N801
             admin_firstname,
             admin_email,
             admin_privacy,
+            self.connection,
         )
 
         if not has_eo_role(admin):
@@ -2525,6 +2620,7 @@ ORDER BY dl.submissionDate
             reviewer_data["refereeFirstName"],
             reviewer_data["refereeEmail"],
             reviewer_data["refereePrivacy"],
+            self.connection,
         )
         logger.debug(f"Creating review assignment of {self.article.id} to reviewer {reviewer}")
 
@@ -2642,6 +2738,7 @@ class DeselectReviewerAction(BaseActionManager):
             reviewer_firstname,
             reviewer_email,
             reviewer_privacy,
+            self.connection,
         )
 
         review_assignment = WorkflowReviewAssignment.objects.filter(
@@ -2825,6 +2922,7 @@ ORDER BY dl.submissionDate
             reviewer_firstname,
             reviewer_email,
             reviewer_privacy,
+            self.connection,
         )
 
         request = create_fake_request(user=None, journal=self.journal)
@@ -2980,6 +3078,7 @@ ORDER BY dl.submissionDate
             reviewer_firstname,
             reviewer_email,
             reviewer_privacy,
+            self.connection,
         )
 
         # filter and last() not get() to manage JCOM_008A_0324 with 2 review assignments
@@ -3401,6 +3500,7 @@ class SelectCoauthorAction(BaseActionManager):
             coauthor_firstname,
             coauthor_email,
             coauthor_privacy,
+            self.connection,
         )
         logger.debug(f"Creating coauthor of {self.article.id} user: {coauthor}")
 
@@ -3512,6 +3612,7 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
                 typesetter_firstname,
                 typesetter_email,
                 typesetter_privacy,
+                self.connection,
             )
             if not typesetter.check_role(self.journal, "typesetter", staff_override=False):
                 typesetter.add_account_role("typesetter", self.journal)

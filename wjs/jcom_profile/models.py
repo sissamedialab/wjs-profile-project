@@ -80,6 +80,7 @@ class JCOMProfile(Account):
     gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
     keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
+    usernotes = models.TextField(_("User notes"), blank=True, null=True, default="")
 
 
 class Correspondence(models.Model):
