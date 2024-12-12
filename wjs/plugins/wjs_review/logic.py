@@ -284,6 +284,7 @@ class AssignToEditor:
     workflow: Optional[ArticleWorkflow] = None
     assignment: Optional[WjsEditorAssignment] = None
     first_assignment: bool = False
+    assignment_message: Optional[str] = None
 
     def _create_workflow(self):
         self.workflow, __ = ArticleWorkflow.objects.get_or_create(
@@ -333,29 +334,40 @@ class AssignToEditor:
             ).processed_value,
         }
 
-    def _log_operation(self, context: Dict[str, Any]):
+    def _log_operation(self, context: Dict[str, Any], assignment_message: Optional[str] = None):
         if self.request.user and self.request.user.is_authenticated and self.request.user != self.editor:
             actor = self.request.user
         else:
             actor = None
-        message_subject = render_template_from_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_editor_assignment",
-            journal=self.workflow.article.journal,
-            request=self.request,
-            context={
-                "article": self.workflow.article,
-            },
-            template_is_setting=True,
-        )
-        message_body = render_template_from_setting(
-            setting_group_name="email",
-            setting_name="editor_assignment",
-            journal=self.workflow.article.journal,
-            request=self.request,
-            context=context,
-            template_is_setting=True,
-        )
+        if not assignment_message:
+            message_subject = render_template_from_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_editor_assignment",
+                journal=self.workflow.article.journal,
+                request=self.request,
+                context={
+                    "article": self.workflow.article,
+                },
+                template_is_setting=True,
+            )
+            message_body = render_template_from_setting(
+                setting_group_name="email",
+                setting_name="editor_assignment",
+                journal=self.workflow.article.journal,
+                request=self.request,
+                context=context,
+                template_is_setting=True,
+            )
+        else:
+            message_subject = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="editor_assignment_manual_subject",
+                journal=self.workflow.article.journal,
+                request=self.request,
+                context={},
+                template_is_setting=True,
+            )
+            message_body = self.assignment_message
         communication_utils.log_operation(
             article=self.workflow.article,
             message_subject=message_subject,
@@ -393,7 +405,7 @@ class AssignToEditor:
             ).run()
             self._update_state()
             context = self._get_message_context()
-            self._log_operation(context=context)
+            self._log_operation(context=context, assignment_message=self.assignment_message)
             self._create_editor_should_select_reviewer_reminders()
             self._delete_director_reminders()
         return self.assignment
@@ -2817,6 +2829,7 @@ class SupervisorChangeEditorAssignment:
     new_editor: Account
     request: HttpRequest
     deassignment_message: Optional[str] = None
+    assignment_message: Optional[str] = None
 
     def _deassign_current_editor(self) -> Account:
         """Deassigns the current editor using existing :py:class:`BaseDeassignEditor` logic."""
@@ -2834,6 +2847,7 @@ class SupervisorChangeEditorAssignment:
             editor=self.new_editor,
             article=self.article,
             request=self.request,
+            assignment_message=self.assignment_message,
         ).run()
 
     def _migrate_review_assignments(self, old_editor: Account):

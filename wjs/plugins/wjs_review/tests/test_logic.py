@@ -3297,6 +3297,7 @@ def test_assign_different_editor(
         "selected_editor": normal_user.pk,
         "state": assigned_article.articleworkflow.state,
         "note_for_past_editor": "custom deassign message",
+        "note_for_new_editor": "custom assign message",
     }
     reviewer1 = create_jcom_user("reviewer1")
     reviewer2 = create_jcom_user("reviewer2")
@@ -3440,13 +3441,11 @@ def test_assign_different_editor(
     assigned_editor_msg = Message.objects.all()[5]
     assert list(assigned_editor_msg.recipients.all()) == [normal_user.janeway_account]
     editor_assignment_subject = render_template_from_setting(
-        setting_group_name="email_subject",
-        setting_name="subject_editor_assignment",
+        setting_group_name="wjs_review",
+        setting_name="editor_assignment_manual_subject",
         journal=assigned_article.journal,
         request=fake_request,
-        context={
-            "article": assigned_article,
-        },
+        context={},
         template_is_setting=True,
     )
     assert assigned_editor_msg.subject == editor_assignment_subject
@@ -3466,6 +3465,7 @@ def test_assign_new_editor(
     form_data = {
         "selected_editor": normal_user.pk,
         "state": article.articleworkflow.state,
+        "note_for_new_editor": "test note",
     }
     editors = Account.objects.get_editors_with_keywords(article)
     assert normal_user.janeway_account in editors
@@ -3485,13 +3485,11 @@ def test_assign_new_editor(
     msg = Message.objects.first()
     assert list(msg.recipients.all()) == [normal_user.janeway_account]
     message_subject = render_template_from_setting(
-        setting_group_name="email_subject",
-        setting_name="subject_editor_assignment",
+        setting_group_name="wjs_review",
+        setting_name="editor_assignment_manual_subject",
         journal=article.journal,
         request=fake_request,
-        context={
-            "article": article,
-        },
+        context={},
         template_is_setting=True,
     )
     assert msg.subject == message_subject

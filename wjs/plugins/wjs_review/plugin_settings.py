@@ -1644,6 +1644,73 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def editor_assignment_manual() -> tuple[SettingValue, ...]:
+        setting_parms: SettingParams = {
+            "name": "editor_assignment_manual_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of EO manually assigns an Editor"),
+            "description": _(
+                "Subject of the notification sent to the new Editor when he is manually assigned by the EO.",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "New Editor assigned",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        setting_parms: SettingParams = {
+            "name": "editor_assignment_manual_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of EO manually assigns an Editor"),
+            "description": _(
+                "Body of the notification sent to the new Editor when he is manually assigned by the EO.",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ editor.full_name }},
+<br><br>
+Would you be willing to take this submission on as the Editor-in-Charge and shepherd it though the
+{{ article.journal.code }} review process?
+<br><br>
+Given your research interests and expertise, it seems like an submission that you might be interested in engaging with.
+<br><br>
+If you are willing and available to do this, then please find two relevant peer reviewers and kindly remind them what
+type of submission (e.g. research article, practice insight, essay) they will be reviewing.
+<br><br>
+Please do not call on other members of the {{ article.journal.code }} Editorial Board to review this submission
+because they are already managing other papers in the system.
+<br><br>
+You will find the submission on your {{ article.journal.code }} Editor pages (see link above).
+<br><br>
+Thank you and best regards,
+<br>
+{{ request.user.full_name }}
+<br>
+{{ article.journal.code }} {{ request.user.role.slug }}
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -1670,6 +1737,7 @@ Thank you and best regards,
         csv_writer.write_settings(author_submits_appeal_message())
         csv_writer.write_settings(eo_send_back_to_typesetting_message())
         csv_writer.write_settings(technicalrevisions_complete_reviewer_notification())
+        csv_writer.write_settings(editor_assignment_manual())
 
 
 def ensure_workflow_elements():
