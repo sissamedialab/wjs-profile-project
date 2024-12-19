@@ -1,6 +1,8 @@
 .deploy:
   image: python:3.11
   stage: deploy
+  tags:
+    - inasset
 
   # Need to find defined the server (and ssh user) to deploy to and the deploy command.
   # E.g.: SERVER_IP: "127.0.0.1"

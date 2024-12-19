@@ -1,8 +1,9 @@
 # Build this python package
 # and upload it to our package registry/repo.
 .upload-package:
-
   stage: build
+  tags:
+    - inasset
 
   variables:
     # CI_API_V4_URL: The GitLab API v4 root URL.
