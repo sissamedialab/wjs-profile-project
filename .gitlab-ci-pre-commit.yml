@@ -1,5 +1,7 @@
 .run-pre-commit:
   stage: test
+  tags:
+    - fast-test
 
   variables:
     # Use the following after force-pushes:
