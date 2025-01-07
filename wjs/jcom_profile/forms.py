@@ -590,7 +590,7 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
             raise forms.ValidationError(_(f"You must select at most {keywords_limits['max']} keywords."))
         return keywords
 
-    def save(self, commit=True, *args, **kwargs):
+    def save(self, commit=True, request=None, *args, **kwargs):
         """
         Save selected keywords to the article.
 
@@ -605,6 +605,22 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
         instance.keywords.clear()
         if posted_keywords:
             instance.keywords.add(*posted_keywords)
+
+        # Copied logic to save additional fields from submission.forms.ArticleInfo.save
+        if request:
+            additional_fields = submission_models.Field.objects.filter(journal=request.journal)
+
+            for field in additional_fields:
+                answer = request.POST.get(field.name, None)
+                if answer:
+                    try:
+                        field_answer = submission_models.FieldAnswer.objects.get(article=instance, field=field)
+                        field_answer.answer = answer
+                        field_answer.save()
+                    except submission_models.FieldAnswer.DoesNotExist:
+                        field_answer = submission_models.FieldAnswer.objects.create(
+                            article=instance, field=field, answer=answer
+                        )
 
         return instance
 
