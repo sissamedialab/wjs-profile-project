@@ -1,11 +1,18 @@
+# Install as follows:
+# - link to ~/.config/systemd/user/
+# - reload systemd user daemond `systemctl --user daemon-reload`
+# - enable and start as needed (`systemctl --user enable qcluster.service`, etc.)
+# - enable "lingering" for the user: `loginctl enable-linger wjs`
+# - to read the log, try `journalctl -q -f --user-unit qcluster.service`
+# See also https://www.brendanlong.com/systemd-user-services-are-amazing.html
+
 [Unit]
-Description=Janeway qcluster runner
+Description=janeway qcluster runner
 After=network.target
 
 [Service]
-User=wjs
 WorkingDirectory=/home/wjs/janeway/src
-ExecStart=/home/wjs/.virtualenvs/janeway-venv/bin/python manage.py qcluster
+ExecStart=/home/wjs/.virtualenvs/janeway/bin/python manage.py qcluster
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
