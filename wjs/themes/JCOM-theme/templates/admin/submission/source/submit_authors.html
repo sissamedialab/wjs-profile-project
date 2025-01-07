@@ -76,9 +76,11 @@
                                 <td><i class="fa fa-sort"></i></td>
                                 <td>{{ order.author.full_name }}</td>
                                 <td>{{ order.author.email }}</td>
-                                <td><a href="{% url 'delete_author' article.pk order.author.pk %}"><i
-                                        class="fa fa-trash">
-                                    &nbsp;</i></a></td>
+                                {% if not user == order.author %}
+                                  <td><a href="{% url 'delete_author' article.pk order.author.pk %}"><i
+                                          class="fa fa-trash">
+                                      &nbsp;</i></a></td>
+                                {% endif %}
                             </tr>
                             {% empty %}
                             <tr>
