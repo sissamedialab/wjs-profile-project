@@ -1411,7 +1411,7 @@ class BeginPublication:
         \publicationvolume{xx}
         \publicationissue{xx}
         \publicationnum{xx}
-        \doiInfo{https://doi.org/}{doi}
+        \doiInfo{doi}{xxxxxxx}
 
         """
         publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
@@ -1432,7 +1432,7 @@ class BeginPublication:
             (r"\publicationvolume{xx}", rf"\publicationvolume{{{volume}}}"),
             (r"\publicationissue{xx}", rf"\publicationissue{{{issue}}}"),
             (r"\publicationnum{xx}", rf"\publicationnum{{{num}}}"),
-            (r"\doiInfo{https://doi.org/}{doi}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
+            (r"\doiInfo{doi}{xxxxxxx}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
         )
 
         source_file.seek(0)

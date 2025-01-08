@@ -854,12 +854,12 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     {% endwith %}
 
     %% Filled-in during publication:
-    \\published{???}"
-    \\publicationyear{xxxx}"
-    \\publicationvolume{xx}"
-    \\publicationissue{xx}"
-    \\publicationnum{xx}"
-    \\doiInfo{https://doi.org/}{doi}"
+    \\published{???}
+    \\publicationyear{xxxx}
+    \\publicationvolume{xx}
+    \\publicationissue{xx}
+    \\publicationnum{xx}
+    \\doiInfo{doi}{xxxxxxx}
 
     """
     automatic_preamble = LatexPreamble.objects.create(
@@ -875,7 +875,9 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
         tex_content = source.read()
     tex_content = tex_content.replace(
         rb"\begin{document}",
-        b"\\proofs{This is a sample query in the document}\n\n\\begin{document}",
+        rb"""\query{This is a sample query in the document}
+\proofs  % This macro triggers the "proof" behavior
+\begin{document}""",
     )
     file_obj = io.BytesIO()
     with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
@@ -893,6 +895,7 @@ def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
         rb"\begin{document}",
         rb"""\newcommand\noproofs[1]{\relax}
 \noproofs{This is not a sample query in the document}
+\query{This macro is ignored if the macro proofs is not active}
 \begin{document}""",
     )
     file_obj = io.BytesIO()

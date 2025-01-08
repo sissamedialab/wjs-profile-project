@@ -1,37 +1,60 @@
 %% This document simulates a paper that could be in produciton or ready for publication:
-%% - the automatic preamble is already in (TBV)
+%% - the automatic preamble is already in the source
 %% - galley generation should be successful
-%% - there are no queries
-%% - but the publication date have not yet been filled
+%% - there are no queries (more precicesly, we have the macro \query, but \proofs is commented-out)
+%% - the publication date & co. have not yet been filled
 \documentclass[a4paper,11pt]{article}
-\usepackage{jcom-blue-apa}
+\pdfoutput=1
+\usepackage[journal=jcom]{jcom2}[=2024-12-01]
 
-\received{2024-05-17}
-\accepted{2024-05-18}
+\received{2024-11-20}
+\accepted{2024-11-26}
 \published{???}
+
 \publicationyear{xxxx}
 \publicationvolume{xx}
 \publicationissue{xx}
 \publicationnum{xx}
-\doiInfo{https://doi.org/}{doi}
 
 \type{E}
+\doiInfo{doi}{xxxxxxx}
 
+\specialissue{Public (dis)trust in science in digital media environments}
 
-\specialissue{Science communication for social justice}
+\query{Please note that, as a standard procedure, submitted .docx files
+are converted to tex. As far as we are aware, the conversion process
+does not introduce any systematic error, however we kindly ask you
+to check carefully the formatted version of your paper.}
 
+%\proofs
 
-\title{Why should we communicate?}
+\title{Public (dis)trust in science in digital media environments}
 
-\author[Somelastname,~F., Anotherlastname,~G.~and Yetanother,~H.]{First Somelastname, Gee Anotherlastname and Huop Yetanother}
+\author[Reif,~A.]{Anne
+  Reif}{anne.reif@uni-hamburg.de}[0000-0003-4334-5909]{Anne Reif (PhD,
+  2021, at Technische Universität Braunschweig, Germany) is a Senior
+  Researcher at the University of Hamburg, Germany. Her main research
+  interests are in the fields of science communication and digital
+  communication. She focuses on public trust in science as well as
+  public perceptions of climate change in connection to the use of
+  online media.}[reif_anne]
 
-\abstract{What is science communication for? We argue.}
+\abstract{This special issue examines public (dis)trust in science.}
 
-\keywords{Science communication and social justice}
+\keywords{Digital science communication; Public engagement with
+  science and technology; Public perception of science and
+  technology}{}{}
 
 \begin{document}
-\maketitle\raggedbottom
 
-What is science communication for?
+\section{Why study public (dis)trust in science in digital media environments?}
+
+Nowadays, large parts of the population obtain information about
+science, technology, and topics such as climate change or COVID-19
+online
+
+\begin{acknowledgments}
+  We would like to express our sincere gratitude to all authors.
+\end{acknowledgments}
 
 \end{document}
