@@ -683,12 +683,20 @@ class DecisionForm(forms.ModelForm):
 
         # It's easier to set initial here, even if we might drop the field later on,
         # because kwargs is going to be passed to super().__init__() for standard initialization.
+        #
+        # The message template needs {{ article }} to be set in order to get the journal, so we need to pass a dummy
+        # article object.
+        stub_article = Article()
+        stub_article.journal = self.request.journal
         kwargs["initial"]["withdraw_notice"] = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_withdrawl",
             journal=self.request.journal,
             request=self.request,
-            context={},
+            context={
+                "article": stub_article,
+                "request": self.request,
+            },
             template_is_setting=True,
         )
 
