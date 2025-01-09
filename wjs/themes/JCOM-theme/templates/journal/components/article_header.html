@@ -39,8 +39,8 @@
                         {% if not forloop.last %},{% endif %}
                     </span>
                 {% endfor %}
-            {% endif %}
-        </div>
+            </div>
+        {% endif %}
         {% if article.abstract and article.abstract != '' %}<p>{{ article.abstract | safe }}</p>{% endif %}
     </div>
 </header>
