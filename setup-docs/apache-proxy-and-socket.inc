@@ -19,6 +19,20 @@ ProxyPass        /mailcatcher  http://127.0.0.1:1080/mailcatcher
 # https://httpd.apache.org/docs/2.4/mod/mod_proxy.html#proxyreceivebuffersize
 ProxyReceiveBufferSize 2048
 
+# Janeway accetta e processa (sbagliando) qualsiasi header usualmente generato
+# da un reverse-proxy, senza alcuna verifica di liceità (anche senza che sia
+# stato configurato alcun rev-proxy in Janeway).
+# Apache presenza già i dati corretti e validati a Janeway, quindi dis-impostiamo
+# queste tre variabili per evitare che Janeway valuti degli header che sono in
+# realtà nel controllo di chi fa la richiesta web (e che fanno crashare Janeway
+# se non "ben formati")
+# See
+# - https://trackers.sissamedialab.it/it-help/issue2162
+# - https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/issues/88#note_33025
+RequestHeader unset X-Forwarded-Host
+RequestHeader unset X-Forwarded-For
+RequestHeader unset X-Forwarded-Server
+
 # Please define SOCKET_NAME from the including file as follows
 # (allows for multiple instances)
 # Define SOCKET_NAME /var/run/uwsgi/janeway.sock

@@ -11,8 +11,10 @@ Description=janeway qcluster runner
 After=network.target
 
 [Service]
+# No! # Environment="Q_CLUSTER_NAME=qcluster-test"  # gives KeyError: 'ALT_CLUSTERS' (see docs)
+# User=wjs  # Not needed when installing as user unit
 WorkingDirectory=/home/wjs/janeway/src
 ExecStart=/home/wjs/.virtualenvs/janeway/bin/python manage.py qcluster
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
