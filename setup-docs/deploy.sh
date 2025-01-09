@@ -39,6 +39,9 @@ UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
 # The git branches where the code lives
 JANEWAY_BRANCH=wjs-develop
 
+# The name of the qcluster systemd unit
+QCLUSTER_SERVICE="qcluster.service"
+
 # The token name and value used to "pull" git repos.
 # When it expires, create a new token at the WJS group level, with scope "read-repo"
 # (and role "Reporter", probably useless...)
@@ -69,6 +72,7 @@ function deploy_janeway() {
     "$PYTHON" -mmanage compilemessages --settings core.settings
 
     touch --no-dereference "$UWSGI_VASSAL"
+    systemctl --user restart "$QCLUSTER_SERVICE"
 }
 
 function deploy_wjs() {
@@ -104,6 +108,7 @@ function deploy_wjs() {
     "$PYTHON" -mmanage collectstatic --noinput
 
     touch --no-dereference "$UWSGI_VASSAL"
+    systemctl --user restart "$QCLUSTER_SERVICE"
 }
 
 function set_prod_variables() {
@@ -111,6 +116,7 @@ function set_prod_variables() {
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
     JANEWAY_BRANCH=wjs-develop
+    QCLUSTER_SERVICE="qcluster.service"
 }
 
 function set_pp_variables() {
@@ -121,6 +127,7 @@ function set_pp_variables() {
     # Permit install pre-release pkgs in pre-prod
     # this allows us to test pkg install when needed.
     PIP_PRE="yes please"
+    QCLUSTER_SERVICE="qcluster-pp.service"
 }
 
 function set_dev_variables() {
@@ -129,6 +136,7 @@ function set_dev_variables() {
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-dev.ini
     JANEWAY_BRANCH=wjs-develop
     PIP_PRE="yes please"
+    QCLUSTER_SERVICE="qcluster-dev.service"
 }
 
 function set_test_variables() {
@@ -137,6 +145,7 @@ function set_test_variables() {
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-test.ini
     JANEWAY_BRANCH=wjs-develop
     PIP_PRE="yes please"
+    QCLUSTER_SERVICE="qcluster-test.service"
 }
 
 shopt -s extglob
