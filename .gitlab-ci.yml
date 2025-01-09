@@ -91,11 +91,11 @@ deploy-to-production:
 
 
 deploy-to-test:
+  # Deploy the current commit to test instance
+  # Warning! Be sure not to disrupt other peoples work 🙂
   extends:
     - .deploy
-  # environment: test
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  when: manual
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
@@ -103,11 +103,10 @@ deploy-to-test:
 
 
 deploy-to-dev:
-  # Deploy the current commit to dev instance
-  # Warning! Be sure not to disrupt other peoples work 🙂
   extends:
     - .deploy
-  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
