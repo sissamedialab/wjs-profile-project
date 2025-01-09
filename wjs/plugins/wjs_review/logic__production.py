@@ -1208,7 +1208,7 @@ class ReadyForPublication:
             article=self.workflow.article,
             message_subject=subject,
             message_body=body,
-            actor=None,
+            actor=self.user,
             recipients=[get_eo_user(self.workflow.article)],
             verbosity=Message.MessageVerbosity.TIMELINE,
             flag_as_read=True,
@@ -1219,7 +1219,7 @@ class ReadyForPublication:
     def run(self):
         with transaction.atomic():
             if not self._check_conditions():
-                raise ValueError("Paper not yet ready for publication. For assitance, contact the EO.")
+                raise ValueError("Paper not yet ready for publication. For assistance, contact the EO.")
             self._update_state()
             self._log_operation()
         return self.workflow
