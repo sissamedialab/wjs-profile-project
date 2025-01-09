@@ -285,7 +285,7 @@ Kind regards,
         update_setting_default(
             "review_withdrawl",
             "email",
-            """Dear Dr. {{ assignment.reviewer.full_name }},
+            """Dear {% if assignment %}Dr. {{ assignment.reviewer.full_name }}{% else %}colleague{% endif %},
 <br><br>
 This is to confirm that you are no longer requested to review this submission.
 <br><br>
