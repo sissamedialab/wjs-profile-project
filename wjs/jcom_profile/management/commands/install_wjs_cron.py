@@ -1,4 +1,13 @@
-"""Install WJS cron jobs."""
+"""Install WJS cron jobs.
+
+Jobs are defined as:
+  - name: identify the cron line
+  - task: mgmt command to be used (but see also raw and raw-python)
+  - raw: flag to run raw command ("task" will be run as is)
+  - raw-python: flag to run raw python code inside venv ("task" will be prepended with the venv python)
+  - time
+  - type
+"""
 
 # Adapted from src/cron/management/commands/install_cron.py
 import os
@@ -46,6 +55,13 @@ class Command(BaseCommand):
                 "task": "check_wjapp_new_registrations",
                 "type": "daily",
             },
+            {
+                "name": f"{cwd}_pip_audit_check",
+                "time": 6,
+                "task": "pip-audit | sed '/Dependency not found/d;/Skip Reason/d;/------/d;'",
+                "type": "daily",
+                "raw-python": True,
+            },
         ]
 
         for job in jobs:
@@ -55,11 +71,17 @@ class Command(BaseCommand):
                 print(f"{job['name']} cron job already exists.")
                 continue
 
-            django_command = f"{settings.BASE_DIR}/manage.py {job['task']}"
-            if virtualenv:
-                command = f"{virtualenv}/bin/python3 {django_command}"
+            if "raw-python" in job:
+                if virtualenv:
+                    command = f"{virtualenv}/bin/{job['task']}"
+            elif "raw" in job:
+                command = job["task"]
             else:
-                command = django_command
+                django_command = f"{settings.BASE_DIR}/manage.py {job['task']}"
+                if virtualenv:
+                    command = f"{virtualenv}/bin/python3 {django_command}"
+                else:
+                    command = django_command
 
             cron_job = tab.new(command, comment=job["name"])
 
