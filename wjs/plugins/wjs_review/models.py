@@ -1598,7 +1598,7 @@ class EditorRevisionRequest(RevisionRequest):
     # ie: "Save as draft" button in templates/wjs_review/revision/elements/meta_data.html
     # when author click on "Save metadata"" button, data are stored on the article (but not cleaned from here)
     # fields here keep the same name of the article fields to be able to reuse the same form
-    title = JanewayBleachCharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
+    title = models.CharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
     abstract = JanewayBleachField(blank=True, null=True, verbose_name=_("Abstract"))
 
     class Meta:

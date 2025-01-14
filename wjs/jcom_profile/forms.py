@@ -556,7 +556,7 @@ class SelectSpecialIssueForm(SelectIssueForm):
 
 
 class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
-    title = WjsMiniHTMLFormField(label=_("Title"), height="8rem")
+    title = forms.CharField(label=_("Title"))
     abstract = WjsMiniHTMLFormField(label=_("Abstract"))
     keywords = forms.ModelMultipleChoiceField(
         queryset=Keyword.objects.none(),
