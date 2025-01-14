@@ -1487,12 +1487,21 @@ class AuthorHandleRevision:
         self.revision.author_note = self.form_data.get("author_note", "")
         self.revision.save()
 
+    def _create_editor_should_select_reviewer_reminders(self):
+        """
+        Create reminders for the editor to select a reviewer,
+        when author submit a revision but not for appeal and technical revision.
+        """
+        if not self._was_under_appeal() and not self._was_technical_revision():
+            EditorShouldSelectReviewerReminderManager(self.revision.article, self.revision.editor).create()
+
     def run(self):
         with transaction.atomic():
             self._store_data()
             self._confirm_revision()
             self._save_author_note()
             self._trigger_complete_event(self.revision, self.request)
+            self._create_editor_should_select_reviewer_reminders()
             self._log_operation()
             return self.revision
 
