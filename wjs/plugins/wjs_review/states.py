@@ -159,6 +159,19 @@ def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWo
         )
 
 
+def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    url = reverse(
+        action.view_name,
+        kwargs={
+            "article_id": workflow.article.pk,
+        },
+    )
+    if action.querystring_params is not None:
+        url += "?"
+        url += urllib.parse.urlencode(action.querystring_params)
+    return url
+
+
 def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return the label for a button that would change the flag.
 
@@ -733,6 +746,16 @@ class Withdrawn(BaseState):
 
 class IncompleteSubmission(BaseState):
     """Incomplete submission"""
+
+    article_actions = (
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="resume incomplete submission",
+            label="Resume incomplete submission",
+            view_name="submit_info",
+            custom_get_url=get_article_pk_url,
+        ),
+    ) + BaseState.article_actions
 
     @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
