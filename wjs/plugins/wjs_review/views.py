@@ -3213,7 +3213,10 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
 
     def _get_message_context(self):
         """Get the context for the message template."""
-        current_editor = WjsEditorAssignment.objects.get_current(self.object.article).editor
+        try:
+            current_editor = WjsEditorAssignment.objects.get_current(self.object.article).editor
+        except WjsEditorAssignment.DoesNotExist:
+            current_editor = None
         return {
             "supervisor": current_editor if current_editor is not None else get_eo_user(self.object.article),
             "article": self.object.article,
