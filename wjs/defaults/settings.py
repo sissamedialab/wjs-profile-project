@@ -4,6 +4,7 @@ For details on how to use this, see
 https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 """
 
+import os
 from pathlib import Path
 
 from core.janeway_global_settings import TEMPLATES
@@ -282,18 +283,28 @@ TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS = 3
 # have passed, a reviewer (for instance) is considered "late". This can effect the "attention conditions".
 WJS_REMINDER_LATE_AFTER = 3
 
+REDIS_CACHE_URL = os.environ.get("REDIS_CACHE_URL", "redis://localhost:6379/1")
+REDIS_QCLUSTER_URL = os.environ.get("REDIS_QCLUSTER_URL", "redis://localhost:6379/10")
+
 Q_CLUSTER = {
     "name": "wjs-janeway",
     "label": "Task WJS",
     "workers": 1,
     "sync": True,
-    "redis": {
-        "host": "localhost",
-        "port": 6379,
-        "db": 10,
-    },
+    "redis": REDIS_QCLUSTER_URL,
     "retry": 90,
     "timeout": 60,
+}
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_CACHE_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    },
 }
 
 LOCALE_PATHS = [Path(__file__).parents[1] / "locale"]

@@ -1583,6 +1583,7 @@ Please retry and contact assistance is the problem persists.
         import_utils.publish_article(self.workflow.article)
 
         self._trigger_workflow_event()
+        self._trigger_on_article_published_event()
 
     def _trigger_workflow_event(self):
         """Trigger the ON_WORKFLOW_ELEMENT_COMPLETE event to comply with upstream review workflow."""
@@ -1597,6 +1598,18 @@ Please retry and contact assistance is the problem persists.
             events_logic.Events.ON_WORKFLOW_ELEMENT_COMPLETE,
             task_object=self.workflow.article,
             **workflow_kwargs,
+        )
+
+    def _trigger_on_article_published_event(self):
+        """
+        Trigger ON_ARTICLE_PUBLISHED event.
+        """
+        kwargs = {
+            "article": self.workflow.article,
+            "request": self.request,
+        }
+        events_logic.Events.raise_event(
+            events_logic.Events.ON_ARTICLE_PUBLISHED, task_object=self.workflow.article, **kwargs
         )
 
     def _get_context(self):

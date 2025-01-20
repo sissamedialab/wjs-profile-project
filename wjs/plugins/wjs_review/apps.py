@@ -71,6 +71,7 @@ class WjsReviewConfig(AppConfig):
         from .events import ReviewEvent
         from .events.handlers import (
             clean_prophy_candidates,
+            clear_cache,
             convert_manuscript_to_pdf,
             notify_author_article_submission,
             notify_coauthors_article_submission,
@@ -197,4 +198,8 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_FILE_UPLOAD,
             convert_manuscript_to_pdf,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_PUBLISHED,
+            clear_cache,
         )

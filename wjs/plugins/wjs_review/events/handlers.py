@@ -6,6 +6,7 @@ Generally registered onto some event in the `app` module.
 from typing import Optional
 
 from django.conf import settings
+from django.core.cache import cache as django_cache
 from django.utils.module_loading import import_string
 from events import logic as events_logic
 from submission import logic as submission_logic
@@ -266,3 +267,8 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
         ConvertManuscriptToPdf(article).run()
     elif file_type == "data":
         pass
+
+
+def clear_cache(**kwargs) -> None:
+    """Clear Django cache."""
+    django_cache.clear()
