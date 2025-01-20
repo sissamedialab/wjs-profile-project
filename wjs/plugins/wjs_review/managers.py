@@ -37,6 +37,7 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         :return: the subquery to extract the latest review round number for each article
         :rtype: Subquery
         """
+        # FIXME: Refactor this method to avoid code duplication
         isnull_condition = mode == "review"
         latest_review_round = ReviewAssignment.objects.filter(
             article=OuterRef("article_id"),

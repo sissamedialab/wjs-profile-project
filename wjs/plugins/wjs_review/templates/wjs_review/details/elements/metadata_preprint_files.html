@@ -1,12 +1,37 @@
-<div class="accordion-item">
-  <h2 class="accordion-header" id="heading-files">
-    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-files" aria-expanded="false" aria-controls="collapse-files">
-      {% translate "Preprint files (current version)" %} &nbsp;&nbsp; <i class="bi bi-filetype-pdf"></i>
-    </button>
-  </h2>
-  <div id="collapse-files" class="accordion-collapse collapse" aria-labelledby="heading-files" data-bs-parent="#metadata">
-    <div class="accordion-body">
-      {% include "wjs_review/details/elements/article_files_listing.html" %}
-    </div>
-  </div>
-</div>
+{% load wjs_permissions %}
+{% with version=review_versions.0 %}
+  {% if latest_only %}
+    {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=PermissionType.NO_NAMES review_round=version.number as has_file_access %}
+    {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as author_notes %}
+  {% else %}
+    {% if version.file_container %}
+      {% user_has_access_to workflow=workflow user=request.user target=version.file_container permission_type=PermissionType.NO_NAMES review_round=version.number as has_file_access %}
+    {% endif %}
+    {% if version.cover_letter and version.cover_letter.object %}
+      {% user_has_access_to workflow=workflow user=request.user target=version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as author_notes %}
+    {% endif %}
+  {% endif %}
+
+  {% if has_file_access %}
+    {% if version.latest or not latest_only %}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="heading-files">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-files" aria-expanded="false" aria-controls="collapse-files">
+            {% translate "Preprint files (current version)" %} &nbsp;&nbsp; <i class="bi bi-filetype-pdf"></i>
+          </button>
+        </h2>
+        <div id="collapse-files" class="accordion-collapse collapse" aria-labelledby="heading-files" data-bs-parent="#metadata">
+          <div class="accordion-body">
+            {% include "wjs_review/details/elements/article_files_listing.html" %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {% if author_notes and version.cover_letter.has_content %}
+    {% if version.latest or not latest_only %}
+      {% include "wjs_review/details/elements/review_cover.html" with custom_version="unset" %}
+    {% endif %}
+  {% endif %}
+{% endwith %}

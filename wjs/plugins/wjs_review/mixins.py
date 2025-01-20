@@ -81,6 +81,12 @@ class OpenReviewMixin(DetailView):
 
     Used to grant access to editors to the completed review data.
     """
+    allow_typesetter_access = False
+    """
+    Allow typesetters to access the review.
+
+    Used to grant access to typesetters to the completed review data.
+    """
 
     @property
     def access_code(self):
@@ -100,6 +106,7 @@ class OpenReviewMixin(DetailView):
             if not base_permissions.has_eo_role(self.request.user):
                 filters = Q(reviewer=self.request.user)
                 if self.allow_editor_access:
+                    # Editor who assigned the review assignment is allowed to access the review
                     filters |= Q(editor=self.request.user)
                     # Past editors could be given permission to access RAs.
                     # Here we include those RAs for which the user has any kind of permission
@@ -112,7 +119,12 @@ class OpenReviewMixin(DetailView):
                         .exclude(permission=PermissionAssignment.PermissionType.DENY)
                         .values_list("object_id", flat=True)
                     )
-                    # TODO: what about director?
+                if self.allow_typesetter_access:
+                    # Current typesetter is allowed to access the review
+                    article = WorkflowReviewAssignment.objects.get(pk=self.kwargs["assignment_id"]).article
+                    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
+                    if typesetting_assignment and typesetting_assignment.typesetter == self.request.user:
+                        filters |= Q(article=article)
                 queryset = queryset.filter(filters)
         else:
             queryset = queryset.none()

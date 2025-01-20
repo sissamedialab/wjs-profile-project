@@ -6,10 +6,10 @@
   {% translate "Read" as open_label %}
   {% with author_notes_id="author_notes-"|concat:version.number %}
     {% with target_author_notes_id="#"|concat:author_notes_id %}
-  <div>
-    {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=target_author_notes_id content=notes_label %}
-    {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
-  </div>
+      <div class="mb-3">
+        {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=target_author_notes_id content=notes_label %}
+        {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
+      </div>
     {% endwith %}
   {% endwith %}
 {% endif %}

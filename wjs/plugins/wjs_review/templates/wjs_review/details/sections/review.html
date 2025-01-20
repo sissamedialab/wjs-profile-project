@@ -1,11 +1,13 @@
 {% load django_bootstrap5 i18n wjs_review %}
-{% if review_versions %}
+{% if review_versions and review_versions.0.number > 0 %}
 <div id="review" class="card border border-1 mb-4">
   <h5 class="card-header fw-bolder">{% translate "Review" %}</h5>
   <div class="card-body">
     <div class="accordion" id="review-accordion">
       {% for version in review_versions %}
+        {% if version.number > 0 %}
         {% include "wjs_review/details/elements/review_version.html" %}
+        {% endif %}
       {% endfor %}
     </div>
   </div>

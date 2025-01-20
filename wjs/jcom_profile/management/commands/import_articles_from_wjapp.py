@@ -1745,7 +1745,7 @@ class BaseActionManager:
     def save_pdf_galley(self, pdf_galley_dj):
         """Save PDF production version in TA.galleys_created"""
 
-        assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
 
         # necessary to avoid errors until action "back to typesetter"
         # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
@@ -3654,7 +3654,7 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
         source_prod_dj.content_type = "application/zip"
 
         fake_request = create_fake_request(user=None, journal=self.journal)
-        ta_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
         fake_request.user = ta_assignment.typesetter
 
         with freezegun.freeze_time(
@@ -3681,7 +3681,7 @@ class Requestproofs(BaseActionManager):
     def run(self):
 
         fake_request = create_fake_request(user=None, journal=self.journal)
-        typesetting_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
         fake_request.user = typesetting_assignment.typesetter
 
         with freezegun.freeze_time(

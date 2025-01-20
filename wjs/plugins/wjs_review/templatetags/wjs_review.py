@@ -17,7 +17,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
+from plugins.typesetting.models import TypesettingRound
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -583,7 +583,7 @@ def article_has_extra_article_information(article: Article) -> bool:
 @register.simple_tag()
 def current_typesetting_assignment(article: Article) -> Optional[TypesettingRound]:
     """Return the current typesetting assignment for the given article."""
-    return TypesettingAssignment.objects.filter(round__article=article).order_by("-round__round_number").last()
+    return article.articleworkflow.get_latest_typesetting_assignment()
 
 
 @register.simple_tag()
@@ -694,7 +694,7 @@ def is_current_version(
         return True
     article = version.article
     try:
-        latest_typesetting_round = workflow.latest_typesetting_assignment().round
+        latest_typesetting_round = workflow.get_latest_typesetting_assignment().round
     except AttributeError:
         latest_typesetting_round = None
     if latest_typesetting_round:

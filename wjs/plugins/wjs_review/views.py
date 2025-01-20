@@ -1308,6 +1308,7 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
     use_access_code = True
     allow_anonymous_access = True
     allow_editor_access = True
+    allow_typesetter_access = True
 
     def load_initial(self, request, *args, **kwargs):
         if self.allow_anonymous_access and request.user.is_anonymous:
@@ -1973,14 +1974,9 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
 
         if self.to_typesetter:
             # If the message is to the typesetter, the typesetter is the default recipient
-            return [
-                TypesettingAssignment.objects.filter(
-                    round__article=self.workflow.article,
-                )
-                .order_by("round__round_number")
-                .last()
-                .typesetter.pk
-            ]
+            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
+
+            return [typesetting_assignment.typesetter.pk] if typesetting_assignment else []
 
         return [self.recipient] if self.recipient else []
 

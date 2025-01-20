@@ -34,6 +34,10 @@ class ArticleWorkflowAdmin(admin.ModelAdmin):
     list_display = ["id", "article", "state"]
     list_filter = ["state"]
     search_fields = ["article__title"]
+    exclude = [
+        "supplementary_files_at_acceptance",
+    ]
+    readonly_fields = ["latest_state_change"]
 
 
 @admin.register(LatexPreamble)

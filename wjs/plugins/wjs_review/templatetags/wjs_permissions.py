@@ -83,6 +83,8 @@ def user_has_access_to(
     :return: True if the user has access, False otherwise.
     :rtype: bool
     """
+    if user.is_anonymous:
+        return False
     return PermissionChecker()(
         workflow,
         user,

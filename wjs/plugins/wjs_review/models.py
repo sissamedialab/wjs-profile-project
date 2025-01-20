@@ -170,7 +170,7 @@ class ReviewVersion:
     A version can contain multiple revision requests, because we can have multiple technical review for each round,
     plus the decision at the end of the round.
     """
-    editor_assignment: "WjsEditorAssignment"
+    editor_assignment: Optional["WjsEditorAssignment"]
     """
     Each version has an editor assignment, which is the editor in charge of the round.
 
@@ -216,6 +216,9 @@ class ReviewVersion:
 
         If this is the first review version, the cover letter is taken from the Article,
         otherwise it's taken from the (Editor)RevisionRequest of the round before the current one.
+
+        If the user has no visibility on current review round and we are not in the first round, an empty cover letter
+        object is returned.
         """
         if self.previous_round_revision:
             return AuthorCoverLetter(
@@ -223,25 +226,34 @@ class ReviewVersion:
                 file=self.previous_round_revision.cover_letter_file,
                 object=self.previous_round_revision,
             )
-        else:
+        elif self.number == 1:
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
                 file=None,
                 object=self.review_round.article,
             )
+        else:
+            return AuthorCoverLetter(
+                text="",
+                file=None,
+                object=None,
+            )
 
     @property
-    def file_container(self) -> Union[Article, "EditorRevisionRequest"]:
+    def file_container(self) -> Optional[Union[Article, "EditorRevisionRequest"]]:
         """
         Return the file container for the version.
 
         The file container is the object that contains the files and notes upon which the current revision round has
         been evaluated.
+
+        If the user has no visibility on current review round we return the article if we are on the first review round
+        or on the latest version: in this case we want current files in any case.
         """
         # ERR-1 tracks files of V-1, but latest version does not have associated ERR
         if self.current_round_revision:
             return self.current_round_revision
-        else:
+        elif self.number == 1 or self.latest:
             return self.review_round.article
 
     def _get_revision_by_round(self, number) -> Optional["EditorRevisionRequest"]:
@@ -583,21 +595,26 @@ class ArticleWorkflow(TimeStampedModel):
         except EditorRevisionRequest.DoesNotExist:
             return None
 
-    def latest_typesetting_assignment(self):
+    def get_latest_typesetting_assignment(self, completed=True) -> TypesettingAssignment | None:
         """Return the last (or "current") TA.
 
         During production, the last TA contains references to the latest sources and galleys.
+
+        :param completed: if True, return the last completed TA, otherwise the last one
+        :type completed: bool
+
+        :return: the last (or "current") TA
+        :rtype: TypesettingAssignment
         """
         try:
-            return (
-                TypesettingAssignment.objects.filter(
-                    round__article_id=self.article.id,
+            ta = TypesettingAssignment.objects.filter(
+                round__article_id=self.article.id,
+            )
+            if completed:
+                ta = ta.filter(
                     completed__isnull=True,
                 )
-                .order_by("-id")
-                .first()
-            )
-        # TODO: ensure that there is always at most one TA with completed == NULL
+            return ta.order_by("-round__round_number").first()
         except TypesettingAssignment.DoesNotExist:
             return None
 
@@ -1100,13 +1117,49 @@ class ArticleWorkflow(TimeStampedModel):
 
         versions = []
         for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
-            has_permission = PermissionChecker()(
-                self,
-                user,
-                self,
-                review_round=review_round.round_number,
-                permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+            decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round)
+            review_assignments = WorkflowReviewAssignment.objects.filter(
+                article=self.article, review_round=review_round
             )
+            editor_assigment = WjsEditorAssignment.objects.filter(
+                article=self.article, review_rounds=review_round
+            ).first()
+            # To actually see the version, one must have access to the editor decision (Author, Editor, Typesetter) or
+            # to their review assignments (Reviewer)
+            has_permission = any(
+                PermissionChecker()(
+                    self,
+                    user,
+                    decision,
+                    review_round=review_round.round_number,
+                    permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+                )
+                for decision in decisions
+            )
+            # author has always access to a version, version content depends on permissions on actual objects
+            # they should have at least permissions on their own files and editor notes, so they don't have any
+            # empty revision
+            has_permission = has_permission or permissions.is_article_author(self, user)
+            has_permission = has_permission or any(
+                PermissionChecker()(
+                    self,
+                    user,
+                    review_assignment,
+                    review_round=review_round.round_number,
+                    permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+                )
+                for review_assignment in review_assignments
+            )
+            if editor_assigment:
+                has_permission = has_permission or (
+                    PermissionChecker()(
+                        self,
+                        user,
+                        editor_assigment,
+                        review_round=review_round.round_number,
+                        permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+                    )
+                )
             if has_permission:
                 revisions = EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
                 if review_round.round_number > 1:
@@ -1116,21 +1169,29 @@ class ArticleWorkflow(TimeStampedModel):
                 version = ReviewVersion(
                     review_round=review_round,
                     latest=index == 0,
-                    decisions=list(EditorDecision.objects.filter(workflow=self, review_round=review_round)),
+                    decisions=list(decisions),
                     revision_requests=list(revisions),
-                    editor_assignment=WjsEditorAssignment.objects.filter(
-                        article=self.article, review_rounds=review_round
-                    ).first(),
-                    review_assignments=list(
-                        WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
-                    ),
+                    editor_assignment=editor_assigment,
+                    review_assignments=list(review_assignments),
                 )
                 versions.append(version)
+        else:
+            # Add a "fake" version for the initial submission
+            version = ReviewVersion(
+                review_round=ReviewRound(round_number=-1, article=self.article),
+                latest=not versions,
+                decisions=[],
+                revision_requests=[],
+                editor_assignment=None,
+                review_assignments=[],
+            )
+            versions.append(version)
+
         return versions
 
     def get_production_versions(self, user: Account) -> list[TypesettingVersion]:
         """
-        Generates the list of typesetting version for the current article.
+        Generate the list of typesetting version for the current article.
 
         Versions are checked against the user's roles to ensure that only the versions the user has rights on are
         returned.
@@ -1725,6 +1786,41 @@ class WorkflowReviewAssignment(ReviewAssignment):
                 code="pending",
                 message=_("Review due date: %s") % date_format(self.date_due, settings.DATE_FORMAT),
             )
+
+    @property
+    def version(self) -> list["ReviewVersion"]:
+        """
+        Return a "reconstructed" version of the review assignment.
+
+        If a previous review round is available, the version will include the decisions and revision requests
+        linked to the previous review round itself (because we need the previous round data to get a version context.
+
+        The review version should be marked as "latest" if it's related to the current review round.
+
+        :return: A list of one version linked to the review assignment.
+        :rtype: list[ReviewVersion]
+        """
+        if self.previous_review_round:
+            return [
+                ReviewVersion(
+                    review_round=self.review_round,
+                    latest=self.review_round == self.article.current_review_round_object(),
+                    decisions=self.previous_review_round.editordecision_set.all(),
+                    revision_requests=self.previous_review_round.editorrevisionrequest_set.all(),
+                    editor_assignment=None,
+                    review_assignments=[self],
+                )
+            ]
+        return [
+            ReviewVersion(
+                review_round=self.review_round,
+                latest=self.review_round == self.article.current_review_round_object(),
+                decisions=[],
+                revision_requests=[],
+                editor_assignment=None,
+                review_assignments=[self],
+            )
+        ]
 
 
 class ProphyAccount(models.Model):

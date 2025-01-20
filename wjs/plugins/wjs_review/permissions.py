@@ -476,7 +476,7 @@ def is_article_manager(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the user is responsible for managing any phase of the article review / production
 
-    USer is editor, typesetter, director or EO.
+    User is supervisor (EO, director, editor of a SI - see is_article_supervisor) or typesetter or editor.
 
     :param instance: An instance of the ArticleWorkflow class.
     :type instance: ArticleWorkflow

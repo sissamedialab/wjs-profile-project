@@ -6,38 +6,44 @@
       {% translate "Version" %} {{ version.number }}
     </button>
   </h2>
-  <div id="collapse-review-{{ version.number }}" class="accordion-collapse collapse{% if version.latest and not production %} show{% endif %}" aria-labelledby="heading-review-{{ version }}">
+  <div id="collapse-review-{{ version.number }}" class="accordion-collapse collapse{% if version.latest and not production %} show{% endif %}" aria-labelledby="review-{{ version.number }}">
     <div class="accordion-body d-flex flex-column gap-4">
       <div class="vstack gap-3">
         {% if version.final_decision %}
-          {% user_has_access_to workflow=workflow user=request.user target=version.final_decision permission_type=PermissionType.ALL review_round=version.number as all_access %}
-          {% user_has_access_to workflow=workflow user=request.user target=version.final_decision permission_type=PermissionType.NO_NAMES review_round=version.number as no_names %}
-          {% if no_names or all_files %}
+          {% user_has_access_to workflow=workflow user=request.user target=version.final_decision permission_type=PermissionType.ALL review_round=version.number as all_access_decision %}
+          {% user_has_access_to workflow=workflow user=request.user target=version.final_decision permission_type=PermissionType.NO_NAMES review_round=version.number as no_names_decision %}
+          {% if no_names_decision or all_access_decision %}
             {% with decision=version.final_decision %}
               <div>
-                {% include "wjs_review/details/elements/review_decision.html" with show_name=all_files %}
+                {% include "wjs_review/details/elements/review_decision.html" with show_name=all_access_decision %}
               </div>
             {% endwith %}
           {% endif %}
         {% endif %}
 
-        {% user_has_access_to workflow=workflow user=request.user target=version.file_container permission_type=PermissionType.ALL review_round=version.number as all_access %}
-        {% user_has_access_to workflow=workflow user=request.user target=version.file_container permission_type=PermissionType.NO_NAMES review_round=version.number as no_names %}
-        {% if no_names or all_files %}
+        {% if version.file_container %}
+          {% user_has_access_to workflow=workflow user=request.user target=version.file_container permission_type=PermissionType.ALL review_round=version.number as all_access_revision %}
+          {% user_has_access_to workflow=workflow user=request.user target=version.file_container permission_type=PermissionType.NO_NAMES review_round=version.number as no_names_revision %}
+          {% if no_names_revision or all_access_revision %}
+            <div>
+              {% include "wjs_review/details/elements/review_revision.html" with article_info=version.file_container %}
+            </div>
+          {% endif %}
+        {% endif %}
+
+        {% if version.number == 1 and article.fieldanswer_set.all %}
           <div>
-            {% include "wjs_review/details/elements/review_revision.html" with article_info=version.file_container %}
+            {% include "wjs_review/details/elements/metadata_field_answers.html" %}
           </div>
         {% endif %}
-        <div>
-          {% if version.number == 1 and article.fieldanswer_set.all %}
-            {% include "wjs_review/details/elements/metadata_field_answers.html" %}
+
+        {% if version.cover_letter.object %}
+          {% user_has_access_to workflow=workflow user=request.user target=version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as all_files_cover %}
+          {% if all_files_cover and version.cover_letter.has_content %}
+            <div>
+              {% include "wjs_review/details/elements/review_cover.html" %}
+            </div>
           {% endif %}
-        </div>
-        {% user_has_access_to workflow=workflow user=request.user target=version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as all_files %}
-        {% if all_files and version.cover_letter.has_content %}
-          <div>
-            {% include "wjs_review/details/elements/review_cover.html" %}
-          </div>
         {% endif %}
 
         {% if workflow|is_user_article_reviewer:request.user or workflow|is_user_article_manager:request.user or workflow|is_user_past_article_editor:request.user %}

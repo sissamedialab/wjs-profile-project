@@ -531,7 +531,7 @@ def _create_rfp_article(
 
     # Reminder: source files for the (publication) galleys are in the latest typesetting assignment, not in the
     # Article.source_files
-    ta = article.articleworkflow.latest_typesetting_assignment()
+    ta = article.articleworkflow.get_latest_typesetting_assignment()
     request.user = ta.typesetter
     UploadFile(
         typesetter=ta.typesetter,
@@ -543,7 +543,7 @@ def _create_rfp_article(
     article.articleworkflow.production_flag_no_queries = True
     article.articleworkflow.production_flag_no_checks_needed = True
     article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-    article.articleworkflow.latest_typesetting_assignment().galleys_created.set(
+    article.articleworkflow.get_latest_typesetting_assignment().galleys_created.set(
         # FIXME! the files on the filesystem don't exist!
         _create_generic_galleys(article=article),
     )
@@ -562,9 +562,8 @@ def rfp_article(
     fake_request: HttpRequest,
 ) -> Article:
     """Create an article in ready-for-publication."""
-    typesetter = (
-        assigned_to_typesetter_article_with_files_to_typeset.articleworkflow.latest_typesetting_assignment().typesetter
-    )
+    workflow = assigned_to_typesetter_article_with_files_to_typeset.articleworkflow
+    typesetter = workflow.get_latest_typesetting_assignment().typesetter
     article = _create_rfp_article(
         article=assigned_to_typesetter_article_with_files_to_typeset,
         issue=fb_issue,
