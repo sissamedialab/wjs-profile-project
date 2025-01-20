@@ -3202,16 +3202,9 @@ class WithdrawPreprint:
             recipients=[(current_editor if current_editor else get_eo_user(self.workflow.article))],
         )
 
-    def _check_typesetter_conditions(self) -> bool:
-        """Check if there is an active TypesettingAssignment for the article."""
-        return (
-            TypesettingAssignment.objects.filter(
-                round__article=self.workflow.article,
-                completed__isnull=True,
-            )
-            .order_by("round__round_number")
-            .last()
-        )
+    def _get_typesetting_assignment(self) -> TypesettingAssignment | None:
+        """Return the current typesetting assignment (if any)."""
+        return self.workflow.get_latest_typesetting_assignment()
 
     def _get_typesetter_context(self, assignment: TypesettingAssignment) -> Dict[str, Any]:
         return {
@@ -3250,7 +3243,7 @@ class WithdrawPreprint:
             self._close_review_assignments()
             self._update_state()
             self._log_supervisor()
-            if assignment := self._check_typesetter_conditions():
+            if assignment := self._get_typesetting_assignment():
                 self._log_typesetter(assignment)
             return
 

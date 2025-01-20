@@ -490,7 +490,12 @@ class HandleDownloadRevisionFiles:
         with ZipFile(in_memory, "w") as archive:
             for file in files:
                 file_path = file.self_article_path()
-                archive.write(file_path, arcname=file.original_filename)
+                # This is a workaround for local development when working with databases dumped from production / dev
+                # to avoid the need to have the actual files on the local machine.
+                if getattr(settings, "WJS_TYPESET_REVISION_MOCK_FILE", None):
+                    archive.write(settings.WJS_TYPESET_REVISION_MOCK_FILE, arcname=file.original_filename)
+                else:
+                    archive.write(file_path, arcname=file.original_filename)
             automatic_preamble, preamble_name = self._generate_automatic_preamble()
             archive.writestr(preamble_name, automatic_preamble)
 
@@ -1313,7 +1318,7 @@ class BeginPublication:
 
     def __post_init__(self):
         """Find the source files."""
-        self.assignment = self.workflow.latest_typesetting_assignment()
+        self.assignment = self.workflow.get_latest_typesetting_assignment()
         # The source files for the galley are in the latest typesetting assignment
         # Even if the field is a m2m, we alway set at most one item.
         self.source_files = Path(self.assignment.files_to_typeset.get().self_article_path())

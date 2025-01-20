@@ -198,13 +198,20 @@ class DownloadRevisionFiles(AuthenticatedUserPassesTest, View):
         )
         return service
 
+    def _get_revision_archive_filename(self) -> str:
+        """Return the filename for the archive."""
+        typesetting_round = self.object.article.typesettinground_set.last()
+
+        return f"{self.object.preprint_id}_v{typesetting_round.round_number}.zip"
+
     def get(self, *args, **kwargs):
         """Serve the archive for download using HttpResponse."""
         service = self.get_logic_instance()
+        filename = self._get_revision_archive_filename()
         try:
             archive_bytes = service.run()
             response = HttpResponse(archive_bytes, content_type="application/zip")
-            response["Content-Disposition"] = 'attachment; filename="revision_files.zip"'
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
             return response
         except ValidationError:
             # FIXME: how do we want to handle this error?
@@ -606,11 +613,7 @@ class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
         """Fetch the Article instance for easier processing."""
         super().load_initial(request, *args, **kwargs)
         self.workflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
-        self.assignment = (
-            TypesettingAssignment.objects.filter(round__article=self.workflow.article)
-            .order_by("round__round_number")
-            .last()
-        )
+        self.assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:

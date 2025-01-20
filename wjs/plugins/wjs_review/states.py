@@ -57,14 +57,7 @@ def get_url_with_last_editor_revision_request_pk(
 
 def get_url_with_typesetting_assignment_pk(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     """From ArticleAction and ArticleWorkflow retrieve the action url with typesetting assignment pk."""
-    # Ordering is misleading but from the models' class Meta we have: "ordering = ('-round_number', 'date_created')"
-    typesetting_assignment = (
-        TypesettingAssignment.objects.filter(
-            round__article=workflow.article,
-        )
-        .order_by("round__round_number")
-        .last()
-    )
+    typesetting_assignment = workflow.get_latest_typesetting_assignment(completed=False)
     url = reverse(action.view_name, kwargs={"pk": typesetting_assignment.pk})
     if action.querystring_params is not None:
         url += "?"
@@ -196,13 +189,7 @@ def cannot_be_set_rfp_or_galleys_not_present(action: "ArticleAction", workflow: 
 
 def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the files needed to generate the latest galleys are missing."""
-    typesetting_assignment = (
-        TypesettingAssignment.objects.filter(
-            round__article=workflow.article,
-        )
-        .order_by("round__round_number")
-        .last()
-    )
+    typesetting_assignment = workflow.get_latest_typesetting_assignment(completed=False)
     return not typesetting_assignment.files_to_typeset.exists()
 
 
@@ -420,7 +407,7 @@ class BaseState:
             custom_get_url=get_review_url,
         ),
         ReviewAssignmentAction(
-            permission=permissions.is_article_editor,
+            permission=permissions.is_article_manager,
             condition=conditions.review_done,
             name="read review",
             label="Read Review",
@@ -428,7 +415,7 @@ class BaseState:
             custom_get_url=get_review_url,
         ),
         ReviewAssignmentAction(
-            permission=permissions.has_eo_role_by_article,
+            permission=permissions.is_article_supervisor,
             condition=conditions.review_done,
             name="read review",
             label="Read Review",
@@ -601,7 +588,7 @@ class EditorSelected(BaseState):
         ReviewAssignmentAction(
             assignment_permission=permissions.is_assignment_reviewer,
             condition=conditions.review_not_done,
-            name="see review",
+            name="upload review",
             label="Upload review",
             view_name="",
             custom_get_url=get_review_url,
@@ -1059,6 +1046,16 @@ class TypesetterSelected(BaseState):
             is_post=True,
         ),
     ) + BaseState.article_actions
+    review_assignment_actions = BaseState.review_assignment_actions + (
+        ReviewAssignmentAction(
+            permission=permissions.is_article_manager,
+            condition=conditions.review_done,
+            name="read review",
+            label="Read Review",
+            view_name="",
+            custom_get_url=get_review_url,
+        ),
+    )
 
     @classmethod
     def article_requires_typesetter_attention(cls, article: Article, user: Account, **kwargs) -> str:
@@ -1082,14 +1079,8 @@ class TypesetterSelected(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
-        assignment = (
-            TypesettingAssignment.objects.filter(
-                round__article=article,
-            )
-            .order_by("round__round_number")
-            .last()
-        )
-        if attention_flag := conditions.is_typesetter_late(assignment):
+        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
+        if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
         return ""
 

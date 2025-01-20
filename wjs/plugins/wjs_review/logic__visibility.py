@@ -206,7 +206,7 @@ class SuperUserPermissionChecker(BasePermissionChecker):
         """
         Check if the user has the permission to access :py:attr:`instance`.
 
-        As super user, the user has access to all objects.
+        As super user, the user has access to all objects, except for files on unsubmitted articles.
 
         :param permission_type: The permission set to check for.
         :type permission_type: PermissionAssignment.PermissionType
@@ -218,6 +218,9 @@ class SuperUserPermissionChecker(BasePermissionChecker):
         :return: True if the user has the permission, False otherwise.
         :rtype: bool
         """
+        unsubmitted = self.workflow.state != ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+        if not unsubmitted and secondary_permission:
+            return False
         return base_permissions.has_admin_role(self.workflow.article.journal, self.user)
 
 
@@ -232,7 +235,8 @@ class DirectorPermissionChecker(BasePermissionChecker):
         """
         Check if the user has the permission to access :py:attr:`instance`.
 
-        As a director, the user has access to all objects for their journal, except for articles they authored.
+        As a director, the user has access to all objects for their journal, except for articles they authored and
+        for files on unsubmitted articles.
 
         :param permission_type: The permission set to check for.
         :type permission_type: PermissionAssignment.PermissionType
@@ -244,6 +248,9 @@ class DirectorPermissionChecker(BasePermissionChecker):
         :return: True if the user has the permission, False otherwise.
         :rtype: bool
         """
+        unsubmitted = self.workflow.state != ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+        if not unsubmitted and secondary_permission:
+            return False
         if self.workflow.article.authors.filter(pk=self.user.pk).exists():
             return False
         return base_permissions.has_director_role(self.workflow.article.journal, self.user)
@@ -353,6 +360,14 @@ class SpecialIssueEditorPermissionChecker(EditorPermissionChecker):
 
 @dataclasses.dataclass
 class TypesetterPermissionChecker(BasePermissionChecker):
+
+    def _check_workflow_access(self, workflow: ArticleWorkflow, open_for_any: bool = False) -> bool:
+        if workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
+            return open_for_any
+        if workflow.article.typesettinground_set.filter(typesettingassignment__typesetter_id=self.user.pk).exists():
+            return True
+        return False
+
     def check_default(
         self,
         permission_type: PermissionAssignment.PermissionType = "",
@@ -363,8 +378,9 @@ class TypesetterPermissionChecker(BasePermissionChecker):
         Check if the user has the permission to access :py:attr:`instance` by default.
 
         By default typesetter has access to all the information on all the objects linked to an article they are
-        assigned to or in READY_FOR_TYPESETTER state. If one wants to remove permission, custom permissions with DENY
-        permission type must be used.
+        assigned to.
+        In READY_FOR_TYPESETTER state they have access to the article files, but not to the review files.
+        If one wants to remove permission, custom permissions with DENY permission type must be used.
 
         :param permission_type: The permission set to check for.
         :type permission_type: PermissionAssignment.PermissionType
@@ -377,23 +393,19 @@ class TypesetterPermissionChecker(BasePermissionChecker):
         :rtype: bool
         """
         if isinstance(self.instance, ArticleWorkflow):
-            if self.instance.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
-                return True
-            if self.instance.article.typesettinground_set.filter(
-                typesettingassignment__typesetter_id=self.user.pk
-            ).exists():
-                return True
-            return False
+            return self._check_workflow_access(self.instance, open_for_any=True)
         if isinstance(self.instance, Article):
-            if self.instance.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
-                return True
-            if self.instance.typesettinground_set.filter(typesettingassignment__typesetter_id=self.user.pk).exists():
-                return True
-            return False
+            return self._check_workflow_access(self.instance.articleworkflow, open_for_any=True)
         if isinstance(self.instance, TypesettingAssignment):
             return self.instance.typesetter == self.user
         if isinstance(self.instance, GalleyProofing):
             return self.instance.manager == self.user
+        if isinstance(self.instance, EditorDecision):
+            return self._check_workflow_access(self.instance.workflow)
+        if isinstance(self.instance, ReviewAssignment):
+            return self._check_workflow_access(self.instance.article.articleworkflow)
+        if isinstance(self.instance, RevisionRequest):
+            return self._check_workflow_access(self.instance.article.articleworkflow)
         return False
 
 
@@ -433,6 +445,9 @@ class AuthorPermissionChecker(BasePermissionChecker):
                 permission_type == PermissionAssignment.PermissionType.NO_NAMES
                 or permission_type == PermissionAssignment.BinaryPermissionType.ALL
             )
+        if isinstance(self.instance, EditorDecision):
+            is_an_author = permissions.is_one_of_the_authors(self.instance.workflow, self.user)
+            return is_an_author and permission_type == PermissionAssignment.PermissionType.NO_NAMES
         return False
 
 
@@ -497,6 +512,9 @@ class ReviewerPermissionChecker(BasePermissionChecker):
             if secondary_permission:
                 return False
             return is_assignee and permission_type == PermissionAssignment.PermissionType.NO_NAMES
+        if isinstance(self.instance, EditorDecision):
+            # Kind of redundant, but we want to clarify that reviewers have no access to editor decisions
+            return False
         return False
 
 
@@ -546,6 +564,9 @@ class PermissionChecker:
         :return: True if the user has the permission, False otherwise.
         :rtype: bool
         """
+        # If user is anonymous, they cannot have any permissions
+        if user.is_anonymous:
+            return False
         has_the_permission = False
         for checker_function, checker_class in self._permission_classes.items():
             if checker_function(workflow, user):

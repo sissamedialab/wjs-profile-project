@@ -235,4 +235,13 @@ table.table-bordered.dataTable .table-borderless td {
   }
 }
 
+.accordion-collapse {
+  & > .list-group {
+    & > .list-group-item {
+      border-radius: 0;
+      border: 0;
+    }
+  }
+}
+
 @import "bootstrap/scss/bootstrap";

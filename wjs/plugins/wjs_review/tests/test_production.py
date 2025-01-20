@@ -427,7 +427,7 @@ def test_typesetter_galley_generation(
 ):
     """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
     article = assigned_to_typesetter_article_with_files_to_typeset
-    typesetting_assignment = article.articleworkflow.latest_typesetting_assignment()
+    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
     url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
     response = client.post(url)
@@ -592,7 +592,7 @@ def test_production_flag_galleys_ok(
 ):
     """Test the production flag galleys_ok correctly indicates the status of the galleys."""
     article = assigned_to_typesetter_article_with_files_to_typeset
-    typesetting_assignment = article.articleworkflow.latest_typesetting_assignment()
+    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
 
     # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
     article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED.value

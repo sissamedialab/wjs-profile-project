@@ -319,6 +319,9 @@ YAKUNIN_URL = "http://janeway-services.ud.sissamedialab.it:1235/watermark/"
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
 JCOMASSISTANT_MOCK_FILE = ""
 
+# Useful in development: set this to the path of a file mimicking files for typesetting uploaded by the author.
+WJS_TYPESET_REVISION_MOCK_FILE = ""
+
 # Override the default bootstrap5 css as we customize it, and the css below will include all the bootstrap5 css plus
 # our own customizations
 # We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact

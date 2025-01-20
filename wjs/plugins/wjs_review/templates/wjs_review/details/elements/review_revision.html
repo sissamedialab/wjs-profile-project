@@ -7,39 +7,47 @@
     </button>
   </h2>
   <div id="collapse-revision-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-revision-{{ version.number }}" data-bs-parent="#metadata">
-    <div class="accordion-body">
-      <div class="vstack gap-3">
+      <ul class="list-group m-0 p-0">
         {% if article_info.manuscript_files.exists %}
-          <div class="py-2 px-1">
-            <h6 class="fw-bold">{% translate "Files" %}</h6>
-            <ul class="list-group">
+          <li class="list-group-item fw-bold">
+            {% translate "Files" %}
+            <ul class="list-group mb-1">
               {% for file in article_info.manuscript_files.all %}
-                <li class="list-group-item"><a href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
+                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
               {% endfor %}
             </ul>
-          </div>
+          </li>
+        {% endif %}
+        {% if article_info.source_files.exists %}
+          <li class="list-group-item fw-bold">
+            {% translate "Source Files" %}
+            <ul class="list-group mb-1">
+              {% for file in article_info.source_files.all %}
+                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
+              {% endfor %}
+            </ul>
+          </li>
         {% endif %}
         {% if article_info.data_figure_files.exists %}
-          <div class="py-2 px-1">
-            <h6 class="fw-bold">{% translate "Data / Figures" %}</h6>
-            <ul class="list-group">
+          <li class="list-group-item fw-bold">
+            {% translate "Data / Figures" %}
+            <ul class="list-group mb-1">
               {% for file in article_info.data_figure_files.all %}
-                <li class="list-group-item"><a href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
+                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
               {% endfor %}
             </ul>
-          </div>
+          </li>
         {% endif %}
         {% if article_info.supplementary_files.exists %}
-          <div class="py-2 px-1">
-            <h6 class="fw-bold">{% translate "Supplementary files" %}</h6>
-            <ul class="list-group">
+          <li class="list-group-item fw-bold">
+            {% translate "Supplementary files" %}
+            <ul class="list-group mb-1">
               {% for file in article_info.supplementary_files.all %}
-                <li class="list-group-item"><a href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.file.original_filename }}</a></li>
+                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.file.original_filename }}</a></li>
               {% endfor %}
             </ul>
-          </div>
+          </li>
         {% endif %}
-      </div>
-    </div>
+      </ul>
   </div>
 </div>
