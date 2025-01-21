@@ -3,7 +3,6 @@ from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
-from core import files
 from core import files as core_files
 from core import models as core_models
 from django import forms
@@ -2394,22 +2393,21 @@ class DeleteRevisionFile(AuthenticatedUserPassesTest, DeleteView):
             },
         )
 
-    def delete(self, request, *args, **kwargs):
+    def form_valid(self, form):
         """Delete the file and return a response."""
         self.object = self.get_object()
         article = get_object_or_404(Article, pk=self.kwargs[self.article_pk_url_kwarg])
         revision_request = get_object_or_404(EditorRevisionRequest, pk=self.kwargs[self.revision_pk_url_kwarg])
-        self.object.delete()
-        files.delete_file(article, self.object)
+        core_files.delete_file(article, self.object)
         review_logic.log_revision_event(
             "File {} ({}) deleted.".format(self.object.id, self.object.original_filename),
-            request.user,
+            self.request.user,
             revision_request,
         )
         event_logic.Events.raise_event(
             event_logic.Events.ON_ARTICLE_FILE_DELETE,
             **{
-                "request": request,
+                "request": self.request,
                 "file_id": self.object.pk,
                 "original_filename": self.object.original_filename,
                 "article": article,
