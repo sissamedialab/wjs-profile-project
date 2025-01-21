@@ -43,6 +43,7 @@ from .views import (
     MessageAttachmentDownloadView,
     MessageNoteDeleteView,
     MessageNoteUpdateView,
+    MessagesOverview,
     PostponeRevisionRequestDueDate,
     ReviewDeclined,
     ReviewEnd,
@@ -237,6 +238,7 @@ urlpatterns = [
         ForwardMessage.as_view(),
         name="wjs_message_forward",
     ),
+    path("messages_overview/", MessagesOverview.as_view(), name="wjs_messages_overview"),
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders
     path("status/<int:pk>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),

@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 
 MESSAGE_TYPE_ICONS = {
     Message.MessageTypes.SYSTEM: "bi-gear-fill",
-    Message.MessageTypes.HIJACK: "bi-gear-fill",
+    Message.MessageTypes.HIJACK: "bi-person-gear",
     Message.MessageTypes.NOTE: "bi-pencil-fill",
     Message.MessageTypes.USER: "bi-chat-square-text",
     None: "bi-funnel-fill",

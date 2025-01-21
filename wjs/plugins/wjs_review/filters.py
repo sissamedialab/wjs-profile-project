@@ -2,11 +2,13 @@ from typing import Union
 
 import django_filters
 from core.models import Account
+from django import forms
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters.fields import ModelChoiceField
 from journal.models import Issue
-from submission.models import Keyword, Section
+from submission.models import Article, Keyword, Section
 
 from wjs.jcom_profile import constants, permissions
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
@@ -371,19 +373,18 @@ class MessageFilter(django_filters.FilterSet):
 
     actor_recipients = django_filters.ModelChoiceFilter(
         method="filter_actor_recipients",
-        label=_("Filter by sender/recipient"),
-        empty_label=_("Filter by sender/recipient"),
+        label=_("Sender/Recipient"),
+        empty_label=_("Sender/Recipient"),
     )
     content = django_filters.CharFilter(
         method="filter_content",
-        label=_("Search on subject / body"),
+        label=_("Subject/Body"),
     )
     type = django_filters.ChoiceFilter(  # noqa: A003
         field_name="message_type",
-        label=_("Filter by type"),
-        empty_label=_("Filter by type"),
+        label=_("Type"),
+        empty_label=_("All"),
         choices=(
-            ("", _("All")),
             (Message.MessageTypes.USER, _("User messages")),
             (Message.MessageTypes.NOTE, _("User notes")),
             (Message.MessageTypes.SYSTEM, _("System")),
@@ -421,6 +422,75 @@ class MessageFilter(django_filters.FilterSet):
     def filter_actor_recipients(self, queryset: QuerySet, name: str, value: str):
         if value:
             queryset = queryset.filter(Q(actor=value) | Q(messagerecipients__recipient=value))
+        return queryset
+
+
+class MessagesOverviewFilter(django_filters.FilterSet):
+    """
+    A filter-set to allow the EO to filter the messages in the messages overview page.
+    """
+
+    from_date = django_filters.DateFilter(
+        field_name="created",
+        lookup_expr="gte",
+        label=_("From date"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+
+    to_date = django_filters.DateFilter(
+        field_name="created",
+        lookup_expr="lte",
+        label=_("To date"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    eo_in_charge = django_filters.ModelChoiceFilter(
+        field_name="eo_in_charge",
+        method="filter_eo_in_charge",
+        label=_("EO in charge"),
+        empty_label=_("All"),
+        queryset=Account.objects.filter(groups__name=constants.EO_GROUP),
+    )
+    actor_recipients = django_filters.ModelChoiceFilter(
+        method="filter_actor_recipients",
+        label=_("Sender/Recipient"),
+        empty_label=_("Sender/Recipient"),
+    )
+    content = django_filters.CharFilter(
+        method="filter_content",
+        label=_("Search on subject / body"),
+    )
+    type = django_filters.ChoiceFilter(  # noqa: A003
+        field_name="message_type",
+        label=_("Type"),
+        empty_label=_("All"),
+        choices=(
+            (Message.MessageTypes.USER, _("User messages")),
+            (Message.MessageTypes.NOTE, _("User notes")),
+            (Message.MessageTypes.SYSTEM, _("System")),
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        """ """
+        super().__init__(*args, **kwargs)
+        self.filters["actor_recipients"].queryset = Account.objects.all()
+
+    def filter_content(self, queryset: QuerySet, name: str, value: str):
+        if value:
+            queryset = queryset.filter(Q(subject__icontains=value) | Q(body__icontains=value))
+        return queryset
+
+    def filter_actor_recipients(self, queryset: QuerySet, name: str, value: str):
+        if value:
+            queryset = queryset.filter(Q(actor=value) | Q(messagerecipients__recipient=value))
+        return queryset
+
+    def filter_eo_in_charge(self, queryset: QuerySet, name: str, value: str):
+        if value:
+            queryset = queryset.filter(
+                content_type=ContentType.objects.get_for_model(Article),
+                object_id__in=ArticleWorkflow.objects.filter(eo_in_charge=value).values("article__id"),
+            )
         return queryset
 
 
