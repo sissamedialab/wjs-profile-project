@@ -107,3 +107,12 @@ nav {
     }
   }
 }
+
+.svg-container {
+  display: inline-flex;
+
+  svg {
+    fill: currentColor;
+    width: 1.2em;
+  }
+}
