@@ -2096,6 +2096,8 @@ class Reminder(models.Model):
         """Try to find the article that this reminder is related to."""
         if article := getattr(self.target, "article", None):
             return article
+        elif isinstance(self.target, Article):
+            return self.target
         else:
             return None
 
