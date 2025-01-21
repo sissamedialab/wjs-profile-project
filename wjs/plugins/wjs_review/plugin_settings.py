@@ -137,6 +137,32 @@ def set_default_plugin_settings(force: bool = False):
             ),
         )
 
+    def activity_list_page_size() -> tuple[SettingValue, ...]:
+        activity_list_page_size_setting: SettingParams = {
+            "name": "activity_list_page_size",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _("Page size of the items list"),
+            "description": _(
+                "Number of items in the lists / tables of items.",
+            ),
+            "is_translatable": False,
+        }
+        activity_list_page_size_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 40,
+            "translations": {},
+        }
+        return (
+            create_customization_setting(
+                activity_list_page_size_setting,
+                activity_list_page_size_setting_value,
+                activity_list_page_size_setting["name"],
+                force=force,
+            ),
+        )
+
     def declined_review_notice() -> tuple[SettingValue, ...]:
         setting: SettingParams = {
             "name": "declined_review_notice",
@@ -1714,6 +1740,7 @@ Thank you and best regards,
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
+        csv_writer.write_settings(activity_list_page_size())
         csv_writer.write_settings(declined_review_notice())
         csv_writer.write_settings(core_review_settings())
         csv_writer.write_settings(review_decision_not_suitable_message())

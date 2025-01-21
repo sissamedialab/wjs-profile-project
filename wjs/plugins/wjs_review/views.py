@@ -38,7 +38,7 @@ from django.views.generic import (
     UpdateView,
     View,
 )
-from django_filters.views import FilterView
+from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -60,6 +60,7 @@ from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
     MessageFilter,
+    MessagesOverviewFilter,
     ReminderFilter,
     ReviewerArticleWorkflowFilter,
     StaffArticleWorkflowFilter,
@@ -151,6 +152,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
             "wjs_review_eo_archived": _("Archived preprints"),
             "wjs_review_eo_issues_list": _("Pending Issues"),
             "wjs_review_eo_workon": _("Search preprints"),
+            "wjs_messages_overview": _("Activity"),
         },
         constants.DIRECTOR_ROLE: {
             "wjs_review_director_pending": _("Pending preprints"),
@@ -1583,7 +1585,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         """
         Redirect after decision.
 
-        If the editor has not make a decision (state is still EDITOR_SELECTED), redirect to the Editor decision page,
+        If the editor has not made a decision (state is still EDITOR_SELECTED), redirect to the Editor decision page,
         otherwise redirect to the article details page.
 
         ArticleWorkflow must be reloaded from the database to ensure the state is updated.
@@ -1770,6 +1772,56 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         }
         context["eo_forms"] = eo_forms
         return context
+
+
+class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, ListView, FilterMixin):
+    """
+    A tool used by EO to have an overview on every message in the system.
+    """
+
+    title = _("Activity")
+    model = Message
+    template_name = "wjs_review/messages_overview/messages_overview.html"
+    context_object_name = "messages_list"
+    filterset_class = MessagesOverviewFilter
+    filterset = MessagesOverviewFilter
+    paginate_by = 40
+
+    def load_initial(self, request, *args, **kwargs):
+        self.paginate_by = get_setting("wjs_review", "review_lists_page_size", self.request.journal).processed_value
+        super().load_initial(request, *args, **kwargs)
+
+    def test_func(self):
+        """Allow access only to EO (or staff)."""
+        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+    def get_template_names(self):
+        if self.htmx:
+            return ["wjs_review/messages_overview/elements/messages_list.html"]
+        return super().get_template_names()
+
+    def get_queryset(self):
+        """Return the the list of all messages related to an article."""
+        article_id = self.request.GET.get("article_id")
+        queryset = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article)).order_by("-created")
+        if article_id:
+            return queryset.filter(object_id=article_id)
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        # Calling the FilterView get() method and then the ListView get() method to both have filters and pagination
+        filterset_class = self.get_filterset_class()
+        self.filterset = self.get_filterset(filterset_class)
+
+        if not self.filterset.is_bound or self.filterset.is_valid() or not self.get_strict():
+            self.object_list = self.filterset.qs
+        else:
+            self.object_list = self.filterset.queryset.none()
+
+        context = self.get_context_data(filter=self.filterset, object_list=self.object_list)
+        response = super().get(request, *args, **kwargs)
+        response.context_data.update(context)
+        return response
 
 
 class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):

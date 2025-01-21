@@ -1,0 +1,49 @@
+{% load wjs_review wjs_tags %}
+<div id="message-item-{{ message.id }}" class="mb-3">
+  <div class="card">
+    <div class="card-body">
+      <div class="text-black-50 mb-2 d-flex justify-content-between align-items-center">
+        <div>
+          <small><i class="bi bi-clock"></i> <i>{{ by_day.grouper }} - {{ message.created|date:TIME_FORMAT_NO_SECONDS }}</i></small>
+          {% translate "From" %}:
+          <a
+             href="?actor_recipients={{ message.actor.id }}"
+             class="text-primary">
+            {{ message.actor }}
+          </a>
+          -
+          {% translate "To" %}:
+          {% for recipient in message.recipients.all %}
+            {# djlint:off #}
+            <a
+              href="?actor_recipients={{ recipient.id }}"
+              class="text-primary">
+            {{ recipient }}
+            </a>
+            {% if not forloop.last %},{% endif %}
+            {# djlint:on #}
+          {% endfor %}
+          <a
+            href="?article_id={{ message.object_id }}"
+            class="text-primary">
+            [ {{ message.target.articleworkflow }} ]
+          </a>
+        </div>
+      <a
+        href="?type={{ message.message_type }}"
+        class="text-primary">
+        <i class="bi {{ message|message_type_icon }}"></i>
+      </a>
+      </div>
+      <h6>{% translate "Subject" %}: <b>{{ message.subject }}</b></h6>
+      <div class="body">{{ message.body|safe }}</div>
+      {% if message.attachments.exists %}
+        <div class="d-flex mt-1">
+          {% for attachment in message.attachments.all %}
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'wjs_message_download_attachment' message_id=message.id attachment_id=attachment.id %}"><i class="bi bi-file-earmark-text"></i> {{ attachment.original_filename }}</a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
