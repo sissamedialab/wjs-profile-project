@@ -36,7 +36,7 @@
               {% endwith %}
               </td>
             {% elif field_name == 'editor_cover_letter' %}
-              {% with modal_id="editor_cover_letter_modal-"|concat:review.pk modal_target="#editor_cover_letter_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'editor_cover_letter'|default:"----" %}
+              {% with modal_id="editor_cover_letter_modal-"|concat:review.pk modal_target="#editor_cover_letter_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'editor_cover_letter'|safe|default:"----" %}
               <td>
                 {% bootstrap_button type="button" content=read_cover_letter_label button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
                 {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_cover_letter_modal_title modal_body=modal_content %}
@@ -55,7 +55,7 @@
       <tr>
         <th class="ps-4">{% translate "Text" %}</th>
         {% for review in submitted_reviews %}
-          {% with modal_id="author_review_modal-"|concat:review.pk modal_target="#author_review_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review'|default:"----" %}
+          {% with modal_id="author_review_modal-"|concat:review.pk modal_target="#author_review_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review'|safe|default:"----" %}
           <td>
             {% bootstrap_button type="button" content=read_review_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
             {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_modal_title modal_body=modal_content %}
