@@ -419,23 +419,16 @@ def annotate_count_reviewed_papers_in_timeframe(self, timeframe: datetime.timede
     the number will be "2".
 
     """
-    # Adapted from https://djangocentral.com/how-to-use-subquery-in-django/
-    _seen_articles = Subquery(
-        Article.objects.filter(
-            reviewassignment__reviewer_id=OuterRef("id"),
-            reviewassignment__is_complete=True,
+    _count = Subquery(
+        WorkflowReviewAssignment.objects.completed()
+        .filter(
+            reviewer_id=OuterRef("id"),
+            date_complete__gte=now() - timeframe,
         )
-        .exclude(
-            Q(reviewassignment__date_declined__isnull=False) | Q(reviewassignment__decision="withdrawn"),
-        )
-        .order_by()  # must drop Article's default ordering or we get extra grouping
-        .values("reviewassignment__reviewer_id")  # group by reviewer, in order to get only one group
-        # count the distinct articles
-        # (note that annotate() + distinct(fields) is not implemented)
-        .annotate(count=Count("id", distinct=True))
+        .values("reviewer_id")  # group by reviewer
+        .annotate(count=Count("article", distinct=True))  # count the distinct articles
         .values("count")
     )
-
     return self.annotate(
-        count_reviewed_papers_in_timeframe=_seen_articles,
+        count_reviewed_papers_in_timeframe=_count,
     )

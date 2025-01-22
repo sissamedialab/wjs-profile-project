@@ -147,6 +147,15 @@ def test_count_reviewer_completed_reviews(journal, article_factory, account_fact
         date_complete=_now,
     )
     assert WorkflowReviewAssignment.objects.completed().filter(article=a2).get() == a2_r1_1
+    a2_r1_2_but_declined = WorkflowReviewAssignment.objects.create(
+        article=a2,
+        reviewer=r1,
+        is_complete=False,
+        date_due=_now,
+        date_complete=None,
+        date_declined=_now,
+    )
+    assert not WorkflowReviewAssignment.objects.completed().filter(id=a2_r1_2_but_declined.id).exists()
 
     # The assignment of the second reviewer is here only to enrich our DB
     WorkflowReviewAssignment.objects.create(
