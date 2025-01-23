@@ -103,13 +103,6 @@
                 <a rel="license" href="{{ article.license.url }}"><i class="fa fa-external-link"></i></a>
             {% endif %}
         </p>
-        {% if article.competing_interests %}
-            <div class="spacer">
-                <div class="divider"></div>
-            </div>
-            <h4 class="article-sidebar-title">{% trans "Competing Interests" %}</h4>
-            <p>{{ article.competing_interests|safe }}</p>
-        {% endif %}
         <div class="spacer">
             <div class="divider"></div>
         </div>
