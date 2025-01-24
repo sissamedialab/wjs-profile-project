@@ -339,7 +339,7 @@ reviewer {{ review_assignment.reviewer.full_name }} has
 {% if additional_comments %}<br><br>
 Notes from the reviewer:
 <br>
-{{ additional_comments }}
+{{ additional_comments|safe }}
 {% endif %}
 <br><br>
 For more information, please go to the <a href="{{ article.articleworkflow.url }}">manuscript web page</a>.
