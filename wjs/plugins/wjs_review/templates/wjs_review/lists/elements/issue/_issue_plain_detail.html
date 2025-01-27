@@ -27,7 +27,7 @@
       {% if note %}
         {% with modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
           {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=read_label %}
-          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body %}
+          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body|safe %}
         {% endwith %}
       {% endif %}
       {% bootstrap_button button_class="btn-outline-primary" content=add_note %}

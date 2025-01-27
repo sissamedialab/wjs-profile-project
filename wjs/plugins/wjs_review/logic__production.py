@@ -367,6 +367,7 @@ class RequestProofs:
             recipients=[
                 self.proofreader,
             ],
+            actor=self.typesetter,
             verbosity=Message.MessageVerbosity.FULL,
             flag_as_read=False,
             flag_as_read_by_eo=True,
@@ -709,7 +710,7 @@ class AuthorSendsCorrections:
             article=self.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=None,
+            actor=self.user,
             recipients=[
                 self.old_assignment.typesetter,
             ],

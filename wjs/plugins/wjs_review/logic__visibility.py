@@ -35,7 +35,7 @@ def get_recipient_label(workflow: ArticleWorkflow, user: Account, recipient: Acc
         return real_name
     else:
         if permissions.is_article_typesetter(instance=workflow, user=recipient):
-            return constants.LABELS[constants.DIRECTOR_MAIN_ROLE]
+            return constants.LABELS[constants.TYPESETTER_ROLE]
         elif permissions.is_article_editor(instance=workflow, user=recipient):
             return constants.LABELS[constants.EDITOR_ROLE]
         elif permissions.is_article_reviewer(instance=workflow, user=recipient):

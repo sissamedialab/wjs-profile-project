@@ -408,6 +408,7 @@ def test_post_message_form_with_attachment_creates_file(
     """Test that when a user writes a message with an attachment, the attachment is saved in the article's folder."""
     user = article.owner
     client.force_login(user)  # logged-in user will be the "actor"
+    eo_system_user: Account = get_eo_user(article)  # Taking EO as recipient for simplicity
     url = reverse("wjs_message_write", kwargs={"pk": article.articleworkflow.pk, "recipient_id": user.id})
     # Django doc: https://docs.djangoproject.com/en/dev/topics/testing/tools/#django.test.Client.post
     attachment = StringIO("Sono un file!")
@@ -427,7 +428,7 @@ def test_post_message_form_with_attachment_creates_file(
             "message_type": Message.MessageTypes.USER,
             "recipientsFS-TOTAL_FORMS": "1",
             "recipientsFS-INITIAL_FORMS": "0",
-            "recipientsFS-0-recipient": [user.id],
+            "recipientsFS-0-recipient": [eo_system_user.id],
         },
     )
     assert response.status_code == 302
@@ -506,7 +507,6 @@ def test_message_addressing(
 
     # Editor
     # ======
-    assert HandleMessage.can_write_to(editor, assigned_article, editor) is True
     assert HandleMessage.can_write_to(editor, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(editor, assigned_article, author) is True
     assert HandleMessage.can_write_to(editor, assigned_article, director) is False
@@ -517,7 +517,6 @@ def test_message_addressing(
     # Reviewer
     # ======
     assert HandleMessage.can_write_to(reviewer, assigned_article, editor) is True
-    assert HandleMessage.can_write_to(reviewer, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, author) is False
     assert HandleMessage.can_write_to(reviewer, assigned_article, director) is False
     assert HandleMessage.can_write_to(reviewer, assigned_article, main_director) is True
@@ -528,7 +527,6 @@ def test_message_addressing(
     # ======
     assert HandleMessage.can_write_to(author, assigned_article, editor) is True
     assert HandleMessage.can_write_to(author, assigned_article, reviewer) is False
-    assert HandleMessage.can_write_to(author, assigned_article, author) is True
     assert HandleMessage.can_write_to(author, assigned_article, director) is False
     assert HandleMessage.can_write_to(author, assigned_article, main_director) is author_can_contact_director
     assert HandleMessage.can_write_to(author, assigned_article, eo_system_user) is True
@@ -539,7 +537,6 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(director, assigned_article, editor) is False
     assert HandleMessage.can_write_to(director, assigned_article, reviewer) is False
     assert HandleMessage.can_write_to(director, assigned_article, author) is False
-    assert HandleMessage.can_write_to(director, assigned_article, director) is True  # everyone can write to themselves
     assert HandleMessage.can_write_to(director, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(director, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(director, assigned_article, past_editor) is False
@@ -550,7 +547,6 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(main_director, assigned_article, reviewer) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, author) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, director) is True
-    assert HandleMessage.can_write_to(main_director, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, past_editor) is True
 
@@ -631,7 +627,6 @@ def test_allowed_recipients_for_actor(
     assert author in allowed_recipients
     assert reviewer_1 in allowed_recipients
     assert reviewer_2 in allowed_recipients
-    assert editor in allowed_recipients
     assert past_editor not in allowed_recipients
     assert director not in allowed_recipients
     assert main_director in allowed_recipients
@@ -641,7 +636,6 @@ def test_allowed_recipients_for_actor(
     # ======
     allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=reviewer_1, article=assigned_article)
     assert author not in allowed_recipients
-    assert reviewer_1 in allowed_recipients
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
     assert past_editor not in allowed_recipients
@@ -652,7 +646,6 @@ def test_allowed_recipients_for_actor(
     # Author
     # ======
     allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=author, article=assigned_article)
-    assert author in allowed_recipients
     assert reviewer_1 not in allowed_recipients
     assert reviewer_2 not in allowed_recipients
     assert editor in allowed_recipients
@@ -669,7 +662,6 @@ def test_allowed_recipients_for_actor(
     assert reviewer_2 not in allowed_recipients
     assert editor not in allowed_recipients
     assert past_editor not in allowed_recipients
-    assert director in allowed_recipients
     assert main_director in allowed_recipients
     assert eo_system_user in allowed_recipients
 

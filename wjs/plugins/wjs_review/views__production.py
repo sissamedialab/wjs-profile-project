@@ -597,7 +597,10 @@ class GalleyGenerationView(BaseRelatedViewsMixin, TemplateView):
         except Exception as e:
             self.error = e
             return super().get(request, *args, **kwargs)
-        messages.success(request=self.request, message=_("Galley generation started."))
+        messages.success(
+            request=self.request,
+            message=_("Galley generation started - You will receive an email after it is completed."),
+        )
         return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.articleworkflow.pk}))
 
 
@@ -808,5 +811,8 @@ class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):
                 ),
             )
 
-        messages.success(request=self.request, message=_("Galley generation started."))
+        messages.success(
+            request=self.request,
+            message=_("Galley generation started - You will receive an email after it is completed."),
+        )
         return HttpResponseRedirect(self.object.article.url)
