@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from plugins.typesetting.models import GalleyProofing
 from review.models import ReviewAssignment
 from submission.models import Article
 from utils.logger import get_logger
@@ -1062,15 +1062,10 @@ class TypesetterSelected(BaseState):
         """
         Tell if the article requires attention by the typesetter.
         """
-        assignment = (
-            TypesettingAssignment.objects.filter(
-                round__article=article,
-                typesetter=user,
-            )
-            .order_by("round__round_number")
-            .last()
-        )
-        if attention_flag := conditions.is_typesetter_late(assignment):
+        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
+            return attention_flag
+        if attention_flag := conditions.has_unread_message(article, user):
             return attention_flag
         return ""
 
@@ -1081,6 +1076,16 @@ class TypesetterSelected(BaseState):
         """
         typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
+            return attention_flag
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        if attention_flag := conditions.article_has_old_unread_message(article):
+            return attention_flag
+        return ""
+
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
 
@@ -1153,6 +1158,22 @@ class Proofreading(BaseState):
             .last()
         )
         if attention_flag := conditions.is_author_proofing_late(assignment):
+            return attention_flag
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        if attention_flag := conditions.article_has_old_unread_message(article):
+            return attention_flag
+        return ""
+
+    @classmethod
+    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+            return attention_flag
+        return ""
+
+    @classmethod
+    def article_requires_typesetter_attention(cls, article: Article, **kwargs) -> str:
+        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
 

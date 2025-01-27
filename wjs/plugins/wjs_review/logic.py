@@ -2407,6 +2407,19 @@ class HandleMessage:
             """
             return article_obj.past_editor_assignments.values_list("editor", flat=True)
 
+        def _get_typesetter(article_obj: Article) -> list[int]:
+            """
+            Get the typesetter of the last active typesetting assignment, if there's one.
+            :param article_obj: Article
+            :type article_obj: Article
+
+            :return: List containing article's typesetter id
+            :rtype: list[int]
+            """
+            if latest_ta := article_obj.articleworkflow.get_latest_typesetting_assignment(completed=False):
+                return [latest_ta.typesetter.pk]
+            return []
+
         allowed_recipients = Account.objects.all()
         # EO system user is always available
         users_pk = [get_eo_user(article).pk]
@@ -2415,8 +2428,6 @@ class HandleMessage:
 
         # Editor can write to:
         if permissions.is_article_editor(instance=articleworkflow, user=actor):
-            # himself
-            users_pk.append(actor.pk)
             # the journal's main director
             users_pk.extend(_get_main_director(article))
             # the Corresponding author
@@ -2425,8 +2436,6 @@ class HandleMessage:
             users_pk.extend(_get_reviewers(article))
         # Reviewers can write to:
         elif permissions.is_article_reviewer(instance=articleworkflow, user=actor):
-            # himself
-            users_pk.append(actor.pk)
             # the journal's main director
             users_pk.extend(_get_main_director(article))
             # "His" editor(s): only the editor that created the ReviewAssigment for this reviewer
@@ -2436,8 +2445,6 @@ class HandleMessage:
             users_pk.extend(_get_connected_editors(article, actor))
         # Author(s) can write to:
         elif permissions.is_article_author(instance=articleworkflow, user=actor):
-            # himself
-            users_pk.append(actor.pk)
             # the journal's main director (if permitted by the journal configuration)
             if get_setting(
                 "wjs_review",
@@ -2446,22 +2453,13 @@ class HandleMessage:
             ).processed_value:
                 users_pk.extend(_get_main_director(article))
             # current editor
-            try:
-                users_pk.extend(_get_current_editor(article))
-            except WjsEditorAssignment.DoesNotExist:
-                # authors of paper in "IncompleteSubmission" state might want to write to EO or director even before
-                # any editor has been assigned to their paper
-                pass
+            users_pk.extend(_get_current_editor(article))
         # Director(s) (not main!) can write to:
         elif permissions.has_director_role_by_article(instance=articleworkflow, user=actor):
-            # himself
-            users_pk.append(actor.pk)
             # the main director
             users_pk.extend(_get_main_director(article))
         # Director(s) can write to:
         elif permissions.has_main_director_role_by_article(instance=articleworkflow, user=actor):
-            # himself
-            users_pk.append(actor.pk)
             # the Corresponding author
             users_pk.extend(_get_correspondening_author(article))
             # all the article's reviewers
@@ -2489,7 +2487,8 @@ class HandleMessage:
             users_pk.extend(_get_main_director(article))
             # all directors
             users_pk.extend(_get_directors(article))
-
+            # current typesetter
+            users_pk.extend(_get_typesetter(article))
         return allowed_recipients.filter(pk__in=users_pk)
 
     @staticmethod

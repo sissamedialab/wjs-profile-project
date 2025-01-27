@@ -55,7 +55,7 @@
       {% last_user_note target=workflow.article as note %}
       {% if note %}
         <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#note_modal-{{ note.pk }}">{{ note.body|truncatechars_html:7|striptags }} <i class="bi bi-card-text"></i></button>
-        {% include "wjs_review/base/elements/modal.html" with modal_id="note_modal-"|concat:note.pk modal_title="Last note" modal_body_title=note.subject modal_body=note.body %}
+        {% include "wjs_review/base/elements/modal.html" with modal_id="note_modal-"|concat:note.pk modal_title="Last note" modal_body_title=note.subject modal_body=note.body|safe %}
       {% endif %}
     </td>
   </tr>

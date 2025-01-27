@@ -1957,6 +1957,17 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
 
     def get_default_recipients(self) -> list[int]:
         """Return the default recipients for the message."""
+        if self.to_author:
+            # If the message is directly to the author, the EO is the default recipient
+            # (used, for instance, when typ writes to au with EO moderation)
+            return [get_eo_user(self.workflow.article).pk]
+
+        if self.to_typesetter:
+            # If the message is to the typesetter, the typesetter is the default recipient
+            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
+
+            return [typesetting_assignment.typesetter.pk] if typesetting_assignment else []
+
         if self.source_message:
             # The recipients of a reply are:
             # - the recipients of the original message
@@ -2017,17 +2028,6 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
             )
             recipients_ids = [k for k in recipients.keys() if k in allowed_recipients]
             return recipients_ids
-
-        if self.to_author:
-            # If the message is directly to the author, the EO is the default recipient
-            # (used, for instance, when typ writes to au with EO moderation)
-            return [get_eo_user(self.workflow.article).pk]
-
-        if self.to_typesetter:
-            # If the message is to the typesetter, the typesetter is the default recipient
-            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
-
-            return [typesetting_assignment.typesetter.pk] if typesetting_assignment else []
 
         return [self.recipient] if self.recipient else []
 
