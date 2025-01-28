@@ -38,6 +38,7 @@ from plugins.wjs_review.logic import (
     HandleDecision,
     HandleEditorDeclinesAssignment,
     OpenAppeal,
+    Reminder,
     SubmitReview,
     SupervisorChangeEditorAssignment,
     WithdrawPreprint,
@@ -357,6 +358,7 @@ class Command(BaseCommand):
         mark_all_messages_read(article)
 
         self.debug_list_article_files_imported(article)
+        self.debug_list_reminder(article)
 
         self.connection.close()
 
@@ -581,6 +583,10 @@ ORDER BY ah.actionDate
 
     def reset_article_data(self, article):
         """Reset article data for re-import of the article"""
+
+        for reminder in Reminder.objects.all():
+            if reminder.get_related_article() == article:
+                reminder.delete()
 
         # clean some data related to the article
         for err in EditorRevisionRequest.objects.filter(article=article):
@@ -1011,6 +1017,17 @@ ORDER BY ah.actionDate
 
         if pgs := article.articleworkflow.publication_galleys_source_file:
             logger.debug(f"imported: {article.id} publication galleys source uploaded: {pgs.id} {pgs}")
+
+    def debug_list_reminder(self, article):
+        """List all reminder set on the article"""
+
+        # TBV: in JCOM_001N_0424 appear the reminders of version1 (AUMJR1 AUMJR2) should be deleted?
+        for r in Reminder.objects.all():
+            if r.get_related_article() == article:
+                logger.debug(
+                    f"reminder on {article.id}: {r.code} {r.date_created.date()} {r.date_due} "
+                    f"{r.disabled} {r.recipient}"
+                )
 
 
 #
@@ -1925,6 +1942,153 @@ ORDER BY submissionDate
         cursor_attachments.close()
         return attachments_data
 
+    def read_reminder_data(self):
+        """Read wjapp reminder data for the imported action.
+        Wjapp reminders data are related to the single actHistCod"""
+
+        cursor_reminder = self.connection.cursor(dictionary=True)
+        query_reminder = """
+SELECT
+reminderCod,
+reminderDate,
+actHistCod,
+performerCod,
+availabilityChecker,
+type,
+enabled,
+sent,
+disableAllowedRoles
+FROM Reminder
+WHERE
+    actHistCod=%(actHistCod)s
+ORDER BY reminderDate
+"""
+        cursor_reminder.execute(
+            query_reminder,
+            {
+                "actHistCod": self.action["actHistCod"],
+            },
+        )
+        reminder_data = cursor_reminder.fetchall()
+        cursor_reminder.close()
+        return reminder_data
+
+    def check_and_fix_action_reminder(self, wjapp_type, wjs_type, reminder_number):
+        """Check if wjapp reminder for an action is present and fix due date if necessary.
+
+        Wjapp permits to set 2 or 3 reminder, depending on the action type,
+        but the single configuration of a wjapp system can use less reminders.
+        For example, wjapp allows up to 3 "New_submission" reminders
+        but the jcom cofiguration sets only 2 "New_submission" reminders,
+        while the configuration of jhep sets 3 New_submission submission reminders.
+
+        Therefore calling this funcion is used the maximum reminder_number to manage
+        the reminder type independently from the configuration of the single instance
+        (the loop iteration happens only if the reminder is found on wjapp).
+
+        In any case the reminder date is changed only if the reminder is present for
+        the specific action in wjapp and if the logic of wjs creates the reminder for
+        the corresponding wjs action
+
+        Associations in import among wjapp reminder and wjs reminder:
+
+        wjapp reminder <-> wjs reminder
+
+        - pending_minor_revision <-> AUMIR
+        - pending_revision <-> AUMJR
+        - EditorAssignment
+            - New_submission <-> EDSR
+            - ed_selected_by_ed <-> EDSR
+            - ed_selected_by_EO <-> EDSR
+            - major_revision <-> EDSR
+            - minor_revision <-> EDSR
+        - REF_SEND_REP
+            - only_ref_sent_rep <-> EDMD
+            - last_ref_sent_rep <-> EDMD
+        - ReviewerDeclineAction
+            - ref_declined_ed_decision  <-> EDMD
+            - Ref_decline <-> EDSR
+        - DeselectReviewerAction
+            - ed_removed_ed_decision <-> EDMD
+        - ED_ACT_AS_REF
+            - i_will_review <-> REEA
+
+        not imported:
+            - Ref_removed -> it means that the editor is still waiting for reports
+            - appeal_confirm_ed_revised
+            - appeal_confirm_ed_confirm
+            - appeal_reset_ed
+            - pending_appeal
+            - wait_copyright
+        """
+
+        # TBV: when wjs sets 3 reminder of type YYYY and wjapp has 2 corresponding reminder with fixed date,
+        # YYYY3 due_date can be earlier than YYYY1 and YYY2.
+        # Chosen to remove YYYY3. Better to shift it with some criteria?
+        # i.e. JCOM_028A_0724
+        # TODO: FIXME for JHEP: (e.g. YYYY3.due_date = YYYY2.due_date + 2days)
+        # TODO: ATM the code ignores the case when we have more reminders in wjapp that in wjs
+        #       this is because the configuration of JCOM does not allow it.
+
+        wjapp_reminder_list = [
+            r_wjapp for r_wjapp in self.read_reminder_data() if r_wjapp["type"].startswith(wjapp_type)
+        ]
+        if not wjapp_reminder_list:
+            return
+
+        wjs_reminder_list = []
+        for r_wjs in Reminder.objects.filter(code__startswith=f"{wjs_type}"):
+            if r_wjs.get_related_article() == self.article:
+                wjs_reminder_list.append(r_wjs)
+        if not wjs_reminder_list:
+            return
+
+        # This flag indicates if any reminder of the type under examination has been changed.
+        # This is used to decide if we should delete reminders that exists in wjs but did not exist in wjapp.
+        wjs_reminder_type_changed = False
+        for i in range(1, reminder_number + 1):
+            for reminder in wjs_reminder_list:
+                if reminder.code == f"{wjs_type}{i}":
+                    logger.debug(f"exists wjs reminder for {self.article.id}: {reminder} {reminder.date_due}")
+                    wjs_reminder_match = False
+                    for wjapp_reminder in wjapp_reminder_list:
+                        if wjapp_reminder["type"] == f"{wjapp_type}_{i}":
+                            logger.debug(
+                                f"found wjapp reminder for {self.preprintid} action {self.action['actionID']} "
+                                f" {self.action['actHistCod']} {wjapp_reminder['type']} "
+                                f"{wjapp_reminder['reminderDate'].date()}"
+                            )
+                            if reminder.date_due != wjapp_reminder["reminderDate"].date():
+                                logger.warning(
+                                    f"reminder {reminder.code} due date changed from {reminder.date_due} "
+                                    f"to {wjapp_reminder['reminderDate'].date()}"
+                                )
+                                reminder.date_due = wjapp_reminder["reminderDate"].date()
+                                reminder.save()
+                                wjs_reminder_type_changed = True
+                            else:
+                                logger.debug(
+                                    f"reminder {reminder.code} due date NOT changed because equal {reminder.date_due} "
+                                    f"{wjapp_reminder['reminderDate'].date()}"
+                                )
+                            wjs_reminder_match = True
+
+                    if not wjs_reminder_match and wjs_reminder_type_changed:
+                        reminder.delete()
+                        logger.warning(
+                            f"DELETED wjs reminder {self.article.id}: {reminder.code} {reminder.date_due} "
+                            f"not found wjapp reminder: {wjapp_type}_{i} for {self.preprintid} action "
+                            f"{self.action['actionID']} because changed wjs reminder {wjs_type}"
+                        )
+                    else:
+                        logger.debug(
+                            f"NOT deleted {not wjs_reminder_match=} {wjs_reminder_type_changed=} "
+                            f"{reminder.code=} {wjapp_reminder['type']=} {wjapp_type=}"
+                        )
+
+    def check_and_fix_all_reminder(self):
+        logger.warning("BaseActionManager method, should be overriden")
+
 
 @dataclass
 class EditorAssignmentAction(BaseActionManager):
@@ -2017,6 +2181,7 @@ class EditorAssignmentAction(BaseActionManager):
             request=self.ed_assign_request,
         ).run()
         self.article.save()
+        self.check_and_fix_all_reminder()
 
     def read_editor_parameters(self, editor_cod):
         """Read editor parameters."""
@@ -2094,6 +2259,11 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
         """Enables attribute to import files for this action"""
         self.action_triggers_import_files = True
 
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for SYS_ASS_ED if exists in wjs"""
+
+        self.check_and_fix_action_reminder("New_submission", "EDSR", 3)
+
 
 class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
     """Manages action "editor selects new editor"."""
@@ -2111,6 +2281,12 @@ class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
             request=self.ed_assign_request,
         ).run()
         self.article.save()
+        self.check_and_fix_all_reminder()
+
+    def check_and_fix_all_reminder(self):
+        """Checks and fix wjapp reminder for ED_SEL_N_ED if exists in wjs"""
+
+        self.check_and_fix_action_reminder("ed_selected_by_ed", "EDSR", 3)
 
 
 class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
@@ -2129,6 +2305,12 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             request=self.ed_assign_request,
         ).run()
         self.article.save()
+        self.check_and_fix_all_reminder()
+
+    def check_and_fix_all_reminder(self):
+        """Checks and fix wjapp reminder for ADMIN_ASS_N_ED if exists in wjs"""
+
+        self.check_and_fix_action_reminder("ed_selected_by_EO", "EDSR", 3)
 
 
 class AdminOpensAppealAction(BaseActionManager):  # noqa N801
@@ -2476,7 +2658,14 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
                 request=request,
             ).run()
 
+        self.check_and_fix_all_reminder()
         return review_assignment
+
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for ED_ACT_AS_REF if exists in wjs"""
+
+        # Note wjs logic add reminder REEA also when the reviewer is the editor
+        self.check_and_fix_action_reminder("i_will_review", "REEA", 3)
 
 
 class ReviewAssignmentAction(BaseActionManager):
@@ -2570,7 +2759,8 @@ ORDER BY assignDate
         )
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
-        # from editor, in a certain time range (5") respect to the action_date
+        # from editor, in a certain time range respect to the action_date
+        # time range fixed from 5" to 7" due to JCOM_002N_1224
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2591,7 +2781,7 @@ AND ur.userCod=%(user_cod)s
 AND dl.documentLayerType='EMAIL'
 AND ur.userType='recipient'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 7 SECOND)
 ORDER BY dl.submissionDate
 """
         cursor_reviewer_message.execute(
@@ -2770,6 +2960,13 @@ class DeselectReviewerAction(BaseActionManager):
                 },
             ).run()
 
+        self.check_and_fix_all_reminder()
+
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for DeselectReviewerAction if exists in wjs"""
+
+        self.check_and_fix_action_reminder("ed_removed_ed_decision", "EDMD", 3)
+
     def read_deselect_reviewer_message(self):
         """Read the message that is sent to the reviewer when he is deselected."""
 
@@ -2863,7 +3060,8 @@ class ReviewerDeclineAction(BaseActionManager):
         cursor_reviewer_decline_message = self.connection.cursor(buffered=True, dictionary=True)
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
-        # from editor, in a certain time range (5") respect to the action_date
+        # from editor, in a certain time range respect to the action_date
+        # time range fixed from 5" to 7" due to JCOM_010A_1224
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2884,7 +3082,7 @@ AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='EMAIL'
 AND ur.userType='author'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 7 SECOND)
 ORDER BY dl.submissionDate
 """
         cursor_reviewer_decline_message.execute(
@@ -2961,7 +3159,14 @@ ORDER BY dl.submissionDate
                 token=None,
             ).run()
 
+        self.check_and_fix_all_reminder()
         return
+
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for ReviewerDeclineAction if exists in wjs"""
+
+        self.check_and_fix_action_reminder("ref_declined_ed_decision", "EDMD", 3)
+        self.check_and_fix_action_reminder("Ref_decline", "EDSR", 3)
 
 
 class EQ1_REF_REF(ReviewerDeclineAction):  # noqa N801
@@ -3159,7 +3364,19 @@ ORDER BY dl.submissionDate
             self.imported_document_layer_cod_list.append(wjapp_report.get("documentLayerCod"))
             logger.debug(f"append referee report message {self.imported_document_layer_cod_list=}")
 
+        self.check_and_fix_all_reminder()
+
         return
+
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for REF_SENDS_REP if exists in wjs"""
+
+        # The referee sends report action could be the first, the second, the last report.
+        # The check and fix function changes only the existing reminders EDMD created by the wjs logic,
+        # therefore if the wjs logic does not supply reminders for this action, nothing is changed,
+        # (also if the reminder is read from wjapp) otherwise the date is fixed if it is different.
+        self.check_and_fix_action_reminder("only_ref_sent_rep", "EDMD", 3)
+        self.check_and_fix_action_reminder("last_ref_sent_rep", "EDMD", 3)
 
 
 @dataclass
@@ -3271,8 +3488,11 @@ ORDER BY dl.submissionDate
             # and afterwards there is another one revision request
             # but the same problem can happen if this assignment is done
             # during the action PSTPN_REV_DEADLN (which is managed as correspondence only)
-            if self.document_revision_dead_line.date() >= date_due:
-                date_due = self.document_revision_dead_line
+
+            # added guard for None document_revision_dead_line: JCOM_002N_0824
+            if self.document_revision_dead_line:
+                if self.document_revision_dead_line.date() >= date_due:
+                    date_due = self.document_revision_dead_line
 
             # TBV: date_due has to be set in the form in the case of rejection?
             form_data = {
@@ -3309,6 +3529,8 @@ ORDER BY dl.submissionDate
 
         self.imported_document_layer_cod_list.append(wjapp_editor_report.get("documentLayerCod"))
 
+        self.check_and_fix_all_reminder()
+
         return revision
 
 
@@ -3326,6 +3548,11 @@ class ED_REQ_REV(EditorDecisionAction):  # noqa N801
             self.journal,
         ).process_value()
 
+    def check_and_fix_all_reminder(self):
+        """Checks and fix wjapp reminder for ED_REQ_REV if exists in wjs"""
+
+        self.check_and_fix_action_reminder("pending_revision", "AUMJR", 3)
+
 
 @dataclass
 class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
@@ -3340,6 +3567,11 @@ class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
             "default_author_minor_revision_days",
             self.journal,
         ).process_value()
+
+    def check_and_fix_all_reminder(self):
+        """Checks and fix wjapp reminders for ED_ACC_DOC_WMC if exists in wjs"""
+
+        self.check_and_fix_action_reminder("pending_minor_revision", "AUMIR", 3)
 
 
 @dataclass
@@ -3419,6 +3651,8 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         if self.importfiles:
             self.import_files()
 
+        self.check_and_fix_all_reminder()
+
         return
 
     def read_author_cover_letter_message(self):
@@ -3470,9 +3704,19 @@ ORDER BY dl.submissionDate
 class AU_SUB_REV(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action "author submits revised version"."""
 
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for AU_SUB_REV if exists in wjs"""
+
+        self.check_and_fix_action_reminder("major_revision", "EDSR", 3)
+
 
 class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action "author submits minor revision"."""
+
+    def check_and_fix_all_reminder(self):
+        """Check and fix wjapp reminder for AU_SUB_REV_WMC if exists in wjs"""
+
+        self.check_and_fix_action_reminder("minor_revision", "EDSR", 3)
 
 
 class AU_SUB_NEW_VER(AuthorSubmitRevisionAction):  # noqa N801
@@ -3544,6 +3788,7 @@ class SwapCorrespondenceAuthor(BaseActionManager):  # noqa N801
             new_author_row["new_author_firstname"],
             new_author_row["new_author_email"],
             new_author_row["new_author_privacy"],
+            self.connection,
         )
         logger.debug(f"swap corresponding author, new: {new_author}")
         assert new_author in self.article.authors.all()
