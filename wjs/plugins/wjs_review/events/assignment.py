@@ -13,7 +13,7 @@ from django.utils.module_loading import import_string
 from submission.models import Article
 from utils.logic import get_current_request
 
-from wjs.jcom_profile.constants import EO_GROUP
+from wjs.jcom_profile.constants import DIRECTOR_ROLE, EO_GROUP, SECTION_EDITOR_ROLE
 from wjs.jcom_profile.models import StaffWorkloadParameters
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ def default_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignmen
     else:
         editors = AccountRole.objects.filter(
             journal=article.journal,
-            role=Role.objects.get(slug="section-editor"),
+            role=Role.objects.get(slug=SECTION_EDITOR_ROLE),
         ).values_list("user")
         parameters = StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=editors)
     parameters = parameters.exclude(user__in=article.authors.all())
@@ -79,7 +79,7 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
     else:
         directors = AccountRole.objects.filter(
             journal=article.journal,
-            role=Role.objects.get(slug="director"),
+            role=Role.objects.get(slug=DIRECTOR_ROLE),
         ).values_list("user")
         parameters = StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=directors)
     parameters = parameters.exclude(user__in=article.authors.all())
@@ -104,7 +104,8 @@ def assign_editor_random(**kwargs) -> Optional["WjsEditorAssignment"]:
 
     if (
         selected_editor_id := AccountRole.objects.filter(
-            journal=article.journal, role=Role.objects.get(slug="section-editor")
+            journal=article.journal,
+            role=Role.objects.get(slug=SECTION_EDITOR_ROLE),
         )
         .values_list("user")
         .order_by("?")
