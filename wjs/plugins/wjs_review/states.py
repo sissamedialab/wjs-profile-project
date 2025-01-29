@@ -1056,6 +1056,12 @@ class TypesetterSelected(BaseState):
             confirm=_("Are you sure you want to set the paper ready for publication?"),
             is_post=True,
         ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter,
+            name="draft_article_page",
+            label="View HTML",
+            view_name="wjs_draft_article_page",
+        ),
     ) + BaseState.article_actions
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(

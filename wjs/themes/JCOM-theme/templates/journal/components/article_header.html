@@ -41,6 +41,9 @@
                 {% endfor %}
             </div>
         {% endif %}
+        {% if not article.is_published %}
+          <p><b>This is an accepted article with a DOI pre-assigned that is not yet published.</b></p>
+        {% endif %}
         {% if article.abstract and article.abstract != '' %}<p>{{ article.abstract | safe }}</p>{% endif %}
     </div>
 </header>
