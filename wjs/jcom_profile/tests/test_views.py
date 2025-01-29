@@ -426,10 +426,11 @@ def test_director_can_change_editor_parameters(journal, roles, admin, editor, ke
 @pytest.mark.parametrize(
     "user_role,hijacked,success",
     (
+        ("eo", "eo", settings.WJS_ALLOW_HIJACK_SU_ACCOUNTS),
         ("eo", "section-editor", True),
         ("eo", "user", True),
-        ("director", "section-editor", True),
-        ("director", "user", not settings.WJS_RESTRICT_DIRECTOR_HIJACKING),
+        ("director", "section-editor", settings.WJS_ALLOW_DIRECTOR_HIJACKING),
+        ("director", "user", False),
         ("section-editor", "section-editor", False),
         ("section-editor", "user", False),
         (None, "section-editor", False),
@@ -448,7 +449,9 @@ def test_set_notify_hijack_normal_user(
         user = section_editor
     else:
         user = normal_user
-    if hijacked == "section-editor":
+    if hijacked == "eo":
+        hijacked_user = eo_user
+    elif hijacked == "section-editor":
         hijacked_user = section_editor
     else:
         hijacked_user = normal_user

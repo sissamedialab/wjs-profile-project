@@ -99,16 +99,19 @@ def can_hijack_user_role(hijacker: Account, hijacked: Account) -> bool:
 
     request = GlobalRequestMiddleware.get_current_request()
     by_superuser = hijacker.is_superuser or has_eo_role(hijacker)
-    if settings.WJS_RESTRICT_DIRECTOR_HIJACKING:
+    if settings.WJS_ALLOW_DIRECTOR_HIJACKING:
+        # Directors can only hijack users for their journal
         by_director = has_director_role(request.journal, hijacker) and has_any_journal_role(request.journal, hijacked)
     else:
-        by_director = has_director_role(request.journal, hijacker)
+        by_director = False
     return by_superuser or by_director
 
 
 def hijack_eo_and_admins_only(*, hijacker: Account, hijacked: Account) -> bool:
     """
-    Check hijack permissions: Superusers and EO members may hijack other staff and regular users, but not superusers.
+    Check hijack permissions: Superusers and EO members may hijack other staff and regular users.
+
+    Superusers can be hijacked only if WJS_ALLOW_HIJACK_SU_ACCOUNTS is True.
 
     :param hijacker: The user to check for role.
     :type hijacker: Account
@@ -116,7 +119,9 @@ def hijack_eo_and_admins_only(*, hijacker: Account, hijacked: Account) -> bool:
     :param hijacked: The user to check for role.
     :type hijacked: Account
     """
-    if not hijacked.is_active or hijacked.is_superuser:
+    super_user_can_hijack_su = settings.WJS_ALLOW_HIJACK_SU_ACCOUNTS and hijacker.is_superuser
+    block_hijack_eo = not super_user_can_hijack_su and hijacked.is_superuser
+    if not hijacked.is_active or block_hijack_eo:
         return False
 
     return can_hijack_user_role(hijacker, hijacked)
