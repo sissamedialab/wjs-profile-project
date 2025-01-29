@@ -15,7 +15,9 @@
     {{ journal_settings.general.journal_name | striptags }}
 {% endblock title %}
 {% block head %}
+  {% if article.is_published %}
     {% include "elements/article_meta_tags.html" %}
+  {% endif %}
 {% endblock head %}
 {% block css %}
     <style>

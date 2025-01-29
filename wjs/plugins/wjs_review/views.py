@@ -40,6 +40,7 @@ from django.views.generic import (
 )
 from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
+from journal.logic import get_all_tables_from_html, get_best_galley
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import logic as review_logic
@@ -3400,3 +3401,47 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
     def get(self, request, *args, **kwargs):
         """Serve an article file."""
         return core_files.serve_file(request, self.attachment, self.article)
+
+
+class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
+    template_name = "journal/article.html"
+
+    def test_func(self):
+        """Only the typesetter should be able to access this view."""
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+        return permissions.is_article_typesetter(self.workflow, self.request.user)
+
+    def get_context_data(self, **kwargs):
+        """Add context data for the template."""
+        # logic from journal.views.article
+        context = super().get_context_data(**kwargs)
+
+        galleys = self.workflow.get_latest_typesetting_assignment(completed=False).galleys_created.all()
+        if galleys:
+            galley = get_best_galley(self.workflow.article, galleys)
+            # Temporarily set the galley's article to our workflow.article because the following methods need an
+            # article attached to the Galley. This won't be saved anyway
+            galley.article = self.workflow.article
+            content = galley.file_content(recover=True)
+            tables_in_galley = get_all_tables_from_html(content)
+        else:
+            content = ""
+            tables_in_galley = []
+
+        if self.workflow.article.journal.disable_html_downloads:
+            galleys = galleys.exclude(
+                file__mime_type="text/html",
+            )
+
+        context.update(
+            {
+                "article": self.workflow.article,
+                "galleys": galleys,
+                "identifier_type": "id",
+                "identifier": self.workflow.article.id,
+                "article_content": content,
+                "tables_in_galley": tables_in_galley,
+            }
+        )
+
+        return context
