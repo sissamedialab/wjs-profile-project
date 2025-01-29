@@ -15,7 +15,7 @@ m="$p /home/wjs/janeway-test/src/manage.py"
 DEBUG=1
 QUICK=1
 WJS_FROM_GIT=1
-WJS_TAG="feature/issue-1261__go-live-env__setup-env"
+WJS_TAG="feature/issue-1270-setup-assignment-parameters"
 
 # --✂---  CUT HERE --✂---
 # See below: look for the other block "CUT HERE"
@@ -287,6 +287,9 @@ VALUES
 ON CONFLICT DO NOTHING
 ;
 EOF
+
+# Setup assignment parameters for editors and EO
+$m reset_assignment_parameters --noinput >/dev/null && debug "Assignment parameters reset for EO and editors"
 
 # Ensure submission settings are valid
 # Also ensure that the default_review_form is set
