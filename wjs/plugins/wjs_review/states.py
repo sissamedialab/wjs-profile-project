@@ -165,6 +165,17 @@ def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", use
     return url
 
 
+def get_identifier_id_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    url = reverse(
+        action.view_name,
+        kwargs={
+            "identifier_type": "id",
+            "identifier": workflow.article.pk,
+        },
+    )
+    return url
+
+
 def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return the label for a button that would change the flag.
 
@@ -1243,3 +1254,13 @@ class SendToEditorForCheck(BaseState):
 
 class Published(BaseState):
     """Published"""
+
+    article_actions = (
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="janeway_published_version",
+            label="Go to published version",
+            view_name="article_view",
+            custom_get_url=get_identifier_id_url,
+        ),
+    )
