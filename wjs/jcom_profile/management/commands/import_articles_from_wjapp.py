@@ -1374,7 +1374,13 @@ class ImportCorrespondenceManager:
                 and message_recipients_no_bcc
                 and (m["documentLayerType"] in self.types_with_auth_and_recipient)
             ):
-                message_type = Message.MessageTypes.USER
+                # the messages "Referee confirms assignment for" has to appear as system messages in wjs
+                if m["documentLayerType"] == "EMAIL" and (m["documentLayerSubject"] or "").startswith(
+                    "Referee confirms assignment for"
+                ):
+                    message_type = Message.MessageTypes.SYSTEM
+                else:
+                    message_type = Message.MessageTypes.USER
             else:
                 message_type = Message.MessageTypes.SYSTEM
 
