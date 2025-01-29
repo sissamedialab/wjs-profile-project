@@ -367,4 +367,12 @@ WJS_ARTICLE_KEYWORDS_LIMITS = {
     },
 }
 
-WJS_RESTRICT_DIRECTOR_HIJACKING = False
+WJS_ALLOW_DIRECTOR_HIJACKING = False
+"""
+Allow directors to hijack other users.
+"""
+
+WJS_ALLOW_HIJACK_SU_ACCOUNTS = True
+"""
+Allow EO to hijack superusers.
+"""
