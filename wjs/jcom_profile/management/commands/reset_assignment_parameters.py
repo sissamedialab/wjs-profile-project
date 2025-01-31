@@ -62,7 +62,7 @@ class Command(BaseCommand):
             default_workload = 100
             for user in Account.objects.filter(
                 accountrole__journal=journal,
-                accountrole__role__name=SECTION_EDITOR_ROLE,
+                accountrole__role__slug=SECTION_EDITOR_ROLE,
             ):
                 swp, created = StaffWorkloadParameters.objects.get_or_create(
                     journal=journal,
@@ -75,14 +75,14 @@ class Command(BaseCommand):
 
             # Directors: similar to editors, but with gotchas
             default_workload = 1000
-            directors = Account.objects.filter(accountrole__journal=journal, accountrole__role__name=DIRECTOR_ROLE)
+            directors = Account.objects.filter(accountrole__journal=journal, accountrole__role__slug=DIRECTOR_ROLE)
             if directors.count() == 1:
                 # good: we can ignore the "main director"
 
                 # sanity check
                 assert not Account.objects.filter(
                     accountrole__journal=journal,
-                    accountrole__role__name=DIRECTOR_MAIN_ROLE,
+                    accountrole__role__slug=DIRECTOR_MAIN_ROLE,
                 ).exists()
 
                 for user in directors:
@@ -103,7 +103,7 @@ class Command(BaseCommand):
                 # sanity check: one of the directors is the main-director
                 main_director = Account.objects.get(
                     accountrole__journal=journal,
-                    accountrole__role__name=DIRECTOR_MAIN_ROLE,
+                    accountrole__role__slug=DIRECTOR_MAIN_ROLE,
                 )
                 assert main_director.id in directors.values_list("id", flat=True)
 
@@ -128,4 +128,4 @@ class Command(BaseCommand):
                 raise Exception(f"Found 0 directors for {journal.code}. Please check!")
 
         # Sanity check: at the moment of JCOM/JCOMAL first setup, we don't expect any kwd-editor assignement to exists
-        assert not StaffKeyword.ojects.exitst()
+        assert not StaffKeyword.objects.exists()
