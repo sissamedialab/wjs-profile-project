@@ -12,9 +12,9 @@ Account = get_user_model()
 
 
 @pytest.mark.django_db
-def test_annotate_review_round(create_set_of_articles_with_assignments):
-    """annotate_review_round manager method annotate with review round."""
-    articles_with_review_round = ArticleWorkflow.objects.annotate_review_round("review")
+def test_get_article_with_latest_round(create_set_of_articles_with_assignments):
+    """get_article_with_latest_round manager method annotate with review round."""
+    articles_with_review_round = ArticleWorkflow.objects.get_article_with_latest_round("review")
     for workflow in articles_with_review_round:
         # if there are any review assignments that are not complete, the round number should be the current one
         if workflow.article.reviewassignment_set.filter(date_complete__isnull=True).exists():
@@ -35,9 +35,9 @@ def test_annotate_review_round(create_set_of_articles_with_assignments):
 
 
 @pytest.mark.django_db
-def test_with_reviews(create_set_of_articles_with_assignments):
-    """with_reviews manager method filter ArticleWorkflow with any ReviewAssignment."""
-    articles_with_review_round = ArticleWorkflow.objects.with_reviews()
+def test_with_pending_reviews(create_set_of_articles_with_assignments):
+    """with_pending_reviews manager method filter ArticleWorkflow with any ReviewAssignment."""
+    articles_with_review_round = ArticleWorkflow.objects.with_pending_reviews()
     for workflow in articles_with_review_round:
         last_round = (
             workflow.article.reviewassignment_set.all().order_by("review_round__round_number").last().review_round
@@ -61,17 +61,6 @@ def test_with_reviews(create_set_of_articles_with_assignments):
             assert not workflow.article.reviewassignment_set.filter(
                 review_round_id=last_round_assignment.review_round, is_complete=False
             ).exists()
-
-
-@pytest.mark.django_db
-def test_with_pending_reviews(create_set_of_articles_with_assignments):
-    """with_pending_reviews manager method filter ArticleWorkflow with any incomplete ReviewAssignment."""
-    articles_with_review_round = ArticleWorkflow.objects.with_pending_reviews()
-    for workflow in articles_with_review_round:
-        assert workflow.article.reviewassignment_set.filter(
-            review_round_id=workflow.review_round_id,
-            is_complete=False,
-        ).exists()
 
 
 @pytest.mark.django_db

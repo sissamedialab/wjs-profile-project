@@ -159,7 +159,7 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
             filters.pop("language")
         else:
             filters["language"].extra["choices"] = available_languages
-        available_states = self.queryset.values_list("state", flat=True).distinct()
+        available_states = self.queryset.values_list("state", flat=True).exclude(state="EditorSelected").distinct()
         filters["status"].field.choices = [
             state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
         ]
@@ -243,7 +243,7 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
     def select_filters(self):
         """Customize filters by journal."""
         filters = super().select_filters()
-        available_states = self.queryset.values_list("state", flat=True).distinct()
+        available_states = self.queryset.values_list("state", flat=True).exclude(state="EditorSelected").distinct()
         if self.request.user and self.request.user.is_authenticated and permissions.has_eo_role(self.request.user):
             full_choices = eo_status_choices() + [
                 state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
