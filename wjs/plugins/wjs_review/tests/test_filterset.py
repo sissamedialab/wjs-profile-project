@@ -184,7 +184,7 @@ def test_eoarticleworkflowfilter_filter_status(
 @pytest.mark.django_db
 @pytest.mark.parametrize(
     "state",
-    ("none", "Accepted", "EditorSelected"),
+    ("none", "Accepted", "EditorToBeSelected", "ToBeRevised"),
 )
 def test_articleworkflowfilter_status_choices(
     coauthors_setting,
@@ -213,7 +213,7 @@ def test_articleworkflowfilter_status_choices(
         expected = [""] + [item[0] for item in eo_status_choices()] + [state]
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
     else:
-        states = workflows.values_list("state", flat=True).distinct()
+        states = workflows.values_list("state", flat=True).exclude(state="EditorSelected").distinct()
         expected = [""] + [item[0] for item in eo_status_choices()] + list(states)
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
 
