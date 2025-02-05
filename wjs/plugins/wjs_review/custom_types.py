@@ -1,6 +1,6 @@
 import dataclasses
 from datetime import datetime
-from typing import Literal, NamedTuple, Optional, Tuple, TypedDict
+from typing import Literal, NamedTuple, Optional, Tuple, TypeAlias, TypedDict
 
 from django.db import models
 from django.utils.safestring import mark_safe
@@ -144,3 +144,9 @@ class BreadcrumbItem(NamedTuple):
     """Title of the breadcrumb item."""
     current: bool = False
     """If breadcrumb is the current view."""
+
+
+AllowedPermissionType: TypeAlias = Literal[
+    PermissionAssignment.PermissionType.NO_NAMES, PermissionAssignment.PermissionType.ALL
+]
+AllowedBinaryPermissionType: TypeAlias = Literal[PermissionAssignment.BinaryPermissionType.ALL]

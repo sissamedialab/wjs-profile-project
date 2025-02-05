@@ -5,9 +5,13 @@ from django import template
 from django.db import models
 
 from .. import conditions
-from ..custom_types import ButtonSize
+from ..custom_types import (
+    AllowedBinaryPermissionType,
+    AllowedPermissionType,
+    ButtonSize,
+)
 from ..logic__visibility import PermissionChecker
-from ..models import ArticleWorkflow, PermissionAssignment
+from ..models import ArticleWorkflow
 
 register = template.Library()
 
@@ -46,7 +50,7 @@ def user_has_access_to(
     workflow: ArticleWorkflow,
     user: Account,
     target: models.Model,
-    permission_type: PermissionAssignment.PermissionType = "",
+    permission_type: AllowedPermissionType | AllowedBinaryPermissionType,
     review_round: Optional[int] = None,
     secondary_permission: bool = False,
 ) -> bool:
@@ -83,6 +87,7 @@ def user_has_access_to(
     :return: True if the user has access, False otherwise.
     :rtype: bool
     """
+
     if user.is_anonymous:
         return False
     return PermissionChecker()(
