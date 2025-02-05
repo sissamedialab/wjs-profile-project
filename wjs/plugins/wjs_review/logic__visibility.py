@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Optional
+from typing import Optional, get_args
 
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
@@ -12,6 +12,7 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import permissions
+from .custom_types import AllowedBinaryPermissionType, AllowedPermissionType
 from .models import (
     ArticleWorkflow,
     EditorDecision,
@@ -360,7 +361,6 @@ class SpecialIssueEditorPermissionChecker(EditorPermissionChecker):
 
 @dataclasses.dataclass
 class TypesetterPermissionChecker(BasePermissionChecker):
-
     def _check_workflow_access(self, workflow: ArticleWorkflow, open_for_any: bool = False) -> bool:
         if workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
             return open_for_any
@@ -538,7 +538,7 @@ class PermissionChecker:
         workflow: ArticleWorkflow,
         user: Account,
         instance: models.Model,
-        permission_type: PermissionAssignment.PermissionType = "",
+        permission_type: AllowedPermissionType | AllowedBinaryPermissionType,
         secondary_permission: bool = False,
         default_permissions: bool = False,
         review_round: Optional[int] = None,
@@ -567,6 +567,15 @@ class PermissionChecker:
         # If user is anonymous, they cannot have any permissions
         if user.is_anonymous:
             return False
+
+        # This typing syntax allows to retrieve the list of allowed values from the type definition
+        allowed_permission_types = get_args(AllowedPermissionType) + get_args(AllowedBinaryPermissionType)
+
+        if permission_type not in allowed_permission_types:
+            raise ValueError(
+                f"{permission_type} permission type is not allowed in user_has_access_to. "
+                f"Use any of {allowed_permission_types}"
+            )
         has_the_permission = False
         for checker_function, checker_class in self._permission_classes.items():
             if checker_function(workflow, user):

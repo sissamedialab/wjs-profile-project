@@ -22,7 +22,6 @@ from .models import (
     EditorDecision,
     EditorRevisionRequest,
     PermissionAssignment,
-    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 from .permissions import is_article_editor, is_article_supervisor
@@ -86,8 +85,12 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
         :rtype: list[PermissionTargetObject]
         """
         workflow_type = ContentType.objects.get_for_model(self.workflow)
-        editor_revisions = EditorRevisionRequest.objects.filter(article=self.workflow.article).exclude(
-            article__correspondence_author=self.user
+        editor_revisions = (
+            EditorRevisionRequest.objects.filter(article=self.workflow.article).exclude(
+                article__correspondence_author=self.user
+            )
+            # FIXME: Add this exclusion to the dataset of the tests
+            .exclude(editor_decision__decision=ArticleWorkflow.Decisions.TECHNICAL_REVISION)
         )
         editor_revisions_type = ContentType.objects.get_for_model(EditorRevisionRequest)
         editor_decisions = (
@@ -100,10 +103,6 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
             reviewer=self.user
         )
         review_assignments_type = ContentType.objects.get_for_model(WorkflowReviewAssignment)
-        if is_article_editor(self.workflow, self.request.user):
-            assignment = WjsEditorAssignment.objects.get_current(self.workflow)
-            review_assignments = review_assignments.filter(review_round__in=assignment.review_rounds.all())
-            editor_revisions = editor_revisions.filter(review_round__in=assignment.review_rounds.all())
 
         target_objects = (
             [
@@ -150,16 +149,27 @@ class EditUserPermissions(BaseRelatedViewsMixin, FormView):
             ]
         )
 
-        # remove from the list all objects that the operatord (the user that is editing the permissions) has not right
+        # remove from the list all objects that the operator (the user that is editing the permissions) has no right
         # to see.
         # TODO: review me after !725 has been merged; expecially check author cover letters
+        # We must explicitly check the permissions for both main and secondary permissions because explicit permissions
+        # may provide or deny access to any object.
         visible_objects = filter(
-            lambda target_object: PermissionChecker()(
-                self.workflow,
-                self.request.user,  # NB: self.user is the "target user" (!= self.request.user)
-                target_object.object,
-                permission_type=PermissionAssignment.PermissionType.DENY,
-                secondary_permission=PermissionAssignment.BinaryPermissionType.DENY,
+            lambda target_object: (
+                PermissionChecker()(
+                    self.workflow,
+                    self.request.user,  # NB: self.user is the "target user" (!= self.request.user)
+                    target_object.object,
+                    permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+                )
+                if not target_object.author_notes
+                else PermissionChecker()(
+                    self.workflow,
+                    self.request.user,  # NB: self.user is the "target user" (!= self.request.user)
+                    target_object.object,
+                    permission_type=PermissionAssignment.BinaryPermissionType.ALL,
+                    secondary_permission=True,
+                )
             ),
             target_objects,
         )

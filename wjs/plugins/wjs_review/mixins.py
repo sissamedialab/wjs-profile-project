@@ -103,7 +103,7 @@ class OpenReviewMixin(DetailView):
         if self.access_code and self.use_access_code:
             queryset = queryset.filter(access_code=self.access_code)
         elif self.request.user.is_authenticated:
-            if not base_permissions.has_eo_role(self.request.user):
+            if not base_permissions.has_eo_or_director_role(self.request.journal, self.request.user):
                 filters = Q(reviewer=self.request.user)
                 if self.allow_editor_access:
                     # Editor who assigned the review assignment is allowed to access the review

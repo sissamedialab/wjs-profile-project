@@ -2,7 +2,7 @@
 {% with version=review_versions.0 %}
   {% if latest_only %}
     {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=PermissionType.NO_NAMES review_round=version.number as has_file_access %}
-    {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as author_notes %}
+    {% user_has_access_to workflow=workflow user=request.user target=version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=version.number secondary_permission=True as author_notes %}
   {% else %}
     {% if version.file_container %}
       {% user_has_access_to workflow=workflow user=request.user target=version.file_container permission_type=PermissionType.NO_NAMES review_round=version.number as has_file_access %}

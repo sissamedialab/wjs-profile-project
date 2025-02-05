@@ -54,6 +54,7 @@ def test_director_permission_own_assignment(
             assigned_article.articleworkflow,
             director,
             WjsEditorAssignment.objects.get_current(assigned_article),
+            permission_type=PermissionAssignment.PermissionType.ALL,
         )
         != is_author
     )
@@ -68,7 +69,10 @@ def test_editor_permission_own_assignment(
     editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
 
     assert PermissionChecker()(
-        assigned_article.articleworkflow, editor, WjsEditorAssignment.objects.get_current(assigned_article)
+        assigned_article.articleworkflow,
+        editor,
+        WjsEditorAssignment.objects.get_current(assigned_article),
+        permission_type=PermissionAssignment.PermissionType.ALL,
     )
 
 

@@ -133,7 +133,7 @@ class AuthorCoverLetter:
     """
     The file provided by the author as a cover letter.
     """
-    object: Optional[Union[Article, "EditorRevisionRequest"]] = None  # noqa
+    object: Optional[Union["ArticleWorkflow", "EditorRevisionRequest"]] = None  # noqa
     """
     Object storing cover letter data.
 
@@ -230,7 +230,7 @@ class ReviewVersion:
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
                 file=None,
-                object=self.review_round.article,
+                object=self.review_round.article.articleworkflow,
             )
         else:
             return AuthorCoverLetter(
