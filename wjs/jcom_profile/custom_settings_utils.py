@@ -57,11 +57,7 @@ class PatchSettingValueParams(TypedDict):
 def patch_setting(setting_params: PatchSettingParams, settingvalue_params: PatchSettingValueParams) -> SettingValue:
     setting = Setting.objects.get(group=setting_params["group"], name=setting_params["name"])
     journal = settingvalue_params["journal"]
-    try:
-        setting_value = SettingValue.objects.get(journal=journal, setting=setting)
-    except SettingValue.DoesNotExist:
-        setting_value = SettingValue.objects.get(journal=None, setting=setting)
-        setting_value.journal = settingvalue_params["journal"]
+    setting_value, _ = SettingValue.objects.get_or_create(journal=journal, setting=setting)
     setting_value.value = settingvalue_params["value"]
     for field, value in settingvalue_params["translations"].items():
         setattr(setting_value, field, value)
