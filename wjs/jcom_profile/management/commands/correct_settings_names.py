@@ -4,9 +4,17 @@ Una-tantum command needed because of name changed during specs#901.
 """
 
 from core.models import Setting, SettingValue
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.utils.translation import gettext_lazy as _
+from journal.models import Journal
 from utils.logger import get_logger
+
+from wjs.jcom_profile.custom_settings_utils import (
+    PatchSettingParams,
+    PatchSettingValueParams,
+    patch_setting,
+)
 
 logger = get_logger(__name__)
 
@@ -14,10 +22,26 @@ logger = get_logger(__name__)
 class Command(BaseCommand):
     help = "Correct existing settings names."  # noqa A003
 
+    def add_arguments(self, parser):
+        """Handle command arguments."""
+        parser.add_argument(
+            "--noinput",
+            "--no-input",
+            dest="interactive",
+            action="store_false",
+            help="Do NOT prompt the user for input of any kind.",
+        )
+
     def handle(self, *args, **options):
+        if settings.DEBUG is False and options["interactive"]:
+            message = "Are you sure you want to reset settings on a production environment? ('yes' to continue): "
+            if input(message) != "yes":
+                raise CommandError("Resetting assignment parameters cancelled.")
+
         self.rename_settings()
         self.drop_obsolete_settings()
         self.set_jcom_defaults_over_janeways()
+        self.create_overrides()
 
     def rename_settings(self):
         settings_to_rename = (
@@ -663,6 +687,44 @@ is set for publication on {{ article.date_published|date:'Y-m-d' }}.
 """,
         )
         update_setting_default("subject_author_publication", "email_subject", "Publication")
+
+    def create_overrides(self):
+        """Create some known overrides."""
+        # specs#1307 - JCOMAL
+        try:
+            code = "JCOMAL"
+            jcomal = Journal.objects.get(code=code)
+        except Journal.DoesNotExist:
+            logger.warning(f"Journal {code} does not exist. Overrides creation aborted.")
+            return
+
+        group = "wjs_review"
+        patch_setting(
+            PatchSettingParams("default_editor_assign_reviewer_days", group),
+            PatchSettingValueParams(jcomal, 10, {}),
+        )
+
+        patch_setting(
+            PatchSettingParams("default_editor_assign_reviewer_days", group),
+            PatchSettingValueParams(jcomal, 10, {}),
+        )
+
+        patch_setting(
+            PatchSettingParams("default_editor_make_decision_days", group),
+            PatchSettingValueParams(jcomal, 10, {}),
+        )
+
+        patch_setting(
+            PatchSettingParams("default_author_major_revision_days", group),
+            PatchSettingValueParams(jcomal, 90, {}),
+        )
+
+        patch_setting(
+            PatchSettingParams("default_author_major_revision_days_max", group),
+            PatchSettingValueParams(jcomal, 180, {}),
+        )
+
+        # default_author_appeal_revision_days 240 / 120 / 20 ?
 
 
 def update_setting_default(name, group, value, description=None):
