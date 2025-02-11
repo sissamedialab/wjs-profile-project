@@ -101,7 +101,7 @@ def cleanup_notifications_side_effects():
 @pytest.fixture  # (scope="session")  ??? can't have scope session and db access???
 def correct_settings_names():
     """Update Janeway settings with our defaults."""
-    call_command("correct_settings_names")
+    call_command("correct_settings_names", "--noinput")
 
 
 @pytest.fixture
