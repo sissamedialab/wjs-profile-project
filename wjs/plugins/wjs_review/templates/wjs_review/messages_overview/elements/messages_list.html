@@ -1,12 +1,16 @@
 {% load django_bootstrap5 static %}
 {% translate "Search" as filter_label %}
 {% translate "Reset filters" as reset_label %}
+  <script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
+  <script>
+    EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
+  </script>
 <div id="messages-list">
   <div class="sticky-top bg-light">
     <div class="container mb-3">
       <h1 class="page-title">{{ view.title }}</h1>
       <div class="d-flex justify-content-between">
-        <form class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
+        <form id="id_filter_form" class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
           <div class="row mb-3">
             <div class="col-md-3">
               {% bootstrap_field filter.form.from_date wrapper_class="w-100" %}
@@ -29,7 +33,7 @@
               {% bootstrap_field filter.form.content wrapper_class="w-100" %}
             </div>
             <div class="col-md-6 d-flex justify-content-start gap-2 align-items-center align-self-end">
-              {% bootstrap_button name="filter" content=filter_label wrapper_class="me-3" %}
+              {% bootstrap_button id="id_filter_form_submit_button" name="filter" content=filter_label wrapper_class="me-3" %}
               <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary me-3">{{ reset_label }}</a>
             </div>
           </div>
