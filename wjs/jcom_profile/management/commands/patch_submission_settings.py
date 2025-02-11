@@ -14,5 +14,5 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         with export_to_csv_manager("jcom_profile") as csv_writer:
-            for journal in Journal.objects.filter(code="JCOM"):
+            for journal in Journal.objects.filter(code__in=["JCOM", "JCOMAL"]):
                 csv_writer.write_settings(add_submission_settings(journal))
