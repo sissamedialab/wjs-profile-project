@@ -1698,7 +1698,6 @@ class WorkflowReviewAssignment(ReviewAssignment):
 
     #  Quando si aggiungono nuovi campi modificare il metodo AssignToReviewer._assign_reviewer per evitare di ottenere
     #  errori nel salvataggio.
-    author_note_visible = models.BooleanField(_("Author's cover letter visible (if available)"), default=True)
     report_form_answers = models.JSONField(default=dict, verbose_name=_("Report form answers"))
     editor_invite_message = models.ForeignKey(
         Message,
@@ -1708,7 +1707,6 @@ class WorkflowReviewAssignment(ReviewAssignment):
         related_name="editor_invite_messages",
         verbose_name=_("Editor invite message"),
     )
-    send_review_file = models.BooleanField(default=False, verbose_name=_("Send review file to Author"))
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
 
     # Map janeway's statuses to an ordered dict to map to our own statuses

@@ -512,7 +512,14 @@ def test_assign_to_reviewer(
     assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
     assert assignment.reviewer == normal_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert not assignment.author_note_visible
+    last_version = assigned_article.articleworkflow.get_review_versions(normal_user.janeway_account)[0]
+    assert PermissionAssignment.objects.filter(
+        user=normal_user.janeway_account,
+        content_type_id=ContentType.objects.get_for_model(last_version.cover_letter.object).pk,
+        object_id=last_version.cover_letter.object.pk,
+        permission=PermissionAssignment.PermissionType.NO_NAMES,
+        permission_secondary=PermissionAssignment.BinaryPermissionType.DENY,
+    ).exists()
 
     review_assignment_subject = render_template_from_setting(
         setting_group_name="email_subject",
@@ -922,7 +929,14 @@ def test_invite_reviewer(
     assignment = assigned_article.reviewassignment_set.first()
     assert assignment.reviewer == invited_user.janeway_account
     assert assignment.editor == section_editor.janeway_account
-    assert assignment.workflowreviewassignment.author_note_visible
+    last_version = assigned_article.articleworkflow.get_review_versions(invited_user.janeway_account)[0]
+    assert PermissionAssignment.objects.filter(
+        user=invited_user.janeway_account,
+        content_type_id=ContentType.objects.get_for_model(last_version.cover_letter.object).pk,
+        object_id=last_version.cover_letter.object.pk,
+        permission=PermissionAssignment.PermissionType.NO_NAMES,
+        permission_secondary=PermissionAssignment.BinaryPermissionType.ALL,
+    ).exists()
 
     review_assignment_subject = render_template_from_setting(
         setting_group_name="email_subject",
