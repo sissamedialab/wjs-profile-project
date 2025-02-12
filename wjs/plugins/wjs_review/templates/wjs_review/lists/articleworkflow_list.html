@@ -7,17 +7,9 @@
     {{ block.super }}
     <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
     <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
-    <script type="text/javascript">
-    document.addEventListener("DOMContentLoaded", function() {
-      document.querySelectorAll("#id_filter_form input, #id_filter_form select").forEach((item) => {
-        item.addEventListener("keypress", function(event) {
-          if (event.which === 13) {
-            event.preventDefault();
-            document.getElementById("id_filter_form_submit_button").click();
-          }
-        });
-      });
-    });
+    <script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
+    <script>
+      EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
     </script>
 {% endblock bootstrap5_extra_head %}
 
