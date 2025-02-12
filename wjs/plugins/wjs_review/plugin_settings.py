@@ -706,6 +706,57 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             default_author_major_revision_days_max_setting["name"],
             force=force,
         )
+
+        # specs#1307
+        date_due_major_revisions_far_future_days_setting: SettingParams = {
+            "name": "date_due_major_revisions_far_future_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _(
+                "Days after which postponing a major revision due date is considered too far in the future",
+            ),
+            "description": _(
+                "When editor postpones a major revision due date for more than this number of days, a warning is issued to EO. Do not confuse with default_author_major_revision_days_max.",
+            ),
+            "is_translatable": False,
+        }
+        date_due_major_revisions_far_future_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 120,
+            "translations": {},
+        }
+        setting_13 = create_customization_setting(
+            date_due_major_revisions_far_future_days_setting,
+            date_due_major_revisions_far_future_days_setting_value,
+            date_due_major_revisions_far_future_days_setting["name"],
+            force=force,
+        )
+        date_due_minor_revisions_far_future_days_setting: SettingParams = {
+            "name": "date_due_minor_revisions_far_future_days",
+            "group": wjs_review_settings_group,
+            "types": "number",
+            "pretty_name": _(
+                "Days after which postponing a minor revision due date is considered too far in the future",
+            ),
+            "description": _(
+                "When editor postpones a minor revision due date for more than this number of days, a warning is issued to EO. Do not confuse with default_author_minor_revision_days_max.",
+            ),
+            "is_translatable": False,
+        }
+        date_due_minor_revisions_far_future_days_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": 90,
+            "translations": {},
+        }
+        setting_14 = create_customization_setting(
+            date_due_minor_revisions_far_future_days_setting,
+            date_due_minor_revisions_far_future_days_setting_value,
+            date_due_minor_revisions_far_future_days_setting["name"],
+            force=force,
+        )
+
         # refs 1024
         default_author_minor_revision_days_setting: SettingParams = {
             "name": "default_author_minor_revision_days",
@@ -808,6 +859,8 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             setting_10,
             setting_11,
             setting_12,
+            setting_13,
+            setting_14,
         )
 
     def author_can_contact_director() -> tuple[SettingValue, ...]:
