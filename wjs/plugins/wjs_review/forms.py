@@ -142,7 +142,9 @@ class BaseInviteSelectReviewerForm(forms.Form):
         ),
     )
     message = WjsMiniHTMLFormField(label=_("Message"), required=False)
-    author_note_visible = forms.BooleanField(label=_("Allow reviewer to see author's cover letter"), required=False)
+    author_note_visible = forms.BooleanField(
+        label=_("Allow reviewer to see author's cover letter"), required=False, initial=True
+    )
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
@@ -266,12 +268,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
             # we can load default data
             self.fields["message"].required = True
             self.fields["reviewer"].required = True
-            if not self.data.get("author_note_visible", None):
-                default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
-                self.data["author_note_visible"] = default_visibility
-
             self._prepare_message_and_subject()
-
         self.fields["reviewer"].queryset = Account.objects.get_reviewers_choices(self.instance)
 
     def get_message_context(self) -> Dict[str, Any]:
@@ -746,9 +743,9 @@ class DecisionForm(forms.ModelForm):
         send_review_file_pks = []
 
         for key, value in self.data.items():
-            if key.startswith("send_review_file_") and value == "yes":
+            if key.startswith("send_review_file_"):
                 review_pk = key.split("_")[-1]
-                send_review_file_pks.append(review_pk)
+                send_review_file_pks.append((review_pk, value))
         return send_review_file_pks
 
     def clean(self):

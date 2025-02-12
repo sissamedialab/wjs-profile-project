@@ -492,20 +492,42 @@ class AssignToReviewer:
             #    record in the ReviewAssignment table intact, so the two are now linked and we can later retrieve
             #    WorkflowReviewAssignment instance or original ReviewAssignment object and the access the linked
             #    object through the workflowreviewassignment field
-            default_visibility = WorkflowReviewAssignment._meta.get_field("author_note_visible").default
             default_report_form_answers = {}
             assignment_id = assignment.pk
             assignment.__class__ = WorkflowReviewAssignment
             assignment.reviewassignment_ptr_id = assignment_id
-            assignment.author_note_visible = self.form_data.get("author_note_visible", default_visibility)
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.editor_invite_message = None
-            assignment.send_review_file = False
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
             assignment.refresh_from_db()
+            self.update_author_note_visible(assignment)
         return assignment
+
+    def update_author_note_visible(self, assignment: WorkflowReviewAssignment):
+        # the cover letter data might be attached to Article (first version), in which case the reviewer must still see
+        # the "primary" object, or to the (Editor)RevisionRequest in which case the review should not see the "primary"
+        # object
+        self.form_data.get("author_note_visible", True)
+        cover_letter_object = assignment.version[0].cover_letter.object
+        PermissionAssignment.objects.update_or_create(
+            user=self.reviewer,
+            content_type_id=ContentType.objects.get_for_model(cover_letter_object).pk,
+            object_id=cover_letter_object.pk,
+            permission=(
+                PermissionAssignment.PermissionType.DENY
+                if isinstance(cover_letter_object, EditorRevisionRequest)
+                else PermissionAssignment.PermissionType.NO_NAMES
+            ),
+            defaults={
+                "permission_secondary": (
+                    PermissionAssignment.BinaryPermissionType.ALL
+                    if self.form_data.get("author_note_visible", True)
+                    else PermissionAssignment.BinaryPermissionType.DENY
+                )
+            },
+        )
 
     def _get_message_context(self) -> Dict[str, Any]:
         """
@@ -2159,10 +2181,27 @@ class HandleDecision:
         return decision
 
     def _mark_send_review_file(self):
-        """Update WorkflowReviewAssignment.send_review_file"""
+        """Fix permissions on review-files for the author, based on the editor's selections."""
         send_review_file_pks = self.form_data.get("send_review_file", [])
         if send_review_file_pks:
-            WorkflowReviewAssignment.objects.filter(pk__in=send_review_file_pks).update(send_review_file=True)
+            for pk, value in send_review_file_pks:
+                assignment = WorkflowReviewAssignment.objects.get(pk=pk)
+                self._update_send_review_file(assignment, value)
+
+    def _update_send_review_file(self, assignment: WorkflowReviewAssignment, value: str):
+        PermissionAssignment.objects.update_or_create(
+            user=self.workflow.article.correspondence_author,
+            content_type_id=ContentType.objects.get_for_model(assignment).pk,
+            object_id=assignment.pk,
+            permission=PermissionAssignment.PermissionType.DENY,
+            defaults={
+                "permission_secondary": (
+                    PermissionAssignment.BinaryPermissionType.ALL
+                    if value == "yes"
+                    else PermissionAssignment.BinaryPermissionType.DENY
+                )
+            },
+        )
 
     def _delete_editor_reminders(self):
         """Delete all reminders for the editor.

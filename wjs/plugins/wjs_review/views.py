@@ -896,6 +896,9 @@ class SelectReviewerView(
         context["reviewer"] = context["form"].data.get("reviewer")
         if context["form"].data.get("reviewer"):
             context["preview"] = self._render_message_preview(form=context["form"])
+
+        review_versions = self.object.get_review_versions(self.request.user)
+        context["review_version"] = review_versions[0]
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:
@@ -951,6 +954,8 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
         context["preview"] = self._render_message_preview(form=context["form"])
+        review_versions = self.object.get_review_versions(self.request.user)
+        context["review_version"] = review_versions[0]
         return context
 
     def get_template_names(self) -> List[str]:
@@ -3325,14 +3330,24 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
     def test_func(self):
         """Check if the user can see(download) the file. Both full permission and NO_NAME grant access to files."""
         related_instances = self._get_related_instances()
-        for instance in related_instances:
-            if PermissionChecker()(
-                self.article.articleworkflow,
-                self.request.user,
-                instance,
-                permission_type=PermissionAssignment.PermissionType.NO_NAMES,
-            ):
-                return True
+        for instance, primary in related_instances:
+            if primary:
+                if PermissionChecker()(
+                    self.article.articleworkflow,
+                    self.request.user,
+                    instance,
+                    permission_type=PermissionAssignment.PermissionType.NO_NAMES,
+                ):
+                    return True
+            else:
+                if PermissionChecker()(
+                    self.article.articleworkflow,
+                    self.request.user,
+                    instance,
+                    secondary_permission=True,
+                    permission_type=PermissionAssignment.BinaryPermissionType.ALL,
+                ):
+                    return True
         return False
 
     def _get_related_instances(self):
@@ -3345,7 +3360,7 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
             or (self.article.render_galley and self.article.render_galley.file == self.attachment)
             # TBV: check also article.meta_image (ImageField)
         ):
-            related_instances.append(self.article)
+            related_instances.append((self.article, True))
         for related_field in [
             self.article.manuscript_files,
             self.article.data_figure_files,
@@ -3353,9 +3368,9 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         ]:
             # Reminder: in a m2m field, pk=pk or pk__in=[pk] are equivalent
             if related_field.filter(pk=self.attachment.pk).exists():
-                related_instances.append(self.article)
+                related_instances.append((self.article, True))
         if self.article.supplementary_files.filter(file__pk=self.attachment.pk).exists():
-            related_instances.append(self.article)
+            related_instances.append((self.article, True))
 
         # ArticleWorkflow's files
         for aw in [
@@ -3363,22 +3378,28 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
             self.article.articleworkflow.publication_galleys_source_file,
         ]:
             if aw:
-                related_instances.append(self.article)
+                related_instances.append((self.article, True))
+        # Add a tuple to related_instances with the second item being if use the primary  permission (True) or the
+        # Secondary permission (False)
 
         # EditorRevisionRequest's files
         for err in [
-            EditorRevisionRequest.objects.filter(cover_letter_file=self.attachment).first(),
             EditorRevisionRequest.objects.filter(manuscript_files__pk=self.attachment.pk).first(),
             EditorRevisionRequest.objects.filter(data_figure_files__pk=self.attachment.pk).first(),
             EditorRevisionRequest.objects.filter(source_files__pk=self.attachment.pk).first(),
             EditorRevisionRequest.objects.filter(supplementary_files__file__pk=self.attachment.pk).first(),
         ]:
             if err:
-                related_instances.append(err)
+                related_instances.append((err, True))
+        for err in [
+            EditorRevisionRequest.objects.filter(cover_letter_file=self.attachment).first(),
+        ]:
+            if err:
+                related_instances.append((err, False))
 
         # WorkflowReviewAssignment's files (reviewers' report files)
         if wra := WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first():
-            related_instances.append(wra)
+            related_instances.append((wra, False))
 
         # TypesettingAssignment's files
         for ta in [
@@ -3386,7 +3407,7 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
             TypesettingAssignment.objects.filter(galleys_created__file__pk=self.attachment.pk).first(),
         ]:
             if ta:
-                related_instances.append(ta)
+                related_instances.append((ta, True))
 
         # GalleyProofing's files
         for gp in [
@@ -3394,7 +3415,7 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
             GalleyProofing.objects.filter(annotated_files__pk=self.attachment.pk).first(),
         ]:
             if gp:
-                related_instances.append(gp)
+                related_instances.append((gp, True))
 
         return related_instances
 
