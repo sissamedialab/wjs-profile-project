@@ -28,7 +28,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
@@ -2247,13 +2247,33 @@ class PostponeRevisionRequestDueDate:
     request: HttpRequest
 
     def _check_postponed_date_due_too_far_future(self) -> bool:
-        max_threshold = get_setting(
-            setting_group_name="wjs_review",
-            setting_name="default_author_appeal_revision_days",
-            journal=self.revision_request.article.journal,
-        ).process_value()
-        max_date = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=max_threshold)
-        return self.form_data["date_due"] >= max_date
+        # Ready to be refactored after specs#1320
+        def new_date_smaller_than_max_date(new_date_due: datetime.datetime, setting_name: str) -> bool:
+            try:
+                max_threshold = get_setting(
+                    setting_group_name="wjs_review",
+                    setting_name=setting_name,
+                    journal=self.revision_request.article.journal,
+                ).process_value()
+                return timezone.localtime(timezone.now()).date() + datetime.timedelta(days=max_threshold)
+            except ObjectDoesNotExist:
+                logger.error(f"Setting wjs_review/{setting_name} is missing. Please check.")
+                return False
+
+        revision_type = self.revision_request.editor_decision.decision
+        if revision_type == ArticleWorkflow.Decisions.MAJOR_REVISION:
+            setting_name = f"date_due_{revision_type}_far_future_days"
+            return new_date_smaller_than_max_date(self.form_data["date_due"], setting_name)
+        if revision_type == ArticleWorkflow.Decisions.MINOR_REVISION:
+            setting_name = f"date_due_{revision_type}_far_future_days"
+            return new_date_smaller_than_max_date(self.form_data["date_due"], setting_name)
+        if revision_type == ArticleWorkflow.Decisions.OPEN_APPEAL:
+            # TODO: re-check this setting in specs#1320
+            setting_name = setting_name = "default_author_appeal_revision_days"
+            return new_date_smaller_than_max_date(self.form_data["date_due"], setting_name)
+
+        logger.error(f"Programming error: due date on revisions of type {revision_type} cannot be changed")
+        return False
 
     def _get_message_context(self) -> Dict[str, Any]:
         return {

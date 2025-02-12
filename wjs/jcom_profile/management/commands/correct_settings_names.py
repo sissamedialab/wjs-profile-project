@@ -13,6 +13,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile.custom_settings_utils import (
     PatchSettingParams,
     PatchSettingValueParams,
+    get_group,
     patch_setting,
 )
 
@@ -698,33 +699,41 @@ is set for publication on {{ article.date_published|date:'Y-m-d' }}.
             logger.warning(f"Journal {code} does not exist. Overrides creation aborted.")
             return
 
-        group = "wjs_review"
+        group = get_group("wjs_review")
         patch_setting(
-            PatchSettingParams("default_editor_assign_reviewer_days", group),
-            PatchSettingValueParams(jcomal, 10, {}),
+            PatchSettingParams(name="default_editor_assign_reviewer_days", group=group),
+            PatchSettingValueParams(journal=jcomal, value=10, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams("default_editor_assign_reviewer_days", group),
-            PatchSettingValueParams(jcomal, 10, {}),
+            PatchSettingParams(name="default_editor_assign_reviewer_days", group=group),
+            PatchSettingValueParams(journal=jcomal, value=10, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams("default_editor_make_decision_days", group),
-            PatchSettingValueParams(jcomal, 10, {}),
+            PatchSettingParams(name="default_editor_make_decision_days", group=group),
+            PatchSettingValueParams(journal=jcomal, value=10, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams("default_author_major_revision_days", group),
-            PatchSettingValueParams(jcomal, 90, {}),
+            PatchSettingParams(name="default_author_major_revision_days", group=group),
+            PatchSettingValueParams(journal=jcomal, value=90, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams("default_author_major_revision_days_max", group),
-            PatchSettingValueParams(jcomal, 180, {}),
+            PatchSettingParams(name="default_author_major_revision_days_max", group=group),
+            PatchSettingValueParams(journal=jcomal, value=180, translations={}),
         )
 
-        # default_author_appeal_revision_days 240 / 120 / 20 ?
+        patch_setting(
+            PatchSettingParams(name="date_due_major_revisions_far_future_days", group=group),
+            PatchSettingValueParams(journal=jcomal, value=240, translations={}),
+        )
+
+        patch_setting(
+            PatchSettingParams(name="date_due_minor_revisions_far_future_days", group=group),
+            PatchSettingValueParams(journal=jcomal, value=120, translations={}),
+        )
 
 
 def update_setting_default(name, group, value, description=None):
