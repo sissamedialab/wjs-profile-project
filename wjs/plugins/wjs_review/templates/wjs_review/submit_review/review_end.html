@@ -1,6 +1,6 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 i18n settings %}
-{% load wjs_articles %}
+{% load wjs_articles wjs_review %}
 
 {% block content_wrapper %}
   {% article_css_classes assignment.article.articleworkflow as article_classes %}
@@ -16,11 +16,14 @@
         <h4 class="ms-2"> - {{ assignment.article.pk }}</h4>
       </div>
       <div class="card-body px-2 py-2">
-        {% blocktranslate %}
-          Thank you for submitting your review!
-        {% endblocktranslate %}
+        {% if assignment.article.articleworkflow|is_user_article_reviewer:request.user %}
+          {% translate "Thank you for submitting your review!" %}
+        {% else %}
+          {% translate "Review submitted by" %} {{ assignment.reviewer.get_full_name }}
+        {% endif %}
         {% include "wjs_review/submit_review/elements/report_form_summary.html" %}
       </div>
     </div>
+  {% include "wjs_review/base/elements/back.html" with workflow=assignment.article.articleworkflow %}
   </div>
 {% endblock content_wrapper %}
