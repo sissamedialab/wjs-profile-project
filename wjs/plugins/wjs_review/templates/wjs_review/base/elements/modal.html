@@ -11,8 +11,12 @@
         {% if modal_body_title %}<p class="h4">{{ modal_body_title }}</p>{% endif %}
         {% if include_path %}
           {% include include_path %}
-        {% else %}
+        {% endif %}
+        {% if modal_body %}
           {{ modal_body|linebreaksbr|safe }}
+        {% endif %}
+        {% if include_footer_path %}
+          {% include include_footer_path %}
         {% endif %}
       </div>
     </div>

@@ -15,7 +15,7 @@
           {% if no_names_decision or all_access_decision %}
             {% with decision=version.final_decision %}
               <div>
-                {% include "wjs_review/details/elements/review_decision.html" with show_name=all_access_decision %}
+                {% include "wjs_review/details/elements/review_decision.html" with show_name=all_access_decision version=version %}
               </div>
             {% endwith %}
           {% endif %}

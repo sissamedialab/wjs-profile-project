@@ -26,7 +26,7 @@
             {% with modal_id="editor_report"|concat:decision.pk modal_target="#editor_report"|concat:decision.pk %}
               <td>
                 {% bootstrap_button type="button" data_bs_toggle="modal" data_bs_target=modal_target content=open_label %}
-                {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_report_title modal_body=decision.decision_editor_report|safe %}
+                {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_report_title modal_body=decision.decision_editor_report|safe version=version include_footer_path="wjs_review/details/elements/review_file_download.html" %}
               </td>
             {% endwith %}
           </tr>
