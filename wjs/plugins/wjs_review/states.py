@@ -425,14 +425,6 @@ class BaseState:
             view_name="",
             custom_get_url=get_review_url,
         ),
-        ReviewAssignmentAction(
-            permission=permissions.is_article_supervisor,
-            condition=conditions.review_done,
-            name="read review",
-            label="Read Review",
-            view_name="",
-            custom_get_url=get_review_url,
-        ),
     )
 
     @classmethod
