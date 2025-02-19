@@ -279,6 +279,27 @@ def test_article_detail_permission_reviewer(
 
 
 @pytest.mark.django_db
+def test_empty_target_permission_check(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+):
+    """Access to an empty target always return False."""
+    assert PermissionChecker()(
+        assigned_article.articleworkflow,
+        eo_user,
+        assigned_article.articleworkflow,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+    assert not PermissionChecker()(
+        assigned_article.articleworkflow,
+        eo_user,
+        None,
+        permission_type=PermissionAssignment.PermissionType.ALL,
+    )
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "expected",
     (

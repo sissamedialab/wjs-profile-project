@@ -537,7 +537,7 @@ class PermissionChecker:
         self,
         workflow: ArticleWorkflow,
         user: Account,
-        instance: models.Model,
+        instance: models.Model | None,
         permission_type: AllowedPermissionType | AllowedBinaryPermissionType,
         secondary_permission: bool = False,
         default_permissions: bool = False,
@@ -578,7 +578,7 @@ class PermissionChecker:
             )
         has_the_permission = False
         for checker_function, checker_class in self._permission_classes.items():
-            if checker_function(workflow, user):
+            if checker_function(workflow, user) and instance:
                 checker = checker_class(user=user, workflow=workflow, instance=instance)
                 if default_permissions:
                     has_the_permission |= checker.check_default(
