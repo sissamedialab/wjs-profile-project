@@ -103,23 +103,27 @@ def _create_rr_objects(
                     date_due=timezone.now() + timedelta(days=5),
                 )
             )
-    with freeze_time(_now - timedelta(days=_delta + 1)):
-        decision = EditorDecision.objects.create(
-            workflow=article.articleworkflow,
-            review_round=review_round,
-            decision=article.articleworkflow.Decisions.MINOR_REVISION,
-            editor=editor,
-        )
-        decisions.append(decision)
-        revision.append(
-            EditorRevisionRequest.objects.create(
-                article=article,
-                editor=editor,
+    for editor_decision in [
+        article.articleworkflow.Decisions.MINOR_REVISION,
+        article.articleworkflow.Decisions.TECHNICAL_REVISION,
+    ]:
+        with freeze_time(_now - timedelta(days=_delta + 1)):
+            decision = EditorDecision.objects.create(
+                workflow=article.articleworkflow,
                 review_round=review_round,
-                date_due=timezone.now() + timedelta(days=5),
-                editor_decision=decision,
+                decision=editor_decision,
+                editor=editor,
             )
-        )
+            decisions.append(decision)
+            revision.append(
+                EditorRevisionRequest.objects.create(
+                    article=article,
+                    editor=editor,
+                    review_round=review_round,
+                    date_due=timezone.now() + timedelta(days=5),
+                    editor_decision=decision,
+                )
+            )
     return revision, review, decisions
 
 
@@ -647,7 +651,7 @@ def test_permission_form_view_setup_reviewer(
     view_obj.request = fake_request
     objs = view_obj._get_article_objects()
     # 1 article
-    # 1 editor revision request
+    # 1 editor revision request (minor or technical; see _create_rr_objects())
     # 2 review assignments (normal_user review is not included because there is no need to set permissions for it)
     # 1 editor revision request for author notes
     # (remember that objects are returned in reverse order for more ergonomic display)
@@ -709,7 +713,7 @@ def test_permission_form_view_setup_editor(
     1 Article
     - 1° Review round -> default user
         3 reviews
-        1 editor revision
+        1 editor revision (minor or technical; see _create_rr_objects())
         1 PastEditor
     - 2° Review round -> normal user
         3 reviews
