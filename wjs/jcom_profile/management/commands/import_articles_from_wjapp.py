@@ -70,6 +70,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission import models as submission_models
+from submission.models import Licence
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
@@ -749,6 +750,7 @@ ORDER BY ah.actionDate
         article.owner = main_author
         article.authors.add(main_author)
         article.correspondence_author = main_author
+        article.license_id = Licence.objects.get(journal=self.journal, short_name="CC BY-NC-ND 4.0").id
         article.save()
 
         article.articleworkflow.eo_in_charge = eo_in_charge
