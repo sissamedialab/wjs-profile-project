@@ -214,8 +214,9 @@ class ReviewVersion:
     def cover_letter(self) -> AuthorCoverLetter:
         """Return the author's cover letter.
 
-        If this is the first review version, the cover letter is taken from the Article,
-        otherwise it's taken from the (Editor)RevisionRequest of the round before the current one.
+        If this is the first review version (or current review round is not set),
+        the cover letter is taken from the Article, otherwise it's taken from the (Editor)RevisionRequest
+        of the round before the current one.
 
         If the user has no visibility on current review round and we are not in the first round, an empty cover letter
         object is returned.
@@ -226,7 +227,7 @@ class ReviewVersion:
                 file=self.previous_round_revision.cover_letter_file,
                 object=self.previous_round_revision,
             )
-        elif self.number == 1:
+        elif self.number in (1, -1):
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
                 file=None,
