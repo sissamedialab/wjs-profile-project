@@ -50,7 +50,15 @@
                                    data-buttonName="btn-primary">
                         </div>
                     </div>
-                    {{ form|foundation }}
+                    {# Removing the default form rendering and showing only the label field. This is done to hide the description without touching the Backend form #}
+                    <div class="row expanded">
+                        <div class="large-12 columns">
+                            <label>
+                                {% trans "Label" %} <span class="red">*</span>
+                            </label>
+                            <input type="text" name="label" id="id_label" required="" maxlength="200">
+                        </div>
+                    </div>
                     <button type="submit" name="{{ modaltype }}" class="success button">{% trans "Add File" %}</button>
                     <button class="close-button" data-close aria-label="Close reveal" type="button">
                         <span aria-hidden="true">×</span>
