@@ -2072,9 +2072,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         kwargs = super().get_form_kwargs()
         if "data" in kwargs:
             cloned_data = kwargs["data"].copy()
-            if self.source_message:
-                cloned_data["recipients"] = self.get_default_recipients()
-            elif self.to_author:
+            if self.to_author:
                 cloned_data["recipients"] = self.get_default_recipients()
             elif self.to_typesetter:
                 cloned_data["recipients"] = self.get_default_recipients()
