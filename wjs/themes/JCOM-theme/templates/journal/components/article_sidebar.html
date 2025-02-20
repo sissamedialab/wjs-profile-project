@@ -52,13 +52,15 @@
                 <div class="divider"></div>
             </div>
         {% endif %}
-        {% if article.rights %}
             <h2 class="article-sidebar-title">{% trans "Rights" %}</h2>
+        {% if article.rights %}
             {{ article.rights | safe }}
+        {% else %}
+            © Authors
+        {% endif %}
             <div class="spacer">
                 <div class="divider"></div>
             </div>
-        {% endif %}
         {% if article.publisher_notes.all %}
             <h2 class="article-sidebar-title">{% trans "Publisher Notes" %}</h2>
             <ul>
