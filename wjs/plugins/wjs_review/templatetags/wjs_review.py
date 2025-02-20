@@ -32,6 +32,8 @@ from utils.models import LogEntry
 
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.models import StaffWorkloadParameters
+from wjs.jcom_profile.permissions import has_eo_role
+from wjs.jcom_profile.utils import get_eo_user
 
 from .. import communication_utils, permissions, states
 from ..communication_utils import MESSAGE_TYPE_ICONS
@@ -334,6 +336,11 @@ def message_read_by_all(message: Message) -> bool:
 @register.filter
 def message_read_by_me(message: Message, user: Account) -> bool:
     """Return True if the message has been read by user (and user is recipient)."""
+    if has_eo_role(user):
+        return message.recipients.filter(
+            messagerecipients__read=False,
+            messagerecipients__recipient=get_eo_user(message.target),
+        ).exists()
     return message.recipients.filter(
         messagerecipients__read=False,
         messagerecipients__recipient=user.pk,
