@@ -1366,7 +1366,7 @@ class SupervisorAssignEditorForm(forms.ModelForm):
         required=True,
     )
     search = forms.CharField(required=False, label=_("Search..."))
-    set_visibility_rights = forms.BooleanField(label=_("Set visibility rights"), initial=False, required=False)
+    set_visibility_rights = forms.BooleanField(initial=False, required=False)
 
     class Meta:
         model = ArticleWorkflow
