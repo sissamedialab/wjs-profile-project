@@ -16,3 +16,21 @@ ignore = ["D101","D104", "D105","D106","D212","D203","D213"]
 [tool.djlint]
 profile="django"
 ignore="H006"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 119
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+# A003 is triggered only sometimes!
+ignore = [
+  "COM819",
+  "EM101",
+  "D212","D203",
+  "CPY001"
+  ]
+
+fixable = ["ALL"]
+unfixable = []
