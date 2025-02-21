@@ -32,6 +32,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from . import communication_utils, conditions
@@ -1149,6 +1150,9 @@ class MessageForm(forms.ModelForm):
                 # ATM (24W11) personal notes only have _one_ recipient (the actor), but this way
                 # we allow for future changes (for instance, if EO want to share notes with typ)
                 MessageRecipients.objects.filter(message=instance).update(read=True)
+                if has_eo_role(self.actor):
+                    instance.read_by_eo = True
+                    instance.save()
             if self.cleaned_data["attachment"]:
                 if instance.content_type.model_class() != Article:
                     # TODO: where do we save attachements of messages not related to articles?
