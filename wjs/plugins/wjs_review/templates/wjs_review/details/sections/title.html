@@ -7,7 +7,7 @@
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span> -
       {{ workflow }}
     </h3>
-    {% if workflow|is_user_article_manager:request.user %}
+    {% if workflow|is_user_article_manager:request.user or workflow|is_user_article_author:request.user %}
       <h5>
         <span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">
           {{ workflow.state_label }}<br>
