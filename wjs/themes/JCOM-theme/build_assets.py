@@ -66,6 +66,7 @@ def create_paths():
         "css",
         "js",
         "fonts",
+        "img",
     ]
 
     for folder in folders:
