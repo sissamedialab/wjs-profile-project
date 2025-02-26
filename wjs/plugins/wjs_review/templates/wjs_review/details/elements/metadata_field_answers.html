@@ -15,6 +15,12 @@
             <td colspan="3">{{ field_answer.answer|safe }}</td>
           </tr>
         {% endfor %}
+          <tr>
+            <th colspan="3">{% translate "Competing interests" %}</th>
+          </tr>
+          <tr>
+            <td colspan="3">{{ article.competing_interests|safe }}</td>
+          </tr>
       </table>
     </div>
   </div>
