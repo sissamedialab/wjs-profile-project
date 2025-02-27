@@ -1,4 +1,9 @@
 <video width="100%" controls>
-          <source src="/media/journals/1/WJS_Prophy_Tutorial.mp4" type="video/mp4">
-          Your browser does not support the video tag.
-          </video>
+  <source src="/media/journals/1/WJS_Prophy_Tutorial.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+<script>
+document.getElementById('prophy_tutorial_modal').addEventListener('hidden.bs.modal', function () {
+    this.querySelector('video')?.pause();
+});
+</script>
