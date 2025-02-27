@@ -1635,6 +1635,13 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
             kwargs["initial"]["date_due"] = date_due_initial
             kwargs["date_due_max"] = date_due_max
             kwargs["revision_days_max"] = revision_days_max
+        elif decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+            revision_days = get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_author_technical_revision_days",
+                journal=self.object.article.journal,
+            )
+            kwargs["initial"]["date_due"] = today + datetime.timedelta(days=revision_days.processed_value)
         kwargs["has_pending_reviews"] = self.pending_reviews.exists()
         return kwargs
 

@@ -38,9 +38,9 @@
             {% endif %}
           </div>
           {% if form.hide_date_due %}
-            {% bootstrap_field form.date_due wrapper_class="visually-hidden date-due" %}
+            {% bootstrap_field form.date_due wrapper_class="visually-hidden date-due mb-3" %}
           {% else %}
-            {% bootstrap_field form.date_due wrapper_class="date-due" %}
+            {% bootstrap_field form.date_due wrapper_class="date-due mb-3" %}
           {% endif %}
           {% if form.decision_editor_report %}{% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}{% endif %}
           {% include "wjs_review/make_decision/elements/review_files_table.html" %}
