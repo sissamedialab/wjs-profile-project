@@ -246,7 +246,7 @@ class ArticleAction:
             "is_htmx": self.is_htmx,
             "is_modal": self.is_modal,
             "is_post": self.is_post,
-            "confirm": self.custom_get_confirm(self, workflow, user) if self.custom_get_confirm else self.label,
+            "confirm": self.custom_get_confirm(self, workflow, user) if self.custom_get_confirm else self.confirm,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
             "id": id(self),
         }
@@ -1014,11 +1014,11 @@ class TypesetterSelected(BaseState):
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
-            name="Send to Author",
-            label="Send to Author",
+            name="Send for proofreading",
+            label="Send for proofreading",
             view_name="wjs_ready_for_proofreading",
             custom_get_url=get_url_with_typesetting_assignment_pk,
-            confirm=_("Are you sure you want to send the paper to the author?"),
+            confirm=_("Send typeset paper to author for proofreading?"),
             is_post=True,
         ),
         ArticleAction(

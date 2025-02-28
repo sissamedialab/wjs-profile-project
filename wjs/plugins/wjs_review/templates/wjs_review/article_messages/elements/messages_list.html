@@ -1,5 +1,6 @@
 {% load django_bootstrap5 %}
 {% translate "Search" as filter_label %}
+{% translate "Reset filters" as reset_label %}
 {% url "wjs_article_messages" pk=workflow.pk as filter_url %}
 <div id="messages-list">
 
@@ -12,6 +13,7 @@
           {% bootstrap_field filter.form.type show_label=False wrapper_class="me-3" %}
           {% bootstrap_field filter.form.content show_label=False wrapper_class="me-3" %}
           {% bootstrap_button name="filter" content=filter_label wrapper_class="me-3" %}
+          <a href="{% url request.resolver_match.url_name workflow.pk %}" class="btn btn-outline-secondary ms-1">{{ reset_label }}</a>
         </div>
       </form>
     </div>

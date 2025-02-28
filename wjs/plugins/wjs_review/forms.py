@@ -895,8 +895,8 @@ class BaseEditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
 class EditMetadataForm(BaseEditorRevisionRequestEditForm):
     confirm_cover_metadata = forms.BooleanField(
         label=_(
-            "If I have modified title and/or abstract, I will take care of updating them in my preprint file as soon"
-            "as possible. Either in a revised version or during the stage of proofreading"
+            "If I have modified title and/or abstract, I will take care of updating them in my preprint file as soon "
+            "as possible. Either in a revised version or during the stage of proofreading "
             "(if my preprint is accepted for publication)."
         ),
     )
@@ -912,7 +912,7 @@ class EditMetadataForm(BaseEditorRevisionRequestEditForm):
         if not self.cleaned_data.get("confirm_cover_metadata", False):
             errors.append(_("You must confirm that the cover letter lists and describes the changes."))
         if not self.instance.author_note and not self.instance.cover_letter_file:
-            errors.append(_("You must provide a cover letter."))
+            errors.append(_("You should provide and save a cover letter."))
         return errors
 
 
@@ -939,7 +939,7 @@ class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
         if not self.cleaned_data.get("confirm_version", False):
             errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
         if not self.instance.author_note and not self.instance.cover_letter_file:
-            errors.append(_("You must provide a cover letter."))
+            errors.append(_("You should provide and save a cover letter."))
         return errors
 
     def finish(self) -> EditorRevisionRequest:
@@ -994,7 +994,7 @@ class EditorRevisionRequestEditForm(BaseEditorRevisionRequestEditForm):
         if not self.cleaned_data.get("confirm_cover", False):
             errors.append(_("You must confirm that the cover letter lists and describes the changes."))
         if not self.instance.author_note and not self.instance.cover_letter_file:
-            errors.append(_("You must provide a cover letter."))
+            errors.append(_("You should provide and save a cover letter."))
         if not self.instance.article.manuscript_files.exists() or not self.instance.has_changed_manuscript_files:
             errors.append(_("You must provide a manuscript."))
         return errors
