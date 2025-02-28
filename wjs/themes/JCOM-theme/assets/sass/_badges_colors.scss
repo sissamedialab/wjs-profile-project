@@ -16,7 +16,7 @@ color-state-waiting_for_decision
 color-state-in_review
 color-state-resubmitted_minor_revisions
 color-state-resubmitted_major_revisions
-color-state-resubmittedopen_appeal
+color-state-resubmitted_open_appeal
 color-state-resubmitted_tech_revisions
 color-state-resubmitted_requires_resubmission
 color-state-assigned_to_editor
@@ -77,8 +77,8 @@ $color-state-resubmitted_minor_revisions: #999999;
 $hover-state-resubmitted_minor_revisions: darken($color-state-resubmitted_minor_revisions, 10%);
 $color-state-resubmitted_major_revisions: #377eb8;
 $hover-state-resubmitted_major_revisions: darken($color-state-resubmitted_major_revisions, 10%);
-$color-state-resubmittedopen_appeal: #e41a1c;
-$hover-state-resubmittedopen_appeal: darken($color-state-resubmittedopen_appeal, 10%);
+$color-state-resubmitted_open_appeal: #e41a1c;
+$hover-state-resubmitted_open_appeal: darken($color-state-resubmitted_open_appeal, 10%);
 $color-state-resubmitted_tech_revisions: #4daf4a;
 $hover-state-resubmitted_tech_revisions: darken($color-state-resubmitted_tech_revisions, 10%);
 $color-state-resubmitted_requires_resubmission: #984ea3;
@@ -294,11 +294,11 @@ span.badge {
       }
     }
 
-    &-resubmittedopen_appeal {
-      background-color: $color-state-resubmittedopen_appeal;
+    &-resubmitted_open_appeal {
+      background-color: $color-state-resubmitted_open_appeal;
 
       &:hover {
-        background-color: $hover-state-resubmittedopen_appeal;
+        background-color: $hover-state-resubmitted_open_appeal;
       }
     }
 
