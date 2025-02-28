@@ -24,12 +24,13 @@
   <p>{% translate "Acceptance date" %}: {{ assignment.date_accepted|date:DATE_FORMAT }}</p>
   <p>{% translate "Review due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
 {% endif %}
-{% for reminder in assignment.unsent_reminders %}
+{% for reminder in assignment.all_reminders %}
+  {% reminder_label reminder as reminder_label %}
   {% if request.user != assignment.reviewer and show_name %}
-    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {% translate "will be sent on" %} {{ reminder.date_due|date:DATE_FORMAT }}</p>
+    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {{ reminder_label }}</p>
   {% endif %}
   {% if request.user == assignment.reviewer and reminder.recipient == assignment.reviewer %}
-    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {% translate "will be sent on" %} {{ reminder.date_due|date:DATE_FORMAT }}</p>
+    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {{ reminder_label }}</p>
   {% endif %}
 {% endfor %}
 <div class="d-flex flex-wrap gap-2">
