@@ -1765,6 +1765,12 @@ class WorkflowReviewAssignment(ReviewAssignment):
             date_sent__isnull=True,
         )
 
+    def all_reminders(self) -> QuerySet["Reminder"]:
+        return Reminder.objects.filter(
+            object_id=self.pk,
+            content_type=ContentType.objects.get_for_model(self),
+        )
+
     @property
     def attention_condition(self) -> Optional["ReviewAssignmentAttentionCondition"]:
         """Provide details if the review assignment needs attention by the staff."""

@@ -15,6 +15,9 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import QuerySet
 from django.utils import timezone
+from django.utils.formats import date_format
+from django.utils.safestring import mark_safe
+from django.utils.translation import gettext_lazy as _
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
 from plugins.typesetting.models import TypesettingRound
@@ -52,6 +55,7 @@ from ..models import (
     Message,
     MessageThread,
     ProphyAccount,
+    Reminder,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
@@ -721,3 +725,13 @@ def editor_decision_is_final(decision: EditorDecision) -> bool:
         ArticleWorkflow.Decisions.OPEN_APPEAL,
         ArticleWorkflow.Decisions.TECHNICAL_REVISION,
     )
+
+
+@register.simple_tag()
+def reminder_label(reminder: Reminder) -> str:
+    if reminder.disabled:
+        return mark_safe(_("<strong>disabled</strong>"))
+    elif reminder.date_sent:
+        return _(f"sent on {date_format(reminder.date_sent, settings.DATE_FORMAT)}")
+    else:
+        return _(f"will be sent on {date_format(reminder.date_due, settings.DATE_FORMAT)}")
