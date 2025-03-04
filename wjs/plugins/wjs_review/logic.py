@@ -1464,7 +1464,7 @@ class AuthorHandleRevision:
             message_subject=subject,
             message_body=body,
             recipients=[self.revision.article.correspondence_author],
-            verbosity=Message.MessageVerbosity.EMAIL,
+            verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
             flag_as_read=True,
