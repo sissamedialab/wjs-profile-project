@@ -1054,6 +1054,13 @@ class TypesetterSelected(BaseState):
             label="View HTML",
             view_name="wjs_draft_article_page",
         ),
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="author_add_extra_information",
+            label="Send short description and image for social media",
+            view_name="wjs_article_additional_info",
+            condition=conditions.needs_extra_article_information,
+        ),
     ) + BaseState.article_actions
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
