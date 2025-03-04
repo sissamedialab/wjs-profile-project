@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.forms import formset_factory
 from django.shortcuts import get_object_or_404
+from django.utils.formats import date_format
 from django.utils.safestring import mark_safe
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
@@ -154,6 +155,8 @@ class BaseInviteSelectReviewerForm(forms.Form):
 
         c_data = self.data.copy()
         c_data["state"] = self.instance.state
+        if reviewer := self.request.GET.get("reviewer"):
+            c_data["reviewer"] = reviewer
         self.data = c_data
 
         self._today = now().date()
@@ -221,7 +224,12 @@ class BaseInviteSelectReviewerForm(forms.Form):
         if acceptance_due_date < now().date():
             raise forms.ValidationError(_("Date must be in the future"))
         if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
-            raise forms.ValidationError(_(f"Date must be between {self.date_min} and {self.date_max}"))
+            raise forms.ValidationError(
+                _(
+                    f"Date must be between {date_format(self.date_min, settings.DATE_FORMAT)} and "
+                    f"{date_format(self.date_max, settings.DATE_FORMAT)}"
+                )
+            )
         return acceptance_due_date
 
     def clean_logic(self):
@@ -285,8 +293,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         if reviewer_id := form_data.get("reviewer", False):
             form_data["reviewer"] = Account.objects.get(id=reviewer_id)
         else:
-            fake_reviewer = Account(id=self.data.get("reviewer"))
-            form_data["reviewer"] = fake_reviewer
+            form_data["reviewer"] = None
         logic = self.get_logic_instance(form_data)
         logic.assignment = WorkflowReviewAssignment(id=1, access_code="sample")
         return logic._get_message_context()

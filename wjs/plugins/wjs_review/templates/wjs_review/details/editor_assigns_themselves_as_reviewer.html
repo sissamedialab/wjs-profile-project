@@ -11,8 +11,8 @@
       You are going to assign yourself as reviewer of {{ workflow }}.
     </p>
   {% endblocktranslate %}
-  <form id="decline-assignment" hx-post="{% url "wjs_editor_assigns_themselves_as_reviewer" pk=workflow.pk %}" hx-target="#htmxModalContent">
+  <form novalidate id="decline-assignment" hx-post="{% url "wjs_editor_assigns_themselves_as_reviewer" pk=workflow.pk %}" hx-target="#htmxModalContent">
     {% csrf_token %}
-    {% bootstrap_form_errors form layout='inline' %}{% bootstrap_form form %}{% bootstrap_button button_type="submit" content="Assign" %}
+    {% bootstrap_form form %}{% bootstrap_button button_type="submit" content="Assign" %}
   </form>
 </div>

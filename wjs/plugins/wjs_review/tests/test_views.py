@@ -9,6 +9,7 @@ from django.core import mail
 from django.http import HttpRequest
 from django.test.client import Client
 from django.urls import reverse
+from django.utils.formats import date_format
 from django.utils.timezone import now
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
@@ -175,7 +176,12 @@ def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_too_much_in_t
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
     assert response.status_code == 200
-    errors = {"acceptance_due_date": [f"Date must be between {date_min} and {date_max}"]}
+    errors = {
+        "acceptance_due_date": [
+            f"Date must be between {date_format(date_min, settings.DATE_FORMAT)} and "
+            f"{date_format(date_max, settings.DATE_FORMAT)}"
+        ]
+    }
     assert dict(response.context["form"].errors) == errors
 
 
@@ -299,7 +305,12 @@ def test_select_reviewer_acceptance_due_date_too_much_in_the_future(
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
     assert response.status_code == 200
-    errors = {"acceptance_due_date": [f"Date must be between {date_min} and {date_max}"]}
+    errors = {
+        "acceptance_due_date": [
+            f"Date must be between {date_format(date_min, settings.DATE_FORMAT)} and "
+            f"{date_format(date_max, settings.DATE_FORMAT)}"
+        ]
+    }
     assert dict(response.context["form"].errors) == errors
 
 
@@ -339,7 +350,7 @@ def test_invite_function_creates_inactive_user(
         ),
     }
     response = client.post(url, data=data)
-    assert response.status_code == 302
+    assert response.status_code == 200
 
     invited_user = JCOMProfile.objects.get(email=data["email"])
     invitation_token = generate_token(data["email"], assigned_article.journal.code)
