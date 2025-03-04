@@ -10,7 +10,7 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 if TYPE_CHECKING:
-    from .models import ArticleWorkflow, WorkflowReviewAssignment
+    from .models import ArticleWorkflow, Message, WorkflowReviewAssignment
 
 Account = get_user_model()
 
@@ -694,3 +694,22 @@ def can_see_reviewer_name(assignment: "WorkflowReviewAssignment", user: Account)
         assignment,
         permission_type=PermissionAssignment.PermissionType.ALL,
     )
+
+
+def can_edit_note(user: Account, message: "Message"):
+    """
+    Check if the user can edit the note.
+
+    This is only possible if the user is the note actor or they are both part of the EO.
+
+    :param user: Current user
+    :type user: Account
+    :param message: Note instance
+    :type message: models.Message
+    :return: True if the user can edit the note, False otherwise.
+    :rtype: bool
+    """
+    current_user_is_eo = base_permissions.has_eo_role(user)
+    actor_is_eo = base_permissions.has_eo_role(message.actor)
+    user_responsible_for_note = message.actor == user or (current_user_is_eo and actor_is_eo)
+    return user_responsible_for_note

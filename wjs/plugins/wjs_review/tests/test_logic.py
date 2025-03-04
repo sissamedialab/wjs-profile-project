@@ -3664,6 +3664,55 @@ def test_write_new_note(
 
 
 @pytest.mark.django_db
+def test_write_edit_note(
+    article: Article,
+    normal_user: JCOMProfile,
+    jcom_user: JCOMProfile,
+    eo_user: Account,
+):
+    """
+    On editing notes, the original actor is not updated.
+
+    This is especially relevant for EO notes because they are shared, but it's a general behavior.
+    """
+    form = MessageForm(
+        actor=normal_user.janeway_account,
+        target=article,
+        initial={"recipients": [normal_user]},
+        note=True,
+        data={
+            "actor": normal_user.janeway_account,
+            "subject": "subject",
+            "body": "body",
+        },
+    )
+    assert form.is_valid()
+    msg = form.save()
+    assert msg.message_type == Message.MessageTypes.NOTE
+    assert msg.actor == normal_user.janeway_account
+    assert msg.subject == "subject"
+    assert msg.body == "body"
+
+    form = MessageForm(
+        actor=jcom_user.janeway_account,
+        target=article,
+        initial={"recipients": [normal_user]},
+        note=True,
+        instance=msg,
+        data={
+            "actor": normal_user.janeway_account,
+            "subject": "subject2",
+            "body": "body2",
+        },
+    )
+    assert form.is_valid()
+    msg = form.save()
+    assert msg.actor == normal_user.janeway_account
+    assert msg.subject == "subject2"
+    assert msg.body == "body2"
+
+
+@pytest.mark.django_db
 def test_last_user_note(
     article: Article,
     normal_user: JCOMProfile,
