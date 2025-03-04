@@ -787,7 +787,7 @@ class SelectReviewerView(
         Handle POST requests: instantiate a form instance with the passed POST variables and then check if it's valid.
         """
         self.object = self.get_object()
-        if self.htmx:
+        if self.htmx and not self.request.headers.get("Hx-Trigger") == "select-reviewer-form":
             return self.get(request, *args, **kwargs)
         return super().post(request, *args, **kwargs)
 
@@ -803,14 +803,14 @@ class SelectReviewerView(
     def get_template_names(self) -> List[str]:
         """Select the template based on the request type."""
         if self.htmx:
-            if self.request.headers.get("Hx-Trigger-Name") == "assign-reviewer":
-                return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
-            elif self.request.headers.get("Hx-Trigger-Name") == "editor-assign-themselves":
-                return ["wjs_review/editor_assigns_themselves_as_reviewer.html"]
-            elif self.request.headers.get("Hx-Trigger-Name") == "search-reviewer-form":
+            if self.request.headers.get("Hx-Trigger-Name") == "search-reviewer-form":
                 return ["wjs_review/select_reviewer/elements/reviewers_table.html"]
-            elif self.request.POST.get("message"):
+            elif self.request.headers.get("Hx-Trigger") in ["preview-btn-select", "update-btn-select"]:
                 return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
+            else:
+                # we return this template both when the Select button is pressed in the reviewers list and when the
+                # form is submitted with an error
+                return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
         return ["wjs_review/select_reviewer/select_reviewer.html"]
 
     def paginate_queryset(self, queryset, page_size) -> Tuple[Paginator, Optional[Page], Optional[QuerySet], bool]:
@@ -917,8 +917,11 @@ class SelectReviewerView(
         Even if the form is valid, checks in logic.AssignToReviewer -called by form.save- may fail as well.
         """
         try:
+            super().form_valid(form)
             messages.success(self.request, _("The reviewer has been succesfully selected."))
-            return super().form_valid(form)
+            response = HttpResponse("ok")
+            response["HX-Redirect"] = self.get_success_url()
+            return response
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
@@ -983,7 +986,11 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         Even if the form is valid, checks in logic.AssignToReviewer -called by form.save- may fail as well.
         """
         try:
-            return super().form_valid(form)
+            super().form_valid(form)
+            messages.success(self.request, _("The reviewer has been succesfully selected."))
+            response = HttpResponse("ok")
+            response["HX-Redirect"] = self.get_success_url()
+            return response
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
@@ -995,7 +1002,7 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
 
         If we have been called via htmx, it means we are just displaying the form in the modal.
         """
-        if self.htmx:
+        if self.htmx and not self.request.headers.get("Hx-Trigger") == "new-reviewer-invite-form":
             return self.get(request, *args, **kwargs)
         return super().post(request, *args, **kwargs)
 
