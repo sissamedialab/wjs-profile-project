@@ -363,6 +363,16 @@ class TypesettingVersion:
         return False
 
     @property
+    def has_proofing_files_or_notes(self) -> bool:
+        if self.galleyproofing:
+            return (
+                self.galleyproofing.notes
+                or self.galleyproofing.proofed_files.exists()
+                or self.galleyproofing.annotated_files.exists()
+            )
+        return False
+
+    @property
     def has_typesetter_files(self) -> bool:
         return self.assignment.files_to_typeset.exists()
 
