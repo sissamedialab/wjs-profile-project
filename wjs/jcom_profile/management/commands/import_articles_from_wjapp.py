@@ -804,6 +804,13 @@ ORDER BY ah.actionDate
         article.license_id = Licence.objects.get(journal=self.journal, short_name="CC BY-NC-ND 4.0").id
         article.save()
 
+        # authors order is set to order=author.pk, but for corresponding where is order=0
+        submission_models.ArticleAuthorOrder.objects.create(
+            article=article,
+            author=main_author,
+            order=0,
+        )
+
         article.articleworkflow.eo_in_charge = eo_in_charge
         article.articleworkflow.save()
 
@@ -883,9 +890,13 @@ ORDER BY ah.actionDate
     def get_author_bio_by_name(self, authors_bios, author):
         "Get author bio from authors bios list by name."
 
+        # missing match case:
+        # JCOM_001A_0924 Maria Magdalena Rosu (hyphen problem)
         bios_found = []
         for bio in authors_bios:
             if bio.startswith(author.full_name()):
+                bios_found.append(bio)
+            elif author.first_name in bio and author.last_name in bio:
                 bios_found.append(bio)
         return bios_found
 
@@ -2404,8 +2415,22 @@ class EditorAssignmentAction(BaseActionManager):
         editor_assign_date = self.action["actionDate"]
         editor_maxworkload = self.action["targetEditorWorkload"]
 
+        # TO BE FIXED:
+        #
+        # JCOM_003Y_0821 (version 1 ed null), gives exception because the ADMIN_ASS_N_ED
+        # (SupervisorChangeEditorAssignment) happens when the editor is not assigned
+
+        # In wjapp the admin ADMIN_ASS_N_ED is done with two acions:
+        # 1. "admin" resets editor "editor" for "preprintid" -> creates new version copying the files
+        # 2. "admin selects editor "new editor" for "preprintid"
+        #
+        # This case in the import does not generate a new version in wjs, only a
+        # SupervisorChangeEditorAssignment for action 2
+        #
         # there are wjapp actions SYS_ASS_ED with editor assigned None
         # example: JCOM_003A_0424 version 2
+
+        # TO BE VERIFIED: JCOM_001E_0318 - only 1 strange case in jcom of reset editor with editor directly assigned
         if editor_cod:
             # attribute editor added
             self.set_editor(
@@ -2421,6 +2446,13 @@ class EditorAssignmentAction(BaseActionManager):
             editor_parameters = self.read_editor_parameters(editor_cod)
             self.set_editor_parameters(editor_parameters, editor_maxworkload)
 
+            # TO BE FIXED: if in the first version the SYS_ASS_ED does not assign the editor
+            # the files are not imported (i.e.: JCOM_003Y_0821).
+            #
+            # TO BE FIXED: general problem with wjapp reset editor (new version): in this case we should
+            # import all the files of the new version, not of the base version, because the new version can have
+            # for example more attachments of the base version,or the files of the new version could have been
+            # replaced with a maintenance operation.
             if self.action_triggers_import_files and self.importfiles:
                 self.import_files()
 
@@ -2553,9 +2585,56 @@ WHERE editorCod=%(editor_cod)s
 class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
     """Manages action "system assigns to editor"."""
 
+    # this action in wjapp has two different meaning.
+    # In the first version the agent is the author and the target is the editor which can be defined or not
+    # in this case we want to add the author to all authors
+
+    # In next versions the same action has been "reused" after a reset editor by admin action which is done by
+    # an administrator and generates a new version copying the same files.
+    # In this case the agent is the admin and the target is null, e.g. JCOM_010A_1123
+    # and we do not want to add the agent (admin) to all authors.
+
     def __post_init__(self):
         """Enables attribute to import files for this action"""
         self.action_triggers_import_files = True
+
+        if self.imported_version_num == 1:
+            author = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                self.action["agentCod"],
+                self.action["agentLastname"],
+                self.action["agentFirstname"],
+                self.action["agentEmail"],
+                self.action["agentPrivacy"],
+                self.connection,
+            )
+
+            # The action SYS_ASS_ED in wjapp "version 1" happens when the author submits the contribution.
+            # It has always the agentCod (the author) also if sometimes the target can be null (editor not found).
+            #
+            # This is the first point where can be added to the authors list the author of the first submission
+            # of the contribution (version 1) when the agent is not the corresponding author at
+            # the moment of the import.
+            #
+            # The problem has to be managed only for the autor of the version 1 because the other coauthors are
+            # added with the actions SelectCoauthorAction which are already managed
+            #
+            # example of SYS_ASS_ED used after reset editor but not in version 1
+            # where the agent is not an author but an eo in charge and then must not
+            # be added to all authors: JCOM_028A_1024
+
+            if author != self.article.correspondence_author:
+                order = len(self.article.authors.all()) + 1
+
+                submission_models.ArticleAuthorOrder.objects.create(
+                    article=self.article,
+                    author=author,
+                    order=order,
+                )
+                if not author.check_role(self.journal, "author", staff_override=False):
+                    author.add_account_role("author", self.journal)
+                self.article.authors.add(author)
+                self.article.save()
 
     def check_and_fix_all_reminder(self):
         """Check and fix wjapp reminder for SYS_ASS_ED if exists in wjs"""
@@ -4078,6 +4157,14 @@ class SelectCoauthorAction(BaseActionManager):
                 coauthor.add_account_role("author", self.journal)
             self.article.authors.add(coauthor)
             self.article.save()
+            order = len(self.article.authors.all())
+            submission_models.ArticleAuthorOrder.objects.get_or_create(
+                article=self.article,
+                author=coauthor,
+                defaults={
+                    "order": order,
+                },
+            )
 
         return
 
@@ -4113,9 +4200,28 @@ class SwapCorrespondenceAuthor(BaseActionManager):  # noqa N801
         )
         logger.debug(f"swap corresponding author, new: {new_author}")
         assert new_author in self.article.authors.all()
-        self.article.owner = new_author
-        self.article.correspondence_author = new_author
-        self.article.save()
+
+        # when the action swaps between the past author of version 1
+        # added at first action SYS_ASS_ED and the current correspondence
+        # author set at create article, there is nothing to do, also the
+        # order is already correct.
+        # If the two users are different, also the orders are swapped.
+        if new_author != self.article.correspondence_author:
+            self.article.owner = new_author
+            aao_new_author = submission_models.ArticleAuthorOrder.objects.get(
+                article=self.article,
+                author=new_author,
+            )
+            submission_models.ArticleAuthorOrder.objects.filter(
+                article=self.article,
+                author=self.article.correspondence_author,
+            ).update(order=aao_new_author.order)
+
+            aao_new_author.order = 0
+            aao_new_author.save()
+
+            self.article.correspondence_author = new_author
+            self.article.save()
 
     def read_new_author_data(self):
         """Read new author data."""
