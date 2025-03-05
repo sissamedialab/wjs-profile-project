@@ -70,6 +70,7 @@ from .models import ArticleWorkflow, LatexPreamble, Message
 from .permissions import (
     has_typesetter_role_by_article,
     is_article_author,
+    is_article_supervisor,
     is_article_typesetter,
 )
 from .utils import (
@@ -556,7 +557,9 @@ class HandleCreateSupplementaryFile:
         return file_instance
 
     def _check_typesetter_condition(self):
-        return is_article_typesetter(self.article.articleworkflow, self.user)
+        return is_article_typesetter(self.article.articleworkflow, self.user) or is_article_supervisor(
+            self.article.articleworkflow, self.user
+        )
 
     def run(self):
         with transaction.atomic():
@@ -583,7 +586,9 @@ class HandleDeleteSupplementaryFile:
     user: Account
 
     def _check_typesetter_condition(self):
-        return is_article_typesetter(self.article.articleworkflow, self.user)
+        return is_article_typesetter(self.article.articleworkflow, self.user) or is_article_supervisor(
+            self.article.articleworkflow, self.user
+        )
 
     # We don't check for archival model references, we disassociate the file from the article. In the article's status
     # page we still show a list of supplementary files at acceptance.
