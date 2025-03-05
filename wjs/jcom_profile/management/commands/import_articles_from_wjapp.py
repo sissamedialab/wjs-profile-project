@@ -38,6 +38,7 @@ from plugins.wjs_review.logic import (
     HandleDecision,
     HandleEditorDeclinesAssignment,
     OpenAppeal,
+    PermissionAssignment,
     Reminder,
     SubmitReview,
     SupervisorChangeEditorAssignment,
@@ -77,6 +78,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
+from wjs.jcom_profile.import_utils import set_author_country
 from wjs.jcom_profile.management.commands.import_from_drupal import (
     JOURNALS_DATA,
     NON_PEER_REVIEWED,
@@ -175,6 +177,14 @@ class Command(BaseCommand):
         # messages/correspondence.
         self.imported_document_layer_cod_list = []
 
+        # structure of the global nested dict used to save the associations for EDREP, REREP, CVLETT
+        # ("documentLayerCod1" is the primary key of one Document Layer):
+        #
+        # {...
+        #  "documentLayerCod1": {"obj": wjs_obj, "type": "REREP",}
+        # ...}
+        self.imported_doclayer_check_visibility = {}
+
         if not preprintid:
             return
         setting = f"WJAPP_{self.journal.code.upper()}_IMPORT_CONNECTION_PARAMS"
@@ -219,11 +229,14 @@ class Command(BaseCommand):
         # create article and section
         article, preprintid, main_author = self.create_article(current_version_row)
 
-        # TODO: get article last saved country and profession
-        #       necessary conversion from wjapp country and profession tables.
-        #       see import utilities for country mapping
+        # get article last saved country and profession
         #
-        # profession
+        # country conversion:
+        #
+        # taken from import_utils the country mapping conversion from wjapp to wjs
+        # (added one: Iran)
+        #
+        # profession conversion:
         #
         # wjs
         # TBV: actual valus in wjs are 2,3,4 seems out of range of jcom_profile models -> PROFESSIONS (0-3)
@@ -240,13 +253,24 @@ class Command(BaseCommand):
         #
         # profession map: wjapp professionCod -1
 
-        profession = self.read_document_author_data(document_cod)
+        author_data = self.read_document_author_data(document_cod)
 
-        if profession:
-            main_author.jcomprofile.profession = profession["professionCod"] - 1
+        # main author profession from article
+        if author_data:
+            main_author.jcomprofile.profession = author_data["professionCod"] - 1
             main_author.jcomprofile.save()
             main_author.save()
 
+            # main author country from article
+            set_author_country(
+                author=main_author,
+                data={
+                    "userCod": f"Account {main_author.id}",
+                    "countryName": author_data["country_name"],
+                },
+            )
+
+        # article section
         self.set_section(article, section)
 
         # article keywords
@@ -309,6 +333,7 @@ class Command(BaseCommand):
                         importfiles=self.options["importfiles"],
                         imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                         action_triggers_import_files=False,
+                        imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
                     ).run()
                 else:
                     # ADMIN_RESETS_ED is skipped, only loaded the message as correspondence
@@ -357,6 +382,15 @@ class Command(BaseCommand):
             ).run()
 
         mark_all_messages_read(article)
+
+        ImportPermissionsManager(
+            connection=self.connection,
+            session=session,
+            journal=self.journal,
+            preprintid=preprintid,
+            article=article,
+            imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
+        ).run()
 
         self.debug_list_article_files_imported(article)
         self.debug_list_reminder(article)
@@ -442,21 +476,24 @@ AND d.preprintId = %(preprintid)s
         even for earlier versions where the corresponding-author was someone else
         """
 
-        cursor_profession = self.connection.cursor(dictionary=True)
-        query_profession = """
+        cursor_author_data = self.connection.cursor(dictionary=True)
+        query_author_data = """
 SELECT
-professionCod
+da.professionCod,
+da.countryCod,
+c.name AS country_name
 FROM
-Document_Author
+Document_Author da
+LEFT JOIN Country c using (countryCod)
 WHERE
         documentCod=%(document_cod)s
 ORDER BY documentAuthorCod DESC
 LIMIT 1
 """
-        cursor_profession.execute(query_profession, {"document_cod": document_cod})
-        profession = cursor_profession.fetchone()
-        cursor_profession.close()
-        return profession
+        cursor_author_data.execute(query_author_data, {"document_cod": document_cod})
+        author_data = cursor_author_data.fetchone()
+        cursor_author_data.close()
+        return author_data
 
     def read_article_keywords(self, version_cod):
         """Read article keywords."""
@@ -613,6 +650,13 @@ ORDER BY ah.actionDate
                 f.file.delete()
                 f.delete()
 
+            # delete PA for CVLETT EDREP
+            PermissionAssignment.objects.filter(
+                object_id=err.editor_decision.pk,
+            ).delete()
+            PermissionAssignment.objects.filter(
+                object_id=err.pk,
+            ).delete()
             err.delete()
 
         # delete WorkflowReviewAssignment's files (reviewers' report files)
@@ -620,6 +664,10 @@ ORDER BY ah.actionDate
             if wra.review_file:
                 wra.review_file.unlink_file()
                 wra.review_file.delete()
+            # delete PA for REREP PA
+            PermissionAssignment.objects.filter(
+                object_id=wra.pk,
+            ).delete()
 
         WorkflowReviewAssignment.objects.filter(article=article).delete()
 
@@ -679,6 +727,9 @@ ORDER BY ah.actionDate
         ReviewAssignment.objects.filter(article__id=article.id).delete()
         EditorAssignment.objects.filter(article__id=article.id).delete()
         submission_models.KeywordArticle.objects.filter(article__id=article.id).delete()
+        PermissionAssignment.objects.filter(
+            object_id=article.articleworkflow.id,
+        ).delete()
         article.articleworkflow.delete()
 
         submission_models.ArticleAuthorOrder.objects.filter(article__id=article.id).delete()
@@ -1044,6 +1095,10 @@ ORDER BY ah.actionDate
 # the import of the user notes is done when is imported the user account
 user_notes_already_managed_in_this_article = []
 
+# global variable which contains the association wjapp usercod, and wjs account object
+# already imported: {...("usercod1": "account1" ), ...}
+already_imported_users = {}
+
 #
 # global functions
 #
@@ -1109,6 +1164,14 @@ def account_get_or_create_check_correspondence(
 
     # ex: source: jcom, jcomal, prophy, ...
     # Check if we know this person form some other journal or by email
+
+    # uses the global variable as "cache"
+    # if the wjapp user_cod is in this global variable, it is already
+    # been checked and found by this funcion for this article (the journal is fixed for the
+    # current imported article). The execution of this management command only imports one article.
+    if user_cod in already_imported_users.keys():
+        logger.debug(f"found cached user: {already_imported_users[user_cod]}")
+        return already_imported_users[user_cod]
 
     if imported_email == "jcom_hidden_user@jcom.sissa.it":
         # using the wjapp userCod in the email the same hidden user is identified
@@ -1183,6 +1246,8 @@ def account_get_or_create_check_correspondence(
             logger.debug(f"saved {len(usernotes_rows)} usernotes for {account.id} {account.full_name()}")
             account.save()
 
+    # saves the account in the global variable used as cache
+    already_imported_users[user_cod] = account
     return account
 
 
@@ -1240,6 +1305,230 @@ def truncate_with_ellipsis(s):
 #
 # End global variables and functions section
 #
+
+
+@dataclass
+class ImportPermissionsManager:
+    """Data class that manages the import of all the visibility permissions from wjapp.
+
+    In wjapp when EDREP, REREP or CVLETT are created,
+    several rows are added to User_Rights:
+    - one for the "author" for the document (userType=author; e.g. for a REREP, the reviewer)
+    - one for the "recipient" of the document (userType=recipient; e.g. for a REREP, the editor)
+    - several other rows with userType=reader for other actors
+      (e.g., for CVLETT, one row for each reviewer)
+
+    User_Right thus links a user, a document(layer), and his visibility permissions.
+
+    Mapping with wjs permissions types:
+    in wjapp User_Rights:
+    - when userType != "reader" for document-layers of type EDREP|REREP -> default permissions - nothing to do
+    - when userType="reader", authorNameVisibility=0  (author name not visible) -> NO_NAMES
+    - when userType="reader", authorNameVisibility=1  (author name visible) -> ALL
+    - NB: for CVLETT, when the row userType="reader" is _missing_ -> DENY
+
+    Objects interested:
+    - CVLETT
+      - data stored in EditorRevisionRequest.author_note/cover_letter_file
+      - non-default permissions stored:
+        - for reviewers as PermissionAssignment; see specs#1305
+        - for (new) editors, as PermissionAssignment
+
+    - EDREP
+      - data stored in EditorDecision.decision_editor_report (referenced by ERR.editor_decision)
+      - non-default permissions stored as PermissionAssignments with target=EditorDecision
+
+    - REREP
+      - data stored in WorflowReviewAssignment.report_form_answers
+        which is a json field, and contains:
+        - editor_cover_letter (cover letter REREP)
+        - author_review (text REREP)
+      - non-default permissions stored as PermissionAssignments
+
+     Implementation:
+
+     a) during the action import, when EDREP REREP CVLETT are saved, we keep a global nested dict with
+        (documentLayerCod, {wjs_obj, type})
+     b) at the end of article import:
+        1. we read from wjapp the list of the extra permissions for the EDREP REREP CVLETT of the article
+        2. the extra permission is set for each type
+           CVLETT needs also to be set as DENY if the referee does not appear in the visibility rights of wjapp
+           because this case means that the visibility right has been removed
+     c) during the article import we also keep a global dict with (userCod, account_obj) to optimize the article
+        users check. This dict is updated (and used as cache) by the global
+        function account_get_or_create_check_correspondence()
+    """
+
+    connection: mariadb.Connection
+    session: requests.sessions.Session
+    journal: Journal
+    preprintid: str
+    article: submission_models.Article
+    imported_doclayer_check_visibility: dict
+
+    def run(self):
+        """Import wjapp permissions for the imported article."""
+
+        # paper that can be used as import test: JCOM_001A_0924
+
+        for key, value in self.imported_doclayer_check_visibility.items():
+            logger.debug(
+                f"import permission documentLayerCod {key} class: {value['obj'].__class__} type: {value['type']}"
+            )
+
+            # from obj define content_type_id
+            content_type = ContentType.objects.get_for_model(value["obj"])
+
+            # read existing wjapp permission "reader" for documentLayerCod
+            readers_rows = self.read_wjapp_permissions(key)
+            logger.debug(f"found wjapp user rights readers: {readers_rows}")
+            readers = []
+            for r in readers_rows:
+                # get reader account
+                account = account_get_or_create_check_correspondence(
+                    self.journal.code.lower(),
+                    r["userCod"],
+                    r["lastname"],
+                    r["firstname"],
+                    r["email"],
+                    r["privacy"],
+                    self.connection,
+                )
+                readers.append(account)
+
+            # Manage reviewers which do not have visibility rights on cover letter
+            # in wjapp the visibility right for this user has been removed
+            # (i.e. it is a "missing" row in User_Rights)
+            #
+            # the ERR contains the review round of the version before the author revision.
+            # The next review round is created by the logic of AuthorHandleRevision.
+            #
+            # Foreach wjs reviewer of the wra related to the new author version, we set
+            # permission to DENY if in wjapp is not reader of the imported CVLETT
+            if value["type"] in ("CVLETT"):
+                revision_review_round = value["obj"].review_round.round_number + 1
+                rr = ReviewRound.objects.get(article=self.article, round_number=revision_review_round)
+                for wra in WorkflowReviewAssignment.objects.filter(article=self.article, review_round=rr):
+                    if wra.reviewer not in readers:
+                        # deny permission for cvlett
+                        permission_type = PermissionAssignment.PermissionType.DENY
+                        permission_secondary_type = PermissionAssignment.PermissionType.DENY
+                        pa, created = PermissionAssignment.objects.get_or_create(
+                            content_type_id=content_type.pk,
+                            object_id=value["obj"].pk,
+                            user=wra.reviewer,
+                            defaults={
+                                "permission": permission_type.value,
+                                "permission_secondary": permission_secondary_type.value,
+                            },
+                        )
+                        if not created:
+                            # if existing only the permission secondary is changed
+                            pa.permission_secondary = permission_secondary_type.value
+                            pa.save()
+
+            # add rights from wjapp present in User_Rights
+            for reader_account in readers:
+
+                # set wjs permission for the reader with PermissionAssignment get or create
+                # i.e. JCOM_001A_0924 for CVLETT reader
+                if value["type"] in ("REREP", "EDREP"):
+                    if r["authorNameVisibility"]:
+                        permission_type = PermissionAssignment.PermissionType.ALL
+                    else:
+                        permission_type = PermissionAssignment.PermissionType.NO_NAMES
+
+                    # sets only primary permission if existing or not
+                    pa, created = PermissionAssignment.objects.get_or_create(
+                        content_type_id=content_type.pk,
+                        object_id=value["obj"].pk,
+                        user=reader_account,
+                        defaults={
+                            "permission": permission_type.value,
+                        },
+                    )
+                    if not created:
+                        pa = permission_type.value
+                        pa.save()
+
+                elif value["type"] in ("CVLETT"):
+
+                    # NOTE: in wjapp the first versions has no cover letter, not necessary
+                    # to manage the case (the cover letter in first version would be related
+                    # to Article/ArticleWorkflow object)
+
+                    # NOTE: this does not change the editor report PA for the user which are
+                    # defined on the object EditorRevisionRequest.editor_decision
+
+                    # set permission only for cvlett
+                    permission_type = PermissionAssignment.PermissionType.DENY
+
+                    # EditorRevisionRequest secondary permission manages the author cover letter
+                    permission_secondary_type = PermissionAssignment.PermissionType.ALL
+
+                    # TBV: the permission is created both for editor or reviewer user because if already exists
+                    # is only updated, otherwise is created, but coherently with the permissions logic.
+                    # In the case that the user is the reviewer and not the new editor, could be *not* necessary
+                    # to set the permission (set by deafult).
+                    pa, created = PermissionAssignment.objects.get_or_create(
+                        content_type_id=content_type.pk,
+                        object_id=value["obj"].pk,
+                        user=reader_account,
+                        defaults={
+                            "permission": permission_type.value,
+                            "permission_secondary": permission_secondary_type.value,
+                        },
+                    )
+                    if not created:
+                        # if existing only the permission secondary is changed
+                        pa.permission_secondary = permission_secondary_type.value
+                        pa.save()
+
+                # check which permissions have been set for the object
+                custom_permission = PermissionAssignment.objects.filter(
+                    user=reader_account,
+                    content_type=content_type,
+                    object_id=value["obj"].pk,
+                )
+                for cp in custom_permission:
+                    logger.debug(
+                        f"PA existing - user: {cp.user} CT: {cp.content_type} obj: {cp.object_id} "
+                        f"primary: {cp.permission} secondary: {cp.permission_secondary}"
+                    )
+
+    def read_wjapp_permissions(self, document_layer_cod):
+        """Read the "reader" rows for the document_layer_cod."""
+
+        cursor_all_reader_rights = self.connection.cursor(
+            buffered=True,
+            dictionary=True,
+        )
+        query_all_reader_rights = """
+SELECT
+ur.documentLayerCod,
+ur.userCod,
+ur.userType,
+ur.authorNameVisibility,
+u.lastname,
+u.firstname,
+u.email,
+u.privacy
+FROM User_Rights ur
+LEFT JOIN User u USING (userCod)
+WHERE
+    ur.documentLayerCod = (%(document_layer_cod)s)
+AND ur.userType='reader'
+"""
+        cursor_all_reader_rights.execute(
+            query_all_reader_rights,
+            {
+                "document_layer_cod": document_layer_cod,
+            },
+        )
+
+        all_reader_rights = cursor_all_reader_rights.fetchall()
+        cursor_all_reader_rights.close()
+        return all_reader_rights
 
 
 @dataclass
@@ -1606,6 +1895,7 @@ class BaseActionManager:
     importfiles: bool
     imported_document_layer_cod_list: list
     action_triggers_import_files: bool
+    imported_doclayer_check_visibility: dict
     """flag used when not all actions of a family have to import files"""
     url_base: str = getattr(settings, "WJAPP_JCOM_BASE_URL", None)
 
@@ -3367,10 +3657,18 @@ ORDER BY dl.submissionDate
                 submit_final=submit_final,
                 request=request,
             )
-            submit.run()
+            wra = submit.run()
 
             self.imported_document_layer_cod_list.append(wjapp_report.get("documentLayerCod"))
             logger.debug(f"append referee report message {self.imported_document_layer_cod_list=}")
+
+            # WorflowReviewAssignment.report_form_answers is a json containing:
+            # - editor_cover_letter (cover letter REREP)
+            # - author_review (text REREP)
+            self.imported_doclayer_check_visibility[wjapp_report.get("documentLayerCod")] = {
+                "obj": wra,
+                "type": "REREP",
+            }
 
         self.check_and_fix_all_reminder()
 
@@ -3537,6 +3835,15 @@ ORDER BY dl.submissionDate
 
         self.imported_document_layer_cod_list.append(wjapp_editor_report.get("documentLayerCod"))
 
+        # EditorRevisionRequest.editor_decision contains the editor report
+        # (wjapp editor cover letter + wjapp editor report)
+        # if revision is not required, no need to check extra permissions in wjapp
+        if revision:
+            self.imported_doclayer_check_visibility[wjapp_editor_report.get("documentLayerCod")] = {
+                "obj": revision.editor_decision,
+                "type": "EDREP",
+            }
+
         self.check_and_fix_all_reminder()
 
         return revision
@@ -3650,11 +3957,17 @@ class AuthorSubmitRevisionAction(BaseActionManager):
                 user=self.article.correspondence_author,
                 request=request,
             )
-            service.run()
+            revision = service.run()
 
         self.article.refresh_from_db()
 
         self.imported_document_layer_cod_list.append(author_note.get("documentLayerCod"))
+
+        # EditorRevisionRequest.author_note contains the author cover letter
+        self.imported_doclayer_check_visibility[author_note.get("documentLayerCod")] = {
+            "obj": revision,
+            "type": "CVLETT",
+        }
 
         if self.importfiles:
             self.import_files()
@@ -4238,7 +4551,7 @@ class PM_PUBLISHES(DeclareReadyForPublication):  # noqa N801
 
     def __post_init__(self):
         """Set the specific data for eo agent, used typesetter"""
-        typesetting_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
         assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
         self.ready_for_publication_agent = typesetting_assignment.typesetter
 
@@ -4249,7 +4562,7 @@ class TYP_PUBLISHES(DeclareReadyForPublication):  # noqa N801
 
     def __post_init__(self):
         """Set the specific data typesetter agent"""
-        typesetting_assignment = self.article.articleworkflow.latest_typesetting_assignment()
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
         assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
         self.ready_for_publication_agent = typesetting_assignment.typesetter
 

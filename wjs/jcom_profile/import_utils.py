@@ -26,6 +26,7 @@ COUNTRIES_MAPPING = {
     "United Kingdom of Great Britain and Northern Ireland (the)": "United Kingdom",
     "United States of America (the)": "United States",
     "Taiwan": "Taiwan, Province of China",
+    "Iran (Islamic Republic of)": "Iran, Islamic Republic of",
 }
 
 JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}
@@ -79,17 +80,19 @@ def query_wjapp_by_pubid(pubid, url="https://jcom.sissa.it/jcom/services/jsonpub
     return response.json()
 
 
-def set_author_country(author: Account, json_data):
+def set_author_country(author: Account, data: dict):
     """Set the author's country according to wjapp info."""
-    country_name = json_data["countryName"]
+    country_name = data["countryName"]
     if country_name is None:
-        logger.warning("No country for %s", json_data["userCod"])
+        logger.warning("No country for %s", data["userCod"])
         return
     country_name = COUNTRIES_MAPPING.get(country_name, country_name)
     try:
         country = Country.objects.get(name=country_name)
     except Country.DoesNotExist:
-        logger.error("""Unknown country "%s" for %s""", country_name, json_data["userCod"])
+        logger.error("""Unknown country "%s" for %s""", country_name, data["userCod"])
+        return
+
     if author.country:
         if author.country != country:
             logger.error(f"Different country {country} for author {author.email} ({author.country}).")
