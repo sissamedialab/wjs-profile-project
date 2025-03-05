@@ -16,7 +16,7 @@ from django.utils.translation import gettext_lazy as _
 from easy_select2.widgets import Select2Multiple
 from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
-from journal.models import Issue
+from journal.models import ArticleOrdering, Issue
 from submission import models as submission_models
 from submission.forms import (
     ArticleInfoSubmit,
@@ -553,6 +553,16 @@ class SelectSpecialIssueForm(SelectIssueForm):
         widget=forms.RadioSelect(),
         label=_("Choose the issue of publication"),
     )
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        if not self.cleaned_data["projected_issue"]:
+            # Reset all links to any previously selected issue and clear the article primary isssue
+            ArticleOrdering.objects.filter(article=obj).delete()
+            obj.primary_issue = None
+        else:
+            obj.primary_issue = self.cleaned_data["projected_issue"]
+        return obj
 
 
 class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
