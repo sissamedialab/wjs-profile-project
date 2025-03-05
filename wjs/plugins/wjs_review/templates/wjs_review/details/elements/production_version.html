@@ -8,14 +8,14 @@
   </h2>
   <div id="collapse-production-{{ version.number }}" class="accordion-collapse collapse{% if version.latest or version == pending_proofs_version %} show{% endif %}" aria-labelledby="production-{{ version.number }}">
     <div class="accordion-body d-flex flex-column gap-4">
-      {% if version.has_typesetter_files or version.has_proofing_files %}
+      {% if version.has_typesetter_files or version.has_proofing_files_or_notes %}
         <div class="vstack">
           {% if workflow|is_user_article_typesetter:request.user or workflow|is_user_article_supervisor:request.user %}
             {% include "wjs_review/details/elements/production_typesetting.html" %}
             <hr>
             {% include "wjs_review/details/elements/production_galleyproofing.html" %}
           {% endif %}
-          {% if workflow|is_user_article_author:request.user and version.has_proofing_files %}
+          {% if workflow|is_user_article_author:request.user and version.has_proofing_files_or_notes %}
             {% include "wjs_review/details/elements/production_galleyproofing.html" %}
           {% endif %}
         </div>
