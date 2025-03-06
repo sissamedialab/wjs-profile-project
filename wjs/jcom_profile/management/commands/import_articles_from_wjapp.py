@@ -706,6 +706,13 @@ ORDER BY ah.actionDate
             f.unlink_file()
             f.delete()
 
+        if not ArticleWorkflow.objects.filter(article=article).exists():
+            ArticleWorkflow.objects.create(article=article)
+            logger.critical(
+                f"created ArticleWorkflow during reset article {article}, "
+                f"probably missing due to a crashed import, please check"
+            )
+
         # delete  ArticleWorkflow's files
         for f in article.articleworkflow.supplementary_files_at_acceptance.all():
             f.unlink_file()
@@ -812,6 +819,11 @@ ORDER BY ah.actionDate
         )
 
         article.articleworkflow.eo_in_charge = eo_in_charge
+
+        article.articleworkflow.production_flag_no_queries = False
+        article.articleworkflow.production_flag_no_checks_needed = False
+        article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
+
         article.articleworkflow.save()
 
         identifiers_models.Identifier.objects.get_or_create(
