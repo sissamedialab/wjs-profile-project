@@ -399,6 +399,7 @@ def assigned_to_typesetter_article_with_files_to_typeset(
     fake_request: HttpRequest,
     typesetter: Account,
     zip_with_tex_with_query,
+    mock_jcomassistant_post,
 ) -> Article:
     """Return an assigned to typesetter article with files to typeset."""
     return _assigned_to_typesetter_article_with_files_to_typeset(

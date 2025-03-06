@@ -557,20 +557,6 @@ def test_wjs_toggle_publishable(assigned_to_typesetter_article_with_files_to_typ
 
 
 @pytest.mark.django_db
-@patch("plugins.wjs_review.views__production.TypesetterTestsGalleyGeneration")
-def test_wjs_typesetter_galley_generation(
-    galley_generation, assigned_to_typesetter_article_with_files_to_typeset, typesetter, client
-):
-    client.force_login(typesetter)
-    assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
-    response = client.get(
-        f"/{assigned_to_typesetter_article_with_files_to_typeset.journal.code}/"
-        f"plugins/wjs-review-articles/galley_generation/{assignment.pk}/"
-    )
-    assert response.status_code == 200
-
-
-@pytest.mark.django_db
 def test_wjs_edit_permission(assigned_article, typesetter, eo_user, client):
     client.force_login(eo_user)
     response = client.get(

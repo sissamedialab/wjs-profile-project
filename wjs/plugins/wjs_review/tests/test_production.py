@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 import requests
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
@@ -421,20 +420,13 @@ def test_typ_marks_unpublishable(
 def test_typesetter_galley_generation(
     assigned_to_typesetter_article_with_files_to_typeset: Article,
     client: Client,
-    mock_jcomassistant_post,
     fake_request: HttpRequest,
     caplog,
 ):
     """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
     article = assigned_to_typesetter_article_with_files_to_typeset
     typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
-    url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
-    response = client.post(url)
-
-    assert mock_jcomassistant_post.call_args.kwargs["url"] == settings.JCOMASSISTANT_URL
-    assert response.status_code == 302
-    assert response.url == reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.pk})
 
     galleys_created = typesetting_assignment.galleys_created.all()
     assert galleys_created.count() == 3
@@ -585,27 +577,27 @@ def test_automatic_preamble_generation(
 
 @pytest.mark.django_db
 def test_production_flag_galleys_ok(
-    assigned_to_typesetter_article_with_files_to_typeset: Article,
+    assigned_to_typesetter_article: Article,
     client: Client,
-    mock_jcomassistant_post,
     zip_with_tex_without_query,
+    mock_jcomassistant_post,
 ):
     """Test the production flag galleys_ok correctly indicates the status of the galleys."""
-    article = assigned_to_typesetter_article_with_files_to_typeset
+    article = assigned_to_typesetter_article
     typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
+    assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED.value
 
-    # Test that when uploading new files to typeset the flag is reset to NOT_TESTED
-    article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED.value
+    # This is needed because we only have the NOT_TESTED value during the time period after the file is
+    # uploaded but before the galleys are generated (and the galley generation process is asynchronous)
+    def test_async_flag(func):
+        assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED.value
+        return func
+
+    TypesetterTestsGalleyGeneration.run = test_async_flag(TypesetterTestsGalleyGeneration.run)
+
     url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
     client.post(url, data={"file_to_upload": zip_with_tex_without_query(article)})
-    article.refresh_from_db()
-    assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED.value
-
-    # Test that when the archive conditions are met the flag is set to TEST_PASSED
-    url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
-    client.force_login(typesetting_assignment.typesetter)
-    client.post(url)
     article.refresh_from_db()
     assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED.value
 
@@ -615,9 +607,9 @@ def test_production_flag_galleys_ok(
         "plugins.wjs_review.logic__production.AttachGalleys._check_conditions",
         return_value=(False, "I am a teapot"),
     ):
-        url = reverse("wjs_typesetter_galley_generation", kwargs={"pk": typesetting_assignment.pk})
+        url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
-        response = client.post(url)
+        response = client.post(url, data={"file_to_upload": zip_with_tex_without_query(article)})
         article.refresh_from_db()
         assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_FAILED.value
 

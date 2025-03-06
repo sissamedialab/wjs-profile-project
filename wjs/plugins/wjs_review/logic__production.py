@@ -48,6 +48,7 @@ from submission.models import (
     Article,
 )
 from utils.logger import get_logger
+from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import import_utils
@@ -389,6 +390,29 @@ class RequestProofs:
             return proofing_assignment
 
 
+def typesettertestsgalleygeneration_wrapper(
+    assignment_id: int,
+):
+    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for async processing."""
+    # See also logic__production.finishpublication_wrapper().
+    assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
+    request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
+
+    try:
+        logic_instance = TypesetterTestsGalleyGeneration(
+            assignment=assignment,
+            request=request,
+        )
+        logic_instance.run()
+    except Exception as e:
+        communication_utils.notify_async_event(
+            message_subject="Errors during galley generation",
+            message_body=str(e),
+            recipients=[assignment.typesetter],
+            article=assignment.round.article,
+        )
+
+
 @dataclasses.dataclass
 class UploadFile:
     """Allow the typesetter to upload typesetted files."""
@@ -446,6 +470,14 @@ class UploadFile:
                 self._look_for_queries_in_archive()
             except Exception as e:
                 raise ValidationError(str(e)) from e
+        try:
+            async_task(
+                typesettertestsgalleygeneration_wrapper,
+                self.assignment.pk,
+                task_name="test-galley-generation",
+            )
+        except Exception as e:
+            raise ValidationError(str(e)) from e
         return self.assignment.round.article
 
 

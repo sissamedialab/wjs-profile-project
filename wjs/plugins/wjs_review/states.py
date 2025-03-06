@@ -204,6 +204,13 @@ def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow
     return not typesetting_assignment.files_to_typeset.exists()
 
 
+def galley_generation_in_progress(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return true if the galley generation test started and is not completed yet."""
+    files_to_typeset_loaded = workflow.get_latest_typesetting_assignment(completed=False).files_to_typeset.exists()
+    galley_not_tested = workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    return files_to_typeset_loaded and galley_not_tested
+
+
 @dataclasses.dataclass
 class ArticleAction:
     """An action that can be done on an Article."""
@@ -988,15 +995,6 @@ class TypesetterSelected(BaseState):
             is_modal=True,
         ),
         ArticleAction(
-            permission=permissions.is_article_typesetter,
-            name="tests galley generation",
-            label="Test galley generation",
-            view_name="wjs_typesetter_galley_generation",
-            disabled=galleys_cannot_be_tested,
-            custom_get_url=get_url_with_typesetting_assignment_pk,
-            is_post=True,
-        ),
-        ArticleAction(
             permission=permissions.is_article_typesetter_or_eo,
             name="CRUD attachments",
             label="Manage supplementary material",
@@ -1018,6 +1016,7 @@ class TypesetterSelected(BaseState):
             label="Send for proofreading",
             view_name="wjs_ready_for_proofreading",
             custom_get_url=get_url_with_typesetting_assignment_pk,
+            disabled=galley_generation_in_progress,
             confirm=_("Send typeset paper to author for proofreading?"),
             is_post=True,
         ),
