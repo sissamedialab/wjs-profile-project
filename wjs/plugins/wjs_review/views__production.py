@@ -15,13 +15,11 @@ from django.views.generic import DetailView, FormView, TemplateView, UpdateView,
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
-from utils.management.commands.test_fire_event import create_fake_request
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin
 from wjs.jcom_profile.utils import render_template_from_setting
 
-from . import communication_utils
 from .forms__production import (
     EOSendBackToTypesetterForm,
     EsmFileForm,
@@ -43,7 +41,6 @@ from .logic__production import (
     ReadyForPublication,
     RequestProofs,
     TogglePublishableFlag,
-    TypesetterTestsGalleyGeneration,
     finishpublication_wrapper,
 )
 from .mixins import AuthenticatedUserPassesTest
@@ -160,6 +157,10 @@ class TypesetterUploadFiles(AuthenticatedUserPassesTest, UpdateView):
             return self.form_invalid(form)
         response = HttpResponse("ok")
         response["HX-Redirect"] = self.get_success_url()
+        messages.success(
+            request=self.request,
+            message=_("Galley generation started - You will receive an email after it is completed."),
+        )
         return response
 
     def get_form_kwargs(self):
@@ -529,79 +530,6 @@ class ReadyForPublicationView(AuthenticatedUserPassesTest, TemplateView):
                 kwargs={"pk": self.object.pk},
             ),
         )
-
-
-def typesettertestsgalleygeneration_wrapper(
-    assignment_id: int,
-):
-    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for async processing."""
-    # See also logic__production.finishpublication_wrapper().
-    assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
-    request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
-
-    try:
-        logic_instance = TypesetterTestsGalleyGeneration(
-            assignment=assignment,
-            request=request,
-        )
-        logic_instance.run()
-    except Exception as e:
-        communication_utils.notify_async_event(
-            message_subject="Errors during galley generation",
-            message_body=str(e),
-            recipients=[assignment.typesetter],
-            article=assignment.round.article,
-        )
-
-
-class GalleyGenerationView(BaseRelatedViewsMixin, TemplateView):
-    """View to allow the typsetter to generate Galleys."""
-
-    title = _("Generate Galleys")
-    model = TypesettingAssignment
-    template_name = "wjs_review/details/typesetter_generated_galleys.html"
-    error = ""
-
-    def load_initial(self, request, *args, **kwargs):
-        super().load_initial(request, *args, **kwargs)
-        self.object = self.model.objects.get(pk=self.kwargs["pk"])
-        self.articleworkflow = self.object.round.article.articleworkflow
-
-    def test_func(self):
-        return is_article_typesetter(self.articleworkflow, self.request.user)
-
-    @property
-    def breadcrumbs(self) -> List["BreadcrumbItem"]:
-        from .custom_types import BreadcrumbItem
-
-        return [
-            BreadcrumbItem(
-                url=reverse("wjs_article_details", kwargs={"pk": self.articleworkflow.pk}), title=self.articleworkflow
-            ),
-            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
-        ]
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["workflow"] = self.articleworkflow
-        context["error"] = self.error
-        return context
-
-    def post(self, request, *args, **kwargs):
-        try:
-            async_task(
-                typesettertestsgalleygeneration_wrapper,
-                self.kwargs["pk"],
-                task_name="test-galley-generation",
-            )
-        except Exception as e:
-            self.error = e
-            return super().get(request, *args, **kwargs)
-        messages.success(
-            request=self.request,
-            message=_("Galley generation started - You will receive an email after it is completed."),
-        )
-        return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.articleworkflow.pk}))
 
 
 class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):

@@ -69,7 +69,6 @@ from .views__production import (  # noqa F401
     DownloadRevisionFiles,
     EOSendBackToTypesetterView,
     FinishPublicationView,
-    GalleyGenerationView,
     ListAnnotatedFilesView,
     ListSupplementaryFileView,
     ReadyForProofreadingView,
@@ -267,7 +266,6 @@ urlpatterns = [
     ),
     path("annotated_files/<int:pk>/", ListAnnotatedFilesView.as_view(), name="wjs_list_annotated_files"),
     path("paper_publishable/<int:pk>/", TogglePublishableFlagView.as_view(), name="wjs_toggle_publishable"),
-    path("galley_generation/<int:pk>/", GalleyGenerationView.as_view(), name="wjs_typesetter_galley_generation"),
     path(
         "article/<int:pk>/permissions/<int:user_id>/",
         EditUserPermissions.as_view(),
