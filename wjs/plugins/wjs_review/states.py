@@ -1023,21 +1023,9 @@ class TypesetterSelected(BaseState):
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
-            name="Contact Author",
-            label="Contact Author",
-            view_name="wjs_message_write_to_auwm",
-        ),
-        ArticleAction(
-            permission=permissions.is_article_typesetter,
             name="Open Gitlab issue",
             label="Open Gitlab issue",
             view_name="WRITEME!",
-        ),
-        ArticleAction(
-            permission=permissions.is_article_author,
-            name="write_to_typesetter",
-            label="Write to typesetter",
-            view_name="wjs_message_write_to_typ",
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter_and_paper_can_go_rfp,
@@ -1130,24 +1118,12 @@ class Proofreading(BaseState):
             condition=conditions.needs_extra_article_information,
         ),
         ArticleAction(
-            permission=permissions.is_article_author,
-            name="write_to_typesetter",
-            label="Write to typesetter",
-            view_name="wjs_message_write_to_typ",
-        ),
-        ArticleAction(
             permission=permissions.is_article_author_and_paper_can_go_rfp,
             name="author_deems_paper_ready_for_publication",
             label="Paper is ready for publication",
             view_name="wjs_review_rfp",
             condition=can_be_set_rfp_wrapper,
             is_post=True,
-        ),
-        ArticleAction(
-            permission=permissions.is_article_typesetter,
-            name="Contact Author",
-            label="Contact Author",
-            view_name="wjs_message_write_to_auwm",
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter,
