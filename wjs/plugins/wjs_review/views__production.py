@@ -299,7 +299,7 @@ class CreateSupplementaryFileView(HtmxMixin, AuthenticatedUserPassesTest, FormVi
     def test_func(self) -> bool:
         """Typesetter can upload files."""
         return is_article_typesetter(self.articleworkflow, self.request.user) or is_article_supervisor(
-            self.object, self.request.user
+            self.articleworkflow, self.request.user
         )
 
     def get_form_kwargs(self):
