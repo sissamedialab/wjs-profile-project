@@ -532,7 +532,11 @@ Thank you and regards,
 {{ journal.code }} Journal
 """,
         )
-        update_setting_default("subject_request_revisions", "email_subject", "Revision requested")
+        update_setting_default(
+            "subject_request_revisions",
+            "email_subject",
+            "{% if minor_revision %}Minor{% elif major_revision %}Major{% endif %} revision requested",
+        )
 
         update_setting_default(
             "typesetter_notification",

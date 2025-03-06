@@ -2447,7 +2447,11 @@ def test_author_handle_revision(
                 setting_name="subject_request_revisions",
                 journal=assigned_article.journal,
                 request=fake_request,
-                context={"article": assigned_article},
+                context={
+                    "article": assigned_article,
+                    "major_revision": revision.type == ArticleWorkflow.Decisions.MAJOR_REVISION,
+                    "minor_revision": revision.type == ArticleWorkflow.Decisions.MINOR_REVISION,
+                },
                 template_is_setting=True,
             )
             review_withdraw_notification_subject = render_template_from_setting(
