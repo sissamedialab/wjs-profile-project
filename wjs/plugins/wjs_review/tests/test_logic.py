@@ -675,14 +675,14 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "revision_type,previous_assignment",
+    "revision_type,has_previous_assignment",
     (
         (ArticleWorkflow.Decisions.MINOR_REVISION, False),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, False),
         (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
         (ArticleWorkflow.Decisions.MINOR_REVISION, True),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, True),
-        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
+        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
     ),
 )
 def test_assign_to_reviewer_after_revision(
@@ -693,13 +693,13 @@ def test_assign_to_reviewer_after_revision(
     review_form: review_models.ReviewForm,
     review_settings,
     revision_type: str,
-    previous_assignment: bool,
+    has_previous_assignment: bool,
 ):
     """
-    Context after completed revision request is marked with revision status flags.
+    AssignToReviewer context contains flags for each revision type and customized based on reviewer history.
 
-    For technical revision we don't issue a new review round / review assignment, so the generated context is going
-    to be for the same review round.
+    For technical revision the review assignment is not considered because it does not trigger a new
+     review round and the generated context refers to the same review round.
     """
     fake_request.user = section_editor.janeway_account
     form_data = {
@@ -708,7 +708,7 @@ def test_assign_to_reviewer_after_revision(
         "withdraw_notice": "notice",
         "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
-    if previous_assignment:
+    if has_previous_assignment:
         review_assignment = _create_review_assignment(
             fake_request=fake_request,
             reviewer_user=normal_user,
@@ -762,7 +762,11 @@ def test_assign_to_reviewer_after_revision(
     assert context["review_assignment"] == assignment
     assert context["acceptance_due_date"] == acceptance_due_date
     assert context["reviewer"] == normal_user.janeway_account
-    assert context["already_reviewed"] == previous_assignment
+    if revision_type == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+        already_reviewed = False
+    else:
+        already_reviewed = has_previous_assignment
+    assert context["already_reviewed"] == already_reviewed
 
 
 @pytest.mark.django_db
