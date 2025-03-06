@@ -27,6 +27,7 @@ from plugins.typesetting.models import (
     TypesettingAssignment,
     TypesettingRound,
 )
+from plugins.wjs_review import communication_utils
 from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
@@ -88,7 +89,7 @@ from wjs.jcom_profile.management.commands.import_from_wjapp import (
     SECTIONS_MAPPING,
     check_mappings,
 )
-from wjs.jcom_profile.permissions import has_eo_role
+from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
 
 
@@ -2628,7 +2629,7 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
             # of the contribution (version 1) when the agent is not the corresponding author at
             # the moment of the import.
             #
-            # The problem has to be managed only for the autor of the version 1 because the other coauthors are
+            # The problem has to be managed only for the author of the version 1 because the other coauthors are
             # added with the actions SelectCoauthorAction which are already managed
             #
             # example of SYS_ASS_ED used after reset editor but not in version 1
@@ -2647,6 +2648,32 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
                     author.add_account_role("author", self.journal)
                 self.article.authors.add(author)
                 self.article.save()
+
+            with freezegun.freeze_time(
+                self.article.date_submitted,
+            ):
+                request = create_fake_request(user=None, journal=self.journal)
+                request.user = author
+                context = {
+                    "article": self.article,
+                    "request": request,
+                }
+                message_subject = render_template_from_setting(
+                    setting_group_name="email_subject",
+                    setting_name="subject_submission_acknowledgement",
+                    journal=self.journal,
+                    request=request,
+                    context=context,
+                    template_is_setting=True,
+                )
+                communication_utils.log_operation(
+                    article=self.article,
+                    message_subject=message_subject,
+                    message_body="",
+                    recipients=[author],
+                    flag_as_read=True,
+                    flag_as_read_by_eo=True,
+                )
 
     def check_and_fix_all_reminder(self):
         """Check and fix wjapp reminder for SYS_ASS_ED if exists in wjs"""
@@ -3750,6 +3777,30 @@ ORDER BY dl.submissionDate
             )
             wra = submit.run()
 
+            editor_message_subject = render_template_from_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_review_complete_acknowledgement",
+                journal=self.journal,
+                request=request,
+                context={
+                    "review_assignment": review_assignment,
+                    "article": self.article,
+                },
+                template_is_setting=True,
+            )
+            communication_utils.log_operation(
+                actor=reviewer,
+                article=self.article,
+                message_subject=editor_message_subject,
+                message_body="",
+                recipients=[self.get_current_editor()],
+                verbosity=Message.MessageVerbosity.TIMELINE,
+                flag_as_read=True,
+                flag_as_read_by_eo=True,
+                hijacking_actor=get_hijacker(),
+                notify_actor=False,
+            )
+
             self.imported_document_layer_cod_list.append(wjapp_report.get("documentLayerCod"))
             logger.debug(f"append referee report message {self.imported_document_layer_cod_list=}")
 
@@ -3876,6 +3927,23 @@ ORDER BY dl.submissionDate
         with freezegun.freeze_time(
             rome_timezone.localize(editor_report_date),
         ):
+            # If the editor has done i will review, we set the wra of the editor "completed"
+            # if it is not, otherwise the wra results as deselect.
+            # The editor report is not uploaded as reviewer report, because it seems useless.
+            # In wjapp in this case the editor does not upload
+            # a report as referee. It would be equal to the editor report.
+            # TBV: better to do the action SubmitReview using the same report text?
+            review_assignment = WorkflowReviewAssignment.objects.filter(
+                reviewer=self.get_current_editor(),
+                article=self.article,
+                editor=self.get_current_editor(),
+                review_round=self.article.current_review_round_object(),
+            ).last()
+            if review_assignment and not review_assignment.is_complete:
+                review_assignment.date_complete = timezone.now()
+                review_assignment.is_complete = True
+                review_assignment.save()
+
             date_due = timezone.now().date()
             if self.requires_revision:
                 date_due = date_due + datetime.timedelta(days=self.revision_interval_days)
@@ -3917,6 +3985,30 @@ ORDER BY dl.submissionDate
                 request=request,
             )
             handle.run()
+
+            message_timeline = render_template_from_setting(
+                setting_group_name=self.setting_group_name,
+                setting_name=self.setting_name,
+                journal=self.journal,
+                request=request,
+                context={
+                    "article": self.article,
+                    "decision": self.editor_decision,
+                    "request": request,
+                },
+            )
+
+            communication_utils.log_operation(
+                article=self.article,
+                message_subject=f"{message_timeline}",
+                message_body="",
+                actor=self.get_current_editor(),
+                recipients=[self.article.correspondence_author],
+                verbosity=Message.MessageVerbosity.TIMELINE,
+                hijacking_actor=get_hijacker(),
+                notify_actor=communication_utils.should_notify_actor(),
+            )
+
         self.article.refresh_from_db()
         revision = None
         if self.requires_revision:
@@ -3953,6 +4045,8 @@ class ED_REQ_REV(EditorDecisionAction):  # noqa N801
             "default_author_major_revision_days",
             self.journal,
         ).process_value()
+        self.setting_group_name = "email_subject"
+        self.setting_name = "subject_request_revisions"
 
     def check_and_fix_all_reminder(self):
         """Checks and fix wjapp reminder for ED_REQ_REV if exists in wjs"""
@@ -3973,6 +4067,8 @@ class ED_ACC_DOC_WMC(EditorDecisionAction):  # noqa N801
             "default_author_minor_revision_days",
             self.journal,
         ).process_value()
+        self.setting_group_name = "wjs_review"
+        self.setting_name = "review_decision_requires_resubmission_subject"
 
     def check_and_fix_all_reminder(self):
         """Checks and fix wjapp reminders for ED_ACC_DOC_WMC if exists in wjs"""
@@ -3989,6 +4085,8 @@ class ED_REJ_DOC(EditorDecisionAction):  # noqa N801
         self.editor_decision = ArticleWorkflow.Decisions.REJECT
         self.requires_revision = False
         self.revision_interval_days = 0
+        self.setting_group_name = "email_subject"
+        self.setting_name = "subject_review_decision_decline"
 
 
 @dataclass
@@ -4000,6 +4098,8 @@ class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
         self.editor_decision = ArticleWorkflow.Decisions.NOT_SUITABLE
         self.requires_revision = False
         self.revision_interval_days = 0
+        self.setting_group_name = "wjs_review"
+        self.setting_name = "review_decision_not_suitable_subject"
 
 
 # TBV: DEBUG 2024-06-02 11:00:33,000 M:logic: No XML galleys found for crossref citation extraction
@@ -4013,6 +4113,8 @@ class ED_ACC_DOC(EditorDecisionAction):  # noqa N801
         self.editor_decision = ArticleWorkflow.Decisions.ACCEPT
         self.requires_revision = False
         self.revision_interval_days = 0
+        self.setting_group_name = "email_subject"
+        self.setting_name = "subject_review_decision_accept"
 
 
 class AuthorSubmitRevisionAction(BaseActionManager):
@@ -4040,8 +4142,9 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         with freezegun.freeze_time(
             rome_timezone.localize(author_report_date),
         ):
-            # the automated message is disabled
-            AuthorHandleRevision._log_operation = noop
+            # the automated message is not disabled on purpose to have
+            # the timeline
+            # AuthorHandleRevision._log_operation = noop #noqa
             service = AuthorHandleRevision(
                 revision=revision_request,
                 form_data=form_data,
