@@ -212,7 +212,10 @@ def test_assign_reviewer_creates_reminders(
         object_id=reviewer_assignment.id,
     )
     assert reviewer_reminders.count() == 3
-    assert all("REEA" in code for code in reviewer_reminders.values_list("code", flat=True))
+    # Asserting strict reminders ordering - Ordering by date and code should match, asserting the latter should ensure
+    # that the ordering is correct and ordering by date / code is the same
+    assert list(reviewer_assignment.all_reminders().values_list("code", flat=True)) == ["REEA1", "REEA2", "REEA3"]
+    assert list(reviewer_assignment.unsent_reminders().values_list("code", flat=True)) == ["REEA1", "REEA2", "REEA3"]
 
     r_1_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1
