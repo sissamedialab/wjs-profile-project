@@ -12,7 +12,7 @@ import mariadb
 import requests
 from core import files
 from core.middleware import GlobalRequestMiddleware
-from core.models import Account, Galley
+from core.models import Account, Galley, SupplementaryFile
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
@@ -700,10 +700,6 @@ ORDER BY ah.actionDate
             f.delete()
 
         for f in article.source_files.all():
-            f.unlink_file()
-            f.delete()
-
-        for f in article.data_figure_files.all():
             f.unlink_file()
             f.delete()
 
@@ -2001,11 +1997,21 @@ class BaseActionManager:
             if dff_response.headers["Content-Length"] != "0":
                 dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
                 if production_version:
-                    wjapp_prod_attachments.append(dff_dj)
+                    ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+                    dff_file = files.save_file_to_article(
+                        dff_dj,
+                        self.article,
+                        ta_assignment.typesetter,
+                    )
+                    dff_file.label = dff_data["attachType"]
+                    dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
+                    dff_file.save()
+                    wjapp_prod_attachments.append(SupplementaryFile.objects.create(file=dff_file))
                 else:
                     self.save_data_figure_file(dff_dj, dff_data)
         # TODO: when production action with attachment are imported verify on the templates
         #       if the attachment appears correctly
+        # TBV: there is a 403 forbidden opening the files
         if production_version and wjapp_prod_attachments:
             self.article.supplementary_files.set(wjapp_prod_attachments)
 
@@ -2711,6 +2717,11 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
     def run_business_logic(self):
         """Admin selects new editor."""
 
+        # TODO: problem with JCOM_008A_0125 reset editor after decision
+        #       possible solution: create new review round?
+        if self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
+            logger.critical(f"state not compatible with ADMIN_ASS_N_ED: {self.article.articleworkflow.state=}")
+
         # e.g. JCOM_010A_1123
         BaseDeassignEditor._log_past_editor = noop
         AssignToEditor._log_operation = noop
@@ -3275,6 +3286,7 @@ ORDER BY dl.submissionDate
                 "acceptance_due_date": date_due,
                 "message": message,
             }
+            # TODO: exception with JCOM_002N_0824
             review_assignment = AssignToReviewer(
                 reviewer=reviewer,
                 workflow=self.article.articleworkflow,
@@ -4135,6 +4147,7 @@ class AuthorSubmitRevisionAction(BaseActionManager):
 
         form_data = {"author_note": newlines_text_to_html(author_note["documentLayerText"])}
 
+        # TODO: missing for JCOM_031A_1024 data broken on wjapp
         revision_request = EditorRevisionRequest.objects.get(
             article=self.article, review_round=self.article.current_review_round_object()
         )
