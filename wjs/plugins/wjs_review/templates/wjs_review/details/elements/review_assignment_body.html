@@ -1,5 +1,5 @@
 
-{% load django_bootstrap5 humanize static wjs_permissions wjs_review %}
+{% load django_bootstrap5 humanize static wjs_permissions wjs_review wjs_tags %}
 {% get_review_assignment_actions assignment as actions %}
 {% url "wjs_message_write" pk=workflow.pk recipient_id=assignment.reviewer.pk as add_message %}
 {% translate "Send message" as send_message_label %}
@@ -27,10 +27,10 @@
 {% for reminder in assignment.all_reminders %}
   {% reminder_label reminder as reminder_label %}
   {% if request.user != assignment.reviewer and show_name %}
-    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {{ reminder_label }}</p>
+    <p>{{ forloop.counter|ordinal }} {% if request.user|is_user_eo %}[{{ reminder.code }}]{% endif %} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {{ reminder_label }}</p>
   {% endif %}
   {% if request.user == assignment.reviewer and reminder.recipient == assignment.reviewer %}
-    <p>{{ forloop.counter|ordinal }} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {{ reminder_label }}</p>
+    <p>{{ forloop.counter|ordinal }} {% if request.user|is_user_eo %}[{{ reminder.code }}]{% endif %} {% translate "reminder to" %} {% main_role_by_assignment assignment reminder.recipient %}: {{ reminder_label }}</p>
   {% endif %}
 {% endfor %}
 <div class="d-flex flex-wrap gap-2">

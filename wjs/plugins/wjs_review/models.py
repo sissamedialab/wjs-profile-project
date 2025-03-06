@@ -1773,13 +1773,13 @@ class WorkflowReviewAssignment(ReviewAssignment):
             object_id=self.pk,
             content_type=ContentType.objects.get_for_model(self),
             date_sent__isnull=True,
-        )
+        ).order_by("date_due")
 
     def all_reminders(self) -> QuerySet["Reminder"]:
         return Reminder.objects.filter(
             object_id=self.pk,
             content_type=ContentType.objects.get_for_model(self),
-        )
+        ).order_by("date_due")
 
     @property
     def attention_condition(self) -> Optional["ReviewAssignmentAttentionCondition"]:
