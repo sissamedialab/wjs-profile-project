@@ -2169,7 +2169,10 @@ class MessageNoteUpdateView(BaseRelatedViewsMixin, UpdateView):
     def test_func(self):
         """User must be the recipient and the message must be a NOTE."""
         self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
-        return self.object.actor == self.request.user and self.object.message_type == Message.MessageTypes.NOTE
+        return (
+            permissions.can_edit_note(user=self.request.user, message=self.object)
+            and self.object.message_type == Message.MessageTypes.NOTE
+        )
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
@@ -2211,7 +2214,10 @@ class MessageNoteDeleteView(AuthenticatedUserPassesTest, DeleteView):
     def test_func(self):
         """User must be the recipient and the message must be a NOTE."""
         self.object = get_object_or_404(self.model, pk=self.kwargs[self.pk_url_kwarg])
-        return self.object.actor == self.request.user and self.object.message_type == Message.MessageTypes.NOTE
+        return (
+            permissions.can_edit_note(user=self.request.user, message=self.object)
+            and self.object.message_type == Message.MessageTypes.NOTE
+        )
 
     def get_success_url(self):
         """Redirect to the article messages' list."""

@@ -1069,6 +1069,8 @@ class MessageForm(forms.ModelForm):
         self.hide_recipients = kwargs.pop("hide_recipients", False)
         self.current_note = kwargs.pop("current_note", None)
         super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.actor = self.instance.actor
         self.fields["subject"].required = True
         self.fields["body"].required = True
         self.fields["actor"].required = False
