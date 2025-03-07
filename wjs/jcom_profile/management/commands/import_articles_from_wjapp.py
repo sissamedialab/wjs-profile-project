@@ -524,6 +524,8 @@ si.name,
 si.description,
 si.longname,
 si.editorCod AS editor_cod,
+si.enabled,
+si.visible,
 u.firstname AS editor_firstname,
 u.lastname AS editor_lastname,
 u.email AS editor_email,
@@ -995,6 +997,9 @@ ORDER BY ah.actionDate
         issue_title = special_issue["longname"]
         issue_description = special_issue["description"]
 
+        issue_enabled = special_issue["enabled"]
+        issue_visible = special_issue["visible"]
+
         issue_type__code = "collection"
         issue_type = IssueType.objects.get(
             code=issue_type__code,
@@ -1020,6 +1025,12 @@ ORDER BY ah.actionDate
         # date_open is set on the older submission date imported
         if issue.date_open > article.date_submitted:
             issue.date_open = article.date_submitted
+
+        # Define a publication date in the future
+        # if the issue is enabled and visible
+        if issue_enabled and issue_visible:
+            issue_publication_date = datetime.datetime(2025, 5, 30, 12, 0)
+            issue.date = rome_timezone.localize(issue_publication_date)
 
         issue.articles.add(article)
         issue.save()
