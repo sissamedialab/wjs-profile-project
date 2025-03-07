@@ -63,7 +63,7 @@ function deploy_janeway() {
     echo "Deploying branch $JANEWAY_BRANCH into $JANEWAY_ROOT"
     cd "$JANEWAY_ROOT"
     git pull --ff-only https://"${DEPLOY_TOKEN_USER}":"${DEPLOY_TOKEN_PASSWORD}"@gitlab.sissamedialab.it/wjs/janeway.git $JANEWAY_BRANCH
-    "$PIP" install -r requirements.txt
+    "$PIP" install -r requirements.txt -c constraints.txt
     # TODO: might want to `pip install wjs.jcom-profile` to allow for newer packages from wjs
     cd "$MANAGE_DIR"
     "$PYTHON" -mmanage migrate
