@@ -705,6 +705,11 @@ ORDER BY ah.actionDate
             f.unlink_file()
             f.delete()
 
+        # TODO: the article supplementary files must be deleted only for NOT published
+        for f in article.supplementary_files.all():
+            f.unlink_file()
+            f.delete()
+
         if not ArticleWorkflow.objects.filter(article=article).exists():
             ArticleWorkflow.objects.create(article=article)
             logger.critical(
