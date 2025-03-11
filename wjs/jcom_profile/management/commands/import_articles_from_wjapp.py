@@ -359,7 +359,6 @@ class Command(BaseCommand):
                         "SYS_REMINDS_REF",
                         "SYS_REMINDS_AUT",
                         "ADMIN_RESETS_ED",
-                        "PM_SENDS_TO_TYP",
                         "PSTPN_REV_DEADLN",  # <someone> postpones revision deadline
                     ]
                     if action["actionID"] in managed_in_import_correspondence:
@@ -4510,6 +4509,25 @@ class Requestproofs(BaseActionManager):
                 request=fake_request,
                 workflow=self.article.articleworkflow,
             ).run()
+
+            message_subject = get_setting(
+                setting_group_name="wjs_review",
+                setting_name="proofreading_request_subject",
+                journal=self.article.journal,
+            ).processed_value
+            communication_utils.log_operation(
+                article=self.article,
+                message_subject=message_subject,
+                message_body="",
+                recipients=[
+                    self.article.correspondence_author,
+                ],
+                actor=typesetting_assignment.typesetter,
+                verbosity=Message.MessageVerbosity.TIMELINE,
+                flag_as_read=True,
+                flag_as_read_by_eo=True,
+            )
+
             self.article.refresh_from_db()
             assert self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
 
@@ -4565,6 +4583,25 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
                 old_assignment=old_typesetting_assignment,
                 request=fake_request,
             ).run()
+
+            message_subject = get_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_notify_typesetter_proofing_changes",
+                journal=self.article.journal,
+            ).processed_value
+            communication_utils.log_operation(
+                article=self.article,
+                message_subject=message_subject,
+                message_body="",
+                actor=self.article.correspondence_author,
+                recipients=[
+                    old_typesetting_assignment.typesetter,
+                ],
+                verbosity=Message.MessageVerbosity.TIMELINE,
+                flag_as_read=True,
+                flag_as_read_by_eo=True,
+            )
+
             self.article.refresh_from_db()
 
     def read_author_annotation(self):
@@ -4788,9 +4825,12 @@ class DeclareReadyForPublication(BaseActionManager):
         self.article.articleworkflow.production_flag_no_checks_needed = True
         self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
 
-        # block of default message, wjapp message imported as correspondence
-        ReadyForPublication._log_operation = noop
-        ReadyForPublication(workflow=self.article.articleworkflow, user=self.ready_for_publication_agent).run()
+        with freezegun.freeze_time(
+            rome_timezone.localize(self.action["actionDate"]),
+        ):
+            # use default timeline message. Wjapp message imported as correspondence
+            # e.g. JCOM_017A_0524
+            ReadyForPublication(workflow=self.article.articleworkflow, user=self.ready_for_publication_agent).run()
         self.article.refresh_from_db()
         self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
 
@@ -4824,3 +4864,45 @@ class AU_PUBLISHES(DeclareReadyForPublication):  # noqa N801
     def __post_init__(self):
         """Set the specific data for author agent"""
         self.ready_for_publication_agent = self.article.correspondence_author
+
+
+@dataclass
+class PM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
+    """Manages wjapp action "eo sends back to typesetter."""
+
+    # this action is not in the logic of wjs. It is added a message in the timeline for the imported papers.
+    # other related messages are imported with the general correspondence
+    def run(self):
+
+        # we need to get the admin user who did the action
+        admin_cod = self.action["agentCod"]
+        admin_lastname = self.action["agentLastname"]
+        admin_firstname = self.action["agentFirstname"]
+        admin_email = self.action["agentEmail"]
+        admin_privacy = self.action["agentPrivacy"]
+
+        admin = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            admin_cod,
+            admin_lastname,
+            admin_firstname,
+            admin_email,
+            admin_privacy,
+            self.connection,
+        )
+
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(self.action["actionDate"]),
+        ):
+            communication_utils.log_operation(
+                article=self.article,
+                message_subject="back to typesetter",
+                message_body="",
+                recipients=[typesetting_assignment.typesetter],
+                actor=admin,
+                verbosity=Message.MessageVerbosity.TIMELINE,
+                flag_as_read=True,
+                flag_as_read_by_eo=True,
+            )
