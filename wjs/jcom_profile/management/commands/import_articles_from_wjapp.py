@@ -1701,14 +1701,21 @@ class ImportCorrespondenceManager:
                 and (m["documentLayerType"] in self.types_with_auth_and_recipient)
             ):
                 # the messages "Referee confirms assignment for" has to appear as system messages in wjs
-                if m["documentLayerType"] == "EMAIL" and (m["documentLayerSubject"] or "").startswith(
-                    "Referee confirms assignment for"
+                if m["documentLayerType"] == "EMAIL" and any(
+                    (m["documentLayerSubject"] or "").startswith(sub)
+                    for sub in [
+                        "Referee confirms assignment for",
+                        "Author selects coauthor for document",
+                        "Referee declines assignment for",
+                    ]
                 ):
                     message_type = Message.MessageTypes.SYSTEM
                 else:
                     message_type = Message.MessageTypes.USER
-            else:
+            elif m["documentLayerType"] in ["TPSAN", "PMANN", "AUANN", "AREMA", "AREME", "AREMR", "PREMA", "PREMT"]:
                 message_type = Message.MessageTypes.SYSTEM
+            else:
+                message_type = Message.MessageTypes.USER
 
             # managed types
             if m["documentLayerType"] not in self.managed_types_list:
