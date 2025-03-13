@@ -14,7 +14,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import Case, F, QuerySet, When
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
@@ -1112,6 +1112,20 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: WRITEME!
         pass
 
+    def _get_sorted_review_assignments(self, review_round: ReviewRound) -> QuerySet:
+        return (
+            WorkflowReviewAssignment.objects.filter(article=self.article, review_round=review_round)
+            .annotate(
+                sorting_date=Case(
+                    When(date_declined__isnull=False, then=F("date_declined")),
+                    When(date_complete__isnull=False, then=F("date_complete")),
+                    When(date_accepted__isnull=False, then=F("date_accepted")),
+                    default=F("date_due"),
+                )
+            )
+            .order_by("-sorting_date")
+        )
+
     def get_review_versions(self, user: Account) -> list[ReviewVersion]:
         """
         Generates the list of version for the current article.
@@ -1129,9 +1143,7 @@ class ArticleWorkflow(TimeStampedModel):
         versions = []
         for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
             decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round)
-            review_assignments = WorkflowReviewAssignment.objects.filter(
-                article=self.article, review_round=review_round
-            )
+            review_assignments = self._get_sorted_review_assignments(review_round)
             editor_assigment = WjsEditorAssignment.objects.filter(
                 article=self.article, review_rounds=review_round
             ).first()
