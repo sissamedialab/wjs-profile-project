@@ -1,5 +1,5 @@
 import datetime
-from typing import Callable, List
+from typing import Callable, List, Optional
 from unittest.mock import patch
 
 import freezegun
@@ -87,6 +87,60 @@ from .test_helpers import (
 )
 
 fake_factory = Faker()
+
+
+@pytest.mark.django_db
+def test_articleworkflow__get_sorted_review_assignments(
+    fake_request: HttpRequest,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    assigned_article: submission_models.Article,
+    review_settings,
+    review_form: review_models.ReviewForm,
+) -> None:
+    today = now().date()
+    reviewer_1 = create_jcom_user("reviewer_1")
+    reviewer_2 = create_jcom_user("reviewer_2")
+    for reviewer in [reviewer_1, reviewer_2]:
+        fake_request.user = reviewer
+        submitted_review = _create_review_assignment(
+            fake_request=fake_request,
+            reviewer_user=reviewer,
+            assigned_article=assigned_article,
+        )
+        _submit_review(submitted_review, fake_request)
+        if reviewer == reviewer_2:
+            submitted_review.date_complete = today + datetime.timedelta(days=3)
+            submitted_review.save()
+
+        accepted_review = _create_review_assignment(
+            fake_request=fake_request,
+            reviewer_user=reviewer,
+            assigned_article=assigned_article,
+        )
+        if reviewer == reviewer_1:
+            accepted_review.date_accepted = today + datetime.timedelta(days=3)
+        else:
+            accepted_review.date_accepted = today
+        accepted_review.save()
+
+        declined_review = _create_review_assignment(
+            fake_request=fake_request,
+            reviewer_user=reviewer,
+            assigned_article=assigned_article,
+        )
+        if reviewer == reviewer_2:
+            declined_review.date_declined = today + datetime.timedelta(days=3)
+        else:
+            declined_review.date_declined = today
+        declined_review.date_accepted = None
+        declined_review.is_complete = True
+        declined_review.save()
+    sorted_review_assignments = assigned_article.articleworkflow._get_sorted_review_assignments(
+        assigned_article.current_review_round_object()
+    )
+    assert sorted_review_assignments.filter(date_declined__isnull=False).first().reviewer.jcomprofile == reviewer_2
+    assert sorted_review_assignments.filter(date_complete__isnull=False).first().reviewer.jcomprofile == reviewer_2
+    assert sorted_review_assignments.filter(date_accepted__isnull=False).first().reviewer.jcomprofile == reviewer_1
 
 
 @pytest.mark.django_db
