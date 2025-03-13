@@ -1,7 +1,9 @@
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
-from core.models import File
+from core import files as core_files
+from django.core.files import File as DjangoFile
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 
 from ..communication_utils import log_operation
@@ -424,17 +426,40 @@ def test_wjs_message_toggle_read(assigned_article, eo_user, client):
     assert response.status_code == 200
 
 
-@pytest.mark.skip(reason="FIXME: How to create proper janeway's File.")
 @pytest.mark.django_db
-def test_wjs_message_download_attachment(assigned_article, eo_user, client):
-    file = File.objects.create()
-    message = log_operation(assigned_article, "test", "test", recipients=[eo_user])
-    message.attachments.add(file)
-    client.force_login(eo_user)
-    response = client.get(
-        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/attachment/{message.pk}/{file.pk}/"
+def test_wjs_message_download_attachment(assigned_article, eo_user, client, create_jcom_user):
+    attachment_dj = DjangoFile(BytesIO(b"ciao"), "Msg attachment.txt")
+    attachment_file = core_files.save_file_to_article(
+        attachment_dj,
+        assigned_article,
+        eo_user,
     )
+    attachment_file.label = "Attachment LABEL"
+    attachment_file.description = "Long and useless attachment file description"
+    attachment_file.save()
+
+    recipient = create_jcom_user("recipient").janeway_account
+    other_user = create_jcom_user("other_user").janeway_account
+
+    message = log_operation(assigned_article, "test", "test", recipients=[recipient], actor=eo_user)
+    message.attachments.add(attachment_file)
+
+    url = (
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/"
+        f"attachment/{message.pk}/{attachment_file.pk}/"
+    )
+
+    client.force_login(eo_user)
+    response = client.get(url)
     assert response.status_code == 200
+
+    client.force_login(recipient)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    client.force_login(other_user)
+    response = client.get(url)
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db
