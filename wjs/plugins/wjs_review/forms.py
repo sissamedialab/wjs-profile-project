@@ -158,7 +158,6 @@ class BaseInviteSelectReviewerForm(forms.Form):
         if reviewer := self.request.GET.get("reviewer"):
             c_data["reviewer"] = reviewer
         self.data = c_data
-
         self._today = now().date()
         # specs #648 #1158
         self.default_acceptance_due_date = self._today + datetime.timedelta(
@@ -263,6 +262,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
+        self._today = now().date()
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
         super().__init__(*args, **kwargs)
         if not self.instance.article.comments_editor:
@@ -270,6 +270,15 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
 
         if self.editor_assigns_themselves_as_reviewer:
             self.fields["acceptance_due_date"].label = _("I will send my review by")
+            self.default_acceptance_due_date = self._today + datetime.timedelta(
+                days=self.request.journal.get_setting("general", "default_review_days"),
+            )
+            date_attrs = {
+                "type": "date",
+                "value": self.default_acceptance_due_date,
+                "min": self._today,
+            }
+            self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
             self.fields["message_subject"].widget = forms.HiddenInput()
             self.fields["message"].widget = forms.HiddenInput()
             self.fields["author_note_visible"].widget = forms.HiddenInput()
