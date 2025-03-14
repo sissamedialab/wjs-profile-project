@@ -42,8 +42,8 @@
           <li class="list-group-item fw-bold">
             {% translate "Supplementary files" %}
             <ul class="list-group mb-1">
-              {% for file in article_info.supplementary_files.all %}
-                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.file.original_filename }}</a></li>
+              {% for supp_file in article_info.supplementary_files.all %}
+                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk supp_file.file.pk %}" target="_blank">{{ supp_file.file.original_filename }}</a></li>
               {% endfor %}
             </ul>
           </li>
