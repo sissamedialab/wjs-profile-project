@@ -1113,8 +1113,8 @@ ORDER BY ah.actionDate
         for r in Reminder.objects.all():
             if r.get_related_article() == article:
                 logger.debug(
-                    f"reminder on {article.id}: {r.code} {r.date_created.date()} {r.date_due} "
-                    f"{r.disabled} {r.recipient}"
+                    f"reminder on {article.id}: {r.code} created:{r.date_created.date()} due:{r.date_due} "
+                    f"sent:{r.date_sent} {r.disabled=} recipient:{r.recipient}"
                 )
 
 
@@ -2421,6 +2421,14 @@ ORDER BY reminderDate
                                     f"reminder {reminder.code} due date NOT changed because equal {reminder.date_due} "
                                     f"{wjapp_reminder['reminderDate'].date()}"
                                 )
+                            if wjapp_reminder["sent"]:
+                                reminder.date_sent = wjapp_reminder["reminderDate"]
+                                logger.warning(f"reminder date_sent added: {reminder}")
+                                reminder.save()
+                            if not wjapp_reminder["enabled"]:
+                                reminder.disable = True
+                                logger.warning(f"reminder disabled: {reminder}")
+                                reminder.save()
                             wjs_reminder_match = True
 
                     if not wjs_reminder_match and wjs_reminder_type_changed:
@@ -3159,6 +3167,19 @@ class ReviewAssignmentAction(BaseActionManager):
                 "refereeAssignDate": self.action["actionDate"],
                 "report_due_date": None,
                 "refereeAcceptDate": None,
+                "reminderNumber": None,
+                "refereeReminderDate": None,
+                "refereeReminderEnabled": None,
+                "refereeReminder2Date": None,
+                "refereeReminder2Enabled": None,
+                "editorReminderDate": None,
+                "editorReminderEnabled": None,
+                "refereeReminder1ForRefereeReportDate": None,
+                "refereeReminder1ForRefereeReportEnabled": None,
+                "refereeReminder2ForRefereeReportDate": None,
+                "refereeReminder2ForRefereeReportEnabled": None,
+                "editorReminderForRefereeReportEnabled": None,
+                "editorReminderForRefereeReportDate": None,
             }
 
         # select reviewer message
@@ -3174,6 +3195,19 @@ class ReviewAssignmentAction(BaseActionManager):
         query_reviewer = """
 SELECT
 refereeCod,
+reminderNumber,
+refereeReminderDate,
+refereeReminderEnabled,
+refereeReminder2Date,
+refereeReminder2Enabled,
+editorReminderDate,
+editorReminderEnabled,
+refereeReminder1ForRefereeReportDate,
+refereeReminder1ForRefereeReportEnabled,
+refereeReminder2ForRefereeReportDate,
+refereeReminder2ForRefereeReportEnabled,
+editorReminderForRefereeReportEnabled,
+editorReminderForRefereeReportDate,
 u.lastName  AS refereeLastName,
 u.firstName AS refereeFirstName,
 u.email     AS refereeEmail,
@@ -3343,7 +3377,145 @@ ORDER BY dl.submissionDate
                         review_assignment.date_due = datetime_due.date()
                         review_assignment.save()
 
+        # TODO: add disable and sent flags to reviewer and editor reminder taken
+        # from reviewer_data (add fields)
+        self.check_and_fix_reviewer_editor_reminder(review_assignment, reviewer_data)
+
         return review_assignment
+
+    def check_and_fix_reviewer_editor_reminder(self, review_assignment, reviewer_data):
+        """Check and fix sent and disable reminder for review assignment."""
+
+        # data taken from Current_Referees
+        #
+        # This kind of reminder related to review assignment in wjapp is managed with Current_Referee table only,
+        # not with Reminder table like the other reminders. E.g: JCOM_013A_1124
+        ra_reminders = Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(review_assignment),
+            object_id=review_assignment.id,
+        )
+        for r in ra_reminders:
+
+            # from wjapp properties
+
+            next_day_delay = 1
+
+            # REEA
+            ref_acc_limit_days = 4
+            ref_acc_limit2_days = 2
+            ref_acc_limit_editor_reminder_days = 3
+
+            # REWR2
+            referee_report_reminder_for_editor_days = 4
+
+            if r.recipient == review_assignment.reviewer and r.code == "REEA1":
+                # REEA1 "Reviewer should evaluate assignment" -> refereeReminderEnabled/Date
+                if not reviewer_data["refereeReminderEnabled"]:
+                    r.disable = True
+                    r.save()
+                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+
+                if reviewer_data["refereeReminderDate"] and r.date_sent != rome_timezone.localize(
+                    reviewer_data["refereeReminderDate"]
+                ):
+                    r.date_sent = rome_timezone.localize(reviewer_data["refereeReminderDate"])
+                    r.save()
+                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+
+                r.date_due = (
+                    rome_timezone.localize(reviewer_data["refereeAssignDate"])
+                    + datetime.timedelta(days=next_day_delay)
+                    + datetime.timedelta(days=ref_acc_limit_days)
+                ).date()
+                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                r.save()
+
+            if r.recipient == review_assignment.reviewer and r.code == "REEA2":
+                # REEA2 "Reviewer should evaluate assignment" -> refereeReminder2Enabled/Date
+                if not reviewer_data["refereeReminder2Enabled"]:
+                    r.disable = True
+                    r.save()
+                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+
+                if reviewer_data["refereeReminder2Date"] and r.date_sent != rome_timezone.localize(
+                    reviewer_data["refereeReminder2Date"]
+                ):
+                    r.date_sent = rome_timezone.localize(reviewer_data["refereeReminder2Date"])
+                    r.save()
+                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+
+                r.date_due = (
+                    rome_timezone.localize(reviewer_data["refereeAssignDate"])
+                    + datetime.timedelta(days=next_day_delay)
+                    + datetime.timedelta(days=ref_acc_limit_days)
+                    + datetime.timedelta(days=ref_acc_limit2_days)
+                ).date()
+                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                r.save()
+
+            if r.recipient == review_assignment.editor and r.code == "REEA3":
+                # REEA3 "Reviewer should evaluate assignment" > editorReminderEnabled/Date
+                if not reviewer_data["editorReminderEnabled"]:
+                    r.disable = True
+                    r.save()
+                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+
+                if reviewer_data["editorReminderDate"] and r.date_sent != rome_timezone.localize(
+                    reviewer_data["editorReminderDate"]
+                ):
+                    r.date_sent = rome_timezone.localize(reviewer_data["editorReminderDate"])
+                    r.save()
+                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+
+                r.date_due = (
+                    rome_timezone.localize(reviewer_data["refereeAssignDate"])
+                    + datetime.timedelta(days=next_day_delay)
+                    + datetime.timedelta(days=ref_acc_limit_days)
+                    + datetime.timedelta(days=ref_acc_limit2_days)
+                    + datetime.timedelta(days=ref_acc_limit_editor_reminder_days)
+                ).date()
+                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                r.save()
+
+            if r.recipient == review_assignment.reviewer and r.code == "REWR1":
+                # REWR1 "Reviewer should write review" -> refereeReminder1ForRefereeReportEnabled
+                # e.g. JCOM_002N_0125 JCOM_002N_1224 JCOM_009A_0325
+                if not reviewer_data["refereeReminder1ForRefereeReportEnabled"]:
+                    r.disable = True
+                    r.save()
+                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+
+                if reviewer_data["refereeReminder1ForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
+                    reviewer_data["refereeReminder1ForRefereeReportDate"]
+                ):
+                    r.date_sent = rome_timezone.localize(reviewer_data["refereeReminder1ForRefereeReportDate"])
+                    r.save()
+                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+
+                r.date_due = rome_timezone.localize(reviewer_data["report_due_date"]).date()
+                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                r.save()
+
+            if r.recipient == review_assignment.editor and r.code == "REWR2":
+                # REWR2 "Reviewer should write review" -> editorReminderForRefereeReportDate
+                if not reviewer_data["editorReminderForRefereeReportEnabled"]:
+                    r.disable = True
+                    r.save()
+                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+
+                if reviewer_data["editorReminderForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
+                    reviewer_data["editorReminderForRefereeReportDate"]
+                ):
+                    r.date_sent = rome_timezone.localize(reviewer_data["editorReminderForRefereeReportDate"])
+                    r.save()
+                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+
+                r.date_due = (
+                    rome_timezone.localize(reviewer_data["report_due_date"])
+                    + datetime.timedelta(days=referee_report_reminder_for_editor_days)
+                ).date()
+                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                r.save()
 
 
 class ED_ASS_REF(ReviewAssignmentAction):  # noqa N801
@@ -3977,6 +4149,12 @@ ORDER BY dl.submissionDate
                 review_assignment.date_complete = timezone.now()
                 review_assignment.is_complete = True
                 review_assignment.save()
+
+                # delete reminders related to the review assignment
+                Reminder.objects.filter(
+                    content_type=ContentType.objects.get_for_model(review_assignment),
+                    object_id=review_assignment.id,
+                ).delete()
 
             date_due = timezone.now().date()
             if self.requires_revision:
