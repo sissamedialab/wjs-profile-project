@@ -1,10 +1,11 @@
 {% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
-
+{% with doi=article.get_doi pubid=article.get_pubid %}
 <div class="d-flex justify-content-between">
   <div class="d-flex align-items-center gap-3">
     <h3>
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span> -
+      {% if pubid %}{{ pubid }} -{% endif %}
       {{ workflow }}
     </h3>
     {% if workflow|is_user_article_manager:request.user or workflow|is_user_article_author:request.user %}
@@ -38,3 +39,5 @@
     {% endif %}
   </div>
 </div>
+  {% if doi %}<div><a class="text-decoration-none h3" href="https://doi.org/{{ doi }}">https://doi.org/{{ doi }}{% endif %}</a></div>
+  {% endwith %}
