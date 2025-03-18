@@ -16,7 +16,7 @@
         <h4 class="ms-2"> - {{ assignment.article.pk }}</h4>
       </div>
       <div class="card-body px-2 py-2">
-        {% if assignment.article.articleworkflow|is_user_article_reviewer:request.user %}
+        {% if request.user and assignment.article.articleworkflow|is_user_article_reviewer:request.user %}
           {% translate "Thank you for submitting your review!" %}
         {% else %}
           {% translate "Review submitted by" %} {{ assignment.reviewer.get_full_name }}
