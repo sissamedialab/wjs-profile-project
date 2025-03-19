@@ -32,7 +32,6 @@ from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
-    BaseDeassignEditor,
     DeselectReviewer,
     EditorRevisionRequest,
     EvaluateReview,
@@ -2724,7 +2723,7 @@ class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
         """Editor selects new editor."""
 
         # e.g. JCOM_010A_1123
-        BaseDeassignEditor._log_past_editor = noop
+        SupervisorChangeEditorAssignment._log_past_editor = noop
         AssignToEditor._log_operation = noop
         SupervisorChangeEditorAssignment(
             article=self.article,
@@ -2753,7 +2752,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             logger.critical(f"state not compatible with ADMIN_ASS_N_ED: {self.article.articleworkflow.state=}")
 
         # e.g. JCOM_010A_1123
-        BaseDeassignEditor._log_past_editor = noop
+        SupervisorChangeEditorAssignment._log_past_editor = noop
         AssignToEditor._log_operation = noop
         SupervisorChangeEditorAssignment(
             article=self.article,

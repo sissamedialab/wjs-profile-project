@@ -38,6 +38,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
@@ -241,6 +242,8 @@ class BaseAssignToEditor:
     article: Article
     request: HttpRequest
     first_assignment: bool = False
+    assignment_message: Optional[str] = None
+    appeal: bool = False
 
     def _assign_editor(self) -> WjsEditorAssignment:
         assignment, _ = assign_editor(self.article, self.editor, "section-editor", request=self.request)
@@ -264,9 +267,74 @@ class BaseAssignToEditor:
         review_round = CreateReviewRound(assignment=assignment, first=first_review_round).run()
         return review_round
 
+    def _get_message_context(self, assignment: WjsEditorAssignment) -> Dict[str, Any]:
+        return {
+            "article": self.article,
+            "request": self.request,
+            "editor_assigment": assignment,
+            "editor": self.editor,
+            # We could pass along the request, which has all journal settings linked to it,
+            # instead of hitting the DB for a specific setting,
+            # but we prefer to decouple logic and request
+            "default_editor_assign_reviewer_days": get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_editor_assign_reviewer_days",
+                journal=self.article.journal,
+            ).processed_value,
+        }
+
+    def _log_operation(self, context: Dict[str, Any], assignment_message: Optional[str] = None):
+        if self.request.user and self.request.user.is_authenticated and self.request.user != self.editor:
+            actor = self.request.user
+        else:
+            actor = None
+        if not assignment_message:
+            message_subject = render_template_from_setting(
+                setting_group_name="email_subject",
+                setting_name="subject_editor_assignment",
+                journal=self.article.journal,
+                request=self.request,
+                context={
+                    "article": self.article,
+                },
+                template_is_setting=True,
+            )
+            message_body = render_template_from_setting(
+                setting_group_name="email",
+                setting_name="editor_assignment",
+                journal=self.article.journal,
+                request=self.request,
+                context=context,
+                template_is_setting=True,
+            )
+        else:
+            message_subject = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="editor_assignment_manual_subject",
+                journal=self.article.journal,
+                request=self.request,
+                context={},
+                template_is_setting=True,
+            )
+            message_body = self.assignment_message
+        communication_utils.log_operation(
+            article=self.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=actor,
+            recipients=[self.editor],
+            verbosity=Message.MessageVerbosity.FULL,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
+        )
+
     def run(self) -> WjsEditorAssignment:
         with transaction.atomic():
             assignment = self._assign_editor()
+            context = self._get_message_context(assignment=assignment)
+            if not self.appeal:
+                self._log_operation(context=context, assignment_message=self.assignment_message)
         return assignment
 
 
@@ -285,6 +353,7 @@ class AssignToEditor:
     assignment: Optional[WjsEditorAssignment] = None
     first_assignment: bool = False
     assignment_message: Optional[str] = None
+    appeal: bool = False
 
     def _create_workflow(self):
         self.workflow, __ = ArticleWorkflow.objects.get_or_create(
@@ -293,9 +362,8 @@ class AssignToEditor:
 
     def _update_state(self):
         """Run FSM transition."""
-        if self.workflow.state == ArticleWorkflow.ReviewStates.REJECTED:
-            # If we are here, EO is opening an appeal on a rejected paper.
-            # The state transition is managed elsewhere.
+        # In case of appeal the state transition is handled in the OpenAppeal logic class
+        if self.appeal:
             return
         if can_proceed(self.workflow.director_selects_editor):
             self.workflow.director_selects_editor()
@@ -316,68 +384,6 @@ class AssignToEditor:
             is_section_editor
             and (state_condition_to_be_selected or state_condition_assign_different_editor or state_rejected)
             and not exist_other_assignments
-        )
-
-    def _get_message_context(self) -> Dict[str, Any]:
-        return {
-            "article": self.workflow.article,
-            "request": self.request,
-            "editor_assigment": self.assignment,
-            "editor": self.editor,
-            # We could pass along the request, which has all journal settings linked to it,
-            # instead of hitting the DB for a specific setting,
-            # but we prefer to decouple logic and request
-            "default_editor_assign_reviewer_days": get_setting(
-                setting_group_name="wjs_review",
-                setting_name="default_editor_assign_reviewer_days",
-                journal=self.workflow.article.journal,
-            ).processed_value,
-        }
-
-    def _log_operation(self, context: Dict[str, Any], assignment_message: Optional[str] = None):
-        if self.request.user and self.request.user.is_authenticated and self.request.user != self.editor:
-            actor = self.request.user
-        else:
-            actor = None
-        if not assignment_message:
-            message_subject = render_template_from_setting(
-                setting_group_name="email_subject",
-                setting_name="subject_editor_assignment",
-                journal=self.workflow.article.journal,
-                request=self.request,
-                context={
-                    "article": self.workflow.article,
-                },
-                template_is_setting=True,
-            )
-            message_body = render_template_from_setting(
-                setting_group_name="email",
-                setting_name="editor_assignment",
-                journal=self.workflow.article.journal,
-                request=self.request,
-                context=context,
-                template_is_setting=True,
-            )
-        else:
-            message_subject = render_template_from_setting(
-                setting_group_name="wjs_review",
-                setting_name="editor_assignment_manual_subject",
-                journal=self.workflow.article.journal,
-                request=self.request,
-                context={},
-                template_is_setting=True,
-            )
-            message_body = self.assignment_message
-        communication_utils.log_operation(
-            article=self.workflow.article,
-            message_subject=message_subject,
-            message_body=message_body,
-            actor=actor,
-            recipients=[self.editor],
-            verbosity=Message.MessageVerbosity.FULL,
-            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
-            notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read_by_eo=True,
         )
 
     def _create_editor_should_select_reviewer_reminders(self):
@@ -402,10 +408,10 @@ class AssignToEditor:
                 article=self.article,
                 request=self.request,
                 first_assignment=self.first_assignment,
+                assignment_message=self.assignment_message,
+                appeal=self.appeal,
             ).run()
             self._update_state()
-            context = self._get_message_context()
-            self._log_operation(context=context, assignment_message=self.assignment_message)
             self._create_editor_should_select_reviewer_reminders()
             self._delete_director_reminders()
         return self.assignment
@@ -814,6 +820,11 @@ class EvaluateReview:
             self.assignment.save()
 
     def _get_postpone_too_far_in_the_future_message_context(self) -> Dict[str, Any]:
+        default_review_days = self.assignment.article.journal.get_setting(
+            group_name="general",
+            setting_name="default_review_days",
+        )
+        default_date_due = now().date() + datetime.timedelta(days=default_review_days)
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -822,6 +833,7 @@ class EvaluateReview:
             "EO": get_eo_user(self.assignment.article),
             "editor": self.editor,
             "date_due": self.form_data["date_due"],
+            "original_date_due": default_date_due,
         }
 
     def _get_accept_message_context(self) -> Dict[str, Any]:
@@ -848,11 +860,14 @@ class EvaluateReview:
     def _log_postpone_too_far_in_the_future(self):
         article = self.assignment.article
         journal = article.journal
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_far_future_subject",
             journal=journal,
-        ).processed_value
+            request=self.request,
+            context={"reviewer": self.assignment.reviewer},
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_far_future_body",
@@ -2282,6 +2297,7 @@ class PostponeRevisionRequestDueDate:
             "EO": get_eo_user(self.revision_request.article),
             "editor": self.revision_request.editor,
             "date_due": self.form_data["date_due"],
+            "original_due_date": self.revision_request.date_due,
         }
 
     def _log_eo_date_due_too_far_future(self):
@@ -2704,15 +2720,19 @@ class PostponeReviewerDueDate:
             "EO": get_eo_user(self.assignment.article),
             "editor": self.editor,
             "date_due": self.form_data["date_due"],
+            "original_due_date": self.original_due_date,
         }
 
     def _log_reviewer_if_date_is_postponed(self) -> None:
         """Log a warning for the reviewer if the due date is postponed."""
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_postpone_subject",
             journal=self.assignment.article.journal,
-        ).processed_value
+            request=self.request,
+            context={"reviewer": self.assignment.reviewer},
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_postpone_body",
@@ -2736,11 +2756,14 @@ class PostponeReviewerDueDate:
 
     def _log_eo_far_future_date(self) -> None:
         """Log a warning for the EO if the editor postponed due date far in the future."""
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_far_future_subject",
             journal=self.assignment.article.journal,
-        ).processed_value
+            request=self.request,
+            context={"reviewer": self.assignment.reviewer},
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="due_date_far_future_body",
@@ -2808,7 +2831,6 @@ class BaseDeassignEditor:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
-    message_body: Optional[str] = None
 
     @staticmethod
     def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
@@ -2819,41 +2841,6 @@ class BaseDeassignEditor:
         """Check if the conditions for the assignment are met."""
         editor_conditions = self._check_editor_conditions(self.assignment, self.editor)
         return editor_conditions
-
-    def _log_past_editor(self):
-        """Log a message to the deassigned Editor."""
-        message_subject = render_template_from_setting(
-            setting_group_name="email_subject",
-            setting_name="subject_unassign_editor",
-            journal=self.assignment.article.journal,
-            request=self.request,
-            context={},
-            template_is_setting=True,
-        )
-        if not self.message_body:
-            self.message_body = render_template_from_setting(
-                setting_group_name="email",
-                setting_name="unassign_editor",
-                journal=self.assignment.article.journal,
-                request=self.request,
-                context={
-                    "article": self.assignment.article,
-                    "editor": self.editor,
-                },
-                template_is_setting=True,
-            )
-        communication_utils.log_operation(
-            article=self.assignment.article,
-            message_subject=message_subject,
-            message_body=self.message_body,
-            verbosity=Message.MessageVerbosity.FULL,
-            actor=self.request.user,
-            recipients=[self.editor],
-            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
-            notify_actor=communication_utils.should_notify_actor(),
-            flag_as_read=True,
-            flag_as_read_by_eo=True,
-        )
 
     def _delete_assignment(self) -> PastEditorAssignment:
         """
@@ -2873,7 +2860,6 @@ class BaseDeassignEditor:
 
         past.review_rounds.add(*migrated_review_rounds)
         self.assignment.delete()
-        self._log_past_editor()
         return past
 
     def _delete_editor_reminders(self):
@@ -2897,6 +2883,7 @@ class SupervisorChangeEditorAssignment:
     request: HttpRequest
     deassignment_message: Optional[str] = None
     assignment_message: Optional[str] = None
+    appeal: bool = False
 
     def _deassign_current_editor(self) -> Account:
         """Deassigns the current editor using existing :py:class:`BaseDeassignEditor` logic."""
@@ -2904,9 +2891,34 @@ class SupervisorChangeEditorAssignment:
             assignment=self.assignment,
             editor=self.assignment.editor,
             request=self.request,
-            message_body=self.deassignment_message,
         ).run()
+        if not self.appeal:
+            self._log_past_editor()
         return past_assignment.editor
+
+    def _log_past_editor(self):
+        """Log a message to the deassigned Editor."""
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_unassign_editor",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context={},
+            template_is_setting=True,
+        )
+        message_body = self.deassignment_message
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
+            actor=self.request.user,
+            recipients=[self.assignment.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
 
     def _assign_new_editor(self) -> WjsEditorAssignment:
         """Assigns newly selected editor using our existing logic."""
@@ -2915,6 +2927,7 @@ class SupervisorChangeEditorAssignment:
             article=self.article,
             request=self.request,
             assignment_message=self.assignment_message,
+            appeal=self.appeal,
         ).run()
 
     def _migrate_review_assignments(self, old_editor: Account):
@@ -3180,6 +3193,7 @@ class OpenAppeal:
             assignment=WjsEditorAssignment.objects.get_current(self.article),
             new_editor=self.new_editor,
             request=self.request,
+            appeal=True,
         ).run()
 
     def run(self):

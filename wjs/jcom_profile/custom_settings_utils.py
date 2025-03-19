@@ -172,12 +172,16 @@ def add_coauthors_submission_email_settings(force: bool = False) -> tuple[Settin
         "setting": None,
         "value": """Dear {{ author.full_name}}, <br>
 <br>
-This is to confirm that {{ article.correspondence_author.full_name }} has just submitted
-the {{ article.section.name }} "{{ article.title }}" to {{ article.journal.name }} on your behalf.<br>
+This is to confirm that {{ article.correspondence_author.full_name }} has just submitted the
+{{ article.section.name }} "{{ article.title }}" to {{ article.journal.name }} and added your name as co-author.<br>
 <br>
-Please update your user profile and acknowledge the privacy notice, if needed,
-from <a href="{{ article.journal.site_url }}{% url 'core_edit_profile' %}">here</a>
-as your data will be associated to your manuscript if and when it is published.
+In order to ensure a correct handling of your manuscript and a faster production process, if accepted, <strong>please
+update your user profile and acknowledge the privacy notice</strong>, if needed, from
+<a href="{{ article.journal.site_url }}{% url 'core_edit_profile' %}">here</a> as soon as possible.
+<br>
+Apart from compulsory fields, please make sure you enter a short biography, possibly your Orcid id and check that your
+email address can be used for future communications about your manuscript.
+<br>
 Your manuscript is available to you <a href="{{ article.articleworkflow.url }}">here</a>.
 <br>
 <br>

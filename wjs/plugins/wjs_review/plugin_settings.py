@@ -258,7 +258,7 @@ Thank you and best regards,
         revision_request_date_due_postponed_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Due date postponed",
+            "value": "Due date changed",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -282,7 +282,8 @@ Thank you and best regards,
             "setting": None,
             "value": """Dear Dr. {{ article.correspondence_author.full_name }},
 <br><br>
-The deadline for revising your {{ article.section.name }} has been postponed until {{ date_due }}.
+The deadline for revising your {{ article.section.name }} has been changed from {{ original_due_date }} to
+{{ date_due }}.
 <br><br>
 Regards,<br>
 {{ article.journal.code }} Journal
@@ -309,7 +310,7 @@ Regards,<br>
         revision_request_date_due_far_future_subject_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Due date postponed considerably",
+            "value": "Due date changed considerably",
             "translations": {},
         }
         setting_3 = create_customization_setting(
@@ -333,7 +334,8 @@ Regards,<br>
             "setting": None,
             "value": """Dear {{ EO.full_name }},
 <br>
-The revision due date for the article "{{ article.title }}" has been postponed to {{ date_due }}.
+The revision due date for the article "{{ article.title }}" has been changed from {{ original_due_date }} to
+{{ date_due }}.
 <br>
 Since it is far in the future it might be worth checking.
 <br><br>
@@ -950,7 +952,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
         subject_due_date_postpone_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Review due date postponed",
+            "value": "Review due date changed for {{ reviewer.full_name }}",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -974,8 +976,8 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             "setting": None,
             "value": """Dear Dr. {{ reviewer.full_name }},
 <br><br>
-This is to inform you that your review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to
-{{ date_due }}.
+This is to inform you that your review due date for the {{ article.section.name }} "{{ article.title }}" has been
+changed from {{ original_due_date }} to {{ date_due }}.
 <br><br>
 Thank you in advance for your cooperation and best regards,<br>
 {{ journal.code }} Journal
@@ -1004,7 +1006,7 @@ Thank you in advance for your cooperation and best regards,<br>
         subject_due_date_far_future_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Review due date postponed considerably",
+            "value": "Review due date changed considerably for {{ reviewer.full_name }}",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1029,7 +1031,8 @@ Thank you in advance for your cooperation and best regards,<br>
             "setting": None,
             "value": """Dear {{ EO.full_name }},
 <br><br>
-{{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been postponed to {{ date_due }}.
+{{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been changed
+from {{ original_date_due }} to {{ date_due }}.
 Since it is far in the future it might be worth checking.
 <br><br>
 {{ journal.code }} Journal
@@ -1764,7 +1767,7 @@ Thank you and best regards,
 Would you be willing to take this submission on as the Editor-in-Charge and shepherd it though the
 {{ article.journal.code }} review process?
 <br><br>
-Given your research interests and expertise, it seems like an submission that you might be interested in engaging with.
+Given your research interests and expertise, it seems like a submission that you might be interested in engaging with.
 <br><br>
 If you are willing and available to do this, then please find two relevant peer reviewers and kindly remind them what
 type of submission (e.g. research article, practice insight, essay) they will be reviewing.

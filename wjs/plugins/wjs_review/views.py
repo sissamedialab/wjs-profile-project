@@ -2958,11 +2958,14 @@ class DeselectReviewer(BaseRelatedViewsMixin, UpdateView):
 
     def get_initial(self):
         initial = super().get_initial()
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_withdrawl",
             journal=self.object.article.journal,
-        ).processed_value
+            context={"assignment": self.object},
+            request=self.request,
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="email",
             setting_name="review_withdrawl",

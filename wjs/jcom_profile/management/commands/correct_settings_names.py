@@ -240,8 +240,7 @@ Best regards,<br>
             """Dear {{ revision.article.correspondence_author.full_name }},
 <br><br>
 Thank you for resubmitting "{{ revision.article.safe_title }}".
-We will be in touch with further information at the end of the review process
-as soon as possible.
+We will be in touch with further information at the end of the review process.
 <br><br>
 Best regards,
 <br>
@@ -327,7 +326,11 @@ Best regards,
 This can be modified by the operator."""
             ),
         )
-        update_setting_default("subject_review_withdrawl", "email_subject", "Invite to review withdrawn")
+        update_setting_default(
+            "subject_review_withdrawl",
+            "email_subject",
+            "Invite to review withdrawn for {{ assignment.reviewer.full_name }}",
+        )
 
         update_setting_default("subject_editor_assignment", "email_subject", "Assignment as Editor in charge")
         update_setting_default(
@@ -553,8 +556,7 @@ Please visit the <a href="{{ article.articleworkflow.url }}">{{ article.section.
         update_setting_default(
             "notify_typesetter_proofing_changes",
             "email",
-            """Dear {{ typesetter.full_name }},
-<br><br>
+            """
 Author {{ article.correspondence_author.full_name }} has sent corrections [...]
 for the {{ article.section.name }} {{ article.id }}.
 """,
@@ -606,8 +608,7 @@ for the {{ article.section.name }} {{ article.id }}.
             "email",
             """Dear {{ article.correspondence_author.full_name }}
 <br><br>
-We are pleased to inform you that your manuscript, "{{ article.title }}",
-is set for publication on {{ article.date_published|date:'Y-m-d' }}.
+We are pleased to inform you that your manuscript, "{{ article.title }}" has been published.
 <br><br>
 You may want to consider one or more of the following in order to promote your research:
 <br>
@@ -617,6 +618,10 @@ You may want to consider one or more of the following in order to promote your r
 <li>Upload it to your institutional repository or a subject repository.</li>
 <li>Add to Wikipedia
     <a href="https://en.wikipedia.org/wiki/Wikipedia:Research_help/Scholars_and_experts">where appropriate</a></li>
+<li><a href="https://docs.google.com/forms/d/1ZdZ02SYW1mVXbbaRCoYL55r4BUtwRrxmeEEEkFzEBGw/edit?pli=1">Submit</a> a
+video abstract about your publication to
+<a href="https://www.youtube.com/playlist?list=PLhzIl_28_F_xw_pOxgYWmzTsI0aNJZBUF%5C">CivicSciTV Network</a>,
+with which JCOM collaborates.</li>
 </ul>
 <br>
 Regards,
@@ -670,28 +675,6 @@ You can confirm your account at the following link:
         update_setting_default("reader_publication_notification", "email", "NOT USED IN WJS")
         update_setting_default("subject_reader_publication_notification", "email_subject", "NOT USED IN WJS")
         # For "bounced_email_notification" (and subject) we keep the defaults.
-        update_setting_default(
-            "author_publication",
-            "email",
-            """<p>Dear {{ article.correspondence_author.full_name }},
-<br>
-<br>
-We are pleased to inform you that your manuscript,
-"{{ article.safe_title }}",
-is set for publication on {{ article.date_published|date:'Y-m-d' }}.
-</p>
-<p>You may want to consider one or more of the following in order to promote your research:</p>
-<ul>
-<li>Email a link to your paper to colleagues</li>
-<li>Write a blog post about your paper</li>
-<li>Upload it to your institutional repository or a subject repository.</li>
-<li>Add to Wikipedia
-<a href="https://en.wikipedia.org/wiki/Wikipedia:Research_help/Scholars_and_experts">where appropriate</a></li>
-</ul>
-<p>Regards,
-""",
-        )
-        update_setting_default("subject_author_publication", "email_subject", "Publication")
 
     def create_overrides(self):
         """Create some known overrides."""
@@ -702,6 +685,25 @@ is set for publication on {{ article.date_published|date:'Y-m-d' }}.
         except Journal.DoesNotExist:
             logger.warning(f"Journal {code} does not exist. Overrides creation aborted.")
             return
+
+        author_publication_jcomal_value = """Dear {{ article.correspondence_author.full_name }}
+<br><br>
+We are pleased to inform you that your manuscript, "{{ article.title }}" has been published.
+<br><br>
+You may want to consider one or more of the following in order to promote your research:
+<br>
+<ul>
+<li>Email a link to your paper to colleagues</li>
+<li>Write a blog post about your paper</li>
+<li>Upload it to your institutional repository or a subject repository.</li>
+<li>Add to Wikipedia
+    <a href="https://en.wikipedia.org/wiki/Wikipedia:Research_help/Scholars_and_experts">where appropriate</a></li>
+</ul>
+<br>
+Regards,
+<br>
+{{ article.journal.code }} Journal
+        """
 
         group = get_group("wjs_review")
         patch_setting(
@@ -737,6 +739,11 @@ is set for publication on {{ article.date_published|date:'Y-m-d' }}.
         patch_setting(
             PatchSettingParams(name="date_due_minor_revisions_far_future_days", group=group),
             PatchSettingValueParams(journal=jcomal, value=120, translations={}),
+        )
+
+        patch_setting(
+            PatchSettingParams(name="author_publication", group=group),
+            PatchSettingValueParams(journal=jcomal, value=author_publication_jcomal_value, translations={}),
         )
 
 

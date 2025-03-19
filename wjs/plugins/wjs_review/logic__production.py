@@ -1317,6 +1317,8 @@ class HandleEOSendBackToTypesetter:
                 self.old_assignment.typesetter,
             ],
             message_type=Message.MessageTypes.SYSTEM,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
         return message
 
