@@ -197,7 +197,7 @@ def article_css_classes(workflow: ArticleWorkflow) -> dict[str, str]:
 @register.filter
 def versioned_number(article: Article) -> str:
     """Return the versioned number of the article."""
-    if typesetting_round := TypesettingRound.objects.filter(article=article).last():
+    if typesetting_round := TypesettingRound.objects.filter(article=article).first():
         return f"{article.pk}/v{typesetting_round.round_number}"
     if article.current_review_round():
         return f"{article.pk}/v{article.current_review_round()}"
@@ -207,7 +207,7 @@ def versioned_number(article: Article) -> str:
 @register.filter
 def upcoming_deadline(article: Article) -> Optional[datetime]:
     """Return the upcoming author deadline for an article."""
-    if typesetting_round := TypesettingRound.objects.filter(article=article).last():
+    if typesetting_round := TypesettingRound.objects.filter(article=article).first():
         try:
             return (
                 GalleyProofing.active_objects.filter(
