@@ -1287,11 +1287,13 @@ def test_handle_update_due_date_in_evaluate_review_far_in_the_future_triggers_a_
 
     evaluate_data = {"reviewer_decision": "2", "date_due": new_date_due}
 
-    eo_message_subject = get_setting(
+    eo_message_subject = render_template_from_setting(
         setting_group_name="wjs_review",
         setting_name="due_date_far_future_subject",
+        request=fake_request,
+        context={"reviewer": review_assignment.reviewer},
         journal=fake_request.journal,
-    ).processed_value
+    )
 
     # Message related to the editor assignment
     assert Message.objects.count() == 1
