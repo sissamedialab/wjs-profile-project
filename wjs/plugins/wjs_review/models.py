@@ -20,6 +20,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.functional import cached_property
+from django.utils.timezone import make_naive
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
@@ -1441,7 +1442,7 @@ class Message(TimeStampedModel):
     @property
     def date(self) -> datetime.date:
         """Return the date object of the message creation datetime."""
-        return self.created.date()
+        return make_naive(self.created).date()
 
     @property
     def notification_line(self):
