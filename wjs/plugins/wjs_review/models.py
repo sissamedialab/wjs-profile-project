@@ -431,16 +431,13 @@ class ArticleWorkflow(TimeStampedModel):
     class ReviewComputedStates(models.TextChoices):
         REQUESTED_MINOR_REVISION = "requested_minor_revisions", _("Requested Minor revision")
         REQUESTED_MAJOR_REVISION = "requested_major_revisions", _("Requested Major revision")
-        REQUESTED_OPEN_APPEAL = "requested_open_appeal", _("Requested Appeal")
         REQUESTED_TECHNICAL_REVISION = "requested_tech_revisions", _("Requested Metadata change")
-        REQUESTED_REQUIRES_RESUBMISSION = "requested_requires_resubmission", _("Requested resubmission")
         WAITING_FOR_DECISION = "waiting_for_decision", _("Waiting for decision")
         IN_REVIEW = "in_review", _("In review")
         RESUBMITTED_MINOR_REVISION = "resubmitted_minor_revisions", _("Resubmitted Minor revision")
         RESUBMITTED_MAJOR_REVISION = "resubmitted_major_revisions", _("Resubmitted Major revision")
         RESUBMITTED_OPEN_APPEAL = "resubmitted_open_appeal", _("Resubmitted Appeal")
         RESUBMITTED_TECHNICAL_REVISION = "resubmitted_tech_revisions", _("Resubmitted Metadata change")
-        RESUBMITTED_REQUIRES_RESUBMITTED = "resubmitted_requires_resubmission", _("Resubmitted resubmitted")
         ASSIGNED_TO_EDITOR = "assigned_to_editor", _("Assigned to Editor")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)

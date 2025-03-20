@@ -9,7 +9,6 @@ and use parent selectors sass syntax:
 
 color-state-requested_minor_revisions
 color-state-requested_major_revisions
-color-state-requested_open_appeal
 color-state-requested_tech_revisions
 color-state-requested_requires_resubmission
 color-state-waiting_for_decision
@@ -18,7 +17,6 @@ color-state-resubmitted_minor_revisions
 color-state-resubmitted_major_revisions
 color-state-resubmitted_open_appeal
 color-state-resubmitted_tech_revisions
-color-state-resubmitted_requires_resubmission
 color-state-assigned_to_editor
 color-state-EditorToBeSelected
 color-state-EditorSelected
@@ -59,70 +57,85 @@ color-section-4
 color-section-7
 */
 
-$color-state-requested_minor_revisions: #377eb8;
+$color-state-requested_minor_revisions: #e85b5b;
 $hover-state-requested_minor_revisions: darken($color-state-requested_minor_revisions, 10%);
-$color-state-requested_major_revisions: #e41a1c;
+
+$color-state-requested_major_revisions: #a90002;
 $hover-state-requested_major_revisions: darken($color-state-requested_major_revisions, 10%);
-$color-state-requested_open_appeal: #4daf4a;
-$hover-state-requested_open_appeal: darken($color-state-requested_open_appeal, 10%);
+$color-state-ToBeRevised: #a90002;
+$hover-state-ToBeRevised: darken($color-state-ToBeRevised, 10%);
+
 $color-state-requested_tech_revisions: #984ea3;
 $hover-state-requested_tech_revisions: darken($color-state-requested_tech_revisions, 10%);
-$color-state-requested_requires_resubmission: #ff7f00;
-$hover-state-requested_requires_resubmission: darken($color-state-requested_requires_resubmission, 10%);
-$color-state-waiting_for_decision: #a65628;
-$hover-state-waiting_for_decision: darken($color-state-waiting_for_decision, 10%);
-$color-state-in_review: #f781bf;
-$hover-state-in_review: darken($color-state-in_review, 10%);
-$color-state-resubmitted_minor_revisions: #999999;
-$hover-state-resubmitted_minor_revisions: darken($color-state-resubmitted_minor_revisions, 10%);
-$color-state-resubmitted_major_revisions: #377eb8;
-$hover-state-resubmitted_major_revisions: darken($color-state-resubmitted_major_revisions, 10%);
-$color-state-resubmitted_open_appeal: #e41a1c;
-$hover-state-resubmitted_open_appeal: darken($color-state-resubmitted_open_appeal, 10%);
-$color-state-resubmitted_tech_revisions: #4daf4a;
-$hover-state-resubmitted_tech_revisions: darken($color-state-resubmitted_tech_revisions, 10%);
-$color-state-resubmitted_requires_resubmission: #984ea3;
-$hover-state-resubmitted_requires_resubmission: darken($color-state-resubmitted_requires_resubmission, 10%);
-$color-state-assigned_to_editor: #ff7f00;
-$hover-state-assigned_to_editor: darken($color-state-assigned_to_editor, 10%);
-$color-state-EditorToBeSelected: #56b881;
-$hover-state-EditorToBeSelected: darken($color-state-EditorToBeSelected, 10%);
-$color-state-EditorSelected: #e377c2;
-$hover-state-EditorSelected: darken($color-state-EditorSelected, 10%);
-$color-state-Submitted: #8dd3c7;
-$hover-state-Submitted: darken($color-state-Submitted, 10%);
-$color-state-ToBeRevised: #ffffb3;
-$hover-state-ToBeRevised: darken($color-state-ToBeRevised, 10%);
-$color-state-Withdrawn: #bebada;
-$hover-state-Withdrawn: darken($color-state-Withdrawn, 10%);
-$color-state-Rejected: #fb8072;
-$hover-state-Rejected: darken($color-state-Rejected, 10%);
-$color-state-IncompleteSubmission: #80b1d3;
-$hover-state-IncompleteSubmission: darken($color-state-IncompleteSubmission, 10%);
-$color-state-NotSuitable: #fdb462;
-$hover-state-NotSuitable: darken($color-state-NotSuitable, 10%);
-$color-state-PaperHasEditorReport: #b3de69;
-$hover-state-PaperHasEditorReport: darken($color-state-PaperHasEditorReport, 10%);
-$color-state-Accepted: #fccde5;
-$hover-state-Accepted: darken($color-state-Accepted, 10%);
-$color-state-TypesetterSelected: #4a7528;
-$hover-state-TypesetterSelected: darken($color-state-TypesetterSelected, 10%);
-$color-state-PaperMightHaveIssues: #bc80bd;
-$hover-state-PaperMightHaveIssues: darken($color-state-PaperMightHaveIssues, 10%);
-$color-state-Proofreading: #ccebc5;
-$hover-state-Proofreading: darken($color-state-Proofreading, 10%);
-$color-state-ReadyForTypesetter: #ffed6f;
-$hover-state-ReadyForTypesetter: darken($color-state-ReadyForTypesetter, 10%);
-$color-state-Published: #666666;
-$hover-state-Published: darken($color-state-Published, 10%);
-$color-state-ReadyForPublication: #1b9e77;
-$hover-state-ReadyForPublication: darken($color-state-ReadyForPublication, 10%);
-$color-state-SendToEditorForCheck: #d95f02;
-$hover-state-SendToEditorForCheck: darken($color-state-SendToEditorForCheck, 10%);
-$color-state-PublicationInProgress: #7570b3;
-$hover-state-PublicationInProgress: darken($color-state-PublicationInProgress, 10%);
+
 $color-state-UnderAppeal: #e7298a;
 $hover-state-UnderAppeal: darken($color-state-UnderAppeal, 10%);
+
+$color-state-waiting_for_decision: #138600;
+$hover-state-waiting_for_decision: darken($color-state-waiting_for_decision, 10%);
+
+$color-state-in_review: #c94388;
+$hover-state-in_review: darken($color-state-in_review, 10%);
+
+$color-state-resubmitted_minor_revisions: #4a85b6;
+$hover-state-resubmitted_minor_revisions: darken($color-state-resubmitted_minor_revisions, 10%);
+
+$color-state-resubmitted_major_revisions: #00427a;
+$hover-state-resubmitted_major_revisions: darken($color-state-resubmitted_major_revisions, 10%);
+
+$color-state-resubmitted_open_appeal: #5737b8;
+$hover-state-resubmitted_open_appeal: darken($color-state-resubmitted_open_appeal, 10%);
+
+$color-state-resubmitted_tech_revisions: #ff7f00;
+$hover-state-resubmitted_tech_revisions: darken($color-state-resubmitted_tech_revisions, 10%);
+
+$color-state-assigned_to_editor: #ff7f00;
+$hover-state-assigned_to_editor: darken($color-state-assigned_to_editor, 10%);
+$color-state-EditorSelected: #ff7f00;
+$hover-state-EditorSelected: darken($color-state-EditorSelected, 10%);
+$color-state-PaperHasEditorReport: #ff7f00;
+$hover-state-PaperHasEditorReport: darken($color-state-PaperHasEditorReport, 10%);
+
+$color-state-EditorToBeSelected: #56b881;
+$hover-state-EditorToBeSelected: darken($color-state-EditorToBeSelected, 10%);
+$color-state-Submitted: #56b881;
+$hover-state-Submitted: darken($color-state-Submitted, 10%);
+
+$color-state-Withdrawn: #463c3c;
+$hover-state-Withdrawn: darken($color-state-Withdrawn, 10%);
+$color-state-NotSuitable: #463c3c;
+$hover-state-NotSuitable: darken($color-state-NotSuitable, 10%);
+$color-state-Rejected: #463c3c;
+$hover-state-Rejected: darken($color-state-Rejected, 10%);
+
+$color-state-IncompleteSubmission: #80b1d3;
+$hover-state-IncompleteSubmission: darken($color-state-IncompleteSubmission, 10%);
+$color-state-PaperMightHaveIssues: #80b1d3;
+$hover-state-PaperMightHaveIssues: darken($color-state-PaperMightHaveIssues, 10%);
+
+$color-state-Accepted: #ffed6f;
+$hover-state-Accepted: darken($color-state-Accepted, 10%);
+$color-state-ReadyForTypesetter: #ffed6f;
+$hover-state-ReadyForTypesetter: darken($color-state-ReadyForTypesetter, 10%);
+
+$color-state-TypesetterSelected: #4a7528;
+$hover-state-TypesetterSelected: darken($color-state-TypesetterSelected, 10%);
+
+$color-state-Proofreading: #0e234b;
+$hover-state-Proofreading: darken($color-state-Proofreading, 10%);
+
+$color-state-SendToEditorForCheck: #d95f02;
+$hover-state-SendToEditorForCheck: darken($color-state-SendToEditorForCheck, 10%);
+
+$color-state-ReadyForPublication: #f781bf;
+$hover-state-ReadyForPublication: darken($color-state-ReadyForPublication, 10%);
+
+$color-state-PublicationInProgress: #ff0000;
+$hover-state-PublicationInProgress: darken($color-state-PublicationInProgress, 10%);
+
+$color-state-Published: #666666;
+$hover-state-Published: darken($color-state-Published, 10%);
+
 $color-section-1: #a6cee3;
 $hover-section-1: darken($color-section-1, 10%);
 $color-section-11: #1f78b4;
@@ -238,27 +251,11 @@ span.badge {
       }
     }
 
-    &-requested_open_appeal {
-      background-color: $color-state-requested_open_appeal;
-
-      &:hover {
-        background-color: $hover-state-requested_open_appeal;
-      }
-    }
-
     &-requested_tech_revisions {
       background-color: $color-state-requested_tech_revisions;
 
       &:hover {
         background-color: $hover-state-requested_tech_revisions;
-      }
-    }
-
-    &-requested_requires_resubmission {
-      background-color: $color-state-requested_requires_resubmission;
-
-      &:hover {
-        background-color: $hover-state-requested_requires_resubmission;
       }
     }
 
@@ -307,14 +304,6 @@ span.badge {
 
       &:hover {
         background-color: $hover-state-resubmitted_tech_revisions;
-      }
-    }
-
-    &-resubmitted_requires_resubmission {
-      background-color: $color-state-resubmitted_requires_resubmission;
-
-      &:hover {
-        background-color: $hover-state-resubmitted_requires_resubmission;
       }
     }
 
