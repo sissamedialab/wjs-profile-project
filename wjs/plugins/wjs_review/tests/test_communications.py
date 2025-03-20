@@ -4,6 +4,7 @@ import datetime
 from io import BytesIO, StringIO
 from typing import Callable, Optional
 
+import freezegun
 import html2text
 import pytest
 from core import files as core_files
@@ -314,6 +315,7 @@ def test_user_create_personal_note(
     assert msg.message_type == Message.MessageTypes.NOTE
 
 
+@freezegun.freeze_time("2023-01-04T00:34:00+01:00")
 @pytest.mark.django_db
 def test_user_sees_recipientee_messages(
     article: submission_models.Article,
@@ -332,6 +334,7 @@ def test_user_sees_recipientee_messages(
     msg.recipients.add(tuvok)
     assert msg.recipients.count() == 1
     assert msg.recipients.first() != chakotay
+    assert msg.date == datetime.date(2023, 1, 4)
     messages = get_messages_related_to_me(tuvok, article)
     assert messages.count() == 1
     assert messages.first() == msg
