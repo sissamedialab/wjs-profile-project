@@ -208,6 +208,9 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         if value:
             filters = Q(**{f"{name}__identifier__identifier__icontains": value})
             try:
+                # We might get the preprint-id (AW.preprint_id);
+                # if so, we can strip the journal code to get the article id
+                value = value.replace(f"{self._journal.code}_", "")
                 filters |= Q(**{f"{name}__id": int(value)})
             except ValueError:
                 pass
