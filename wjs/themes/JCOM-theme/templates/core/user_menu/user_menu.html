@@ -1,9 +1,9 @@
 {% load roles wjs_tags %}
-{% user_has_role request 'section-editor' as user_is_editor %}
-{% user_has_role request 'author' as user_is_author %}
-{% user_has_role request 'reviewer' as user_is_reviewer %}
-{% user_has_role request 'director' as user_is_director %}
-{% user_has_role request 'typesetter' as user_is_typesetter %}
+{% user_has_role request 'section-editor' False as user_is_editor %}
+{% user_has_role request 'author' False as user_is_author %}
+{% user_has_role request 'reviewer' False as user_is_reviewer %}
+{% user_has_role request 'director' False as user_is_director %}
+{% user_has_role request 'typesetter' False as user_is_typesetter %}
 {% user_has_eo_director_role request.user as user_is_eo_or_director %}
 
 {% comment %}
