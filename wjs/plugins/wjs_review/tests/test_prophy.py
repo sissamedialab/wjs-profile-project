@@ -1,8 +1,10 @@
 import pytest
 from django.http import HttpRequest
 from events import logic as events_logic
+from review import models as review_models
+from submission.models import Article
 
-from ..logic import HandleDecision
+from ..logic import HandleDecision, InviteReviewer
 from ..models import (
     ArticleWorkflow,
     ProphyAccount,
@@ -165,3 +167,44 @@ def test_two_articles_one_declined(
     # prophy account not deleted 402953 (both articles)
     # prophy account not deleted 4992186 (second article only)
     assert ProphyAccount.objects.filter(author_id__in=[402953, 4992186]).count() == 2
+
+
+@pytest.mark.django_db
+def test_prophy_suggestion_deleted_upon_invite(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+):
+    """InviteReview using a ProphySuggestion deletes that suggestion."""
+    # TODO: expand to test multiple suggestions on multiple articles
+    #       with shared ProphyAccounts among some suggestions
+
+    pa_author_id = 123
+    invitee_email = "e@ma.il"
+    pa = ProphyAccount.objects.create(
+        author_id=pa_author_id,
+        email=invitee_email,
+    )
+    ProphyCandidate.objects.create(
+        article=assigned_article,
+        prophy_account=pa,
+    )
+    assert ProphyCandidate.objects.count() == 1
+    assert ProphyAccount.objects.count() == 1
+
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    InviteReviewer(
+        workflow=assigned_article.articleworkflow,
+        editor=editor,
+        form_data={
+            "email": invitee_email,
+            "first_name": "",
+            "last_name": "",
+            "suffix": "",
+            "message": "",
+        },
+        request=fake_request,
+    ).run()
+
+    assert ProphyCandidate.objects.count() == 0
+    assert ProphyAccount.objects.count() == 0

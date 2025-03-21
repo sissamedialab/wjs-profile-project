@@ -97,6 +97,20 @@ def test_articleworkflow__get_sorted_review_assignments(
     review_settings,
     review_form: review_models.ReviewForm,
 ) -> None:
+    """Test the ordering of review-assignments.
+
+    RAs are first grouped by type: all the completed ones, then all the accepted ones, etc.
+    Then, RAs of each group are sorted wrt the interesting date for that group:
+    - completed assignments are sorted using their "competed" date, ignoring the other dates
+    - accepted assignments are sorted using their "accepted" date,
+    - etc.
+
+    Here we create 3 assignments (one in each state: completed, accepted (only), and declined)
+    for two reviewers, for a total of 6 assignments.
+
+    We change the dates of the two assignments in each state,
+    and verify that the sorting function behaves correctly.
+    """
     today = now().date()
     reviewer_1 = create_jcom_user("reviewer_1")
     reviewer_2 = create_jcom_user("reviewer_2")
@@ -138,9 +152,22 @@ def test_articleworkflow__get_sorted_review_assignments(
     sorted_review_assignments = assigned_article.articleworkflow._get_sorted_review_assignments(
         assigned_article.current_review_round_object()
     )
+    # Declined assignments:
     assert sorted_review_assignments.filter(date_declined__isnull=False).first().reviewer.jcomprofile == reviewer_2
+    # Completed assignments:
     assert sorted_review_assignments.filter(date_complete__isnull=False).first().reviewer.jcomprofile == reviewer_2
-    assert sorted_review_assignments.filter(date_accepted__isnull=False).first().reviewer.jcomprofile == reviewer_1
+    # Accepted assignemts:
+    # warning: do not use date_accepted only, becuase it is also set (i.e. it is not-null)
+    #          for completed-assignments
+    assert (
+        sorted_review_assignments.filter(
+            date_accepted__isnull=False,
+            date_complete__isnull=True,
+        )
+        .first()
+        .reviewer.jcomprofile
+        == reviewer_1
+    )
 
 
 @pytest.mark.django_db
