@@ -450,7 +450,7 @@ def _assigned_to_typesetter_proofs_done_article(
     Assume the given article is in the PROOFREADING state.
     """
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
-    old_typesetting_assignment = article.typesettinground_set.last().typesettingassignment
+    old_typesetting_assignment = article.typesettinground_set.first().typesettingassignment
     author = article.correspondence_author
     # A GalleyProofing object is created when the paper is sent from the typ to the author.
     # The author can upload files and add notes.

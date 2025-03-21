@@ -201,7 +201,7 @@ class DownloadRevisionFiles(AuthenticatedUserPassesTest, View):
 
     def _get_revision_archive_filename(self) -> str:
         """Return the filename for the archive."""
-        typesetting_round = self.object.article.typesettinground_set.last()
+        typesetting_round = self.object.article.typesettinground_set.first()
 
         return f"{self.object.preprint_id}_v{typesetting_round.round_number}.zip"
 
