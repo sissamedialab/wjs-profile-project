@@ -1,8 +1,8 @@
 {% load wjs_articles wjs_review %}
 {% if generic %}
-  {{ workflow.state_label }}
+    <span class="badge {{ article_classes.state_css }}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}</span>
 {% elif brief %}
-  {{ workflow.state_label }}
+    <span class="badge {{ article_classes.state_css }}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}</span>
   {% include "wjs_review/lists/elements/attention.html" %}
 {% else %}
   <div class="top-0 {% if attention_flag %}position-absolute{% endif %} py-2">
