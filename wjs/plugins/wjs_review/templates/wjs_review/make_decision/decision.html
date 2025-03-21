@@ -24,7 +24,7 @@
             <h5>{% translate "Title" %}</h5>
             {{ workflow.article.title }}
           </div>
-          {% if submitted_reviews %}
+          {% if submitted_reviews and not_metadata_change %}
             {% include "wjs_review/make_decision/elements/report_forms_table.html" %}
           {% endif %}
           {% get_available_transitions workflow as transitions %}

@@ -1729,6 +1729,23 @@ class HandleDecision:
         ArticleWorkflow.Decisions.TECHNICAL_REVISION: "_technical_revision_article",
     }
 
+    def __post_init__(self):
+        """
+        Perform a sanity check.
+
+        Only technical-revisions decision (allow-metadata-changes) can be made without an editor report.
+        """
+        # TODO: this method will be removed in specs#1455
+        if "decision_editor_report" not in self.form_data:
+            self.form_data["decision_editor_report"] = ""
+            if self.form_data["decision"] != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+                # Allow the process to continue, but log an error.
+                logger.error(
+                    'Decision "%s" on AW %s without an editor report. Please check.',
+                    self.form_data["decision"],
+                    self.workflow.id,
+                )
+
     @staticmethod
     def check_editor_conditions(workflow: ArticleWorkflow, editor: Account, admin_mode: bool) -> bool:
         """Editor must be assigned to the article."""
@@ -2097,7 +2114,6 @@ class HandleDecision:
             type=ArticleWorkflow.Decisions.TECHNICAL_REVISION,
             date_requested=timezone.now(),
             date_due=self.form_data["date_due"],
-            editor_note=self.form_data["decision_editor_report"],
             review_round=self.workflow.article.current_review_round_object(),
             editor_decision=decision,
         )

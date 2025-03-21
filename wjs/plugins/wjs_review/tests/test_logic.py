@@ -2033,8 +2033,12 @@ def test_handle_editor_decision(
     fake_request.user = editor_user
     form_data = {
         "decision": decision,
-        "decision_editor_report": "random message",
         "withdraw_notice": "notice",
+        **(
+            {"decision_editor_report": "random message"}
+            if decision != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+            else {}
+        ),
     }
     if final_state not in (
         ArticleWorkflow.ReviewStates.ACCEPTED,
@@ -2068,7 +2072,11 @@ def test_handle_editor_decision(
         "article": assigned_article,
         "request": fake_request,
         "decision": form_data["decision"],
-        "user_message_content": form_data["decision_editor_report"],
+        "user_message_content": (
+            form_data["decision_editor_report"]
+            if form_data["decision"] != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+            else ""
+        ),
         "withdraw_notice": form_data["withdraw_notice"],
         "skip": False,
         "recipient": review_assignment.reviewer,
@@ -2134,7 +2142,11 @@ def test_handle_editor_decision(
             "minor_revision": revision.type == ArticleWorkflow.Decisions.MINOR_REVISION,
             "tech_revision": revision.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION,
             "decision": form_data["decision"],
-            "user_message_content": form_data["decision_editor_report"],
+            "user_message_content": (
+                form_data["decision_editor_report"]
+                if form_data["decision"] != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+                else ""
+            ),
             "withdraw_notice": form_data["withdraw_notice"],
             "skip": False,
         }
@@ -2190,7 +2202,11 @@ def test_handle_editor_decision(
                 "request": fake_request,
                 "revision": None,
                 "decision": form_data["decision"],
-                "user_message_content": form_data["decision_editor_report"],
+                "user_message_content": (
+                    form_data["decision_editor_report"]
+                    if form_data["decision"] != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+                    else ""
+                ),
                 "withdraw_notice": form_data["withdraw_notice"],
                 "skip": False,
             },
@@ -2235,7 +2251,11 @@ def test_handle_editor_decision(
                 "request": fake_request,
                 "revision": None,
                 "decision": form_data["decision"],
-                "user_message_content": form_data["decision_editor_report"],
+                "user_message_content": (
+                    form_data["decision_editor_report"]
+                    if form_data["decision"] != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+                    else ""
+                ),
                 "withdraw_notice": form_data["withdraw_notice"],
                 "skip": False,
             },
@@ -2277,7 +2297,11 @@ def test_handle_editor_decision(
                 "request": fake_request,
                 "revision": None,
                 "decision": form_data["decision"],
-                "user_message_content": form_data["decision_editor_report"],
+                "user_message_content": (
+                    form_data["decision_editor_report"]
+                    if form_data["decision"] != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+                    else ""
+                ),
                 "withdraw_notice": form_data["withdraw_notice"],
                 "skip": False,
             },
@@ -2324,8 +2348,7 @@ def test_handle_editor_decision(
                 "request": fake_request,
                 "revision": revision,
                 "decision": form_data["decision"],
-                "user_message_content": form_data["decision_editor_report"],
-                "withdraw_notice": form_data["withdraw_notice"],
+                "user_message_content": None,
                 "skip": False,
             },
             template_is_setting=True,
@@ -2372,7 +2395,10 @@ def test_handle_editor_decision(
         review_round=assigned_article.articleworkflow.article.current_review_round_object(),
     )
     assert editor_decision.decision == decision
-    assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
+    if decision != ArticleWorkflow.Decisions.TECHNICAL_REVISION:
+        assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
+    else:
+        assert editor_decision.decision_editor_report == ""
 
 
 @pytest.mark.parametrize(
