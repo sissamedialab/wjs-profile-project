@@ -80,6 +80,8 @@ from .models import (
     Message,
     PastEditorAssignment,
     PermissionAssignment,
+    ProphyAccount,
+    ProphyCandidate,
     Reminder,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
@@ -1094,6 +1096,18 @@ class InviteReviewer:
             # If it does not exist, generate a token and a new user with the just created token
             token = self._generate_token()
             user = self._create_user(token)
+
+        # If the new user is related to a Prophy suggestion, we can delete that suggestion because we have already used
+        # it. We know that the new user is related to a Prophy suggestion is the Prophy-account and the new user email
+        # are the same.
+        ProphyCandidate.objects.filter(
+            article=self.workflow.article.id,
+            prophy_account__email=user.email,
+        ).delete()
+        ProphyAccount.objects.filter(
+            prophycandidate__isnull=True,
+        ).delete()
+
         return user
 
     def _notify_user(self, user: JCOMProfile):
