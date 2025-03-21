@@ -721,6 +721,8 @@ class DecisionForm(forms.ModelForm):
             del self.fields["withdraw_notice"]
         if kwargs["initial"].get("decision", None) == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             del self.fields["decision_editor_report"]
+            if "withdraw_notice" in self.fields:
+                del self.fields["withdraw_notice"]
         self.fields["date_due"].widget.attrs["min"] = self.today
         if self.date_due_max:
             self.fields["date_due"].widget.attrs["max"] = self.date_due_max

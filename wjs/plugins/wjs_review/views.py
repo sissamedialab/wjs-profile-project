@@ -1703,6 +1703,9 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         context["submitted_reviews"] = self.submitted_reviews
         context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
         context["pending_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.pending_reviews])
+        context["not_metadata_change"] = (
+            self.request.GET.get("decision", None) != ArticleWorkflow.Decisions.TECHNICAL_REVISION
+        )
         return context
 
 
