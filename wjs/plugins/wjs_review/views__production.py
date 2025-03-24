@@ -538,7 +538,7 @@ class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
     title = _("Send back to typesetter")
     form_class = EOSendBackToTypesetterForm
     template_name = "wjs_review/write_message/write_messages.html"
-    success_url = reverse_lazy("wjs_review_eo_pending")
+    success_url = reverse_lazy("wjs_review_eo_production")
 
     def load_initial(self, request, *args, **kwargs):
         """Fetch the Article instance for easier processing."""

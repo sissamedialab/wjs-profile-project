@@ -99,7 +99,7 @@ from .logic import (
     HandleMessage,
     render_template_from_setting,
     states_when_article_is_considered_archived,
-    states_when_article_is_considered_archived_for_review,
+    states_when_article_is_considered_archived_with_under_appeal,
     states_when_article_is_considered_author_pending,
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
@@ -232,6 +232,7 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
     ordering = ["-modified"]
     title: str
     show_filters = True
+    configuration_options: Dict[str, Any] = {}
 
     def load_initial(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
@@ -242,6 +243,7 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
                 queryset=self._apply_base_filters(self.model.objects.all()),
                 request=self.request,
                 journal=self.request.journal,
+                configuration_options=self.configuration_options,
             )
             self.filterset.is_valid()
         else:
@@ -284,8 +286,13 @@ class EditorPending(ArticleWorkflowBaseMixin):
     template_table = "wjs_review/lists/elements/editor/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
-    table_configuration_options = {"show_filter_editor": False, "show_filter_reviewer": True, "table_type": "review"}
-    """See :py:attr:`EOPending.table_configuration_options` for details."""
+    configuration_options = {
+        "show_filter_editor": False,
+        "show_filter_reviewer": True,
+        "table_type": "review",
+        "is_pending": True,
+    }
+    """See :py:attr:`EOPending.configuration_options` for details."""
 
     def test_func(self):
         """Allow access only for Editors of this Journal"""
@@ -318,7 +325,7 @@ class EditorArchived(EditorPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        past = states_when_article_is_considered_archived_for_review + states_when_article_is_considered_in_production
+        past = states_when_article_is_considered_archived + states_when_article_is_considered_in_production
         state_under_appeal = Q(state__in=[ArticleWorkflow.ReviewStates.UNDER_APPEAL])
         state_past = Q(state__in=past) & Q(
             article__editorassignment__editor__in=[self.request.user],
@@ -343,7 +350,12 @@ class EOPending(ArticleWorkflowBaseMixin):
     filterset_class = EOArticleWorkflowFilter
     filterset: EOArticleWorkflowFilter
     ordering = ["-article__date_submitted"]
-    table_configuration_options = {"show_filter_editor": True, "show_filter_reviewer": True, "table_type": "review"}
+    configuration_options = {
+        "show_filter_editor": True,
+        "show_filter_reviewer": True,
+        "table_type": "review",
+        "is_pending": True,
+    }
     """
     Configuration options for the table.
 
@@ -378,7 +390,7 @@ class EOPending(ArticleWorkflowBaseMixin):
 
 class EOArchived(EOPending):
     title = _("Archived preprints")
-    table_configuration_options = {"hide_editor_age": True, "show_filter_editor": True, "show_filter_reviewer": True}
+    configuration_options = {"hide_editor_age": True, "show_filter_editor": True, "show_filter_reviewer": True}
 
     def _apply_base_filters(self, qs):
         """
@@ -394,7 +406,7 @@ class EOArchived(EOPending):
 
 class EOProduction(EOPending):
     title = _("Papers in production")
-    table_configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
+    configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
     ordering = ["-article__date_accepted"]
 
     def _apply_base_filters(self, qs):
@@ -522,13 +534,14 @@ class DirectorPending(ArticleWorkflowBaseMixin):
     template_table = "wjs_review/lists/elements/director/table.html"
     filterset_class = StaffArticleWorkflowFilter
     filterset: StaffArticleWorkflowFilter
-    table_configuration_options = {
+    configuration_options = {
         "show_filter_editor": True,
         "show_filter_reviewer": True,
         "table_type": "review",
         "table_variant": "pending",
+        "is_pending": True,
     }
-    """See :py:attr:`EOPending.table_configuration_options` for details."""
+    """See :py:attr:`EOPending.configuration_options` for details."""
 
     def test_func(self):
         """Allow access only to director."""
@@ -550,8 +563,8 @@ class DirectorPending(ArticleWorkflowBaseMixin):
 
 class DirectorArchived(DirectorPending):
     title = _("Archived preprints")
-    table_configuration_options = {
-        **DirectorPending.table_configuration_options,
+    configuration_options = {
+        **DirectorPending.configuration_options,
         "hide_editor_age": True,
         "table_variant": "archive",
     }
@@ -565,14 +578,14 @@ class DirectorArchived(DirectorPending):
         """
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_archived_for_review)
+            .filter(state__in=states_when_article_is_considered_archived)
             .exclude(article__authors=self.request.user)
         )
 
 
 class DirectorProduction(DirectorPending):
     title = _("Papers in production")
-    table_configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
+    configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
     ordering = ["-article__date_accepted"]
 
     def _apply_base_filters(self, qs):
@@ -615,8 +628,8 @@ class AuthorPending(ArticleWorkflowBaseMixin):
     filterset_class = AuthorArticleWorkflowFilter
     filterset: AuthorArticleWorkflowFilter
     show_filters = False
-    table_configuration_options = {}
-    """See :py:attr:`EOPending.table_configuration_options` for details."""
+    configuration_options = {}
+    """See :py:attr:`EOPending.configuration_options` for details."""
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
@@ -642,8 +655,8 @@ class AuthorPending(ArticleWorkflowBaseMixin):
 class AuthorArchived(AuthorPending):
     title = _("Archived preprints")
     show_filters = True
-    table_configuration_options = {"show_author_due_date": True, "show_filter_author": True}
-    """See :py:attr:`EOPending.table_configuration_options` for details."""
+    configuration_options = {"show_author_due_date": True, "show_filter_author": True}
+    """See :py:attr:`EOPending.configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
         """
@@ -653,7 +666,7 @@ class AuthorArchived(AuthorPending):
         sure to use the original method.
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            Q(state__in=states_when_article_is_considered_archived_for_review)
+            Q(state__in=states_when_article_is_considered_archived)
             & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
         )
 
@@ -668,14 +681,14 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
     filterset_class = ReviewerArticleWorkflowFilter
     filterset: ReviewerArticleWorkflowFilter
     show_filters = False
-    table_configuration_options = {
+    configuration_options = {
         "reviewer_status": True,
         "show_filter_editor": True,
         "show_filter_author": False,
         "pending_list": True,
         "archived_list": False,
     }
-    """See :py:attr:`EOPending.table_configuration_options` for details."""
+    """See :py:attr:`EOPending.configuration_options` for details."""
 
     def test_func(self):
         """Allow access only for Reviewers of this Journal"""
@@ -699,14 +712,14 @@ class ReviewerArchived(ReviewerPending):
 
     title = _("Archived preprints")
     show_filters = True
-    table_configuration_options = {
+    configuration_options = {
         "reviewer_status": True,
         "show_filter_editor": True,
         "show_filter_author": False,
         "pending_list": False,
         "archived_list": True,
     }
-    """See :py:attr:`EOPending.table_configuration_options` for details."""
+    """See :py:attr:`EOPending.configuration_options` for details."""
 
     def _apply_base_filters(self, qs):
         """
@@ -1087,13 +1100,14 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             self.object.article, messages, filters=context["form"].cleaned_data
         )
         if self.object.state in (
-            states_when_article_is_considered_in_review + states_when_article_is_considered_archived
+            states_when_article_is_considered_in_review + states_when_article_is_considered_archived_with_under_appeal
         ):
             context["review_versions"] = self.object.get_review_versions(self.request.user)
             context["review"] = True
             context["current_review_assignment"] = self.get_current_review_assignment()
         if self.object.state in (
-            states_when_article_is_considered_in_production + states_when_article_is_considered_archived
+            states_when_article_is_considered_in_production
+            + states_when_article_is_considered_archived_with_under_appeal
         ):
             context["review_versions"] = self.object.get_review_versions(self.request.user)
             production_versions = self.object.get_production_versions(self.request.user)
@@ -2773,7 +2787,12 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
             content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
             object_id__in=editor_assignments,
         )
-        result = qs.filter(editor_reminders | reviewer_reminders)
+        revision_requests = EditorRevisionRequest.objects.filter(article=self.workflow.article).values_list("pk")
+        author_reminders = Q(
+            content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
+            object_id__in=revision_requests,
+        )
+        result = qs.filter(editor_reminders | reviewer_reminders | author_reminders)
         return result.order_by("-date_due")
 
     def get_context_data(self, **kwargs):

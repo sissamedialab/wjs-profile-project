@@ -106,17 +106,14 @@ from .utils import get_other_review_assignments_for_this_round
 logger = get_logger(__name__)
 Account = get_user_model()
 
-states_when_article_is_considered_archived_for_review = [
-    ArticleWorkflow.ReviewStates.WITHDRAWN,
-    ArticleWorkflow.ReviewStates.REJECTED,
-    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
-]
-
 states_when_article_is_considered_archived = [
     ArticleWorkflow.ReviewStates.WITHDRAWN,
     ArticleWorkflow.ReviewStates.REJECTED,
     ArticleWorkflow.ReviewStates.NOT_SUITABLE,
     ArticleWorkflow.ReviewStates.PUBLISHED,
+]
+# FIXME:this needs a broader refactoring probably
+states_when_article_is_considered_archived_with_under_appeal = states_when_article_is_considered_archived + [
     ArticleWorkflow.ReviewStates.UNDER_APPEAL,
 ]
 
@@ -782,6 +779,7 @@ class EvaluateReview:
         self._janeway_logic_handle_decline()
         self._log_decline()
         self._delete_reviewevaluate_reminders()
+        self._delete_reviewreport_reminders()
         handle_reviewer_deassignment_reminders(self.assignment)
         if self.assignment.date_declined:
             return False
@@ -789,6 +787,10 @@ class EvaluateReview:
     def _delete_reviewevaluate_reminders(self):
         """Delete reminders related to the evaluation of this review request."""
         ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).delete()
+
+    def _delete_reviewreport_reminders(self):
+        """Delete reminders related to writing the review report."""
+        ReviewerShouldWriteReviewReminderManager(self.assignment).delete()
 
     def _create_reviewreport_reminders(self):
         """Create reminders related to writing the review report."""
@@ -1538,6 +1540,14 @@ class AuthorHandleRevision:
         self.revision.author_note = self.form_data.get("author_note", "")
         self.revision.save()
 
+    def _delete_author_reminders(self):
+        if self._was_technical_revision():
+            AuthorShouldSubmitTechnicalRevisionReminderManager(self.revision).delete()
+        elif self.revision.type == ArticleWorkflow.Decisions.MAJOR_REVISION:
+            AuthorShouldSubmitMajorRevisionReminderManager(self.revision).delete()
+        elif self.revision.type == ArticleWorkflow.Decisions.MINOR_REVISION:
+            AuthorShouldSubmitMinorRevisionReminderManager(self.revision).delete()
+
     def _create_editor_should_select_reviewer_reminders(self):
         """
         Create reminders for the editor to select a reviewer,
@@ -1552,6 +1562,7 @@ class AuthorHandleRevision:
             self._confirm_revision()
             self._save_author_note()
             self._trigger_complete_event(self.revision, self.request)
+            self._delete_author_reminders()
             self._create_editor_should_select_reviewer_reminders()
             self._log_operation()
             return self.revision

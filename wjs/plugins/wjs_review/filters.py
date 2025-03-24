@@ -10,7 +10,7 @@ from django_filters.fields import ModelChoiceField
 from journal.models import Issue
 from submission.models import Article, Keyword, Section
 
-from wjs.jcom_profile import constants, permissions
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from .logic__visibility import get_recipient_label
@@ -60,34 +60,22 @@ class SectionFilterFilter(django_filters.ModelChoiceFilter):
     field_class = SectionFilterField
 
 
-def eo_status_choices() -> list[tuple[str, str]]:
+def status_choices(is_pending: bool) -> list[tuple[str, str]]:
     """
-    Return the list of status choices for the ArticleWorkflowFilter for EO users.
+    Return the list of status choices for the ArticleWorkflowFilter.
 
     It includes the symbolic status cases, ArticleWorkflow.ReviewStates.choices must be loaded during filterset
     initialization.
     """
-    return [
-        ("with_unread_messages", _("With unread messages")),
-        ("submitted_re", _("(Re)Submitted")),
-        ("with_pending_reviews", _("Being reviewed")),
-        ("waiting_for_decision", _("Waiting for decision")),
-    ]
-
-
-def status_choices() -> list[tuple[str, str]]:
-    """
-    Return the list of status choices for the ArticleWorkflowFilter for non EO users.
-
-    It includes the symbolic status cases, ArticleWorkflow.ReviewStates.choices must be loaded during filterset
-    initialization.
-    """
-    return [
-        ("with_unread_messages", _("With unread messages")),
-        ("submitted_re", _("(Re)Submitted")),
-        ("with_pending_reviews", _("Being reviewed")),
-        ("waiting_for_decision", _("Waiting for decision")),
-    ]
+    return [("with_unread_messages", _("With unread messages"))] + (
+        [
+            ("submitted_re", _("(Re)Submitted")),
+            ("with_pending_reviews", _("Being reviewed")),
+            ("waiting_for_decision", _("Waiting for decision")),
+        ]
+        if is_pending
+        else []
+    )
 
 
 class BaseArticleWorkflowFilter(django_filters.FilterSet):
@@ -144,6 +132,7 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
 
     def __init__(self, *args, **kwargs):
         self._journal = kwargs.pop("journal", None)
+        self.is_pending = kwargs.pop("configuration_options", {}).get("is_pending", False)
         super().__init__(*args, **kwargs)
         self.filters = self.select_filters()
 
@@ -247,14 +236,9 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         """Customize filters by journal."""
         filters = super().select_filters()
         available_states = self.queryset.values_list("state", flat=True).exclude(state="EditorSelected").distinct()
-        if self.request.user and self.request.user.is_authenticated and permissions.has_eo_role(self.request.user):
-            full_choices = eo_status_choices() + [
-                state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
-            ]
-        else:
-            full_choices = status_choices() + [
-                state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
-            ]
+        full_choices = status_choices(self.is_pending) + [
+            state for state in ArticleWorkflow.ReviewStates.choices if state[0] in available_states
+        ]
         filters["status"].field.choices = full_choices
         return filters
 

@@ -20,7 +20,7 @@ from submission.models import Article
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from . import permissions
-from .logic import states_when_article_is_considered_archived
+from .logic import states_when_article_is_considered_archived_with_under_appeal
 from .models import (
     ArticleWorkflow,
     EditorDecision,
@@ -666,5 +666,5 @@ def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) ->
 
 def can_withdraw_preprint(workflow: ArticleWorkflow, user: Account) -> bool:
     """Return True if the preprint can be withdrawn."""
-    state_condition = workflow.state not in states_when_article_is_considered_archived
+    state_condition = workflow.state not in states_when_article_is_considered_archived_with_under_appeal
     return state_condition
