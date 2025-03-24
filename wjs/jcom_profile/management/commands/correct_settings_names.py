@@ -705,44 +705,45 @@ Regards,
 {{ article.journal.code }} Journal
         """
 
-        group = get_group("wjs_review")
+        wjsreview_group = get_group("wjs_review")
+        email_group = get_group("email")
         patch_setting(
-            PatchSettingParams(name="default_editor_assign_reviewer_days", group=group),
+            PatchSettingParams(name="default_editor_assign_reviewer_days", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=10, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="default_editor_assign_reviewer_days", group=group),
+            PatchSettingParams(name="default_editor_assign_reviewer_days", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=10, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="default_editor_make_decision_days", group=group),
+            PatchSettingParams(name="default_editor_make_decision_days", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=10, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="default_author_major_revision_days", group=group),
+            PatchSettingParams(name="default_author_major_revision_days", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=90, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="default_author_major_revision_days_max", group=group),
+            PatchSettingParams(name="default_author_major_revision_days_max", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=180, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="date_due_major_revisions_far_future_days", group=group),
+            PatchSettingParams(name="date_due_major_revisions_far_future_days", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=240, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="date_due_minor_revisions_far_future_days", group=group),
+            PatchSettingParams(name="date_due_minor_revisions_far_future_days", group=wjsreview_group),
             PatchSettingValueParams(journal=jcomal, value=120, translations={}),
         )
 
         patch_setting(
-            PatchSettingParams(name="author_publication", group=group),
+            PatchSettingParams(name="author_publication", group=email_group),
             PatchSettingValueParams(journal=jcomal, value=author_publication_jcomal_value, translations={}),
         )
 
