@@ -422,6 +422,7 @@ class UploadFile:
     request: HttpRequest
     assignment: TypesettingAssignment
     file_to_upload: File
+    do_create_galleys: bool = True
 
     def _check_typesetter_condition(self):
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
@@ -471,14 +472,15 @@ class UploadFile:
                 self._look_for_queries_in_archive()
             except Exception as e:
                 raise ValidationError(str(e)) from e
-        try:
-            async_task(
-                typesettertestsgalleygeneration_wrapper,
-                self.assignment.pk,
-                task_name="test-galley-generation",
-            )
-        except Exception as e:
-            raise ValidationError(str(e)) from e
+        if self.do_create_galleys:
+            try:
+                async_task(
+                    typesettertestsgalleygeneration_wrapper,
+                    self.assignment.pk,
+                    task_name="test-galley-generation",
+                )
+            except Exception as e:
+                raise ValidationError(str(e)) from e
         return self.assignment.round.article
 
 
