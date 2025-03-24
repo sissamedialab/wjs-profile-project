@@ -1,4 +1,5 @@
 import random
+from itertools import product
 from typing import Type
 from unittest.mock import patch
 
@@ -16,11 +17,11 @@ from .. import views
 from ..filters import (
     EOArticleWorkflowFilter,
     StaffArticleWorkflowFilter,
-    eo_status_choices,
+    status_choices,
 )
 from ..logic import (
     states_when_article_is_considered_archived,
-    states_when_article_is_considered_archived_for_review,
+    states_when_article_is_considered_archived_with_under_appeal,
     states_when_article_is_considered_in_review,
 )
 from ..models import ArticleWorkflow, WjsEditorAssignment, WorkflowReviewAssignment
@@ -94,7 +95,7 @@ def test_articleworkflowfilter(
     assert set(article_filterer.qs) == set(workflows.filter(eo_in_charge=eo_user))
 
 
-@pytest.mark.parametrize("user_type", ("eo", "section-editor", "director", "none"))
+@pytest.mark.parametrize("user_type,is_pending", product(("eo", "section-editor", "director", "none"), (True, False)))
 @pytest.mark.django_db
 def test_staffarticleworkflowfilter_filter_status(
     journal: journal_models.Journal,  # noqa
@@ -104,6 +105,7 @@ def test_staffarticleworkflowfilter_filter_status(
     section_editor: Account,  # noqa
     review_settings,
     user_type: str,
+    is_pending: bool,
 ):
     """
     StaffArticleWorkflowFilter query by status.
@@ -122,9 +124,15 @@ def test_staffarticleworkflowfilter_filter_status(
 
     filters = {
         "with_unread_messages": "with_unread_messages",
-        "submitted_re": "submitted_re",
-        "with_pending_reviews": "with_pending_reviews",
-        "waiting_for_decision": "waiting_for_decision",
+        **(
+            {
+                "submitted_re": "submitted_re",
+                "with_pending_reviews": "with_pending_reviews",
+                "waiting_for_decision": "waiting_for_decision",
+            }
+            if is_pending
+            else {}
+        ),
     }
 
     for status_filter, qs_method in filters.items():
@@ -134,6 +142,7 @@ def test_staffarticleworkflowfilter_filter_status(
                 queryset=workflows,
                 request=fake_request,
                 journal=journal,
+                configuration_options={"is_pending": is_pending},
             )
             assert status_filter in dict(article_filterer.filters["status"].field.choices)
             # call the filter method, it must be called low level because filter_queryset asserts that return value
@@ -183,8 +192,7 @@ def test_eoarticleworkflowfilter_filter_status(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "state",
-    ("none", "Accepted", "EditorToBeSelected", "ToBeRevised"),
+    "state,is_pending", product(("none", "Accepted", "EditorToBeSelected", "ToBeRevised"), (True, False))
 )
 def test_articleworkflowfilter_status_choices(
     coauthors_setting,
@@ -195,6 +203,7 @@ def test_articleworkflowfilter_status_choices(
     review_settings,
     create_set_of_articles_with_assignments,
     state: str,
+    is_pending: bool,
 ):
     """
     EOArticleWorkflowFilter.status choices are set depending on actual queryset.
@@ -208,13 +217,14 @@ def test_articleworkflowfilter_status_choices(
         queryset=workflows,
         request=fake_request,
         journal=journal,
+        configuration_options={"is_pending": is_pending},
     )
     if state != "none":
-        expected = [""] + [item[0] for item in eo_status_choices()] + [state]
+        expected = [""] + [item[0] for item in status_choices(is_pending)] + [state]
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
     else:
         states = workflows.values_list("state", flat=True).exclude(state="EditorSelected").distinct()
-        expected = [""] + [item[0] for item in eo_status_choices()] + list(states)
+        expected = [""] + [item[0] for item in status_choices(is_pending)] + list(states)
         assert {item[0] for item in filterset.filters["status"].field.choices} == set(expected)
 
 
@@ -284,7 +294,7 @@ class TestListViews:
         articles = create_submitted_articles(journal, count=30)
         for article in articles:
             article.articleworkflow.state = random.choice(
-                states_when_article_is_considered_in_review + states_when_article_is_considered_archived_for_review,
+                states_when_article_is_considered_in_review + states_when_article_is_considered_archived,
             )
             article.articleworkflow.save()
 
@@ -296,7 +306,7 @@ class TestListViews:
         article_qs = ArticleWorkflow.objects.all()
         for state_list in (
             states_when_article_is_considered_in_review,
-            states_when_article_is_considered_archived_for_review,
+            states_when_article_is_considered_archived,
         ):
             for workflow in random.sample(list(article_qs.filter(state__in=state_list)), k=3):
                 WjsEditorAssignment.objects.create(
@@ -366,7 +376,9 @@ class TestListViews:
         else:
             if role == "author":
                 # Author is special: his list view show all live articles: both in review and in production
-                assert set(qs.values_list("state", flat=True)).isdisjoint(states_when_article_is_considered_archived)
+                assert set(qs.values_list("state", flat=True)).isdisjoint(
+                    states_when_article_is_considered_archived_with_under_appeal
+                )
 
                 assert qs.filter(article__authors=user).exists()
             elif role == "section-editor":
@@ -415,9 +427,7 @@ class TestListViews:
                 article__reviewassignment__is_complete=True,
             ).exists()
         else:
-            assert set(qs.values_list("state", flat=True)).issubset(
-                states_when_article_is_considered_archived_for_review
-            )
+            assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_archived)
             if role == "author":
                 assert qs.filter(article__authors=user).exists()
             elif role == "section-editor":
