@@ -4,13 +4,13 @@
 <div class="row gap-4 mb-3">
   {% bootstrap_field filter.form.article_identifiers size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% bootstrap_field filter.form.correspondence_author size="sm" wrapper_class="table-filter col" placeholder="" %}
-  {% if view.table_configuration_options.show_filter_editor %}
+  {% if view.configuration_options.show_filter_editor %}
     {% bootstrap_field filter.form.editor size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% endif %}
-  {% if view.table_configuration_options.show_filter_reviewer %}
+  {% if view.configuration_options.show_filter_reviewer %}
     {% bootstrap_field filter.form.reviewer size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% endif %}
-  {% if view.table_configuration_options.show_filter_typesetter %}
+  {% if view.configuration_options.show_filter_typesetter %}
     {% bootstrap_field filter.form.typesetter size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% endif %}
   {% bootstrap_field filter.form.article size="sm" wrapper_class="table-filter col" placeholder="" %}

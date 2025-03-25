@@ -2,7 +2,7 @@
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{% if view.table_configuration_options.table_type == "review" %}{{ article|get_version_submission_date|date:"U" }}{% elif view.table_configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
+    <td data-order="{% if view.configuration_options.table_type == "review" %}{{ article|get_version_submission_date|date:"U" }}{% elif view.configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
       <a
          href="{% url 'wjs_article_details' workflow.id %}"
@@ -14,9 +14,9 @@
           <br />
         {% endif %}
       {% endwith %}
-      {% if view.table_configuration_options.table_type == "review" %}
+      {% if view.configuration_options.table_type == "review" %}
         <span title="Submitted on {{ article|get_version_submission_date }}">{{ article|get_version_submission_date|date:"d-M" }}</span>
-      {% elif view.table_configuration_options.table_type == "production" %}
+      {% elif view.configuration_options.table_type == "production" %}
         <span title="Accepted on {{ article.date_accepted }}">{{ article.date_accepted|date:"d-M" }}</span>
       {% endif %}
       <br />
@@ -33,15 +33,15 @@
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" with show_details=True %}
     </td>
-    {% if view.table_configuration_options.table_type == "production" %}
+    {% if view.configuration_options.table_type == "production" %}
       <td>
         {{ article|article_current_typesetter }}
       </td>
-    {% elif view.table_configuration_options.table_type == "review" %}
+    {% elif view.configuration_options.table_type == "review" %}
       <td>
         {% with editor_assignment_data=article|article_current_editor %}
           {{ editor_assignment_data.editor }}
-          {% if not view.table_configuration_options.hide_editor_age and workflow.article|waiting_editor_actions %}
+          {% if not view.configuration_options.hide_editor_age and workflow.article|waiting_editor_actions %}
             <div title="assigned">{{ editor_assignment_data.days_elapsed }} {% translate "days" %}</div>
           {% endif %}
         {% endwith %}
