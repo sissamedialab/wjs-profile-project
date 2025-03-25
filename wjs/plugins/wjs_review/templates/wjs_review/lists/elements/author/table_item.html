@@ -22,7 +22,7 @@
     <td>
       {{ article.primary_issue|internal_title|default:"—" }}
     </td>
-    {% if table.table_configuration_options.show_author_due_date %}
+    {% if table.configuration_options.show_author_due_date %}
       <td>
         {{ article|upcoming_deadline|date:"d-M" }}
       </td>

@@ -5,7 +5,7 @@
     <th scope="col">{% translate "Article Type" %}</th>
     <th scope="col">{% translate "Title" %}</th>
     <th scope="col">{% translate "Editor" %}</th>
-    {% if not view.table_configuration_options.pending_list %}
+    {% if not view.configuration_options.pending_list %}
       <th scope="col">{% translate "Status" %}</th>
     {% endif %}
     <th scope="col">{% translate "Issue" %}</th>
@@ -26,7 +26,7 @@
     ordering: true,
     paging: false,
     order: [[ 0, "desc" ]],
-    {% if not view.table_configuration_options.pending_list %}
+    {% if not view.configuration_options.pending_list %}
       columns: [null, null, { orderable: false }, { orderable: false }, null, null, null],
     {% else %}
       columns: [null, null, { orderable: false }, { orderable: false }, null, null],

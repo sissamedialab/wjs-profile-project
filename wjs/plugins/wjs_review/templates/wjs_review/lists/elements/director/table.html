@@ -5,9 +5,9 @@
     <th scope="col">{% translate "Authors" %}</th>
     <th scope="col">{% translate "Title" %}</th>
     <th scope="col">{% translate "Status" %}</th>
-    {% if view.table_configuration_options.table_type == "production" %}
+    {% if view.configuration_options.table_type == "production" %}
       <th scope="col">{% translate "Typesetter" %}</th>
-    {% elif view.table_configuration_options.table_type == "review" %}
+    {% elif view.configuration_options.table_type == "review" %}
       <th scope="col">{% translate "Editor" %}</th>
       <th scope="col">{% translate "Reviewers" %}</th>
     {% endif %}
@@ -28,9 +28,9 @@
     ordering: true,
     paging: false,
     order: [[ 0, "desc" ]],
-    {% if view.table_configuration_options.table_type == "production" %}
+    {% if view.configuration_options.table_type == "production" %}
     columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }]
-    {% elif view.table_configuration_options.table_type == "review" %}
+    {% elif view.configuration_options.table_type == "review" %}
     columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
     {% endif %}
   });

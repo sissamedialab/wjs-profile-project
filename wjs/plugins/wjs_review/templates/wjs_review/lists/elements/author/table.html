@@ -7,7 +7,7 @@
     <th scope="col">{% translate "Title" %}</th>
     <th scope="col">{% translate "Status" %}</th>
     <th scope="col">{% translate "Issue" %}</th>
-    {% if table.table_configuration_options.show_author_due_date %}
+    {% if table.configuration_options.show_author_due_date %}
       <th scope="col">{% translate "Upcoming due date" %}</th>
     {% endif %}
   </tr>
@@ -26,7 +26,7 @@
     ordering: true,
     paging: false,
     order: [[ 0, "desc" ]],
-    {% if table.table_configuration_options.show_author_due_date %}
+    {% if table.configuration_options.show_author_due_date %}
     columns: [null, null, { orderable: false }, { orderable: false }, null, null, null]
     {% else %}
     columns: [null, null, { orderable: false }, { orderable: false }, null, null]
