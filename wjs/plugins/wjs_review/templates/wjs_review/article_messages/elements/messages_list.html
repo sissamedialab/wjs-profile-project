@@ -1,18 +1,23 @@
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 static %}
 {% translate "Search" as filter_label %}
 {% translate "Reset filters" as reset_label %}
 {% url "wjs_article_messages" pk=workflow.pk as filter_url %}
+<script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
+<script>
+  EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
+</script>
+
 <div id="messages-list">
 
   <div class="container mb-3">
     <div class="d-flex justify-content-between">
       <h1 class="page-title">{{ view.title }}</h1>
-      <form class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
+      <form id="id_filter_form" class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
         <div class="d-flex justify-content-end">
           {% bootstrap_field filter.form.actor_recipients show_label=False wrapper_class="me-3" addon_before='<i class="bi bi-funnel"></i>' %}
           {% bootstrap_field filter.form.type show_label=False wrapper_class="me-3" %}
           {% bootstrap_field filter.form.content show_label=False wrapper_class="me-3" %}
-          {% bootstrap_button name="filter" content=filter_label wrapper_class="me-3" %}
+          {% bootstrap_button id="id_filter_form_submit_button" name="filter" content=filter_label wrapper_class="me-3" %}
           <a href="{% url request.resolver_match.url_name workflow.pk %}" class="btn btn-outline-secondary ms-1">{{ reset_label }}</a>
         </div>
       </form>
