@@ -79,7 +79,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
-from wjs.jcom_profile.import_utils import set_author_country
+from wjs.jcom_profile.import_utils import JANEWAY_LANGUAGES_BY_CODE, set_author_country
 from wjs.jcom_profile.management.commands.import_from_drupal import (
     JOURNALS_DATA,
     NON_PEER_REVIEWED,
@@ -218,6 +218,7 @@ class Command(BaseCommand):
         publicationid = current_version_row["publicationId"]
         document_revision_dead_line = current_version_row["revisionDeadline"]
         section = current_version_row["documentType"]
+        language = current_version_row["language"]
         version_cod = current_version_row["versionCod"]
         # current_version -> row  "versionNumber"
 
@@ -375,6 +376,9 @@ class Command(BaseCommand):
 
             # article section
             self.set_section(article, section)
+
+            # article language
+            self.set_language(article, language)
 
             # article keywords
             keywords = self.read_article_keywords(version_cod)
@@ -689,6 +693,7 @@ d.submissionDate,
 d.authorCod,
 d.eoInChargeCod,
 d.revisionDeadline,
+d.language,
 u2.lastname AS eoInCharge_lastname,
 u2.firstname AS eoInCharge_firstname,
 u2.email AS eoInCharge_email,
@@ -1167,6 +1172,87 @@ ORDER BY ah.actionDate
             article.peer_reviewed = False
 
         article.save()
+
+    def set_language(self, article, language):
+        """Set the article language from the wjapp text field"""
+
+        # in wjapp Document.language is a free text field also with empty sting and null values
+        # i.e.:
+        # JCOM_003A_0415 NULL
+        # JCOM_002Y_0523 English--CANADA
+        # JCOM_007A_0623 ING
+        # JCOM_024A_0923 anglais
+        # JCOM_001BR_0324 WALKER_2024_BOOK_REVIEW_Amplifying.docx
+        # JCOM_001V_1224 Indonesian
+        # JCOM_002V_1224 Indonesia
+        # JCOM_004A_0325 Portuguese
+        # JCOM_002A_0325 English
+        # JCOM_001L_0325 ""
+        # JCOM_004N_1024 ---
+
+        # default for jcom when not defined
+        if not language and article.journal.code == "JCOM":
+            article.language = "eng"
+            article.save()
+            logger.warning(f"jcom {article.id} undefined language saved as 'eng'")
+            return
+
+        # default for jcomal when not defined
+        if not language and article.journal.code == "JCOMAL":
+            logger.warning(f"jcomal {article.id} undefined language let None")
+            return
+
+        if language:
+            language = language.strip()
+        else:
+            logger.warning(f"{article.id} undefined language let None")
+            return
+
+        # for the management of not normalized or wrong wjapp laguages used these choices with the
+        # the same format of submission models LANGUAGE_CHOICES.
+        # The actual distinct values from jcomal are: Spanish, Portuguese, Português, Español, Espanhol, NULL
+        # the others are from jcom
+        wjapp_not_normalized_languages_choices = (
+            ("fra", "french"),
+            ("spa", "Spain; Español; Spanish (Español); Espanhol"),
+            ("por", "Brazilian Portuguese; Português"),
+            ("ita", "Italiano"),
+            ("eng", "English--CANADA; ING; anglais;  English and Spanish; ENG; Italian (and English)"),
+            ("ind", "Indonesia; Bahasa Indonesia"),
+        )
+        wjapp_not_normalized_languages_by_code = {t[0]: t[1] for t in wjapp_not_normalized_languages_choices}
+
+        for lang_code in wjapp_not_normalized_languages_by_code.keys():
+            trimmed_lang_name_list = [x.strip() for x in wjapp_not_normalized_languages_by_code[lang_code].split(";")]
+            if language in trimmed_lang_name_list:
+                logger.warning(f"language wjapp {language} match as wjapp not normalized languages: {lang_code}")
+                article.language = wjapp_not_normalized_languages_by_code[lang_code]
+                article.save()
+                return
+
+        for lang_code in JANEWAY_LANGUAGES_BY_CODE.keys():
+            trimmed_lang_name_list = [x.strip() for x in JANEWAY_LANGUAGES_BY_CODE[lang_code].split(";")]
+            if language in trimmed_lang_name_list:
+                logger.warning(f"language wjapp {language} match as JANEWAY LANGUAGE CODE: {lang_code}")
+                article.language = JANEWAY_LANGUAGES_BY_CODE[lang_code]
+                article.save()
+                return
+
+        # default for jcom when not matched
+        if not article.language and article.journal.code == "JCOM":
+            article.language = "eng"
+            article.save()
+            logger.warning(f"jcom {article.id} not matched language {language} saved as 'eng'")
+            return
+
+        # default for jcomal when not matched
+        if not language and article.journal.code == "JCOMAL":
+            logger.warning(f"jcomal {article.id} matched language {language} let None")
+            return
+
+        # wjapp language not null, but not found in the choices defined above
+        if not article.language:
+            logger.warning(f"{article.id} language {language} not matched let undefined")
 
     def set_keywords(self, article: submission_models.Article, keywords):
         """Set the keywords."""
