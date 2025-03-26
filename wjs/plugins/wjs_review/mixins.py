@@ -122,7 +122,7 @@ class OpenReviewMixin(DetailView):
                 if self.allow_typesetter_access:
                     # Current typesetter is allowed to access the review
                     article = WorkflowReviewAssignment.objects.get(pk=self.kwargs["assignment_id"]).article
-                    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
+                    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
                     if typesetting_assignment and typesetting_assignment.typesetter == self.request.user:
                         filters |= Q(article=article)
                 queryset = queryset.filter(filters)

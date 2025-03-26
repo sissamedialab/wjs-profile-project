@@ -417,6 +417,7 @@ def _stage_proofing_article(
         round=article.typesettinground_set.first(),
         typesetter=typesetter,
     )
+    assert not typesetting_assignment.completed
     RequestProofs(
         assignment=typesetting_assignment,
         typesetter=typesetter,
@@ -425,6 +426,7 @@ def _stage_proofing_article(
     ).run()
     article.refresh_from_db()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
+    assert typesetting_assignment.completed
     if cleanup_side_effects:
         cleanup_notifications_side_effects()
     return article
@@ -517,7 +519,10 @@ def _create_rfp_article(
     user: Account,
     request: HttpRequest,
 ) -> Article:
-    """Create an article ready for publication."""
+    """Create an article ready for publication.
+
+    We expect the given article to have an incomplete TypesettingAssignment
+    """
     issue.articles.add(article)
     # we must reload article from db as Article.primary_issue is set by a signal triggered by
     # m2m save, and thus our in memory article object has no knowledge of that change
@@ -532,7 +537,7 @@ def _create_rfp_article(
 
     # Reminder: source files for the (publication) galleys are in the latest typesetting assignment, not in the
     # Article.source_files
-    ta = article.articleworkflow.get_latest_typesetting_assignment()
+    ta = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
     request.user = ta.typesetter
     UploadFile(
         typesetter=ta.typesetter,
@@ -541,15 +546,24 @@ def _create_rfp_article(
         file_to_upload=_zip_with_tex_without_query(article),
     ).run()
 
+    # Just a reminder: UploadFile does not complete the TA
+    assert not ta.completed
+
     article.articleworkflow.production_flag_no_queries = True
     article.articleworkflow.production_flag_no_checks_needed = True
     article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-    article.articleworkflow.get_latest_typesetting_assignment().galleys_created.set(
+    ta.galleys_created.set(
         # FIXME! the files on the filesystem don't exist!
         _create_generic_galleys(article=article),
     )
     article.articleworkflow.save()
+
     ReadyForPublication(workflow=article.articleworkflow, user=user).run()
+
+    # Now the TA should result completed
+    ta.refresh_from_db()
+    assert ta.completed
+
     article.refresh_from_db()
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
     article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
@@ -564,7 +578,7 @@ def rfp_article(
 ) -> Article:
     """Create an article in ready-for-publication."""
     workflow = assigned_to_typesetter_article_with_files_to_typeset.articleworkflow
-    typesetter = workflow.get_latest_typesetting_assignment().typesetter
+    typesetter = workflow.get_latest_typesetting_assignment(completed=False).typesetter
     article = _create_rfp_article(
         article=assigned_to_typesetter_article_with_files_to_typeset,
         issue=fb_issue,

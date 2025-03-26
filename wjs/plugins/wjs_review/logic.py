@@ -3317,7 +3317,7 @@ class WithdrawPreprint:
 
     def _get_typesetting_assignment(self) -> TypesettingAssignment | None:
         """Return the current typesetting assignment (if any)."""
-        return self.workflow.get_latest_typesetting_assignment()
+        return self.workflow.get_latest_typesetting_assignment(completed=False)
 
     def _get_typesetter_context(self, assignment: TypesettingAssignment) -> Dict[str, Any]:
         return {

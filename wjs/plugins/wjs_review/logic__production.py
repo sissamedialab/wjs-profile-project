@@ -193,6 +193,8 @@ class AssignTypesetter:
     def _create_typesetting_round(self):
         self.article.stage = STAGE_TYPESETTING
         self.article.save()
+        # TODO: please comment on why we use get_or_create();
+        #       IIC, get() should be sufficient.
         typesetting_round, _ = TypesettingRound.objects.get_or_create(
             article=self.article,
         )
@@ -1211,9 +1213,10 @@ class ReadyForPublication:
     user: Account
 
     def _check_conditions(self) -> bool:
-        """Check that the FSM allows the transaction.
+        """
+        Check that the FSM allows the transaction.
 
-        Take the operator into consideration
+        Take the operator into consideration.
         """
         # TODO: might want to verify some of the checks of specs#791 here
         if is_article_author(self.workflow, self.user):
@@ -1225,10 +1228,17 @@ class ReadyForPublication:
 
     def _update_state(self):
         """Run FSM transition."""
+        ta: TypesettingAssignment = self.workflow.get_latest_typesetting_assignment(completed=False)
         if is_article_author(self.workflow, self.user):
             self.workflow.author_deems_paper_ready_for_publication()
+            if not ta.completed:
+                logger.error(f"Programming error: TA {ta.id} should already result completed when author deems RFP!")
         elif is_article_typesetter(self.workflow, self.user):
             self.workflow.typesetter_deems_paper_ready_for_publication()
+            if ta.completed:
+                logger.error(f"Programming error: TA {ta.id} should not result completed when typesetter deems RFP!")
+            ta.completed = timezone.now()
+            ta.save()
         else:
             # should never be able to get here because _check_conditions is run berfore
             raise ValueError(f"Unexpected user attempting the transaction ({self.user=}). Possible programming error!")
@@ -1360,7 +1370,7 @@ class BeginPublication:
 
     def __post_init__(self):
         """Find the source files."""
-        self.assignment = self.workflow.get_latest_typesetting_assignment()
+        self.assignment = self.workflow.get_latest_typesetting_assignment(completed=True)
         # The source files for the galley are in the latest typesetting assignment
         # Even if the field is a m2m, we alway set at most one item.
         self.source_files = Path(self.assignment.files_to_typeset.get().self_article_path())
