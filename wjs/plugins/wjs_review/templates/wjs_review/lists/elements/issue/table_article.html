@@ -38,7 +38,7 @@
     <td>
       {% article_needs_extra_article_information article request.user as need_extra_information %}
       {% article_has_extra_article_information article as has_extra_information %}
-      {% if need_extra_information %}
+      {% if need_extra_information and not issue.issueparameters.batch_publish %}
         {# FIXME: Updated code to use implementation in https://gitlab.sissamedialab.it/wjs/specs/-/issues/874 #}
         {% with modal_id="article_files_modal-"|concat:article.pk modal_target="#article_files_modal-"|concat:article.pk %}
           <!-- djlint:off -->
