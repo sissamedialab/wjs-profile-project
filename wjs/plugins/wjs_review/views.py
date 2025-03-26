@@ -3340,24 +3340,26 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
         return initial
 
 
-class ToggleIssueBatch(HtmxMixin, AuthenticatedUserPassesTest, DetailView):
+class ToggleIssueBatch(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
     """A view to toggle the issue batch state."""
 
     model = Issue
-    template_name = "wjs_review/lists/elements/issue/_toggle_batch.html"
     context_object_name = "issue"
     fields = ["batch_publish"]
+    success_url = reverse_lazy("wjs_review_eo_issues_list")
 
     def test_func(self):
         """User must be the journal's EO."""
         return base_permissions.has_eo_role(self.request.user)
 
     def post(self, request, *args, **kwargs):
-        """Toggle value of IssueParameters.batch_publish."""
+        """Toggle value of IssueParameters.batch_publish and reload the page."""
         self.object = self.get_object()
         self.object.issueparameters.batch_publish = not self.object.issueparameters.batch_publish
         self.object.issueparameters.save()
-        return self.get(request, *args, **kwargs)
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.success_url
+        return response
 
 
 class DownloadSingleFile(AuthenticatedUserPassesTest, View):
