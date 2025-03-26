@@ -1077,7 +1077,7 @@ class TypesetterSelected(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
-        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment()
+        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
         if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):

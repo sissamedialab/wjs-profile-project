@@ -621,7 +621,7 @@ class ArticleWorkflow(TimeStampedModel):
             )
             if completed:
                 ta = ta.filter(
-                    completed__isnull=True,
+                    completed__isnull=False,
                 )
             return ta.order_by("-round__round_number").first()
         except TypesettingAssignment.DoesNotExist:
