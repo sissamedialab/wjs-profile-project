@@ -1078,6 +1078,7 @@ def test_handle_accept_invite_reviewer(
         "reviewer_decision": "1",
         "accept_gdpr": accept_gdpr,
         "additional_comments": additional_comments,
+        "date_due": now().date() + datetime.timedelta(days=21),
     }
 
     # Message related to the editor assignment
@@ -3225,7 +3226,12 @@ def test_deassign_reviewer(
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
+            form_data={
+                "reviewer_decision": "1",
+                "accept_gdpr": True,
+                "additional_comments": "Additional comments",
+                "date_due": now().date() + datetime.timedelta(days=21),
+            },
             token="",
         ).run()
     # reset messages from article fixture processing
@@ -3304,7 +3310,12 @@ def test_deassign_reviewer_existing_assignment(
             reviewer=extra_assignment.reviewer,
             editor=extra_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
+            form_data={
+                "reviewer_decision": "1",
+                "accept_gdpr": True,
+                "additional_comments": "Additional comments",
+                "date_due": now().date() + datetime.timedelta(days=21),
+            },
             token="",
         ).run()
     elif extra_assignment_state == "completed":
@@ -3376,7 +3387,12 @@ def test_deassign_reviewer_no_editor(
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
             request=fake_request,
-            form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
+            form_data={
+                "reviewer_decision": "1",
+                "accept_gdpr": True,
+                "additional_comments": "Additional comments",
+                "date_due": now().date() + datetime.timedelta(days=21),
+            },
             token="",
         ).run()
     # reset messages from article fixture processing
@@ -3442,7 +3458,12 @@ def test_assign_different_editor(
         reviewer=accepted_ra.reviewer,
         editor=accepted_ra.editor,
         request=fake_request,
-        form_data={"reviewer_decision": "1", "accept_gdpr": True, "additional_comments": "Additional comments"},
+        form_data={
+            "reviewer_decision": "1",
+            "accept_gdpr": True,
+            "additional_comments": "Additional comments",
+            "date_due": now().date() + datetime.timedelta(days=21),
+        },
         token="",
     ).run()
     pending_ra = _create_review_assignment(

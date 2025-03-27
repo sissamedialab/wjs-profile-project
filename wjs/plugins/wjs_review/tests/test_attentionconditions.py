@@ -469,7 +469,7 @@ def test_reviewer_is_late(
     assert state_cls.article_requires_attention(article=article, user=reviewer) == ""
 
     # accept/decline overdue
-    assignment.date_due = localtime(timezone.now() - timezone.timedelta(1))
+    assignment.date_due = localtime(timezone.now()).date() - timezone.timedelta(days=1)
     assignment.save()
     assert state_cls.article_requires_attention(article=article, user=reviewer) == "Invite to be accepted/declined"
 
@@ -481,6 +481,7 @@ def test_reviewer_is_late(
         form_data={
             "reviewer_decision": "1",  # "1" means "accept"
             "additional_comments": "Additional comments",
+            "date_due": localtime(timezone.now()).date() - timezone.timedelta(days=1),
         },
         request=fake_request,
         token="",

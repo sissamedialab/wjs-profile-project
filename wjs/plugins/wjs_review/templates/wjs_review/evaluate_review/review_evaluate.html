@@ -36,12 +36,12 @@
               {{ assignment.article.abstract|safe }}
             </div>
             {% csrf_token %}
-            <div class="accordion accordion-flush border bg-transparent" id="metadata">
+            <div class="accordion accordion-flush border bg-transparent mb-3" id="metadata">
               {% include "wjs_review/details/elements/metadata_preprint_files.html" with article=assignment.article workflow=assignment.article.articleworkflow review_versions=assignment.version %}
             </div>
             <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
+              {% bootstrap_form_errors form %}
               {% csrf_token %}
-
               <div class="row">
                 <div class="col-sm-4 mb-1 mt-3">
                   {% bootstrap_field form.date_due label_class="fw-bold" %}
