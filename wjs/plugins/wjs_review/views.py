@@ -1131,9 +1131,7 @@ class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
     pk_url_kwarg = "pk"
 
     def get_success_url(self) -> str:
-        if permissions.is_article_editor(self.object.article.articleworkflow, self.request.user):
-            return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
-        return reverse("wjs_review_reviewer_pending")
+        return reverse("wjs_article_details", kwargs={"pk": self.object.article.articleworkflow.pk})
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
@@ -1271,18 +1269,6 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
         Even if the form is valid, checks in :py:class:`logic.EvaluateReview` -called by form.save- may fail as well.
         """
         try:
-            messages.add_message(
-                self.request,
-                messages.SUCCESS,
-                _(
-                    "Thank you for accepting to upload "
-                    "your review by %s. If you are ready to "
-                    "upload your review right now please fill in the form below, "
-                    'otherwise just exit the page and click "upload review" '
-                    "from the manuscript web page in due time."
-                )
-                % form.cleaned_data["date_due"],
-            )
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)

@@ -357,6 +357,7 @@ def test_reviewer_accepts__deletes_some_reminders(
     Reminder.objects.all().delete()
 
     acceptance_due_date = timezone.now().date() + datetime.timedelta(days=7)
+    review_completion_due_date = timezone.now().date() + datetime.timedelta(days=21)
 
     service__assign_reviewer = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -378,7 +379,11 @@ def test_reviewer_accepts__deletes_some_reminders(
         assignment=service__assign_reviewer.assignment,
         reviewer=service__assign_reviewer.reviewer,
         editor=service__assign_reviewer.editor,
-        form_data={"reviewer_decision": "1", "additional_comments": "Additional comments"},
+        form_data={
+            "reviewer_decision": "1",
+            "additional_comments": "Additional comments",
+            "date_due": review_completion_due_date,
+        },
         request=fake_request,
         token="",
     )
@@ -395,11 +400,11 @@ def test_reviewer_accepts__deletes_some_reminders(
     r_1 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1)
     assert r_1.actor == get_eo_user(assigned_article.journal)
     assert r_1.recipient == service__evaluate_review.reviewer
-    assert r_1.date_due == acceptance_due_date + datetime.timedelta(days=r_1_date)
+    assert r_1.date_due == review_completion_due_date + datetime.timedelta(days=r_1_date)
     r_2 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2)
     assert r_2.actor == get_eo_user(assigned_article.journal)
     assert r_2.recipient == service__evaluate_review.editor
-    assert r_2.date_due == acceptance_due_date + datetime.timedelta(days=r_2_date)
+    assert r_2.date_due == review_completion_due_date + datetime.timedelta(days=r_2_date)
 
 
 class TestReviewerDeclines:
@@ -997,7 +1002,11 @@ def test_reminders_handling_for_reviewer_cycle(
         assignment=assignment,
         reviewer=assignment.reviewer,
         editor=assignment.editor,
-        form_data={"reviewer_decision": "1", "additional_comments": "Additional comments"},
+        form_data={
+            "reviewer_decision": "1",
+            "additional_comments": "Additional comments",
+            "date_due": timezone.now().date() + datetime.timedelta(days=21),
+        },
         request=fake_request,
         token="",
     )
@@ -1861,7 +1870,12 @@ class TestResetDate:
             assignment=review_assignment,
             reviewer=review_assignment.reviewer,
             editor=review_assignment.editor,
-            form_data={"reviewer_decision": "1", "accept_gdpr": 1, "additional_comments": "Additional comments"},
+            form_data={
+                "reviewer_decision": "1",
+                "accept_gdpr": 1,
+                "additional_comments": "Additional comments",
+                "date_due": timezone.now().date() + datetime.timedelta(days=21),
+            },
             request=fake_request,
             token="",
         ).run()

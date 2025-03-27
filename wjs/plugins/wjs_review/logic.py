@@ -758,6 +758,17 @@ class EvaluateReview:
         self._log_accept()
         self._delete_reviewevaluate_reminders()
         self._create_reviewreport_reminders()
+        messages.add_message(
+            self.request,
+            messages.SUCCESS,
+            _(
+                "Thank you for accepting to upload your review by %s. If you are ready to "
+                "upload your review right now please fill in the form below, "
+                'otherwise just exit the page and click "upload review" '
+                "from the manuscript web page in due time."
+            )
+            % self.form_data["date_due"],
+        )
         if self.assignment.date_accepted:
             return True
 
@@ -781,6 +792,7 @@ class EvaluateReview:
         self._delete_reviewevaluate_reminders()
         self._delete_reviewreport_reminders()
         handle_reviewer_deassignment_reminders(self.assignment)
+        messages.add_message(self.request, messages.INFO, _("The invite to review has been declined."))
         if self.assignment.date_declined:
             return False
 
