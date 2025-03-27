@@ -994,6 +994,7 @@ ORDER BY ah.actionDate
         RevisionRequest.objects.filter(article__id=article.id).delete()
         ReviewAssignment.objects.filter(article__id=article.id).delete()
         EditorAssignment.objects.filter(article__id=article.id).delete()
+        PastEditorAssignment.objects.filter(article__id=article.id).delete()
         submission_models.KeywordArticle.objects.filter(article__id=article.id).delete()
         PermissionAssignment.objects.filter(
             object_id=article.articleworkflow.id,
