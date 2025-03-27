@@ -74,7 +74,6 @@ from review.models import (
 from submission import models as submission_models
 from submission.models import Licence
 from utils.logger import get_logger
-from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
@@ -501,7 +500,7 @@ class Command(BaseCommand):
         except Exception as e:
             traceback.print_exc()
             logger.error(
-                f"""An exception {type(e).__name__} occurred.
+                f"""An exception {type(e).__name__} occurred: {preprintid}
                  {str(e)},
 
                 The preprintid {preprintid} must be imported again
@@ -2332,7 +2331,7 @@ class BaseActionManager:
             if dff_response.headers["Content-Length"] != "0":
                 dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
                 if production_version:
-                    ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+                    ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
                     dff_file = files.save_file_to_article(
                         dff_dj,
                         self.article,
@@ -2384,7 +2383,7 @@ class BaseActionManager:
     def save_pdf_galley(self, pdf_galley_dj):
         """Save PDF production version in TA.galleys_created"""
 
-        assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+        assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
 
         # necessary to avoid errors until action "back to typesetter"
         # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
@@ -2807,7 +2806,7 @@ class EditorAssignmentAction(BaseActionManager):
             f"Assigning {self.editor_to_assign.last_name} {self.editor_to_assign.first_name} onto {self.article.pk}"
         )
 
-        self.ed_assign_request = create_fake_request(user=None, journal=self.journal)
+        self.ed_assign_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         GlobalRequestMiddleware.process_request(self.ed_assign_request)
 
         with freezegun.freeze_time(
@@ -2963,7 +2962,7 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
             with freezegun.freeze_time(
                 self.article.date_submitted,
             ):
-                request = create_fake_request(user=None, journal=self.journal)
+                request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
                 request.user = author
                 context = {
                     "article": self.article,
@@ -3083,7 +3082,7 @@ class AdminOpensAppealAction(BaseActionManager):  # noqa N801
             logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
             admin.groups.add(eo_group)
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = admin
 
         with freezegun.freeze_time(
@@ -3127,7 +3126,7 @@ class AU_WITHD_DOC(BaseActionManager):  # noqa N801
         assert author.first_name == self.action["agentFirstname"]
         assert author.email == self.action["agentEmail"]
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = author
 
         with freezegun.freeze_time(
@@ -3230,7 +3229,7 @@ class AdminWithdrawn(BaseActionManager):  # noqa N801
             logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
             admin.groups.add(eo_group)
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
 
         # admin can not withdrawn in wjs
         request.user = self.article.correspondence_author
@@ -3280,7 +3279,7 @@ class ED_REF_DOC(BaseActionManager):  # noqa N801
         assert editor.first_name == self.action["agentFirstname"]
         assert editor.email == self.action["agentEmail"]
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = editor
 
         with freezegun.freeze_time(
@@ -3361,7 +3360,7 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
         editor = reviewer = self.get_current_editor()
         logger.debug(f"Creating review assignment of {self.article.id} to editor as reviewer")
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = editor
 
         with freezegun.freeze_time(
@@ -3574,7 +3573,7 @@ ORDER BY dl.submissionDate
         )
         logger.debug(f"Creating review assignment of {self.article.id} to reviewer {reviewer}")
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = self.get_current_editor()
 
         with freezegun.freeze_time(
@@ -3630,7 +3629,7 @@ ORDER BY dl.submissionDate
 
             # refereeAcceptDate = 1970-01-02 01:00:00 from wjapp means "refereeAcceptDate not set"
             if reviewer_data["refereeAcceptDate"] and reviewer_data["refereeAcceptDate"].year != 1970:
-                request = create_fake_request(user=None, journal=self.journal)
+                request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
                 request.user = reviewer
 
                 with freezegun.freeze_time(
@@ -3642,7 +3641,12 @@ ORDER BY dl.submissionDate
                         assignment=review_assignment,
                         reviewer=reviewer,
                         editor=self.get_current_editor(),
-                        form_data={"reviewer_decision": "1", "additional_comments": "", "accept_gdpr": True},
+                        form_data={
+                            "reviewer_decision": "1",
+                            "additional_comments": "",
+                            "accept_gdpr": True,
+                            "date_due": timezone.now().date() + datetime.timedelta(days=21),
+                        },
                         request=request,
                         token=None,
                     ).run()
@@ -3837,7 +3841,7 @@ class DeselectReviewerAction(BaseActionManager):
             review_round=self.article.current_review_round_object(),
         ).last()
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = self.get_current_editor()
 
         # deselect reviewer message
@@ -4022,7 +4026,7 @@ ORDER BY dl.submissionDate
             self.connection,
         )
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = reviewer
 
         # We create versions (and RAs) in a serial fashion, i.e. one after the other,
@@ -4192,7 +4196,7 @@ ORDER BY dl.submissionDate
             editor=self.get_current_editor(),
             review_round=self.article.current_review_round_object(),
         ).last()
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = reviewer
         submit_final = True
 
@@ -4617,7 +4621,7 @@ class AuthorSubmitRevisionAction(BaseActionManager):
 
         author_report_date = self.action["actionDate"]
 
-        request = create_fake_request(user=None, journal=self.journal)
+        request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = self.article.correspondence_author
 
         author_note = self.read_author_cover_letter_message()
@@ -4895,7 +4899,7 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
                 typesetter.add_account_role("typesetter", self.journal)
 
             logger.debug(f"Assign typ: {typesetter.last_name} {typesetter.first_name} onto {self.article.pk}")
-            request = create_fake_request(user=None, journal=self.journal)
+            request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
             request.user = typesetter
 
             with freezegun.freeze_time(
@@ -4937,8 +4941,8 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
 
         source_prod_dj.content_type = "application/zip"
 
-        fake_request = create_fake_request(user=None, journal=self.journal)
-        ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+        fake_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
+        ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         fake_request.user = ta_assignment.typesetter
 
         with freezegun.freeze_time(
@@ -4966,8 +4970,8 @@ class Requestproofs(BaseActionManager):
 
     def run(self):
 
-        fake_request = create_fake_request(user=None, journal=self.journal)
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+        fake_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         fake_request.user = typesetting_assignment.typesetter
 
         with freezegun.freeze_time(
@@ -5055,7 +5059,9 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
                 )
                 author_proofs.annotated_files.add(author_ann_file)
 
-        fake_request = create_fake_request(user=self.article.correspondence_author, journal=self.journal)
+        fake_request = create_rich_fake_request(
+            user=self.article.correspondence_author, journal=self.journal, settings=settings
+        )
         with freezegun.freeze_time(
             rome_timezone.localize(author_send_corrections_date),
         ):
@@ -5342,7 +5348,7 @@ class PM_PUBLISHES(DeclareReadyForPublication):  # noqa N801
 
     def __post_init__(self):
         """Set the specific data for eo agent, used typesetter"""
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
         self.ready_for_publication_agent = typesetting_assignment.typesetter
 
@@ -5353,7 +5359,7 @@ class TYP_PUBLISHES(DeclareReadyForPublication):  # noqa N801
 
     def __post_init__(self):
         """Set the specific data typesetter agent"""
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
         self.ready_for_publication_agent = typesetting_assignment.typesetter
 
@@ -5392,7 +5398,7 @@ class PM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
             self.connection,
         )
 
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment()
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
 
         with freezegun.freeze_time(
             rome_timezone.localize(self.action["actionDate"]),
