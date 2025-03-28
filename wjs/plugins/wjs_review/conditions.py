@@ -6,6 +6,7 @@ attention.
 
 """
 
+import datetime
 from typing import Optional
 
 from django.conf import settings
@@ -34,32 +35,34 @@ from .models import (
 Account = get_user_model()
 
 
-def is_late(assignment: WorkflowReviewAssignment, user: Account) -> str:
-    """Tell if the assignment is late.
-
-    The model function `is_late` looks at the due date, i.e. we are checking if the report is late, not if the
-    acceptance/declination of the assignment is late (see `is_late_invitation` below).
+def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     """
-    # NB: do not use assignment.is_late!
-    # That property doesn't check if the assignment is complete, so one can have late, but complete assignments, which
-    # is not what we are interested here.
-    if not assignment.date_complete and timezone.now().date() >= assignment.date_due:
-        return "Review assignment is late"
-    else:
-        return ""
+    Tell if a reviewer is late for the current article
 
-
-def is_late_invitation(assignment: WorkflowReviewAssignment, user: Account) -> str:
-    """Tell if the reviewer didn't even accepted/declined the assignment.
-
-    To check if the report is late, see `is_late` above.
+    First we check if there's a reviewer late in accepting/declining the review.
+    Then we check if there's a reviewer late in writing the review.
     """
-    # TODO: use a journal setting?
-    if not assignment.date_accepted and not assignment.date_declined:
-        grace_period = timezone.timedelta(days=4)
-        if timezone.now() - assignment.date_requested > grace_period:
-            return "Reviewer has not yet answered to the invitation"
+    time_threshold = timezone.now() if for_editor else timezone.now() - datetime.timedelta(days=5)
 
+    reminder_checks = [
+        (
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+            "Reviewer has not yet answered to the invitation",
+        ),
+        (Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2, "Review assignment is late"),
+    ]
+
+    review_round = article.current_review_round_object()
+    review_assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).pending()
+
+    for code, message in reminder_checks:
+        if any(
+            assignment.all_reminders().filter(code=code, date_sent__lte=time_threshold).exists()
+            for assignment in review_assignments
+        ):
+            return message
     return ""
 
 
@@ -170,7 +173,7 @@ def needs_assignment_all_editorreminders_sent(article: Article) -> str:
     editor_assignment = WjsEditorAssignment.objects.get_current(article)
     last_reminder_sent = Reminder.objects.filter(
         code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3.value,
-        date_sent__date__lte=timezone.now().date(),
+        date_sent__date__lte=timezone.now() - datetime.timedelta(days=3),
         disabled=False,
         object_id=editor_assignment.id,
         content_type=ContentType.objects.get_for_model(WjsEditorAssignment),

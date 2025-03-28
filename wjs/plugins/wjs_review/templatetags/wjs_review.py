@@ -352,16 +352,6 @@ def message_read_by_me(message: Message, user: Account) -> bool:
 
 
 @register.filter
-def assignment_requires_attention_tt(assignment: ReviewAssignment, user: Account = None):
-    """Tell if the assignment requires attention.
-
-    An empty string means there is nothing important to report.
-    """
-    state_cls = getattr(states, assignment.article.articleworkflow.state)
-    return state_cls.assignment_requires_attention(assignment=assignment, user=user)
-
-
-@register.filter
 def role_for_article_tt(article: Article, user: Account) -> str:
     """Return a role slug that describes the role of the given user on the article."""
     return communication_utils.role_for_article(article, user)

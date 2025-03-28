@@ -1,5 +1,7 @@
 """Test (some) attention conditions."""
 
+import datetime
+
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
@@ -417,14 +419,24 @@ def test_needs_assignment(assigned_article: Article, director: JCOMProfile):
     assert state_cls.article_requires_attention(article=article, user=eo) == ""
     assert state_cls.article_requires_attention(article=article, user=director) == ""
 
-    # all reminders sent today, a.c. for editor and director
-    reminders.update(date_sent=now())
+    # all reminders sent today, a.c. for editor
+    reminders_list = list(reminders)
+    for reminder in reminders_list:
+        reminder.date_sent = timezone.now()
+        reminder.save()
+
     assert state_cls.article_requires_attention(article=article, user=author) == ""
     assert (
         state_cls.article_requires_attention(article=article, user=section_editor)
         == "Review process should start/restart"
     )
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+
+    # all reminders sent 3 days ago, a.c. for director and EO
+    for reminder in reminders_list:
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=3)
+        reminder.save()
+
+    assert state_cls.article_requires_attention(article=article, user=eo) == "Review process not yet started/restarted"
     assert (
         state_cls.article_requires_attention(article=article, user=director)
         == "Review process not yet started/restarted"
@@ -442,6 +454,7 @@ def test_reviewer_is_late(
     # just some alias
     article = assigned_article
     workflow = article.articleworkflow
+    eo = get_eo_user(article)
 
     editor_assignment = WjsEditorAssignment.objects.get_current(article)
     section_editor = editor_assignment.editor
@@ -473,6 +486,36 @@ def test_reviewer_is_late(
     assignment.save()
     assert state_cls.article_requires_attention(article=article, user=reviewer) == "Invite to be accepted/declined"
 
+    all_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+        disabled=False,
+    )
+    reminders = all_reminders.filter(
+        date_sent__isnull=True,
+    )
+    assert reminders.exists()
+    assert all_reminders.count() == reminders.count()
+
+    reminders_list = list(reminders)
+    for reminder in reminders_list:
+        reminder.date_sent = timezone.now()
+        reminder.save()
+
+    assert (
+        state_cls.article_requires_attention(article=article, user=section_editor)
+        == "Reviewer has not yet answered to the invitation"
+    )
+    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+
+    for reminder in reminders_list:
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
+        reminder.save()
+
+    assert (
+        state_cls.article_requires_attention(article=article, user=eo)
+        == "Reviewer has not yet answered to the invitation"
+    )
     # report overdue
     EvaluateReview(
         assignment=assignment,
@@ -487,3 +530,23 @@ def test_reviewer_is_late(
         token="",
     ).run()
     assert state_cls.article_requires_attention(article=article, user=reviewer) == "Review is overdue"
+
+    reminders = all_reminders.filter(
+        date_sent__isnull=True,
+    )
+    assert reminders.exists()
+    assert all_reminders.count() == reminders.count()
+
+    reminders_list = list(reminders)
+    for reminder in reminders_list:
+        reminder.date_sent = timezone.now()
+        reminder.save()
+
+    assert state_cls.article_requires_attention(article=article, user=section_editor) == "Review assignment is late"
+    assert state_cls.article_requires_attention(article=article, user=eo) == "You have unread messages"
+
+    for reminder in reminders_list:
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
+        reminder.save()
+
+    assert state_cls.article_requires_attention(article=article, user=eo) == "Review assignment is late"
