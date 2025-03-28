@@ -11,6 +11,7 @@ from django.test.client import Client
 from django.urls import reverse
 from django.utils.formats import date_format
 from django.utils.timezone import now
+from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm
 from submission import models as submission_models
 from submission.models import Article
@@ -160,29 +161,25 @@ def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_in_the_past(
 
 
 @pytest.mark.django_db
-def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_too_much_in_the_future(
+def test_editor_assigns_themselves_as_reviewer_with_a_date_much_in_the_future(
     client: Client,
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
 ):
-    """An editor cannot set the acceptance_due_date after settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt now().date()."""
+    """
+    We don't have a maximum date that can be set as due date for the reviewer to complete the review.
+    This is valid also for the Editor as reviewer
+    """
     url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
     today = now().date()
-    date_min = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
     date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
     post_data = {
-        "acceptance_due_date": date_max + datetime.timedelta(days=1),
+        "acceptance_due_date": date_max + datetime.timedelta(days=100),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
     assert response.status_code == 200
-    errors = {
-        "acceptance_due_date": [
-            f"Date must be between {date_format(date_min, settings.DATE_FORMAT)} and "
-            f"{date_format(date_max, settings.DATE_FORMAT)}"
-        ]
-    }
-    assert dict(response.context["form"].errors) == errors
 
 
 @pytest.mark.django_db
