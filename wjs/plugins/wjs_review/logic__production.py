@@ -806,10 +806,22 @@ class AttachGalleys:
     src files (as in <img src=...>) inside `path`.
     """
 
-    archive_with_galleys: bytes  # usually a zip/tar.gz file containing the raw galley files processed by jcomassistant
+    archive_with_galleys: bytes
+    "Usually a zip/tar.gz file containing the raw galley files processed by jcomassistant"
+
     article: Article
     request: HttpRequest
-    path: Path = dataclasses.field(init=False)  # path of the tmpdir where the upack method unpacked the received files
+
+    public_galley: bool = False
+    """Control the public flag of the galleys.
+
+    Galleys have a "public" flag, that, together with the "article" FK, control if the galley should be visible in the
+    paper's landing page.
+
+    """
+
+    path: Path = dataclasses.field(init=False)
+    "Path of the tmpdir where the upack-method unpacked the received files"
 
     def unpack_targz_from_jcomassistant(self) -> Path:
         """Unpack a tar.gz.
@@ -958,13 +970,13 @@ class AttachGalleys:
         html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)
         label = "HTML"
         galley = save_galley(
-            self.article,
+            article=self.article,
             request=self.request,
             uploaded_file=html_galley_file,
             is_galley=True,
             label=label,
             save_to_disk=True,
-            public=True,
+            public=self.public_galley,
             html_prettify=False,
         )
         self._check_html_galley_mimetype(galley)
@@ -990,13 +1002,13 @@ class AttachGalleys:
         file_mimetype = "application/epub+zip"
         label, language = decide_galley_label(file_name=str(epub_galley_filename), file_mimetype=file_mimetype)
         galley = save_galley(
-            self.article,
+            article=self.article,
             request=self.request,
             uploaded_file=epub_galley_file,
             is_galley=True,
             label=label,
             save_to_disk=True,
-            public=True,
+            public=self.public_galley,
         )
         logger.debug(f"EPUB galley {label} set onto {self.article.id}")
         return galley
@@ -1013,13 +1025,13 @@ class AttachGalleys:
         file_mimetype = "application/pdf+zip"
         label, language = decide_galley_label(file_name=str(pdf_galley_filename), file_mimetype=file_mimetype)
         galley = save_galley(
-            self.article,
+            article=self.article,
             request=self.request,
             uploaded_file=pdf_galley_file,
             is_galley=True,
             label=label,
             save_to_disk=True,
-            public=True,
+            public=self.public_galley,
         )
         logger.debug(f"PDF galley {label} set onto {self.article.id}")
         return galley
@@ -1040,7 +1052,15 @@ class AttachGalleys:
                 BytesIO(self.archive_with_galleys),
                 name="jcomassistant_response.tar.gz",
             )
-            galleys_created = [save_galley(self.article, self.request, jcomassistant_response_content, False)]
+            galleys_created = [
+                save_galley(
+                    article=self.article,
+                    request=self.request,
+                    uploaded_file=jcomassistant_response_content,
+                    is_galley=False,
+                    public=self.public_galley,
+                ),
+            ]
 
         else:
             galleys_created = [self.save_epub(), self.save_html(), self.save_pdf()]
@@ -1105,6 +1125,7 @@ class TypesetterTestsGalleyGeneration:
             archive_with_galleys=response,
             article=self.assignment.round.article,
             request=self.request,
+            public_galley=False,
         ).run()
 
     def _get_and_save_galleys(self):
@@ -1127,6 +1148,7 @@ class TypesetterTestsGalleyGeneration:
                 archive_with_galleys=response.content,
                 article=self.assignment.round.article,
                 request=self.request,
+                public_galley=False,
             ).run()
 
         # Detach the galleys from the article: A.galley_set should contain only publication-ready galleys
@@ -1597,6 +1619,7 @@ class FinishPublication:
             archive_with_galleys=response.content,
             article=self.workflow.article,
             request=self.request,
+            public_galley=True,
         ).run()
         self.workflow.article.galley_set.set(galleys_created)
 

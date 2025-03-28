@@ -2,6 +2,7 @@ import io
 import logging
 import tarfile
 import tempfile
+from pathlib import Path
 from typing import Callable
 from unittest import mock
 
@@ -50,7 +51,7 @@ from .conftest import (
     _ready_for_typesetter_article,
     _stage_proofing_article,
 )
-from .test_helpers import ThreadedHTTPServer
+from .test_helpers import ThreadedHTTPServer, create_mock_zip
 
 Account = get_user_model()
 
@@ -652,8 +653,9 @@ def test_typesetter_takes_in_charge(
 def test_typ_upload_file_with_query(
     assigned_to_typesetter_article: Article,
     client: Client,
-    zip_with_tex_with_query,
-    zip_with_tex_without_query,
+    zip_with_tex_with_query: Callable,
+    zip_with_tex_without_query: Callable,
+    tmp_path: Path,
 ):
     assigned_to_typesetter_article.articleworkflow.production_flag_no_queries = True
     assigned_to_typesetter_article.articleworkflow.save()
@@ -661,9 +663,17 @@ def test_typ_upload_file_with_query(
 
     url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
-    client.post(url, data={"file_to_upload": zip_with_tex_with_query(assigned_to_typesetter_article)})
+
+    mock_file = tmp_path / "jcomassistant_mock_file.zip"
+    mock_file.write_bytes(create_mock_zip().read())
+    with override_settings(JCOMASSISTANT_MOCK_FILE=mock_file.absolute()):
+        client.post(url, data={"file_to_upload": zip_with_tex_with_query(assigned_to_typesetter_article)})
     assigned_to_typesetter_article.refresh_from_db()
     assert assigned_to_typesetter_article.articleworkflow.production_flag_no_queries is False
+    assert assigned_to_typesetter_article.galley_set.count() == 0
+    assert typesetting_assignment.galleys_created.count() == 3
+    assert not any(typesetting_assignment.galleys_created.all().values_list("public", flat=True))
+
     url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
     client.force_login(typesetting_assignment.typesetter)
     client.post(url, data={"file_to_upload": zip_with_tex_without_query(assigned_to_typesetter_article)})
@@ -746,6 +756,7 @@ def test_publication_with_fake_galley_generation(
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert workflow.article.galley_set.count() == 3
+    assert all(workflow.article.galley_set.all().values_list("public", flat=True))
 
 
 @pytest.mark.django_db
