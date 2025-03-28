@@ -273,10 +273,12 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
             self.default_acceptance_due_date = self._today + datetime.timedelta(
                 days=self.request.journal.get_setting("general", "default_review_days"),
             )
+            self.date_min = self._today
+            self.date_max = None
             date_attrs = {
                 "type": "date",
                 "value": self.default_acceptance_due_date,
-                "min": self._today,
+                "min": self.date_min,
             }
             self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
             self.fields["message_subject"].widget = forms.HiddenInput()

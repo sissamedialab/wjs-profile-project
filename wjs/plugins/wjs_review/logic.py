@@ -646,6 +646,10 @@ class AssignToReviewer:
         """Create reminders related to evaluation of this review request."""
         ReviewerShouldEvaluateAssignmentReminderManager(self.assignment).create()
 
+    def _create_reviewreport_reminders(self):
+        """Create reminders related to writing the review report."""
+        ReviewerShouldWriteReviewReminderManager(self.assignment).create()
+
     def _delete_editorselectreviewer_reminders(self):
         """Delete reminders for the editor to select a reviewer."""
         EditorShouldSelectReviewerReminderManager(self.assignment.article, self.assignment.editor).delete()
@@ -675,7 +679,10 @@ class AssignToReviewer:
             context = self._get_message_context()
             if self.log_operation:
                 self._log_operation(context=context)
-            self._create_reviewevaluate_reminders()
+            if self.reviewer == self.editor:
+                self._create_reviewreport_reminders()
+            else:
+                self._create_reviewevaluate_reminders()
             self._delete_editorselectreviewer_reminders()
         return self.assignment
 
