@@ -30,7 +30,7 @@ ignore = [
   "EM101",
   "D212","D203",
   "CPY001",
-  "G400",  # logging statement uses f-string
+  "G004",  # logging statement uses f-string
   "DOC201",  # "return" is not documented in docstring (too invasive)
   ]
 
