@@ -14,14 +14,11 @@ from faker.utils.text import slugify
 from plugins.typesetting.models import GalleyProofing
 from review.models import ReviewAssignment
 from submission.models import Article
-from utils.logger import get_logger
 
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import communication_utils, conditions, permissions
 from .models import ArticleWorkflow, PastEditorAssignment, can_be_set_rfp_wrapper
-
-logger = get_logger(__name__)
 
 Account = get_user_model()
 
@@ -435,6 +432,14 @@ class BaseState:
     )
 
     @classmethod
+    def has_unread_message(cls, article: Article, user: Account) -> str:
+        # States need to have at least a placeholder method that checks for attention conditions in order for this
+        # condition to be checked. In this way we can exclude states and/or roles.
+        if attention_flag := conditions.has_unread_message(article, recipient=user):
+            return attention_flag
+        return ""
+
+    @classmethod
     def article_requires_attention(cls, article: Article, user: Account) -> str:
         """Dispatch the request to per-user functions.
 
@@ -446,25 +451,10 @@ class BaseState:
         role = communication_utils.role_for_article(article, user)
         # Since this method will be called by a "child" class, here `cls` will refer to that class (the real state)
         if func := getattr(cls, f"article_requires_{role}_attention", None):
-            return func(article=article, user=user)
-        else:
-            logger.debug(
-                f"In {cls}. Article {article.id} does not require attention by {role} {user.full_name()}",
-            )
-            return ""
-
-    @classmethod
-    def assignment_requires_attention(cls, assignment: ReviewAssignment, user: Account) -> str:
-        """Dispatch the request to per-user functions."""
-        article = assignment.article
-        role = communication_utils.role_for_article(article, user)
-        if func := getattr(cls, f"assignment_requires_{role}_attention", None):
-            return func(assignment=assignment, user=user)
-        else:
-            logger.debug(
-                f"In {cls}. Assignment {assignment.id} does not require attention by {role} {user.full_name()}",
-            )
-            return ""
+            if attention_flag := func(article=article, user=user):
+                return attention_flag
+            return cls.has_unread_message(article, user)
+        return ""
 
     @classmethod
     def get_state_class(cls, workflow: ArticleWorkflow) -> Type["BaseState"]:
@@ -659,11 +649,9 @@ class EditorSelected(BaseState):
 
         Return True as soon as one is found.
         This can be use to highlight a paper that requires some action.
-
-        Warning: States also have a assignment_requires_attention function,
-        but that works on a review assignment.
-
         """
+        if attention_flag := conditions.reviewer_is_late(article, for_editor=True):
+            return attention_flag
         if attention_flag := conditions.needs_assignment(article):
             return attention_flag
         if attention_flag := conditions.all_assignments_completed(article):
@@ -674,20 +662,6 @@ class EditorSelected(BaseState):
             return attention_flag
         # The `conditions.one_review_assignment_late(article)` is more invasive: it reports all late assignments, not
         # just the editors'
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def assignment_requires_editor_attention(cls, assignment: ReviewAssignment, user: Account = None) -> str:
-        """Rifle through the situations that require attention.
-
-        Return True as soon as one is found.
-        """
-        if attention_flag := conditions.is_late_invitation(assignment, user=None):
-            return attention_flag
-        if attention_flag := conditions.is_late(assignment, user=None):
-            return attention_flag
         return ""
 
     @classmethod
@@ -695,7 +669,11 @@ class EditorSelected(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+        if attention_flag := conditions.needs_assignment_all_editorreminders_sent(article):
+            return attention_flag
+        if attention_flag := conditions.reviewer_is_late(article):
+            return attention_flag
+        if attention_flag := conditions.all_assignments_completed(article):
             return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):
             return attention_flag
@@ -708,7 +686,9 @@ class EditorSelected(BaseState):
         """
         if attention_flag := conditions.needs_assignment_all_editorreminders_sent(article):
             return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
+        if attention_flag := conditions.reviewer_is_late(article):
+            return attention_flag
+        if attention_flag := conditions.all_assignments_completed(article):
             return attention_flag
         return ""
 
@@ -717,8 +697,6 @@ class EditorSelected(BaseState):
         """
         Rifle through the situations that require attention.
         """
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         return ""
 
     @classmethod
@@ -727,8 +705,6 @@ class EditorSelected(BaseState):
         if attention_flag := conditions.reviewer_acceptdecline_is_late(article):
             return attention_flag
         if attention_flag := conditions.reviewer_report_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
 
@@ -848,8 +824,6 @@ class ToBeRevised(BaseState):
             late_after_days=1,
         ):
             return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         return ""
 
     @classmethod
@@ -861,8 +835,6 @@ class ToBeRevised(BaseState):
             return attention_flag
         if attention_flag := conditions.author_technicalrevision_is_late(article):
             return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         return ""
 
     @classmethod
@@ -871,8 +843,6 @@ class ToBeRevised(BaseState):
         Rifle through the situations that require attention.
         """
         if attention_flag := conditions.reviewer_report_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
             return attention_flag
         return ""
 
@@ -889,15 +859,6 @@ class Rejected(BaseState):
             is_modal=True,
         ),
     ) + BaseState.article_actions
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Rifle through the situations that require attention.
-        """
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
-        return ""
 
 
 class UnderAppeal(BaseState):
@@ -1068,8 +1029,6 @@ class TypesetterSelected(BaseState):
         typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
-        if attention_flag := conditions.has_unread_message(article, user):
-            return attention_flag
         return ""
 
     @classmethod
@@ -1080,16 +1039,12 @@ class TypesetterSelected(BaseState):
         typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):
             return attention_flag
         return ""
 
     @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         return ""
 
 
@@ -1150,22 +1105,16 @@ class Proofreading(BaseState):
         )
         if attention_flag := conditions.is_author_proofing_late(assignment):
             return attention_flag
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):
             return attention_flag
         return ""
 
     @classmethod
     def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         return ""
 
     @classmethod
     def article_requires_typesetter_attention(cls, article: Article, **kwargs) -> str:
-        if attention_flag := conditions.has_unread_message(article, recipient=kwargs["user"]):
-            return attention_flag
         return ""
 
 
