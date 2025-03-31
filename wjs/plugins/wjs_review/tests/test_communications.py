@@ -27,7 +27,7 @@ from submission import models as submission_models
 from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.permissions import get_hijacker
+from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user
 
 from ..communication_utils import (
@@ -399,6 +399,70 @@ def test_director_sees_all_journal_messages(
     assert msg2.recipients.first() != director
     messages = get_messages_related_to_me(director, article)
     assert messages.count() == 2
+
+
+@pytest.mark.django_db
+def test_write_message_as_director_does_not_set_read_by_eo_flag(
+    article: submission_models.Article,
+    director: JCOMProfile,
+    eo_user: JCOMProfile,
+    client,
+):
+    """Test that when a NON-EO user writes a message, the read_by_eo flag is set."""
+    url = reverse("wjs_message_write", kwargs={"pk": article.articleworkflow.pk, "recipient_id": eo_user.pk})
+    client.force_login(director)
+    assert Message.objects.count() == 0
+    client.post(
+        url,
+        data={
+            "subject": "subject",
+            "body": "body",
+            "actor": director.id,
+            "content_type": ContentType.objects.get_for_model(article).id,
+            "object_id": article.id,
+            "message_type": Message.MessageTypes.USER,
+            "recipientsFS-TOTAL_FORMS": "1",
+            "recipientsFS-INITIAL_FORMS": "0",
+            "recipientsFS-0-recipient": [eo_user.id],
+        },
+    )
+    new_message = Message.objects.last()
+    # read_by_eo must be True only if actor is EO
+    assert has_eo_role(new_message.actor) is False
+    assert new_message.read_by_eo is False
+
+
+@pytest.mark.django_db
+def test_write_message_as_eo_sets_read_by_eo_flag(
+    article: submission_models.Article,
+    eo_user: JCOMProfile,
+    client,
+):
+    """Test that when a user writes a message as EO, the read_by_eo flag is set."""
+    url = reverse(
+        "wjs_message_write",
+        kwargs={"pk": article.articleworkflow.pk, "recipient_id": article.correspondence_author.pk},
+    )
+    client.force_login(eo_user)
+    assert Message.objects.count() == 0
+    client.post(
+        url,
+        data={
+            "subject": "subject",
+            "body": "body",
+            "actor": eo_user.id,
+            "content_type": ContentType.objects.get_for_model(article).id,
+            "object_id": article.id,
+            "message_type": Message.MessageTypes.USER,
+            "recipientsFS-TOTAL_FORMS": "1",
+            "recipientsFS-INITIAL_FORMS": "0",
+            "recipientsFS-0-recipient": [article.correspondence_author.id],
+        },
+    )
+    new_message = Message.objects.last()
+    # read_by_eo must be True only if actor is EO
+    assert has_eo_role(new_message.actor) is True
+    assert new_message.read_by_eo is True
 
 
 @pytest.mark.django_db

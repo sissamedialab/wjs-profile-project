@@ -1174,9 +1174,9 @@ class MessageForm(forms.ModelForm):
                 # ATM (24W11) personal notes only have _one_ recipient (the actor), but this way
                 # we allow for future changes (for instance, if EO want to share notes with typ)
                 MessageRecipients.objects.filter(message=instance).update(read=True)
-                if has_eo_role(self.actor):
-                    instance.read_by_eo = True
-                    instance.save()
+            if has_eo_role(self.actor):
+                instance.read_by_eo = True
+                instance.save()
             if self.cleaned_data["attachment"]:
                 if instance.content_type.model_class() != Article:
                     # TODO: where do we save attachements of messages not related to articles?
