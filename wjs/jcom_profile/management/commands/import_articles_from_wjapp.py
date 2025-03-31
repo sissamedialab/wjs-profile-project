@@ -5055,10 +5055,14 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
             self.preprintid == "JCOM_023A_0623"
             and self.imported_version_num == 3
             and self.action["actHistCod"] == 294207
+        ) or (
+            self.preprintid == "JCOM_018A_1124"
+            and self.imported_version_num == 3
+            and self.action["actHistCod"] == 302240
         ):
             logger.warning(
-                f"Skipping doubled action {str(self.action['actHistCod'])} AU_SENDS_CORRECT "
-                f"for {self.preprintid}/3 (wrong data in wjapp)."
+                f"Skipping doubled action {self.action['actHistCod']} AU_SENDS_CORRECT "
+                f"for {self.preprintid}/{self.imported_version_num} (wrong data in wjapp)."
             )
             return
 
