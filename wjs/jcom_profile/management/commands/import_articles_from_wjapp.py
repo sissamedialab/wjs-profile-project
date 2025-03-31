@@ -2901,6 +2901,36 @@ WHERE editorCod=%(editor_cod)s
 
         return
 
+    def deselect_editor_as_reviewer(self):
+        """Deselects old editor from reviewer if exist."""
+
+        current_editor_review_assignment = WorkflowReviewAssignment.objects.filter(
+            reviewer=self.get_current_editor(),
+            article=self.article,
+            editor=self.get_current_editor(),
+            review_round=self.article.current_review_round_object(),
+        ).last()
+
+        if current_editor_review_assignment:
+            request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
+            request.user = self.get_current_editor()
+
+            # the automated message is disabled
+            DeselectReviewer._log_operation = noop
+            DeselectReviewer(
+                assignment=current_editor_review_assignment,
+                actor=current_editor_review_assignment.editor,
+                request=request,
+                send_reviewer_notification=False,
+                form_data={
+                    "notification_subject": "",
+                    "notification_body": "",
+                },
+            ).run()
+            current_editor_review_assignment.date_accepted = None
+            current_editor_review_assignment.date_declined = None
+            current_editor_review_assignment.save()
+
 
 @dataclass
 class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
@@ -2995,6 +3025,8 @@ class ED_SEL_N_ED(EditorAssignmentAction):  # noqa N801
     def run_business_logic(self):
         """Editor selects new editor."""
 
+        self.deselect_editor_as_reviewer()
+
         # e.g. JCOM_010A_1123
         SupervisorChangeEditorAssignment._log_past_editor = noop
         AssignToEditor._log_operation = noop
@@ -3025,6 +3057,8 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
         #       possible solution: create new review round?
         if self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
             logger.critical(f"state not compatible with ADMIN_ASS_N_ED: {self.article.articleworkflow.state=}")
+
+        self.deselect_editor_as_reviewer()
 
         # e.g. JCOM_010A_1123
         SupervisorChangeEditorAssignment._log_past_editor = noop
