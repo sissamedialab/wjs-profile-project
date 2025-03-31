@@ -144,13 +144,13 @@ class Command(BaseCommand):
             if login_parameters is None:
                 logger.error(
                     f'Missing login data for {self.journal.code}. Please ensure "{login_setting}" exists in settings.'
-                    f"Cannot import files, quitting.",
+                    f"Cannot import files, quitting."
                 )
                 return
             elif login_parameters.get("username", "") == "":
                 logger.error(
                     f'Empty username parameter for "{login_setting}". Please ensure `username`, etc. are correct.'
-                    f"Cannot login, quitting.",
+                    f"Cannot login, quitting."
                 )
                 return
 
@@ -193,13 +193,13 @@ class Command(BaseCommand):
         if connection_parameters is None:
             logger.error(
                 f'Missing connection parameters for {self.journal.code}. Please ensure "{setting}" exists in settings.'
-                f"Cannot connect, quitting.",
+                f"Cannot connect, quitting."
             )
             return
         elif connection_parameters.get("user", "") == "":
             logger.error(
                 f'Empty connection parameters for "{setting}". Please ensure `user`, `host`, etc. are correct.'
-                f"Cannot connect, quitting.",
+                f"Cannot connect, quitting."
             )
             return
 
@@ -239,7 +239,7 @@ class Command(BaseCommand):
             if not pub_article:
                 logger.error(
                     f"missing published version for {publicationid}. Import published version"
-                    f" before to import review and production versions of {preprintid}",
+                    f" before to import review and production versions of {preprintid}"
                 )
                 return
 
@@ -280,21 +280,21 @@ class Command(BaseCommand):
                 if pub_article.id == article.id:
                     self.store_article_status(pub_article)
                     logger.debug(
-                        f"Re-importing history ({preprintid}) of a paper already published in WJS ",
-                        f"({publicationid} / {pub_article.id}",
+                        f"Re-importing history ({preprintid}) of a paper already published in WJS "
+                        f"({publicationid} / {pub_article.id}"
                     )
 
                 else:
                     raise RuntimeError(
                         f"different wjs id for pubid {pub_article.id} and preprintid {article.id}"
-                        f"delete {preprintid} from wjs and import in wjs the galley for {publicationid}",
-                        f"afterwards import old versions of {preprintid}",
+                        f"delete {preprintid} from wjs and import in wjs the galley for {publicationid}"
+                        f"afterwards import old versions of {preprintid}"
                     )
 
             elif pub_article and not article:
                 logger.debug(
-                    f"Importing history ({preprintid}) of a paper already published in WJS ",
-                    f"({publicationid} / {pub_article.id}",
+                    f"Importing history ({preprintid}) of a paper already published in WJS "
+                    f"({publicationid} / {pub_article.id}"
                 )
                 article = pub_article
                 self.store_article_status(article)
@@ -504,7 +504,7 @@ class Command(BaseCommand):
                  {str(e)},
 
                 The preprintid {preprintid} must be imported again
-                """,
+                """
             )
 
         # for published import restore the article status
@@ -1093,32 +1093,26 @@ ORDER BY ah.actionDate
         #       the authors will check/correct/enter their bio after migration
         # TODO: name match can be improved
         if not bios_text:
-            logger.warning(
-                f"No author bios found in wjapp for version: {imported_version_num} {article} ",
-            )
+            logger.warning(f"No author bios found in wjapp for version: {imported_version_num} {article} ")
             return
 
         authors_bios = bios_text.split("\r\n\r\n")
 
         if len(authors_bios) != article.authors.count():
-            logger.warning(
-                f"Authors bios paragraphs: {len(authors_bios)}, article authors: {article.authors.count()}",
-            )
+            logger.warning(f"Authors bios paragraphs: {len(authors_bios)}, article authors: {article.authors.count()}")
 
         for author in article.authors.all():
             bios_found = self.get_author_bio_by_name(authors_bios, author)
             if len(bios_found) != 1:
                 logger.warning(
-                    f"Found {len(bios_found)} bios for author {author.full_name()} version: {imported_version_num}.",
+                    f"Found {len(bios_found)} bios for author {author.full_name()} version: {imported_version_num}."
                 )
 
             # saved first bio found or let unchanged
             if bios_found:
                 # TODO: add always to article frozen author frozen biography
 
-                logger.debug(
-                    f"Updated bio for author {author.full_name()} version: {imported_version_num}.",
-                )
+                logger.debug(f"Updated bio for author {author.full_name()} version: {imported_version_num}.")
                 # save only if not present or the article is the last submitted
                 # for the author
                 if not author.biography or self.last_submitted_for_author(author, article):
@@ -1164,7 +1158,7 @@ ORDER BY ah.actionDate
         )
         if created:
             logger.warning(
-                f'Created section "{section_name}" for {article.get_identifier("preprintid")}. Please check!',
+                f'Created section "{section_name}" for {article.get_identifier("preprintid")}. Please check!'
             )
 
         article.section = section
@@ -1271,7 +1265,7 @@ ORDER BY ah.actionDate
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
             if created:
                 logger.warning(
-                    f'Created keyword "{kwd_word}" for {article.get_identifier("preprintid")}. Please check!',
+                    f'Created keyword "{kwd_word}" for {article.get_identifier("preprintid")}. Please check!'
                 )
 
             # Always link kwd to journal (remember that journals have a set of kwds!)
@@ -1553,7 +1547,7 @@ def account_get_or_create_check_correspondence(
     elif mappings.count() >= 1:
         # We know this person from another journal
         logger.debug(
-            f"wjs mapping exists ({mappings.count()} correspondences)" f" for {user_cod}/{source} or {imported_email}",
+            f"wjs mapping exists ({mappings.count()} correspondences)" f" for {user_cod}/{source} or {imported_email}"
         )
         mapping = check_mappings(mappings, imported_email, user_cod, source)
 
@@ -2635,7 +2629,7 @@ ORDER BY reminderDate
         - DeselectReviewerAction
             - ed_removed_ed_decision <-> EDMD
         - ED_ACT_AS_REF
-            - i_will_review <-> REEA
+            - i_will_review <-> REWR
 
         not imported:
             - Ref_removed -> it means that the editor is still waiting for reports
@@ -2690,6 +2684,12 @@ ORDER BY reminderDate
                                 reminder.date_due = wjapp_reminder["reminderDate"].date()
                                 reminder.save()
                                 wjs_reminder_type_changed = True
+                                if reminder.code == "REWR1":
+                                    wra = WorkflowReviewAssignment.objects.get(pk=reminder.object_id)
+                                    wra.date_due = wjapp_reminder["reminderDate"].date()
+                                    wra.save()
+                                    logger.warning(f"changed RA.date_due as REWR1: {wra.date_due} for RA {wra}")
+
                             else:
                                 logger.debug(
                                     f"reminder {reminder.code} due date NOT changed because equal {reminder.date_due} "
@@ -2892,9 +2892,7 @@ WHERE editorCod=%(editor_cod)s
             logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
             if created:
-                logger.warning(
-                    f'Created keyword "{kwd_word}" for editor {self.get_current_editor()}. Please check!',
-                )
+                logger.warning(f'Created keyword "{kwd_word}" for editor {self.get_current_editor()}. Please check!')
             wjs_models.StaffKeyword.objects.create(
                 parameters=assignment_parameters,
                 keyword=keyword,
@@ -3369,14 +3367,9 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
             # default message from settings
             # TODO: verify message sent by the logic
 
-            interval_days = get_setting(
-                "wjs_review",
-                "default_review_acceptance_days",
-                self.journal,
-            )
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
             # using freeze_time now() is refereeAssignDate
-            date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
+            date_due = timezone.now().date() + datetime.timedelta(days=21)
 
             form_data = {
                 "acceptance_due_date": date_due,
@@ -3397,8 +3390,8 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
     def check_and_fix_all_reminder(self):
         """Check and fix wjapp reminder for ED_ACT_AS_REF if exists in wjs"""
 
-        # Note wjs logic add reminder REEA also when the reviewer is the editor
-        self.check_and_fix_action_reminder("i_will_review", "REEA", 3)
+        # Note wjs logic adds only reminder REWR1 and REWR2 when the reviewer is the editor
+        self.check_and_fix_action_reminder("i_will_review", "REWR", 2)
 
 
 class ReviewAssignmentAction(BaseActionManager):
@@ -3710,6 +3703,9 @@ ORDER BY dl.submissionDate
                 ).date()
                 logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
                 r.save()
+                review_assignment.date_due = r.date_due
+                review_assignment.save()
+                logger.warning(f"{r.code} and RA {review_assignment} due_date change {r.date_due} for {r.recipient}")
 
             if r.recipient == review_assignment.reviewer and r.code == "REEA2":
                 # REEA2 "Reviewer should evaluate assignment" -> refereeReminder2Enabled/Date
@@ -5027,8 +5023,8 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
             and self.action["actHistCod"] == 294207
         ):
             logger.warning(
-                f"Skipping doubled action {str(self.action['actHistCod'])} AU_SENDS_CORRECT ",
-                f"for {self.preprintid}/3 (wrong data in wjapp).",
+                f"Skipping doubled action {str(self.action['actHistCod'])} AU_SENDS_CORRECT "
+                f"for {self.preprintid}/3 (wrong data in wjapp)."
             )
             return
 
