@@ -281,7 +281,7 @@ class Command(BaseCommand):
                     self.store_article_status(pub_article)
                     logger.debug(
                         f"Re-importing history ({preprintid}) of a paper already published in WJS "
-                        f"({publicationid} / {pub_article.id}"
+                        f"{publicationid} / {pub_article.id}"
                     )
 
                 else:
@@ -2282,8 +2282,17 @@ class BaseActionManager:
         #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
         #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
         #
+        #   Note: to not loose other files like Figure1.docx submitted by the author
+        #         imported also as source file produduction/JCOM_003N_0623.zip which
+        #         contains submission/
+        #
         # attachments read data from db for each attachment (no source file name)
         #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
+
+        # the production archives are regenerated once during version 1 import
+        if self.imported_version_num == 1:
+            self.regenerate_production_archives()
+            logger.debug(f"production archives regenerated during import of version {self.imported_version_num}")
 
         # wjapp version state 22 is the published version
         if self.imported_version_state_cod == 22:
@@ -2308,10 +2317,27 @@ class BaseActionManager:
                 manuscript_dj = file_from_response(response_manuscript, f"{self.preprintid}.pdf")
                 self.save_manuscript(manuscript_dj)
 
+            # remove previous source files relations already saved as historical files
+            # necessary to clear() when the version import files starts because
+            # there are two files preprintid.docx and submit.zip
+            self.article.source_files.clear()
+
             (response_source, doc_type) = self.download_source()
             if response_source.headers["Content-Length"] != "0":
                 source_dj = file_from_response(response_source, f"{self.preprintid}.{doc_type}")
                 self.save_source(source_dj, doc_type)
+
+            # we want to download all the source files sent by the author,
+            # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
+            (response_source_compressed, doc_type_compressed) = self.download_source_compressed_archive()
+            if response_source_compressed.headers["Content-Length"] != "0":
+
+                # returns a zip "submit.zip" containing only the  subdirectory "submission/" of the production zip
+                # with the originals files sent by the author
+                submit_source_compressed_dj = self.extract_subdirectory_to_zip(
+                    response_source_compressed, f"{self.preprintid}/submission/", f"submit.{doc_type_compressed}"
+                )
+                self.save_source(submit_source_compressed_dj, doc_type_compressed)
 
         # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
         # the original name of the attachment file is not imported but it is not relevant
@@ -2344,6 +2370,34 @@ class BaseActionManager:
         # the prepared list is saved as SF list
         if production_version and not self.publicationid and wjapp_prod_attachments:
             self.article.supplementary_files.set(wjapp_prod_attachments)
+
+    def extract_subdirectory_to_zip(self, response, subdirectory, name):
+        """return a DF zip containing only the subdirectory"""
+
+        memory_zip = BytesIO()
+
+        with zipfile.ZipFile(BytesIO(response.content), "r") as zip_ref:
+
+            # Create a new ZIP file in memory
+            with zipfile.ZipFile(memory_zip, "w") as new_zip:
+                # List all files in the zip file
+                for file_info in zip_ref.infolist():
+                    # Check if the file is in the specified subdirectory i.e. JCOM_002N_1122/submission/
+                    logger.debug(f"file name: {file_info} {subdirectory}")
+                    if file_info.filename.startswith(subdirectory):
+                        try:
+                            # Read the file into memory
+                            with zip_ref.open(file_info.filename) as file:
+                                # Read the content safely
+                                content = file.read()
+
+                                # Write the file to the new ZIP archive in memory
+                                new_zip.writestr(file_info.filename, content)
+
+                        except Exception as e:
+                            logger.error(f"Error processing file {file_info.filename}: {e}")
+
+        return DjangoFile(memory_zip, name)
 
     # manuscript
     def download_manuscript(self):
@@ -2463,6 +2517,50 @@ class BaseActionManager:
 
         return (response, doc_type)
 
+    def regenerate_production_archives(self):
+        """Necessary to regenerate the production archives."""
+
+        # Before to download the production zip it could be necessary to regenerate it.
+        # It is done doing a request to the preprint wjapp "All versions" page
+        # without to read the response, e.g. url:
+        # https://jcom.sissa.it/jcom/admin/docPage.jsp?docPgType=versions&docId=JCOM_001A_0823
+        #
+        # To read the response is not important, but wjapp server seems randomly
+        # to "chunck" it, therefore has been except ChunkedEncodingError and only logged it as ERROR.
+        # This exception does not block the regeneration of the production archives, which is the
+        # reason of the request.
+
+        # TODO: broken wjapp version page: JCOM_014A_0524 to be repaired on wjapp.
+        # This problem is independent by the management of the exception ChunkedEncodingError
+
+        file_url_versions_page = (
+            f"https://{self.journal.code.lower()}.sissa.it/{self.journal.code.lower()}/admin/"
+            f"docPage.jsp?docPgType=versions&docId={self.preprintid}"
+        )
+        try:
+            response = self.session.get(file_url_versions_page)
+            assert response.status_code == 200, f"Got {response.status_code}!"
+        except requests.exceptions.ChunkedEncodingError:
+            # known cases: JCOM_003A_0724 JCOM_004N_1024 JCOM_008A_0125 JCOM_014A_0524
+            logger.error(f"Exception: ChunkedEncodingError {file_url_versions_page}")
+
+    def download_source_compressed_archive(self):
+        """Download compressed zip with submission folder for imported version."""
+
+        doc_type = "zip"
+        url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/production/{self.preprintid}"
+        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+        logger.debug(f"{file_url=}")
+        response = self.session.get(file_url)
+
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login data empty file {doc_type} downloaded: {response.headers['Content-Length']}"
+            )
+
+        return (response, doc_type)
+
     def save_manuscript(self, manuscript_dj):
         """Save PDF manuscript"""
 
@@ -2486,8 +2584,8 @@ class BaseActionManager:
     def save_source(self, source_dj, doc_type):
         """Save docx/doc as source file"""
 
-        # remove previous files relations already saved as historical files
-        self.article.source_files.clear()
+        # there is more than one source file for version, therefore
+        # they are not clear()
 
         source_file = files.save_file_to_article(
             source_dj,
@@ -5208,16 +5306,6 @@ ORDER BY dl.submissionDate DESC
         # The file will be downloaded directly from the main directory, because we prefer not to use, if possible,
         # the production zip for the files, because in case of manual maintenance, the production zip
         # will probably be out of sync (even if we can assume that the extension we are interested in is ok)
-
-        # before to download the production zip it could be necessary to regenerate it.
-        # It is done doing a request to the "all versions" page
-        # without to read the response, i.e.:
-        # https://jcom.sissa.it/jcom/pm/docPage.jsp?docPgType=versions&docId=JCOM_001A_0823
-        file_url_versions_page = (
-            f"https://{self.journal.code.lower()}.sissa.it/{self.journal.code.lower()}/pm/"
-            f"docPage.jsp?docPgType=versions&docId={self.preprintid}"
-        )
-        self.session.get(file_url_versions_page)
 
         # production zip to download
         file_url = (
