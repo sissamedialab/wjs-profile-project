@@ -662,7 +662,7 @@ class Command(BaseCommand):
         logger.warning(f"{self.store_article_primary_issue=}")
 
         article.page_numbers = self.article_page_numbers
-        logger.warning(f"{self.article_page_numbers =}")
+        logger.warning(f"{self.article_page_numbers=}")
 
         # to not loose the render galley for an unexpected problem
         if not article.render_galley:
@@ -3151,10 +3151,45 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
 
         # TODO: problem with paper JCOM_2205_2023_A01 JCOM_005A_0523
 
-        # TODO: problem with JCOM_008A_0125 reset editor after decision
-        #       possible solution: create new review round?
-        if self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED:
-            logger.critical(f"state not compatible with ADMIN_ASS_N_ED: {self.article.articleworkflow.state=}")
+        # TBV: problem with JCOM_008A_0125 reset editor after decision
+        #       possible solution: create new review round
+        # code taken from:
+        # wjs/plugins/wjs_review/events/handlers.py -> restart_review_process_after_revision_submission
+        #
+        # Note:
+        # the reset ed ADMIN_RESETS_ED happens in wjapp JCOM_008A_0125/1 history,
+        # but the current action ADMIN_ASS_N_ED happens in JCOM_008A_0125/2 history.
+        # In the normal paper import ADMIN_ASS_N_ED does not create in wjs a new version,
+        # but for this case, decision already taken, it is necessary to create a new review
+        # round before SupervisorChangeEditorAssignment
+        if (
+            self.preprintid == "JCOM_008A_0125"
+            and self.imported_version_num == 2
+            and self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+        ):
+
+            logger.warning(f"state not compatible with ADMIN_ASS_N_ED: {self.article.articleworkflow.state=}")
+
+            # Solved adding a AuthorHandleRevision, so a new review round is created following the logic.
+            # After the action the files are reimported, so wjs version 1 and 2 are equal.
+            # A problem can be that in the paper results a major revision submission not existing
+            # in wjapp, but it is like a "confirm version". The editorial office can add a note for this paper.
+            request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
+            request.user = self.article.correspondence_author
+
+            revision_request = EditorRevisionRequest.objects.get(article=self.article)
+            form_data = {"author_note": revision_request.author_note}
+            service = AuthorHandleRevision(
+                revision=revision_request,
+                form_data=form_data,
+                user=self.article.correspondence_author,
+                request=request,
+            )
+            service.run()
+
+            # do again import_files because there is a new review round
+            if self.import_files:
+                self.import_files()
 
         self.deselect_editor_as_reviewer()
 
@@ -3743,7 +3778,7 @@ ORDER BY dl.submissionDate
                 "acceptance_due_date": date_due,
                 "message": message,
             }
-            # TODO: exception with JCOM_002N_0824
+
             review_assignment = AssignToReviewer(
                 reviewer=reviewer,
                 workflow=self.article.articleworkflow,
@@ -4747,6 +4782,19 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         # TBV: author of the action is the same of main_author?
         #      the author could be switched with coauthor
 
+        # This fix solves a problem in broken wjapp data for JCOM_031A_1024/2 which is
+        # a version with only the submission of the contribution and no other actions.
+        # The workaround is to not execute AuthorHandleRevision for this version
+        # and let only import the correspondence. The files and the author cover letter
+        # are not imported because they are not been reviewed. The review has been done
+        # on version  JCOM_031A_1024/3.
+        if self.preprintid == "JCOM_031A_1024" and self.imported_version_num == 2:
+            logger.warning(
+                f"fix of broken wjapp data version eliminated: {self.preprintid} {self.imported_version_num=}"
+            )
+
+            return
+
         author_report_date = self.action["actionDate"]
 
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
@@ -5312,6 +5360,7 @@ ORDER BY dl.submissionDate DESC
             f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
             f"production/{self.preprintid}.zip&fileType=zip"
         )
+
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":

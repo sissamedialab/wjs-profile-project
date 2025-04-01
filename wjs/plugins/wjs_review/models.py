@@ -228,6 +228,7 @@ class ReviewVersion:
                 file=self.previous_round_revision.cover_letter_file,
                 object=self.previous_round_revision,
             )
+        # TODO: explain why we can use "-1" (it comes from an IntergerField() with no defaults)
         elif self.number in (1, -1):
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
@@ -235,6 +236,10 @@ class ReviewVersion:
                 object=self.review_round.article.articleworkflow,
             )
         else:
+            logger.error(
+                f"Unexpected revision state for {self.review_round.article.id}:"
+                " no previous round, but not first round either!",
+            )
             return AuthorCoverLetter(
                 text="",
                 file=None,
@@ -265,10 +270,11 @@ class ReviewVersion:
                 for request in self.revision_requests
                 if request.review_round.round_number == number
                 and request.type
-                in (
+                in {
                     ArticleWorkflow.Decisions.MAJOR_REVISION.value,
                     ArticleWorkflow.Decisions.MINOR_REVISION.value,
-                )
+                    ArticleWorkflow.Decisions.OPEN_APPEAL.value,
+                }
             ]
             return requests[0] if requests else None
         return None
