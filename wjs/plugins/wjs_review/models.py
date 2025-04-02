@@ -228,8 +228,10 @@ class ReviewVersion:
                 file=self.previous_round_revision.cover_letter_file,
                 object=self.previous_round_revision,
             )
-        # TODO: explain why we can use "-1" (it comes from an IntergerField() with no defaults)
-        elif self.number in (1, -1):
+        # Please note that the "-1" below indicates a "fake" first version
+        # for a paper that has not yet got a review-round
+        # (see the end of ArticleWorkflow.get_review_versions()).
+        elif self.number in {1, -1}:
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
                 file=None,
