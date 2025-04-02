@@ -2062,16 +2062,16 @@ class HandleDecision:
         :return: instance of the article
         :rtype: Article
         """
-        self.workflow.article.decline_article()
 
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_rejects_paper()
         self.workflow.save()
 
         context = self._get_message_context()
-        self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._log_decline(context)
+        self.workflow.article.decline_article()
+        self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         return self.workflow.article
 
     def _not_suitable_article(self, decision: EditorDecision) -> Article:
@@ -2087,7 +2087,6 @@ class HandleDecision:
         :return: instance of the article
         :rtype: Article
         """
-        self.workflow.article.decline_article()
 
         if self.admin_form:
             self.workflow.admin_deems_paper_not_suitable()
@@ -2097,9 +2096,10 @@ class HandleDecision:
         self.workflow.save()
 
         context = self._get_message_context()
-        self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._log_not_suitable(context)
+        self.workflow.article.decline_article()
+        self._trigger_article_event(events_logic.Events.ON_ARTICLE_DECLINED, context)
         return self.workflow.article
 
     def _requires_resubmission(self, decision: EditorDecision) -> Article:

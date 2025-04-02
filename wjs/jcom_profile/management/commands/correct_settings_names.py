@@ -654,6 +654,7 @@ Someone (probably you) has requested to reset your password in {{ request.journa
 You can reset your password at the following link:</p>
 <p>{{ core_reset_password_url }}</p>
 <p>In case you did not make this request, please just ignore this message.</p>
+<p>&nbsp;</p>
 """,
         )
         update_setting_default(
