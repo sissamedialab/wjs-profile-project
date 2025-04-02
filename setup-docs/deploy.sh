@@ -68,6 +68,7 @@ function deploy_janeway() {
     cd "$MANAGE_DIR"
     "$PYTHON" -mmanage migrate
     "$PYTHON" -mmanage sync_translation_fields --noinput
+    "$PYTHON" -mmanage load_default_settings
     "$PYTHON" -mmanage collectstatic --noinput
     "$PYTHON" -mmanage compilemessages --settings core.settings
 
