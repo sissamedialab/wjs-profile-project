@@ -254,7 +254,7 @@ def generic_analytics_code_setting(journal):
 
 
 @pytest.fixture
-def admin():
+def admin() -> JCOMProfile:
     """Create admin user."""
     return JCOMProfile.objects.create(
         username="admin",
