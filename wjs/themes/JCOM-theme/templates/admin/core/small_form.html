@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+  {% block contextual_title %}{% endblock contextual_title %}
+  - {% include "admin/elements/contextual_site_name.html" %}
+{% endblock title %}
+
+{% block breadcrumbs %}
+  {{ block.super }}
+{% endblock breadcrumbs %}
+
+{% block body %}
+  <div class="row">
+    <div class="col m8 offset-m2">
+      <form method="post">
+        {% csrf_token %}
+      <div class="card">
+          <div class="card-content">
+            <div class="card-title">
+              {% block title-section %}{{ block.super }}{% endblock title-section %}
+            </div>
+            {% block form_content %}
+            {% endblock form_content %}
+         </div>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock body %}
+
+{% block toastr %}
+  {% comment %}
+    Avoid showing the messages via Toastr since they should be included at the
+    top of the form.
+  {% endcomment %}
+{% endblock toastr %}

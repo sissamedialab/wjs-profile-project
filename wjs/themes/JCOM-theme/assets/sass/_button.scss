@@ -7,3 +7,10 @@
 .btn-large:hover {
   background-color: color("journal-color", "lighten-1");
 }
+
+.button.secondary.expanded {
+  @extend .btn;
+  max-width: 50%;
+  margin: 15px 0;
+  width: auto;
+}

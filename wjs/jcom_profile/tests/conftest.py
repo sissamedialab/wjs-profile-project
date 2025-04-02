@@ -55,7 +55,6 @@ from wjs.jcom_profile.factories import (
     RecipientFactory,
     SectionFactory,
     SpecialIssueFactory,
-    UserFactory,
     yesterday,
 )
 from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
@@ -855,11 +854,12 @@ def editors_with_keywords(create_jcom_user, journal, keywords):
 pytest_factoryboy.register(ArticleFactory, "fb_article")
 # Make a fixture that returns a user "already existing" in the DB
 pytest_factoryboy.register(
-    UserFactory,
+    JCOMProfileFactory,
     "existing_user",
     first_name="Iam",
     last_name="Sum",
     email="iamsum@example.com",
+    middle_name="J.",
     institution="ML",
 )
 pytest_factoryboy.register(JCOMProfileFactory)

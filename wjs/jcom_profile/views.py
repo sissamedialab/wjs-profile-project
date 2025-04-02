@@ -169,7 +169,7 @@ def register(request):
             )
             return redirect(reverse("registration_success"))
 
-    template = "core/accounts/register.html"
+    template = "admin/core/accounts/register.html"
     context = {
         "form": form,
     }
@@ -182,7 +182,7 @@ def registration_success(request):
     context = {
         "no_reply_email": from_email,
     }
-    return render(request, "core/accounts/registration_success.html", context)
+    return render(request, "admin/core/accounts/registration_success.html", context)
 
 
 def confirm_gdpr_acceptance(request, token):
@@ -190,7 +190,7 @@ def confirm_gdpr_acceptance(request, token):
 
     The token encodes base user information (name, surname and email)
     """
-    template = "admin/core/account/gdpr_acceptance.html"
+    template = "admin/core/accounts/gdpr_acceptance.html"
 
     # verify the account existence
     try:
@@ -207,7 +207,7 @@ def confirm_gdpr_acceptance(request, token):
     if request.POST:
         form = forms.GDPRAcceptanceForm(request.POST)
         if form.is_valid():
-            template = "admin/core/account/thankyou.html"
+            template = "admin/core/accounts/thankyou.html"
             # if the form is valid and the existing account does not have the GDPR policy accepted, it is updated
             if not account.gdpr_checkbox:
                 account.is_active = True

@@ -33,6 +33,8 @@ class UserFactory(factory.django.DjangoModelFactory):
     username = email
     is_admin = False
     is_active = True
+    institution = ""
+    middle_name = ""
 
 
 class AccountFactory(factory.django.DjangoModelFactory):
@@ -47,6 +49,8 @@ class AccountFactory(factory.django.DjangoModelFactory):
     username = email
     is_admin = False
     is_active = True
+    institution = ""
+    middle_name = ""
 
     # DO NOT `jcomprofile = factory.SubFactory(JCOMProfileFactory)`
     # you'd hit wjs/specs#192 (probably...)
@@ -72,6 +76,8 @@ class JCOMProfileFactory(factory.django.DjangoModelFactory):
     username = email
     is_admin = False
     is_active = True
+    institution = ""
+    middle_name = ""
 
 
 class JournalFactory(factory.django.DjangoModelFactory):
