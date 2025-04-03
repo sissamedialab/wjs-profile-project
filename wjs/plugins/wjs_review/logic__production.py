@@ -256,7 +256,7 @@ class AssignTypesetter:
             recipients=[
                 self.typesetter,
             ],
-            verbosity=Message.MessageVerbosity.FULL,
+            verbosity=Message.MessageVerbosity.TIMELINE,
             flag_as_read=False,
             flag_as_read_by_eo=True,
         )

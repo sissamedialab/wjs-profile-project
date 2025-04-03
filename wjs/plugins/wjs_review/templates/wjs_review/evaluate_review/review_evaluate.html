@@ -11,6 +11,7 @@
   <!-- djlint:on -->
 {% article_css_classes assignment.article.articleworkflow as article_classes %}
 <div class="container mb-3">
+  {% bootstrap_form_errors form %}
   <div class="row">
     <div class="col-sm-12">
       <h3 class="page-title">{{ view.title }}</h3>
@@ -40,7 +41,6 @@
               {% include "wjs_review/details/elements/metadata_preprint_files.html" with article=assignment.article workflow=assignment.article.articleworkflow review_versions=assignment.version %}
             </div>
             <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post">
-              {% bootstrap_form_errors form %}
               {% csrf_token %}
               <div class="row">
                 <div class="col-sm-4 mb-1 mt-3">
