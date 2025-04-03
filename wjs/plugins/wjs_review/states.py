@@ -1147,7 +1147,15 @@ class ReadyForPublication(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
-        if not article.meta_image or not article.articleworkflow.social_media_short_description:
+        # refs https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1470
+        issue = article.issue
+        if issue and issue.issueparameters:
+            batch_publish = issue.issueparameters.batch_publish
+        else:
+            batch_publish = False
+        if (not article.meta_image or not article.articleworkflow.social_media_short_description) and (
+            not batch_publish
+        ):
             return "Missing image and/or short description for social media"
 
         if conditions.journal_requires_english_content(article.journal):

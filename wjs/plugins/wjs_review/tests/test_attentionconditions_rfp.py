@@ -5,21 +5,33 @@ from submission.models import Article
 from ..models import ArticleWorkflow
 
 
+@pytest.mark.parametrize("batch_publish", (True, False))
 @pytest.mark.django_db
-def test_article_requires_eo_attention_missing_image_and_missing_description(rfp_article: Article, eo_user):
+def test_article_requires_eo_attention_missing_image_and_missing_description(
+    rfp_article: Article, eo_user, batch_publish
+):
 
     assert not rfp_article.meta_image
     assert rfp_article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
 
+    params = rfp_article.issue.issueparameters
+    params.batch_publish = batch_publish
+    params.save()
+    assert rfp_article.issue.issueparameters.batch_publish == batch_publish
+
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
-    assert attention_condition == "Missing image and/or short description for social media"
+    if batch_publish:
+        assert attention_condition == ""
+    else:
+        assert attention_condition == "Missing image and/or short description for social media"
 
 
+@pytest.mark.parametrize("batch_publish", (True, False))
 @pytest.mark.django_db
 def test_article_requires_eo_attention_image_ok_but_missing_description(
-    rfp_article: Article, eo_user, generate_image, settings
+    rfp_article: Article, eo_user, generate_image, settings, issue, batch_publish
 ):
 
     settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT = [rfp_article.journal.code]
@@ -30,14 +42,25 @@ def test_article_requires_eo_attention_image_ok_but_missing_description(
     rfp_article.meta_image = generate_image
     rfp_article.save()
 
+    params = rfp_article.issue.issueparameters
+    params.batch_publish = batch_publish
+    params.save()
+    assert rfp_article.issue.issueparameters.batch_publish == batch_publish
+
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
-    assert attention_condition == "Missing image and/or short description for social media"
+    if batch_publish:
+        assert attention_condition == ""
+    else:
+        assert attention_condition == "Missing image and/or short description for social media"
 
 
+@pytest.mark.parametrize("batch_publish", (True, False))
 @pytest.mark.django_db
-def test_article_requires_eo_attention_description_ok_but_missing_image(rfp_article: Article, eo_user, settings):
+def test_article_requires_eo_attention_description_ok_but_missing_image(
+    rfp_article: Article, eo_user, settings, batch_publish
+):
 
     settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT = [rfp_article.journal.code]
 
@@ -48,10 +71,18 @@ def test_article_requires_eo_attention_description_ok_but_missing_image(rfp_arti
     rfp_article.articleworkflow.social_media_short_description = "Placeholder"
     rfp_article.articleworkflow.save()
 
+    params = rfp_article.issue.issueparameters
+    params.batch_publish = batch_publish
+    params.save()
+    assert rfp_article.issue.issueparameters.batch_publish == batch_publish
+
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
-    assert attention_condition == "Missing image and/or short description for social media"
+    if batch_publish:
+        assert attention_condition == ""
+    else:
+        assert attention_condition == "Missing image and/or short description for social media"
 
 
 @pytest.mark.parametrize(
