@@ -8,21 +8,25 @@ from django.http import HttpRequest
 from django.utils import timezone
 from django.utils.timezone import localtime, now
 from plugins.typesetting.models import GalleyProofing
-from review import models as review_models
-from submission.models import Article
-
-from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.utils import get_eo_user
-
-from .. import states
-from ..logic import AssignToReviewer, EvaluateReview, HandleDecision
-from ..models import (
+from plugins.wjs_review import conditions, states
+from plugins.wjs_review.logic import (
+    AssignToReviewer,
+    AuthorHandleRevision,
+    EvaluateReview,
+    HandleDecision,
+)
+from plugins.wjs_review.models import (
     ArticleWorkflow,
     EditorRevisionRequest,
     Reminder,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
+from review import models as review_models
+from submission.models import Article
+
+from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.utils import get_eo_user
 
 
 @pytest.mark.skipif("not config.getoption('--run-academic')")
@@ -296,6 +300,56 @@ def test_author_technicalrevision_is_late(
         state_cls.article_requires_attention(article=article, user=section_editor) == "Author has not updated metadata"
     )
     assert state_cls.article_requires_attention(article=article, user=eo) == "Author has not updated metadata"
+
+
+@pytest.mark.django_db
+def test_author_technicalrevision_is_late_with_revision(
+    editor_revision: EditorRevisionRequest,
+    fake_request: HttpRequest,
+):
+    """
+    Test attention conditions when author _technical_ revision is late after a major revision.
+
+    See specs#1466.
+    """
+    # just some alias
+    article = editor_revision.article
+    workflow = article.articleworkflow
+    author = article.correspondence_author
+    section_editor = WjsEditorAssignment.objects.get_current(article).editor
+
+    AuthorHandleRevision(
+        revision=editor_revision,
+        form_data={"author_noe": "any"},
+        user=author,
+        request=fake_request,
+    ).run()
+
+    days_past = 5
+    expected = localtime(now() + timezone.timedelta(days=-days_past))  # note the "-": the author is late!
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        "decision_editor_report": "random message",
+        "withdraw_notice": "notice",
+        "date_due": expected,
+    }
+    HandleDecision(
+        workflow=workflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    ).run()
+
+    # This is the pesky condition that we are testing
+    conditions.author_revision_is_late_all_reminders_sent(
+        article,
+        late_after_days=1,
+    )
+    # This is here as reminder/documentation
+    conditions.author_technicalrevision_is_late_all_reminders_sent(
+        article,
+        late_after_days=1,
+    )
 
 
 @pytest.mark.django_db

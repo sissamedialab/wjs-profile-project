@@ -311,37 +311,6 @@ def any_reviewer_is_late_after_reminder(article: Article) -> str:
         return ""
 
 
-def all_reminders_sent(target, days_ago: int):
-    """Return true if all reminders for the given target has been sent more that the given number of days."""
-    # I'll check if there is still any reminder left to be sent (in which case it's easy)
-    # and, if there are not, if the last sent reminder has been sent before yesterday.
-    unsent_reminders = Reminder.objects.filter(
-        content_type=ContentType.objects.get_for_model(target),
-        object_id=target.id,
-        disabled=False,
-        date_sent__isnull=True,
-    )
-    if unsent_reminders.exists():
-        return False
-
-    # All reminders have been sent.
-    last_sent_reminder = (
-        Reminder.objects.filter(
-            content_type=ContentType.objects.get_for_model(target),
-            object_id=target.id,
-            disabled=False,
-            date_sent__isnull=False,
-            # don't try `date_sent__lt=yesterday` because you might just get the first reminders
-        )
-        .order_by("date_sent")
-        .last()
-    )
-    if last_sent_reminder.date_sent.date() < timezone.now().date() - timezone.timedelta(days=days_ago):
-        return True
-    else:
-        return False
-
-
 def author_revision_is_late(article: Article) -> str:
     """Tell if the author is late in submitting a revision.
 
@@ -378,10 +347,31 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
         ),
     ).order_by()
     if revision_request := late_revision_requests.last():
-        if all_reminders_sent(revision_request, days_ago=late_after_days):
+        watched_reminders = (
+            {
+                Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
+            }
+            if revision_request.type == ArticleWorkflow.Decisions.MAJOR_REVISION
+            else {
+                Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
+            }
+        )
+        cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(
+            days=late_after_days,
+        )
+        expired_reminders = Reminder.objects.filter(
+            code__in=watched_reminders,
+            date_sent__date__lt=cut_off_date,
+            disabled=False,
+            object_id=revision_request.id,
+            content_type=ContentType.objects.get_for_model(revision_request),
+        )
+
+        if expired_reminders.exists():
             expected = late_revision_requests.first().date_due
             days_late = (timezone.now().date() - expected).days
             return f"Revision is {days_late} days late. Pls consider reminding author"
+
     return ""
 
 
@@ -403,7 +393,8 @@ def author_technicalrevision_is_late(article: Article) -> str:
 
 
 def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_after_days: int = 1) -> str:
-    """Tell if the author is late in submitting a technical revision.
+    """
+    Tell if the author is late in submitting a technical revision.
 
     "Late" means that the author has not yet set metadata after the last reminder.
     This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
@@ -414,7 +405,21 @@ def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_a
         type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
     ).order_by()
     if revision_request := late_revision_requests.last():
-        if all_reminders_sent(revision_request, days_ago=late_after_days):
+        watched_reminders = {
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
+        }
+        cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(
+            days=late_after_days,
+        )
+        expired_reminders = Reminder.objects.filter(
+            code__in=watched_reminders,
+            date_sent__date__lt=cut_off_date,
+            disabled=False,
+            object_id=revision_request.id,
+            content_type=ContentType.objects.get_for_model(revision_request),
+        )
+
+        if expired_reminders.exists():
             return "Author has not updated metadata"
     return ""
 
