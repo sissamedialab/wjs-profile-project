@@ -79,11 +79,14 @@ class Command(BaseCommand):
             if directors.count() == 1:
                 # good: we can ignore the "main director"
 
-                # sanity check
-                assert not Account.objects.filter(
+                # sanity check: we could also have a main director (only one), but he must be the director
+                main_directors = Account.objects.filter(
                     accountrole__journal=journal,
                     accountrole__role__slug=DIRECTOR_MAIN_ROLE,
-                ).exists()
+                )
+                if main_directors.exists():
+                    assert main_directors.count() == 1
+                    assert main_directors.first().id == directors[0].id
 
                 for user in directors:
                     swp, created = StaffWorkloadParameters.objects.get_or_create(
