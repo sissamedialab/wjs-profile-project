@@ -949,7 +949,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
         subject_due_date_postpone_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Review due date changed for {{ reviewer.full_name }}",
+            "value": "{% if review_assigment.date_accepted %}Review{% else %}accept/decline{% endif %} due date changed for {{ reviewer.full_name }}",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -973,8 +973,8 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             "setting": None,
             "value": """Dear Dr. {{ reviewer.full_name }},
 <br><br>
-This is to inform you that your review due date for the {{ article.section.name }} "{{ article.title }}" has been
-changed from {{ original_due_date }} to {{ date_due }}.
+This is to inform you that your {% if review_assigment.date_accepted %}review{% else %}accept/decline{% endif %} due date for
+the {{ article.section.name }} "{{ article.title }}" has been changed from {{ original_due_date }} to {{ date_due }}.
 <br><br>
 Thank you in advance for your cooperation and best regards,<br>
 {{ journal.code }} Journal
@@ -1003,7 +1003,7 @@ Thank you in advance for your cooperation and best regards,<br>
         subject_due_date_far_future_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Review due date changed considerably for {{ reviewer.full_name }}",
+            "value": "{% if review_assigment.date_accepted %}Review{% else %}accept/decline{% endif %} due date changed considerably for {{ reviewer.full_name }}",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1028,8 +1028,9 @@ Thank you in advance for your cooperation and best regards,<br>
             "setting": None,
             "value": """Dear {{ EO.full_name }},
 <br><br>
-{{ reviewer.full_name }}'s review due date for the {{ article.section.name }} "{{ article.title }}" has been changed
-from {{ original_date_due }} to {{ date_due }}.
+{{ reviewer.full_name }}'s {% if review_assigment.date_accepted %}review{% else %}accept/decline{% endif %} due date
+for the {{ article.section.name }} "{{ article.title }}" has been changed from {{ original_due_date }}
+to {{ date_due }}.
 Since it is far in the future it might be worth checking.
 <br><br>
 {{ journal.code }} Journal

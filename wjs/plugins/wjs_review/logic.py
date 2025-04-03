@@ -2766,7 +2766,7 @@ class PostponeReviewerDueDate:
 
     def _report_postponed_far_future_date(self) -> bool:
         """Check if the editor postponed due date far in the future."""
-        if self.form_data["date_due"] > timezone.localtime(timezone.now()).date() + datetime.timedelta(
+        if self.form_data["date_due"] > self.original_due_date + datetime.timedelta(
             days=settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD,
         ):
             return True
@@ -2790,7 +2790,7 @@ class PostponeReviewerDueDate:
             setting_name="due_date_postpone_subject",
             journal=self.assignment.article.journal,
             request=self.request,
-            context={"reviewer": self.assignment.reviewer},
+            context={"reviewer": self.assignment.reviewer, "review_assigment": self.assignment},
             template_is_setting=True,
         )
         message_body = render_template_from_setting(
@@ -2821,7 +2821,7 @@ class PostponeReviewerDueDate:
             setting_name="due_date_far_future_subject",
             journal=self.assignment.article.journal,
             request=self.request,
-            context={"reviewer": self.assignment.reviewer},
+            context={"reviewer": self.assignment.reviewer, "review_assigment": self.assignment},
             template_is_setting=True,
         )
         message_body = render_template_from_setting(
