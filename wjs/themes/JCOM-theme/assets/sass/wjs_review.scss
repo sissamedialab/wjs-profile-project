@@ -1,4 +1,6 @@
 @charset "UTF-8";
+$primary: #623d91;
+
 @import "bootstrap/scss/functions";
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/maps";
@@ -23,13 +25,13 @@ div.required-field > .form-label {
   }
 }
 
-.nav--blue-dot {
+.nav--colored-dot {
   .nav-link {
     position: relative;
     padding: 0.25rem 1rem;
 
     a {
-      margin: 10px;
+      margin: 0.5rem;
     }
 
     &::before {
@@ -39,7 +41,7 @@ div.required-field > .form-label {
       left: 0.25rem;
       width: 0.25rem;
       height: 0.25rem;
-      background-color: $blue;
+      background-color: $primary;
       border-radius: 50%;
       transform: translateY(-50%);
     }
@@ -209,7 +211,7 @@ table.table-bordered.dataTable .table-borderless td {
   margin-top: 0.25rem;
   width: 1px;
   height: 100%;
-  background-color: #0d6efd;
+  background-color: $primary;
 }
 
 .table.table-small-font > tbody {
@@ -242,6 +244,10 @@ table.table-bordered.dataTable .table-borderless td {
       border: 0;
     }
   }
+}
+
+.header-override-image {
+  height: 100px;
 }
 
 @import "bootstrap/scss/bootstrap";

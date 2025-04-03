@@ -7,6 +7,11 @@
   <script src="{% static "js/htmx_tinymce.js" %}"></script>
   <link rel="stylesheet" href="{% static "admin/css/admin.css" %}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  {% if request.journal.favicon %}
+    <link rel="icon" href="{{ journal.favicon.url }}" type="image/vnd.microsoft.icon" />
+  {% elif request.repository.favicon %}
+    <link rel="icon" href="{{ request.repository.favicon.url }}" type="image/vnd.microsoft.icon" />
+  {% endif %}
 {% endblock bootstrap5_extra_head %}
 {% block bootstrap5_content %}
   <div class="bg-body" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

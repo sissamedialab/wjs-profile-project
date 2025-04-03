@@ -11,7 +11,7 @@ nav {
     position: relative;
 
     img {
-      width: 100%;
+      height: 100px;
     }
   }
 
@@ -115,4 +115,9 @@ nav {
     fill: currentColor;
     width: 1.2em;
   }
+}
+
+.dropdown-content li > a,
+.dropdown-content li > span {
+  color: color("journal-color", "lighten-2");
 }
