@@ -2967,7 +2967,8 @@ def test_handle_editor_decision_check_conditions(
 @pytest.mark.parametrize(
     "postpone_date",
     (
-        -5,  # in the past
+        -1001,  # certainly in the past
+        -5,  # before the current due date
         0,  # today
         1,  # tomorrow
         10,  # in the future
@@ -3000,9 +3001,8 @@ def test_postpone_due_date(
 
     fake_request.user = review_assignment.editor
     initial_date_due = review_assignment.date_due
-    _now = localtime(now()).date()
     form_data = {
-        "date_due": _now + datetime.timedelta(days=postpone_date),
+        "date_due": initial_date_due + datetime.timedelta(days=postpone_date),
     }
     service = PostponeReviewerDueDate(
         assignment=review_assignment,
@@ -3017,17 +3017,25 @@ def test_postpone_due_date(
     )
     reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
     date_diff = form_data["date_due"] - initial_date_due
-    if postpone_date < 1:
+    if postpone_date < -1000:
         with pytest.raises(ValueError):
             service.run()
         review_assignment.refresh_from_db()
         assert review_assignment.date_due == initial_date_due
         assert Message.objects.count() == 0
         assert len(mail.outbox) == 0
+        return
+    if postpone_date < 1:
+        # The logic actually allows to change date due in the past
+        service.run()
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_due == initial_date_due + datetime.timedelta(days=postpone_date)
+        assert Message.objects.count() == 1
+        assert len(mail.outbox) == 1
     elif postpone_date < settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD:
         service.run()
         review_assignment.refresh_from_db()
-        assert review_assignment.date_due == _now + datetime.timedelta(days=postpone_date)
+        assert review_assignment.date_due == initial_date_due + datetime.timedelta(days=postpone_date)
         assert Message.objects.count() == 1
         assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 0
@@ -3038,7 +3046,7 @@ def test_postpone_due_date(
     else:
         service.run()
         review_assignment.refresh_from_db()
-        assert review_assignment.date_due == _now + datetime.timedelta(days=postpone_date)
+        assert review_assignment.date_due == initial_date_due + datetime.timedelta(days=postpone_date)
         assert Message.objects.count() == 2
         assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
