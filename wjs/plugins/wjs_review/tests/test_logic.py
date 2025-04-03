@@ -3661,6 +3661,7 @@ def test_assign_new_editor(
 @pytest.mark.django_db
 def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_user: Account, fake_request: HttpRequest):
     """EO opens an appeal."""
+    assert Message.objects.all().count() == 0
     normal_user.add_account_role("section-editor", rejected_article.journal)
     appeal_revision_days = get_setting(
         setting_group_name="wjs_review",
@@ -3690,6 +3691,9 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
     assert assignment.editor == normal_user.janeway_account
     assert revision_request.editor == eo_user.janeway_account
     assert revision_request.date_due == date_due
+    assert Message.objects.all().count() == 1
+    message = Message.objects.first()
+    assert message.read_by_eo is True
 
 
 @pytest.mark.django_db

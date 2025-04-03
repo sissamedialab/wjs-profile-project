@@ -3240,6 +3240,8 @@ class OpenAppeal:
             message_body=message_body,
             actor=self.new_editor,
             recipients=[self.article.correspondence_author],
+            # refs https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1469
+            flag_as_read_by_eo=True,
         )
 
     def update_editor(self):
