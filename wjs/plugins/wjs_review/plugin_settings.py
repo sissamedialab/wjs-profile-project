@@ -19,8 +19,6 @@ from wjs.jcom_profile.custom_settings_utils import (
     patch_setting,
 )
 
-from .reminders.settings import ReminderManager, ReminderSetting
-
 logger = get_logger(__name__)
 
 PLUGIN_NAME = "WJS Review articles"
@@ -555,7 +553,6 @@ Thank you and best regards,
         return setting_1, setting_2
 
     def core_review_settings() -> tuple[SettingValue, ...]:
-
         setting_3_p: SettingParams = {
             "name": "review_invitation_message_body",
             "group": wjs_review_settings_group,
@@ -1880,7 +1877,7 @@ class RemindersCSVWrapper:
         self.discovered_settings = []
         self.journal = []
 
-    def _get_setting_data(self, reminder_setting: ReminderSetting):
+    def _get_setting_data(self, reminder_setting: "ReminderSetting"):
         return {
             "reminder code": reminder_setting.code,
             "reminder": reminder_setting.code.label,
@@ -1892,6 +1889,8 @@ class RemindersCSVWrapper:
         }
 
     def export_reminders(self, journal: Journal):
+        from .reminders.settings import ReminderManager
+
         if self.csv_writer:
             for reminder_class in ReminderManager.__subclasses__():
                 for reminder_setting in reminder_class.reminders.values():

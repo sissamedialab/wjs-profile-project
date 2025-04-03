@@ -1,43 +1,43 @@
 #!/bin/bash
 
-# Reset test env:
-# - copy DB (and files) from prod to test
-# - port cms content from dev to test
-# - port cms settings from dev to test
-# - run import of pending papers in test
-# - run Deployment script from #855
+# This script prepares a Janeway instance for JCOM go-live.
+
+# It behaves differently if it detects that we are on a test machine or the production machine.
+# PROD:
+# - install WJS latest
+# - verify and/or tidy-up a bunch of settings (django settings and journal settings)
+# - port cms content from dev instance
+# - port submission configuration from dev instance
+# - run import of pending papers
+# - send imported papers to Prophy
+# - see also specs#855
+#
+# TEST:
+# - reset DB: overwrites the test-db with the production db
+# - reset files: rsync the prod files onto the test files
+# - do the setup-procedure as for PROD
+
+
+# Run as
+# DEBUG=1 \
+#   ./setup-golive-test-env.sh
+
+# Advanced
+# DEBUG=1 \
+#   PYTHON=/home/wjs/.virtualenvs/janeway/bin/python \
+#   JANEWAY=/home/wjs/janeway \
+#   QUICK=0 \
+#   WJS_FROM_GIT=0 \
+#   WJS_TAG="feature/issue-1261__fixes" \
+#   ./setup-golive-test-env.sh
+#
+# WJS_FROM_GIT is the most delicate: it tells if we should install from the package-registry (0) or from the git repo (1)
+#              when this variable is set to "1", the variable WJS_TAG tells which tag/branch/commit to use
+#              NB: it also controls which values are set in the Prophy-related settings (see code).
+# QUICK is useful only on TEST machine.
+# PYTHON and JANEWAY are generally not needed.
 
 set -e
-
-# Setup
-p="/home/wjs/.virtualenvs/janeway-test/bin/python"
-m="$p /home/wjs/janeway-test/src/manage.py"
-DEBUG=1
-QUICK=1
-WJS_FROM_GIT=1
-WJS_TAG="feature/issue-1270-setup-assignment-parameters"
-
-# --✂---  CUT HERE --✂---
-# See below: look for the other block "CUT HERE"
-# --✂---  CUT HERE --✂---
-
-
-prod_files=wjs@wjs-prod:/home/wjs/janeway
-test_files=/home/wjs/janeway-test
-
-echo
-echo "INFO: you need credentials to Production DB and test DB in .pgpass"
-echo "      and ssh access to $prod_files"
-echo
-echo $(tput setaf 3)"WARNING: THIS IS DESTRUCTIVE ON ${test_files}!!!"$(tput sgr0)
-echo
-
-read -p 'Do you want to continue? (type "yes" to continue) ' continue
-if test "$continue" != "yes"
-then
-    echo "Quitting."
-    exit
-fi
 
 # output something only if variable "$DEBUG" is "1"
 # echo in gray color
@@ -55,75 +55,135 @@ function error () {
 }
 export -f error
 
-if test "$QUICK" == "1"
+
+if [[ "$(hostname)" == *"wjs-prod" ]]
 then
-    debug "Skipping rsync. Check env variable QUICK."
+    debug "Working on PROD"
+    PROD=1
+    TEST=0
+    : ${PYTHON:="/home/wjs/.virtualenvs/janeway/bin/python"}
+    : ${JANEWAY:="/home/wjs/janeway"}
+    apache_redirects_file=$HOME/.virtualenvs/janeway/lib/python3.11/site-packages/wjs/conf/jcom-apache-redirects.inc
+    local_db_user=wjs
+    local_db_name=janeway
+    UWSGI_INI="janeway.ini"
+    QCLUSTER="qcluster.service"
 else
-    # Sync files
-    # Warning: "--delete" deletes extraneous files from dest dirs
-    rsync --archive --delete "${prod_files}/src/files/" "${test_files}/src/files/"
-    rsync --archive --delete "${prod_files}/src/media/" "${test_files}/src/media/"
-    debug "rsync from $prod_files done"
+    PROD=0
+    TEST=1
+    debug "Working on TEST"
+    : ${PYTHON:="/home/wjs/.virtualenvs/janeway-test/bin/python"}
+    : ${JANEWAY:="/home/wjs/janeway-test"}
+    apache_redirects_file=$HOME/.virtualenvs/janeway-test/lib/python3.11/site-packages/wjs/conf/jcom-apache-redirects.inc
+    local_db_user=janeway
+    local_db_name=janeway-test
+    UWSGI_INI="janeway-test.ini"
+    QCLUSTER="qcluster-test.service"
 fi
 
-# Sync DBs
-# Dump also the test db (just in case...)
-test_db_user=janeway
-test_db_name=janeway-test
-test_dump=/tmp/test_dump.sql
+# Setup
+p="$PYTHON"
+m="$p $JANEWAY/src/manage.py"
+: ${DEBUG:=1}
+: ${QUICK:=1}
+: ${WJS_FROM_GIT:=1}
+: ${WJS_TAG:="feature/issue-1261__fixes"}
 
-# only dump if no "recent" dump is present
-# (useful during development)
-ONEDAY=1440
-# Please note that "find" will give no-error status even if no file meets the
-# specs, so we check if the returned string is empty (which means that "find"
-# did not find the file)
-if [[ -n "$(find $test_dump -mmin -$ONEDAY 2> /dev/null)" ]] ;
+
+# Stop the services
+mv ~/uwsgi/{,stopped-}"$UWSGI_INI" 2> /dev/null || debug "Test instance already stopped."
+systemctl --user stop "$QCLUSTER" || debug "Please check that test qcluster is stopped."
+
+
+if test "$TEST" == "1"
 then
-    debug "Recent test DB dump already exists ($test_dump); skipping dump."
-else
-    pg_dump -U "$test_db_user" -h localhost \
-            --clean --create --no-password \
-            "$test_db_name" \
-            --file="$test_dump"
-    debug "$test_dump dumped"
-fi
+    # This code is necessary to reset the "test" instance
 
-# Drop and create empty test DB
-mv ~/uwsgi/{,stopped-}janeway-test.ini 2> /dev/null || debug "Test instance already stopped."
-systemctl --user stop qcluster-test.service || debug "Please check that test qcluster is stopped."
-dropdb   -U "$test_db_user" -h localhost --no-password "$test_db_name"
-createdb -U "$test_db_user" -h localhost --no-password "$test_db_name"
+    prod_files=wjs@wjs-prod:/home/wjs/janeway
+    test_files=/home/wjs/janeway-test
+
+    echo
+    echo "INFO: you need credentials to Production DB and test DB in .pgpass"
+    echo "      and ssh access to $prod_files"
+    echo
+    echo $(tput setaf 3)"WARNING: THIS IS DESTRUCTIVE ON ${test_files}!!!"$(tput sgr0)
+    echo
+
+    read -p 'Do you want to continue? (type "yes" to continue) ' continue
+    if test "$continue" != "yes"
+    then
+        echo "Quitting."
+        exit
+    fi
 
 
-# Get the production db
-prod_dump=/tmp/prod.sql
-prod_db_name=janeway
-prod_db_user=wjs_ro
-prod_db_host=wjs-prod
-if [[ -n "$(find $prod_dump -mmin -$ONEDAY 2> /dev/null)" ]] ;
-then
-    debug "Recent prod DB dump already exists ($prod_dump); skipping dump."
-else
-    # Don't use --create if you want to restore to a DB different from the
-    # one you dumped, because it brings the DB name into the dump, so that
-    # it is not possible to restore in any other DB
-    # e.g. pg_dump ... --create ...
-    # Not even with pg_restore (when using --format=custom)
-    pg_dump --no-password --format=custom \
-            -U "$prod_db_user" -h "$prod_db_host" "$prod_db_name" \
-            --file="$prod_dump"
-    debug "Prod DB dumped ($prod_dump)"
-fi
+    if test "$QUICK" == "1"
+    then
+        debug "Skipping rsync. Check env variable QUICK."
+    else
+        # Sync files
+        # Warning: "--delete" deletes extraneous files from dest dirs
+        rsync --archive --delete "${prod_files}/src/files/" "${test_files}/src/files/"
+        rsync --archive --delete "${prod_files}/src/media/" "${test_files}/src/media/"
+        debug "rsync from $prod_files done"
+    fi
 
-# Restore the production schema/data into the test DB
-pg_restore --no-owner --no-password --exit-on-error --single-transaction \
-           -U "$test_db_user" -h localhost --dbname "$test_db_name" \
-           "$prod_dump"
-debug "Prod DB restored into local $test_db_name"
+    # Sync DBs
+    # Dump also the test db (just in case...)
+    test_db_user=janeway
+    test_db_name=janeway-test
+    test_dump=/tmp/test_dump.sql
 
-# Fix press and journal domains (to avoid infinite redirects)
-psql --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF
+    # only dump if no "recent" dump is present
+    # (useful during development)
+    ONEDAY=1440
+    # Please note that "find" will give no-error status even if no file meets the
+    # specs, so we check if the returned string is empty (which means that "find"
+    # did not find the file)
+    if [[ -n "$(find $test_dump -mmin -$ONEDAY 2> /dev/null)" ]] ;
+    then
+        debug "Recent test DB dump already exists ($test_dump); skipping dump."
+    else
+        pg_dump -U "$test_db_user" -h localhost \
+                --clean --create --no-password \
+                "$test_db_name" \
+                --file="$test_dump"
+        debug "$test_dump dumped"
+    fi
+
+    # Drop and create empty test DB
+    dropdb   -U "$test_db_user" -h localhost --no-password "$test_db_name"
+    createdb -U "$test_db_user" -h localhost --no-password "$test_db_name"
+
+
+    # Get the production db
+    prod_dump=/tmp/prod.sql
+    prod_db_name=janeway
+    prod_db_user=wjs_ro
+    prod_db_host=wjs-prod
+    if [[ -n "$(find $prod_dump -mmin -$ONEDAY 2> /dev/null)" ]] ;
+    then
+        debug "Recent prod DB dump already exists ($prod_dump); skipping dump."
+    else
+        # Don't use --create if you want to restore to a DB different from the
+        # one you dumped, because it brings the DB name into the dump, so that
+        # it is not possible to restore in any other DB
+        # e.g. pg_dump ... --create ...
+        # Not even with pg_restore (when using --format=custom)
+        pg_dump --no-password --format=custom \
+                -U "$prod_db_user" -h "$prod_db_host" "$prod_db_name" \
+                --file="$prod_dump"
+        debug "Prod DB dumped ($prod_dump)"
+    fi
+
+    # Restore the production schema/data into the test DB
+    pg_restore --no-owner --no-password --exit-on-error --single-transaction \
+               -U "$test_db_user" -h localhost --dbname "$test_db_name" \
+               "$prod_dump"
+    debug "Prod DB restored into local $test_db_name"
+
+    # Fix press and journal domains (to avoid infinite redirects)
+    psql --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF
 update press_press set domain='wjs-test-test-journals.wjapp.it';
 update journal_journal set domain='wjs-test-test-jcom.wjapp.it' where code='JCOM';
 update journal_journal set domain='wjs-test-test-jcomal.wjapp.it' where code='JCOMAL';
@@ -152,24 +212,20 @@ WHERE
 ;
 
 EOF
-debug "Test DB ready ($test_db_name)"
+    debug "Test DB ready ($test_db_name)"
+
+fi
+# -- END of resetting of the test-instance
 
 
-# --✂---  CUT HERE --✂---
-# The code above is necessary to reset the "test" instance
-# The code below should be ready to be run in "production" instance
-# - check python and pip paths
-# - ensure QUICK is not set
-# - ensure WJS_FROM_GIT is not set
-# --✂---  CUT HERE --✂---
 
 # Uninstall wjs-mgmt-cmds if necessary
 # (it has a reference to wjs_review and would block the rest of the process)
 $p -m pip show wjs_mgmt_cmds >/dev/null 2>&1  && wjs_utils="installed" || wjs_utils="not installed"
 if [[ "$wjs_utils" == "installed" ]]
 then
-    $p -m pip uninstall --yes --quiet wjs_mgmt_cmds >/dev/null && \
-        debug "Uninstalled wjs-utils."
+    $p -m pip uninstall --yes --quiet wjs_mgmt_cmds >/dev/null
+    debug "Uninstalled wjs-utils."
 else
     debug "wjs-utils is not installed (ok)"
 fi
@@ -185,42 +241,60 @@ $m shell -c 'from django.conf import settings;import sys;exit(1) if settings.DEB
 if [[ "${WJS_FROM_GIT}" != "1" ]]
 then
     # Install / update wjs-jcom-profile from the registry
-    $p -m pip install -U wjs-jcom-profile && \
-        debug "Installed wjs-jcom-profile from registry"
+    $p -m pip install -U wjs-jcom-profile
+    debug "Installed wjs-jcom-profile from registry"
 else
     # Install / update wjs-jcom-profile from a given tag
     # (requires ssh -A)
     tag="${WJS_TAG:-v0.6.14}"
     $p -m pip uninstall --yes --quiet wjs-jcom-profile > /dev/null && \
-        $p -m pip install --no-input --quiet "git+ssh://git@gitlab.sissamedialab.it/wjs/wjs-profile-project@${tag}#egg=wjs.jcom_profile" && \
-        debug "Installed wjs-jcom-profile at ${tag}"
+        $p -m pip install --no-input --quiet "git+ssh://git@gitlab.sissamedialab.it/wjs/wjs-profile-project@${tag}#egg=wjs.jcom_profile"
+    debug "Installed wjs-jcom-profile at ${tag}"
 fi
 
-$m link_plugins >/dev/null && debug "All plugins linked and installed"
-$m migrate jcom_profile >/dev/null && debug "jcom_profile migrations applied"
-$m migrate wjs_review >/dev/null && debug "wjs_review migrations applied"
-$m build_assets >/dev/null && debug "Assets built (and collected)"
-$m load_default_settings >/dev/null && debug "Janeway default settings (re)loaded"
-$m patch_submission_settings >/dev/null && debug "Submission settings patched"
-$m correct_settings_names >/dev/null && debug "Existing settings corrected"
-$m setup_review_settings --force >/dev/null && debug "wjs_review settings created"
-$m create_custom_settings --force >/dev/null && debug "jcom_profile settings created"
+$m link_plugins >/dev/null ; debug "All plugins linked and installed"
+$m migrate jcom_profile >/dev/null ; debug "jcom_profile migrations applied"
+$m migrate wjs_review >/dev/null ; debug "wjs_review migrations applied"
+$m migrate >/dev/null ; debug "All migrations applied"
+$m build_assets >/dev/null ; debug "Assets built (and collected)"
+$m load_default_settings >/dev/null ; debug "Janeway default settings (re)loaded"
+$m patch_submission_settings >/dev/null ; debug "Submission settings patched"
+$m correct_settings_names --no-input >/dev/null ; debug "Existing settings corrected"
+$m setup_review_settings --force >/dev/null ; debug "wjs_review settings created"
+$m create_custom_settings --force >/dev/null ; debug "jcom_profile settings created"
 
-$m populate_wjs_section >/dev/null && debug "WJS Sections populated"
+$m populate_wjs_section >/dev/null ; debug "WJS Sections populated"
+
+
+# Uncomment apache redirect rule to point wjapp URLs to the dedicated help page
+rg -q '/site/help-new-system/' "$apache_redirects_file" || ( error "No redirect to help page in apache conf (😠). Quitting!"; exit 1; )
+sed -i 's|^# \(RewriteRule .*/site/help-new-system/.*\)|\1|' "$apache_redirects_file"
+debug "Redirect to help page in apache conf (ok)"
 
 
 # Dump cms pages
 cms_pages=/tmp/cms-$(date -I).json
 m_dev="/home/wjs/.virtualenvs/janeway-dev/bin/python /home/wjs/janeway-dev/src/manage.py"
-$m_dev dumpdata cms --indent=2 -o "$cms_pages" >/dev/null && debug "CMS pages dumped from dev ($cms_pages)"
-sed -i 's!//wjs-test-dev-!//wjs-test-test-!g' "$cms_pages"
+if test "$TEST" == "1"
+then
+    # Easy, because we are on the same machien as the "dev" instance
+    $m_dev dumpdata cms --indent=2 -o "$cms_pages" >/dev/null
+    sed -i 's!//wjs-test-dev-!//wjs-test-test-!g' "$cms_pages"
+else
+    # A bit more difficult: we must collect the cms pages from another machine
+    ssh wjs@wjs-test $m_dev dumpdata cms --indent=2 -o "$cms_pages" >/dev/null
+    scp wjs@wjs-test:"$cms_pages" /tmp/
+    sed -i 's!//wjs-test-dev-jcom.wjapp.it!//jcom.sissa.it!g' "$cms_pages"
+    sed -i 's!//wjs-test-dev-jcomal.wjapp.it!//jcomal.sissa.it!g' "$cms_pages"
+fi
+debug "CMS pages dumped from dev ($cms_pages)"
 
 # Clean-up CMS stuff before load (because load only "adds")
-psql --echo-errors --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF
+psql --echo-errors --quiet -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" <<EOF
 TRUNCATE TABLE cms_historicalpage, cms_mediafile, cms_navigationitem, cms_page, cms_submissionitem;
 EOF
 
-$m loaddata "$cms_pages" >/dev/null && debug "CMS pages loaded into test"
+$m loaddata "$cms_pages" >/dev/null ; debug "CMS pages loaded locally"
 
 
 # LaTeX preambles
@@ -260,7 +334,7 @@ jcom_preamble='\documentclass[a4paper,11pt]{article}
 \doiInfo{doi}{xxxxxxx}
 '
 jcomal_preamble=${jcom_preamble//journal=jcom/journal=jcomal}
-psql --echo-errors --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF && debug "LaTeX preambles set"
+psql --echo-errors --quiet -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" <<EOF ; debug "LaTeX preambles set"
 insert into wjs_review_latexpreamble values
 (1, '$jcom_preamble', 1)
 ,
@@ -277,7 +351,7 @@ $m shell -c 'from django.conf import settings;import sys;exit(1) if "wjs.jcom_pr
 
 # Ensure DOIs are note registered at acceptance
 # Warning: does nothing if journal overrides exist!
-psql --echo-errors --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF && debug "DOI should not be registered at acceptance"
+psql --echo-errors --quiet -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" <<EOF ; debug "DOI should not be registered at acceptance"
 WITH dummy_tbl AS (select id as rdaa from core_setting where name='register_doi_at_acceptance')
 INSERT INTO core_settingvalue
   (setting_id, journal_id, value, value_en)
@@ -289,7 +363,7 @@ ON CONFLICT DO NOTHING
 EOF
 
 # Setup assignment parameters for editors and EO
-$m reset_assignment_parameters --noinput >/dev/null && debug "Assignment parameters reset for EO and editors"
+$m reset_assignment_parameters --noinput >/dev/null ; debug "Assignment parameters reset for EO and editors"
 
 # Ensure submission settings are valid
 # Also ensure that the default_review_form is set
@@ -317,7 +391,7 @@ $m reset_assignment_parameters --noinput >/dev/null && debug "Assignment paramet
 #   touched (the last "trasbordo" to dev has been done so long ago that I can't
 #   be sure that non-submission settings are valid).
 
-$p golive_helper_1.py && debug "Submission-settings copied from dev"
+$p golive_helper_1.py && debug "Submission-configuration copied from dev" || ( error "Submission-configuration failed"; exit 1; )
 
 # We should also look a Journal.enable_correspondence_authors (because of
 # core.views::957) but it's set default=True and we never touch it, is no need.
@@ -325,13 +399,13 @@ $p golive_helper_1.py && debug "Submission-settings copied from dev"
 # Ensure redis is active
 redis-cli ping > /dev/null 2>&1 && debug "Redis running (ok)" || error "Redis server not running on default port (😠). Please check!"
 
-# Import pending papers
+# List production and pending papers
 import_log=/tmp/import-$(date -I).log
 papers_list=/tmp/jcom-pending-$(date -I).list
 
-$p golive_helper_2.py > $papers_list && debug "Collected $(wc -l $papers_list) papers."
+$p golive_helper_2.py > $papers_list && debug "Collected $(wc -l $papers_list) papers." || ( error "Paper collection failed"; exit 1; )
 
-# Import production-pending papers
+# Import production and pending papers
 rm -f "$import_log"
 papers_count=0
 for paper in $(cat $papers_list)
@@ -348,7 +422,13 @@ do
         break
     fi
 
-done && echo -e "$(tput setaf 8)Imported $(wc -l $papers_list) papers.\033[0K\r$(tput sgr0)"
+done
+echo -e "$(tput setaf 8)Imported $(wc -l $papers_list) papers.\033[0K\r$(tput sgr0)"
+
+# Activate all users
+psql --echo-errors --quiet -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" <<EOF ; debug "All users activated"
+update core_account set is_active='t';
+EOF
 
 
 # Ensure articles are sent to prophy
@@ -369,7 +449,7 @@ function verify_setting_value () {
 
     setting_value=$(psql \
                         --echo-errors --quiet \
-                        -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" \
+                        -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" \
                         -t -c "select v.value from core_settingvalue v
 left join core_setting s on v.setting_id=s.id
 where
@@ -383,7 +463,7 @@ and v.journal_id=$journal_id
         if [[ "$WJS_FROM_GIT" == "1" ]]
         then
             # insert fallback-value
-            psql --echo-errors --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF && debug "Set \"$fallback_value\" for journal $journal_id for setting $setting_name"
+            psql --echo-errors --quiet -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" <<EOF ; debug "Set \"$fallback_value\" for journal $journal_id for setting $setting_name"
 WITH dummy_tbl AS (select id as settingid from core_setting where name='$setting_name')
 INSERT INTO core_settingvalue
   (setting_id, journal_id, value, value_en)
@@ -394,7 +474,7 @@ ON CONFLICT DO NOTHING
 EOF
         else
             # insert expected value
-            psql --echo-errors --quiet -U "$test_db_user" -h localhost --no-password --dbname "$test_db_name" <<EOF && debug "Set \"$expected_value\" for journal $journal_id for setting $setting_name"
+            psql --echo-errors --quiet -U "$local_db_user" -h localhost --no-password --dbname "$local_db_name" <<EOF ; debug "Set \"$expected_value\" for journal $journal_id for setting $setting_name"
 WITH dummy_tbl AS (select id as settingid from core_setting where name='$setting_name')
 INSERT INTO core_settingvalue
   (setting_id, journal_id, value, value_en)
@@ -417,8 +497,8 @@ verify_setting_value 'prophy_upload_enabled' 2 'on' 'on'
 read -p 'Do you want to send all imported articles to Prophy? (type "yes" to continue) ' continue
 if test "$continue" == "yes"
 then
-    $p -m pip install --no-input --quiet git+ssh://git@gitlab.sissamedialab.it/wjs/wjs-utils-project.git@440938db1afd1a73d9a74f350fb3a4fbbd3f703b#egg=wjs_mgmt_cmds >/dev/null && \
-        debug "Installed wjs-utils."
+    $p -m pip install --no-input --quiet git+ssh://git@gitlab.sissamedialab.it/wjs/wjs-utils-project.git@440938db1afd1a73d9a74f350fb3a4fbbd3f703b#egg=wjs_mgmt_cmds >/dev/null
+    debug "Installed wjs-utils."
 
     papers_count=0
     while read -r preid artid
@@ -434,11 +514,11 @@ then
             break
         fi
 
-    done <<<$(sed -E -n 's/.*[Ii]mporting (new|existing) article (.*) at ([0-9]*).*/\2 \3/p' "$import_log") && \
-        echo -e "$(tput setaf 8)Papers sent to Prophy.\033[0K\r$(tput sgr0)"
+    done <<<$(sed -E -n 's/.*[Ii]mporting (new|existing) article (.*) at ([0-9]*).*/\2 \3/p' "$import_log")
+    echo -e "$(tput setaf 8)Papers sent to Prophy.\033[0K\r$(tput sgr0)"
 
-    $p -m pip uninstall --yes --quiet wjs_mgmt_cmds >/dev/null && \
-        debug "Uninstalled wjs-utils."
+    $p -m pip uninstall --yes --quiet wjs_mgmt_cmds >/dev/null
+    debug "Uninstalled wjs-utils."
 
 fi
 

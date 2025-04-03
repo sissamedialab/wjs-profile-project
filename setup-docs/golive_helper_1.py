@@ -1,15 +1,19 @@
-"""Read submission settings from dev and copy them to test.
+"""
+Read submission settings from dev and copy them to test.
 
 When dumping the data, I'm dumping the setting.name in order to get the setting.id because I can't be sure that the ids
 match across the two different DBs.
 
+Janeway also has a SubmissionConfiguration object for each Journal. Here we transfer the records for this table too.
+
 """
 
-import os
+import socket
+from pathlib import Path
 
 import psycopg2
 
-pgpass_path = os.path.expanduser("~/.pgpass")
+pgpass_path = Path.home() / ".pgpass"
 conn_params = {}
 
 try:
@@ -29,11 +33,12 @@ try:
                 continue
 
             host, port, database, user, password = parts
-            conn_params[database] = {
-                "user": user,
-                "password": password,
-                "host": host,
-                "port": port,
+            conn_params[host] = {
+                database: {
+                    user: {
+                        "password": password,
+                    },
+                },
             }
 
 except FileNotFoundError:
@@ -44,20 +49,34 @@ except Exception as e:
     print(f"An unexpected error occurred: {e}")
 
 dev_db = {
+    "host": "wjs-test",
     "database": "janeway-dev",
-    "user": conn_params["*"]["user"],
-    "password": conn_params["*"]["password"],
-    "host": conn_params["*"]["host"],
-    "port": conn_params["*"]["port"],
+    "user": "wjs_ro",
+    "password": conn_params["wjs-test"]["*"]["wjs_ro"]["password"],
+    "port": "5432",
 }
 
-test_db = {
-    "database": "janeway-test",
-    "user": conn_params["*"]["user"],
-    "password": conn_params["*"]["password"],
-    "host": conn_params["*"]["host"],
-    "port": conn_params["*"]["port"],
-}
+if "wjs-prod" in socket.gethostname():
+    # We are on one of the production machines
+    local_db = {
+        "host": "localhost",
+        "database": "janeway",
+        "user": "wjs",
+        "password": conn_params["localhost"]["*"]["wjs"]["password"],
+        "port": "5432",
+    }
+else:
+    # We are on the test machine
+    local_db = {
+        "host": "localhost",
+        "database": "janeway-test",
+        "user": "janeway",
+        "password": conn_params["localhost"]["*"]["janeway"]["password"],
+        "port": "5432",
+    }
+
+# Settings
+# ========
 
 settings_names = (
     "disable_journal_submission",
@@ -88,6 +107,7 @@ settings_names = (
 )
 
 dev_connection = psycopg2.connect(**dev_db)
+dev_connection.autocommit = True  # on dev, we only do "selects": no need for real transactions
 dev_cursor = dev_connection.cursor()
 dev_cursor.execute(
     # Warning: watch out for the f-string!
@@ -102,29 +122,29 @@ WHERE
 s.name
 IN
 (
-    {','.join([f"'{i}'" for i in settings_names])}
+    {",".join([f"'{i}'" for i in settings_names])}
 )
 AND
 v.journal_id IS NOT NULL
-"""
+""",
 )
 
-test_connection = psycopg2.connect(**test_db)
-test_cursor = test_connection.cursor()
+local_connection = psycopg2.connect(**local_db)
+local_cursor = local_connection.cursor()
 
 # Delete existing setting once: don't do it in the for-loop because we can touch the same setting multiple times if we
-# values for multiple journals.
+# change values for multiple journals.
 query = f"""DELETE FROM core_settingvalue
 WHERE
 setting_id IN
 (SELECT id from core_setting WHERE name IN
 (
-    {','.join([f"'{i}'" for i in settings_names])}
+    {",".join([f"'{i}'" for i in settings_names])}
 )
 )
 """
 # DEBUG: # print(query)
-test_cursor.execute(query)
+local_cursor.execute(query)
 for row in dev_cursor:
     query = """INSERT INTO core_settingvalue
     (
@@ -141,7 +161,7 @@ for row in dev_cursor:
     where
         name = %s
     """
-    test_cursor.execute(
+    local_cursor.execute(
         query,
         (
             # setting name (row[0]) goes last
@@ -158,4 +178,98 @@ for row in dev_cursor:
             row[0],
         ),
     )
-test_connection.commit()
+local_connection.commit()
+
+
+# Submission Configuration
+# ========================
+
+# Janeway stores some info in this table where each record is in 1to1 relation with a Journal.
+# Here I can just update test values with all values from dev.
+
+dev_cursor.execute("""SELECT * FROM submission_submissionconfiguration""")
+for row in dev_cursor:
+    # 🤔 I need to list all columns...
+    # For a different approach (drop the record and insert it anew in a unique transaction)
+    # see https://stackoverflow.com/a/49077243/1581629
+    local_cursor.execute(
+        """
+        UPDATE submission_submissionconfiguration
+        SET
+        publication_fees = %s,
+        submission_check = %s,
+        copyright_notice = %s,
+        competing_interests = %s,
+        comments_to_the_editor = %s,
+        subtitle = %s,
+        abstract = %s,
+        language = %s,
+        license = %s,
+        keywords = %s,
+        figures_data = %s,
+        journal_id = %s,
+        default_language = %s,
+        default_license_id = %s,
+        default_section_id = %s,
+        section = %s,
+        funding = %s,
+        submission_file_text = %s,
+        submission_file_text_en = %s,
+        submission_file_text_en_us = %s,
+        submission_file_text_fr = %s,
+        submission_file_text_de = %s,
+        submission_file_text_nl = %s,
+        submission_file_text_cy = %s,
+        submission_file_text_es = %s,
+        submission_file_text_pt = %s
+        WHERE
+        id = %s
+        """,
+        (*row[1:], row[0]),
+    )
+local_connection.commit()
+
+
+# Licenses
+# ========
+
+# Should alredy be identical because of https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1336#note_35443
+# Here we just check.
+# (also I don't think I can just assume good values on dev; see details in link above)
+
+dev_cursor.execute("SELECT * FROM submission_licence order by id")
+local_cursor.execute("SELECT * FROM submission_licence order by id")
+good_rows = dev_cursor.fetchall()
+bad_rows = local_cursor.fetchall()  # not really "bad", just "I don't know"...
+colcount = len(good_rows[0])
+for good, bad in zip(good_rows, bad_rows, strict=True):
+    for col in range(colcount):
+        if good[col] != bad[col]:
+            msg = f"Licences inconsistent! Please check {good[0]} col {col}"
+            raise ValueError(msg)
+
+
+# Additional Submission Fields
+# ============================
+
+# These are fields such as "metadata coherence", "use of AI", that are manually configured from the manger → additional
+# submission fields and that are visibile in the "info" step.
+
+# Here we transfer all the fields, i.e. for both JCOM and JCOMAL
+
+dev_cursor.execute("SELECT * FROM submission_field order by id")
+
+# We don't have any field-answer in production, so it's safe to truncate-cascade submission_field and
+# submission_fieldanswer (that is the only table that has a FK to it).
+#
+# To be more precise, Article 1413 has a 'Metadata coherence' answer set to True, but only because it has had its
+# metadata updated. ATM the answer has no real meaning.
+local_cursor.execute("TRUNCATE submission_field RESTART IDENTITY CASCADE")
+rows = dev_cursor.fetchall()
+colcount = len(rows[0])
+for row in rows:
+    local_cursor.execute(
+        f"INSERT INTO submission_field VALUES({', '.join(['%s'] * colcount)})",
+        (*row,),
+    )
+local_connection.commit()
