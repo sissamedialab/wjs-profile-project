@@ -221,7 +221,7 @@ class Command(BaseCommand):
         version_cod = current_version_row["versionCod"]
         # current_version -> row  "versionNumber"
 
-        logger.debug(f"""Importing {preprintid}""")
+        logger.info(f"""Importing {preprintid}""")
 
         #
         # check consistency between preprintid and publicationid
