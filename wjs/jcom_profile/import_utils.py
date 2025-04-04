@@ -27,6 +27,8 @@ COUNTRIES_MAPPING = {
     "United States of America (the)": "United States",
     "Taiwan": "Taiwan, Province of China",
     "Iran (Islamic Republic of)": "Iran, Islamic Republic of",
+    "Bolivia (Plurinational State of)": "Bolivia, Plurinational State of",
+    "Korea (the Republic of)": "Korea, Republic of",
 }
 
 JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}
