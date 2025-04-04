@@ -431,6 +431,9 @@ update core_account set is_active='t';
 EOF
 
 
+# Import all kwds
+$m import_keywords >/dev/null ; debug "All kwds imported from wjapp"
+
 # Ensure articles are sent to prophy
 $m shell -c 'from django.conf import settings;import sys;exit(1) if not settings.PROPHY_API_KEY else exit(0)' 2>/dev/null 1>&2 && debug "PROPHY_API_KEY is set (ok)" || error "PROPHY_API_KEY is not set (😠). Please correct settings!"
 $m shell -c 'from django.conf import settings;import sys;exit(1) if not settings.PROPHY_JWT_KEY else exit(0)' 2>/dev/null 1>&2 && debug "PROPHY_JWT_KEY is set (ok)" || error "PROPHY_JWT_KEY is not set (😠). Please correct settings!"
