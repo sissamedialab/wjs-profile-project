@@ -3004,6 +3004,8 @@ WHERE editorCod=%(editor_cod)s
     def deselect_editor_as_reviewer(self):
         """Deselects old editor from reviewer if exist."""
 
+        # otherwise failes in case first submission not assigned to editor
+        # i.e.: JCOM_001CR_0821
         current_editor_review_assignment = WorkflowReviewAssignment.objects.filter(
             reviewer=self.get_current_editor(),
             article=self.article,
@@ -3196,19 +3198,49 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             if self.import_files:
                 self.import_files()
 
-        self.deselect_editor_as_reviewer()
+        if not WjsEditorAssignment.objects.filter(article=self.article).exists():
+            # i.e. JCOM_005A_0523 editor decline
+            # i.e: JCOM_001CR_0821: case admin chooses editor after first submission without editor assingment
 
-        # e.g. JCOM_010A_1123
-        SupervisorChangeEditorAssignment._log_past_editor = noop
-        AssignToEditor._log_operation = noop
-        SupervisorChangeEditorAssignment(
-            article=self.article,
-            assignment=WjsEditorAssignment.objects.filter(article=self.article).latest(),
-            new_editor=self.editor_to_assign,
-            request=self.ed_assign_request,
-        ).run()
-        self.article.save()
-        self.check_and_fix_all_reminder()
+            # Manually move into a state where editor assignment can take place
+            if self.article.articleworkflow.state != ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED:
+                logger.warning(
+                    f"Changing article {self.article.id}/{self.preprintid} state "
+                    f"from {self.article.articleworkflow.state} to "
+                    f"{ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED} during ADMIN_ASS_N_ED. Please check"
+                )
+                self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+            self.article.articleworkflow.save()
+
+            AssignToEditor(
+                article=self.article,
+                editor=self.editor_to_assign,
+                request=self.ed_assign_request,
+            ).run()
+            self.article.save()
+            self.check_and_fix_all_reminder()
+            logger.warning(
+                f"{self.preprintid} {self.action['actionID']} admin assigns to "
+                f"new editor {self.editor_to_assign} after the first submission without editor assignment "
+                "or after editor declines",
+            )
+
+        else:
+            # normal case, admin assigns to a new editor and exists an WjsEditorAssignment
+
+            self.deselect_editor_as_reviewer()
+
+            # e.g. JCOM_010A_1123
+            SupervisorChangeEditorAssignment._log_past_editor = noop
+            AssignToEditor._log_operation = noop
+            SupervisorChangeEditorAssignment(
+                article=self.article,
+                assignment=WjsEditorAssignment.objects.filter(article=self.article).latest(),
+                new_editor=self.editor_to_assign,
+                request=self.ed_assign_request,
+            ).run()
+            self.article.save()
+            self.check_and_fix_all_reminder()
 
     def check_and_fix_all_reminder(self):
         """Checks and fix wjapp reminder for ADMIN_ASS_N_ED if exists in wjs"""
@@ -3445,9 +3477,26 @@ class ED_REF_DOC(BaseActionManager):  # noqa N801
 
         editor_declines_date = self.action["actionDate"]
         editor = self.get_current_editor()
-        assert editor.last_name == self.action["agentLastname"]
-        assert editor.first_name == self.action["agentFirstname"]
-        assert editor.email == self.action["agentEmail"]
+
+        # i.e. JCOM_012A_0920, a direct assert equal on agentLastname == editor.last_name
+        # "Reynoso-Haynes" is different from "Reynoso Haynes"
+        # (same person) is too strict it is necessary to check the accounts
+        agent_cod = self.action["agentCod"]
+        agent_lastname = self.action["agentLastname"]
+        agent_firstname = self.action["agentFirstname"]
+        agent_email = self.action["agentEmail"]
+        agent_privacy = self.action["agentPrivacy"]
+
+        agent = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            agent_cod,
+            agent_lastname,
+            agent_firstname,
+            agent_email,
+            agent_privacy,
+            self.connection,
+        )
+        assert agent.id == editor.id
 
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = editor
@@ -5151,6 +5200,39 @@ class Requestproofs(BaseActionManager):
 
     def run(self):
 
+        if (
+            (
+                self.preprintid == "JCOM_007A_0421"
+                and self.imported_version_num == 5
+                and self.action["actHistCod"] == 284286
+            )
+            or (
+                self.preprintid == "JCOM_012A_1020"
+                and self.imported_version_num == 4
+                and self.action["actHistCod"] == 281589
+            )
+            or (
+                self.preprintid == "JCOM_013A_1020"
+                and self.imported_version_num == 3
+                and self.action["actHistCod"] == 282697
+            )
+            or (
+                self.preprintid == "JCOM_003A_1120"
+                and self.imported_version_num == 5
+                and self.action["actHistCod"] == 282339
+            )
+            or (
+                self.preprintid == "JCOM_027A_1120"
+                and self.imported_version_num == 7
+                and self.action["actHistCod"] == 281985
+            )
+        ):
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} PM_SENDS_FOR_PROOF_R "
+                f"for {self.preprintid}/{self.imported_version_num} (not uploaded new version - known case)."
+            )
+            return
+
         fake_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         fake_request.user = typesetting_assignment.typesetter
@@ -5503,6 +5585,21 @@ class DeclareReadyForPublication(BaseActionManager):
     ready_for_publication_agent: Account = None
 
     def run(self):
+
+        if (
+            self.preprintid == "JCOM_005A_0621"
+            and self.imported_version_num == 4
+            and self.action["actHistCod"] == 283684
+        ) or (
+            self.preprintid == "JCOM_005A_0621"
+            and self.imported_version_num == 4
+            and self.action["actHistCod"] == 283685
+        ):
+            logger.warning(
+                f"Skipping repeated action {self.action['actHistCod']}  {self.action['actionID']} "
+                f"for {self.preprintid}/{self.imported_version_num} (known case)."
+            )
+            return
 
         self.article.articleworkflow.production_flag_no_queries = True
         self.article.articleworkflow.production_flag_no_checks_needed = True
