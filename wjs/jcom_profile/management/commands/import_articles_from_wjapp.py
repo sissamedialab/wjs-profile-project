@@ -463,6 +463,7 @@ class Command(BaseCommand):
                             "SYS_REMINDS_ED",
                             "SYS_REMINDS_REF",
                             "SYS_REMINDS_AUT",
+                            "PM_REMINDS_AUTH",  # i.e. JCOM_016A_1124
                             "ADMIN_RESETS_ED",
                             "PSTPN_REV_DEADLN",  # <someone> postpones revision deadline
                         ]
@@ -2530,7 +2531,7 @@ class BaseActionManager:
         # This exception does not block the regeneration of the production archives, which is the
         # reason of the request.
 
-        # TODO: broken wjapp version page: JCOM_014A_0524 to be repaired on wjapp.
+        # i.e. JCOM_014A_0524: broken wjapp version page repaired on wjapp side.
         # This problem is independent by the management of the exception ChunkedEncodingError
 
         file_url_versions_page = (
@@ -2817,7 +2818,8 @@ ORDER BY reminderDate
                         )
 
     def check_and_fix_all_reminder(self):
-        logger.warning("BaseActionManager method, should be overriden")
+        # this method has to be be overriden, if necessary to check specific reminders
+        pass
 
 
 @dataclass
@@ -3168,7 +3170,10 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             and self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
         ):
 
-            logger.warning(f"state not compatible with ADMIN_ASS_N_ED: {self.article.articleworkflow.state=}")
+            logger.warning(
+                f"fix of broken wjapp data state not compatible with ADMIN_ASS_N_ED: {self.preprintid} "
+                f"AW.state: {self.article.articleworkflow.state}"
+            )
 
             # Solved adding a AuthorHandleRevision, so a new review round is created following the logic.
             # After the action the files are reimported, so wjs version 1 and 2 are equal.
@@ -5671,3 +5676,13 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
                 flag_as_read=True,
                 flag_as_read_by_eo=True,
             )
+
+
+@dataclass
+class ACC_CPRGHT_TRNSFR(BaseActionManager):  # noqa N801
+    """Wjapp action to accept copyright after acceptance."""
+
+    # this action which in wjapp is done after acceptance is not in the logic of wjs
+    # where the copyright is accepted at submission
+    def run(self):
+        pass
