@@ -163,7 +163,8 @@ class Command(BaseCommand):
 
             username = login_parameters.get("username", "")
             passwd = login_parameters.get("password", "")
-            session = self.wjapp_login(username, passwd)
+            login_base_url = login_parameters.get("login_base_url", "")
+            session = self.wjapp_login(username, passwd, login_base_url)
 
         preprintid = self.options["preprintid"]
 
@@ -521,7 +522,7 @@ class Command(BaseCommand):
     # http login to wjapp
     #
 
-    def wjapp_login(self, username, passwd):
+    def wjapp_login(self, username, passwd, login_base_url):
         """Login to wjapp to download files."""
 
         # TODO: add login successful check (verify reponse.content)
@@ -529,14 +530,14 @@ class Command(BaseCommand):
             "userid": f"{username}",
             "password": f"{passwd}",
             "orcidid": "",
-            "loginOkRedUrl": "https://jcom.sissa.it/jcom/index.jsp",
-            "loginFailRedUrl": "https://jcom.sissa.it/jcom/index.jsp",
+            "loginOkRedUrl": f"{login_base_url}index.jsp",
+            "loginFailRedUrl": f"{login_base_url}index.jsp",
             "submit": "Sign in",
         }
 
         with requests.Session() as session:
             # login
-            p = session.post("https://jcom.sissa.it/jcom/authentication/authenticate", data=payload)
+            p = session.post(f"{login_base_url}authentication/authenticate", data=payload)
             assert p.status_code == 200, f"Got {p.status_code}!"
 
         return session

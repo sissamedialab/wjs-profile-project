@@ -228,6 +228,7 @@ WJAPP_JCOM_IMPORT_CONNECTION_PARAMS = {
 WJAPP_JCOM_IMPORT_LOGIN_PARAMS = {
     "username": "",
     "password": "",
+    "login_base_url": "",
 }
 
 # base url for files import from wjapp (one for journal)
