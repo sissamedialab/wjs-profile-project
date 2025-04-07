@@ -236,6 +236,13 @@ fi
 $m shell -c 'from django.conf import settings;import sys;exit(1) if settings.DEBUG is True else exit(0)' 2>/dev/null 1>&2 && debug "Django not in DEBUG mode (ok)" || ( error "Django in DEBUG mode (😠). Quitting!"; exit 1; )
 
 
+# Upgrade Janeway
+pushd $JANEWAY > /dev/null
+git pull > /dev/null
+$p -m pip install -r requirements.txt -c constraints.txt > /dev/null
+popd > /dev/null
+debug "Janeway updated"
+
 # Install wjs_review
 # When WJS_FROM_GIT
 if [[ "${WJS_FROM_GIT}" != "1" ]]
@@ -433,6 +440,11 @@ EOF
 
 # Import all kwds
 $m import_keywords >/dev/null ; debug "All kwds imported from wjapp"
+
+
+# Ensure all wjapp editor have role "section-editor" in wjs
+$m import_users_from_wjapp_with_role --editors > /dev/null ; debug "All editor imported and role set"
+
 
 # Ensure articles are sent to prophy
 $m shell -c 'from django.conf import settings;import sys;exit(1) if not settings.PROPHY_API_KEY else exit(0)' 2>/dev/null 1>&2 && debug "PROPHY_API_KEY is set (ok)" || error "PROPHY_API_KEY is not set (😠). Please correct settings!"
