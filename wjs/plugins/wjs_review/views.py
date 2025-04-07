@@ -40,7 +40,7 @@ from django.views.generic import (
 )
 from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
-from journal.logic import get_all_tables_from_html, get_best_galley
+from journal.logic import get_all_tables_from_html
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import logic as review_logic
@@ -3467,18 +3467,29 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         """Add context data for the template."""
         # logic from journal.views.article
         context = super().get_context_data(**kwargs)
+        content = ""
+        tables_in_galley = []
 
         galleys = self.workflow.get_latest_typesetting_assignment(completed=False).galleys_created.all()
         if galleys:
-            galley = get_best_galley(self.workflow.article, galleys)
-            # Temporarily set the galley's article to our workflow.article because the following methods need an
-            # article attached to the Galley. This won't be saved anyway
-            galley.article = self.workflow.article
-            content = galley.file_content(recover=True)
-            tables_in_galley = get_all_tables_from_html(content)
-        else:
-            content = ""
-            tables_in_galley = []
+            # The "production" galleys are detached from the article and are not "public",
+            # so we cannot use Janeway's journal.logic.get_best_galley()
+            # that looks only for "public" galleys.
+            # Also, we have a simpler situation, because we don't care about XML or image galleys.
+            # Here we find the HTML galley ourselves.
+            try:
+                galley = galleys.get(
+                    file__mime_type__in=core_files.HTML_MIMETYPES,
+                    public=False,  # keeping as a sort of "sanity check"
+                )
+            except (core_models.Galley.DoesNotExist, core_models.Galley.MultipleObjectsReturned):
+                pass
+            else:
+                # Temporarily set the galley's article to our workflow.article because the following methods need an
+                # article attached to the Galley. This won't be saved anyway.
+                galley.article = self.workflow.article
+                content = galley.file_content(recover=True)
+                tables_in_galley = get_all_tables_from_html(content)
 
         if self.workflow.article.journal.disable_html_downloads:
             galleys = galleys.exclude(
@@ -3493,7 +3504,7 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
                 "identifier": self.workflow.article.id,
                 "article_content": content,
                 "tables_in_galley": tables_in_galley,
-            }
+            },
         )
 
         return context
