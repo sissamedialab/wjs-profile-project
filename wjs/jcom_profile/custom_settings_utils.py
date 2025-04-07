@@ -80,14 +80,13 @@ def create_customization_setting(
     setting_params: SettingParams,
     settingvalue_params: SettingValueParams,
     name_for_messages: str,
-    force=False,
+    *,
+    force: bool = False,
 ) -> SettingValue:
-    """
-    Command to create a Setting, with its SettingValue
-    """
+    """Command to create a Setting, with its SettingValue."""
     # capitalize() will make the first letter of a string capitalized but all the other letters lowercase
     name_for_messages_capitalized = name_for_messages[0].upper() + name_for_messages[1:]
-    setting, setting_created = Setting.objects.get_or_create(
+    setting, _setting_created = Setting.objects.get_or_create(
         name=setting_params["name"],
         group=setting_params["group"],
         defaults=setting_params,
@@ -95,24 +94,22 @@ def create_customization_setting(
     try:
         setting = SettingValue.objects.get(journal=None, setting=setting)
         if force:
-            if settings.DEBUG:
-                # patch the setting itself
-                setting.types = setting_params["types"]
-                setting.pretty_name = setting_params["pretty_name"]
-                setting.description = setting_params["description"]
-                setting.is_translatable = setting_params["is_translatable"]
-                setting.save()
+            # patch the setting itself
+            setting.types = setting_params["types"]
+            setting.pretty_name = setting_params["pretty_name"]
+            setting.description = setting_params["description"]
+            setting.is_translatable = setting_params["is_translatable"]
+            setting.save()
 
-                # patch the setting's default value
-                setting = patch_setting(setting_params, settingvalue_params)
-                logger.warning(f"Overwriting {name_for_messages_capitalized} as requested.")
+            # patch the setting's default value
+            setting = patch_setting(setting_params, settingvalue_params)
+            if settings.DEBUG:
+                msg = f"Overwriting {name_for_messages_capitalized} as requested."
             else:
-                logger.warning(
-                    f"You are trying to patch {name_for_messages_capitalized} in a production environment. "
-                    f"Doing nothing!",
-                )
+                msg = f"Overwriting {name_for_messages_capitalized} in a production environgment as requested."
+            logger.warning(msg)
         else:
-            logger.warning(f"{name_for_messages_capitalized} already exists. Do nothing.")
+            logger.warning(f"{name_for_messages_capitalized} already exists. Doing nothing.")
     except SettingValue.DoesNotExist:
         translations = settingvalue_params.pop("translations")
         settingvalue_params.update(translations)
