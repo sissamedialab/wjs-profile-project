@@ -2,7 +2,7 @@
 RewriteEngine On
 
 # This rule needs to be activated for the GoLive of JCOM
-# RewriteRule "^/jcom.*" "/site/help-new-system/" [R=301,L]
+RewriteRule "^/jcom.*" "/site/help-new-system/" [R=301,L]
 
 # RSS
 # We had:
