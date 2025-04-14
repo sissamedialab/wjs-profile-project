@@ -718,8 +718,8 @@ class ArticleWorkflow(TimeStampedModel):
             eid = f"{type_code}{counter:02d}"
 
         if save_as_pagenumber:
-            self.page_numbers = eid
-            self.save()
+            self.article.page_numbers = eid
+            self.article.save()
 
         return eid
 

@@ -902,7 +902,7 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
 
 
 def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
-    """Create a tar.gz archive containing a .tex file with a query."""
+    """Create a zip archive containing a .tex file with a query."""
     with open(Path(__file__).parent / "source.tex", "rb") as source:
         tex_content = source.read()
     tex_content = tex_content.replace(

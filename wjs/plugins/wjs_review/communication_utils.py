@@ -4,8 +4,9 @@ Keeping here also anything that we might want to test easily 🙂.
 """
 
 import datetime
-from typing import List, Optional, Union
+from typing import Optional, Union
 
+import html2text
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -362,12 +363,13 @@ def group_messages_by_version(
 def notify_async_event(
     message_subject: str,
     message_body: str,
-    recipients: List[Account],
+    recipients: list[Account],
     article: Article,
 ):
-    """Send an email to notify some event related to an async task.
+    """
+    Send an email to notify some event related to an async task.
 
-    Mainly used for PDF and galley generation.
+    Mainly used for galley generation.
     """
     if not recipients:
         logger.error(f'Notification of async event ("{message_subject}") with recipients! Setting EO and proceeding.')
@@ -375,7 +377,8 @@ def notify_async_event(
 
     send_mail(
         subject=message_subject,
-        message=message_body,
+        message=html2text.html2text(message_body),
+        html_message=message_body,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[recipient.email for recipient in recipients],
         fail_silently=False,
