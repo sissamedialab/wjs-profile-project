@@ -164,7 +164,17 @@ class Command(BaseCommand):
             username = login_parameters.get("username", "")
             passwd = login_parameters.get("password", "")
             login_base_url = login_parameters.get("login_base_url", "")
-            session = self.wjapp_login(username, passwd, login_base_url)
+            http_ba_username = login_parameters.get("http_ba_username", "")
+            http_ba_password = login_parameters.get("http_ba_password", "")
+
+            if not http_ba_username and self.journal.code.upper() == "JCOM":
+                logger.error(
+                    f"Missing Basic Authentication username for {self.journal.code.upper()}. "
+                    f"Check your django settings to proceed."
+                )
+                return
+
+            session = self.wjapp_login(username, passwd, login_base_url, http_ba_username, http_ba_password)
 
         preprintid = self.options["preprintid"]
 
@@ -502,10 +512,10 @@ class Command(BaseCommand):
         except Exception as e:
             traceback.print_exc()
             logger.error(
-                f"""An exception {type(e).__name__} occurred: {preprintid}
+                f"""An exception {type(e).__name__} occurred for {article.id} / {preprintid}
                  {str(e)},
 
-                The preprintid {preprintid} must be imported again
+                The preprintid {article.id} / {preprintid} must be imported again
                 """
             )
 
@@ -522,7 +532,7 @@ class Command(BaseCommand):
     # http login to wjapp
     #
 
-    def wjapp_login(self, username, passwd, login_base_url):
+    def wjapp_login(self, username, passwd, login_base_url, http_ba_username, http_ba_password):
         """Login to wjapp to download files."""
 
         # TODO: add login successful check (verify reponse.content)
@@ -536,6 +546,8 @@ class Command(BaseCommand):
         }
 
         with requests.Session() as session:
+            session.auth = (http_ba_username, http_ba_password)
+            session.login_base_url = login_base_url
             # login
             p = session.post(f"{login_base_url}authentication/authenticate", data=payload)
             assert p.status_code == 200, f"Got {p.status_code}!"
@@ -2291,11 +2303,6 @@ class BaseActionManager:
         # attachments read data from db for each attachment (no source file name)
         #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
 
-        # the production archives are regenerated once during version 1 import
-        if self.imported_version_num == 1:
-            self.regenerate_production_archives()
-            logger.debug(f"production archives regenerated during import of version {self.imported_version_num}")
-
         # wjapp version state 22 is the published version
         if self.imported_version_state_cod == 22:
             # we don't want to import files for the published version because the final
@@ -2536,8 +2543,7 @@ class BaseActionManager:
         # This problem is independent by the management of the exception ChunkedEncodingError
 
         file_url_versions_page = (
-            f"https://{self.journal.code.lower()}.sissa.it/{self.journal.code.lower()}/admin/"
-            f"docPage.jsp?docPgType=versions&docId={self.preprintid}"
+            f"{self.session.login_base_url}/admin/docPage.jsp?docPgType=versions&docId={self.preprintid}"
         )
         try:
             response = self.session.get(file_url_versions_page)
@@ -2557,9 +2563,20 @@ class BaseActionManager:
 
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":
-            logger.error(
-                f"check wjapp login data empty file {doc_type} downloaded: {response.headers['Content-Length']}"
+            logger.warning(
+                f"check data empty file {doc_type} downloaded: {response.headers['Content-Length']} try regeneration "
             )
+            # the regeneration of the zip archive could be necessary also after the
+            # first wjapp version, if for example the zip file is missing only in version 2
+            # if the zip files have already been regenerated this if branch is not executed
+            # in the next versions
+            self.regenerate_production_archives()
+            logger.debug(f"production archives regenerated during import of version {self.imported_version_num}")
+            response = self.session.get(file_url)
+            if response.headers["Content-Length"] == "0":
+                logger.error(
+                    f"check wjapp login data empty file {doc_type}" f"downloaded: {response.headers['Content-Length']}"
+                )
 
         return (response, doc_type)
 
