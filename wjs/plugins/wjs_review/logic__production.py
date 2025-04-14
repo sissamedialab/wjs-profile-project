@@ -9,6 +9,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import traceback
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -408,12 +409,20 @@ def typesettertestsgalleygeneration_wrapper(
         )
         logic_instance.run()
     except Exception as e:
+        article = assignment.round.article  # just an alias
+        msg = str(e)
+        msg += "\n\n"
+        msg += traceback.format_exc()
+        msg = msg.replace("\n", "<br>")
         communication_utils.notify_async_event(
-            message_subject="Errors during galley generation",
-            message_body=str(e),
+            message_subject="Unexpected error during galley generation",
+            message_body=msg,
             recipients=[assignment.typesetter],
-            article=assignment.round.article,
+            article=article,
         )
+
+        article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED.value
+        article.articleworkflow.save()
 
 
 @dataclasses.dataclass
@@ -824,7 +833,8 @@ class AttachGalleys:
     "Path of the tmpdir where the upack-method unpacked the received files"
 
     def unpack_targz_from_jcomassistant(self) -> Path:
-        """Unpack a tar.gz.
+        """
+        Unpack a tar.gz.
 
         Create and use a temporary folder.
         The caller should clean up if necessary.
@@ -843,7 +853,8 @@ class AttachGalleys:
         return self.path
 
     def unpack_zip_from_jcomassistant(self) -> Path:
-        """Unpack a zip.
+        """
+        Unpack a zip.
 
         Create and use a temporary folder.
         The caller should clean up if necessary.
@@ -859,7 +870,8 @@ class AttachGalleys:
         return self.path
 
     def reemit_info_and_up(self, unpack_dir: Path) -> bool:
-        """Emit as log messages lines read from the given log file.
+        """
+        Emit as log messages lines read from the given log file.
 
         Expect the logfile to contain log-formatted lines suchs as:
         DEBUG From: ...
@@ -896,26 +908,48 @@ class AttachGalleys:
                     logger.debug(f"JA {line[12:-1]}")
         return not has_error_or_critical
 
-    def _check_conditions(self) -> Tuple[bool, Optional[str]]:
+    def _check_conditions(self):
         """
         Check for errors in the log files and if the expected files exist.
 
-        We should get at least one PDF, one html and one epub file.
+        We should get at least one PDF, one HTML and one EPUB file.
+
+        Raises:
+            ValueError: if there were any errors upstream
+
+            FileNotFoundError: if any of the expected file could not be found
+
         """
         # NB: self.path is set in the run() method after unpacking the processed files received from jcomassistant
         if not self.reemit_info_and_up(self.path):
-            return (False, "Errors found during generation.")
+            msg = f"Errors found during galley generation for {self.article.id}."
+            # We do not log any message, because it is common to have some errors in the initial phases of typesetting
+            raise ValueError(msg)
         for extension in ("html", "epub", "pdf"):
             if not any(self.path.glob(f"*.{extension}")):
-                return (False, f"Missing {extension} file")
-        return (True, None)
+                msg = f"Missing galley with extension {extension} for {self.article.id}."
+                # If this happens there might be some kind of miss-understanding with upstream:
+                # if any file is missing, some error should have been reported!
+                logger.error(msg)
+                raise FileNotFoundError(msg)
 
-    def download_and_store_article_file(self, image_source_url: Path, galley: Galley):
-        """Downaload a media file and link it to the galley."""
-        if not image_source_url.exists():
-            logger.error(f"Img {image_source_url.resolve()} does not exist. {os.getcwd()=}")
-        image_name = image_source_url.name
-        image_file = File(open(image_source_url, "rb"), name=image_name)
+    def store_galleyimage(self, image_pathname: Path, galley: Galley) -> JanewayFile:
+        """Get the image from the processed archive, save it, and link it to the galley.
+
+        Raises:
+            FileNotFoundError: if the given path does not exist.
+
+        """
+        if not image_pathname.exists():
+            archive_content = [str(p) for p in self.path.rglob("*")]
+            msg = (
+                f"Img {image_pathname.absolute()} does not exist"
+                f" (article {self.article.id}; {'📁-'.join(archive_content)})"
+            )
+            logger.error(msg)
+            raise FileNotFoundError(msg)
+        image_name = image_pathname.name
+        image_file = File(open(image_pathname, "rb"), name=image_name)
         new_file: JanewayFile = save_galley_image(
             galley=galley,
             request=self.request,
@@ -935,15 +969,39 @@ class AttachGalleys:
         galley_string: str = galley_file.get_file(self.article)
         html: HtmlElement = lxml.html.fromstring(galley_string)
         images = html.findall(".//img")
-        for image in images:
-            img_src = image.attrib["src"].split("?")[0]
-            img_src = self.path / img_src
-            img_obj: JanewayFile = self.download_and_store_article_file(img_src, galley)
-            # TBV: the `src` attribute is relative to the article's URL
-            image.attrib["src"] = img_obj.label
+        for image_element in images:
+            # We expect the "src" attribute to contain a pathname (full path);
+            # NB: this pathname existed when the img file was created on jcomassistant:
+            #     it does not exist in the filesystem where we opened the processed archive!
+            # It might also contain a query-string part: that we drop with the split("?")
+            wrong_pathname = Path(image_element.attrib["src"].split("?")[0])
+            # Expecting something like "/tmp/tmpabc/..."
+            # the first 3 parts ("/", "tmp", "tmpabc") can be dropped
+            img_src = self.path.joinpath(*wrong_pathname.parts[3:])
+            img_obj = self.store_galleyimage(img_src, galley)
+            # Remember that, in the HTML galley, the `src` attribute is relative to the article's URL
+            image_element.attrib["src"] = img_obj.label
 
         with open(galley_file.self_article_path(), "wb") as out_file:
             out_file.write(lxml.html.tostring(html, pretty_print=False))
+
+    def _get_singlegalley_path(self, suffix: str) -> Path:
+        """
+        Look in the processed archive and return the first galley with the given suffix.
+
+        Raises:
+            RuntimeError: if no galley with the given suffix can be found, because this should have already been
+            verified by _check_conditions()
+
+        """
+        candidates = [f for f in self.path.iterdir() if f.suffix == suffix]
+        if len(candidates) < 1:
+            msg = f"No galley with suffix {suffix} for {self.article.id}! This should have already been checked."
+            raise RuntimeError(msg)
+        if len(candidates) > 1:
+            # Not really an error, but this is not expected to happen and I don't want to miss it if it happens
+            logger.error(f"Found {len(candidates)} files with suffix {suffix} for {self.article.id}")
+        return candidates[0]
 
     def save_html(self):
         """Set the first html file as HTML galley.
@@ -951,20 +1009,11 @@ class AttachGalleys:
         Process it to adapt to our web page (drop how-to-cite, etc.)
         and deal with possible images.
         """
-        html_galley_filename = [f for f in self.path.iterdir() if f.suffix == ".html"][0]
+        html_galley_filename = self._get_singlegalley_path(suffix=".html")
         html_galley_text = open(html_galley_filename).read()
 
         galley_language = evince_language_from_filename_and_article(str(html_galley_filename), self.article)
-        try:
-            processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
-        except Exception as e:
-            communication_utils.notify_async_event(
-                message_subject=f"{self.article.journal.code} {self.article.id} HTML galley generation error",
-                message_body=str(e),
-                recipients=[self.request.user],
-                article=self.article,
-            )
-            processed_html_galley_as_bytes = b"HTML galley generation error. Please contact assistance."
+        processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
 
         name = "body.html"
         html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)
@@ -997,10 +1046,10 @@ class AttachGalleys:
 
     def save_epub(self):
         """Set the first epub file as EPUB galley."""
-        epub_galley_filename = [f for f in self.path.iterdir() if f.suffix == ".epub"][0]
+        epub_galley_filename = self._get_singlegalley_path(suffix=".epub")
         epub_galley_file = File(open(epub_galley_filename, "rb"), name=epub_galley_filename.name)
         file_mimetype = "application/epub+zip"
-        label, language = decide_galley_label(file_name=str(epub_galley_filename), file_mimetype=file_mimetype)
+        label, _language = decide_galley_label(file_name=str(epub_galley_filename), file_mimetype=file_mimetype)
         galley = save_galley(
             article=self.article,
             request=self.request,
@@ -1014,16 +1063,17 @@ class AttachGalleys:
         return galley
 
     def save_pdf(self):
-        """Set the first pdf file as PDF galley."""
-        pdf_files = [f for f in self.path.iterdir() if f.suffix == ".pdf"]
-        if len(pdf_files) != 1:
-            # TODO: temporary workaround! In production, this should trigger a stopping error
-            logger.error(f"Cannot find PDF in galleys of {self.article.id}")
-            return
-        pdf_galley_filename = pdf_files[0]
+        """
+        Set the first pdf file as PDF galley.
+
+        Raises:
+            ValueError: if the PDF galleys is missing.
+
+        """
+        pdf_galley_filename = self._get_singlegalley_path(suffix=".pdf")
         pdf_galley_file = File(open(pdf_galley_filename, "rb"), name=pdf_galley_filename.name)
         file_mimetype = "application/pdf+zip"
-        label, language = decide_galley_label(file_name=str(pdf_galley_filename), file_mimetype=file_mimetype)
+        label, _language = decide_galley_label(file_name=str(pdf_galley_filename), file_mimetype=file_mimetype)
         galley = save_galley(
             article=self.article,
             request=self.request,
@@ -1039,44 +1089,86 @@ class AttachGalleys:
     def run(self):
         # TODO: review me with specs#774: missing management of multilingual papers and PDF compilation
         # TODO: if targz: -> self.unpack_targz_from_jcomassistant()
-        self.path = self.unpack_zip_from_jcomassistant()
-        green_light, reason = self._check_conditions()
-        if not green_light:
+        galleys_created = []
+        try:
+            self.path = self.unpack_zip_from_jcomassistant()
+            self._check_conditions()
+            galleys_created.extend((self.save_epub(), self.save_html(), self.save_pdf()))
+
+        except (ConnectionError, ValueError, FileNotFoundError, RuntimeError) as e:
+            # This logic is generally called asynchronously, so we don't
+            # raise an exception here, but directly notify the typesetter.
+            #
+            # Errors should should have already been logged when they have happened.
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
             self.article.articleworkflow.save()
-            self._notify_error(reason)
-            # We save the given archive even if it has errors.
-            # We save it in the filesystem among the other article files and return it as a Galley object, so that
-            # our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
-            jcomassistant_response_content = File(
-                BytesIO(self.archive_with_galleys),
-                name="jcomassistant_response.tar.gz",
-            )
-            galleys_created = [
-                save_galley(
-                    article=self.article,
-                    request=self.request,
-                    uploaded_file=jcomassistant_response_content,
-                    is_galley=False,
-                    public=self.public_galley,
-                ),
-            ]
-
+            self.save_japrocessed_result()
+            message_subject = "Galleys generation error"
+            message_body = f"""Please check
+<a href="{self.article.articleworkflow.url}">{self.article.id}</a>
+<br><br>
+Error:
+<pre>
+{e}
+</pre>
+"""
         else:
-            galleys_created = [self.save_epub(), self.save_html(), self.save_pdf()]
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
             self.article.articleworkflow.save()
-        shutil.rmtree(self.path)
-        return galleys_created
+            message_subject = "Galleys are ready"
+            message_body = f"""Dear {self.request.user.full_name()},
+<br><br>
+Galleys for the {self.article.section.name} {self.article.pk} are ready.
+<br>
+Please go to the <a href="{self.article.articleworkflow.url}">web page</a>
+"""
 
-    def _notify_error(self, reason: str):
-        logger.error(f"Galleys generation failed for {self.article.id}: {reason}")
         communication_utils.notify_async_event(
-            message_subject="Galleys unpacking and attachment failed",
-            message_body=f"Please check JCOMAssistant response content.\n{reason}",
+            message_subject=message_subject,
+            message_body=message_body,
             recipients=[self.request.user],
             article=self.article,
         )
+
+        shutil.rmtree(self.path)
+        return galleys_created
+
+    def save_japrocessed_result(self) -> list[Galley]:
+        # FIXME!
+        # - who is responsible for handling errors?
+        # - why don't I see the response among the galleys?
+        """
+        We save the given archive even if it has errors.
+
+        We save it in the filesystem among the other article files and return it as a Galley object, so that
+        our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
+        """
+        logger.error("FIXME: Cannot save processed file as galley!")
+        return
+        jcomassistant_response_content = File(
+            BytesIO(self.archive_with_galleys),
+            name="jcomassistant_response.tar.gz",
+        )
+        logger.critical(f"{jcomassistant_response_content=}")
+        processed_archive_as_galley = save_galley(
+            article=self.article,
+            request=self.request,
+            uploaded_file=jcomassistant_response_content,
+            is_galley=False,
+            public=self.public_galley,
+            label="JA processed",
+        )
+        logger.critical(f"{processed_archive_as_galley=}")
+        # detach galley from article
+        # refactor with TypesetterTestsGalleyGeneration?
+        self.article.galley_set.all().delete()
+        ta = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        ta.galleys_created.set([processed_archive_as_galley])
+        # This raises:
+        # insert or update on table "typesetting_typesettingassignment_galleys_created"
+        # violates foreign key constraint "typesetting_typesett_galley_id_04bba167_fk_core_gall"
+        # DETAIL: Key (galley_id)=(3326) is not present in table "core_galley"
+        return [processed_archive_as_galley]
 
 
 @dataclasses.dataclass
@@ -1135,56 +1227,41 @@ class TypesetterTestsGalleyGeneration:
         If settings.JCOMASSISTANT_MOCK_FILE is set, use the path as a mock response file instead of contacting
         the JCOM Assistant service.
         """
-        # TODO: wrap in try/except and contact typ on errors
-        # e.g. ConnectionError janeway-services.ud.sissamedialab.it Name or service not known
         if settings.JCOMASSISTANT_MOCK_FILE:
             galleys_created = self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
         else:
             response = self._jcom_assistant_client()
-            # Unpack the response; this also "attach" the galleys to the article because of how Janeway's save_galley
-            # works (which is useful to use because we do want the files to be saved in the filesystem in the article's
-            # folder).
             galleys_created = AttachGalleys(
                 archive_with_galleys=response.content,
                 article=self.assignment.round.article,
                 request=self.request,
                 public_galley=False,
             ).run()
-
-        # Detach the galleys from the article: A.galley_set should contain only publication-ready galleys
+        # Detach the galleys from the article:
+        # A.galley_set should contain only publication-ready galleys
         Galley.objects.filter(id__in=[g.id for g in galleys_created]).update(article=None)
 
         # Attach the gallyes to the TA
         self.assignment.galleys_created.set(galleys_created)
 
     def run(self) -> None:
-        if not self._check_conditions():
-            # This logic is generally called asynchronously, so we don't
-            # raise an exception here, but directly notify the typesetter
-            logger.error(f"Galley generation failed to start for article {self.assignment.round.article.id}")
+        if self._check_conditions():
+            self._clean_galleys()
+            self._get_and_save_galleys()
+        else:
+            msg = f"""Galley generation failed to start
+            article: {self.assignment.round.article.id}
+            user: {self.request.user} is good: {self._check_user_conditions()}
+            source files exist: {self._check_files_conditions()}
+            """
+            logger.error(msg.replace("\n", "  "))
+
             communication_utils.notify_async_event(
                 message_subject="Galley generation failed to start",
-                message_body=f"Please check {self.assignment.round.article}\n{self.assignment.round.article.url}\n",
+                message_body=msg,
                 recipients=[self.request.user],
                 article=self.assignment.round.article,
             )
-            return
-        self._clean_galleys()
-        self._get_and_save_galleys()
-
-        # Note that the check for queries in tex src is done when a new source file is uploaded.
-
-        communication_utils.notify_async_event(
-            message_subject="Galleys are ready",
-            message_body=f"""Dear {self.request.user.full_name},
-<br><br>
-Galleys for the {self.assignment.round.article.section.name} {self.assignment.round.article.pk} are ready.
-<br>
-Please go to the <a href="{self.assignment.round.article.articleworkflow.url}">web page</a>
-""",
-            recipients=[self.request.user],
-            article=self.assignment.round.article,
-        )
 
 
 @dataclasses.dataclass
@@ -1499,9 +1576,12 @@ class BeginPublication:
         # TODO: can it ever happen that issue.issue is not in the form "01"?
         issue = f"{int(self.workflow.article.primary_issue.issue):02d}"
         # Page numbers should have been set when we set the pubid when we do set_article_identifiers()
-        num = self.workflow.page_numbers
-        doi = self.workflow.article.get_doi()
+        num = self.workflow.article.page_numbers
         assert num
+        # ATM, num has the form "A01", "Y02", ... (see AW.compute_eid())
+        # in the TeX source we need only the number "01", "02"...
+        num = num[-2:]
+        doi = self.workflow.article.get_doi()
         assert doi
         # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
         replacements = (

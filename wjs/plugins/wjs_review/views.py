@@ -44,7 +44,7 @@ from journal.logic import get_all_tables_from_html
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import logic as review_logic
-from submission.models import Article
+from submission.models import Article, FrozenAuthor
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -3506,5 +3506,9 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
                 "tables_in_galley": tables_in_galley,
             },
         )
+
+        # Freeze authors: the template expects to see frozen-authors
+        FrozenAuthor.objects.filter(article=self.workflow.article).delete()
+        self.workflow.article.snapshot_authors()
 
         return context
