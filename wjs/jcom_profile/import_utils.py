@@ -250,6 +250,7 @@ def publish_article(article: Article):
     )
     good_authors = list(article.authors.all().annotate(order=subq).order_by("order").values_list("id", flat=True))
     submission_models.FrozenAuthor.objects.filter(article=article).delete()
+    ArticleAuthorOrder.objects.filter(article=article).delete()
     article.authors.set(good_authors)
     [
         ArticleAuthorOrder.objects.create(article=article, author_id=au_id, order=i)
