@@ -403,13 +403,19 @@ def test_director_sees_all_journal_messages(
 
 @pytest.mark.django_db
 def test_write_message_as_director_does_not_set_read_by_eo_flag(
-    article: submission_models.Article,
+    assigned_article: submission_models.Article,
     director: JCOMProfile,
     eo_user: JCOMProfile,
     client,
 ):
     """Test that when a NON-EO user writes a message, the read_by_eo flag is set."""
-    url = reverse("wjs_message_write", kwargs={"pk": article.articleworkflow.pk, "recipient_id": eo_user.pk})
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="author_can_contact_director",
+        journal=assigned_article.journal,
+        value=True,
+    )
+    url = reverse("wjs_message_write", kwargs={"pk": assigned_article.articleworkflow.pk, "recipient_id": eo_user.pk})
     client.force_login(director)
     assert Message.objects.count() == 0
     client.post(
@@ -418,8 +424,8 @@ def test_write_message_as_director_does_not_set_read_by_eo_flag(
             "subject": "subject",
             "body": "body",
             "actor": director.id,
-            "content_type": ContentType.objects.get_for_model(article).id,
-            "object_id": article.id,
+            "content_type": ContentType.objects.get_for_model(assigned_article).id,
+            "object_id": assigned_article.id,
             "message_type": Message.MessageTypes.USER,
             "recipientsFS-TOTAL_FORMS": "1",
             "recipientsFS-INITIAL_FORMS": "0",
@@ -580,6 +586,7 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(editor, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(editor, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(editor, assigned_article, past_editor) is False
+    assert HandleMessage.can_write_to(editor, assigned_article, editor) is False
 
     # Reviewer
     # ======
@@ -589,6 +596,7 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(reviewer, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(reviewer, assigned_article, past_editor) is False
+    assert HandleMessage.can_write_to(reviewer, assigned_article, reviewer) is False
 
     # Author
     # ======
@@ -598,24 +606,27 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(author, assigned_article, main_director) is author_can_contact_director
     assert HandleMessage.can_write_to(author, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(author, assigned_article, past_editor) is False
+    assert HandleMessage.can_write_to(author, assigned_article, author) is False
 
     # Director
     # ======
-    assert HandleMessage.can_write_to(director, assigned_article, editor) is False
-    assert HandleMessage.can_write_to(director, assigned_article, reviewer) is False
-    assert HandleMessage.can_write_to(director, assigned_article, author) is False
+    assert HandleMessage.can_write_to(director, assigned_article, editor) is True
+    assert HandleMessage.can_write_to(director, assigned_article, reviewer) is True
+    assert HandleMessage.can_write_to(director, assigned_article, author) is author_can_contact_director
     assert HandleMessage.can_write_to(director, assigned_article, main_director) is True
     assert HandleMessage.can_write_to(director, assigned_article, eo_system_user) is True
-    assert HandleMessage.can_write_to(director, assigned_article, past_editor) is False
+    assert HandleMessage.can_write_to(director, assigned_article, past_editor) is True
+    assert HandleMessage.can_write_to(director, assigned_article, director) is False
 
     # Main Director
     # ======
     assert HandleMessage.can_write_to(main_director, assigned_article, editor) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, reviewer) is True
-    assert HandleMessage.can_write_to(main_director, assigned_article, author) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, author) is author_can_contact_director
     assert HandleMessage.can_write_to(main_director, assigned_article, director) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, past_editor) is True
+    assert HandleMessage.can_write_to(main_director, assigned_article, main_director) is False
 
 
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
@@ -724,18 +735,18 @@ def test_allowed_recipients_for_actor(
     # Director
     # ======
     allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=director, article=assigned_article)
-    assert author not in allowed_recipients
-    assert reviewer_1 not in allowed_recipients
-    assert reviewer_2 not in allowed_recipients
-    assert editor not in allowed_recipients
-    assert past_editor not in allowed_recipients
+    assert (author in allowed_recipients) is author_can_contact_director
+    assert reviewer_1 in allowed_recipients
+    assert reviewer_2 in allowed_recipients
+    assert editor in allowed_recipients
+    assert past_editor in allowed_recipients
     assert main_director in allowed_recipients
     assert eo_system_user in allowed_recipients
 
     # Main director
     # ======
     allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=main_director, article=assigned_article)
-    assert author in allowed_recipients
+    assert (author in allowed_recipients) is author_can_contact_director
     assert reviewer_1 in allowed_recipients
     assert reviewer_2 in allowed_recipients
     assert editor in allowed_recipients
