@@ -1994,7 +1994,6 @@ class ImportCorrespondenceManager:
             "ETOAE",
             "FRASDIE",
             "FRDIE",
-            "FRPUM",
             "TOASDIE",
             "TODIE",
         ]
@@ -2002,6 +2001,7 @@ class ImportCorrespondenceManager:
         # PUMANN can have no authors: JCOM_002N_0724
         self.types_with_auth_OR_recipient = [
             "PUMANN",
+            "FRPUM",
         ]
 
         self.managed_types_list = (
