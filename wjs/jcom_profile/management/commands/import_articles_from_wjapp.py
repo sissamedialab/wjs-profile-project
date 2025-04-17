@@ -2,6 +2,7 @@
 
 import datetime
 import os
+import tarfile
 import textwrap
 import traceback
 import zipfile
@@ -1640,6 +1641,21 @@ def file_from_response(response: requests.Response, name: str) -> DjangoFile:
     return DjangoFile(BytesIO(response.content), name)
 
 
+def build_targz_archive_from_tex_response(response: requests.Response, name: str) -> DjangoFile:
+    """Extract a tex File object from the response, and returns a dj file tar.gz."""
+
+    tar_buffer = BytesIO()
+    with tarfile.open(fileobj=tar_buffer, mode="w:gz") as tar:
+        tar_info = tarfile.TarInfo(f"{name}.tex")
+        tar_info.size = len(response.content)
+        tar.addfile(tar_info, BytesIO(response.content))
+
+    tar_buffer.seek(0)
+    logger.debug(f"generated tar.gz archive from tex production submission for {name}")
+
+    return DjangoFile(tar_buffer, f"{name}.tar.gz")
+
+
 def noop(*args, **kwdargs):
     """Do nothing.
 
@@ -2469,10 +2485,12 @@ class BaseActionManager:
     # production version source TARGZ
     def file_source_prod(self):
 
-        response_source_prod = self.download_source_prod()
+        (response_source_prod, file_type) = self.download_source_prod()
         if response_source_prod.headers["Content-Length"] != "0":
-            source_prod_dj = file_from_response(response_source_prod, f"{self.preprintid}.tar.gz")
-
+            if file_type == "tar.gz":
+                source_prod_dj = file_from_response(response_source_prod, f"{self.preprintid}.{file_type}")
+            elif file_type == "tex":
+                source_prod_dj = build_targz_archive_from_tex_response(response_source_prod, f"{self.preprintid}")
         return source_prod_dj
 
     def download_source_prod(self):
@@ -2482,14 +2500,28 @@ class BaseActionManager:
             f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
             f"submission/{self.preprintid}.tar.gz&fileType=gz"
         )
+        file_type = "tar.gz"
         logger.debug(f"production source: {file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":
-            logger.error(
-                f"check wjapp login credentials empty file tar.gz downloaded: {response.headers['Content-Length']}"
+            logger.warning(
+                f"production submission tar.gz empty file: {self.article.id} / {self.preprintid} try tex format"
             )
-        return response
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/{self.preprintid}.tex&fileType=tex"
+            )
+            response = self.session.get(file_url)
+            assert response.status_code == 200, f"Got {response.status_code}!"
+            file_type = "tex"
+            logger.debug(f"production source: {file_url=}")
+            if response.headers["Content-Length"] == "0":
+                logger.error(
+                    f"production submission: also tex empty file downloaded: {self.article.id} / {self.preprintid}"
+                )
+
+        return (response, file_type)
 
     # review files
 
