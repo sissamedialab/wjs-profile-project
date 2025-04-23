@@ -1119,7 +1119,7 @@ ORDER BY ah.actionDate
         for author in article.authors.all():
             bios_found = self.get_author_bio_by_name(authors_bios, author)
             if len(bios_found) != 1:
-                logger.warning(
+                logger.debug(
                     f"Found {len(bios_found)} bios for author {author.full_name()} version: {imported_version_num}."
                 )
 
@@ -1203,7 +1203,7 @@ ORDER BY ah.actionDate
         if not language and article.journal.code == "JCOM":
             article.language = "eng"
             article.save()
-            logger.warning(f"jcom {article.id} undefined language saved as 'eng'")
+            logger.debug(f"jcom {article.id} undefined language saved as 'eng'")
             return
 
         # default for jcomal when not defined
@@ -1251,12 +1251,12 @@ ORDER BY ah.actionDate
         if not article.language and article.journal.code == "JCOM":
             article.language = "eng"
             article.save()
-            logger.warning(f"jcom {article.id} not matched language {language} saved as 'eng'")
+            logger.warning(f"jcom {article.id} not matched language <{language}> saved as 'eng'")
             return
 
         # default for jcomal when not matched
         if not language and article.journal.code == "JCOMAL":
-            logger.warning(f"jcomal {article.id} matched language {language} let None")
+            logger.warning(f"jcomal {article.id} not matched language {language} let None")
             return
 
         # wjapp language not null, but not found in the choices defined above
@@ -2826,7 +2826,7 @@ ORDER BY reminderDate
                                 f"{wjapp_reminder['reminderDate'].date()}"
                             )
                             if reminder.date_due != wjapp_reminder["reminderDate"].date():
-                                logger.warning(
+                                logger.debug(
                                     f"reminder {reminder.code} due date changed from {reminder.date_due} "
                                     f"to {wjapp_reminder['reminderDate'].date()}"
                                 )
@@ -2846,7 +2846,7 @@ ORDER BY reminderDate
                                 )
                             if wjapp_reminder["sent"]:
                                 reminder.date_sent = wjapp_reminder["reminderDate"]
-                                logger.warning(f"reminder date_sent added: {reminder}")
+                                logger.debug(f"reminder date_sent added: {reminder}")
                                 reminder.save()
                             if not wjapp_reminder["enabled"]:
                                 reminder.disable = True
@@ -3958,39 +3958,42 @@ ORDER BY dl.submissionDate
                 if not reviewer_data["refereeReminderEnabled"]:
                     r.disable = True
                     r.save()
-                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disable:{r.disable}")
 
                 if reviewer_data["refereeReminderDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminderDate"]
                 ):
                     r.date_sent = rome_timezone.localize(reviewer_data["refereeReminderDate"])
                     r.save()
-                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+                    logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
                 r.date_due = (
                     rome_timezone.localize(reviewer_data["refereeAssignDate"])
                     + datetime.timedelta(days=next_day_delay)
                     + datetime.timedelta(days=ref_acc_limit_days)
                 ).date()
-                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
                 r.save()
                 review_assignment.date_due = r.date_due
                 review_assignment.save()
-                logger.warning(f"{r.code} and RA {review_assignment} due_date change {r.date_due} for {r.recipient}")
+                logger.debug(
+                    f"{r.code} ({r.id}) and RA {review_assignment.id} (article {review_assignment.article.id})"
+                    f" due_date change {r.date_due} for {r.recipient}"
+                )
 
             if r.recipient == review_assignment.reviewer and r.code == "REEA2":
                 # REEA2 "Reviewer should evaluate assignment" -> refereeReminder2Enabled/Date
                 if not reviewer_data["refereeReminder2Enabled"]:
                     r.disable = True
                     r.save()
-                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disable:{r.disable}")
 
                 if reviewer_data["refereeReminder2Date"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminder2Date"]
                 ):
                     r.date_sent = rome_timezone.localize(reviewer_data["refereeReminder2Date"])
                     r.save()
-                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+                    logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
                 r.date_due = (
                     rome_timezone.localize(reviewer_data["refereeAssignDate"])
@@ -3998,7 +4001,7 @@ ORDER BY dl.submissionDate
                     + datetime.timedelta(days=ref_acc_limit_days)
                     + datetime.timedelta(days=ref_acc_limit2_days)
                 ).date()
-                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
                 r.save()
 
             if r.recipient == review_assignment.editor and r.code == "REEA3":
@@ -4006,14 +4009,14 @@ ORDER BY dl.submissionDate
                 if not reviewer_data["editorReminderEnabled"]:
                     r.disable = True
                     r.save()
-                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disable:{r.disable}")
 
                 if reviewer_data["editorReminderDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["editorReminderDate"]
                 ):
                     r.date_sent = rome_timezone.localize(reviewer_data["editorReminderDate"])
                     r.save()
-                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+                    logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
                 r.date_due = (
                     rome_timezone.localize(reviewer_data["refereeAssignDate"])
@@ -4022,7 +4025,7 @@ ORDER BY dl.submissionDate
                     + datetime.timedelta(days=ref_acc_limit2_days)
                     + datetime.timedelta(days=ref_acc_limit_editor_reminder_days)
                 ).date()
-                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
                 r.save()
 
             if r.recipient == review_assignment.reviewer and r.code == "REWR1":
@@ -4031,17 +4034,17 @@ ORDER BY dl.submissionDate
                 if not reviewer_data["refereeReminder1ForRefereeReportEnabled"]:
                     r.disable = True
                     r.save()
-                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disable:{r.disable}")
 
                 if reviewer_data["refereeReminder1ForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminder1ForRefereeReportDate"]
                 ):
                     r.date_sent = rome_timezone.localize(reviewer_data["refereeReminder1ForRefereeReportDate"])
                     r.save()
-                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+                    logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
                 r.date_due = rome_timezone.localize(reviewer_data["report_due_date"]).date()
-                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
                 r.save()
 
             if r.recipient == review_assignment.editor and r.code == "REWR2":
@@ -4049,20 +4052,20 @@ ORDER BY dl.submissionDate
                 if not reviewer_data["editorReminderForRefereeReportEnabled"]:
                     r.disable = True
                     r.save()
-                    logger.warning(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disable:{r.disable}")
 
                 if reviewer_data["editorReminderForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["editorReminderForRefereeReportDate"]
                 ):
                     r.date_sent = rome_timezone.localize(reviewer_data["editorReminderForRefereeReportDate"])
                     r.save()
-                    logger.warning(f"reminder {r} modified date_sent:{r.date_sent}")
+                    logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
                 r.date_due = (
                     rome_timezone.localize(reviewer_data["report_due_date"])
                     + datetime.timedelta(days=referee_report_reminder_for_editor_days)
                 ).date()
-                logger.warning(f"due_date change {r.code} {r.date_due} {r.recipient}")
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
                 r.save()
 
 
