@@ -20,7 +20,7 @@ from django.utils.timezone import now, timedelta
 from django.utils.translation import override
 from journal.models import Journal
 from premailer import transform
-from submission.models import Article
+from submission.models import STAGE_PUBLISHED, Article
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
@@ -166,6 +166,7 @@ class NewsletterMailerService:
         content_type = ContentType.objects.get_for_model(journal)
 
         filtered_articles = Article.objects.filter(
+            stage=STAGE_PUBLISHED,
             date_published__date__gt=last_sent,
             journal=journal,
         ).order_by("-date_published")
