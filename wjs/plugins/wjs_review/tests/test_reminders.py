@@ -330,15 +330,23 @@ def test_send_reminders__simple_case(
 
     assert not Reminder.objects.exists()
     service.run()
-    assert Reminder.objects.count() == 3
+    # Variables used in the asserts
+    # (in the hope of making the relations clearer)
+    three = 3
+    two = 2
+    assert Reminder.objects.count() == three
+    # All reminders are of the same "family"
+    assert Reminder.objects.filter(code__startswith="REEA").count() == three
+    # We have only two recipients (two reminders are for the reviewer, one is for the editor)
+    assert len(set(Reminder.objects.all().values_list("recipient__id"))) == two
     last_reminder = Reminder.objects.all().order_by("date_due").last()
 
     the_day_after = last_reminder.date_due + timezone.timedelta(days=1)
 
-    with caplog.at_level(logging.DEBUG):
-        with freezegun.freeze_time(the_day_after):
-            call_command("send_wjs_reminders")
-            assert "Sent 3/3 reminders." in caplog.text
+    with caplog.at_level(logging.DEBUG), freezegun.freeze_time(the_day_after):
+        call_command("send_wjs_reminders")
+        assert f"Sent {two}/{three} reminders." in caplog.text
+        assert "Skipping REEA2 to User normal" in caplog.text
 
 
 @pytest.mark.django_db

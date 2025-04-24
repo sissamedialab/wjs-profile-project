@@ -1,4 +1,5 @@
-"""Install WJS cron jobs.
+"""
+Install WJS cron jobs.
 
 Jobs are defined as:
   - name: identify the cron line
@@ -61,6 +62,12 @@ class Command(BaseCommand):
                 "task": "pip-audit | sed '/Dependency not found/d;/Skip Reason/d;/------/d;'",
                 "type": "daily",
                 "raw-python": True,
+            },
+            {
+                "name": f"{cwd}_send_wjs_reminders",
+                "time": 13,
+                "task": "send_wjs_reminders",
+                "type": "daily",
             },
         ]
 
