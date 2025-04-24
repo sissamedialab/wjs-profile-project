@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <link href="http://arxiv.org/api/query?search_query%3D%26id_list%3D2504.10562%26start%3D0%26max_results%3D10" rel="self" type="application/atom+xml"/>
+  <title type="html">ArXiv Query: search_query=&amp;id_list=2504.10562&amp;start=0&amp;max_results=10</title>
+  <id>http://arxiv.org/api/ssXkkGdztPUEOg9uUl2cc4ub4X8</id>
+  <updated>2025-04-17T00:00:00-04:00</updated>
+  <opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">1</opensearch:totalResults>
+  <opensearch:startIndex xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">0</opensearch:startIndex>
+  <opensearch:itemsPerPage xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">10</opensearch:itemsPerPage>
+  <entry>
+    <id>http://arxiv.org/abs/2504.10562v1</id>
+    <updated>2025-04-14T15:52:11Z</updated>
+    <published>2025-04-14T15:52:11Z</published>
+    <title>Notes on the double Wick rotated BTZ black hole</title>
+    <summary>  We analyze the double Wick rotated BTZ black hole with the Euclidean
+signature, which is a Riemannian manifold. We calculate thermodynamics, total
+energy of spacetime, and holographic two point functions in the double Wick
+rotated background. Results agree with those of a rotating BTZ with the same
+periodicity.
+</summary>
+    <author>
+      <name>Hua-Yu Dai</name>
+    </author>
+    <author>
+      <name>Xi-Hao Fang</name>
+    </author>
+    <author>
+      <name>Mitsutoshi Fujita</name>
+    </author>
+    <link href="http://arxiv.org/abs/2504.10562v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2504.10562v1" rel="related" type="application/pdf"/>
+    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="hep-th" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="hep-th" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="gr-qc" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+</feed>

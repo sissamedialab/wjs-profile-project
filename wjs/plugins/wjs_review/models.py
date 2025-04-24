@@ -497,6 +497,8 @@ class ArticleWorkflow(TimeStampedModel):
 
     social_media_short_description = models.TextField(_("Short description for social media"), null=True, blank=True)
 
+    arxiv_category = models.CharField(max_length=30, verbose_name=_("Arxiv category"), null=True, blank=True)
+
     objects = ArticleWorkflowQuerySet.as_manager()
 
     class Meta:
