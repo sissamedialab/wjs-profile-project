@@ -87,7 +87,7 @@ def _submit_review(
 
 def create_mock_tar_gz():
     """Create a tar.gz archive containing dummy galleys."""
-    here = pathlib.Path(__file__).parent
+    here = pathlib.Path(__file__).parent / "files"
     galley_name = "galley-x"
     html_filepath = here / f"{galley_name}.html"
     # TODO: drop binary epub (zip), layout source files for benefito of git,
@@ -107,7 +107,7 @@ def create_mock_tar_gz():
 
 def create_mock_zip():
     """Create a zip archive containing dummy galleys."""
-    here = pathlib.Path(__file__).parent
+    here = pathlib.Path(__file__).parent / "files"
     galley_name = "galley-x"
     html_filepath = here / f"{galley_name}.html"
     epub_filepath = here / f"{galley_name}.epub"
