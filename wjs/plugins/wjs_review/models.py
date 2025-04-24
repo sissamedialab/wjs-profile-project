@@ -1467,7 +1467,7 @@ class Message(TimeStampedModel):
     def get_absolute_url(self):
         """Return the URL to the message."""
         if self.content_type.model_class() == Article:
-            return f'{reverse("wjs_article_messages", args=[self.target.articleworkflow.pk])}#message-item-{self.pk}'
+            return f"{reverse('wjs_article_messages', args=[self.target.articleworkflow.pk])}#message-item-{self.pk}"
 
     @property
     def journal(self) -> Journal:
@@ -1549,11 +1549,12 @@ class Message(TimeStampedModel):
             "text": notification_body_text,
         }
 
-    def emit_notification(self, from_email=None):
-        """Send a notification.
+    def emit_notification(self, from_email: str | None = None):
+        """
+        Send a notification.
 
-        :param from_email is passed directly to django.core.mail.send_mail (therefore, if it's None, the
-        DEFAULT_FROM_EMAIL is used).
+        :param from_email: if it's None, the email from the setting general/from_address is used
+        (which might be different from django setting DEFAULT_FROM_EMAIL).
 
         """
         if getattr(settings, "NO_NOTIFICATION", None):
@@ -2113,26 +2114,29 @@ class Reminder(models.Model):
 
         The email is always the same, but the name part changes.
         E.g.
-        From: Matteo Gamboz <wjs-support@medialab.sissa.it>
+        From: Matteo Gamboz <no-reply@jcom.sissa.it>
         """
-        if self.get_related_article():
-            if not permissions.can_see_other_user_name(
-                instance=self.get_related_article().articleworkflow, sender=self.actor, recipient=self.recipient
-            ):
-                return settings.DEFAULT_FROM_EMAIL
-        name = self.actor.full_name()
-        email = settings.DEFAULT_FROM_EMAIL
-        from_header = f"{name} <{email}>"
-        return from_header
+        # Reminder: get_setting() with journal=None returns the default value for that setting
+        # and the default value for "from_address" is sound (ATM it's "no-reply@medialab.sissa.it")
+        journal = article.journal if (article := self.get_related_article()) else None
+        email_part = get_setting("general", "from_address", journal).processed_value
 
-    def get_related_article(self) -> Optional[Article]:
+        if self.get_related_article() and not permissions.can_see_other_user_name(
+            instance=self.get_related_article().articleworkflow,
+            sender=self.actor,
+            recipient=self.recipient,
+        ):
+            return email_part
+        name_part = self.actor.full_name()
+        return f"{name_part} <{email_part}>"
+
+    def get_related_article(self) -> Article | None:
         """Try to find the article that this reminder is related to."""
         if article := getattr(self.target, "article", None):
             return article
-        elif isinstance(self.target, Article):
+        if isinstance(self.target, Article):
             return self.target
-        else:
-            return None
+        return None
 
     @property
     def reminder_level(self):
@@ -2148,26 +2152,35 @@ class Reminder(models.Model):
         return render_template(self.message_body, {"reminder": self, "article": self.get_related_article()})
 
     def create_message(self) -> Message:
-        """Create a message from the reminder."""
-        from .communication_utils import log_operation
-        from .reminders.settings import ReminderManager
+        """
+        Create a message from the reminder.
+
+        Raises:
+           ValueError: if the article related to this reminder cannot be found.
+
+        Returns a Message instance that is _not_ saved into the DB.
+
+        """
+        from .reminders.settings import ReminderManager  # noqa: PLC0415
 
         reminder_article = self.get_related_article()
         if reminder_article is None:
-            raise ValueError(f"Unknown article for reminder {self.id} ({self.code})")
+            msg = f"Unknown article for reminder {self.id} ({self.code})"
+            raise ValueError(msg)
         setting = ReminderManager.get_settings(self)
 
-        message = log_operation(
-            article=reminder_article,
+        # This is very similar to log_operation, but we do not want to
+        # emit any notification just yet!
+        return Message(
             actor=self.actor,
-            recipients=[self.recipient],
-            message_subject=self.message_subject,
-            message_body=self.message_body,
+            subject=self.message_subject,
+            body=self.message_body,
+            verbosity=Message.MessageVerbosity.FULL,
             message_type=Message.MessageTypes.SYSTEM,
-            flag_as_read_by_eo=setting.flag_as_read_by_eo,
-            flag_as_read=setting.flag_as_read,
+            content_type=ContentType.objects.get_for_model(reminder_article),
+            object_id=reminder_article.id,
+            read_by_eo=setting.flag_as_read_by_eo,
         )
-        return message
 
 
 class LatexPreamble(models.Model):
