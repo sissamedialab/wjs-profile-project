@@ -9,8 +9,7 @@ import html2text
 import pytest
 from core import files as core_files
 from core.middleware import GlobalRequestMiddleware
-from core.models import Account
-from django.contrib.auth import login
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
@@ -21,9 +20,18 @@ from django.test import Client
 from django.urls import reverse
 from django.utils.timezone import now
 from hijack.middleware import HijackUserMiddleware
-from plugins.wjs_review.models import PastEditorAssignment
+from plugins.wjs_review.forms import MessageForm
+from plugins.wjs_review.logic import AssignToReviewer, HandleMessage
+from plugins.wjs_review.models import (
+    Message,
+    MessageRecipients,
+    PastEditorAssignment,
+    WjsEditorAssignment,
+)
+from plugins.wjs_review.views import ArticleMessages
 from review import models as review_models
 from submission import models as submission_models
+from submission.models import Article
 from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -35,9 +43,9 @@ from ..communication_utils import (
     log_operation,
     should_notify_actor,
 )
-from ..logic import AssignToReviewer, HandleMessage
-from ..models import Message, WjsEditorAssignment
 from . import conftest
+
+Account = get_user_model()
 
 
 @pytest.mark.django_db
@@ -59,6 +67,122 @@ def test_user_sees_article_generic_messages(
     messages = get_messages_related_to_me(tuvok, article)
     assert messages.count() == 1
     assert messages.first() == msg
+
+
+@pytest.mark.django_db
+def test_view_includes_messages_to_eo(
+    article: Article,
+    eo_user: JCOMProfile,
+    fake_request: HttpRequest,
+    author: JCOMProfile,
+    normal_user: JCOMProfile,
+    eo_group: Group,
+):
+    """Test that the ArticleMessages view collects messages for EO.
+
+    Remember that
+    - messages to the EO can be written by everyone (e.g. by the author of a paper)
+    - messages to the EO have the EO system-user as recipient: it's not a "real" person!
+    - any normal person with the EO group should be able to see messages to the EO system-user.
+    """
+    msg = Message.objects.create(
+        actor=author,
+        subject="Ciaone",
+        body="Ciaone grosso",
+        message_type=Message.MessageTypes.USER,
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+    )
+    msg.recipients.add(eo_user)
+
+    view = ArticleMessages()
+    view.kwargs = {"pk": article.articleworkflow.pk}
+    view.args = []
+    # NB: the eo_user is the "system" EO user,
+    # while normal_user is a real person witht the EO group
+    normal_user.groups.add(eo_group)
+    fake_request.user = normal_user
+    view.request = fake_request
+    view.load_initial(request=fake_request)
+
+    # The list of messages should contain the message for the EO
+    messages = view.get_queryset()
+    assert messages.count() == 1
+    assert messages.get().actor == author.janeway_account
+
+    # There should be only one recipient for that message, and it should be the EO user
+    recipients = messages.get().recipients.all()
+    assert recipients.count() == 1
+    assert recipients.get() == eo_user.janeway_account
+
+    # Sanity check
+    assert eo_user != normal_user
+
+
+@pytest.mark.django_db
+def test_toggling_read_by_eo_also_toggles_eo_recipient_read_flag(
+    article: Article,
+    eo_user: JCOMProfile,
+    author: JCOMProfile,
+    normal_user: JCOMProfile,
+    eo_group: Group,
+    client: Client,
+):
+    """
+    Test that read-by-eo and EO-recipient read flags are in sync.
+
+    When read-by-eo is toggled, if the EO system-user is among the message recipients, that recipient "read" flag
+    should also be toggled.
+
+    """
+    msg = Message.objects.create(
+        actor=author,
+        subject="Ciaone",
+        body="Ciaone grosso",
+        message_type=Message.MessageTypes.USER,
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+    )
+    msg.recipients.add(eo_user)
+    assert (
+        MessageRecipients.objects.get(
+            message=msg,
+            recipient=eo_user,
+        ).read
+        is False
+    )
+
+    url = reverse("wjs_message_toggle_read_by_eo", kwargs={"message_id": msg.pk})
+    normal_user.groups.add(eo_group)
+    client.force_login(normal_user)
+    # toggle to on...
+    client.post(
+        url,
+        data={
+            # Remember that the form is istantiated with a prefix!
+            f"toggle-eo-{msg.pk}-read_by_eo": "on",
+        },
+    )
+    msg.refresh_from_db()
+    assert msg.read_by_eo is True
+    assert (
+        MessageRecipients.objects.get(
+            message=msg,
+            recipient=eo_user,
+        ).read
+        is True
+    )
+    # ...and toggle to off
+    client.post(url, data={})
+    msg.refresh_from_db()
+    assert msg.read_by_eo is False
+    assert (
+        MessageRecipients.objects.get(
+            message=msg,
+            recipient=eo_user,
+        ).read
+        is False
+    )
 
 
 @pytest.mark.parametrize(
@@ -343,7 +467,7 @@ def test_user_sees_recipientee_messages(
 @pytest.mark.django_db
 def test_messages_to_eo_always_read(
     article: submission_models.Article,
-    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    create_jcom_user: Callable[[str | None], JCOMProfile],
     eo_user: JCOMProfile,
 ):
     """
@@ -351,6 +475,7 @@ def test_messages_to_eo_always_read(
 
     EO read flag is read_by_eo on Message model.
     """
+    # Check "system" messages that use the log_operation() function:
     chakotay = create_jcom_user("Chakotay")
     msg = log_operation(
         article=article,
@@ -360,6 +485,34 @@ def test_messages_to_eo_always_read(
         recipients=[eo_user.janeway_account],
     )
     assert msg.messagerecipients_set.first().read is True
+
+    # Check "manual" messages that are created by the user via the "write message" form
+    message = Message.objects.create(
+        actor=chakotay,
+        subject="Test message bis",
+        body="Test message body bis",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.id,
+    )
+    message.recipients.add(eo_user)
+    form = MessageForm(
+        instance=message,
+        data={
+            "subject": "Some subject",
+            "body": "Some body",
+            "recipients": [str(eo_user.pk)],
+        },
+        # These are provided by the view:
+        actor=chakotay,
+        target=article,
+        note=False,
+        hide_recipients=False,
+        current_note=False,
+    )
+    form.is_valid()
+    saved_message = form.save()
+    assert saved_message.pk == message.pk
+    assert MessageRecipients.objects.get(message=saved_message, recipient=eo_user).read is True
 
 
 @pytest.mark.django_db

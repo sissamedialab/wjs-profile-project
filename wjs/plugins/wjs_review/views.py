@@ -2280,7 +2280,7 @@ class ToggleMessageReadView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
 
 
 class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
-    """A view to let the EO toggle read/unread flag on a message by other two actors."""
+    """A view to let the EO toggle read-by-eo flag on a message."""
 
     model = Message
     form_class = ToggleMessageReadByEOForm
@@ -2302,10 +2302,12 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
             pk=self.kwargs["message_id"],
         )
 
-    def form_valid(self, form):
-        """If the form is valid, save the associate model (the flag on the Message read_by_eo).
+    def form_valid(self, form: ToggleMessageReadByEOForm):
+        """
+        If the form is valid, save the associate model.
 
-        Then, just return a response with the flag template rendered. I.e. do not redirect anywhere.
+        Then, just return a response with the flag template rendered.
+        I.e. do not redirect anywhere.
         """
         self.object = form.save()
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
