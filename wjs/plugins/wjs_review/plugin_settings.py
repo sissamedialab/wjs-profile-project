@@ -9,14 +9,11 @@ from utils import plugins
 from utils.logger import get_logger
 
 from wjs.jcom_profile.custom_settings_utils import (
-    PatchSettingParams,
-    PatchSettingValueParams,
     SettingParams,
     SettingValueParams,
     create_customization_setting,
     export_to_csv_manager,
     get_group,
-    patch_setting,
 )
 
 logger = get_logger(__name__)
