@@ -282,7 +282,7 @@ def coauthor():
 
 
 @pytest.fixture()
-def author(create_jcom_user, roles, journal, keywords):
+def author(create_jcom_user, roles, journal, keywords) -> JCOMProfile:
     jcom_user = create_jcom_user("author")
     jcom_user.add_account_role(constants.AUTHOR_ROLE, journal)
     return jcom_user

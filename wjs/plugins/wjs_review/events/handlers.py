@@ -207,7 +207,7 @@ def notify_coauthors_article_submission(**kwargs):
             message_subject=message_subject,
             message_body=message_body,
             recipients=[coauthor],
-            flag_as_read=False,
+            flag_as_read=True,
             flag_as_read_by_eo=True,
             verbosity=Message.MessageVerbosity.EMAIL,
         )
