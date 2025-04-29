@@ -1,5 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static wjs_permissions wjs_tags %}
+{% load django_bootstrap5 static wjs_permissions wjs_tags wjs_review %}
 
 {% block breadcrumbs_right %}
   {% translate "Go to all messages and notes" as list_label %}
@@ -109,15 +109,32 @@
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
       {% bootstrap_form_errors form type="non_field" %}
+      {% if source_message %}
+        <div class="accordion mb-4">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="source_message-body">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-source_message-body" aria-expanded="false" aria-controls="collapse-source_message-body" id="source_message-body">
+                {% translate "Show original message" %}
+              </button>
+            </h2>
+            <div id="collapse-source_message-body" class="accordion-collapse collapse" aria-labelledby="source_message-body" data-bs-parent="">
+              <div class="accordion-body">
+                {% include "wjs_review/messages_overview/elements/message_from_to.html" with message=source_message user=user article=article %}
+                {{ source_message.body|safe }}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
       {% if not note and not hide_recipients and form.recipients_formset %}
         {{ form.recipients_formset.management_form }}
         {% bootstrap_formset_errors form.recipients_formset %}
         <div class="col">
           <label class="mb-2">{% translate "Recipient" %}</label>
-          <div id="recipients_formset_container" class="d-flex align-items-center mb-3">
+          <div id="recipients_formset_container" class="d-flex flex-wrap align-items-center mb-3 gap-3">
             {% for recipient_form in form.recipients_formset %}
               {% bootstrap_form_errors recipient_form %}
-              <div class="recipient_form_container d-flex align-items-center me-3">
+              <div class="recipient_form_container d-flex align-items-center">
                 {% bootstrap_field recipient_form.recipient wrapper_class="" show_label=False %}
               </div>
             {% endfor %}

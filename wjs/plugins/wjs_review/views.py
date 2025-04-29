@@ -2144,6 +2144,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         context["message_list"] = self.messages
         context["note"] = self.note
         context["hide_recipients"] = self.note or self.to_author or self.to_typesetter
+        context["source_message"] = self.source_message
         return context
 
     def form_valid(self, form):
