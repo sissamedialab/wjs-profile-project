@@ -5253,33 +5253,20 @@ class Requestproofs(BaseActionManager):
 
     def run(self):
 
-        if (
-            (
-                self.preprintid == "JCOM_007A_0421"
-                and self.imported_version_num == 5
-                and self.action["actHistCod"] == 284286
-            )
-            or (
-                self.preprintid == "JCOM_012A_1020"
-                and self.imported_version_num == 4
-                and self.action["actHistCod"] == 281589
-            )
-            or (
-                self.preprintid == "JCOM_013A_1020"
-                and self.imported_version_num == 3
-                and self.action["actHistCod"] == 282697
-            )
-            or (
-                self.preprintid == "JCOM_003A_1120"
-                and self.imported_version_num == 5
-                and self.action["actHistCod"] == 282339
-            )
-            or (
-                self.preprintid == "JCOM_027A_1120"
-                and self.imported_version_num == 7
-                and self.action["actHistCod"] == 281985
-            )
-        ):
+        # Known cases of "dirty data" on wjapp, when this action had no effect.
+        # We identify them by a triplet made of preprint id, version number and action-history code
+        # (the first two are just human-friendly pointers 🙂).
+        noop_cases = {
+            ("JCOM_007A_0421", 5, 284286),
+            ("JCOM_012A_1020", 4, 281589),
+            ("JCOM_013A_1020", 3, 282697),
+            ("JCOM_003A_1120", 5, 282339),
+            ("JCOM_027A_1120", 7, 281985),
+            ("JCOM_001BR_0324", 3, 296043),
+            ("JCOM_004N_0724", 5, 299101),
+            ("JCOM_001Y_0724", 5, 299357),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
                 f"Skipping action {self.action['actHistCod']} PM_SENDS_FOR_PROOF_R "
                 f"for {self.preprintid}/{self.imported_version_num} (not uploaded new version - known case)."
@@ -5532,6 +5519,20 @@ ORDER BY dl.submissionDate DESC
             f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
             f"{document_layer_id}.{annotation_extension}&fileType={annotation_extension}"
         )
+
+        # specific cases correction for JCOM_001Y_062
+        if document_layer_id == "JCOM_001Y_0624_AUANN006670724":
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
+                f"{document_layer_id}.BVL proofed.{annotation_extension}&fileType={annotation_extension}"
+            )
+        if document_layer_id == "JCOM_001Y_0624_AUANN001100824":
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
+                f"{document_layer_id}.proof 20240805.BVL correction.{annotation_extension}"
+                f"&fileType={annotation_extension}"
+            )
+
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":
@@ -5836,3 +5837,19 @@ class ACC_CPRGHT_TRNSFR(BaseActionManager):  # noqa N801
     # where the copyright is accepted at submission
     def run(self):
         pass
+
+
+@dataclass
+class PUM_SENDS_TO_EO(BaseActionManager):  # noqa N801
+    """Wjapp action to send article from publicaton manager to eo after ready for publication."""
+
+    # PUM_SENDS_TO_EO in wjapp is done after ready for publication but does not
+    # require typesetter upload or author sends proof. So in wjs must only reset
+    # ready for publication to permit another ready for publication action
+    # e.g. JCOM_015A_0224, JCOM_001E_0924
+    def run(self):
+
+        self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+        ta = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        ta.completed = None
+        ta.save()
