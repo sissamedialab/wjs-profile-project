@@ -9,8 +9,10 @@ import pycountry
 import requests
 from core.models import Account, Country
 from django.conf import settings
+from django.db.models import OuterRef, Subquery
 from lxml.html import HtmlElement
 from submission import models as submission_models
+from submission.models import Article, ArticleAuthorOrder
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -264,11 +266,31 @@ def set_language_specific_field(article, field, value, clear_en=False):
     article.save()
 
 
-def publish_article(article):
+def publish_article(article: Article):
     """Publish an article."""
     # see src/journal/views.py:1078
     article.stage = submission_models.STAGE_PUBLISHED
+
+    # Sync A.authors and A.frozen_authors
+    # Note that there is a pre-delete signal on FrozenAuthors
+    # that removes all authors/authors-order from the article
+    # so we delete the FAs and then have to reset A.authors and their order
+    subq = Subquery(
+        ArticleAuthorOrder.objects.filter(
+            article=article,
+            author__id=OuterRef("id"),
+        ).values_list("order"),
+    )
+    good_authors = list(article.authors.all().annotate(order=subq).order_by("order").values_list("id", flat=True))
+    submission_models.FrozenAuthor.objects.filter(article=article).delete()
+    ArticleAuthorOrder.objects.filter(article=article).delete()
+    article.authors.set(good_authors)
+    [
+        ArticleAuthorOrder.objects.create(article=article, author_id=au_id, order=i)
+        for i, au_id in enumerate(good_authors, start=1)
+    ]
     article.snapshot_authors()
+
     article.close_core_workflow_objects()
     if article.date_published < article.issue.date_published:
         article.issue.date = article.date_published
@@ -281,7 +303,7 @@ def promote_headings(html: HtmlElement):
     """Promote all h2-h6 headings by one level."""
     for level in range(2, 7):
         for heading in html.findall(f".//h{level}"):
-            heading.tag = f"h{level-1}"
+            heading.tag = f"h{level - 1}"
 
 
 def drop_toc(html: HtmlElement):

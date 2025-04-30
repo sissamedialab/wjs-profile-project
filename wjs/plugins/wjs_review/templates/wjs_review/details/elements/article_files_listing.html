@@ -69,19 +69,6 @@
     </ul>
   </li>
 
-  {% if article.source_files.exists %}
-    <li class="list-group-item fw-bold">
-      {% translate "Source Files" %}
-      <ul class="list-group mb-1">
-        {% for file in article.source_files.all %}
-          <li class="list-group-item">
-            <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
-          </li>
-        {% endfor %}
-      </ul>
-    </li>
-  {% endif %}
-
   {% if article.data_figure_files.exists %}
     <li class="list-group-item fw-bold">
       {{ journal_settings.styling.submission_figures_data_title|safe }}

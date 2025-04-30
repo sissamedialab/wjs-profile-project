@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+import re
+import subprocess
+import sys
+
+
+def run_qinfo_command():
+    """
+    Esegue il comando qinfo di Janeway:
+      /home/wjs/.virtualenvs/janeway/bin/python /home/wjs/janeway/src/manage.py qinfo
+    Restituisce l'output come stringa.
+    """
+    command = ["/home/wjs/.virtualenvs/janeway/bin/python", "/home/wjs/janeway/src/manage.py", "qinfo"]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        return result.stdout
+    except Exception:
+        return None
+
+
+def parse_qinfo_output(output):
+    """
+    Analizza l'output del comando qinfo.
+
+    Output atteso:
+      -- Wjs-janeway 1.6.2 on Redis 7.0.15 --
+      Clusters      1             Workers       1             Restarts      0
+      Queued        0             Successes     0             Failures      0
+      Schedules     0             Tasks/day     0.00          Avg time      0.0000
+
+    Le metriche estratte sono:
+      - clusters, workers, restarts, successes, schedules, tasks_day, avg_time (non utilizzate in questo script)
+      - queued (utilizzata per il grafico "queued")
+    """
+    metrics = {}
+    for line in output.splitlines():
+        # Ignora la riga di intestazione
+        if line.strip().startswith("--"):
+            continue
+        # Divide la riga usando 2 o più spazi come separatore
+        parts = re.split(r"\s{2,}", line.strip())
+        if len(parts) % 2 == 0:
+            for i in range(0, len(parts), 2):
+                key = parts[i].lower().replace(" ", "_")
+                value = parts[i + 1]
+                try:
+                    metrics[key] = float(value) if "." in value else int(value)
+                except ValueError:
+                    metrics[key] = value
+    return metrics
+
+
+def main():
+    # Modalità config: stampa la configurazione del grafico per Munin
+    if len(sys.argv) > 1 and sys.argv[1] == "config":
+        print("graph_title Qcluster - coda")
+        print("graph_vlabel Numero di task in coda")
+        print("graph_category wjs-system-service")
+        print("graph_args --lower-limit 0")
+
+        print("queued.warning 20")
+        print("queued.critical 50")
+
+        print("queued.label Queued")
+        sys.exit(0)
+
+    output = run_qinfo_command()
+    if output is None:
+        queued_value = 0
+    else:
+        metrics = parse_qinfo_output(output)
+        queued_value = metrics.get("queued", 0)
+
+    print(f"queued.value {queued_value}")
+
+
+if __name__ == "__main__":
+    main()

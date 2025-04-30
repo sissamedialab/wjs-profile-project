@@ -580,8 +580,8 @@ def test_automatic_preamble_generation(
 def test_production_flag_galleys_ok(
     assigned_to_typesetter_article: Article,
     client: Client,
-    zip_with_tex_without_query,
-    mock_jcomassistant_post,
+    zip_with_tex_without_query: Callable,
+    mock_jcomassistant_post: Callable,  # noqa: ARG001
 ):
     """Test the production flag galleys_ok correctly indicates the status of the galleys."""
     article = assigned_to_typesetter_article
@@ -606,7 +606,7 @@ def test_production_flag_galleys_ok(
     mail.outbox = []
     with mock.patch(
         "plugins.wjs_review.logic__production.AttachGalleys._check_conditions",
-        return_value=(False, "I am a teapot"),
+        side_effect=Exception("I am a teapot"),
     ):
         url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
         client.force_login(typesetting_assignment.typesetter)
@@ -620,7 +620,7 @@ def test_production_flag_galleys_ok(
         messages = list(get_messages(response.wsgi_request))
         assert not any("I am a teapot" in message.message for message in messages)
 
-        assert mail.outbox[0].subject == "Galleys unpacking and attachment failed"
+        assert mail.outbox[0].subject == "Unexpected error during galley generation"
         assert "I am a teapot" in mail.outbox[0].body
 
 
@@ -712,7 +712,8 @@ def test_publication(
     fake_request: HttpRequest,
     eo_user: Account,
 ):
-    """Test publication.
+    """
+    Test publication.
 
     An article in state ready-for-publication can be published by EO.
 
@@ -726,10 +727,10 @@ def test_publication(
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
-
-    # This is "funny":
-    assert workflow.compute_eid() == "A02"
-    # TODO: turn the eid into a property stored into `article.page_numbers`?
+    # EID stays the same even if re-computed...
+    assert workflow.compute_eid() == "A01"
+    # ...because it's stored as page_numbers
+    assert workflow.article.page_numbers == "A01"
 
 
 @pytest.mark.django_db

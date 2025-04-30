@@ -1,5 +1,6 @@
 import datetime
 import random
+from typing import Callable
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
@@ -15,6 +16,7 @@ from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
+from journal.models import Journal
 from submission import models as submission_models
 from utils import setting_handler
 from utils.install import update_issue_types
@@ -195,8 +197,9 @@ def test_newsletters_with_articles_only_must_be_sent(
     newsletter = newsletter_factory()
     correspondence_author = account_factory()
     newsletter_user_keyword = keyword_factory()
-    newsletter_article_user, no_newsletter_article_user = account_factory(email="article@article.it"), account_factory(
-        email="noarticle@article.it",
+    newsletter_article_user, no_newsletter_article_user = (
+        account_factory(email="article@article.it"),
+        account_factory(email="noarticle@article.it"),
     )
     newsletter_article = article_factory(
         journal=journal,
@@ -378,7 +381,7 @@ def test_two_recipients_one_article(
     tomorrow = timezone.now() + datetime.timedelta(days=1)
     correspondence_author = account_factory()
     correspondence_author.save()
-    a1 = article_factory(journal=journal, date_published=tomorrow)
+    a1 = article_factory(journal=journal, date_published=tomorrow, stage=submission_models.STAGE_PUBLISHED)
     a1.keywords.add(kwd1)
     a1.authors.add(correspondence_author)
     a1.snapshot_authors()
@@ -420,7 +423,12 @@ def test_one_recipient_one_article_two_topics(
     tomorrow = timezone.now() + datetime.timedelta(days=1)
     correspondence_author = account_factory()
     correspondence_author.save()
-    a1 = article_factory(journal=journal, date_published=tomorrow, correspondence_author=correspondence_author)
+    a1 = article_factory(
+        journal=journal,
+        date_published=tomorrow,
+        correspondence_author=correspondence_author,
+        stage=submission_models.STAGE_PUBLISHED,
+    )
     a1.keywords.add(kwd1)
     a1.keywords.add(kwd2)
     a1.authors.add(correspondence_author)
@@ -506,6 +514,7 @@ def test_one_recipient_with_wrong_topic_but_with_news_true_and_no_newsitems(
         journal=journal,
         date_published=timezone.now(),
         correspondence_author=correspondence_author,
+        stage=submission_models.STAGE_PUBLISHED,
     )
     a1.keywords.add(kwd)
     a1.authors.add(correspondence_author)
@@ -559,7 +568,7 @@ CASES = (
 @pytest.mark.django_db
 def test_last_sent_timezone(last_sent, date_published, empty, article_factory, journal):
     nms = NewsletterMailerService()
-    a1 = article_factory(journal=journal, date_published=timezone.now())
+    a1 = article_factory(journal=journal, date_published=timezone.now(), stage=submission_models.STAGE_PUBLISHED)
 
     a1.date_published = date_published
     a1.save()
@@ -1412,3 +1421,31 @@ def test_order_of_news(
     management.call_command("send_newsletter_notifications", journal.code)
     body = mail.outbox[0].body
     assert body.find("BBB") < body.find("AAA")
+
+
+@pytest.mark.django_db
+def test_unpublished_articles_are_not_collected(
+    newsletter_factory: Callable,
+    article_factory: Callable,
+    custom_newsletter_setting: pytest.Function,  # noqa: ARG001
+    journal: Journal,
+):
+    """Test non-published articles are not collected."""
+    newsletter = newsletter_factory()
+
+    # One article, with the publication date set, but not yet published
+    tomorrow = timezone.now() + datetime.timedelta(days=1)
+    a1 = article_factory(
+        journal=journal,
+        date_published=tomorrow,
+    )
+
+    nms = NewsletterMailerService()
+    _recipients, articles, _news = nms._get_objects(journal, newsletter.last_sent)  # noqa: SLF001
+    assert len(articles) == 0
+
+    # Sanity check: if the article is published, then it is collected
+    a1.stage = submission_models.STAGE_PUBLISHED
+    a1.save()
+    _recipients, articles, _news = nms._get_objects(journal, newsletter.last_sent)  # noqa: SLF001
+    assert len(articles) == 1

@@ -2321,46 +2321,43 @@ class PostponeRevisionRequestDueDate:
     form_data: Dict[str, Any]
     request: HttpRequest
 
-    def _check_postponed_date_due_too_far_future(self) -> bool:
-        # Ready to be refactored after specs#1320
-        def new_date_smaller_than_max_date(new_date_due: datetime.datetime, setting_name: str) -> bool:
+    def _check_postponed_date_due_too_far_future(self, original_due_date: datetime.datetime) -> bool:
+        def new_date_greater_than_max_date(new_date_due: datetime.datetime, setting_name: str) -> bool:
             try:
                 max_threshold = get_setting(
                     setting_group_name="wjs_review",
                     setting_name=setting_name,
                     journal=self.revision_request.article.journal,
                 ).process_value()
-                return timezone.localtime(timezone.now()).date() + datetime.timedelta(days=max_threshold)
+                return original_due_date + datetime.timedelta(days=max_threshold) < new_date_due
             except ObjectDoesNotExist:
                 logger.error(f"Setting wjs_review/{setting_name} is missing. Please check.")
                 return False
 
         revision_type = self.revision_request.editor_decision.decision
         if revision_type == ArticleWorkflow.Decisions.MAJOR_REVISION:
-            setting_name = f"date_due_{revision_type}_far_future_days"
-            return new_date_smaller_than_max_date(self.form_data["date_due"], setting_name)
-        if revision_type == ArticleWorkflow.Decisions.MINOR_REVISION:
-            setting_name = f"date_due_{revision_type}_far_future_days"
-            return new_date_smaller_than_max_date(self.form_data["date_due"], setting_name)
-        if revision_type == ArticleWorkflow.Decisions.OPEN_APPEAL:
-            # TODO: re-check this setting in specs#1320
-            setting_name = setting_name = "default_author_appeal_revision_days"
-            return new_date_smaller_than_max_date(self.form_data["date_due"], setting_name)
+            setting_name = "date_due_major_revisions_far_future_days"
+        elif revision_type == ArticleWorkflow.Decisions.MINOR_REVISION:
+            setting_name = "date_due_minor_revisions_far_future_days"
+        elif revision_type == ArticleWorkflow.Decisions.OPEN_APPEAL:
+            setting_name = "default_author_appeal_revision_days"
+        else:
+            logger.error(f"Programming error: due date on revisions of type {revision_type} cannot be changed")
+            return False
 
-        logger.error(f"Programming error: due date on revisions of type {revision_type} cannot be changed")
-        return False
+        return new_date_greater_than_max_date(self.form_data["date_due"], setting_name)
 
-    def _get_message_context(self) -> Dict[str, Any]:
+    def _get_message_context(self, original_due_date: datetime.datetime) -> Dict[str, Any]:
         return {
             "article": self.revision_request.article,
             "request": self.request,
             "EO": get_eo_user(self.revision_request.article),
             "editor": self.revision_request.editor,
             "date_due": self.form_data["date_due"],
-            "original_due_date": self.revision_request.date_due,
+            "original_due_date": original_due_date,
         }
 
-    def _log_eo_date_due_too_far_future(self):
+    def _log_eo_date_due_too_far_future(self, context: Dict[str, Any]):
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="revision_request_date_due_far_future_subject",
@@ -2371,7 +2368,7 @@ class PostponeRevisionRequestDueDate:
             setting_name="revision_request_date_due_far_future_body",
             journal=self.revision_request.article.journal,
             request=self.request,
-            context=self._get_message_context(),
+            context=context,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -2382,7 +2379,7 @@ class PostponeRevisionRequestDueDate:
             recipients=[get_eo_user(self.revision_request.article)],
         )
 
-    def _log_author_if_date_due_is_postponed(self):
+    def _log_author_if_date_due_is_postponed(self, context: Dict[str, Any]):
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="revision_request_date_due_postponed_subject",
@@ -2393,7 +2390,7 @@ class PostponeRevisionRequestDueDate:
             setting_name="revision_request_date_due_postponed_body",
             journal=self.revision_request.article.journal,
             request=self.request,
-            context=self._get_message_context(),
+            context=context,
             template_is_setting=True,
         )
         communication_utils.log_operation(
@@ -2423,10 +2420,12 @@ class PostponeRevisionRequestDueDate:
             conditions = self.check_conditions()
             if not conditions:
                 raise ValidationError(_("Decision conditions not met"))
+            original_due_date = EditorRevisionRequest.objects.get(pk=self.revision_request.pk).date_due
+            context = self._get_message_context(original_due_date)
             self._save_date_due()
-            if self._check_postponed_date_due_too_far_future():
-                self._log_eo_date_due_too_far_future()
-            self._log_author_if_date_due_is_postponed()
+            if self._check_postponed_date_due_too_far_future(original_due_date):
+                self._log_eo_date_due_too_far_future(context)
+            self._log_author_if_date_due_is_postponed(context)
 
 
 @dataclasses.dataclass
@@ -2589,14 +2588,16 @@ class HandleMessage:
                 users_pk.extend(_get_main_director(article))
             # current editor
             users_pk.extend(_get_current_editor(article))
-        # Director(s) (not main!) can write to:
-        elif permissions.has_director_role_by_article(instance=articleworkflow, user=actor):
-            # the main director
-            users_pk.extend(_get_main_director(article))
-        # Director(s) can write to:
-        elif permissions.has_main_director_role_by_article(instance=articleworkflow, user=actor):
-            # the Corresponding author
-            users_pk.extend(_get_correspondening_author(article))
+        # (all) Director(s) can write to:
+        # (note that the Main-Director also has the "normal" Director role,
+        #  but explicit is better than implicit)
+        elif permissions.has_director_role_by_article(
+            instance=articleworkflow,
+            user=actor,
+        ) or permissions.has_main_director_role_by_article(
+            instance=articleworkflow,
+            user=actor,
+        ):
             # all the article's reviewers
             users_pk.extend(_get_reviewers(article))
             # current editor
@@ -2605,6 +2606,15 @@ class HandleMessage:
             users_pk.extend(_get_past_editors(article))
             # all directors
             users_pk.extend(_get_directors(article))
+            # the main director
+            users_pk.extend(_get_main_director(article))
+            if get_setting(
+                "wjs_review",
+                "author_can_contact_director",
+                article.journal,
+            ).processed_value:
+                # the Corresponding author
+                users_pk.extend(_get_correspondening_author(article))
         # EO can write to:
         elif permissions.has_eo_role_by_article(instance=articleworkflow, user=actor):
             # NB: not to himself
@@ -2624,6 +2634,8 @@ class HandleMessage:
             users_pk.extend(_get_directors(article))
             # current typesetter
             users_pk.extend(_get_typesetter(article))
+        # Exclude the current user from the recipients list. It can happen in case of overlapping roles.
+        users_pk = set(users_pk) - {actor.pk}
         return allowed_recipients.filter(pk__in=users_pk)
 
     @staticmethod

@@ -16,6 +16,7 @@ from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from plugins.wjs_review.models import MessageRecipients
 from submission.models import Article
 
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
@@ -233,7 +234,12 @@ def article_has_old_unread_message(article: Article) -> str:
         created__lt=oldest_acceptable_message_date,
     )
     if unread_messages.exists():
-        return "Paper has unread messages"
+        late_recipients = list(
+            MessageRecipients.objects.filter(message__in=unread_messages)
+            .distinct()
+            .values_list("recipient__last_name", flat=True),
+        )
+        return f"Paper has unread messages: {', '.join(late_recipients)}"
     else:
         return ""
 

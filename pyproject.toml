@@ -44,4 +44,5 @@ extend-select = ["I"]
 "**/tests/*" = [
   "S101",
   "PLR0913",  # Too many arguments in function definition
-  ]
+  "PLR0917",  # Too many positional arguments
+]

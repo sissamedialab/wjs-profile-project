@@ -13,6 +13,7 @@ from core import files
 from core import models as core_models
 from core.models import (
     Account,
+    Country,
     File,
     Galley,
     SupplementaryFile,
@@ -27,6 +28,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
+from identifiers.models import Identifier
 from journal.models import Issue
 from PIL import Image
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -902,7 +904,7 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
 
 
 def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
-    """Create a tar.gz archive containing a .tex file with a query."""
+    """Create a zip archive containing a .tex file with a query."""
     with open(Path(__file__).parent / "files" / "source.tex", "rb") as source:
         tex_content = source.read()
     tex_content = tex_content.replace(
@@ -1017,3 +1019,23 @@ def generate_image(width=1, height=1, color=(250, 0, 0)):
     image_content = ContentFile(image_io.getvalue(), "generated_image.jpg")
 
     return image_content
+
+
+@pytest.fixture
+def country() -> Country:
+    """Create a country. Useful in profile-editing pages."""
+    return Country.objects.create(code="IT", name="Italy")
+
+
+def _doi_identifier(article: Article) -> Identifier:
+    return Identifier.objects.create(
+        article=article,
+        id_type="doi",
+        identifier="random-doi-stuff",
+    )
+
+
+@pytest.fixture
+def doi_identifier() -> Callable:
+    """Return a function that can be used to create the DOI of an article."""
+    return _doi_identifier

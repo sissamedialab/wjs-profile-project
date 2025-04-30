@@ -53,15 +53,15 @@
         {% endif %}
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
               rel="stylesheet">
-        <link rel="stylesheet" href="{% static "JCOM-theme/css/" %}{{ journal.code|lower }}.css">
-        <link href="{% static "common/css/common.css" %}" rel="stylesheet">
+        <link rel="stylesheet" href="{% static "JCOM-theme/css/" %}{{ journal.code|lower }}.css?v=11">
+        <link href="{% static "common/css/common.css" %}?v=11" rel="stylesheet">
         {% block css %}{% endblock css %}
         {% hook 'base_head_css' %}
         <link rel="alternate"
               type="application/rss+xml"
               title="RSS Feed"
               href="{% url 'rss_articles' %}" />
-    <link rel="stylesheet" href="{% static '/admin/css/admin.css' %}">
+    <link rel="stylesheet" href="{% static '/admin/css/admin.css' %}?v=11">
     </head>
     <body>
         {% block navbar %}

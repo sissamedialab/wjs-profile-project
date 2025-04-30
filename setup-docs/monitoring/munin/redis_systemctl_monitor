@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+import subprocess
+import sys
+
+
+def parse_active_line(active_line):
+    """
+    Analizza la linea contenente lo stato (Active:) e restituisce:
+      - 0 se il servizio è "active (running)"
+      - 1 se il servizio è "stopped" o "inactive" (senza indicazione di "dead")
+      - 2 se il servizio è "dead" o "failed"
+      - 2 per altri stati sconosciuti
+    """
+    line = active_line.lower()
+    if "active (running)" in line:
+        return 0
+    elif "dead" in line or "failed" in line:
+        return 2
+    elif "stopped" in line or "inactive" in line:
+        return 1
+    else:
+        return 2
+
+
+def check_service_status(command):
+    """
+    Esegue il comando systemctl e analizza la linea contenente "Active:".
+    Se la linea viene trovata, ne interpreta lo stato; altrimenti restituisce 2.
+    """
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+    except Exception:
+        return 2
+
+    active_line = next((line.strip() for line in result.stdout.splitlines() if "Active:" in line), None)
+    if active_line:
+        return parse_active_line(active_line)
+    else:
+        return 2
+
+
+def main():
+    # Comando per controllare solo il servizio redis
+    command = ["systemctl", "status", "redis"]
+
+    # Modalità config per Munin: stampa la configurazione del grafico
+    if len(sys.argv) > 1 and sys.argv[1] == "config":
+        print("graph_title Redis services - status")
+        print("graph_vlabel Stato (0=Running, 1=Stopped, 2=Dead)")
+        print("graph_category wjs-system-service")
+        print("graph_args --lower-limit -1 --upper-limit 3")
+
+        print("redis.warning 1")
+        print("redis.critical 2")
+
+        print("redis.label redis")
+        sys.exit(0)
+
+    status_value = check_service_status(command)
+    print(f"redis.value {status_value}")
+
+
+if __name__ == "__main__":
+    main()
