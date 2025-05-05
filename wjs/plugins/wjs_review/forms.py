@@ -1046,6 +1046,7 @@ class MessageRecipientForm(forms.Form):
             workflow=article.articleworkflow,
             user=actor,
             recipient=obj,
+            with_role=True,
         )
 
 

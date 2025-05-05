@@ -24,7 +24,13 @@ from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
-from .models import Message, MessageRecipients, Reminder, WjsEditorAssignment
+from .models import (
+    Message,
+    MessageRecipients,
+    PastEditorAssignment,
+    Reminder,
+    WjsEditorAssignment,
+)
 
 Account = get_user_model()
 logger = get_logger(__name__)
@@ -231,29 +237,71 @@ def log_operation(
     return message
 
 
-def role_for_article(article: Article, user: Account) -> str:
-    """Return a role slug that describes the role of the given user on the article."""
-    # TODO: is it possible for a user to have more than one role on one article?
+def role_for_article(  # noqa: PLR0911
+    article: Article,
+    user: Account,
+    *,
+    message_recipient_style: bool = False,
+) -> str:
+    """
+    Return a role slug that describes the role of the given user on the article.
+
+    It is possible for a user to have more than one role on one article, this function imposes a sort of "hierarchy" of
+    the roles and returns the most "appropriate".
+
+    """
     if user.groups.filter(name=constants.EO_GROUP).exists():
-        return "eo"
+        # No need to return the role of EO if it's used in a message-recipients list
+        return "" if message_recipient_style else constants.EO_GROUP
 
     if WjsEditorAssignment.objects.filter(editor=user, article=article).exists():
-        return "editor"
+        return constants.EDITOR_ROLE
+
+    if PastEditorAssignment.objects.filter(editor=user, article=article).exists():
+        return f"past {constants.EDITOR_ROLE}"
 
     if review_models.ReviewAssignment.objects.filter(reviewer=user, article=article).exists():
-        return "reviewer"
+        if message_recipient_style:
+            # When displaying recipients, it's useful to have an indication if the reviewer is "past".
+            #
+            # We consider "past" reviewers only those that do _NOT_ have
+            # pending/delivered assignment for the _CURRENT_ round.
+            current_round = article.current_review_round_object()
+            pending_reviewes = Q(
+                reviewer=user,
+                article=article,
+                review_round=current_round,
+                is_complete=False,
+                date_declined__isnull=True,
+            )
+            delivered_reviews = Q(
+                Q(
+                    reviewer=user,
+                    article=article,
+                    review_round=current_round,
+                    date_complete__isnull=False,
+                    date_accepted__isnull=False,
+                    is_complete=True,
+                )
+                & ~Q(
+                    decision="withdrawn",
+                ),
+            )
+            is_current = review_models.ReviewAssignment.objects.filter(pending_reviewes | delivered_reviews).exists()
+            return constants.REVIEWER_ROLE if is_current else f"past {constants.REVIEWER_ROLE}"
+        return constants.REVIEWER_ROLE
 
     if user == article.correspondence_author:
-        return "author"
+        return constants.AUTHOR_ROLE
 
     if user in article.authors.all():
-        return "co-author"
+        return constants.COAUTHOR_ROLE
 
     if TypesettingAssignment.objects.filter(round__article=article, typesetter=user).exists():
-        return "typesetter"
+        return constants.TYPESETTER_ROLE
 
     if user.check_role(article.journal, role=constants.DIRECTOR_ROLE, staff_override=False):
-        return "director"
+        return constants.DIRECTOR_ROLE
 
     return ""
 
