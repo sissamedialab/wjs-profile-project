@@ -584,7 +584,7 @@ def article_has_extra_article_information(article: Article) -> bool:
 @register.simple_tag()
 def current_typesetting_assignment(article: Article) -> Optional[TypesettingRound]:
     """Return the current typesetting assignment for the given article."""
-    return article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+    return article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
 
 
 @register.simple_tag()
@@ -695,7 +695,7 @@ def is_current_version(
         return True
     article = version.article
     try:
-        latest_typesetting_round = workflow.get_latest_typesetting_assignment(completed=False).round
+        latest_typesetting_round = workflow.get_latest_typesetting_assignment(only_completed=False).round
     except AttributeError:
         latest_typesetting_round = None
     if latest_typesetting_round:

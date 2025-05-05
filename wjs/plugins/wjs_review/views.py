@@ -1987,7 +1987,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
 
         if self.to_typesetter:
             # If the message is to the typesetter, the typesetter is the default recipient
-            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
+            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(only_completed=False)
 
             return [typesetting_assignment.typesetter.pk] if typesetting_assignment else []
 
@@ -3473,7 +3473,7 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         content = ""
         tables_in_galley = []
 
-        galleys = self.workflow.get_latest_typesetting_assignment(completed=False).galleys_created.all()
+        galleys = self.workflow.get_latest_typesetting_assignment(only_completed=False).galleys_created.all()
         if galleys:
             # The "production" galleys are detached from the article and are not "public",
             # so we cannot use Janeway's journal.logic.get_best_galley()

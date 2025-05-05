@@ -54,7 +54,7 @@ def get_url_with_last_editor_revision_request_pk(
 
 def get_url_with_typesetting_assignment_pk(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     """From ArticleAction and ArticleWorkflow retrieve the action url with typesetting assignment pk."""
-    typesetting_assignment = workflow.get_latest_typesetting_assignment(completed=False)
+    typesetting_assignment = workflow.get_latest_typesetting_assignment(only_completed=False)
     url = reverse(action.view_name, kwargs={"pk": typesetting_assignment.pk})
     if action.querystring_params is not None:
         url += "?"
@@ -197,13 +197,15 @@ def cannot_be_set_rfp_or_galleys_not_present(action: "ArticleAction", workflow: 
 
 def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the files needed to generate the latest galleys are missing."""
-    typesetting_assignment = workflow.get_latest_typesetting_assignment(completed=False)
+    typesetting_assignment = workflow.get_latest_typesetting_assignment(only_completed=False)
     return not typesetting_assignment.files_to_typeset.exists()
 
 
 def galley_generation_in_progress(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the galley generation test started and is not completed yet."""
-    files_to_typeset_loaded = workflow.get_latest_typesetting_assignment(completed=False).files_to_typeset.exists()
+    files_to_typeset_loaded = workflow.get_latest_typesetting_assignment(
+        only_completed=False,
+    ).files_to_typeset.exists()
     galley_not_tested = workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
     return files_to_typeset_loaded and galley_not_tested
 
@@ -1026,7 +1028,7 @@ class TypesetterSelected(BaseState):
         """
         Tell if the article requires attention by the typesetter.
         """
-        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
         return ""
@@ -1036,7 +1038,7 @@ class TypesetterSelected(BaseState):
         """
         Tell if the article requires attention by the EO.
         """
-        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):

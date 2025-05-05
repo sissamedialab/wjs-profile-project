@@ -1162,7 +1162,7 @@ Please go to the <a href="{self.article.articleworkflow.url}">web page</a>
         # detach galley from article
         # refactor with TypesetterTestsGalleyGeneration?
         self.article.galley_set.all().delete()
-        ta = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        ta = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         ta.galleys_created.set([processed_archive_as_galley])
         # This raises:
         # insert or update on table "typesetting_typesettingassignment_galleys_created"
@@ -1327,7 +1327,7 @@ class ReadyForPublication:
 
     def _update_state(self):
         """Run FSM transition."""
-        ta: TypesettingAssignment = self.workflow.get_latest_typesetting_assignment(completed=False)
+        ta: TypesettingAssignment = self.workflow.get_latest_typesetting_assignment(only_completed=False)
         if is_article_author(self.workflow, self.user):
             self.workflow.author_deems_paper_ready_for_publication()
             if not ta.completed:
@@ -1469,7 +1469,7 @@ class BeginPublication:
 
     def __post_init__(self):
         """Find the source files."""
-        self.assignment = self.workflow.get_latest_typesetting_assignment(completed=True)
+        self.assignment = self.workflow.get_latest_typesetting_assignment(only_completed=True)
         # The source files for the galley are in the latest typesetting assignment
         # Even if the field is a m2m, we alway set at most one item.
         self.source_files = Path(self.assignment.files_to_typeset.get().self_article_path())
