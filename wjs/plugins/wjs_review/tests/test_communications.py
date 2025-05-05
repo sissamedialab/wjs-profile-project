@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.timezone import now
 from hijack.middleware import HijackUserMiddleware
+from plugins.wjs_review import views
 from plugins.wjs_review.forms import MessageForm, SupervisorAssignEditorForm
 from plugins.wjs_review.logic import (
     AssignToReviewer,
@@ -1309,3 +1310,47 @@ def test_role_for_article(
     assert role_for_article(article, rev_7, message_recipient_style=True) == past_rev
 
     assert role_for_article(article, eo_user) == constants.EO_GROUP
+
+
+@pytest.mark.django_db
+def test_message_initial_body(
+    assigned_article: Article,
+    director: JCOMProfile,
+    main_director: JCOMProfile,
+    eo_user: JCOMProfile,
+    fake_request: HttpRequest,
+):
+    """Test that the expected per-role signatures are present in the initial body."""
+    view = views.WriteMessage()
+    view.request = fake_request
+    view.article = assigned_article
+    author = assigned_article.correspondence_author
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+
+    fake_request.user = main_director
+    initial_body = view.get_initial_body()
+    assert "Editor-in-chief" in initial_body
+    assert assigned_article.journal.code in initial_body
+    assert main_director.full_name() not in initial_body
+
+    fake_request.user = director
+    initial_body = view.get_initial_body()
+    assert "Deputy Editor" in initial_body
+    assert assigned_article.journal.code in initial_body
+    assert director.full_name() not in initial_body
+
+    fake_request.user = editor
+    initial_body = view.get_initial_body()
+    assert "Editor-in-charge" in initial_body
+    assert assigned_article.journal.code in initial_body
+    assert editor.full_name() not in initial_body
+
+    fake_request.user = author
+    initial_body = view.get_initial_body()
+    assert not initial_body
+
+    fake_request.user = eo_user
+    initial_body = view.get_initial_body()
+    assert "Editorial Office" in initial_body
+    assert assigned_article.journal.code in initial_body
+    assert eo_user.full_name() in initial_body

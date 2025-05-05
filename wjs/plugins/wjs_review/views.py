@@ -2106,6 +2106,41 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         """Return the label for the sender field."""
         return permissions.main_role_by_article(self.article.articleworkflow, self.request.user)
 
+    def get_initial_body(self):
+        """Retun a default user's signature to prefill the message body."""
+        if permissions.has_eo_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.user}<br>
+{self.request.journal.code} Editorial Office
+</p>
+"""
+        # NB: ...has_SECTION_editor_role...
+        # Remember that we generally use the "section-editor" role, not Janway's all-mighty "editor" role.
+        if permissions.has_section_editor_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.journal.code} Editor-in-charge
+</p>
+"""
+        if permissions.has_main_director_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.journal.code} Editor-in-chief
+</p>
+"""
+        if permissions.has_director_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.journal.code} Deputy Editor
+</p>
+"""
+        return ""
+
     def get_initial(self):
         """Populate the hidden fields.
 
@@ -2128,6 +2163,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
             "message_type": Message.MessageTypes.USER,
             "recipients": self.get_default_recipients(),
             "subject": default_subject,
+            "body": self.get_initial_body(),
             "to_be_forwarded_to": to_be_forwarded_to,
         }
 
