@@ -2550,7 +2550,7 @@ class HandleMessage:
             :return: List containing article's typesetter id
             :rtype: list[int]
             """
-            if latest_ta := article_obj.articleworkflow.get_latest_typesetting_assignment(completed=False):
+            if latest_ta := article_obj.articleworkflow.get_latest_typesetting_assignment(only_completed=False):
                 return [latest_ta.typesetter.pk]
             return []
 
@@ -3350,7 +3350,7 @@ class WithdrawPreprint:
 
     def _get_typesetting_assignment(self) -> TypesettingAssignment | None:
         """Return the current typesetting assignment (if any)."""
-        return self.workflow.get_latest_typesetting_assignment(completed=False)
+        return self.workflow.get_latest_typesetting_assignment(only_completed=False)
 
     def _get_typesetter_context(self, assignment: TypesettingAssignment) -> Dict[str, Any]:
         return {

@@ -2353,7 +2353,9 @@ class BaseActionManager:
             if dff_response.headers["Content-Length"] != "0":
                 dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
                 if production_version:
-                    ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+                    ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(
+                        only_completed=False,
+                    )
                     dff_file = files.save_file_to_article(
                         dff_dj,
                         self.article,
@@ -2433,7 +2435,7 @@ class BaseActionManager:
     def save_pdf_galley(self, pdf_galley_dj):
         """Save PDF production version in TA.galleys_created"""
 
-        assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
 
         # necessary to avoid errors until action "back to typesetter"
         # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
@@ -5173,7 +5175,7 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
         source_prod_dj.content_type = "application/zip"
 
         fake_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
-        ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         fake_request.user = ta_assignment.typesetter
 
         with freezegun.freeze_time(
@@ -5235,7 +5237,7 @@ class Requestproofs(BaseActionManager):
             return
 
         fake_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         fake_request.user = typesetting_assignment.typesetter
 
         with freezegun.freeze_time(
@@ -5622,7 +5624,7 @@ class PM_PUBLISHES(DeclareReadyForPublication):  # noqa N801
 
     def __post_init__(self):
         """Set the specific data for eo agent, used typesetter"""
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
         self.ready_for_publication_agent = typesetting_assignment.typesetter
 
@@ -5633,7 +5635,7 @@ class TYP_PUBLISHES(DeclareReadyForPublication):  # noqa N801
 
     def __post_init__(self):
         """Set the specific data typesetter agent"""
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         assert is_article_typesetter(self.article.articleworkflow, typesetting_assignment.typesetter)
         self.ready_for_publication_agent = typesetting_assignment.typesetter
 
@@ -5672,7 +5674,7 @@ class PM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
             self.connection,
         )
 
-        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
 
         with freezegun.freeze_time(
             rome_timezone.localize(self.action["actionDate"]),

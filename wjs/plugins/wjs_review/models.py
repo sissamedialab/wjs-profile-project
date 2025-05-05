@@ -612,13 +612,14 @@ class ArticleWorkflow(TimeStampedModel):
         except EditorRevisionRequest.DoesNotExist:
             return None
 
-    def get_latest_typesetting_assignment(self, completed=True) -> TypesettingAssignment | None:
-        """Return the last (or "current") TA.
+    def get_latest_typesetting_assignment(self, *, only_completed: bool = True) -> TypesettingAssignment | None:
+        """
+        Return the last (or "current") TA.
 
         During production, the last TA contains references to the latest sources and galleys.
 
-        :param completed: if True, return the last completed TA, otherwise the last one
-        :type completed: bool
+        :param only_completed: if True, return the last completed TA, otherwise the last one
+        :type only_completed: bool
 
         :return: the last (or "current") TA
         :rtype: TypesettingAssignment
@@ -627,7 +628,7 @@ class ArticleWorkflow(TimeStampedModel):
             ta = TypesettingAssignment.objects.filter(
                 round__article_id=self.article.id,
             )
-            if completed:
+            if only_completed:
                 ta = ta.filter(
                     completed__isnull=False,
                 )

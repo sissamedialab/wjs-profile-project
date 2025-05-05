@@ -426,7 +426,7 @@ def test_typesetter_galley_generation(
 ):
     """Test della vista di generazione dei galleys con mock di JcomAssistantClient."""
     article = assigned_to_typesetter_article_with_files_to_typeset
-    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
     client.force_login(typesetting_assignment.typesetter)
 
     galleys_created = typesetting_assignment.galleys_created.all()
@@ -585,7 +585,7 @@ def test_production_flag_galleys_ok(
 ):
     """Test the production flag galleys_ok correctly indicates the status of the galleys."""
     article = assigned_to_typesetter_article
-    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
     assert article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED.value
 
     # This is needed because we only have the NOT_TESTED value during the time period after the file is

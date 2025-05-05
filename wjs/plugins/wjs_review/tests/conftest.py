@@ -539,7 +539,7 @@ def _create_rfp_article(
 
     # Reminder: source files for the (publication) galleys are in the latest typesetting assignment, not in the
     # Article.source_files
-    ta = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+    ta = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
     request.user = ta.typesetter
     UploadFile(
         typesetter=ta.typesetter,
@@ -580,7 +580,7 @@ def rfp_article(
 ) -> Article:
     """Create an article in ready-for-publication."""
     workflow = assigned_to_typesetter_article_with_files_to_typeset.articleworkflow
-    typesetter = workflow.get_latest_typesetting_assignment(completed=False).typesetter
+    typesetter = workflow.get_latest_typesetting_assignment(only_completed=False).typesetter
     article = _create_rfp_article(
         article=assigned_to_typesetter_article_with_files_to_typeset,
         issue=fb_issue,
@@ -886,8 +886,8 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
 
 
 def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
-    """Create a tar.gz archive containing a .tex file with a query."""
-    with open(Path(__file__).parent / "source.tex", "rb") as source:
+    """Create a zip archive containing a .tex file with a query."""
+    with (Path(__file__).parent / "source.tex").open("rb") as source:
         tex_content = source.read()
     tex_content = tex_content.replace(
         rb"\begin{document}",
@@ -904,8 +904,8 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
 
 
 def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
-    """Create a zip archive containing a .tex file with a query."""
-    with open(Path(__file__).parent / "source.tex", "rb") as source:
+    """Create a zip archive containing a .tex file without any query."""
+    with (Path(__file__).parent / "source.tex").open("rb") as source:
         tex_content = source.read()
     tex_content = tex_content.replace(
         rb"\begin{document}",
