@@ -1363,7 +1363,7 @@ class SubmitReview:
 class AuthorHandleRevision:
     revision: EditorRevisionRequest
     form_data: Dict[str, Any]
-    user: Account
+    user: Account  # TODO: not used? Please check and refactor!
     request: HttpRequest
 
     def _store_data(self):

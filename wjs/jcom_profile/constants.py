@@ -12,6 +12,7 @@ DIRECTOR_MAIN_ROLE = "director-main"
 EDITOR_ROLE = "editor"
 SECTION_EDITOR_ROLE = "section-editor"
 AUTHOR_ROLE = "author"
+COAUTHOR_ROLE = "co-author"
 REVIEWER_ROLE = "reviewer"
 EO_GROUP = "EO"
 TYPESETTER_ROLE = "typesetter"
@@ -22,6 +23,7 @@ LABELS = {
     EDITOR_ROLE: _("Editor"),
     SECTION_EDITOR_ROLE: _("Editor"),
     AUTHOR_ROLE: _("Author"),
+    COAUTHOR_ROLE: _("Co-author"),
     REVIEWER_ROLE: _("Reviewer"),
     EO_GROUP: _("EO"),
     TYPESETTER_ROLE: _("Typesetter"),

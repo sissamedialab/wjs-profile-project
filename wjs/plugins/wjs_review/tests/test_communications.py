@@ -1,8 +1,9 @@
 """Tests related to the communication system."""
 
 import datetime
+from collections.abc import Callable
 from io import BytesIO, StringIO
-from typing import Callable, Optional
+from typing import Optional
 
 import freezegun
 import html2text
@@ -18,11 +19,19 @@ from django.core.handlers.base import BaseHandler
 from django.http import HttpRequest
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.timezone import now
 from hijack.middleware import HijackUserMiddleware
-from plugins.wjs_review.forms import MessageForm
-from plugins.wjs_review.logic import AssignToReviewer, HandleMessage
+from plugins.wjs_review.forms import MessageForm, SupervisorAssignEditorForm
+from plugins.wjs_review.logic import (
+    AssignToReviewer,
+    AuthorHandleRevision,
+    HandleDecision,
+    HandleMessage,
+)
 from plugins.wjs_review.models import (
+    ArticleWorkflow,
+    EditorRevisionRequest,
     Message,
     MessageRecipients,
     PastEditorAssignment,
@@ -30,10 +39,11 @@ from plugins.wjs_review.models import (
 )
 from plugins.wjs_review.views import ArticleMessages
 from review import models as review_models
-from submission import models as submission_models
+from review.const import ReviewerDecisions
 from submission.models import Article
 from utils import setting_handler
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user
@@ -41,16 +51,18 @@ from wjs.jcom_profile.utils import get_eo_user
 from ..communication_utils import (
     get_messages_related_to_me,
     log_operation,
+    role_for_article,
     should_notify_actor,
 )
 from . import conftest
+from .test_helpers import _create_review_assignment
 
 Account = get_user_model()
 
 
 @pytest.mark.django_db
 def test_user_sees_article_generic_messages(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
 ):
     """Test that a user sees a message that has no recipients, even if the user is not the actor."""
@@ -195,7 +207,7 @@ def test_toggling_read_by_eo_also_toggles_eo_recipient_read_flag(
 )
 @pytest.mark.django_db
 def test_emit_message_email_by_types(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     message_type,
     sent,
@@ -233,7 +245,7 @@ def test_emit_message_email_by_types(
 )
 @pytest.mark.django_db
 def test_emit_message_email_by_verbosity(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     message_verbosity,
     sent,
@@ -264,7 +276,7 @@ def test_emit_message_email_by_verbosity(
 @pytest.mark.parametrize("has_marker", (True, False))
 @pytest.mark.django_db
 def test_emit_message_email_reduced(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     has_marker: bool,
     eo_group: Group,
@@ -338,7 +350,7 @@ def test_emit_message_email_reduced(
 @pytest.mark.django_db
 def test_emit_message_email_header_footer(
     review_settings,
-    assigned_article: submission_models.Article,
+    assigned_article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     can_see_names: bool,
 ):
@@ -389,7 +401,7 @@ def test_emit_message_email_header_footer(
 
 @pytest.mark.django_db
 def test_user_sees_authored_messages(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
 ):
     """Test that a user sees messages authored by him (i.e. the user is the actor)."""
@@ -412,7 +424,7 @@ def test_user_sees_authored_messages(
 
 @pytest.mark.django_db
 def test_user_create_personal_note(
-    assigned_article: submission_models.Article,
+    assigned_article: Article,
 ):
     """User can create a note."""
     editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
@@ -442,7 +454,7 @@ def test_user_create_personal_note(
 @freezegun.freeze_time("2023-01-04T00:34:00+01:00")
 @pytest.mark.django_db
 def test_user_sees_recipientee_messages(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
 ):
     """Test that a user sees messages destined to him (i.e. the user is one of the recipients)."""
@@ -466,7 +478,7 @@ def test_user_sees_recipientee_messages(
 
 @pytest.mark.django_db
 def test_messages_to_eo_always_read(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[str | None], JCOMProfile],
     eo_user: JCOMProfile,
 ):
@@ -517,7 +529,7 @@ def test_messages_to_eo_always_read(
 
 @pytest.mark.django_db
 def test_director_sees_all_journal_messages(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,
 ):
@@ -556,7 +568,7 @@ def test_director_sees_all_journal_messages(
 
 @pytest.mark.django_db
 def test_write_message_as_director_does_not_set_read_by_eo_flag(
-    assigned_article: submission_models.Article,
+    assigned_article: Article,
     director: JCOMProfile,
     eo_user: JCOMProfile,
     client,
@@ -593,7 +605,7 @@ def test_write_message_as_director_does_not_set_read_by_eo_flag(
 
 @pytest.mark.django_db
 def test_write_message_as_eo_sets_read_by_eo_flag(
-    article: submission_models.Article,
+    article: Article,
     eo_user: JCOMProfile,
     client,
 ):
@@ -627,7 +639,7 @@ def test_write_message_as_eo_sets_read_by_eo_flag(
 @pytest.mark.django_db
 def test_post_message_form_with_attachment_creates_file(
     review_settings,
-    article: submission_models.Article,
+    article: Article,
     client: Client,
     cleanup_test_files_from_folder_files,
 ):
@@ -663,7 +675,7 @@ def test_post_message_form_with_attachment_creates_file(
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
 @pytest.mark.django_db
 def test_message_addressing(
-    assigned_article: submission_models.Article,
+    assigned_article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     reviewer: JCOMProfile,
     director: JCOMProfile,
@@ -785,7 +797,7 @@ def test_message_addressing(
 @pytest.mark.parametrize("author_can_contact_director", (True, False))
 @pytest.mark.django_db
 def test_allowed_recipients_for_actor(
-    assigned_article: submission_models.Article,
+    assigned_article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,
     main_director: JCOMProfile,
@@ -910,7 +922,7 @@ def test_allowed_recipients_for_actor(
 
 @pytest.mark.django_db
 def test_recipient_can_toggle_read(
-    article: submission_models.Article,
+    article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     eo_user: JCOMProfile,
     client,
@@ -957,7 +969,7 @@ def test_recipient_can_toggle_read(
 
 @pytest.mark.django_db
 def test_message_attachment_access(
-    assigned_article: submission_models.Article,
+    assigned_article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     fake_request: HttpRequest,
     eo_user: JCOMProfile,
@@ -1094,3 +1106,206 @@ def test_hijack_notifications(
         assert send_notification
     else:
         assert not send_notification
+
+
+@pytest.mark.django_db
+def test_role_for_article(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    eo_user: JCOMProfile,
+    create_jcom_user: Callable,
+    review_form: review_models.ReviewForm,  # noqa: ARG001
+):
+    """
+    Test the function role_for_article().
+
+    We'll use a paper with the following history:
+
+    - article submitted and assigned to editor-1 (round-1)
+    - round-1 has completed, declined and withdrawn review-assignments
+      respectively for rev-1, rev-2, and rev-3
+    - editor-1 requests major revision
+    - author submist revision (round-2)
+    - EO change editor to editor-2
+    - round-2 has completed, and withdrawn review-assignments
+      respectively for rev-1, and rev-3
+    - but! round-2 has an accepted review-assignment for rev-2 (that declined in round-1)
+    - round-2 also has completed, pending-acceptance, pending-review, declined and withdrawn RAs
+      respectively for rev-4, rev-5, rev-6 and rev-7
+    """
+    article = assigned_article
+    now = timezone.localtime(timezone.now())
+
+    author = article.correspondence_author
+    editor_1 = WjsEditorAssignment.objects.get_current(article).editor
+    editor_2 = create_jcom_user("editor_2")
+    editor_2.add_account_role("section-editor", article.journal)
+
+    rev_1 = create_jcom_user("rev_1")
+    rev_2 = create_jcom_user("rev_2")
+    rev_3 = create_jcom_user("rev_3")
+    rev_4 = create_jcom_user("rev_4")
+    rev_5 = create_jcom_user("rev_5")
+    rev_6 = create_jcom_user("rev_6")
+    rev_7 = create_jcom_user("rev_7")
+
+    # Review assignments of round 1
+    r1completed_ra = _create_review_assignment(fake_request, rev_1, article)
+    r1completed_ra.date_accepted = now  # ⇦
+    r1completed_ra.date_complete = now
+    r1completed_ra.is_complete = True
+    r1completed_ra.save()
+
+    r1declined_ra = _create_review_assignment(fake_request, rev_2, article)
+    r1declined_ra.date_declined = now  # ⇦
+    r1declined_ra.date_complete = None  # ⇦
+    r1declined_ra.is_complete = True
+    r1declined_ra.save()
+
+    r1withdrawn_ra = _create_review_assignment(fake_request, rev_3, article)
+    r1withdrawn_ra.date_declined = now  # ⇦
+    r1withdrawn_ra.decision = ReviewerDecisions.DECISION_WITHDRAWN.value  # ⇦
+    r1withdrawn_ra.date_complete = now
+    r1withdrawn_ra.is_complete = True
+    r1withdrawn_ra.save()
+
+    past_rev = f"past {constants.REVIEWER_ROLE}"
+    assert role_for_article(article, rev_1) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_2) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_3) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_1, message_recipient_style=True) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_2, message_recipient_style=True) == past_rev
+    assert role_for_article(article, rev_3, message_recipient_style=True) == past_rev
+    assert not role_for_article(article, rev_4)
+    assert not role_for_article(article, rev_5)
+    assert not role_for_article(article, rev_6)
+    assert not role_for_article(article, rev_7)
+
+    # Revision request and submission
+    fake_request.user = editor_1
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.MAJOR_REVISION,
+        "withdraw_notice": "notice",
+        "decision_editor_report": "random message",
+        "date_due": now,
+    }
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor_1,
+        request=fake_request,
+    ).run()
+
+    fake_request.user = author
+    form_data = {
+        "author_note": "author_note_edit",
+        "confirm_title": "on",
+        "confirm_styles": "on",
+        "confirm_blind": "on",
+        "confirm_cover": "on",
+    }
+    revision = EditorRevisionRequest.objects.get(article=article)
+    AuthorHandleRevision(
+        revision=revision,
+        form_data=form_data,
+        user=None,
+        request=fake_request,
+    ).run()
+
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+
+    # Editor change
+    assert role_for_article(article, editor_1) == constants.EDITOR_ROLE
+    form_data = {
+        "selected_editor": editor_2.pk,
+        "state": article.articleworkflow.state,
+        "note_for_new_editor": "test note",
+        "note_for_past_editor": "test note",
+    }
+    editors = Account.objects.get_editors_with_keywords(article)
+    assert editor_2.janeway_account in editors
+    form = SupervisorAssignEditorForm(
+        data=form_data,
+        user=eo_user,
+        request=fake_request,
+        instance=article.articleworkflow,
+        selectable_editors=editors,
+    )
+    form.is_valid()
+    form.save()
+    article.refresh_from_db()
+    assignment = WjsEditorAssignment.objects.get_current(article.articleworkflow)
+    assert assignment.editor == editor_2.janeway_account
+
+    # Review assignments of round 2
+    r2completed_ra = _create_review_assignment(fake_request, rev_1, article)
+    r2completed_ra.date_accepted = now  # ⇦
+    r2completed_ra.date_complete = now
+    r2completed_ra.is_complete = True
+    r2completed_ra.save()
+
+    r2rev2accepted_ra = _create_review_assignment(fake_request, rev_2, article)
+    r2rev2accepted_ra.date_declined = None
+    r2rev2accepted_ra.date_complete = None
+    r2rev2accepted_ra.is_complete = False
+    r2rev2accepted_ra.save()
+
+    r2withdrawn_ra = _create_review_assignment(fake_request, rev_3, article)
+    r2withdrawn_ra.date_declined = now
+    r2withdrawn_ra.decision = ReviewerDecisions.DECISION_WITHDRAWN.value
+    r2withdrawn_ra.date_complete = now
+    r2withdrawn_ra.is_complete = True
+    r2withdrawn_ra.save()
+
+    r2rev4completed_ra = _create_review_assignment(fake_request, rev_4, article)
+    r2rev4completed_ra.date_accepted = now
+    r2rev4completed_ra.date_complete = now
+    r2rev4completed_ra.is_complete = True
+    r2rev4completed_ra.save()
+
+    r2pending_ra = _create_review_assignment(fake_request, rev_5, article)
+    r2pending_ra.date_accepted = now
+    r2pending_ra.date_complete = None
+    r2pending_ra.is_complete = False
+    r2pending_ra.save()
+
+    r2rev6declined_ra = _create_review_assignment(fake_request, rev_6, article)
+    r2rev6declined_ra.date_declined = now
+    r2rev6declined_ra.date_complete = now
+    r2rev6declined_ra.is_complete = True
+    r2rev6declined_ra.save()
+
+    r2rev7withdrawn_ra = _create_review_assignment(fake_request, rev_7, article)
+    r2rev7withdrawn_ra.date_declined = now
+    r2rev7withdrawn_ra.decision = ReviewerDecisions.DECISION_WITHDRAWN.value
+    r2rev7withdrawn_ra.date_complete = now
+    r2rev7withdrawn_ra.is_complete = True
+    r2rev7withdrawn_ra.save()
+
+    assert role_for_article(article, author) == constants.AUTHOR_ROLE
+    assert role_for_article(article, author, message_recipient_style=True) == constants.AUTHOR_ROLE
+
+    assert role_for_article(article, editor_1) == f"past {constants.EDITOR_ROLE}"
+    assert role_for_article(article, editor_1, message_recipient_style=True) == f"past {constants.EDITOR_ROLE}"
+
+    assert role_for_article(article, editor_2) == constants.EDITOR_ROLE
+    assert role_for_article(article, editor_2, message_recipient_style=True) == constants.EDITOR_ROLE
+
+    assert role_for_article(article, rev_1) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_2) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_3) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_4) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_5) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_6) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_7) == constants.REVIEWER_ROLE
+
+    assert role_for_article(article, rev_1, message_recipient_style=True) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_2, message_recipient_style=True) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_3, message_recipient_style=True) == past_rev
+    assert role_for_article(article, rev_4, message_recipient_style=True) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_5, message_recipient_style=True) == constants.REVIEWER_ROLE
+    assert role_for_article(article, rev_6, message_recipient_style=True) == past_rev
+    assert role_for_article(article, rev_7, message_recipient_style=True) == past_rev
+
+    assert role_for_article(article, eo_user) == constants.EO_GROUP

@@ -448,7 +448,7 @@ class BaseState:
         requires attention by EO/director only when all automatic reminders to the editor have been sent.
 
         """
-        role = communication_utils.role_for_article(article, user)
+        role = communication_utils.role_for_article(article, user).lower()
         # Since this method will be called by a "child" class, here `cls` will refer to that class (the real state)
         if func := getattr(cls, f"article_requires_{role}_attention", None):
             if attention_flag := func(article=article, user=user):
