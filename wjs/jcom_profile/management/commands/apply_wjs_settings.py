@@ -683,7 +683,7 @@ Someone (probably you) has requested to reset your password in {{ request.journa
 <br>
 <br>
 You can reset your password at the following link:</p>
-<p>{{ core_reset_password_url }}</p>
+<p><a href="{{ core_reset_password_url }}">{{ core_reset_password_url }}</a></p>
 <p>In case you did not make this request, please just ignore this message.</p>
 <p>&nbsp;</p>
 """,
@@ -697,7 +697,7 @@ You can reset your password at the following link:</p>
 Thank you for registering to {{ request.journal.name }}.
 You can confirm your account at the following link:
 </p>
-<p>{{ core_confirm_account_url }}</p>
+<p><a href="{{ core_confirm_account_url }}">{{ core_confirm_account_url }}</a></p>
 """,
         )
         update_setting_default("subject_new_user_registration", "email_subject", "New Registration")
