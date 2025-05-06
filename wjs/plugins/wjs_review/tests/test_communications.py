@@ -347,6 +347,48 @@ def test_emit_message_email_reduced(
         )
 
 
+@pytest.mark.parametrize(
+    "message_type", (Message.MessageTypes.SYSTEM, Message.MessageTypes.USER, Message.MessageTypes.HIJACK)
+)
+@pytest.mark.django_db
+def test_emit_message_email_header_has_reply_link(
+    review_settings,
+    assigned_article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    message_type,
+):
+    msg1 = "<p>First paragraph</p>"
+
+    chakotay = create_jcom_user("Chakotay")
+    recipient = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body=msg1,
+        content_type=ContentType.objects.get_for_model(assigned_article),
+        object_id=assigned_article.pk,
+        message_type=message_type,
+    )
+    msg.recipients.add(recipient)
+    assert len(mail.outbox) == 0
+    msg.emit_notification()
+    assert len(mail.outbox) == 1
+    email = mail.outbox[0]
+    html_body = email.alternatives[0][0]
+    assert msg.message_type == message_type
+    assert "Go to web page" in html_body
+    assert "Go to web page" in email.body
+    if message_type != Message.MessageTypes.SYSTEM:
+        assert "Reply" in html_body
+        assert "Reply" in email.body
+        assert 'href=""' not in html_body
+        assert "&nbsp;" in html_body
+    else:
+        assert "Reply" not in html_body
+        assert "Reply" not in email.body
+        assert "&nbsp;" not in html_body
+
+
 @pytest.mark.parametrize("can_see_names", (True, False))
 @pytest.mark.django_db
 def test_emit_message_email_header_footer(

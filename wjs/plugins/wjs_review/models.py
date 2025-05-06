@@ -1506,12 +1506,16 @@ class Message(TimeStampedModel):
         if isinstance(self.target, Article):
             workflow = self.target.articleworkflow
             status_url = self.journal.site_url(workflow.get_absolute_url())
+            reply_url = self.journal.site_url(
+                reverse("wjs_message_reply", kwargs={"pk": workflow.pk, "original_message_pk": self.pk})
+            )
             show_authors = permissions.is_article_manager(workflow, recipient) or permissions.is_one_of_the_authors(
                 workflow, recipient
             )
             context["article"] = self.target
             context["show_authors"] = show_authors
             context["status_url"] = status_url
+            context["reply_url"] = reply_url
         return context
 
     def _render_read_more(self, recipient: Account) -> str:
