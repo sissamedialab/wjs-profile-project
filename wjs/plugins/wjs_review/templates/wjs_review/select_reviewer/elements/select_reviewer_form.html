@@ -13,7 +13,7 @@
     <script>
       {# This is needed for the preview to be updated #}
       document.addEventListener("htmx:configRequest", function(event) {
-        if(["preview-btn-select", "update-btn-select", "assign-reviewer"].indexOf(event.target.id) > -1) {
+        if(["preview-btn-select", "update-btn-select", "select-reviewer-form"].indexOf(event.target.id) > -1) {
           bindTinymce(event, "message");
         }
       });
