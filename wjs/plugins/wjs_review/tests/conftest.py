@@ -101,13 +101,13 @@ def cleanup_notifications_side_effects():
 
 @pytest.mark.django_db
 @pytest.fixture  # (scope="session")  ??? can't have scope session and db access???
-def correct_settings_names():
+def apply_wjs_settings():
     """Update Janeway settings with our defaults."""
-    call_command("correct_settings_names", "--noinput")
+    call_command("apply_wjs_settings", "--noinput")
 
 
 @pytest.fixture
-def review_settings(journal, eo_user, correct_settings_names):
+def review_settings(journal, eo_user, apply_wjs_settings):
     """
     Initialize plugin settings and install wjs_review as part of the workflow.
 
