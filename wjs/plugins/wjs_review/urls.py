@@ -217,9 +217,6 @@ urlpatterns = [
         name="wjs_message_note_delete",
     ),
     path(
-        "messages/<int:article_id>/reply/<int:original_message_pk>/", WriteMessage.as_view(), name="wjs_message_reply"
-    ),
-    path(
         "messages/toggle_read_by_eo/<int:message_id>/",
         ToggleMessageReadByEOView.as_view(),
         name="wjs_message_toggle_read_by_eo",
