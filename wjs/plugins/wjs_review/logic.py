@@ -650,8 +650,9 @@ class AssignToReviewer:
         """Create reminders related to writing the review report."""
         ReviewerShouldWriteReviewReminderManager(self.assignment).create()
 
-    def _delete_editorselectreviewer_reminders(self):
-        """Delete reminders for the editor to select a reviewer."""
+    def _delete_editor_reminders(self):
+        """Delete reminders for the editor, if a reviewer is pending, editor is free to wait for them."""
+        EditorShouldMakeDecisionReminderManager(self.assignment.article, self.assignment.editor).delete()
         EditorShouldSelectReviewerReminderManager(self.assignment.article, self.assignment.editor).delete()
 
     def run(self) -> WorkflowReviewAssignment:
@@ -683,7 +684,7 @@ class AssignToReviewer:
                 self._create_reviewreport_reminders()
             else:
                 self._create_reviewevaluate_reminders()
-            self._delete_editorselectreviewer_reminders()
+            self._delete_editor_reminders()
         return self.assignment
 
 
@@ -2278,24 +2279,22 @@ class HandleDecision:
             },
         )
 
+    def _get_editor_assignment(self) -> WjsEditorAssignment | None:
+        """Return the current editor assignment (if any)."""
+        try:
+            # WjsEditorAssignment.objects.get_current raises an exception if there is no current assignment
+            return WjsEditorAssignment.objects.get_current(self.workflow.article)
+        except WjsEditorAssignment.DoesNotExist:
+            return None
+
     def _delete_editor_reminders(self):
         """Delete all reminders for the editor.
 
         When the editor makes a decision, he is done.
         """
-        # When in admin mode, there probably is no WjsEditorAssignment.
-        editor_assignment: WjsEditorAssignment = (
-            WjsEditorAssignment.objects.get_all(article=self.workflow)
-            .filter(
-                editor=self.user,
-            )
-            .first()
-        )
-        if editor_assignment:
-            Reminder.objects.filter(
-                content_type=ContentType.objects.get_for_model(editor_assignment),
-                object_id=editor_assignment.id,
-            ).delete()
+        if assigment := self._get_editor_assignment():
+            EditorShouldMakeDecisionReminderManager(self.workflow.article, assigment.editor).delete()
+            EditorShouldSelectReviewerReminderManager(self.workflow.article, assigment.editor).delete()
 
     def run(self) -> EditorDecision:
         with transaction.atomic():
@@ -3348,6 +3347,14 @@ class WithdrawPreprint:
             recipients=[(current_editor if current_editor else get_eo_user(self.workflow.article))],
         )
 
+    def _get_editor_assignment(self) -> WjsEditorAssignment | None:
+        """Return the current editor assignment (if any)."""
+        try:
+            # WjsEditorAssignment.objects.get_current raises an exception if there is no current assignment
+            return WjsEditorAssignment.objects.get_current(self.workflow.article)
+        except WjsEditorAssignment.DoesNotExist:
+            return None
+
     def _get_typesetting_assignment(self) -> TypesettingAssignment | None:
         """Return the current typesetting assignment (if any)."""
         return self.workflow.get_latest_typesetting_assignment(only_completed=False)
@@ -3381,6 +3388,18 @@ class WithdrawPreprint:
             recipients=[assignment.typesetter],
         )
 
+    def _delete_editor_reminders(self):
+        """
+        Delete all reminders for the editor.
+
+        If a paper is withdrawn, no need for reminders.
+
+        Reviewer reminders are deleted when withdrawing the review assignment.
+        """
+        if assignment := self._get_editor_assignment():
+            EditorShouldMakeDecisionReminderManager(self.workflow.article, assignment.editor).delete()
+            EditorShouldSelectReviewerReminderManager(self.workflow.article, assignment.editor).delete()
+
     def run(self):
         with transaction.atomic():
             conditions = self._check_conditions()
@@ -3389,6 +3408,7 @@ class WithdrawPreprint:
             self._close_review_assignments()
             self._update_state()
             self._log_supervisor()
+            self._delete_editor_reminders()
             if assignment := self._get_typesetting_assignment():
                 self._log_typesetter(assignment)
             return
