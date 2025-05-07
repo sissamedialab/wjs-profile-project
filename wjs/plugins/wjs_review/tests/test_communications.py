@@ -1396,3 +1396,31 @@ def test_message_initial_body(
     assert "Editorial Office" in initial_body
     assert assigned_article.journal.code in initial_body
     assert eo_user.full_name() in initial_body
+
+    # Simulate JCOM: the director and the main director have the section-editor role also
+    main_director.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+    director.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+
+    fake_request.user = main_director
+    initial_body = view.get_initial_body()
+    assert "Editor-in-chief" in initial_body
+
+    fake_request.user = director
+    initial_body = view.get_initial_body()
+    assert "Deputy Editor" in initial_body
+
+    # Let the main director be a past editor (this is common in JCOM) and check again:
+    PastEditorAssignment.objects.create(
+        article=assigned_article,
+        editor=main_director,
+        date_assigned=now() - datetime.timedelta(days=30),
+        date_unassigned=now() - datetime.timedelta(days=10),
+    )
+
+    fake_request.user = main_director
+    initial_body = view.get_initial_body()
+    assert "Editor-in-chief" in initial_body
+
+    fake_request.user = editor
+    initial_body = view.get_initial_body()
+    assert "Editor-in-charge" in initial_body
