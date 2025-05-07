@@ -106,8 +106,8 @@ def create_customization_setting(
             if settings.DEBUG:
                 msg = f"Overwriting {name_for_messages_capitalized} as requested."
             else:
-                msg = f"Overwriting {name_for_messages_capitalized} in a production environgment as requested."
-            logger.warning(msg)
+                msg = f"Overwriting {name_for_messages_capitalized} in a production environment as requested."
+            logger.info(msg)
         else:
             logger.warning(f"{name_for_messages_capitalized} already exists. Doing nothing.")
     except SettingValue.DoesNotExist:
