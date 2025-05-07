@@ -2118,7 +2118,7 @@ Thank you and best regards,<br>
 """
         # NB: ...has_SECTION_editor_role...
         # Remember that we generally use the "section-editor" role, not Janway's all-mighty "editor" role.
-        if permissions.has_section_editor_role_by_article(self.article.articleworkflow, self.request.user):
+        if permissions.is_article_editor(self.article.articleworkflow, self.request.user):
             return f"""
 <p>
 Thank you and best regards,<br>
