@@ -55,7 +55,9 @@ class WJSReviewArticles(plugins.Plugin):
 def install():
     """Register the plugin instance and create the corresponding HomepageElement."""
     WJSReviewArticles.install()
-    set_default_plugin_settings()
+    # Here we force the overwriting of the default values of the plugin's settings.
+    # This is safe, because, if an overwrite for a journal exists, that is not touched.
+    set_default_plugin_settings(force=True)
     ensure_workflow_elements()
 
 
@@ -69,7 +71,7 @@ def hook_registry() -> Dict[str, Any]:
     return {}
 
 
-def set_default_plugin_settings(force: bool = False):
+def set_default_plugin_settings(*, force: bool = False):
     """Create default settings for the plugin."""
     try:
         wjs_review_settings_group = get_group("wjs_review")
@@ -79,9 +81,6 @@ def set_default_plugin_settings(force: bool = False):
         wjs_prophy_settings_group = get_group("wjs_prophy")
     except SettingGroup.DoesNotExist:
         wjs_prophy_settings_group = SettingGroup.objects.create(name="wjs_prophy", enabled=True)
-    email_settings_group = get_group("email")
-    email_subject_settings_group = get_group("email_subject")
-    general_group = get_group("general")
 
     def acceptance_due_date() -> tuple[SettingValue, ...]:
         acceptance_days_setting: SettingParams = {
@@ -102,7 +101,10 @@ def set_default_plugin_settings(force: bool = False):
         }
         return (
             create_customization_setting(
-                acceptance_days_setting, acceptance_days_setting_value, acceptance_days_setting["name"], force=force
+                acceptance_days_setting,
+                acceptance_days_setting_value,
+                acceptance_days_setting["name"],
+                force=force,
             ),
         )
 
@@ -1695,7 +1697,7 @@ Grazie,
             "types": "rich-text",
             "pretty_name": _("Body of author submits technical revision for reviewers"),
             "description": _(
-                "Body of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision)."
+                "Body of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision).",
             ),
             "is_translatable": False,
         }
