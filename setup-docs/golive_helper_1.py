@@ -79,31 +79,31 @@ else:
 # ========
 
 settings_names = (
+    "abstract_required",
+    "acceptance_criteria",
+    "accepts_preprint_submissions",
+    "copyright_notice",
+    "copyright_submission_label",
+    "data_figure_file_submission_instructions",
+    "default_review_form",  # this is not submission-related, but... 🙂
     "disable_journal_submission",
     "disable_journal_submission_message",
-    "limit_access_to_submission",
-    "submission_access_request_text",
-    "submission_access_request_contact",
-    "abstract_required",
-    "submission_intro_text",
-    "copyright_notice",
-    "submission_checklist",
-    "acceptance_criteria",
-    "publication_fees",
     "editors_for_notification",
-    "user_automatically_author",
-    "submission_summary",
-    "limit_manuscript_types",
-    "accepts_preprint_submissions",
-    "focus_and_scope",
-    "publication_cycle",
-    "peer_review_info",
-    "copyright_submission_label",
     "file_submission_guidelines",
-    "manuscript_file_submission_instructions",
-    "data_figure_file_submission_instructions",
+    "focus_and_scope",
     "hide_editors_from_authors",
-    "default_review_form",  # this is not submission-related, but... 🙂
+    "limit_access_to_submission",
+    "limit_manuscript_types",
+    "manuscript_file_submission_instructions",
+    "peer_review_info",
+    "publication_cycle",
+    "publication_fees",
+    "submission_access_request_contact",
+    "submission_access_request_text",
+    "submission_checklist",
+    "submission_intro_text",
+    "submission_summary",
+    "user_automatically_author",
 )
 
 dev_connection = psycopg2.connect(**dev_db)
@@ -132,7 +132,8 @@ v.journal_id IS NOT NULL
 local_connection = psycopg2.connect(**local_db)
 local_cursor = local_connection.cursor()
 
-# Delete existing setting once: don't do it in the for-loop because we can touch the same setting multiple times if we
+# Delete existing setting values once (for every journal):
+# don't do it in the for-loop because we can touch the same setting multiple times if we
 # change values for multiple journals.
 query = f"""DELETE FROM core_settingvalue
 WHERE
@@ -142,6 +143,8 @@ setting_id IN
     {",".join([f"'{i}'" for i in settings_names])}
 )
 )
+AND
+journal_id IS NOT NULL
 """
 # DEBUG: # print(query)
 local_cursor.execute(query)
