@@ -16,4 +16,4 @@ class Command(BaseCommand):
         management.call_command("install_themes")
         management.call_command("link_plugins")
         management.call_command("create_role", "Director")
-        management.call_command("apply_wjs_settings")
+        management.call_command("apply_wjs_settings", "--noinput")
