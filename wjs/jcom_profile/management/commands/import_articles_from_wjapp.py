@@ -79,7 +79,11 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
-from wjs.jcom_profile.import_utils import JANEWAY_LANGUAGES_BY_CODE, set_author_country
+from wjs.jcom_profile.import_utils import (
+    JANEWAY_LANGUAGES_BY_CODE,
+    set_author_country,
+    sync_frozen_authors_with_authors,
+)
 from wjs.jcom_profile.management.commands.import_from_drupal import (
     JOURNALS_DATA,
     NON_PEER_REVIEWED,
@@ -510,6 +514,8 @@ class Command(BaseCommand):
                 imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
             ).run()
 
+            self.clean_deleted_coauthors(article, document_cod)
+
         except Exception as e:
             traceback.print_exc()
             logger.error(
@@ -885,6 +891,26 @@ ORDER BY ah.actionDate
         history = cursor_history.fetchall()
         cursor_history.close()
         return history
+
+    def read_all_coauthors(self, document_cod):
+        """Read article current coauthors."""
+
+        cursor_coauthors = self.connection.cursor(dictionary=True)
+        query_coauthors = """
+SELECT
+c.coauthorCod,
+u.lastname,
+u.firstname,
+u.email,
+u.privacy
+FROM Coauthors c
+LEFT JOIN User u ON (userCod=coauthorCod)
+WHERE
+    documentCod=%(document_cod)s
+"""
+        cursor_coauthors.execute(query_coauthors, {"document_cod": document_cod})
+        coauthors = cursor_coauthors.fetchall()
+        return coauthors
 
     #
     # functions to set data in wjs
@@ -1389,6 +1415,40 @@ ORDER BY ah.actionDate
                     message_type=Message.MessageTypes.NOTE,
                 )
                 document_note.recipients.add(note_author)
+
+    def clean_deleted_coauthors(self, article, document_cod):
+        """Clean wjapp coauthors removed by EO or by wjapp maintenance"""
+
+        current_coauthors_rows = self.read_all_coauthors(document_cod)
+        current_coauthors = []
+        for c in current_coauthors_rows:
+            account = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                c["coauthorCod"],
+                c["lastname"],
+                c["firstname"],
+                c["email"],
+                c["privacy"],
+                self.connection,
+            )
+            current_coauthors.append(account)
+
+        assert article.correspondence_author == article.owner
+        authors_to_check = [a for a in article.authors.all() if a != article.owner]
+        authors_modified = False
+        for author in authors_to_check:
+            if author not in current_coauthors:
+                # Remember that there is a pre-delete signal on FrozenAuthors that removes all authors/authors-order
+                # however, we prefer to delete them explicitly because it's more clear
+                submission_models.ArticleAuthorOrder.objects.get(author=author, article=article).delete()
+                submission_models.FrozenAuthor.objects.get(article=article, author=author).delete()
+                article.authors.remove(author)
+                authors_modified = True
+                logger.debug(f"cleaned coauthor {author}")
+
+        if authors_modified:
+            sync_frozen_authors_with_authors(article)
+            article.save()
 
     def debug_list_article_files_imported(self, article):
         """Log debug of all files imported also historical"""

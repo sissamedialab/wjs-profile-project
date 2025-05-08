@@ -266,10 +266,8 @@ def set_language_specific_field(article, field, value, clear_en=False):
     article.save()
 
 
-def publish_article(article: Article):
-    """Publish an article."""
-    # see src/journal/views.py:1078
-    article.stage = submission_models.STAGE_PUBLISHED
+def sync_frozen_authors_with_authors(article: Article):
+    """Reset frozen authors and recreate them from authors respecting the order."""
 
     # Sync A.authors and A.frozen_authors
     # Note that there is a pre-delete signal on FrozenAuthors
@@ -290,6 +288,14 @@ def publish_article(article: Article):
         for i, au_id in enumerate(good_authors, start=1)
     ]
     article.snapshot_authors()
+
+
+def publish_article(article: Article):
+    """Publish an article."""
+    # see src/journal/views.py:1078
+    article.stage = submission_models.STAGE_PUBLISHED
+
+    sync_frozen_authors_with_authors(article)
 
     article.close_core_workflow_objects()
     if article.date_published < article.issue.date_published:
