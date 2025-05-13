@@ -20,25 +20,6 @@
             <p>
               This page provides a search tool to freely search for reviewers and either select registered reviewers or to invite non-registered ones. A list of possible reviewers may be already available for your consideration.
             </p>
-          {% endblocktranslate %}
-          {% with journal=workflow.article.journal.code %}
-          {% blocktranslate %}
-          <p>
-            If the referee finder Prophy has found matching experts, you can see the list. This <a href="#" data-bs-toggle="modal" data-bs-target="#prophy_tutorial_modal">tutorial</a> provides information about Prophy and how to use it in {{ journal }}.
-          {% endblocktranslate %}
-          {% if workflow.article|has_prophy_candidates %}
-            {% blocktranslate with prophy_link=workflow.article|jwt_token_url:request.user article_id=workflow.article.id %}
-                See the <a href="{{ prophy_link }}" target="_blank">complete list of suggested reviewers</a> for this manuscript (if available).
-            {% endblocktranslate %}
-          {% else %}
-            {% blocktranslate %}
-                See the complete list of suggested reviewers for this manuscript (if available).
-            {% endblocktranslate %}
-          {% endif %}
-          {% endwith %}
-          {% blocktranslate %}
-            Please keep in mind that Prophy suggestions might include authors of this manuscript; Any reviewer suggested by Prophy is ordered by suitability.
-              </p>
             <p>
               If you find that a reviewer is associated to an obsolete email address, please contact the Editorial Office (EO) to update it and wait for the EO’s confirmation before selecting them.
             </p>
@@ -48,6 +29,5 @@
     </div>
     {% include "wjs_review/select_reviewer/elements/reviewers_table.html" %}
     {% include "wjs_review/base/elements/back.html" with workflow=workflow use_div=True %}
-    {% include "wjs_review/base/elements/modal.html" with modal_id="prophy_tutorial_modal" modal_title="Prophy tutorial" include_path="wjs_review/select_reviewer/elements/prophy_video_tutorial.html" %}
   </div>
 {% endblock content_wrapper %}

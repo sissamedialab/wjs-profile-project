@@ -37,7 +37,6 @@
           {% endif %}
         {% endif %}
       {% endif %}
-      {% if user.wjs_is_prophy_candidate %}{% translate "Suggested by Prophy" %}{% endif %}
     </td>
     <td>{{ user.count_reviewer_pending_reviews|default:"" }}</td>
     <td>{{ user.count_reviewed_papers_in_timeframe|default:"" }}</td>
