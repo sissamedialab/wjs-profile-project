@@ -34,6 +34,7 @@ from django.views.generic import (
     DetailView,
     FormView,
     ListView,
+    RedirectView,
     TemplateView,
     UpdateView,
     View,
@@ -1018,6 +1019,18 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         if self.htmx and not self.request.headers.get("Hx-Trigger") == "new-reviewer-invite-form":
             return self.get(request, *args, **kwargs)
         return super().post(request, *args, **kwargs)
+
+
+class ArticleIdToDetails(RedirectView):
+    """Utility redirect from article-id to WJS status page."""
+
+    permanent = False
+    query_string = True
+
+    def get_redirect_url(self, *args, **kwargs):
+        """Given the article-id, redirect to the WJS status page."""
+        article = get_object_or_404(Article, pk=kwargs["article_id"])
+        return reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.id})
 
 
 class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
