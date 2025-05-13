@@ -3,6 +3,7 @@ import io
 import os
 import random
 import zipfile
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import Callable
@@ -174,27 +175,15 @@ def _accept_article(
     article: Article,
     cleanup_side_effects: bool = True,
 ) -> Article:
-    form_data = {
-        "decision": ArticleWorkflow.Decisions.ACCEPT,
-        "decision_editor_report": "Some editor report",
-        "withdraw_notice": "Some withdraw notice",
-    }
-    assert fake_request.user is not None
-    editor_decision = HandleDecision(
-        workflow=article.articleworkflow,
-        form_data=form_data,
-        user=fake_request.user,
-        request=fake_request,
-    ).run()
-    workflow = editor_decision.workflow
+    """Accept an article."""
+    article = _apply_decision(article, fake_request, ArticleWorkflow.Decisions.ACCEPT, cleanup_side_effects)
+    workflow = article.articleworkflow
     # An accepted article can be moved to READY_FOR_TYPESETTER (most common case) or be left in ACCEPTED state if there
     # are issues that must be resolved before the paper is ready for tyepsetters.
     assert workflow.state in (
         ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
         ArticleWorkflow.ReviewStates.ACCEPTED,
     )
-    if cleanup_side_effects:
-        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -215,10 +204,22 @@ def accepted_article(fake_request, assigned_article) -> Article:
 
 
 def _reject_article(article: Article, fake_request: HttpRequest, cleanup_side_effects: bool = True) -> Article:
+    """Reject an article."""
+    article = _apply_decision(article, fake_request, ArticleWorkflow.Decisions.REJECT, cleanup_side_effects)
+    workflow = article.articleworkflow
+    assert workflow.state == ArticleWorkflow.ReviewStates.REJECTED
+    return workflow.article
+
+
+def _apply_decision(
+    article: Article, fake_request: HttpRequest, decision: ArticleWorkflow.Decisions, cleanup_side_effects: bool = True
+) -> Article:
+    """ "Apply a generic decision to an article."""
     form_data = {
-        "decision": ArticleWorkflow.Decisions.REJECT,
+        "decision": decision,
         "decision_editor_report": "Some editor report",
         "withdraw_notice": "Some withdraw notice",
+        "date_due": datetime.now() + timedelta(days=1),
     }
     assert fake_request.user is not None
     editor_decision = HandleDecision(
@@ -228,7 +229,6 @@ def _reject_article(article: Article, fake_request: HttpRequest, cleanup_side_ef
         request=fake_request,
     ).run()
     workflow = editor_decision.workflow
-    assert workflow.state == ArticleWorkflow.ReviewStates.REJECTED
     if cleanup_side_effects:
         cleanup_notifications_side_effects()
     return workflow.article
