@@ -708,6 +708,12 @@ You can confirm your account at the following link:
         update_setting_default("subject_reader_publication_notification", "email_subject", "NOT USED IN WJS")
         # For "bounced_email_notification" (and subject) we keep the defaults.
 
+        # Updating the default template because it's probably be going to be used by most of our journals
+        # Please note we use a generic date-time, like "now" (i.e. not some of the article's dates).
+        # This agrees with crossref's recomendation of not using metadata (a bit useless in this case)
+        # and allows us to set the DOI whenever we want (this is more interesting).
+        update_setting_default("doi_pattern", "Identifiers", '{{ article.id }}{% now "YmdHis" %}')
+
     @staticmethod
     def create_overrides() -> None:
         """

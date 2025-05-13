@@ -1,11 +1,10 @@
+# TODO: drop this command? WjsSections already exist. This cmd might reset values changed in the admin.
+
 from django.core.management.base import BaseCommand
 from plugins.wjs_review.models import WjsSection
 from submission.models import Section
 
-from wjs.jcom_profile.constants import (
-    JCOM_SECTION_TO_DOISECTIONCODE,
-    JCOM_SECTION_TO_PUBIDSECTIONCODE,
-)
+from wjs.jcom_profile.constants import JCOM_SECTION_TO_PUBIDSECTIONCODE
 
 SECTION_DESCRIPTIONS = {
     "JCOM": {
@@ -40,7 +39,6 @@ class Command(BaseCommand):
 
         for section in sections:
             WjsSection(
-                doi_sectioncode=JCOM_SECTION_TO_DOISECTIONCODE.get(section.name.lower(), None),
                 pubid_and_tex_sectioncode=JCOM_SECTION_TO_PUBIDSECTIONCODE.get(section.name.lower(), None),
                 section=section,
             ).save_base(raw=True)

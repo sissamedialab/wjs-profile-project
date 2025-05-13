@@ -21,7 +21,7 @@ from faker import Faker
 from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
-from journal.models import Issue, IssueType
+from journal.models import Issue, IssueType, Journal
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Section
@@ -443,7 +443,7 @@ def journal(press, director_role):
 
 
 @pytest.fixture
-def jcom_doi_prefix(journal):
+def jcom_doi_prefix(journal: Journal):
     """Set the JCOM DOI prefix onto journal."""
     save_setting(
         setting_group_name="Identifiers",

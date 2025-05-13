@@ -39,5 +39,11 @@
     {% endif %}
   </div>
 </div>
-  {% if doi %}<div><a class="text-decoration-none h3" href="https://doi.org/{{ doi }}">https://doi.org/{{ doi }}{% endif %}</a></div>
+  {% if doi %}<div><a class="text-decoration-none h3"
+                      {% if workflow.state == "Published" %}
+                      href="https://doi.org/{{ doi }}"
+                      {% else %}
+                      href="#" title="DOI not yet registered"
+                      {% endif %}
+                      >https://doi.org/{{ doi }}{% endif %}</a></div>
   {% endwith %}
