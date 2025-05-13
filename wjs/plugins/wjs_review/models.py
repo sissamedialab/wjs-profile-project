@@ -35,7 +35,6 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
-from utils import setting_handler
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -663,35 +662,6 @@ class ArticleWorkflow(TimeStampedModel):
         pubid = f"{self.article.journal.code}_{volume}{issue}_{timezone.now().year}_{eid}"
         return pubid
 
-    def compute_doi(self) -> str:
-        # Same considerations about where to place the function as compute_pubid() above.
-        #
-        # Please also note that Janeway has its way of generating DOIs,
-        # i.e. by rendering the journal setting "doi_pattern"
-        article = self.article
-        if article.journal.code != "JCOM":
-            raise NotImplementedError(f"Don't know how to compute DOI for {article.journal.code}")
-
-        # See specs#208 for specs on JCOM DOI
-        # Adapting utils.generate_doi()
-        # Feel free to fail badly.
-        # Exceptions should be dealt with upstream.
-        doi_prefix = setting_handler.get_setting("Identifiers", "crossref_prefix", article.journal).value
-        system_number = MEDIALAB_DOI_JOURNAL_NUMBER[article.journal.code]
-        volume = f"{article.issue.volume:02d}"
-        issue = f"{int(article.issue.issue):02d}"
-        # TODO: refactor eid into cached property?
-        counter = self._count_published_papers_in_same_issue_and_section() + 1
-        counter = f"{counter:02d}"
-        type_code = article.section.wjssection.doi_sectioncode
-        if not type_code:
-            logger.error(
-                f'Section "{article.section}" is missing DOI code. DOI will be wrong!'
-                "Please correct from the admin interface.",
-            )
-        doi = f"{doi_prefix}/{system_number}.{volume}{issue}{type_code}{counter}"
-        return doi
-
     def compute_eid(self, save_as_pagenumber: bool = False) -> str:
         """Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
 
@@ -752,13 +722,6 @@ class ArticleWorkflow(TimeStampedModel):
             # pubid depends on eid/page_numbers
             # if we have to compute it now, we also save it to maintain coherence
             identifier=self.compute_pubid(save_eid=True),
-            article=self.article,
-        )
-
-    def set_doi(self):
-        return Identifier.objects.create(
-            id_type="doi",
-            identifier=self.compute_doi(),
             article=self.article,
         )
 
@@ -2199,9 +2162,11 @@ class LatexPreamble(models.Model):
 
 
 class WjsSection(Section):
-    """This model contains the section codes to be used in the preamble of the article."""
+    """A wrapper to the the "Section" model that keeps some WJS-only data."""
 
     section = models.OneToOneField(Section, on_delete=models.CASCADE, primary_key=True, parent_link=True)
+    # Obsolete! DOIs should not depend on the the article's section.
+    # We are keeping the field until we are sure that it won't be used for any future journal.
     doi_sectioncode = models.CharField(max_length=2, null=True, blank=True)
     pubid_and_tex_sectioncode = models.CharField(max_length=1, null=True, blank=True)
     description = JanewayBleachField(blank=True, default="")

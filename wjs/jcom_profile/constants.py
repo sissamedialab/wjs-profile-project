@@ -34,20 +34,8 @@ def role_label(role):
     return LABELS.get(role, role)
 
 
-# In JCOM (and JCOMAL), the DOI depends on a code that depends on the section (article type).
-# This is peculiar of JCOM and does not apply to other journals.
-JCOM_SECTION_TO_DOISECTIONCODE = {
-    "letter": "01",
-    "article": "02",
-    "commentary": "03",
-    "essay": "04",
-    "editorial": "05",
-    "conference review": "06",
-    "book review": "07",
-    "practice insight": "08",
-    "focus": "09",  # Warning: focus and review article have the same code!!!
-    "review article": "09",  # Probably not important: no focus for many years (as of 2023)!
-}
+# In JCOM (and JCOMAL), the pubid depends on a code that depends on the section (article type).
+# This is peculiar of JCOM* and does not apply to other journals.
 JCOM_SECTION_TO_PUBIDSECTIONCODE = {
     "letter": "L",
     "article": "A",
@@ -59,6 +47,22 @@ JCOM_SECTION_TO_PUBIDSECTIONCODE = {
     "practice insight": "N",
     "focus": "F",
     "review article": "V",
+}
+
+# Obsolete!
+# The DOI also used to depend on the section, until May 2025.
+# We are leaving the old mapping here for documentation, but it should not be used.
+JCOM_SECTION_TO_DOISECTIONCODE = {
+    "letter": "01",
+    "article": "02",
+    "commentary": "03",
+    "essay": "04",
+    "editorial": "05",
+    "conference review": "06",
+    "book review": "07",
+    "practice insight": "08",
+    "focus": "09",  # Warning: focus and review article have the same code!!!
+    "review article": "09",  # Probably not important: no focus for many years (as of 2023)!
 }
 # NB: reviews (conference review and book review) are a bit confusing:
 # - they are counted together (as if they were in the same section; e.g. CR-1, BR-2, CR-3)
