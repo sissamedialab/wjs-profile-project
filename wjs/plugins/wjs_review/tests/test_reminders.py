@@ -10,7 +10,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.db import models
 from django.http import HttpRequest
-from django.utils import timezone
+from django.utils import formats, timezone
+from django.utils.timezone import localtime
 from journal import models as journal_models
 from review import models as review_models
 from submission import models as submission_models
@@ -24,6 +25,7 @@ from ..conditions import any_reviewer_is_late_after_reminder
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
+    AuthorHandleRevision,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
@@ -49,6 +51,7 @@ from ..reminders.settings import (
 )
 from ..utils import get_report_form
 from . import test_helpers
+from .conftest import _apply_decision
 from .test_helpers import jcom_report_form_data
 
 
@@ -95,14 +98,15 @@ def check_reminder_date(
 
 
 @pytest.mark.django_db
-def test_create_a_reminder(
+def test_reaa_reminder_rendering(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
     normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
     assigned_article: submission_models.Article,
     review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
 ):
-    """Test the auxiliary function that creates reminders."""
+    """Reminder helpers and rendering function content for REAA reminders."""
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         reviewer=normal_user.janeway_account,
@@ -123,20 +127,84 @@ def test_create_a_reminder(
         assignment=service.assignment,
     ).create()
 
-    reminder_obj = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
+    for code in (
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+    ):
+        reminder_obj = Reminder.objects.get(code=code)
 
-    # Remember that the fixture `assigned_article` creates the EDITOR_SHOULD_SELECT_REVIEWER reminders
-    reminders = Reminder.objects.filter(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
-    assert reminders.count() == 1
-    assert reminders.first() == reminder_obj
+        # Somewhat weak test that the subject has been rendered
+        reminder_setting = ReviewerShouldEvaluateAssignmentReminderManager.get_settings(reminder_obj)
+        # Needs coercion to string because the subject is a lazy translation
+        assert str(reminder_setting.subject) in reminder_obj.message_subject
+        formatted_data = formats.date_format(localtime(service.assignment.date_requested), settings.DATE_FORMAT)
 
-    # Somewhat weak test that the subject has been rendered
-    reminder_setting = ReviewerShouldEvaluateAssignmentReminderManager.get_settings(reminder_obj)
-    # Needs coercion to string because the subject is a lazy translation
-    assert str(reminder_setting.subject) in reminder_obj.message_subject
+        if code == Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1:
+            assert reminder_obj.recipient == service.reviewer
+            assert reminder_obj.actor == service.assignment.editor
+            assert formatted_data in reminder_setting.get_rendered_body(reminder_obj.target)
+        elif code == Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2:
+            assert reminder_obj.recipient == service.reviewer
+            assert reminder_obj.actor == service.assignment.editor
+            assert formatted_data in reminder_setting.get_rendered_body(reminder_obj.target)
+        elif code == Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3:
+            assert reminder_obj.recipient == service.editor
+            assert reminder_obj.actor == eo_user.janeway_account
+            assert formatted_data in reminder_setting.get_rendered_body(reminder_obj.target)
 
-    assert reminder_obj.recipient == service.reviewer
-    assert reminder_obj.actor == section_editor.janeway_account
+
+@pytest.mark.django_db
+def test_edsr_reminder_rendering(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    eo_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    director: JCOMProfile,
+):
+    """Reminder helpers and rendering function content for EDSR reminders."""
+    fake_request.user = section_editor.janeway_account
+    _apply_decision(
+        assigned_article, fake_request, ArticleWorkflow.Decisions.MAJOR_REVISION, cleanup_side_effects=True
+    )
+    revision = EditorRevisionRequest.objects.filter(article=assigned_article).latest("date_requested")
+    service = AuthorHandleRevision(
+        revision=revision,
+        form_data={},
+        user=assigned_article.correspondence_author,
+        request=fake_request,
+    )
+    service.run()
+
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+
+    for code in (
+        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+    ):
+        reminder_obj = Reminder.objects.get(code=code)
+
+        # Somewhat weak test that the subject has been rendered
+        reminder_setting = EditorShouldSelectReviewerReminderManager.get_settings(reminder_obj)
+        # Needs coercion to string because the subject is a lazy translation
+        assert str(reminder_setting.subject) in reminder_obj.message_subject
+        formatted_data = formats.date_format(
+            localtime(assignment.review_rounds.last().date_started), settings.DATE_FORMAT
+        )
+
+        if code == Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1:
+            assert reminder_obj.recipient == assignment.editor
+            assert reminder_obj.actor == eo_user.janeway_account
+            assert formatted_data in reminder_setting.get_rendered_body(reminder_obj.target)
+        elif code == Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2:
+            assert reminder_obj.recipient == assignment.editor
+            assert reminder_obj.actor == eo_user.janeway_account
+            assert formatted_data not in reminder_setting.get_rendered_body(reminder_obj.target)
+        elif code == Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3:
+            assert reminder_obj.recipient == director.janeway_account
+            assert reminder_obj.actor == eo_user.janeway_account
+            assert formatted_data in reminder_setting.get_rendered_body(reminder_obj.target)
 
 
 @pytest.mark.parametrize("set_main_director", (True, False))

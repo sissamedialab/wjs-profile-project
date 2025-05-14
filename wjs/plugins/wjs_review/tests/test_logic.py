@@ -851,6 +851,52 @@ def test_assign_to_reviewer_after_revision(
 
 
 @pytest.mark.django_db
+def test_assign_to_reviewer_delete_editor_reminder(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,
+    review_settings,
+):
+    """
+    EDMD* reminders are deleted when the editor assigns a new reviewer.
+    """
+    fake_request.user = section_editor.janeway_account
+    review_assignment = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=normal_user,
+        assigned_article=assigned_article,
+    )
+    _submit_review(review_assignment, fake_request)
+
+    # We want to test that we have exactly one reminder per type. get() ensure against multiple reminder count per code
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1)
+    assert Reminder.objects.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2)
+    assert Reminder.objects.get(code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3)
+
+    acceptance_due_date = localtime(now()).date() + datetime.timedelta(days=7)
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        reviewer=normal_user.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": acceptance_due_date,
+            "message": "random message",
+        },
+        request=fake_request,
+    )
+    service.run()
+
+    # We want to test that we have exactly one reminder per type. get() ensure against multiple reminder count per code
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
+    assert Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2)
+    assert Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3)
+
+
+@pytest.mark.django_db
 def test_assign_to_reviewer_fails_no_form(
     fake_request: HttpRequest,
     section_editor: JCOMProfile,
@@ -3725,6 +3771,11 @@ def test_author_withdraws_preprint(
     form_data = {
         "notification_body": "Test body",
     }
+    # only assigned_article assigned_article_with_reviewer fixtures have reminders
+    if fixture_article in ("assigned_article", "assigned_article_with_reviewer"):
+        assert Reminder.objects.all().exists()
+    else:
+        assert not Reminder.objects.all().exists()
     form = WithdrawPreprintForm(
         data=form_data,
         request=fake_request,
@@ -3746,6 +3797,11 @@ def test_author_withdraws_preprint(
 
     for assignment in article.reviewassignment_set.all():
         assert assignment.is_complete
+
+    # No reminder survives the article withdrawal
+    # We are testing a simplified case here, as we should filter on the reminder linked to the related objects of the
+    # article. but as we only have 1 article, it's redundant and simplify test code a lot
+    assert not Reminder.objects.all().exists()
 
 
 @pytest.mark.django_db

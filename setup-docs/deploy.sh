@@ -96,11 +96,7 @@ function deploy_wjs() {
 
     cd "$MANAGE_DIR"
 
-    "$PYTHON" -mmanage create_custom_settings
-
-    "$PYTHON" -mmanage link_plugins
-    "$PYTHON" -mmanage install_themes
-    "$PYTHON" -mmanage create_role Director
+    "$PYTHON" -mmanage run_customizations
 
     "$PYTHON" -mmanage migrate
     "$PYTHON" -mmanage sync_translation_fields --noinput

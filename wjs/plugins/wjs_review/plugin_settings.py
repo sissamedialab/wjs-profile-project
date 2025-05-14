@@ -55,7 +55,9 @@ class WJSReviewArticles(plugins.Plugin):
 def install():
     """Register the plugin instance and create the corresponding HomepageElement."""
     WJSReviewArticles.install()
-    set_default_plugin_settings()
+    # Here we force the overwriting of the default values of the plugin's settings.
+    # This is safe, because, if an overwrite for a journal exists, that is not touched.
+    set_default_plugin_settings(force=True)
     ensure_workflow_elements()
 
 
@@ -69,7 +71,7 @@ def hook_registry() -> Dict[str, Any]:
     return {}
 
 
-def set_default_plugin_settings(force: bool = False):
+def set_default_plugin_settings(*, force: bool = False):
     """Create default settings for the plugin."""
     try:
         wjs_review_settings_group = get_group("wjs_review")
@@ -79,9 +81,6 @@ def set_default_plugin_settings(force: bool = False):
         wjs_prophy_settings_group = get_group("wjs_prophy")
     except SettingGroup.DoesNotExist:
         wjs_prophy_settings_group = SettingGroup.objects.create(name="wjs_prophy", enabled=True)
-    email_settings_group = get_group("email")
-    email_subject_settings_group = get_group("email_subject")
-    general_group = get_group("general")
 
     def acceptance_due_date() -> tuple[SettingValue, ...]:
         acceptance_days_setting: SettingParams = {
@@ -102,7 +101,10 @@ def set_default_plugin_settings(force: bool = False):
         }
         return (
             create_customization_setting(
-                acceptance_days_setting, acceptance_days_setting_value, acceptance_days_setting["name"], force=force
+                acceptance_days_setting,
+                acceptance_days_setting_value,
+                acceptance_days_setting["name"],
+                force=force,
             ),
         )
 
@@ -1261,17 +1263,17 @@ Thank you and best regards,
             "name": "proofreading_request_subject",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Subject for Proofreading request."),
+            "pretty_name": _("Subject for Proofreading or final check request."),
             "description": _(
                 "The subject of the notification that is sent to the Author when the paper has been typesetted and is "
-                "ready for proofreading.",
+                "ready for proofreading or for the final check.",
             ),
             "is_translatable": False,
         }
         subject_proofreading_request_setting_value: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "Ready for proofreading",
+            "value": "Ready for proofreading or final check",
             "translations": {},
         }
         setting_1 = create_customization_setting(
@@ -1284,10 +1286,10 @@ Thank you and best regards,
             "name": "proofreading_request_body",
             "group": wjs_review_settings_group,
             "types": "text",
-            "pretty_name": _("Body of the request of Author's proofreading notification."),
+            "pretty_name": _("Body of the request of Author's proofreading or final check notification."),
             "description": _(
                 "The body of the notification that is sent to to the Author when the paper has been typesetted and is "
-                "ready for proofreading.",
+                "ready for proofreading or for the final check.",
             ),
             "is_translatable": False,
         }
@@ -1296,7 +1298,8 @@ Thank you and best regards,
             "setting": None,
             "value": """Dear Dr. {{ author.full_name }},
 <br><br>
-Please proof-read the pdf version of your typeset {{ article.section.name }} within 1 week [...].
+Please proof-read the pdf version of your typeset {{ article.section.name }} within 1 week in case it is the first time
+or in 3 days if you have already proofread the typeset version once [...].
 <br><br>
 Only a limited number of the following kind of corrections are acceptable at this stage:
 <br><br>
@@ -1306,13 +1309,13 @@ Only a limited number of the following kind of corrections are acceptable at thi
 <li> mistakes or updating in references
 </ul>
 <br><br>
-<strong>Important</strong>: please reply to the queries on the first page of your {{ article.section.name }}.
+<strong>Important</strong>: please reply to the queries on the first page of your {{ article.section.name }}, if any.
 <br><br>
-On your  {{ article.section.name }} web page you will find both a text area and a tool to upload the annotated pdf files. Please choose either or both tools to send your answers and any request for corrections back to us.
+On your {{ article.section.name }} web page you will find both a text area and a tool to upload the annotated pdf files. Please choose either or both tools to send any answers to the queries and/or any request for corrections back to us.
 <br>
 Should you decide to use the text area, please explain very clearly where changes should occur referring to the typeset version (page number, paragraph and line, or equation number), and specify both the old (wrong) version and the correction.
 <br>
-The corrected version will not be sent to you again.
+If the current version is suitable for publication and there are no queries on the first page, please send your paper for publication by using the appropriate link on your Article web page.
 <br><br>
 Thank you and best regards,
 <br><br>
@@ -1694,7 +1697,7 @@ Grazie,
             "types": "rich-text",
             "pretty_name": _("Body of author submits technical revision for reviewers"),
             "description": _(
-                "Body of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision)."
+                "Body of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision).",
             ),
             "is_translatable": False,
         }

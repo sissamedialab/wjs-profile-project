@@ -5,6 +5,7 @@ from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from plugins.wjs_review.communication_utils import role_for_article
 from review.models import EditorAssignment, ReviewAssignment, RevisionRequest
 from submission.models import Article
 
@@ -22,27 +23,40 @@ from .models import (
 )
 
 
-def get_recipient_label(workflow: ArticleWorkflow, user: Account, recipient: Account) -> str:
+def get_recipient_label(
+    workflow: ArticleWorkflow,
+    user: Account,
+    recipient: Account,
+    *,
+    with_role: bool = False,
+) -> str:
     """
     Get the label for the recipient of a message.
 
     :param workflow: ArticleWorkflow object
     :param user: User sending the message
     :param recipient: User receiving the message
+    :param with_role: If the returned label should include the role or the recipient
     :return:
     """
     real_name = str(recipient)
     if permissions.can_see_other_user_name(instance=workflow, sender=recipient, recipient=user):
+        if with_role:
+            # Remember that role_for_article() might return the empty string!
+            if role := role_for_article(workflow.article, recipient, message_recipient_style=True):
+                return f"{real_name} - {role}"
+
         return real_name
-    else:
-        if permissions.is_article_typesetter(instance=workflow, user=recipient):
-            return constants.LABELS[constants.TYPESETTER_ROLE]
-        elif permissions.is_article_editor(instance=workflow, user=recipient):
-            return constants.LABELS[constants.EDITOR_ROLE]
-        elif permissions.is_article_reviewer(instance=workflow, user=recipient):
-            return constants.LABELS[constants.REVIEWER_ROLE]
-        else:
-            return "Undisclosed name"
+
+    # If the user cannot see the recipient's name, we return this simplified mapping to the roles
+    if permissions.is_article_typesetter(instance=workflow, user=recipient):
+        return constants.LABELS[constants.TYPESETTER_ROLE]
+    if permissions.is_article_editor(instance=workflow, user=recipient):
+        return constants.LABELS[constants.EDITOR_ROLE]
+    if permissions.is_article_reviewer(instance=workflow, user=recipient):
+        return constants.LABELS[constants.REVIEWER_ROLE]
+
+    return "Undisclosed name"
 
 
 @dataclasses.dataclass

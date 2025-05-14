@@ -60,7 +60,7 @@ python3 manage.py install_themes
 # # ensure all janeway settings are present (docker image migh lag behind...)
 # python3 manage.py load_default_settings
 # # apply our defaults settings and our default values to Janeway's settings
-# python3 manage.py correct_settings_names
+# python3 manage.py apply_wjs_settings
 # # python3 manage.py setup_review_settings --force  # not needed ATM
 # python3 manage.py create_custom_settings --force  # not needed ATM
 

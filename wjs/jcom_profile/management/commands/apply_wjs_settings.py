@@ -1,7 +1,20 @@
-"""Correct existing settings names.
-
-Una-tantum command needed because of name changed during specs#901.
 """
+Patch and correct some settings.
+
+This command does the following:
+
+- rename_settings: correct the (obsoleted) name of some existing setting.
+
+- drop_obsolete_settings: drop settings we had second thoughts about.
+
+- set_jcom_defaults_over_janeways: patch several settings' default values.
+
+- create_overrides: create some known overrides for JCOMAL (⚠ danger here!)
+
+This was originally intended as an una-tantum command to change some settings' name during specs#901.
+"""
+
+from argparse import RawTextHelpFormatter
 
 from core.models import Setting, SettingValue
 from django.conf import settings
@@ -21,7 +34,12 @@ logger = get_logger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Correct existing settings names."  # noqa A003
+    help = __doc__  # noqa A003
+
+    def create_parser(self, *args, **kwargs):
+        parser = super().create_parser(*args, **kwargs)
+        parser.formatter_class = RawTextHelpFormatter
+        return parser
 
     def add_arguments(self, parser):
         """Handle command arguments."""
@@ -44,7 +62,13 @@ class Command(BaseCommand):
         self.set_jcom_defaults_over_janeways()
         self.create_overrides()
 
-    def rename_settings(self):
+    @staticmethod
+    def rename_settings() -> None:
+        """
+        Correct the (obsoleted) name of some existing setting.
+
+        If the setting we are looking for does not exist (either with the old or with the new name), do nothing.
+        """
         settings_to_rename = (
             # jcom_profile
             (
@@ -100,8 +124,13 @@ class Command(BaseCommand):
                 setting.name = new_name
                 setting.save()
 
-    def drop_obsolete_settings(self):
-        """Drop settings we had second thoughts about."""
+    @staticmethod
+    def drop_obsolete_settings() -> None:
+        """
+        Drop settings we had second thoughts about.
+
+        If the setting we are looking for does not exist, do nothing.
+        """
         settings_to_drop = (
             # "revision_submission" first and second incarnation
             # (replaced by revisions_complete_editor_notification)
@@ -138,7 +167,9 @@ class Command(BaseCommand):
             else:
                 setting.delete()
 
-    def set_jcom_defaults_over_janeways(self):
+    @staticmethod
+    def set_jcom_defaults_over_janeways() -> None:  # noqa: PLR0915
+        """Patch several settings' default values."""
         update_setting_default(
             "submission_acknowledgement",
             "email",
@@ -652,7 +683,7 @@ Someone (probably you) has requested to reset your password in {{ request.journa
 <br>
 <br>
 You can reset your password at the following link:</p>
-<p>{{ core_reset_password_url }}</p>
+<p><a href="{{ core_reset_password_url }}">{{ core_reset_password_url }}</a></p>
 <p>In case you did not make this request, please just ignore this message.</p>
 <p>&nbsp;</p>
 """,
@@ -666,7 +697,7 @@ You can reset your password at the following link:</p>
 Thank you for registering to {{ request.journal.name }}.
 You can confirm your account at the following link:
 </p>
-<p>{{ core_confirm_account_url }}</p>
+<p><a href="{{ core_confirm_account_url }}">{{ core_confirm_account_url }}</a></p>
 """,
         )
         update_setting_default("subject_new_user_registration", "email_subject", "New Registration")
@@ -677,8 +708,19 @@ You can confirm your account at the following link:
         update_setting_default("subject_reader_publication_notification", "email_subject", "NOT USED IN WJS")
         # For "bounced_email_notification" (and subject) we keep the defaults.
 
-    def create_overrides(self):
-        """Create some known overrides."""
+        # Updating the default template because it's probably be going to be used by most of our journals
+        # Please note we use a generic date-time, like "now" (i.e. not some of the article's dates).
+        # This agrees with crossref's recomendation of not using metadata (a bit useless in this case)
+        # and allows us to set the DOI whenever we want (this is more interesting).
+        update_setting_default("doi_pattern", "Identifiers", '{{ article.id }}{% now "YmdHis" %}')
+
+    @staticmethod
+    def create_overrides() -> None:
+        """
+        Create some known overrides for JCOMAL.
+
+        Warning: if overrides were created TTW, this method will replace them!
+        """
         # specs#1307 - JCOMAL
         try:
             code = "JCOMAL"
@@ -749,7 +791,12 @@ Regards,
         )
 
 
-def update_setting_default(name, group, value, description=None):
+def update_setting_default(
+    name: str,
+    group: str,
+    value: str | int,  # and `| Any`? I'm not sure how bool and json-values should be passed 🫤
+    description: str | None = None,
+) -> None:
     """Patch a setting's default value."""
     # TODO: refactor with wjs.jcom_profile.custom_settings_utils.patch_settin()
     setting = Setting.objects.get(name=name, group__name=group)

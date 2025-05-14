@@ -3,6 +3,7 @@ import io
 import os
 import random
 import zipfile
+from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from typing import Callable
@@ -101,13 +102,13 @@ def cleanup_notifications_side_effects():
 
 @pytest.mark.django_db
 @pytest.fixture  # (scope="session")  ??? can't have scope session and db access???
-def correct_settings_names():
+def apply_wjs_settings():
     """Update Janeway settings with our defaults."""
-    call_command("correct_settings_names", "--noinput")
+    call_command("apply_wjs_settings", "--noinput")
 
 
 @pytest.fixture
-def review_settings(journal, eo_user, correct_settings_names):
+def review_settings(journal, eo_user, apply_wjs_settings):
     """
     Initialize plugin settings and install wjs_review as part of the workflow.
 
@@ -174,27 +175,15 @@ def _accept_article(
     article: Article,
     cleanup_side_effects: bool = True,
 ) -> Article:
-    form_data = {
-        "decision": ArticleWorkflow.Decisions.ACCEPT,
-        "decision_editor_report": "Some editor report",
-        "withdraw_notice": "Some withdraw notice",
-    }
-    assert fake_request.user is not None
-    editor_decision = HandleDecision(
-        workflow=article.articleworkflow,
-        form_data=form_data,
-        user=fake_request.user,
-        request=fake_request,
-    ).run()
-    workflow = editor_decision.workflow
+    """Accept an article."""
+    article = _apply_decision(article, fake_request, ArticleWorkflow.Decisions.ACCEPT, cleanup_side_effects)
+    workflow = article.articleworkflow
     # An accepted article can be moved to READY_FOR_TYPESETTER (most common case) or be left in ACCEPTED state if there
     # are issues that must be resolved before the paper is ready for tyepsetters.
     assert workflow.state in (
         ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
         ArticleWorkflow.ReviewStates.ACCEPTED,
     )
-    if cleanup_side_effects:
-        cleanup_notifications_side_effects()
     return workflow.article
 
 
@@ -215,10 +204,22 @@ def accepted_article(fake_request, assigned_article) -> Article:
 
 
 def _reject_article(article: Article, fake_request: HttpRequest, cleanup_side_effects: bool = True) -> Article:
+    """Reject an article."""
+    article = _apply_decision(article, fake_request, ArticleWorkflow.Decisions.REJECT, cleanup_side_effects)
+    workflow = article.articleworkflow
+    assert workflow.state == ArticleWorkflow.ReviewStates.REJECTED
+    return workflow.article
+
+
+def _apply_decision(
+    article: Article, fake_request: HttpRequest, decision: ArticleWorkflow.Decisions, cleanup_side_effects: bool = True
+) -> Article:
+    """ "Apply a generic decision to an article."""
     form_data = {
-        "decision": ArticleWorkflow.Decisions.REJECT,
+        "decision": decision,
         "decision_editor_report": "Some editor report",
         "withdraw_notice": "Some withdraw notice",
+        "date_due": datetime.now() + timedelta(days=1),
     }
     assert fake_request.user is not None
     editor_decision = HandleDecision(
@@ -228,7 +229,6 @@ def _reject_article(article: Article, fake_request: HttpRequest, cleanup_side_ef
         request=fake_request,
     ).run()
     workflow = editor_decision.workflow
-    assert workflow.state == ArticleWorkflow.ReviewStates.REJECTED
     if cleanup_side_effects:
         cleanup_notifications_side_effects()
     return workflow.article
@@ -539,7 +539,7 @@ def _create_rfp_article(
 
     # Reminder: source files for the (publication) galleys are in the latest typesetting assignment, not in the
     # Article.source_files
-    ta = article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+    ta = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
     request.user = ta.typesetter
     UploadFile(
         typesetter=ta.typesetter,
@@ -580,7 +580,7 @@ def rfp_article(
 ) -> Article:
     """Create an article in ready-for-publication."""
     workflow = assigned_to_typesetter_article_with_files_to_typeset.articleworkflow
-    typesetter = workflow.get_latest_typesetting_assignment(completed=False).typesetter
+    typesetter = workflow.get_latest_typesetting_assignment(only_completed=False).typesetter
     article = _create_rfp_article(
         article=assigned_to_typesetter_article_with_files_to_typeset,
         issue=fb_issue,
@@ -886,7 +886,7 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
 
 
 def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
-    """Create a tar.gz archive containing a .tex file with a query."""
+    """Create a zip archive containing a .tex file with a query."""
     with open(Path(__file__).parent / "files" / "source.tex", "rb") as source:
         tex_content = source.read()
     tex_content = tex_content.replace(
@@ -904,7 +904,7 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
 
 
 def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
-    """Create a zip archive containing a .tex file with a query."""
+    """Create a zip archive containing a .tex file without any query."""
     with open(Path(__file__).parent / "files" / "source.tex", "rb") as source:
         tex_content = source.read()
     tex_content = tex_content.replace(

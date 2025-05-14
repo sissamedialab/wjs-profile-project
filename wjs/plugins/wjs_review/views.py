@@ -34,6 +34,7 @@ from django.views.generic import (
     DetailView,
     FormView,
     ListView,
+    RedirectView,
     TemplateView,
     UpdateView,
     View,
@@ -1020,6 +1021,18 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         return super().post(request, *args, **kwargs)
 
 
+class ArticleIdToDetails(RedirectView):
+    """Utility redirect from article-id to WJS status page."""
+
+    permanent = False
+    query_string = True
+
+    def get_redirect_url(self, *args, **kwargs):
+        """Given the article-id, redirect to the WJS status page."""
+        article = get_object_or_404(Article, pk=kwargs["article_id"])
+        return reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.id})
+
+
 class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
     title = _("Article status")
     model = ArticleWorkflow
@@ -1987,7 +2000,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
 
         if self.to_typesetter:
             # If the message is to the typesetter, the typesetter is the default recipient
-            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
+            typesetting_assignment = self.workflow.get_latest_typesetting_assignment(only_completed=False)
 
             return [typesetting_assignment.typesetter.pk] if typesetting_assignment else []
 
@@ -2106,6 +2119,41 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         """Return the label for the sender field."""
         return permissions.main_role_by_article(self.article.articleworkflow, self.request.user)
 
+    def get_initial_body(self):
+        """Retun a default user's signature to prefill the message body."""
+        if permissions.has_eo_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.user}<br>
+{self.request.journal.code} Editorial Office
+</p>
+"""
+        # NB: ...has_SECTION_editor_role...
+        # Remember that we generally use the "section-editor" role, not Janway's all-mighty "editor" role.
+        if permissions.is_article_editor(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.journal.code} Editor-in-charge
+</p>
+"""
+        if permissions.has_main_director_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.journal.code} Editor-in-chief
+</p>
+"""
+        if permissions.has_director_role_by_article(self.article.articleworkflow, self.request.user):
+            return f"""
+<p>
+Thank you and best regards,<br>
+{self.request.journal.code} Deputy Editor
+</p>
+"""
+        return ""
+
     def get_initial(self):
         """Populate the hidden fields.
 
@@ -2128,6 +2176,7 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
             "message_type": Message.MessageTypes.USER,
             "recipients": self.get_default_recipients(),
             "subject": default_subject,
+            "body": self.get_initial_body(),
             "to_be_forwarded_to": to_be_forwarded_to,
         }
 
@@ -3473,7 +3522,7 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         content = ""
         tables_in_galley = []
 
-        galleys = self.workflow.get_latest_typesetting_assignment(completed=False).galleys_created.all()
+        galleys = self.workflow.get_latest_typesetting_assignment(only_completed=False).galleys_created.all()
         if galleys:
             # The "production" galleys are detached from the article and are not "public",
             # so we cannot use Janeway's journal.logic.get_best_galley()

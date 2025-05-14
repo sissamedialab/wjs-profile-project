@@ -544,7 +544,7 @@ class EOSendBackToTypesetterView(BaseRelatedViewsMixin, FormView):
         """Fetch the Article instance for easier processing."""
         super().load_initial(request, *args, **kwargs)
         self.workflow = get_object_or_404(ArticleWorkflow, id=self.kwargs["pk"])
-        self.assignment = self.workflow.get_latest_typesetting_assignment(completed=False)
+        self.assignment = self.workflow.get_latest_typesetting_assignment(only_completed=False)
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:

@@ -8,6 +8,7 @@ from .views import (
     ArticleDecision,
     ArticleDetails,
     ArticleExtraInformationUpdateView,
+    ArticleIdToDetails,
     ArticleMessages,
     ArticleReminders,
     ArticleRevisionFileUpdate,
@@ -148,6 +149,7 @@ urlpatterns = [
         PostponeRevisionRequestDueDate.as_view(),
         name="wjs_postpone_revision_request",
     ),
+    path("<int:article_id>/", ArticleIdToDetails.as_view(), name="wjs_article_details_from_id"),
     path("status/<int:pk>/", ArticleDetails.as_view(), name="wjs_article_details"),
     path("janeway_article_page/<int:pk>/", DraftArticlePageView.as_view(), name="wjs_draft_article_page"),
     path("additional_info/<int:pk>/", ArticleExtraInformationUpdateView.as_view(), name="wjs_article_additional_info"),
@@ -215,9 +217,6 @@ urlpatterns = [
         "messages/<int:pk>/note/<int:original_message_pk>/delete/",
         MessageNoteDeleteView.as_view(),
         name="wjs_message_note_delete",
-    ),
-    path(
-        "messages/<int:article_id>/reply/<int:original_message_pk>/", WriteMessage.as_view(), name="wjs_message_reply"
     ),
     path(
         "messages/toggle_read_by_eo/<int:message_id>/",

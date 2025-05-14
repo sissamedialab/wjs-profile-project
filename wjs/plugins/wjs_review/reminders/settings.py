@@ -10,14 +10,18 @@ We decided not to use journal settings because
 
 import abc
 import dataclasses
+import datetime
 import inspect
 from typing import Any, Optional
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.utils import timezone
+from django.utils import formats, timezone
+from django.utils.timezone import localtime
 from django.utils.translation import gettext_lazy as _
 from journal.models import Journal
+from review.models import ReviewRound
 from submission.models import Article
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -118,21 +122,39 @@ class ReminderSetting:
         if self.extracontext:
             for extracontext_string in self.extracontext:
                 if extracontext_string == "assigned":
+                    assignment_date = getattr(target, "assigned")
+                    try:
+                        review_round_date = target.review_rounds.latest("date_started").date_started
+                    except ReviewRound.DoesNotExist:
+                        review_round_date = datetime.datetime.min
+                        logger.error(
+                            f"Trying to find ed-assigned date of non-existent review round for {target}. Please check!"
+                        )
+                    assigned = max(assignment_date, review_round_date)
                     # [date assignment of current version to current editor]
-                    template_context.setdefault("assigned", getattr(target, "assigned"))
+                    template_context.setdefault("assigned", self._format_date(assigned))
                 elif extracontext_string == "current_editor":
                     # get the current editor of the paper (?) and add it to the context
                     # NB: wanting the editor in the context does _not_ mean that we are writing to the editor!
                     template_context.setdefault("current_editor", getattr(target, "editor"))
                 elif extracontext_string == "date_requested":
                     # on [date when editor selected reviewer]
-                    template_context.setdefault("date_requested", getattr(target, "date_requested"))
+                    template_context.setdefault(
+                        "date_requested",
+                        self._format_date(getattr(target, "date_requested")),
+                    )
                 elif extracontext_string == "reviewer":
                     template_context.setdefault("reviewer", getattr(target, "reviewer"))
                 elif extracontext_string == "date_due":
-                    template_context.setdefault("date_due", getattr(target, "date_due"))
+                    template_context.setdefault("date_due", self._format_date(getattr(target, "date_due")))
 
         return template_context
+
+    def _format_date(self, date_value: datetime.datetime | datetime.date) -> str:
+        if isinstance(date_value, datetime.date):
+            return formats.date_format(date_value, settings.DATE_FORMAT)
+        if isinstance(date_value, datetime.datetime):
+            return formats.date_format(localtime(date_value), settings.DATETIME_FORMAT)
 
     def get_rendered_subject(self, target):
         context = self.build_context(target)
@@ -452,7 +474,7 @@ Thank you in advance and best regards,<br>
 <br>
 The reviewer {{ reviewer.full_name }} has not yet accepted/declined your invite to review this {{ article.section.name }}.<br>
 <br>
-You selected them on {{ date_assigned }}.<br>
+You selected them on {{ date_requested }}.<br>
 <br>
 We would be grateful if you could step in (send a personal message, change reviewer, assign yourself as reviewer, etc.) from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
 <br>

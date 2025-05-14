@@ -266,7 +266,7 @@ $m migrate >/dev/null ; debug "All migrations applied"
 $m build_assets >/dev/null ; debug "Assets built (and collected)"
 $m load_default_settings >/dev/null ; debug "Janeway default settings (re)loaded"
 $m patch_submission_settings >/dev/null ; debug "Submission settings patched"
-$m correct_settings_names --no-input >/dev/null ; debug "Existing settings corrected"
+$m apply_wjs_settings --no-input >/dev/null ; debug "Existing settings corrected"
 $m setup_review_settings --force >/dev/null ; debug "wjs_review settings created"
 $m create_custom_settings --force >/dev/null ; debug "jcom_profile settings created"
 
