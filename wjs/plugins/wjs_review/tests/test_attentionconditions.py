@@ -14,10 +14,13 @@ from plugins.wjs_review.logic import (
     AuthorHandleRevision,
     EvaluateReview,
     HandleDecision,
+    PostponeReviewerDueDate,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     EditorRevisionRequest,
+    Message,
+    MessageRecipients,
     Reminder,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
@@ -604,3 +607,19 @@ def test_reviewer_is_late(
         reminder.save()
 
     assert state_cls.article_requires_attention(article=article, user=eo) == "Review assignment is late"
+
+    form_data = {
+        "date_due": assignment.date_due + datetime.timedelta(days=3),
+    }
+    service = PostponeReviewerDueDate(
+        assignment=assignment,
+        editor=assignment.editor,
+        form_data=form_data,
+        request=fake_request,
+        original_due_date=assignment.date_due,
+    )
+    service.run()
+    Message.objects.update(read_by_eo=True)
+    MessageRecipients.objects.update(read=True)
+    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""

@@ -12,7 +12,6 @@ from typing import Optional
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -43,7 +42,9 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     First we check if there's a reviewer late in accepting/declining the review.
     Then we check if there's a reviewer late in writing the review.
     """
-    time_threshold = timezone.now() if for_editor else timezone.now() - datetime.timedelta(days=5)
+    now_ = timezone.now()
+
+    time_threshold = now_ if for_editor else now_ - datetime.timedelta(days=5)
 
     reminder_checks = [
         (
@@ -54,9 +55,13 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     ]
 
     review_round = article.current_review_round_object()
-    review_assignments = WorkflowReviewAssignment.objects.by_current_round(
-        article=article, review_round=review_round
-    ).pending()
+    # Note that relying on reminders alone is not enough, because the RA due-date could have been postponed
+    # after reminders have been already sent
+    review_assignments = (
+        WorkflowReviewAssignment.objects.by_current_round(article=article, review_round=review_round)
+        .filter(date_due__lt=timezone.localtime(now_).date())
+        .pending()
+    )
 
     for code, message in reminder_checks:
         if any(
@@ -248,11 +253,13 @@ def one_review_assignment_late(article: Article) -> str:
     """Tell if the article has one "late" review_assignment."""
     # TODO: review this condition. Is this too invasive?
     review_round = article.current_review_round_object()
-    # TODO: use django.db.models.functions.Now() ?
-    now = timezone.now().date()
-    late_assignments = WorkflowReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
+    now = timezone.now()
+    late_assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).filter(
+        date_due__lt=timezone.localtime(now).date(),
+        is_complete=False,
+        date_declined__isnull=True,
     )
     if late_assignments.exists():
         return "There is a late review assignment."
@@ -267,10 +274,11 @@ def editor_as_reviewer_is_late(article: Article) -> str:
     else:
         return ""
     review_round = article.current_review_round_object()
-    now = timezone.now().date()
-    late_assignments = WorkflowReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round, reviewer=editor)
-        & Q(is_complete=False, date_declined__isnull=True, date_due__lt=now),
+    now = timezone.now()
+    late_assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).filter(
+        date_due__lt=timezone.localtime(now).date(), is_complete=False, date_declined__isnull=True, reviewer=editor
     )
     if late_assignments.exists():
         return "Your review is overdue"
@@ -299,9 +307,12 @@ def any_reviewer_is_late_after_reminder(article: Article) -> str:
     cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(
         days=settings.WJS_REMINDER_LATE_AFTER,
     )
-    pending_review_assignments = WorkflowReviewAssignment.objects.filter(
-        article=article,
-        is_complete=False,
+
+    review_round = article.current_review_round_object()
+    pending_review_assignments = (
+        WorkflowReviewAssignment.objects.by_current_round(article=article, review_round=review_round)
+        .filter(date_due__lt=timezone.localtime(timezone.now()).date())
+        .pending()
     )
     expired_reminders = Reminder.objects.filter(
         code__in=watched_reminders,
@@ -493,10 +504,14 @@ def pending_edit_metadata_request(workflow: ArticleWorkflow, user: Account) -> O
 def reviewer_acceptdecline_is_late(article: Article) -> str:
     """Tell if the reviewer is late with evaluating (accepte/decline) the review request."""
     review_round = article.current_review_round_object()
-    now = timezone.now().date()
-    late_assignments = WorkflowReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(is_complete=False, date_accepted__isnull=True, date_declined__isnull=True, date_due__lt=now),
+    now = timezone.now()
+    late_assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).filter(
+        date_due__lt=timezone.localtime(now).date(),
+        is_complete=False,
+        date_accepted__isnull=True,
+        date_declined__isnull=True,
     )
     if late_assignments.exists():
         return "Invite to be accepted/declined"
@@ -509,10 +524,14 @@ def reviewer_report_is_late(article: Article) -> str:
     # The business logic should prevent having active review assignments for past review rounds (when a revision is
     # asked, pending/unfinished assignments are withdrawn). The filter on the round should thus be superfluous.
     review_round = article.current_review_round_object()
-    now = timezone.now().date()
-    late_assignments = WorkflowReviewAssignment.objects.filter(
-        Q(article=article, review_round=review_round)
-        & Q(is_complete=False, date_accepted__isnull=False, date_declined__isnull=True, date_due__lt=now),
+    now = timezone.now()
+    late_assignments = WorkflowReviewAssignment.objects.by_current_round(
+        article=article, review_round=review_round
+    ).filter(
+        date_due__lt=timezone.localtime(now).date(),
+        is_complete=False,
+        date_accepted__isnull=False,
+        date_declined__isnull=True,
     )
     if late_assignments.exists():
         return "Review is overdue"
