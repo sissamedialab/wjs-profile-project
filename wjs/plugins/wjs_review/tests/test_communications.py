@@ -646,6 +646,40 @@ def test_write_message_as_director_does_not_set_read_by_eo_flag(
     assert new_message.read_by_eo is False
 
 
+@pytest.mark.parametrize("message_body_length", [1, 100000])
+@pytest.mark.django_db
+def test_message_body_length(
+    article: Article,
+    eo_user: JCOMProfile,
+    client,
+    message_body_length: int,
+):
+    """Test that the Message.body field can be as long as the user wants."""
+    url = reverse(
+        "wjs_message_write",
+        kwargs={"pk": article.articleworkflow.pk, "recipient_id": article.correspondence_author.pk},
+    )
+    client.force_login(eo_user)
+    assert Message.objects.count() == 0
+    body = "x" * message_body_length
+    client.post(
+        url,
+        data={
+            "subject": "subject",
+            "body": body,
+            "actor": eo_user.id,
+            "content_type": ContentType.objects.get_for_model(article).id,
+            "object_id": article.id,
+            "message_type": Message.MessageTypes.USER,
+            "recipientsFS-TOTAL_FORMS": "1",
+            "recipientsFS-INITIAL_FORMS": "0",
+            "recipientsFS-0-recipient": [article.correspondence_author.id],
+        },
+    )
+    new_message = Message.objects.last()
+    assert len(new_message.body) == message_body_length
+
+
 @pytest.mark.django_db
 def test_write_message_as_eo_sets_read_by_eo_flag(
     article: Article,

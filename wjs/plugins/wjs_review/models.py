@@ -1330,7 +1330,6 @@ class Message(TimeStampedModel):
         verbose_name=_("body"),
         blank=True,
         default="",
-        max_length=1111,
         help_text="The content of the message.",
     )
     message_type = models.TextField(
