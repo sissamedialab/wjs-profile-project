@@ -2008,9 +2008,17 @@ class TestResetDate:
         assert reea_reminders.count() == 3
         reea_reminders.update(date_sent=base_date)
         assert not any_reviewer_is_late_after_reminder(review_assignment.article)
-        reea_reminders.update(date_sent=base_date - datetime.timedelta(days=1))
+
+        date_check1 = base_date - datetime.timedelta(days=1)
+        review_assignment.date_due = date_check1
+        review_assignment.save()
+        reea_reminders.update(date_sent=date_check1)
         assert not any_reviewer_is_late_after_reminder(review_assignment.article)
-        reea_reminders.update(date_sent=base_date - datetime.timedelta(days=settings.WJS_REMINDER_LATE_AFTER + 1))
+
+        date_check2 = base_date - datetime.timedelta(days=settings.WJS_REMINDER_LATE_AFTER + 1)
+        review_assignment.date_due = date_check2
+        review_assignment.save()
+        reea_reminders.update(date_sent=date_check2)
         assert "Reviewer does not respond. Please take action" == any_reviewer_is_late_after_reminder(
             review_assignment.article
         )
