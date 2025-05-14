@@ -14,6 +14,12 @@
           {{ delete_label }}
         </button>
       </li>
+    {% empty %}
+      <li class="list-group-item">
+        {% blocktranslate %}<strong><i class="bi bi-exclamation-triangle text-warning"></i> No file uploaded yet.</strong><br>
+        After selecting a file with <strong>Browse</strong>, please click <strong>"{{ upload_label }}"</strong> to complete the upload.
+        {% endblocktranslate %}
+      </li>
     {% endfor %}
   </ul>
   <div class="input-group mb-3">
