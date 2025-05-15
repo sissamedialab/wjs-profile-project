@@ -292,7 +292,6 @@ class Command(BaseCommand):
 
         try:
             if pub_article and article:
-
                 if pub_article.id == article.id:
                     self.store_article_status(pub_article)
                     logger.debug(
@@ -566,7 +565,6 @@ class Command(BaseCommand):
     #
 
     def store_article_status(self, article):
-
         self.store_article_language = article.language
 
         self.store_article_title = article.title
@@ -614,7 +612,6 @@ class Command(BaseCommand):
         self.stored_status = True
 
     def restore_article_status(self, article):
-
         if not self.stored_status:
             logger.error("no article status stored")
             return
@@ -925,7 +922,6 @@ WHERE
 
         # clean some data related to the article
         for err in EditorRevisionRequest.objects.filter(article=article):
-
             if err.cover_letter_file:
                 err.cover_letter_file.unlink_file()
                 err.cover_letter_file.delete()
@@ -1247,29 +1243,35 @@ WHERE
         # the same format of submission models LANGUAGE_CHOICES.
         # The actual distinct values from jcomal are: Spanish, Portuguese, Português, Español, Espanhol, NULL
         # the others are from jcom
-        wjapp_not_normalized_languages_choices = (
-            ("fra", "french"),
-            ("spa", "Spain; Español; Spanish (Español); Espanhol"),
-            ("por", "Brazilian Portuguese; Português"),
-            ("ita", "Italiano"),
-            ("eng", "English--CANADA; ING; anglais;  English and Spanish; ENG; Italian (and English)"),
-            ("ind", "Indonesia; Bahasa Indonesia"),
-        )
-        wjapp_not_normalized_languages_by_code = {t[0]: t[1] for t in wjapp_not_normalized_languages_choices}
+        wjapp_not_normalized_languages_by_code = {
+            "fra": ["french"],
+            "spa": ["Spain", "Español", "Spanish (Español)", "Espanhol"],
+            "por": ["Brazilian Portuguese", "Português"],
+            "ita": ["Italiano"],
+            "eng": [
+                "English--CANADA",
+                "ING",
+                "anglais",
+                "English and Spanish",
+                "ENG",
+                "Italian (and English)",
+                "English",
+            ],
+            "ind": ["Indonesia", "Bahasa Indonesia"],
+        }
 
-        for lang_code in wjapp_not_normalized_languages_by_code.keys():
-            trimmed_lang_name_list = [x.strip() for x in wjapp_not_normalized_languages_by_code[lang_code].split(";")]
-            if language in trimmed_lang_name_list:
-                logger.warning(f"language wjapp {language} match as wjapp not normalized languages: {lang_code}")
-                article.language = wjapp_not_normalized_languages_by_code[lang_code]
+        for lang_code, funny_names in wjapp_not_normalized_languages_by_code.items():
+            if language in funny_names:
+                logger.warning(f"""Wjapp's "{language}" mapped to "{lang_code}" for {article.id}""")
+                article.language = lang_code
                 article.save()
                 return
 
         for lang_code in JANEWAY_LANGUAGES_BY_CODE.keys():
             trimmed_lang_name_list = [x.strip() for x in JANEWAY_LANGUAGES_BY_CODE[lang_code].split(";")]
             if language in trimmed_lang_name_list:
-                logger.warning(f"language wjapp {language} match as JANEWAY LANGUAGE CODE: {lang_code}")
-                article.language = JANEWAY_LANGUAGES_BY_CODE[lang_code]
+                logger.warning(f"""Wjapp's "{language}" mapped to "{lang_code}" for {article.id}""")
+                article.language = lang_code
                 article.save()
                 return
 
@@ -1622,7 +1624,7 @@ def account_get_or_create_check_correspondence(
     elif mappings.count() >= 1:
         # We know this person from another journal
         logger.debug(
-            f"wjs mapping exists ({mappings.count()} correspondences)" f" for {user_cod}/{source} or {imported_email}"
+            f"wjs mapping exists ({mappings.count()} correspondences) for {user_cod}/{source} or {imported_email}"
         )
         mapping = check_mappings(mappings, imported_email, user_cod, source)
 
@@ -1863,7 +1865,6 @@ class ImportPermissionsManager:
 
             # add rights from wjapp present in User_Rights
             for reader_account in readers:
-
                 # set wjs permission for the reader with PermissionAssignment get or create
                 # i.e. JCOM_001A_0924 for CVLETT reader
                 if value["type"] in ("REREP", "EDREP"):
@@ -1886,7 +1887,6 @@ class ImportPermissionsManager:
                         pa.save()
 
                 elif value["type"] in ("CVLETT"):
-
                     # NOTE: in wjapp the first versions has no cover letter, not necessary
                     # to manage the case (the cover letter in first version would be related
                     # to Article/ArticleWorkflow object)
@@ -2089,7 +2089,6 @@ class ImportCorrespondenceManager:
         )
 
         for m in self.read_all_messages_of_imported_version():
-
             # as wjs msg.recipient added from wjapp: recipient, reader, readerCC
             # readerBCC are excluded by the query on wjapp
             (author_from_wjapp, message_recipients_no_bcc) = self.read_message_author_recipients(m["documentLayerCod"])
@@ -2416,7 +2415,6 @@ class BaseActionManager:
             # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
             (response_source_compressed, doc_type_compressed) = self.download_source_compressed_archive()
             if response_source_compressed.headers["Content-Length"] != "0":
-
                 # returns a zip "submit.zip" containing only the  subdirectory "submission/" of the production zip
                 # with the originals files sent by the author
                 submit_source_compressed_dj = self.extract_subdirectory_to_zip(
@@ -2464,7 +2462,6 @@ class BaseActionManager:
         memory_zip = BytesIO()
 
         with zipfile.ZipFile(BytesIO(response.content), "r") as zip_ref:
-
             # Create a new ZIP file in memory
             with zipfile.ZipFile(memory_zip, "w") as new_zip:
                 # List all files in the zip file
@@ -2546,7 +2543,6 @@ class BaseActionManager:
 
     # production version source TARGZ
     def file_source_prod(self):
-
         (response_source_prod, file_type) = self.download_source_prod()
         if response_source_prod.headers["Content-Length"] != "0":
             if file_type == "tar.gz":
@@ -2669,7 +2665,7 @@ class BaseActionManager:
             response = self.session.get(file_url)
             if response.headers["Content-Length"] == "0":
                 logger.error(
-                    f"check wjapp login data empty file {doc_type}" f"downloaded: {response.headers['Content-Length']}"
+                    f"check wjapp login data empty file {doc_type}downloaded: {response.headers['Content-Length']}"
                 )
 
         return (response, doc_type)
@@ -3283,7 +3279,6 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             and self.imported_version_num == 2
             and self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
         ):
-
             logger.warning(
                 f"fix of broken wjapp data state not compatible with ADMIN_ASS_N_ED: {self.preprintid} "
                 f"AW.state: {self.article.articleworkflow.state}"
@@ -4002,7 +3997,6 @@ ORDER BY dl.submissionDate
             object_id=review_assignment.id,
         )
         for r in ra_reminders:
-
             # from wjapp properties
 
             next_day_delay = 1
@@ -5081,7 +5075,6 @@ class SelectCoauthorAction(BaseActionManager):
     """Coauthor selection management."""
 
     def run(self):
-
         # coauthor is the target of the wjapp action
         coauthor_cod = self.action["targetCod"]
         coauthor_lastname = self.action["targetLastname"]
@@ -5135,7 +5128,6 @@ class SwapCorrespondenceAuthor(BaseActionManager):  # noqa N801
     """Manages wjapp action "author changes corresponding author"."""
 
     def run(self):
-
         # E.g. JCOM_001A_1115
         # note: in wjapp the new corresponding author must be one of the coauthors
 
@@ -5273,7 +5265,6 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
     """Manages wjapp action "typesetter uploads for production manager"."""
 
     def run(self):
-
         typesetter_uploads_date = self.action["actionDate"]
 
         # get typesetter file tar.gz
@@ -5314,7 +5305,6 @@ class Requestproofs(BaseActionManager):
     """Manages wjapp actions "production manager sends to author"."""
 
     def run(self):
-
         # Known cases of "dirty data" on wjapp, when this action had no effect.
         # We identify them by a triplet made of preprint id, version number and action-history code
         # (the first two are just human-friendly pointers 🙂).
@@ -5611,7 +5601,6 @@ class PUM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
     # e.g. JCOM_008A_0324
 
     def run(self):
-
         # we need to get the admin user who did the action
         admin_cod = self.action["agentCod"]
         admin_lastname = self.action["agentLastname"]
@@ -5701,7 +5690,6 @@ class DeclareReadyForPublication(BaseActionManager):
     ready_for_publication_agent: Account = None
 
     def run(self):
-
         if (
             self.preprintid == "JCOM_005A_0621"
             and self.imported_version_num == 4
@@ -5769,7 +5757,6 @@ class PM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
     # this action is not in the logic of wjs. It is added a message in the timeline for the imported papers.
     # other related messages are imported with the general correspondence
     def run(self):
-
         # we need to get the admin user who did the action
         admin_cod = self.action["agentCod"]
         admin_lastname = self.action["agentLastname"]
@@ -5813,7 +5800,6 @@ class PM_PRE_PUBLISHES(BaseActionManager):  # noqa N801
     """
 
     def run(self):
-
         # we need to get the pm user who did the action
         pm_cod = self.action["agentCod"]
         pm_lastname = self.action["agentLastname"]
@@ -5853,7 +5839,6 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
     # this action is not in the logic of wjs. It is added a message in the timeline for the imported papers.
     # other related messages are imported with the general correspondence
     def run(self):
-
         # we need to get the pub user who did the action
         pub_cod = self.action["agentCod"]
         pub_lastname = self.action["agentLastname"]
@@ -5874,7 +5859,6 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
         with freezegun.freeze_time(
             rome_timezone.localize(self.action["actionDate"]),
         ):
-
             self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
             self.article.articleworkflow.save()
             self.article.stage = submission_models.STAGE_PUBLISHED
@@ -5910,7 +5894,6 @@ class PUM_SENDS_TO_EO(BaseActionManager):  # noqa N801
     # ready for publication to permit another ready for publication action
     # e.g. JCOM_015A_0224, JCOM_001E_0924
     def run(self):
-
         self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
         ta = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
         ta.completed = None
