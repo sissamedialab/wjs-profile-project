@@ -56,6 +56,7 @@ from ..communication_utils import (
     should_notify_actor,
 )
 from . import conftest
+from .conftest import _assign_article
 from .test_helpers import _create_review_assignment
 
 Account = get_user_model()
@@ -869,6 +870,92 @@ def test_message_addressing(
     assert HandleMessage.can_write_to(main_director, assigned_article, eo_system_user) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, past_editor) is True
     assert HandleMessage.can_write_to(main_director, assigned_article, main_director) is False
+
+
+@pytest.mark.parametrize("author_can_contact_director", (True, False))
+@pytest.mark.django_db
+def test_allowed_recipients_director_editor(
+    submitted_article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    director: JCOMProfile,
+    director_editor: JCOMProfile,
+    eo_user: JCOMProfile,
+    fake_request: HttpRequest,
+    review_settings,
+    review_form: review_models.ReviewForm,
+    author_can_contact_director: bool,
+):
+    """
+    Generated list of recipient for director when they are also editor provides the union of the two recipients sets.
+    """
+    author: Account = create_jcom_user("simple_author").janeway_account
+    submitted_article.correspondence_author = author
+    submitted_article.save()
+    submitted_article.authors.clear()
+    submitted_article.authors.add(author)
+
+    reviewer_1: Account = create_jcom_user("reviewer_1").janeway_account
+    reviewer_2: Account = create_jcom_user("reviewer_2").janeway_account
+    past_editor: Account = create_jcom_user("past_editor").janeway_account
+
+    PastEditorAssignment.objects.create(
+        article=submitted_article,
+        editor=past_editor,
+        date_assigned=now() - datetime.timedelta(days=30),
+        date_unassigned=now() - datetime.timedelta(days=10),
+    )
+
+    # Let's make all actors point directly to the Janeway's account (i.e. not to the JCOMProfile), because it's easier
+    # to use.
+    director: Account = director.janeway_account
+    main_director: Account = director_editor.janeway_account
+    eo_system_user: Account = get_eo_user(submitted_article)
+
+    _assign_article(fake_request, submitted_article, main_director)
+
+    # The fixture `review_settings` ensures that all needed (journal) settings exist, but we still need to set the
+    # desired value
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="author_can_contact_director",
+        journal=submitted_article.journal,
+        value=author_can_contact_director,
+    )
+
+    # Need to have a couple of reviewers already assigned, so we can test a richer scenario
+    fake_request.user = main_director  # NB: quick_assign expects request.user to be the editor... sigh...
+    for reviewer in (reviewer_1, reviewer_2):
+        service = AssignToReviewer(
+            workflow=submitted_article.articleworkflow,
+            # we must pass the Account object linked to the JCOMProfile instance, to ensure it
+            # can be used in janeway core
+            reviewer=reviewer,
+            editor=main_director,
+            form_data={
+                "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+                "message": "random message",
+            },
+            request=fake_request,
+        )
+        service.run()
+
+    # Let's ensure that our main actors are not "special" in some way
+    assert main_director.is_staff is False
+    assert reviewer_1.is_staff is False
+    assert reviewer_2.is_staff is False
+    assert author.is_staff is False
+
+    # Main director
+    # ======
+    allowed_recipients = HandleMessage.allowed_recipients_for_actor(actor=main_director, article=submitted_article)
+    # This is different from the director-only case as the editor recipients are added and thus the director / editor
+    # can always contact the author
+    assert author in allowed_recipients
+    assert reviewer_1 in allowed_recipients
+    assert reviewer_2 in allowed_recipients
+    assert past_editor in allowed_recipients
+    assert director in allowed_recipients
+    assert eo_system_user in allowed_recipients
 
 
 @pytest.mark.parametrize("author_can_contact_director", (True, False))

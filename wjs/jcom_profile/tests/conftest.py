@@ -345,6 +345,14 @@ def main_director(create_jcom_user, roles, journal, director_role) -> JCOMProfil
 
 
 @pytest.fixture()
+def director_editor(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
+    jcom_user = create_jcom_user("Mario editor director")
+    jcom_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal)
+    jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    return jcom_user
+
+
+@pytest.fixture()
 def invited_user(journal):
     """Create an user invited by staff, with minimal data."""
     email = "invited_user@mail.it"
