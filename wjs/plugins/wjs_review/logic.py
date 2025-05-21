@@ -2559,6 +2559,52 @@ class HandleMessage:
 
         articleworkflow = article.articleworkflow
 
+        # EO can write to:
+        if permissions.has_eo_role_by_article(instance=articleworkflow, user=actor):
+            # NB: not to himself
+            # an EO person is considered as already present in the list because of the EO system user
+
+            # the Corresponding author
+            users_pk.extend(_get_correspondening_author(article))
+            # all the article's reviewers
+            users_pk.extend(_get_reviewers(article))
+            # current editor
+            users_pk.extend(_get_current_editor(article))
+            # past editors
+            users_pk.extend(_get_past_editors(article))
+            # the main director
+            users_pk.extend(_get_main_director(article))
+            # all directors
+            users_pk.extend(_get_directors(article))
+            # current typesetter
+            users_pk.extend(_get_typesetter(article))
+        # (all) Director(s) can write to:
+        # (note that the Main-Director also has the "normal" Director role,
+        #  but explicit is better than implicit)
+        elif permissions.has_director_role_by_article(
+            instance=articleworkflow,
+            user=actor,
+        ) or permissions.has_main_director_role_by_article(
+            instance=articleworkflow,
+            user=actor,
+        ):
+            # all the article's reviewers
+            users_pk.extend(_get_reviewers(article))
+            # current editor
+            users_pk.extend(_get_current_editor(article))
+            # past editors
+            users_pk.extend(_get_past_editors(article))
+            # all directors
+            users_pk.extend(_get_directors(article))
+            # the main director
+            users_pk.extend(_get_main_director(article))
+            if get_setting(
+                "wjs_review",
+                "author_can_contact_director",
+                article.journal,
+            ).processed_value:
+                # the Corresponding author
+                users_pk.extend(_get_correspondening_author(article))
         # Editor can write to:
         if permissions.is_article_editor(instance=articleworkflow, user=actor):
             # the journal's main director
@@ -2587,52 +2633,6 @@ class HandleMessage:
                 users_pk.extend(_get_main_director(article))
             # current editor
             users_pk.extend(_get_current_editor(article))
-        # (all) Director(s) can write to:
-        # (note that the Main-Director also has the "normal" Director role,
-        #  but explicit is better than implicit)
-        elif permissions.has_director_role_by_article(
-            instance=articleworkflow,
-            user=actor,
-        ) or permissions.has_main_director_role_by_article(
-            instance=articleworkflow,
-            user=actor,
-        ):
-            # all the article's reviewers
-            users_pk.extend(_get_reviewers(article))
-            # current editor
-            users_pk.extend(_get_current_editor(article))
-            # past editors
-            users_pk.extend(_get_past_editors(article))
-            # all directors
-            users_pk.extend(_get_directors(article))
-            # the main director
-            users_pk.extend(_get_main_director(article))
-            if get_setting(
-                "wjs_review",
-                "author_can_contact_director",
-                article.journal,
-            ).processed_value:
-                # the Corresponding author
-                users_pk.extend(_get_correspondening_author(article))
-        # EO can write to:
-        elif permissions.has_eo_role_by_article(instance=articleworkflow, user=actor):
-            # NB: not to himself
-            # an EO person is considered as already present in the list because of the EO system user
-
-            # the Corresponding author
-            users_pk.extend(_get_correspondening_author(article))
-            # all the article's reviewers
-            users_pk.extend(_get_reviewers(article))
-            # current editor
-            users_pk.extend(_get_current_editor(article))
-            # past editors
-            users_pk.extend(_get_past_editors(article))
-            # the main director
-            users_pk.extend(_get_main_director(article))
-            # all directors
-            users_pk.extend(_get_directors(article))
-            # current typesetter
-            users_pk.extend(_get_typesetter(article))
         # Exclude the current user from the recipients list. It can happen in case of overlapping roles.
         users_pk = set(users_pk) - {actor.pk}
         return allowed_recipients.filter(pk__in=users_pk)
