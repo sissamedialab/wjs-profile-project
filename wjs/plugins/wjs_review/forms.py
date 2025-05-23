@@ -440,7 +440,6 @@ class ReviewerSearchForm(forms.Form):
             ("past", _("Reviewed previous version")),
             ("known", _("My reviewer archive")),
             ("declined", _("Declined/removed from previous version")),
-            ("prophy", _("Suggested by Prophy")),
         ],
     )
 
