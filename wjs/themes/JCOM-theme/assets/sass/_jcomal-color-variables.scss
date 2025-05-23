@@ -1,18 +1,31 @@
 $journal-color: (
-  "lighten-5": #e7f4eb,
-  "lighten-4": #c4e4cd,
-  "lighten-3": #9dd3ab,
-  "lighten-2": #75c189,
-  "lighten-1": #58b370,
-  "base": #3aa657,
-  "darken-1": #349e50,
-  "darken-2": #2d9546,
-  "darken-3": #258b3d,
-  "darken-4": #187b2c,
-  "accent-1": #58b370,
-  "accent-2": #87ffa5,
-  "accent-3": #54ff7f,
-  "accent-4": #3aff6c,
+  "base": #c00074,
+  "lighten-5": #fbe5f1,
+  // very light tint
+  "lighten-4": #f5cbe1,
+  // lighter tint
+  "lighten-3": #efa0c8,
+  // light tint
+  "lighten-2": #e575aa,
+  // slightly lighter
+  "lighten-1": #d94c8d,
+  // lighter version of base
+  "darken-1": #a70065,
+  // slightly darker than base
+  "darken-2": #910055,
+  // darker version
+  "darken-3": #7a0046,
+  // even darker
+  "darken-4": #5e0034,
+  // very dark
+  "accent-1": #ff63af,
+  // accent variant
+  "accent-2": #ff90c6,
+  // brighter accent
+  "accent-3": #ff3a9c,
+  // bold accent
+  "accent-4": #ff006d,
+  // deep accent
 );
 
 $colors: (
