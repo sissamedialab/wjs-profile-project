@@ -2,17 +2,23 @@
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.http import HttpRequest
+from django.utils import timezone
+from plugins.wjs_review.forms import MessageForm
+from plugins.wjs_review.logic import AssignToReviewer
+from plugins.wjs_review.models import ArticleWorkflow, WjsEditorAssignment
+from plugins.wjs_review.permissions import (
+    can_edit_note,
+    can_see_other_user_name,
+    has_director_role_by_article,
+    is_one_of_the_authors,
+)
+from review.models import ReviewForm
 from submission.models import Article
 
 from wjs.jcom_profile.models import JCOMProfile
 
-from ..forms import MessageForm
-from ..models import ArticleWorkflow
-from ..permissions import (
-    can_edit_note,
-    has_director_role_by_article,
-    is_one_of_the_authors,
-)
+from .test_helpers import _create_review_assignment
 
 Account = get_user_model()
 
@@ -71,3 +77,43 @@ def test_can_edit_note(
     assert can_edit_note(normal_user.janeway_account, msg)
     # Other non-eo user can never edit note
     assert not can_edit_note(jcom_user.janeway_account, msg)
+
+
+@pytest.mark.django_db
+def test_can_see_other_user_name(
+    assigned_article: Article,
+    eo_user: JCOMProfile,
+    reviewer: JCOMProfile,
+    fake_request: HttpRequest,
+    review_form: ReviewForm,  # noqa: ARG001
+):
+    """Test who can see whose name."""
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    author = assigned_article.correspondence_author
+    _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
+        assigned_article=assigned_article,
+    )
+    wf = assigned_article.articleworkflow
+    # EO can see everyone
+    assert can_see_other_user_name(instance=wf, actor=eo_user, target=author)
+    assert can_see_other_user_name(instance=wf, actor=eo_user, target=editor)
+    assert can_see_other_user_name(instance=wf, actor=eo_user, target=reviewer)
+    # Editor can see everyone
+    assert can_see_other_user_name(instance=wf, actor=editor, target=author)
+    assert can_see_other_user_name(instance=wf, actor=editor, target=reviewer)
+
+    # The system should work also if editor did I-will-review
+    AssignToReviewer(
+        workflow=wf,
+        reviewer=editor,
+        editor=editor,
+        form_data={
+            "acceptance_due_date": timezone.now().strftime("%Y-%m-%d"),
+            "message": "random message",
+        },
+        request=fake_request,
+    ).run()
+    assert can_see_other_user_name(instance=wf, actor=editor, target=author)
+    assert can_see_other_user_name(instance=wf, actor=editor, target=reviewer)

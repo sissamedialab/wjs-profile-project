@@ -64,36 +64,41 @@ def main_role_by_assignment(assignment: "WorkflowReviewAssignment", user: Accoun
         return main_role_by_article(assignment.article.articleworkflow, user)
 
 
-def can_see_other_user_name(instance: "ArticleWorkflow", sender: Account, recipient: Account) -> bool:
+def can_see_other_user_name(instance: "ArticleWorkflow", actor: Account, target: Account) -> bool:
     """
-    Check if the user can see other user's name.
+    Check if a user (the actor) can see another user's name (the target).
 
-    :param instance: An instance of the ArticleWorkflow class.
+    :param instance: The article(workflow) wrt which users roles are computed.
     :type instance: ArticleWorkflow
 
-    :param recipient: The user to check permissions for.
-    :type recipient: Account
+    :param actor: The user to check permissions for (who is doing the seeing).
+    :type actor: Account
 
-    :param sender: The user should user to check for role.
-    :type sender: Account
+    :param target: The target user (who is been seen).
+    :type target: Account
 
-    :return: True if recipient can see the sender's name, False otherwise.
+    :return: True if actor can see the target's name, False otherwise.
     :rtype: bool
     """
-    recipient_is_author = is_one_of_the_authors(instance, recipient)
-    recipient_is_reviewer = is_article_reviewer(instance, recipient)
-    sender_is_editor = is_article_editor(instance, sender)
-    sender_is_typesetter = is_article_typesetter(instance, sender)
-    sender_is_reviewer = is_article_reviewer(instance, sender)
-    sender_is_author = is_one_of_the_authors(instance, sender)
+    recipient_is_author = is_one_of_the_authors(instance, target)
+    sender_is_editor = is_article_editor(instance, actor)
+    # NB: order is important! If ed was also reviewer, the editor-role is more important.
+    if sender_is_editor and recipient_is_author:
+        return True
+
+    sender_is_reviewer = is_article_reviewer(instance, actor)
     if sender_is_reviewer and recipient_is_author:
         return False
-    elif sender_is_author and recipient_is_reviewer:
+
+    recipient_is_reviewer = is_article_reviewer(instance, target)
+    sender_is_author = is_one_of_the_authors(instance, actor)
+    if sender_is_author and recipient_is_reviewer:
         return False
-    elif sender_is_editor and recipient_is_author:
+
+    sender_is_typesetter = is_article_typesetter(instance, actor)
+    if sender_is_typesetter and recipient_is_author:  # noqa: SIM103
         return False
-    elif sender_is_typesetter and recipient_is_author:
-        return False
+
     return True
 
 
