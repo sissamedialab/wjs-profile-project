@@ -59,6 +59,7 @@ class WjsMiniHTMLFormField(MiniHTMLFormField):
                     "height": height,
                     "resize": True,
                     "elementpath": False,
+                    "paste_data_images": False,
                 }
             )
 
