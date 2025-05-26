@@ -40,8 +40,8 @@ def get_recipient_label(
     :return:
     """
     real_name = str(recipient)
-    if permissions.can_see_other_user_name(instance=workflow, sender=recipient, recipient=user):
-        if with_role:
+    if permissions.can_see_other_user_name(instance=workflow, actor=user, target=recipient):
+        if with_role:  # noqa: SIM102
             # Remember that role_for_article() might return the empty string!
             if role := role_for_article(workflow.article, recipient, message_recipient_style=True):
                 return f"{real_name} - {role}"

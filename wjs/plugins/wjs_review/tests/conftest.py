@@ -30,7 +30,7 @@ from django.core.management import call_command
 from django.http import HttpRequest
 from events import logic as events_logic
 from identifiers.models import Identifier
-from journal.models import Issue
+from journal.models import Issue, Journal
 from PIL import Image
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
@@ -108,7 +108,11 @@ def apply_wjs_settings():
 
 
 @pytest.fixture
-def review_settings(journal, eo_user, apply_wjs_settings):
+def review_settings(
+    journal: Journal,  # noqa: F405
+    eo_user: JCOMProfile,  # noqa: ARG001, F405
+    apply_wjs_settings: Callable,  # noqa: ARG001
+):
     """
     Initialize plugin settings and install wjs_review as part of the workflow.
 
@@ -602,8 +606,8 @@ def http_server():
 
 @pytest.fixture
 def submitted_workflow(
-    journal: journal_models.Journal,  # noqa
-    create_submitted_articles: Callable,  # noqa
+    journal: Journal,
+    create_submitted_articles: Callable,
 ) -> ArticleWorkflow:
     article = create_submitted_articles(journal, count=1)[0]
     article.articleworkflow.state = ArticleWorkflow.ReviewStates.SUBMITTED
@@ -612,7 +616,7 @@ def submitted_workflow(
 
 
 @pytest.fixture
-def review_form(journal) -> review_models.ReviewForm:
+def review_form(journal: Journal) -> review_models.ReviewForm:
     current_setting = setting_handler.get_setting(
         "general",
         "default_review_form",

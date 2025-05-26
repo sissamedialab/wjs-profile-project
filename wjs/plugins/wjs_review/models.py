@@ -2092,8 +2092,8 @@ class Reminder(models.Model):
 
         if self.get_related_article() and not permissions.can_see_other_user_name(
             instance=self.get_related_article().articleworkflow,
-            sender=self.actor,
-            recipient=self.recipient,
+            actor=self.actor,
+            target=self.recipient,
         ):
             return email_part
         name_part = self.actor.full_name()
