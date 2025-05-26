@@ -132,7 +132,7 @@ def set_author_country(author: Account, data: dict):
 
     if author.country:
         if author.country != country:
-            logger.error(f"Different country {country} for author {author.email} ({author.country}).")
+            logger.warning(f"Different country {country} for author {author.email} ({author.country}).")
     else:
         author.country = country
         author.save()
