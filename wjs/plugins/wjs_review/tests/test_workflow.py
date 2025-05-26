@@ -2,7 +2,9 @@ import pytest
 from django.http import HttpRequest
 from django.utils import timezone
 from events import logic as events_logic
+from identifiers import models as identifiers_models
 from submission import models as submission_models
+from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
 
@@ -154,3 +156,68 @@ def test_one_author_or_more_accept(submitted_workflow: ArticleWorkflow, create_j
     submitted_workflow.article.authors.add(another_author)
     assert submitted_workflow.article.authors.exists()
     assert at_least_one_author(submitted_workflow.article) is True
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_at_acceptance(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+):
+    """When an article is accepted with production settings, check if identifiers:
+
+    - preprintid: not changed
+    - doi: created
+    - pubid: not created
+    """
+
+    test_preprintid = "TEST_PREPRINTID"
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=assigned_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=assigned_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=assigned_article.journal,
+        value=False,
+    )
+
+    assert assigned_article.journal.use_crossref
+    assert setting_handler.get_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=assigned_article.journal,
+    ).processed_value
+    assert not assigned_article.journal.register_doi_at_acceptance
+
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=assigned_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    assert assigned_article.get_pubid() is None
+    assert assigned_article.get_doi() is None
+    assert assigned_article.get_identifier("preprintid") == test_preprintid
+
+    fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    _accept_article(fake_request, assigned_article)
+    assigned_article.refresh_from_db()
+
+    assert assigned_article.get_pubid() is None
+    assert isinstance(assigned_article.get_doi(), str) and assigned_article.get_doi()
+    assert assigned_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=assigned_article).count() == 2
