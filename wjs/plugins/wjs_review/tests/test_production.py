@@ -17,12 +17,14 @@ from django.test import override_settings
 from django.test.client import Client
 from django.urls import reverse
 from django.utils import timezone
+from identifiers import models as identifiers_models
 from journal.models import Journal
 from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Article
+from utils import setting_handler
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
@@ -888,3 +890,498 @@ def test_http_server_root(http_server):
     url = f"http://{http_server.server.server_name}:{http_server.server.server_port}/"
     response = requests.get(url)
     assert response.status_code == 200
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_on_takes_in_charge_producion_settings(
+    ready_for_typesetter_article: Article,
+    client: Client,
+    typesetter: JCOMProfile,
+    zip_with_tex_with_query: Callable,
+    zip_with_tex_without_query: Callable,
+    tmp_path: Path,
+):
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=ready_for_typesetter_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=ready_for_typesetter_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=ready_for_typesetter_article.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=ready_for_typesetter_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=ready_for_typesetter_article,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert ready_for_typesetter_article.get_pubid() is None
+    assert ready_for_typesetter_article.get_doi() == test_doi
+    assert ready_for_typesetter_article.get_identifier("preprintid") == test_preprintid
+
+    assert ready_for_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    url = reverse("wjs_typ_take_in_charge", kwargs={"pk": ready_for_typesetter_article.articleworkflow.pk})
+    client.force_login(typesetter.janeway_account)
+    response = client.post(url)
+    assert response.status_code == 302
+    ready_for_typesetter_article.refresh_from_db()
+
+    assert ready_for_typesetter_article.get_pubid() is None
+    assert ready_for_typesetter_article.get_doi() == test_doi
+    assert ready_for_typesetter_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=ready_for_typesetter_article).count() == 2
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_on_typ_upload_file_with_query(
+    assigned_to_typesetter_article: Article,
+    client: Client,
+    zip_with_tex_with_query: Callable,
+    zip_with_tex_without_query: Callable,
+    tmp_path: Path,
+    fake_request: HttpRequest,
+):
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=assigned_to_typesetter_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=assigned_to_typesetter_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=assigned_to_typesetter_article.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=assigned_to_typesetter_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=assigned_to_typesetter_article,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert assigned_to_typesetter_article.get_pubid() is None
+    assert assigned_to_typesetter_article.get_doi() == test_doi
+    assert assigned_to_typesetter_article.get_identifier("preprintid") == test_preprintid
+
+    assigned_to_typesetter_article.articleworkflow.production_flag_no_queries = True
+    assigned_to_typesetter_article.articleworkflow.save()
+    typesetting_assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
+
+    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+
+    mock_file = tmp_path / "jcomassistant_mock_file.zip"
+    mock_file.write_bytes(create_mock_zip().read())
+    with override_settings(JCOMASSISTANT_MOCK_FILE=mock_file.absolute()):
+        client.post(url, data={"file_to_upload": zip_with_tex_with_query(assigned_to_typesetter_article)})
+    assigned_to_typesetter_article.refresh_from_db()
+
+    assert assigned_to_typesetter_article.get_pubid() is None
+    assert assigned_to_typesetter_article.get_doi() == test_doi
+    assert assigned_to_typesetter_article.get_identifier("preprintid") == test_preprintid
+
+    url = reverse("wjs_typesetter_upload_files", kwargs={"pk": typesetting_assignment.pk})
+    client.force_login(typesetting_assignment.typesetter)
+    client.post(url, data={"file_to_upload": zip_with_tex_without_query(assigned_to_typesetter_article)})
+    assigned_to_typesetter_article.refresh_from_db()
+
+    assert assigned_to_typesetter_article.get_pubid() is None
+    assert assigned_to_typesetter_article.get_doi() == test_doi
+    assert assigned_to_typesetter_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=assigned_to_typesetter_article).count() == 2
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_on_typesetter_galley_generation(
+    assigned_to_typesetter_article_with_files_to_typeset: Article,
+    client: Client,
+    fake_request: HttpRequest,
+):
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=assigned_to_typesetter_article_with_files_to_typeset.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=assigned_to_typesetter_article_with_files_to_typeset.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=assigned_to_typesetter_article_with_files_to_typeset.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=assigned_to_typesetter_article_with_files_to_typeset,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=assigned_to_typesetter_article_with_files_to_typeset,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert assigned_to_typesetter_article_with_files_to_typeset.get_pubid() is None
+    assert assigned_to_typesetter_article_with_files_to_typeset.get_doi() == test_doi
+    assert assigned_to_typesetter_article_with_files_to_typeset.get_identifier("preprintid") == test_preprintid
+
+    # galley generation
+    article = assigned_to_typesetter_article_with_files_to_typeset
+    typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+    client.force_login(typesetting_assignment.typesetter)
+
+    typesetting_assignment.galleys_created.all()
+
+    typesetting_assignment.files_to_typeset.all().delete()
+    fake_request.user = typesetting_assignment.typesetter
+    TypesetterTestsGalleyGeneration(typesetting_assignment, fake_request).run()
+    assigned_to_typesetter_article_with_files_to_typeset.refresh_from_db()
+
+    assert assigned_to_typesetter_article_with_files_to_typeset.get_pubid() is None
+    assert assigned_to_typesetter_article_with_files_to_typeset.get_doi() == test_doi
+    assert assigned_to_typesetter_article_with_files_to_typeset.get_identifier("preprintid") == test_preprintid
+    assert (
+        identifiers_models.Identifier.objects.filter(
+            article=assigned_to_typesetter_article_with_files_to_typeset
+        ).count()
+        == 2
+    )
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_on_author_sends_corrections(
+    stage_proofing_article: Article,
+    client: Client,
+):
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=stage_proofing_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=stage_proofing_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=stage_proofing_article.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=stage_proofing_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=stage_proofing_article,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert stage_proofing_article.get_pubid() is None
+    assert stage_proofing_article.get_doi() == test_doi
+    assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
+
+    # auth send corr
+    stage_proofing_article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+    stage_proofing_article.articleworkflow.save()
+    client.force_login(stage_proofing_article.correspondence_author)
+    galleyproofing = (
+        GalleyProofing.objects.filter(
+            round__article=stage_proofing_article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    url = reverse("wjs_list_annotated_files", kwargs={"pk": galleyproofing.pk})
+    client.post(url, data={"action": "send_corrections"})
+    client.post(url, data={"action": "send_corrections", "notes": "Some notes"})
+    galleyproofing.refresh_from_db()
+
+    stage_proofing_article.refresh_from_db()
+    assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    assert (
+        stage_proofing_article.articleworkflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    )
+    assert stage_proofing_article.get_pubid() is None
+    assert stage_proofing_article.get_doi() == test_doi
+    assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.parametrize("user_is_author", (True, False))
+@pytest.mark.django_db
+def test_identifiers_on_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is_author: bool):
+    """The author can deem rft only articles that have all production flags in the expected state."""
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=stage_proofing_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=stage_proofing_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=stage_proofing_article.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=stage_proofing_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=stage_proofing_article,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert stage_proofing_article.get_pubid() is None
+    assert stage_proofing_article.get_doi() == test_doi
+    assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
+
+    workflow = stage_proofing_article.articleworkflow
+
+    if user_is_author:
+        operator = stage_proofing_article.correspondence_author
+        initial_state = ArticleWorkflow.ReviewStates.PROOFREADING
+    else:
+        operator = stage_proofing_article.typesettinground_set.first().typesettingassignment.typesetter
+        initial_state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+    client.force_login(operator)
+    workflow.state = initial_state
+    workflow.save()
+
+    # even if the author manages to run the action, the process ends in a well-behaved error
+    url = reverse("wjs_review_rfp", kwargs={"pk": stage_proofing_article.articleworkflow.pk})
+    client.post(url)
+
+    # now, let's make the paper ready
+    workflow.production_flag_no_checks_needed = True
+    workflow.production_flag_no_queries = True
+    workflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
+    workflow.save()
+
+    client.post(url)
+    workflow.refresh_from_db()
+
+    assert stage_proofing_article.get_pubid() is None
+    assert stage_proofing_article.get_doi() == test_doi
+    assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_on_publication(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+):
+    """Test publication.
+
+    An article in state ready-for-publication can be published by EO.
+
+    Not testing Janeway-related stuff, such as snapshotting authors.
+    """
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=rfp_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=rfp_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=rfp_article.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=rfp_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=rfp_article,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert rfp_article.get_pubid() is None
+    assert rfp_article.get_doi() == test_doi
+    assert rfp_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=rfp_article).count() == 2
+
+    assert rfp_article.section.name == "Article"
+    workflow: ArticleWorkflow = rfp_article.articleworkflow
+    assert workflow.compute_eid() == "A01"
+
+    with mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"):
+        BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
+    workflow.refresh_from_db()
+    assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
+
+    assert isinstance(rfp_article.get_pubid(), str) and rfp_article.get_pubid()
+    assert rfp_article.get_pubid() != test_preprintid
+    all_dois = identifiers_models.Identifier.objects.filter(
+        article=rfp_article,
+        id_type="doi",
+        enabled=True,
+    )
+    assert all_dois.count() == 1
+    assert all_dois[0].identifier == test_doi
+    assert rfp_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=rfp_article).count() == 3
+
+
+@pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
+@pytest.mark.django_db
+def test_identifiers_on_eo_sends_back_to_typesetter(
+    stage_proofing_article: Article,
+    client: Client,
+    eo_user: JCOMProfile,
+):
+
+    # production settings and crossref_test True
+    setting_handler.save_setting(
+        "Identifiers",
+        "use_crossref",
+        journal=stage_proofing_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "crossref_test",
+        journal=stage_proofing_article.journal,
+        value=True,
+    )
+    setting_handler.save_setting(
+        "Identifiers",
+        "register_doi_at_acceptance",
+        journal=stage_proofing_article.journal,
+        value=False,
+    )
+
+    test_preprintid = "TEST_PREPRINTID"
+    identifiers_models.Identifier.objects.create(
+        identifier=test_preprintid,
+        article=stage_proofing_article,
+        id_type="preprintid",  # NOT a member of the set identifiers_models.IDENTIFIER_TYPES
+        enabled=True,
+    )
+
+    test_doi = identifiers_models.Identifier.objects.get(
+        article=stage_proofing_article,
+        id_type="doi",
+        enabled=True,
+    ).identifier
+
+    assert stage_proofing_article.get_pubid() is None
+    assert stage_proofing_article.get_doi() == test_doi
+    assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
+
+    url = reverse("wjs_send_back_to_typ", kwargs={"pk": stage_proofing_article.articleworkflow.pk})
+    client.force_login(eo_user.janeway_account)
+    stage_proofing_article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION
+    stage_proofing_article.articleworkflow.save()
+    form_data = {
+        "subject": f"Article {stage_proofing_article.articleworkflow.article.id} back to typesetter",
+        "body": "This is a test message body.",
+    }
+    client.post(url, data=form_data)
+    stage_proofing_article.articleworkflow.refresh_from_db()
+
+    assert stage_proofing_article.get_pubid() is None
+    assert stage_proofing_article.get_doi() == test_doi
+    assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
+    assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
