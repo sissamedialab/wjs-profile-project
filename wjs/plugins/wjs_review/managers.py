@@ -62,7 +62,9 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         """
         from .models import Message
 
-        messages = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article))
+        messages = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article)).exclude(
+            message_type=Message.MessageTypes.NOTE,
+        )
         filters = Q(messagerecipients__read=False)
         if not other_users_messages:
             filters &= Q(messagerecipients__recipient=user)
