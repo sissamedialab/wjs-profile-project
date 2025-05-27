@@ -1,3 +1,4 @@
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from django.contrib.auth import get_user_model
@@ -9,6 +10,7 @@ from review.models import ReviewAssignment
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
+logger = getLogger(__name__)
 if TYPE_CHECKING:
     from .models import ArticleWorkflow, Message, WorkflowReviewAssignment
 
@@ -30,17 +32,25 @@ def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
     """
     if base_permissions.has_eo_role(user):
         return constants.EO_GROUP
-    elif has_director_role_by_article(article, user):
+    if is_article_editor(article, user):
+        # NB: technically, the editor has the "section-editor" role, but we report "editor"
+        # because it's more user-friendly.
+        return constants.EDITOR_ROLE
+    if has_director_role_by_article(article, user):
         # We do have both a "director" and "main director" roles, but they are functionally equivalent
         return constants.DIRECTOR_ROLE
-    elif is_article_typesetter(article, user):
+    if is_article_typesetter(article, user):
         return constants.TYPESETTER_ROLE
-    elif is_article_editor(article, user):
-        return constants.SECTION_EDITOR_ROLE
-    elif is_article_reviewer(article, user):
+    if is_article_reviewer(article, user):
         return constants.REVIEWER_ROLE
-    elif is_one_of_the_authors(article, user):
+    if is_one_of_the_authors(article, user):
         return constants.AUTHOR_ROLE
+
+    logger.error(
+        f"Function permissions.main_role_by_article() called for an Account ({user.id})"
+        " that has no role wrt to AW {article.id} ({article.article.id})",
+    )
+    return ""
 
 
 def main_role_by_assignment(assignment: "WorkflowReviewAssignment", user: Account) -> str:
