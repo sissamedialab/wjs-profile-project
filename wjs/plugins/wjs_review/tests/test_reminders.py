@@ -1136,7 +1136,7 @@ def test_three_papers_three_reviewers(
     caplog,
 ):
     """
-    Integration test that reminder works with each other
+    Integration test that reminder work with each others.
 
     Let's have four papers.
     Paper A has 2 reviewers.
@@ -1187,12 +1187,15 @@ def test_three_papers_three_reviewers(
 
             t0t1  t2  t3
     (days)  . . . . . ' . . . . |
-    A_r1      r1    r2  r3
-    A_r2          w1        w2
-    B_r1          r1    r2  r3
-    C_e1              e1    e2
-    D_e1              m1    m2
+    A_r1    r1    r2  r3
+    A_r2        w1        w2
+    B_r1        r1    r2  r3
+    C_e1            e1    e2
+    D_e1            m1    m2
     D_a1
+
+    (note that on May '25, we decided to send the reminders on the due-date, not after,
+    so the table above had to be shifted, but it shoudl still be correct)
 
     So:
     - on t0
@@ -1432,8 +1435,8 @@ def test_three_papers_three_reviewers(
     Message.objects.all().delete()
     caplog.clear()
 
-    # t0 + 1 : send_wjs_reminders (expect no message)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=1)):
+    # t0 + 0 : send_wjs_reminders (expect no message)
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=0)):
         call_command("send_wjs_reminders")
         assert "Sent 0/0 reminders." in caplog.text
         # No new reminder, same as above
@@ -1443,7 +1446,7 @@ def test_three_papers_three_reviewers(
         caplog.clear()
 
     # t1 - t0 + 2: send_wjs_reminders (expect REEA1 for A_r1)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=2)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=1)):
         call_command("send_wjs_reminders")
         assert "Sent 1/1 reminders." in caplog.text
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 1
@@ -1451,13 +1454,13 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
             content_type=ContentType.objects.get_for_model(assignment_A_r1),
             object_id=assignment_A_r1.pk,
-        ).date_sent.date() == t1 + datetime.timedelta(days=1)
+        ).date_sent.date() == t1 + datetime.timedelta(days=0)
         assert Message.objects.all().count() == 1
         Message.objects.all().delete()
         caplog.clear()
 
     # t0 + 3 : send_wjs_reminders (expect no message)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=3)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=2)):
         call_command("send_wjs_reminders")
         assert "Sent 0/0 reminders." in caplog.text
         # No new reminder, same as above
@@ -1467,7 +1470,7 @@ def test_three_papers_three_reviewers(
         caplog.clear()
 
     # t2 - t0 + 4 : send_wjs_reminders (expect REWR1 for A_r2, REEA1 for B_r1)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=4)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=3)):
         call_command("send_wjs_reminders")
         assert "Sent 2/2 reminders." in caplog.text
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 3
@@ -1475,18 +1478,18 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
             content_type=ContentType.objects.get_for_model(assignment_A_r2),
             object_id=assignment_A_r2.pk,
-        ).date_sent.date() == t2 + datetime.timedelta(days=1)
+        ).date_sent.date() == t2 + datetime.timedelta(days=0)
         assert Reminder.objects.get(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
             content_type=ContentType.objects.get_for_model(assignment_B_r1),
             object_id=assignment_B_r1.pk,
-        ).date_sent.date() == t2 + datetime.timedelta(days=1)
+        ).date_sent.date() == t2 + datetime.timedelta(days=0)
         assert Message.objects.all().count() == 2
         Message.objects.all().delete()
         caplog.clear()
 
     # t0 + 5 : send_wjs_reminders (expect REEA2 for A_r1)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=5)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=4)):
         call_command("send_wjs_reminders")
         assert "Sent 1/1 reminders." in caplog.text
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 4
@@ -1494,13 +1497,13 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
             content_type=ContentType.objects.get_for_model(assignment_A_r1),
             object_id=assignment_A_r1.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=5)
+        ).date_sent.date() == t0 + datetime.timedelta(days=4)
         assert Message.objects.all().count() == 1
         Message.objects.all().delete()
         caplog.clear()
 
     # t3 - t0 + 6 : send_wjs_reminders (expect EDSR1 for ea_c, EDMD1 for ea_d)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=6)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=5)):
         call_command("send_wjs_reminders")
         assert "Sent 2/2 reminders." in caplog.text
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 6
@@ -1508,18 +1511,18 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
             content_type=ContentType.objects.get_for_model(ea_c),
             object_id=ea_c.pk,
-        ).date_sent.date() == t3 + datetime.timedelta(days=1)
+        ).date_sent.date() == t3 + datetime.timedelta(days=0)
         assert Reminder.objects.get(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
             content_type=ContentType.objects.get_for_model(ea_d),
             object_id=ea_d.pk,
-        ).date_sent.date() == t3 + datetime.timedelta(days=1)
+        ).date_sent.date() == t3 + datetime.timedelta(days=0)
         assert Message.objects.all().count() == 2
         Message.objects.all().delete()
         caplog.clear()
 
     # t0 + 7 : send_wjs_reminders (expect REEA3 for A_r1, REEA2 for B_r1)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=7)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=6)):
         call_command("send_wjs_reminders")
         assert "Sent 2/2 reminders." in caplog.text
         assert Reminder.objects.filter(date_sent__isnull=False).count() == 8
@@ -1527,18 +1530,18 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
             content_type=ContentType.objects.get_for_model(assignment_A_r1),
             object_id=assignment_A_r1.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=7)
+        ).date_sent.date() == t0 + datetime.timedelta(days=6)
         assert Reminder.objects.get(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
             content_type=ContentType.objects.get_for_model(assignment_B_r1),
             object_id=assignment_B_r1.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=7)
+        ).date_sent.date() == t0 + datetime.timedelta(days=6)
         assert Message.objects.all().count() == 2
         Message.objects.all().delete()
         caplog.clear()
 
     # t0 + 8 : send_wjs_reminders (no remainder)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=8)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=7)):
         call_command("send_wjs_reminders")
         assert "Sent 0/0 reminders." in caplog.text
         assert Message.objects.all().count() == 0
@@ -1561,7 +1564,7 @@ def test_three_papers_three_reviewers(
     caplog.clear()
 
     # t0 + 9 : send_wjs_reminders (expect REWR2 for A_r2, REEA3 for B_r1, EDSR2 for ea_c)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=9)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=8)):
         call_command("send_wjs_reminders")
         assert "Sent 3/3 reminders." in caplog.text
         # 11 because EDITOR_SHOULD_MAKE_DECISION_1 at t3 has been deleted because the
@@ -1571,23 +1574,23 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
             content_type=ContentType.objects.get_for_model(assignment_A_r2),
             object_id=assignment_A_r2.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=9)
+        ).date_sent.date() == t0 + datetime.timedelta(days=8)
         assert Reminder.objects.get(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
             content_type=ContentType.objects.get_for_model(assignment_B_r1),
             object_id=assignment_B_r1.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=9)
+        ).date_sent.date() == t0 + datetime.timedelta(days=8)
         assert Reminder.objects.get(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
             content_type=ContentType.objects.get_for_model(ea_c),
             object_id=ea_c.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=9)
+        ).date_sent.date() == t0 + datetime.timedelta(days=8)
         assert Message.objects.all().count() == 3
         Message.objects.all().delete()
         caplog.clear()
 
     # t0 + 10 : send_wjs_reminders (expect AUTCR1 for rr_d_a)
-    with freezegun.freeze_time(t0 + datetime.timedelta(days=10)):
+    with freezegun.freeze_time(t0 + datetime.timedelta(days=9)):
         call_command("send_wjs_reminders")
         assert "Sent 1/1 reminders." in caplog.text
         # 11 because EDITOR_SHOULD_MAKE_DECISION_1 at t3 has been deleted because the
@@ -1597,7 +1600,7 @@ def test_three_papers_three_reviewers(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
             content_type=ContentType.objects.get_for_model(rr_d_a),
             object_id=rr_d_a.pk,
-        ).date_sent.date() == t0 + datetime.timedelta(days=10)
+        ).date_sent.date() == t0 + datetime.timedelta(days=9)
         assert Message.objects.all().count() == 1
         Message.objects.all().delete()
         caplog.clear()

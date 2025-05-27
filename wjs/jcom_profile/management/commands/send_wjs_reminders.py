@@ -35,7 +35,7 @@ class Command(BaseCommand):
         reminders = Reminder.objects.filter(
             disabled=False,
             date_sent__isnull=True,
-            date_due__lt=timezone.now().date(),
+            date_due__lte=timezone.now().date(),
         )
 
         # If the expedition of reminders is delayed for several days, reminders for the same recipient/target/"reason"
