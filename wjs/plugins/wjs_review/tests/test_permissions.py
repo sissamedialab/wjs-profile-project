@@ -1,4 +1,4 @@
-"""Tests related to the permissons module."""
+"""Tests related to the permissions module."""
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -6,16 +6,22 @@ from django.http import HttpRequest
 from django.utils import timezone
 from plugins.wjs_review.forms import MessageForm
 from plugins.wjs_review.logic import AssignToReviewer
-from plugins.wjs_review.models import ArticleWorkflow, WjsEditorAssignment
+from plugins.wjs_review.models import (
+    ArticleWorkflow,
+    WjsEditorAssignment,
+    WorkflowReviewAssignment,
+)
 from plugins.wjs_review.permissions import (
     can_edit_note,
     can_see_other_user_name,
     has_director_role_by_article,
     is_one_of_the_authors,
+    main_role_by_article,
 )
 from review.models import ReviewForm
 from submission.models import Article
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 
 from .test_helpers import _create_review_assignment
@@ -117,3 +123,46 @@ def test_can_see_other_user_name(
     ).run()
     assert can_see_other_user_name(instance=wf, actor=editor, target=author)
     assert can_see_other_user_name(instance=wf, actor=editor, target=reviewer)
+
+
+@pytest.mark.django_db
+def test_main_role_by_article(
+    assigned_article_with_reviewer: Article,
+    fake_request: HttpRequest,
+    review_form: ReviewForm,  # noqa: ARG001
+    eo_user: JCOMProfile,
+):
+    """Test what we mean by main-role."""
+    article = assigned_article_with_reviewer
+    aw = article.articleworkflow
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    reviewer = WorkflowReviewAssignment.objects.get(article=article, editor=editor).reviewer
+    author = article.correspondence_author
+
+    # Simple case: all actors have only one role
+    assert main_role_by_article(article=aw, user=eo_user) == constants.EO_GROUP
+    # NB: technically, the editor has the "section-editor" role, but we report "editor"
+    assert main_role_by_article(article=aw, user=editor) == constants.EDITOR_ROLE
+    assert main_role_by_article(article=aw, user=reviewer) == constants.REVIEWER_ROLE
+    assert main_role_by_article(article=aw, user=author) == constants.AUTHOR_ROLE
+
+    # The system should work also if editor did I-will-review
+    AssignToReviewer(
+        workflow=article.articleworkflow,
+        reviewer=editor,
+        editor=editor,
+        form_data={
+            "acceptance_due_date": timezone.now().strftime("%Y-%m-%d"),
+            "message": "random message",
+        },
+        request=fake_request,
+    ).run()
+    assert main_role_by_article(article=aw, user=editor) == constants.EDITOR_ROLE
+
+    # If the editor is also a director, the editor role is more important
+    editor.add_account_role(constants.DIRECTOR_ROLE, article.journal)
+    assert main_role_by_article(article=aw, user=editor) == constants.EDITOR_ROLE
+
+    # same reasoning if the editor is the main director
+    editor.add_account_role(constants.DIRECTOR_MAIN_ROLE, article.journal)
+    assert main_role_by_article(article=aw, user=editor) == constants.EDITOR_ROLE
