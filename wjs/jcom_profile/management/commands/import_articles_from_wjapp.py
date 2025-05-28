@@ -573,6 +573,9 @@ class Command(BaseCommand):
         self.store_article_date_published = article.date_published
         self.store_article_date_accepted = article.date_accepted
 
+        self.store_article_doi = article.get_doi()
+        self.store_article_pubid = article.get_pubid()
+
         # date revision ?
 
         self.store_article_authors = {}
@@ -633,6 +636,60 @@ class Command(BaseCommand):
 
         article.date_published = self.store_article_date_published
         logger.warning(f"{self.store_article_date_published=}")
+
+        # depending on settings enabled during import the doi can be modified
+        try:
+            doi_identifier = identifiers_models.Identifier.objects.get(
+                id_type="doi",
+                article=article,
+            )
+        except identifiers_models.Identifier.DoesNotExist:
+            logger.error(f"No doi identifier found for {article.id}.")
+            doi_identifier = identifiers_models.Identifier.objects.create(
+                id_type="doi",
+                article=article,
+                enabled=True,
+            )
+        except identifiers_models.Identifier.MultipleObjectsReturned:
+            logger.error(f"More than doi identifier found for {article.id}, taken the first.")
+            doi_identifier = identifiers_models.Identifier.objects.filter(
+                id_type="doi",
+                article=article,
+            )[0]
+        if doi_identifier.identifier != self.store_article_doi:
+            logger.info(
+                f"Resetting old DOI {self.store_article_doi} onto generated {doi_identifier.identifier} "
+                f"for {article.id}"
+            )
+            doi_identifier.identifier = self.store_article_doi
+            doi_identifier.save()
+
+        # depending on settings enabled during import the pubid can be modified
+        try:
+            pubid_identifier = identifiers_models.Identifier.objects.get(
+                id_type="pubid",
+                article=article,
+            )
+        except identifiers_models.Identifier.DoesNotExist:
+            logger.error(f"No pubid identifier found for {article.id}.")
+            pubid_identifier = identifiers_models.Identifier.objects.create(
+                id_type="pubid",
+                article=article,
+                enabled=True,
+            )
+        except identifiers_models.Identifier.MultipleObjectsReturned:
+            logger.error(f"More than one pubid identifier found for {article.id}, taken the first.")
+            pubid_identifier = identifiers_models.Identifier.objects.filter(
+                id_type="pubid",
+                article=article,
+            )[0]
+        if pubid_identifier.identifier != self.store_article_pubid:
+            logger.info(
+                f"Resetting old DOI {self.store_article_pubid} onto generated {pubid_identifier.identifier} "
+                f"for {article.id}"
+            )
+            pubid_identifier.identifier = self.store_article_pubid
+            pubid_identifier.save()
 
         # date revision ?
 
@@ -1042,6 +1099,13 @@ WHERE
 
         submission_models.ArticleStageLog.objects.filter(article__id=article.id).delete()
         article.stage = submission_models.STAGE_UNASSIGNED
+
+        # for NOT published the identifier doi must be removed (temporary doi)
+        if not publicationid:
+            identifiers_models.Identifier.objects.filter(
+                article=article,
+                id_type="doi",
+            ).delete()
 
         # Note: the article object is not deleted, only the data are reset
         #
