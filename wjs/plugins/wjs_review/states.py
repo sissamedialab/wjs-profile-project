@@ -491,7 +491,7 @@ class EditorToBeSelected(BaseState):
             .order_by("date_unassigned")
             .last()
         ):
-            waiting_days = (latest_editor_assignment.date_unassigned - article.date_submitted).days
+            waiting_days = (timezone.now() - latest_editor_assignment.date_unassigned).days
         else:
             waiting_days = (timezone.now() - article.date_submitted).days
         return f"Editor has not been selected for {waiting_days} days"

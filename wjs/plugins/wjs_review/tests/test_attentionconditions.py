@@ -1,7 +1,9 @@
 """Test (some) attention conditions."""
 
 import datetime
+from datetime import timedelta
 
+import freezegun
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
@@ -14,6 +16,7 @@ from plugins.wjs_review.logic import (
     AuthorHandleRevision,
     EvaluateReview,
     HandleDecision,
+    HandleEditorDeclinesAssignment,
     PostponeReviewerDueDate,
 )
 from plugins.wjs_review.models import (
@@ -25,6 +28,7 @@ from plugins.wjs_review.models import (
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
+from plugins.wjs_review.states import EditorToBeSelected
 from review import models as review_models
 from submission.models import Article
 
@@ -623,3 +627,46 @@ def test_reviewer_is_late(
     MessageRecipients.objects.update(read=True)
     assert state_cls.article_requires_attention(article=article, user=eo) == ""
     assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
+
+
+@pytest.mark.django_db
+def test_editor_assignment_after_deassignment_is_late(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Attention condition message when a past editor exists starts from the end of the previous editor assignment.
+    """
+    assigned_article.date_submitted = now() - timedelta(days=10)
+    assigned_article.save()
+    editor_assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+    section_editor = editor_assignment.editor
+
+    with freezegun.freeze_time(now() - timedelta(days=5)):
+        form_data = {"decline_reason": "something"}
+        service = HandleEditorDeclinesAssignment(
+            assignment=editor_assignment,
+            editor=section_editor,
+            form_data=form_data,
+            request=fake_request,
+        )
+        service.run()
+
+    message = EditorToBeSelected.article_requires_eo_attention(assigned_article)
+    assert "5 days" in message
+
+
+@pytest.mark.django_db
+def test_editor_first_assignment_is_late(
+    submitted_article: Article,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Attention condition message when no (present or past) editor exists starts from the submission date.
+    """
+    submitted_article.date_submitted = now() - timedelta(days=10)
+    submitted_article.save()
+
+    message = EditorToBeSelected.article_requires_eo_attention(submitted_article)
+    assert "10 days" in message
