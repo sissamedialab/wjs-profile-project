@@ -1115,20 +1115,19 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
         if self.object.state in (
             states_when_article_is_considered_in_review + states_when_article_is_considered_archived_with_under_appeal
         ):
-            context["review_versions"] = self.object.get_review_versions(self.request.user)
             context["review"] = True
             context["current_review_assignment"] = self.get_current_review_assignment()
         if self.object.state in (
             states_when_article_is_considered_in_production
             + states_when_article_is_considered_archived_with_under_appeal
         ):
-            context["review_versions"] = self.object.get_review_versions(self.request.user)
             production_versions = self.object.get_production_versions(self.request.user)
             context["production_versions"] = production_versions
             context["pending_proofs_version"] = self.pending_proofs_version(production_versions)
             context["production"] = True
             # During production we want to show review versions too (for authorized users)
             context["review"] = True
+        context["review_versions"] = self.object.get_review_versions(self.request.user)
         # We explicitly set the article in the context because it is often used in templatetags
         # and, when the view answers to an HTMX request, the rendered templates might not define it
         # (as in `{% with article=workflow.article %}...`)
