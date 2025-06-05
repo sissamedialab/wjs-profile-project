@@ -2762,11 +2762,12 @@ class AdminActions:
 @dataclasses.dataclass
 class PostponeReviewerDueDate:
     """
-    Handle the decision of the editor to postpone the due date of the reviewer acceptance / report.
+    Handle the decision to postpone the due date of the reviewer acceptance / report.
     """
 
     assignment: WorkflowReviewAssignment
     editor: Account
+    user: Account
     form_data: Dict[str, Any]
     request: HttpRequest
     original_due_date: datetime.date
@@ -2817,7 +2818,7 @@ class PostponeReviewerDueDate:
             message_subject=message_subject,
             message_body=message_body,
             verbosity=Message.MessageVerbosity.FULL,
-            actor=self.assignment.editor,
+            actor=self.user,
             recipients=[self.assignment.reviewer],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
