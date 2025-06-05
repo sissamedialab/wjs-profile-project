@@ -13,7 +13,7 @@ from django.utils.module_loading import import_string
 from submission.models import Article
 from utils.logic import get_current_request
 
-from wjs.jcom_profile.constants import DIRECTOR_ROLE, EO_GROUP, SECTION_EDITOR_ROLE
+from wjs.jcom_profile.constants import DIRECTOR_MAIN_ROLE, EO_GROUP, SECTION_EDITOR_ROLE
 from wjs.jcom_profile.models import StaffWorkloadParameters
 
 if TYPE_CHECKING:
@@ -77,9 +77,13 @@ def jcom_assign_editors_to_articles(**kwargs) -> Optional["WjsEditorAssignment"]
     if article.primary_issue and article.primary_issue.managing_editors:
         parameters = get_special_issue_parameters(article)
     else:
+        # Event though we should only ever have one and only one "main director",
+        # we keep this more generic implementation, that fits well with special-issue case,
+        # and can easily be used to split assignment among several "directors" in the future,
+        # by simply changing the filter on the role.
         directors = AccountRole.objects.filter(
             journal=article.journal,
-            role=Role.objects.get(slug=DIRECTOR_ROLE),
+            role=Role.objects.get(slug=DIRECTOR_MAIN_ROLE),
         ).values_list("user")
         parameters = StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=directors)
     parameters = parameters.exclude(user__in=article.authors.all())

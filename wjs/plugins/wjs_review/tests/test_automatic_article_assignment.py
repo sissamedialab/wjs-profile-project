@@ -13,7 +13,7 @@ from submission.models import Article
 
 from wjs.jcom_profile.models import StaffWorkloadParameters
 
-from ..models import WjsEditorAssignment
+from ..models import Reminder, WjsEditorAssignment
 
 Account = get_user_model()
 
@@ -160,6 +160,16 @@ def test_default_special_issue_articles_automatic_assignment(
         if has_editors:
             editor_assignment = WjsEditorAssignment.objects.get_current(article=article)
             assert editor_assignment.editor == expected_editor
+            codes = (
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            )
+            reminders = Reminder.objects.filter(code__in=codes)
+            assert reminders.count() == 3
+            # 2 Reminder to the SI editor and one to the director
+            assert reminders.filter(recipient=editor_assignment.editor).count() == 2
+            assert reminders.filter(recipient__in=directors).count() == 1
 
 
 @pytest.mark.parametrize(
@@ -174,7 +184,7 @@ def test_jcom_normal_issue_articles_automatic_assignment(
     review_settings,
     admin,
     article,
-    directors,
+    main_director,
     editors,
     coauthors_setting,
     has_editors,
@@ -182,11 +192,11 @@ def test_jcom_normal_issue_articles_automatic_assignment(
     article_editors = None
 
     if has_editors:
-        article_editors = directors
+        article_editors = [main_director]
 
     with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
         client = Client()
-        client.force_login(admin)
+        client.force_login(admin.janeway_account)
         expected_editor = get_expected_editor(article_editors, article)
 
         url = reverse("submit_review", args=(article.pk,))
@@ -197,6 +207,17 @@ def test_jcom_normal_issue_articles_automatic_assignment(
         if has_editors:
             editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor
+            codes = (
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            )
+            reminders = Reminder.objects.filter(code__in=codes)
+            assert reminders.count() == 3
+            # As in JCOM the director is the default editor, all reminders are sent to the director-as-editor
+            assert reminders.filter(recipient=editor_assignment.editor).count() == 3
+            # Any reminder is anyway set to a director
+            assert reminders.filter(recipient=main_director).count() == 3
 
 
 @pytest.mark.parametrize(
@@ -269,7 +290,7 @@ def test_workload_decrease_editor(
     review_settings,
     admin,
     article,
-    directors,
+    main_director,
     editors,
     coauthors_setting,
     special_issue,
@@ -291,7 +312,7 @@ def test_workload_decrease_editor(
         if assignment_function == WJS_ARTICLE_ASSIGNMENT_FUNCTIONS:
             article_editors = editors
         else:
-            article_editors = directors
+            article_editors = [main_director]
 
     with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=assignment_function):
         if not is_special_issue:
@@ -337,7 +358,10 @@ def test_workload_decrease_editor(
         second_article.refresh_from_db()
 
         second_editor_assignment = WjsEditorAssignment.objects.get(article=second_article)
-        assert second_editor_assignment.editor != first_editor
+        if is_special_issue or assignment_function == WJS_ARTICLE_ASSIGNMENT_FUNCTIONS:
+            assert second_editor_assignment.editor != first_editor
+        else:
+            assert second_editor_assignment.editor == main_director.janeway_account
 
         third_article = Article.objects.create(
             journal=article.journal,
@@ -351,8 +375,11 @@ def test_workload_decrease_editor(
             special_issue_without_articles.articles.add(third_article)
             third_article.refresh_from_db()
 
-        assert get_expected_editor(article_editors, third_article) != first_editor
-        assert get_expected_editor(article_editors, third_article) != second_editor_assignment.editor
+        if is_special_issue or assignment_function == WJS_ARTICLE_ASSIGNMENT_FUNCTIONS:
+            assert get_expected_editor(article_editors, third_article) != first_editor
+            assert get_expected_editor(article_editors, third_article) != second_editor_assignment.editor
+        else:
+            assert get_expected_editor(article_editors, third_article) == main_director.janeway_account
 
 
 @pytest.mark.parametrize("is_special_issue", [True, False])
