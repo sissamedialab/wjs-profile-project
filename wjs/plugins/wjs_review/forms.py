@@ -1260,6 +1260,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
         service = PostponeReviewerDueDate(
             assignment=self.instance,
             editor=self.instance.editor,
+            user=self.user,
             form_data=self.cleaned_data,
             request=self.request,
             original_due_date=self._original_date,

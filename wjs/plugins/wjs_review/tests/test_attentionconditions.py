@@ -618,6 +618,7 @@ def test_reviewer_is_late(
     service = PostponeReviewerDueDate(
         assignment=assignment,
         editor=assignment.editor,
+        user=assignment.editor,
         form_data=form_data,
         request=fake_request,
         original_due_date=assignment.date_due,

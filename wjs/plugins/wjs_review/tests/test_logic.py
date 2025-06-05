@@ -3053,6 +3053,7 @@ def test_postpone_due_date(
     service = PostponeReviewerDueDate(
         assignment=review_assignment,
         editor=review_assignment.editor,
+        user=review_assignment.editor,
         form_data=form_data,
         request=fake_request,
         original_due_date=initial_date_due,
@@ -3100,6 +3101,46 @@ def test_postpone_due_date(
         updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
         for reminder in updated_reminder_dates.keys():
             assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
+
+
+@pytest.mark.parametrize("actor_role", ("Reviewer", "Editor"))
+@pytest.mark.django_db
+def test_actors_postpone_due_date(
+    assigned_article: submission_models.Article,
+    review_assignment: review_models.ReviewAssignment,
+    fake_request: HttpRequest,
+    actor_role: str,
+):
+    """
+    Test that this action can be performed by the editor and the reviewer and that in both scenarios the actor of the
+    message is the user who performed the action.
+    """
+    Message.objects.all().delete()
+    review_assignment.refresh_from_db()
+    mail.outbox = []
+
+    fake_request.user = review_assignment.editor
+
+    form_data = {
+        "date_due": review_assignment.date_due + datetime.timedelta(days=5),
+    }
+
+    if actor_role == "Reviewer":
+        actor_user = review_assignment.reviewer
+    elif actor_role == "Editor":
+        actor_user = review_assignment.editor
+
+    PostponeReviewerDueDate(
+        assignment=review_assignment,
+        editor=review_assignment.editor,
+        user=actor_user,
+        form_data=form_data,
+        request=fake_request,
+        original_due_date=review_assignment.date_due,
+    ).run()
+
+    assert len(mail.outbox) == 1
+    assert Message.objects.first().actor == actor_user
 
 
 @pytest.mark.django_db
