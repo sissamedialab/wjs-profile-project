@@ -334,21 +334,39 @@ def normal_user(create_jcom_user, roles, journal, keywords) -> JCOMProfile:
 def director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("director")
     jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
+
+    StaffWorkloadParameters.objects.create(
+        user=jcom_user.janeway_account,
+        journal=journal,
+        workload=random.randint(1, 10),
+    )
     return jcom_user
 
 
 @pytest.fixture()
 def main_director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("Mario main director")
+    jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
     jcom_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal)
+    StaffWorkloadParameters.objects.create(
+        user=jcom_user.janeway_account,
+        journal=journal,
+        workload=random.randint(1, 10),
+    )
     return jcom_user
 
 
 @pytest.fixture()
 def director_editor(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("Mario editor director")
+    jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
     jcom_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal)
     jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.create(
+        user=jcom_user.janeway_account,
+        journal=journal,
+        workload=random.randint(1, 10),
+    )
     return jcom_user
 
 

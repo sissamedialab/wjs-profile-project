@@ -266,6 +266,16 @@ class BaseAssignToEditor:
         review_round = CreateReviewRound(assignment=assignment, first=first_review_round).run()
         return review_round
 
+    def _create_editor_should_select_reviewer_reminders(self, assignment: WjsEditorAssignment):
+        """Create reminders for the editor to select a reviewer."""
+        EditorShouldSelectReviewerReminderManager(assignment.article, assignment.editor).create()
+
+    def _delete_director_reminders(self, assignment: WjsEditorAssignment):
+        """Delete director's reminder."""
+        DirectorShouldAssignEditorReminderManager(
+            article=assignment.article,
+        ).delete()
+
     def _get_message_context(self, assignment: WjsEditorAssignment) -> Dict[str, Any]:
         return {
             "article": self.article,
@@ -334,6 +344,8 @@ class BaseAssignToEditor:
             context = self._get_message_context(assignment=assignment)
             if not self.appeal:
                 self._log_operation(context=context, assignment_message=self.assignment_message)
+            self._create_editor_should_select_reviewer_reminders(assignment)
+            self._delete_director_reminders(assignment)
         return assignment
 
 
@@ -385,16 +397,6 @@ class AssignToEditor:
             and not exist_other_assignments
         )
 
-    def _create_editor_should_select_reviewer_reminders(self):
-        """Create reminders for the editor to select a reviewer."""
-        EditorShouldSelectReviewerReminderManager(self.assignment.article, self.assignment.editor).create()
-
-    def _delete_director_reminders(self):
-        """Delete director's reminder."""
-        DirectorShouldAssignEditorReminderManager(
-            article=self.assignment.article,
-        ).delete()
-
     def run(self) -> WjsEditorAssignment:
         with transaction.atomic():
             self._create_workflow()
@@ -411,8 +413,6 @@ class AssignToEditor:
                 appeal=self.appeal,
             ).run()
             self._update_state()
-            self._create_editor_should_select_reviewer_reminders()
-            self._delete_director_reminders()
         return self.assignment
 
 
