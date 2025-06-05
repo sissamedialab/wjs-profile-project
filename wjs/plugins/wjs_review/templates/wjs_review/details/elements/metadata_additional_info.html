@@ -1,5 +1,5 @@
 {% load static wjs_review %}
-{% if workflow|is_production_state %}
+{% if workflow|is_production_state or workflow.state == "Published" %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading-additional-info">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-additional-info" aria-expanded="false" aria-controls="collapse-additional-info">
