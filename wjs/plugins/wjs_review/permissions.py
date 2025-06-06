@@ -90,23 +90,27 @@ def can_see_other_user_name(instance: "ArticleWorkflow", actor: Account, target:
     :return: True if actor can see the target's name, False otherwise.
     :rtype: bool
     """
-    recipient_is_author = is_one_of_the_authors(instance, target)
-    sender_is_editor = is_article_editor(instance, actor)
+    target_is_author = is_one_of_the_authors(instance, target)
+    actor_is_editor = is_article_editor(instance, actor)
     # NB: order is important! If ed was also reviewer, the editor-role is more important.
-    if sender_is_editor and recipient_is_author:
+    if actor_is_editor and target_is_author:
         return True
 
-    sender_is_reviewer = is_article_reviewer(instance, actor)
-    if sender_is_reviewer and recipient_is_author:
+    actor_is_author = is_one_of_the_authors(instance, actor)
+    target_is_editor = is_article_editor(instance, target)
+    if actor_is_author and target_is_editor:
         return False
 
-    recipient_is_reviewer = is_article_reviewer(instance, target)
-    sender_is_author = is_one_of_the_authors(instance, actor)
-    if sender_is_author and recipient_is_reviewer:
+    actor_is_reviewer = is_article_reviewer(instance, actor)
+    if actor_is_reviewer and target_is_author:
         return False
 
-    sender_is_typesetter = is_article_typesetter(instance, actor)
-    if sender_is_typesetter and recipient_is_author:  # noqa: SIM103
+    target_is_reviewer = is_article_reviewer(instance, target)
+    if actor_is_author and target_is_reviewer:
+        return False
+
+    actor_is_typesetter = is_article_typesetter(instance, actor)
+    if actor_is_typesetter and target_is_author:  # noqa: SIM103
         return False
 
     return True
