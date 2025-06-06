@@ -1,0 +1,64 @@
+<footer class="wjs-footer">
+  <div class="container">
+    <div class="row">
+      <div class="col-12 col-md-10">
+        <div class="wjs-footer__content text-left">
+          <p class="wjs-footer__text">
+            {% blocktrans %}
+              Except where otherwise noted, content on this site is licensed under a Creative Commons 4.0 license
+            {% endblocktrans %}
+          </p>
+
+          {% if request.journal.issn %}
+            <p class="wjs-footer__text">ISSN: {{ request.journal.issn }}</p>
+          {% endif %}
+
+          {% if request.journal.print_issn %}
+            <p class="wjs-footer__text">{% trans "Print ISSN:" %} {{ request.journal.print_issn }}</p>
+          {% endif %}
+
+          {% if journal_settings.general.publisher_name %}
+            <p class="wjs-footer__text mb-3">
+              {% trans "Published by" %}
+              {% if journal_settings.general.publisher_url %}
+                <a class="wjs-footer__text-link" href="{{ journal_settings.general.publisher_url }}">
+                {% endif %}
+                  {{ journal_settings.general.publisher_name }}
+              {% if journal_settings.general.publisher_url %}
+                </a>
+              {% endif %}
+            </p>
+          {% endif %}
+
+          <p class="wjs-footer__text">{% trans "VAT number: IT01097780322" %}</p>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-2 text-right">
+        <ul class="wjs-footer__nav">
+          {% if journal_settings.general.privacy_policy_url %}
+            <li>
+              <a class="wjs-footer__nav-link" href="{{ journal_settings.general.privacy_policy_url }}">{% trans "Privacy" %}</a>
+            </li>
+          {% else %}
+            <li>
+              <a class="wjs-footer__nav-link" href="{% url 'cms_page' 'privacy' %}">{% trans "Privacy" %}</a>
+            </li>
+          {% endif %}
+
+          <li>
+            <a class="wjs-footer__nav-link" href="{% url 'cms_page' 'cookie_policy' %}">{% trans "Cookie Policy" %}</a>
+          </li>
+
+          <li>
+            <a class="wjs-footer__nav-link" href="{% url 'cms_page' 'contact' %}">{% trans "Contact" %}</a>
+          </li>
+
+          <li>
+            <a class="wjs-footer__nav-link" href="{% url 'core_login' %}">{% trans "Login" %}</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</footer>
