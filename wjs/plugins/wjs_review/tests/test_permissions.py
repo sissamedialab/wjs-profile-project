@@ -109,6 +109,10 @@ def test_can_see_other_user_name(
     # Editor can see everyone
     assert can_see_other_user_name(instance=wf, actor=editor, target=author)
     assert can_see_other_user_name(instance=wf, actor=editor, target=reviewer)
+    # Author cannot see the editor and the reviewer
+    assert not can_see_other_user_name(instance=wf, actor=author, target=editor)
+    assert not can_see_other_user_name(instance=wf, actor=author, target=reviewer)
+    # TODO: typesetter
 
     # The system should work also if editor did I-will-review
     AssignToReviewer(
