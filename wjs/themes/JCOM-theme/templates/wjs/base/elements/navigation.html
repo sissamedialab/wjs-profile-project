@@ -1,0 +1,90 @@
+{% load django_bootstrap5 hooks press_url static %}
+
+<div class="flex-row justify-content-between d-none d-lg-flex align-items-center">
+  <ul class="nav">
+    {% if request.journal.nav_home %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'website_index' %}">{% trans "Home" %}</a>
+      </li>
+    {% endif %}
+
+    {% if request.journal.nav_news %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'core_news_list' %}">{{ journal_settings.news.news_title }}</a>
+      </li>
+    {% endif %}
+
+    {% if request.journal.nav_articles %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'journal_articles' %}">{% trans "Articles" %}</a>
+      </li>
+    {% endif %}
+
+    {% if request.journal.nav_issues %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'journal_issues' %}">{% trans "Issues" %}</a>
+      </li>
+    {% endif %}
+
+    {% if journal_settings.general.enable_editorial_display %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'editorial_team' %}">{% trans "Editorial Team" %}</a>
+      </li>
+    {% endif %}
+
+    {% if request.journal.nav_sub %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'journal_submissions' %}">{% trans "Submission" %}</a>
+      </li>
+    {% endif %}
+
+    {% if request.journal.nav_contact %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'contact' %}">{% trans "Contact" %}</a>
+      </li>
+    {% endif %}
+
+    {% for item in navigation_items %}
+      {% if item.has_sub_nav %}
+        <li class="nav-item wjs-nav-item dropdown">
+          <a class="nav-link dropdown-toggle"
+          href="#"
+          id="dropdown-{{ item.link_name|slugify }}"
+          role="button"
+          data-bs-toggle="dropdown"
+          aria-expanded="false">
+            {{ item.link_name }}
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="dropdown-{{ item.link_name|slugify }}">
+            {% if item.link %}
+              <li>
+                <a class="dropdown-item" href="{{ item.url }}">{{ item.link_name }}</a>
+              </li>
+            {% endif %}
+            {% for subnav in item.sub_nav_items %}
+              <li>
+                <a class="dropdown-item" href="{{ subnav.url }}">{{ subnav.link_name }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+        </li>
+      {% else %}
+        <li class="nav-item wjs-nav-item">
+          <a class="nav-link" href="{{ item.url }}">{{ item.link_name }}</a>
+        </li>
+      {% endif %}
+    {% endfor %}
+
+    {% if request.journal.nav_review %}
+      <li class="nav-item wjs-nav-item">
+        <a class="nav-link" href="{% url 'become_reviewer' %}">
+        <i class="bi bi-trophy"></i>&nbsp;{% trans "Become a Reviewer" %}
+      </a>
+      </li>
+    {% endif %}
+    {% hook 'nav_block' %}
+  </ul>
+  <a class="btn btn-primary wjs-search-button" tabindex="0" aria-label="{% trans "Search" %}" title="{% trans "Search" %}">
+    <i class="bi bi-search wjs-search-button__icon" aria-hidden="true"></i>
+  </a>
+</div>

@@ -57,6 +57,13 @@ from .utils import generate_token
 logger = get_logger(__name__)
 
 
+def demo(request):
+    """Demo view."""
+    template = "wjs/base/base.html"
+    context = {}
+    return render(request, template, context)
+
+
 @login_required
 def edit_profile(request):
     """Edit profile view for wjs app."""

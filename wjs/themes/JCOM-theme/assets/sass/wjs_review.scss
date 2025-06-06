@@ -251,3 +251,88 @@ table.table-bordered.dataTable .table-borderless td {
 }
 
 @import "bootstrap/scss/bootstrap";
+
+$blue-grey: #263238;
+$blue-grey-d-2: #455a64;
+$footer-copyright-bg-color: rgba(51, 51, 51, 0.08);
+
+.wjs-brand-logo {
+  @extend .d-flex, .align-items-center;
+
+  img {
+    height: auto;
+    max-height: 100px;
+    width: auto;
+  }
+}
+
+.wjs-search-button {
+  background-color: $primary;
+  border: 0;
+  transition: background-color 0.2s ease-out;
+  cursor: pointer;
+
+  &__icon {
+    &:before {
+      -webkit-text-stroke: 0.5px;
+    }
+  }
+}
+
+.wjs-nav-item {
+  .nav-link {
+    @extend .align-items-center, .d-flex, .fw-bold, .gap-3, .p-3, .text-decoration-none;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.1);
+    }
+  }
+
+  .dropdown-item {
+    @extend .p-3, .text-decoration-none;
+    color: $primary;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+.wjs-sidebar-nav {
+  .wjs-nav-item {
+    @extend .px-4;
+  }
+
+  .nav-link {
+    @extend .px-0;
+  }
+
+  .dropdown-menu {
+    width: 100%;
+  }
+}
+
+.wjs-footer {
+  @extend .d-flex, .fixed-bottom, .mt-5, .pb-5, .pt-4;
+  background-color: $footer-copyright-bg-color;
+
+  &__text {
+    @extend .m-0;
+    color: $blue-grey-d-2;
+
+    &-link {
+      @extend .text-decoration-none;
+    }
+  }
+
+  &__nav {
+    @extend .d-flex, .flex-column, .mt-5, .mt-md-0, .ps-0, .ps-md-5;
+    list-style: none;
+
+    &-link {
+      @extend .text-decoration-none;
+    }
+  }
+}
