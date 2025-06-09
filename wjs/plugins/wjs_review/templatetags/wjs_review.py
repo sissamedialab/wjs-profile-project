@@ -496,7 +496,7 @@ def get_max_workload(editor: Account, journal: Journal) -> int:
         eap = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
     except StaffWorkloadParameters.DoesNotExist:
         logger.error(f"Editor {editor} is not correctly setup on {journal.code}")
-        return 0
+        return -1
     except StaffWorkloadParameters.MultipleObjectsReturned:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
         eap = StaffWorkloadParameters.objects.filter(user=editor, journal=journal).first()

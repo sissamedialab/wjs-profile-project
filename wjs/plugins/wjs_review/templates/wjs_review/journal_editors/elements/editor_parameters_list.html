@@ -5,7 +5,8 @@
   <tr>
     <td>{{ editor.full_name }} {% hijack_button user=editor size="medium" %}</td>
     <td>{{ editor.affiliation }}</td>
-    <td>{% get_max_workload editor=editor journal=journal %}</td>
+    <td>{% get_max_workload editor=editor journal=journal as max_workload %}{% if max_workload < 0 %}<span class="bg-warning">{% translate "Parameters not correctly set up! Click \"Update\" and then \"Submit\"." %}</span> {% endif %}{{ max_workload }}
+</td>
     <td>{% get_current_workload editor=editor journal=journal %}</td>
     <td>
       {% get_editor_keywords editor=editor journal=journal as keywords %}
