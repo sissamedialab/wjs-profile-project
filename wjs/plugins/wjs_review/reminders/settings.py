@@ -329,7 +329,6 @@ Thank you and best regards,<br>
             days_after=5,
             days_after_setting="default_editor_assign_reviewer_days",
             flag_as_read=False,
-            flag_as_read_by_eo=False,
             extracontext=["current_editor", "assigned"],
         ),
     }
@@ -403,7 +402,6 @@ Thank you and best regards,<br>
             days_after=5,
             days_after_setting="default_editor_make_decision_days",
             flag_as_read=False,
-            flag_as_read_by_eo=False,
             extracontext=["current_editor"],
         ),
     }
@@ -487,7 +485,6 @@ Thank you and best regards,<br>
             recipient="editor",
             days_after=5,
             flag_as_read=True,
-            flag_as_read_by_eo=False,
             extracontext=["date_requested", "reviewer"],
         ),
     }
@@ -542,7 +539,6 @@ Thank you and best regards,<br>
             days_after=5,
             clemency_days=0,
             flag_as_read=True,
-            flag_as_read_by_eo=False,
             extracontext=["reviewer"],
         ),
     }
@@ -577,7 +573,6 @@ Thank you and best regards,<br>
             recipient="author",
             days_after=-7,
             flag_as_read=False,
-            flag_as_read_by_eo=True,
             extracontext=["date_due"],
         ),
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2: ReminderSetting(
@@ -601,7 +596,6 @@ Thank you and best regards,<br>
             recipient="author",
             days_after=0,
             flag_as_read=False,
-            flag_as_read_by_eo=True,
         ),
     }
 
@@ -635,7 +629,6 @@ Thank you and best regards,<br>
             recipient="author",
             days_after=-7,
             flag_as_read=False,
-            flag_as_read_by_eo=True,
             extracontext=["date_due"],
         ),
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2: ReminderSetting(
@@ -659,7 +652,6 @@ Thank you and best regards,<br>
             recipient="author",
             days_after=0,
             flag_as_read=False,
-            flag_as_read_by_eo=True,
         ),
     }
 
