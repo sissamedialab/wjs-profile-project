@@ -558,6 +558,7 @@ class SelectSpecialIssueForm(SelectIssueForm):
         obj = super().save(commit=False)
         if not self.cleaned_data["projected_issue"]:
             # Reset all links to any previously selected issue and clear the article primary isssue
+            Issue.articles.through.objects.filter(article=obj).delete()
             ArticleOrdering.objects.filter(article=obj).delete()
             obj.primary_issue = None
         else:
