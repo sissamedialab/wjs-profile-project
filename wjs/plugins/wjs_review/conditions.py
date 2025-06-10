@@ -49,9 +49,9 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     reminder_checks = [
         (
             Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
-            "Reviewer has not yet answered to the invitation",
+            "Reviewer has not yet answered the invitation",
         ),
-        (Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2, "Review assignment is late"),
+        (Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2, "Reviewer is late"),
     ]
 
     review_round = article.current_review_round_object()

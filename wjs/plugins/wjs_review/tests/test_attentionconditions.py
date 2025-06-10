@@ -565,7 +565,7 @@ def test_reviewer_is_late(
 
     assert (
         state_cls.article_requires_attention(article=article, user=section_editor)
-        == "Reviewer has not yet answered to the invitation"
+        == "Reviewer has not yet answered the invitation"
     )
     assert state_cls.article_requires_attention(article=article, user=eo) == ""
 
@@ -575,7 +575,7 @@ def test_reviewer_is_late(
 
     assert (
         state_cls.article_requires_attention(article=article, user=eo)
-        == "Reviewer has not yet answered to the invitation"
+        == "Reviewer has not yet answered the invitation"
     )
     # report overdue
     EvaluateReview(
@@ -603,14 +603,14 @@ def test_reviewer_is_late(
         reminder.date_sent = timezone.now()
         reminder.save()
 
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == "Review assignment is late"
+    assert state_cls.article_requires_attention(article=article, user=section_editor) == "Reviewer is late"
     assert state_cls.article_requires_attention(article=article, user=eo) == "You have unread messages"
 
     for reminder in reminders_list:
         reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
         reminder.save()
 
-    assert state_cls.article_requires_attention(article=article, user=eo) == "Review assignment is late"
+    assert state_cls.article_requires_attention(article=article, user=eo) == "Reviewer is late"
 
     form_data = {
         "date_due": assignment.date_due + datetime.timedelta(days=3),
