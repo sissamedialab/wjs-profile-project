@@ -3698,7 +3698,7 @@ def test_assign_different_editor(
     assert assigned_editor_msg.subject == editor_assignment_subject
     assert assigned_editor_msg.read_by_eo
     assert assigned_editor_msg.recipients.all().count() == 1
-    assert not MessageRecipients.objects.get(message=assigned_editor_msg, recipient=normal_user.janeway_account).read
+    assert MessageRecipients.objects.get(message=assigned_editor_msg, recipient=normal_user.janeway_account).read
 
 
 @pytest.mark.django_db
@@ -3742,7 +3742,7 @@ def test_assign_new_editor(
     assert msg.subject == message_subject
     assert msg.read_by_eo
     assert msg.recipients.all().count() == 1
-    assert not MessageRecipients.objects.get(message=msg, recipient=normal_user.janeway_account).read
+    assert MessageRecipients.objects.get(message=msg, recipient=normal_user.janeway_account).read
 
 
 @pytest.mark.django_db
