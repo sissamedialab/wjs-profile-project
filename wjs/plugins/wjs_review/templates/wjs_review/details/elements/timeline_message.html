@@ -3,7 +3,7 @@
   <div class="me-1" title="{{ message.message_type }}">
     <i class="bi {{ message|message_type_icon }}"></i>
   </div>
-  <div class="me-1 flex-grow-1 {% if message|message_read_by_me:request.user %}fw-bold{% endif %}">
+  <div class="me-1 flex-grow-1 {% if message|message_unread_by_me:request.user %}fw-bold{% endif %}">
     {% if message.message_type == message.MessageTypes.NOTE %}
       <a href="{% url "wjs_article_messages" pk=workflow.pk %}#message-item-{{ message.id }}" target="_blank">
         {% translate "Personal note" %}

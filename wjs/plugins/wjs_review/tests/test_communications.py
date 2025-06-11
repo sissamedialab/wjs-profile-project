@@ -527,9 +527,10 @@ def test_messages_to_eo_always_read(
     eo_user: JCOMProfile,
 ):
     """
-    A message sent to EO has the messagerecipient read flag set to true.
+    A message sent to EO has the messagerecipient read flag set to the same of read-by-eo.
 
-    EO read flag is read_by_eo on Message model.
+    Note that this test only verifies that the Message created by the write-message form
+    has read and read-by-eo coherent, without any assumption on their value.
     """
     # Check "system" messages that use the log_operation() function:
     chakotay = create_jcom_user("Chakotay")
@@ -568,7 +569,7 @@ def test_messages_to_eo_always_read(
     form.is_valid()
     saved_message = form.save()
     assert saved_message.pk == message.pk
-    assert MessageRecipients.objects.get(message=saved_message, recipient=eo_user).read is True
+    assert MessageRecipients.objects.get(message=saved_message, recipient=eo_user).read is saved_message.read_by_eo
 
 
 @pytest.mark.django_db
