@@ -1875,6 +1875,7 @@ class HandleDecision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_decline(self, context):
@@ -1903,6 +1904,7 @@ class HandleDecision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_not_suitable(self, context):
@@ -1961,6 +1963,7 @@ class HandleDecision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_revision_request(self, context, revision_type=None):
