@@ -335,6 +335,9 @@ class BaseAssignToEditor:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            # Msgs to the editors are auto-read
+            # this includes first assignments, new assignments, first ass. to guest eds
+            flag_as_read=True,
             flag_as_read_by_eo=True,
         )
 
