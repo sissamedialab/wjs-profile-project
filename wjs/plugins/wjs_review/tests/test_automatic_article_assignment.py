@@ -6,13 +6,16 @@ from typing import Callable
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, F
 from django.test import Client, override_settings
 from django.urls import reverse
+from plugins.wjs_review.models import Message
 from submission.models import Article
 
-from wjs.jcom_profile.models import StaffWorkloadParameters
+from wjs.jcom_profile.models import JCOMProfile, StaffWorkloadParameters
 
+from ..communication_utils import get_system_user
 from ..models import Reminder, WjsEditorAssignment
 
 Account = get_user_model()
@@ -471,3 +474,38 @@ def test_workload_decrease_eo(
 
         assert get_expected_eo(article_editors, third_article) != first_editor
         assert get_expected_eo(article_editors, third_article) != second_article.articleworkflow.eo_in_charge
+
+
+@pytest.mark.django_db
+def test_automatic_assignment_no_author_msg(
+    review_settings: Callable,  # noqa: ARG001
+    article: Article,
+    main_director: JCOMProfile,
+):
+    """When an author submits an article, he should not receive the notification of the editor assignment."""
+    author = article.correspondence_author.janeway_account
+    article.authors.set([author])
+    article.current_step = 5
+    article.save()
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(author)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+        article.refresh_from_db()
+        assert article.stage == "Assigned"
+        assert article.articleworkflow.state == "EditorSelected"
+        editor_assignment = WjsEditorAssignment.objects.get(article=article)
+        editor = editor_assignment.editor
+        assert editor == main_director.janeway_account
+
+        messages_to_editor = Message.objects.filter(
+            object_id=article.id,
+            content_type=ContentType.objects.get_for_model(Article),
+            recipients__in=[editor],
+        )
+        assert messages_to_editor.count() == 1
+        actor = messages_to_editor.first().actor
+        assert actor != author
+        assert actor == get_system_user()
