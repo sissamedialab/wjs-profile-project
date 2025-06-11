@@ -240,6 +240,9 @@ def test_assign_to_editor(
     current_user_editor: bool,
 ):
     """An editor can be assigned to an article and objects states are updated."""
+    # Note that having request.user == editor means that the same person that is doing the action
+    # is assignining himself as editor, which should not happen.
+    # See specs#1644 and related MR for a discussion.
     if current_user_editor:
         fake_request.user = section_editor.janeway_account
     else:
@@ -251,7 +254,10 @@ def test_assign_to_editor(
     article.articleworkflow.save()
 
     service = AssignToEditor(
-        article=article, editor=section_editor.janeway_account, request=fake_request, first_assignment=True
+        article=article,
+        editor=section_editor.janeway_account,
+        request=fake_request,
+        first_assignment=True,
     )
     assert WjsEditorAssignment.objects.get_all(article).count() == 0
     assert article.reviewround_set.count() == 0
@@ -291,7 +297,7 @@ def test_assign_to_editor(
     assert message_to_editor.message_type == Message.MessageTypes.SYSTEM
     assert list(message_to_editor.recipients.all()) == [section_editor.janeway_account]
     if current_user_editor:
-        assert message_to_editor.actor == get_system_user()
+        assert message_to_editor.actor == section_editor.janeway_account
     else:
         assert message_to_editor.actor == director.janeway_account
 
@@ -3716,6 +3722,9 @@ def test_assign_new_editor(
     }
     editors = Account.objects.get_editors_with_keywords(article)
     assert normal_user.janeway_account in editors
+    # TODO: refactor SupervisorAssignEditorForm to use the given "user"
+    #       instead of the "request.user"
+    fake_request.user = eo_user.janeway_account
     form = SupervisorAssignEditorForm(
         data=form_data,
         user=eo_user,
@@ -3743,6 +3752,7 @@ def test_assign_new_editor(
     assert msg.read_by_eo
     assert msg.recipients.all().count() == 1
     assert MessageRecipients.objects.get(message=msg, recipient=normal_user.janeway_account).read
+    assert msg.actor == eo_user.janeway_account
 
 
 @pytest.mark.django_db
