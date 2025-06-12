@@ -597,7 +597,7 @@ class EditorSelected(BaseState):
         ),
         ReviewAssignmentAction(
             assignment_permission=permissions.is_assignment_reviewer,
-            condition=conditions.review_not_done,
+            condition=conditions.review_accepted_not_completed,
             name="postpone reviewer due date",
             label="Change due date",
             view_name="wjs_postpone_reviewer_due_date_by_reviewer",
