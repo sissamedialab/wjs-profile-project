@@ -389,6 +389,11 @@ class Command(BaseCommand):
                 )
 
             # article section
+            if section == "paper":
+                section = "article"
+                logger.debug(
+                    f"for {preprintid} / {article.id} section 'paper' not existing in wjs, mapped to 'article'"
+                )
             self.set_section(article, section)
 
             # article language
@@ -426,6 +431,22 @@ class Command(BaseCommand):
                     # TODO: move the update of imported_document_layer_cod_list out of the action manager
                     # using as return value of each action manager run() the partial list
                     logger.debug(f"Looking at action {action['actionID']} ({action['actHistCod']})")
+
+                    # in case of editor reassign during the production the first editor acceptance is changed
+                    # in ED_ACC_DOC_WMC to permit the author resubmission.
+                    # These wjapp actions are skipped TYP_UPLOADS_FOR_PM PM_REQ_ED_CHECK ED_RESTARTS_REV
+                    # and afterwards the author resubmission continues the workflow
+                    special_cases = {
+                        ("JCOM_003A_0417", 2, 265550),
+                        ("JCOM_012A_0615", 2, 260964),
+                    }
+                    if (preprintid, imported_version_num, action["actHistCod"]) in special_cases:
+                        logger.warning(
+                            f"change action {action['actionID']} to ED_ACC_DOC_WMC "
+                            f"for {preprintid}/{imported_version_num} (manage editor restart - known case)."
+                        )
+                        action["actionID"] = "ED_ACC_DOC_WMC"
+
                     if action_manager := globals().get(action["actionID"]):
                         # "actionID" is something like SYS_ASS_ED, that is also
                         # the name of a class defined in this module
@@ -481,6 +502,7 @@ class Command(BaseCommand):
                             "PM_REMINDS_AUTH",  # i.e. JCOM_016A_1124
                             "ADMIN_RESETS_ED",
                             "PSTPN_REV_DEADLN",  # <someone> postpones revision deadline
+                            "PM_REMINDS_TYP",
                         ]
                         if action["actionID"] in managed_in_import_correspondence:
                             logger.debug(f"Action {action['actionID']} managed in import correspondence.")
@@ -1507,7 +1529,8 @@ WHERE
                 # Remember that there is a pre-delete signal on FrozenAuthors that removes all authors/authors-order
                 # however, we prefer to delete them explicitly because it's more clear
                 submission_models.ArticleAuthorOrder.objects.get(author=author, article=article).delete()
-                submission_models.FrozenAuthor.objects.get(article=article, author=author).delete()
+                # filter insted of get because frozen author could not exist i.e. JCOM_007A_0516
+                submission_models.FrozenAuthor.objects.filter(article=article, author=author).delete()
                 article.authors.remove(author)
                 authors_modified = True
                 logger.debug(f"cleaned coauthor {author}")
@@ -1668,7 +1691,7 @@ def account_get_or_create_check_correspondence(
 
     account_created = False
     mappings = wjs_models.Correspondence.objects.filter(
-        Q(user_cod=user_cod, source=source) | Q(email=imported_email),
+        Q(user_cod=user_cod, source=source) | Q(email__iexact=imported_email),
     )
     if mappings.count() == 0:
         # We never saw this person in other journals.
@@ -2254,11 +2277,16 @@ class ImportCorrespondenceManager:
 
                 # management of special cases
                 # TBV: correct management of this type?
-                if not msg.recipients.exists() and m["documentLayerType"] in ("FRDIE", "TOPUM"):
+                if not msg.recipients.exists() and m["documentLayerType"] in ("FRASDIE", "FRDIE", "TOPUM"):
                     msg.recipients.add(get_eo_user(self.journal))
 
                 if not msg.recipients.exists() and m["documentLayerType"] in self.types_with_auth_OR_recipient:
                     msg.recipients.add(get_eo_user(self.journal))
+
+                special_cases_no_recipients = (255874, 253593, 254104, 253252, 253253, 249057, 250742, 251797)
+                if m["documentLayerCod"] in special_cases_no_recipients:
+                    msg.recipients.add(get_eo_user(self.journal))
+                    logger.debug(f"add recipient eo user for special case {m['documentLayerCod']}")
 
                 # error if no recipients at all from wjapp and not added eo_user
                 if not msg.recipients.all():
@@ -2460,10 +2488,14 @@ class BaseActionManager:
                 self.save_pdf_galley(pdf_galley_prod_dj)
 
         else:
-            response_manuscript = self.download_manuscript()
-            if response_manuscript.headers["Content-Length"] != "0":
-                manuscript_dj = file_from_response(response_manuscript, f"{self.preprintid}.pdf")
-                self.save_manuscript(manuscript_dj)
+            known_missing_manuscript = {("JCOM_001E_0422", 1), ("JCOM_002A_0717", 1), ("JCOM_018A_0923", 1)}
+            if (self.preprintid, self.imported_version_num) in known_missing_manuscript:
+                logger.debug(f"{self.preprintid} / {self.imported_version_num} (missing manuscript - known case)")
+            else:
+                response_manuscript = self.download_manuscript()
+                if response_manuscript.headers["Content-Length"] != "0":
+                    manuscript_dj = file_from_response(response_manuscript, f"{self.preprintid}.pdf")
+                    self.save_manuscript(manuscript_dj)
 
             # remove previous source files relations already saved as historical files
             # necessary to clear() when the version import files starts because
@@ -2567,6 +2599,17 @@ class BaseActionManager:
         """Download pdf galley for production imported version."""
 
         file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
+
+        if self.preprintid == "JCOM_003A_0615" and self.imported_version_num == 5:
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}"
+                f"/publication/currentHidden/{self.preprintid}.pdf&fileType=pdf"
+            )
+            logger.warning(
+                f"used currentHidden/JCOM_003A_0615.pdf for {self.preprintid}/"
+                f"{self.imported_version_num} (fix file name - known case)."
+            )
+
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -2607,6 +2650,16 @@ class BaseActionManager:
 
     # production version source TARGZ
     def file_source_prod(self):
+
+        # typesetter uploaded a docx replaced with empty tar.gz
+        missing_cases = {
+            ("JCOM_004C_1020", 3),
+        }
+        if (self.preprintid, self.imported_version_num) in missing_cases:
+            logger.warning(f"for {self.preprintid}/{self.imported_version_num} - docx source prod tar.gz known case")
+            empty_source_prod_dj = DjangoFile(BytesIO(b""), f"{self.preprintid}.tar.gz")
+            return empty_source_prod_dj
+
         (response_source_prod, file_type) = self.download_source_prod()
         if response_source_prod.headers["Content-Length"] != "0":
             if file_type == "tar.gz":
@@ -2622,6 +2675,66 @@ class BaseActionManager:
             f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
             f"submission/{self.preprintid}.tar.gz&fileType=gz"
         )
+
+        # preprintid of file different from the preprintid of article due to
+        # wjapp maintenance change of article type or other type of manual maintenance
+        if self.preprintid == "JCOM_003C_0622" and self.imported_version_num in (2, 3):
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/JCOM_002E_0622.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_002E_0622.tar.gz for {self.preprintid}/"
+                f"{self.imported_version_num} (change preprint type - known case)."
+            )
+        if self.preprintid == "JCOM_001C_0922" and self.imported_version_num == 3:
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/JCOM_001E_0922.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_001E_0922.tar.gz for {self.preprintid}/"
+                f"{self.imported_version_num} (change preprint type - known case)."
+            )
+        if self.preprintid == "JCOM_004N_0918" and self.imported_version_num in (3, 4):
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/JCOM_001C_0918.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_001C_0918.tar.gz for {self.preprintid}/"
+                f"{self.imported_version_num} (change preprint type - known case)."
+            )
+
+        if self.preprintid == "JCOM_005A_1116" and self.imported_version_num == 3:
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/JCOM_002A_1216.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_002A_1216.tar.gz for {self.preprintid}/"
+                f"{self.imported_version_num} (change preprint type - known case)."
+            )
+
+        if self.preprintid == "JCOM_013A_0215" and self.imported_version_num == 3:
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/JCOM_1402_2015_A-king-proof.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_1402_2015_A-king-proof.tar.gz for {self.preprintid}/"
+                f"{self.imported_version_num} (change preprint type - known case)."
+            )
+
+        if self.preprintid == "JCOM_008A_0215" and self.imported_version_num == 4:
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/JCOM_402_2015_A03.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_402_2015_A03.tar.gz for {self.preprintid}/" f"{self.imported_version_num} (- known case)."
+            )
+
         file_type = "tar.gz"
         logger.debug(f"production source: {file_url=}")
         response = self.session.get(file_url)
@@ -2658,7 +2771,7 @@ class BaseActionManager:
 
         if response.status_code == 200:
             if response.headers["Content-Length"] == "0":
-                logger.error(
+                logger.debug(
                     f"check wjapp login data empty file {doc_type} downloaded: {response.headers['Content-Length']}"
                 )
             else:
@@ -3338,11 +3451,13 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
         # In the normal paper import ADMIN_ASS_N_ED does not create in wjs a new version,
         # but for this case, decision already taken, it is necessary to create a new review
         # round before SupervisorChangeEditorAssignment
-        if (
-            self.preprintid == "JCOM_008A_0125"
-            and self.imported_version_num == 2
-            and self.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
-        ):
+
+        special_cases = {
+            ("JCOM_008A_0125", 2, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
+            ("JCOM_004N_1021", 2, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
+        }
+        if (self.preprintid, self.imported_version_num, self.article.articleworkflow.state) in special_cases:
+
             logger.warning(
                 f"fix of broken wjapp data state not compatible with ADMIN_ASS_N_ED: {self.preprintid} "
                 f"AW.state: {self.article.articleworkflow.state}"
@@ -3398,6 +3513,19 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
 
         else:
             # normal case, admin assigns to a new editor and exists an WjsEditorAssignment
+
+            # special case: co-author chosen as editor
+            special_cases = {
+                ("JCOM_005C_0819", 2, 272888),
+                ("JCOM_006C_0819", 2, 272894),
+            }
+            if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in special_cases:
+                logger.warning(
+                    f"fix for {self.preprintid}/{self.imported_version_num} "
+                    f" removed author {self.editor_to_assign} (coauthor as editor known case)"
+                )
+                self.article.authors.remove(self.editor_to_assign)
+                self.article.save()
 
             self.deselect_editor_as_reviewer()
 
@@ -3487,17 +3615,49 @@ class AU_WITHD_DOC(BaseActionManager):  # noqa N801
     def run(self):
         # Author withdraws paper
 
+        noop_cases = {
+            ("JCOM_006A_0623", 1, 291617),
+            ("JCOM_004N_0923", 2, 295231),
+            ("JCOM_016A_0924", 1, 299629),
+            ("JCOM_003N_1224", 1, 300878),
+            ("JCOM_003N_1224", 1, 300879),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} AU_WITHD_DOC "
+                f"for {self.preprintid}/{self.imported_version_num} (duplicated - known case)."
+            )
+            return
+
         self.check_editor_set()
         self.author_withdrawn(self.read_author_withdrawn_message())
 
     def author_withdrawn(self, author_withdrawn_message):
         """Author withdraws preprint."""
 
+        author_cod = self.action["agentCod"]
+        author_lastname = self.action["agentLastname"]
+        author_firstname = self.action["agentFirstname"]
+        author_email = self.action["agentEmail"]
+        author_privacy = self.action["agentPrivacy"]
         author_withdrawn_date = self.action["actionDate"]
-        author = self.article.correspondence_author
-        assert author.last_name == self.action["agentLastname"]
-        assert author.first_name == self.action["agentFirstname"]
-        assert author.email == self.action["agentEmail"]
+
+        # note: the "agentEmail" could be different from correspondence_author.email
+        # because in general the agentEmail could be present in Correspondence but not
+        # in the user account
+        author = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            author_cod,
+            author_lastname,
+            author_firstname,
+            author_email,
+            author_privacy,
+            self.connection,
+        )
+
+        # account_get_or_create_check_correspondence returns the cached value for the corr auth.
+        # the assert assures that the wjapp data are consistent
+        assert author.id == self.article.correspondence_author.id
 
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = author
@@ -3540,17 +3700,18 @@ class AU_WITHD_DOC(BaseActionManager):  # noqa N801
 SELECT
 dl.documentLayerSubject,
 dl.documentLayerCod,
-dl.documentLayerText
+dl.documentLayerText,
+dl.documentLayerType
 FROM Document_Layer dl
 LEFT JOIN User_Rights ur USING (documentLayerCod)
 LEFT JOIN User u USING (userCod)
 WHERE
     versioncod=%(imported_version_cod)s
 AND ur.userCod=%(agent_cod)s
-AND dl.documentLayerType='ATOEE'
+AND dl.documentLayerType IN ('ATOEE', 'TOADE')
 AND ur.userType='author'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 11 SECOND)
 ORDER BY dl.submissionDate
 """
         cursor_author_withdrawn_message.execute(
@@ -3562,12 +3723,31 @@ ORDER BY dl.submissionDate
             },
         )
         if cursor_author_withdrawn_message.rowcount != 1:
-            logger.error(
-                f"Found {cursor_author_withdrawn_message.rowcount} author withdraws messages: {self.preprintid}"
-            )
-            author_withdrawn_message = None
+
+            noop_cases = {
+                ("JCOM_006A_0623", 57586, 12533),
+                ("JCOM_004N_0923", 58000, 12876),
+                ("JCOM_016A_0924", 58626, 12188),
+                ("JCOM_003N_1224", 58899, 13787),
+            }
+            if (self.preprintid, self.imported_version_cod, self.action["agentCod"]) in noop_cases:
+                logger.warning(
+                    f"Skipped duplicated author withdrawn message for agent {self.action['agentCod']} "
+                    f"and {self.preprintid} version cod: {self.imported_version_cod} (duplicated - known case)."
+                )
+                author_withdrawn_message = cursor_author_withdrawn_message.fetchone()
+            else:
+                logger.error(
+                    f"Found {cursor_author_withdrawn_message.rowcount} author withdrawn messages"
+                    f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+                )
+                author_withdrawn_message = None
         else:
             author_withdrawn_message = cursor_author_withdrawn_message.fetchone()
+            logger.debug(
+                f"Found auth withdrawn msg doclayerType: {author_withdrawn_message.get('documentLayerType')} "
+                f"{self.preprintid}/{self.imported_version_num}"
+            )
         cursor_author_withdrawn_message.close()
         return author_withdrawn_message
 
@@ -3578,7 +3758,12 @@ class AdminWithdrawn(BaseActionManager):  # noqa N801
     def run(self):
         # Admin withdraws paper e.g. JCOM_005A_0224
 
-        self.check_editor_set()
+        noop_cases = {("JCOM_001Y_0821")}
+        if self.preprintid in noop_cases:
+            logger.debug(f"missing editor for {self.preprintid} / {self.article.id} (known case)")
+            self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+        else:
+            self.check_editor_set()
 
         admin_cod = self.action["agentCod"]
         admin_lastname = self.action["agentLastname"]
@@ -3625,6 +3810,16 @@ class AdminWithdrawn(BaseActionManager):  # noqa N801
                 },
             ).run()
 
+            communication_utils.log_operation(
+                article=self.article,
+                message_subject="Withdrawn",
+                message_body="",
+                actor=admin,
+                recipients=[admin],
+                flag_as_read=True,
+                flag_as_read_by_eo=True,
+            )
+
 
 class ADMIN_WITHD_DOC(AdminWithdrawn):  # noqa N801
     """Admin withdraws paper: wjapp action "admin withdraws document"."""
@@ -3639,6 +3834,20 @@ class ED_REF_DOC(BaseActionManager):  # noqa N801
 
     def run(self):
         # Editor declines assignment
+
+        # Known cases of "dirty data" on wjapp, when this action had no effect.
+        # We identify them by a triplet made of preprint id, version number and action-history code
+        # (the first two are just human-friendly pointers 🙂).
+        # related to a correction of double editor decline message
+        noop_cases = {
+            ("JCOM_009A_0123", 1, 290536),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} ED_REF_DOC "
+                f"for {self.preprintid}/{self.imported_version_num} (duplicated - known case)."
+            )
+            return
 
         self.check_editor_set()
         self.editor_declines(self.read_editor_decline_message())
@@ -3722,20 +3931,43 @@ AND dl.submissionDate>=%(action_date)s
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
 ORDER BY dl.submissionDate
 """
+
+        # Because the action date is out of the interval set in the query, it is forced
+        # like the documentlayer date. The option to enlarge more the interval in the query risks
+        # to bring errors considering all the articles imported.
+        action_date = str(self.action["actionDate"])
+        if (
+            self.preprintid == "JCOM_008A_0622"
+            and self.imported_version_cod == 56883
+            and self.action["agentCod"] == 8502
+        ):
+            action_date = "20220623140311"
+            logger.debug(f"fixed editor decline msg timing {self.preprintid}")
+
         cursor_editor_decline_message.execute(
             query_editor_decline_message,
             {
                 "imported_version_cod": self.imported_version_cod,
                 "agent_cod": self.action["agentCod"],
-                "action_date": str(self.action["actionDate"]),
+                "action_date": action_date,
             },
         )
         if cursor_editor_decline_message.rowcount != 1:
-            logger.error(
-                f"Found {cursor_editor_decline_message.rowcount} editor decline messages"
-                f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
-            )
-            editor_decline_message = None
+            noop_cases = {
+                ("JCOM_009A_0123", 57327, 8475),
+            }
+            if (self.preprintid, self.imported_version_cod, self.action["agentCod"]) in noop_cases:
+                logger.warning(
+                    f"Skipped duplicated editor decline message for agent {self.action['agentCod']} "
+                    f"and {self.preprintid} version cod: {self.imported_version_cod} (duplicated - known case)."
+                )
+                editor_decline_message = cursor_editor_decline_message.fetchone()
+            else:
+                logger.error(
+                    f"Found {cursor_editor_decline_message.rowcount} editor decline messages"
+                    f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+                )
+                editor_decline_message = None
         else:
             editor_decline_message = cursor_editor_decline_message.fetchone()
         cursor_editor_decline_message.close()
@@ -3746,6 +3978,27 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
     """Editor assigns her/him self as reviewer "editor acts as referee"."""
 
     def run(self):
+
+        # note:
+        # - JCOM_009A_0123/2
+        #   has two immediately successive actions: i will review
+        #   - 08 May 2023 07:31 Editor Elaine Reynoso-Haynes will review JCOM_009A_0123 by him/herself.
+        #   - 08 May 2023 07:26 Editor Elaine Reynoso-Haynes will review JCOM_009A_0123 by him/herself.
+        #   also if this is not blocked by transition conditions, the first action is skipped because would
+        #   cause the first RA to be visible and "deselected"
+        noop_cases = {
+            ("JCOM_002Y_0216", 1, 261767),  # assigned to ed and ed did I-will-review, but ed is also author
+            ("JCOM_001E_0318", 1, 267325),  # assigned to ed and ed did I-will-review, but ed is also author
+            ("JCOM_001E_0915", 1, 260742),  # assigned to ed and ed did I-will-review, but ed is also author
+            ("JCOM_009A_0123", 2, 291251),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} ED_ACT_AS_REF for {self.preprintid}/"
+                f"{self.imported_version_num} (impossible action edt eq auth/repeated action - known case)."
+            )
+            return
+
         self.check_editor_set()
         editor = reviewer = self.get_current_editor()
         logger.debug(f"Creating review assignment of {self.article.id} to editor as reviewer")
@@ -3794,6 +4047,17 @@ class ReviewAssignmentAction(BaseActionManager):
     """
 
     def run(self):
+
+        noop_cases = {
+            ("JCOM_007A_0321", 1, 281937),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} ReviewAssignmentAction "
+                f"for {self.preprintid}/{self.imported_version_num} (duplicated and wrong logic - known case)."
+            )
+            return
+
         self.check_editor_set()
 
         # reviewer data from Current_Referees
@@ -3844,7 +4108,21 @@ class ReviewAssignmentAction(BaseActionManager):
             }
 
         # select reviewer message
-        reviewer_message = self.read_reviewer_message()
+
+        special_cases = {("JCOM_010A_0615", 1, 260355)}
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in special_cases:
+            # fake reviewer message. Not existing documentLayerCod = 0 does not create problems when
+            # inserted in imported_document_layer_cod_list at the end of the action.
+            reviewer_message = {
+                "documentLayerCod": 0,
+                "documentLayerText": "",
+            }
+            logger.warning(
+                f"Fix for missing reviewer msg {self.action['actHistCod']}  "
+                f"for {self.preprintid}/{self.imported_version_num} (wjapp data missing - known case)."
+            )
+        else:
+            reviewer_message = self.read_reviewer_message()
         logger.debug(f"Reviewer message: {reviewer_message.get('documentLayerCod')}")
 
         self.set_reviewer(reviewer_data, reviewer_message)
@@ -3928,12 +4206,41 @@ AND dl.submissionDate>=%(action_date)s
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 7 SECOND)
 ORDER BY dl.submissionDate
 """
+
+        # Because the action date is out of the interval set in the query, it is forced
+        # like the documentlayer date. The option to enlarge more the interval in the query risks
+        # to bring errors considering all the articles imported.
+        action_date = str(self.action["actionDate"])
+        if (
+            self.preprintid == "JCOM_004A_1016"
+            and self.imported_version_cod == 53390
+            and self.action["targetCod"] == 8558
+        ):
+            action_date = "20161017151904"
+            logger.debug(f"fixed reviewer assignment msg timing {self.preprintid}")
+
+        if (
+            self.preprintid == "JCOM_007A_1216"
+            and self.imported_version_cod == 53463
+            and self.action["targetCod"] == 8901
+        ):
+            action_date = "20161214104653"
+            logger.debug(f"fixed reviewer assignment msg timing {self.preprintid}")
+
+        if (
+            self.preprintid == "JCOM_003A_0517"
+            and self.imported_version_cod == 53648
+            and self.action["targetCod"] == 9422
+        ):
+            action_date = "20170508151606"
+            logger.debug(f"fixed reviewer assignment msg timing {self.preprintid}")
+
         cursor_reviewer_message.execute(
             query_reviewer_message,
             {
                 "imported_version_cod": self.imported_version_cod,
                 "user_cod": self.action["targetCod"],
-                "action_date": str(self.action["actionDate"]),
+                "action_date": action_date,
             },
         )
         if cursor_reviewer_message.rowcount != 1:
@@ -4207,6 +4514,18 @@ class DeselectReviewerAction(BaseActionManager):
         # GT1_ED_REM_REF	[#referee>1]/editor removes referee (e.g. JCOM_013A_0724)
         # ED_REM_REF	editor removes referee (e.g. JCOM_018A_0724)
 
+        noop_cases = {
+            ("JCOM_002A_0323", 1, 291112),
+            ("JCOM_002C_1216", 1, 263831),
+            ("JCOM_010A_0615", 1, 260593),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} deselect reviewer "
+                f"for {self.preprintid}/{self.imported_version_num} (duplicated - known case)."
+            )
+            return
+
         reviewer_cod = self.action["targetCod"]
         reviewer_lastname = self.action["targetLastname"]
         reviewer_firstname = self.action["targetFirstname"]
@@ -4295,19 +4614,50 @@ AND dl.submissionDate>=%(action_date)s
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 6 SECOND)
 ORDER BY dl.submissionDate
 """
+
+        # Because the action date is out of the interval set in the query, it is forced like the
+        # documentlayer date. The option to enlarge more the interval in the query risks to bring
+        # errors considering all the articles imported.
+        action_date = str(self.action["actionDate"])
+        if (
+            self.preprintid == "JCOM_009A_0718"
+            and self.imported_version_cod == 54251
+            and self.action["targetCod"] == 9905
+        ):
+            action_date = "20180831095428"
+            logger.debug(f"fixed deselect reviewer msg 6 seconds after action date {self.preprintid}")
+
+        if (
+            self.preprintid == "JCOM_005A_0515"
+            and self.imported_version_cod == 52998
+            and self.action["targetCod"] == 8640
+        ):
+            action_date = "20151210115632"
+            logger.debug(f"fixed deselect reviewer msg 24 seconds after action date {self.preprintid}")
+
         cursor_deselect_reviewer_message.execute(
             query_deselect_reviewer_message,
             {
                 "imported_version_cod": self.imported_version_cod,
                 "user_cod": self.action["targetCod"],
-                "action_date": str(self.action["actionDate"]),
+                "action_date": action_date,
             },
         )
         if cursor_deselect_reviewer_message.rowcount != 1:
-            logger.error(
-                f"Found {cursor_deselect_reviewer_message.rowcount} deselect reviewer messages: {self.preprintid}"
-            )
-            deselect_reviewer_message = None
+            noop_cases = {
+                ("JCOM_002C_1216", 53455, 8528),
+            }
+            if (self.preprintid, self.imported_version_cod, self.action["targetCod"]) in noop_cases:
+                logger.warning(
+                    f"Skipped duplicated deselect reviewer message for agent {self.action['targetCod']} "
+                    f"and {self.preprintid} version cod: {self.imported_version_cod} (duplicated - known case)."
+                )
+                deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
+            else:
+                logger.error(
+                    f"Found {cursor_deselect_reviewer_message.rowcount} deselect reviewer messages: {self.preprintid}"
+                )
+                deselect_reviewer_message = None
         else:
             deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
         cursor_deselect_reviewer_message.close()
@@ -4332,6 +4682,17 @@ class ReviewerDeclineAction(BaseActionManager):
 
     def run(self):
         # wjapp actions for referee declined assignment for preprintid in wjapp:
+
+        # Known cases
+        noop_cases = {
+            ("JCOM_002Y_0216", 1, 261768),  # the previous ed act as ref removed due to auth eq ed
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} ReviewerDeclineAction "
+                f"for {self.preprintid}/{self.imported_version_num} (due to auth as ed- known case)."
+            )
+            return
 
         # - EQ1_REF_REF: this action indicates that a referee declined an assignment on a
         #   paper with exactly one referee (i.e. the paper has no more active review assignments)
@@ -4378,12 +4739,33 @@ AND dl.submissionDate>=%(action_date)s
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 7 SECOND)
 ORDER BY dl.submissionDate
 """
+
+        # Because the action date is out of the interval set in the query, it is forced
+        # like the documentlayer date. The option to enlarge more the interval in the query risks
+        # to bring errors considering all the articles imported.
+        action_date = str(self.action["actionDate"])
+        if (
+            self.preprintid == "JCOM_005A_0416"
+            and self.imported_version_cod == 53205
+            and self.action["agentCod"] == 8572
+        ):
+            action_date = "20160504155638"
+            logger.debug(f"fixed reviewer decline msg 11 seconds after action date {self.preprintid}")
+
+        if (
+            self.preprintid == "JCOM_002A_0616"
+            and self.imported_version_cod == 53277
+            and self.action["agentCod"] == 8474
+        ):
+            action_date = "20160625193509"
+            logger.debug(f"fixed reviewer decline msg 15 seconds after action date {self.preprintid}")
+
         cursor_reviewer_decline_message.execute(
             query_reviewer_decline_message,
             {
                 "imported_version_cod": self.imported_version_cod,
                 "agent_cod": self.action["agentCod"],
-                "action_date": str(self.action["actionDate"]),
+                "action_date": action_date,
             },
         )
         if cursor_reviewer_decline_message.rowcount != 1:
@@ -5000,6 +5382,7 @@ class ED_ACC_DOC(EditorDecisionAction):  # noqa N801
         self.setting_name = "subject_review_decision_accept"
 
 
+@dataclass
 class AuthorSubmitRevisionAction(BaseActionManager):
     """Author submit revision management."""
 
@@ -5094,12 +5477,34 @@ AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 6 SECOND)
 ORDER BY dl.submissionDate
 """
+
+        # Because the action date is out of the interval set in the query, it is forced
+        # like the documentlayer date. The option to enlarge more the interval in the query risks
+        # to bring errors considering all the articles imported.
+        action_date = str(self.action["actionDate"])
+
+        if self.preprintid == "JCOM_001A_0520" and self.imported_version_cod == 55227:
+            action_date = "20200616233039"
+            logger.debug(f"fixed cvlett date 21 seconds after action date {self.preprintid}")
+
+        if self.preprintid == "JCOM_005A_1117" and self.imported_version_cod == 54139:
+            action_date = "20180428112442"
+            logger.debug(f"fixed cvlett date 8 seconds after action date {self.preprintid}")
+
+        if self.preprintid == "JCOM_006A_1217" and self.imported_version_cod == 54012:
+            action_date = "20180215042732"
+            logger.debug(f"fixed cvlett date 6 seconds after action date {self.preprintid}")
+
+        if self.preprintid == "JCOM_005A_1216" and self.imported_version_cod == 53625:
+            action_date = "20170410161125"
+            logger.debug(f"fixed cvlett date 6 seconds after action date {self.preprintid}")
+
         cursor_cover_letter_message.execute(
             query_cover_letter_message,
             {
                 "imported_version_cod": self.imported_version_cod,
                 "agent_cod": self.action["agentCod"],
-                "action_date": str(self.action["actionDate"]),
+                "action_date": action_date,
             },
         )
         if cursor_cover_letter_message.rowcount != 1:
@@ -5113,6 +5518,7 @@ ORDER BY dl.submissionDate
         return cover_letter_message
 
 
+@dataclass
 class AU_SUB_REV(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action "author submits revised version"."""
 
@@ -5122,6 +5528,7 @@ class AU_SUB_REV(AuthorSubmitRevisionAction):  # noqa N801
         self.check_and_fix_action_reminder("major_revision", "EDSR", 3)
 
 
+@dataclass
 class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action "author submits minor revision"."""
 
@@ -5131,14 +5538,54 @@ class AU_SUB_REV_WMC(AuthorSubmitRevisionAction):  # noqa N801
         self.check_and_fix_action_reminder("minor_revision", "EDSR", 3)
 
 
+@dataclass
+class AU_SUB_REV_ED_CH(AuthorSubmitRevisionAction):  # noqa N801
+    """Manages wjapp action "Author submits after ed check"."""
+
+    def __post_init__(self):
+        """logs error if not know case"""
+
+        known_cases = {("JCOM_003A_0417", 4, 266570), ("JCOM_012A_0615", 4, 261114)}
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) not in known_cases:
+            logger.error(
+                f"case not managed {self.action['actHistCod']} AU_SUB_REV_ED_CH "
+                f"for {self.preprintid}/{self.imported_version_num}."
+            )
+        else:
+            logger.warning(
+                f"AU_SUB_REV_ED_CH {self.action['actHistCod']} "
+                f"for {self.preprintid}/{self.imported_version_num} (known case)."
+            )
+
+
+@dataclass
 class AU_SUB_NEW_VER(AuthorSubmitRevisionAction):  # noqa N801
     """Manages wjapp action "author submits new version" (appeal)."""
+
+
+@dataclass
+class AU_CONF_VER(AuthorSubmitRevisionAction):  # noqa N801
+    """Manages wjapp action "author confirms version" (appeal)."""
 
 
 class SelectCoauthorAction(BaseActionManager):
     """Coauthor selection management."""
 
     def run(self):
+
+        # JCOM_001E_0322 is a published paper. Coauthor remains corrected as published.
+        noop_cases = {
+            ("JCOM_001E_0322", 1, 285908),
+            ("JCOM_007A_0623", 1, 291630),
+            ("JCOM_004Y_0623", 1, 292042),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} Select coauthor "
+                f"for {self.preprintid}/{self.imported_version_num} (coauthor as reviewer/editor - known case)."
+            )
+            return
+
         # coauthor is the target of the wjapp action
         coauthor_cod = self.action["targetCod"]
         coauthor_lastname = self.action["targetLastname"]
@@ -5279,6 +5726,14 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
         Also create the typesetter's Account if necessary.
         """
 
+        noop_cases = {("JCOM_003A_0417", 2, 265687), ("JCOM_012A_0615", 2, 260995)}
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} TYP_TAKES_CHARGE "
+                f"for {self.preprintid}/{self.imported_version_num} (management ed restart - known case)."
+            )
+            return
+
         typesetter_cod = self.action["agentCod"]
         typesetter_lastname = self.action["agentLastname"]
         typesetter_firstname = self.action["agentFirstname"]
@@ -5329,6 +5784,19 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
     """Manages wjapp action "typesetter uploads for production manager"."""
 
     def run(self):
+
+        noop_cases = {
+            ("JCOM_003A_0417", 3, 266295),
+            ("JCOM_012A_0615", 3, 260996),
+            ("JCOM_027Y_0615", 3, 260386),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} TYP_UPLOADS_FOR_PM "
+                f"for {self.preprintid}/{self.imported_version_num} (- known case)."
+            )
+            return
+
         typesetter_uploads_date = self.action["actionDate"]
 
         # get typesetter file tar.gz
@@ -5381,6 +5849,30 @@ class Requestproofs(BaseActionManager):
             ("JCOM_001BR_0324", 3, 296043),
             ("JCOM_004N_0724", 5, 299101),
             ("JCOM_001Y_0724", 5, 299357),
+            ("JCOM_011A_0123", 8, 291803),
+            ("JCOM_001N_0923", 6, 297135),
+            ("JCOM_005A_0322", 4, 288477),
+            ("JCOM_001N_0321", 6, 285416),
+            ("JCOM_003A_0821", 5, 286339),
+            ("JCOM_003N_1021", 5, 285322),
+            ("JCOM_010N_1021", 4, 285108),
+            ("JCOM_012A_1021", 4, 285642),
+            ("JCOM_004A_1121", 5, 288627),
+            ("JCOM_018A_1021", 3, 285170),
+            ("JCOM_023A_1020", 3, 282928),
+            ("JCOM_007A_1120", 6, 281952),
+            ("JCOM_006A_0118", 3, 268513),
+            ("JCOM_006A_0418", 6, 270334),
+            ("JCOM_010A_0718", 4, 272266),
+            ("JCOM_003C_0818", 2, 269513),
+            ("JCOM_004C_1118", 5, 270687),
+            ("JCOM_002C_0317", 5, 265426),
+            ("JCOM_001CR_0517", 3, 265350),
+            ("JCOM_001E_0617", 2, 265459),
+            ("JCOM_001C_0516", 5, 262715),
+            ("JCOM_001BR_0616", 2, 262890),
+            ("JCOM_004A_0616", 4, 263179),
+            ("JCOM_019A_1216", 6, 265656),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -5440,18 +5932,23 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
     def run(self):
         # E.g. JCOM_017A_0624
 
-        if (
-            self.preprintid == "JCOM_023A_0623"
-            and self.imported_version_num == 3
-            and self.action["actHistCod"] == 294207
-        ) or (
-            self.preprintid == "JCOM_018A_1124"
-            and self.imported_version_num == 3
-            and self.action["actHistCod"] == 302240
-        ):
+        # asked eo, authorized to loose this auann:
+        # - JCOM_001A_0323_AUANN000690623.comments ASJ for team final.pdf
+        # - JCOM_009A_0119_AUANN000710519 (two auann in the same version, kept the second one)
+        noop_cases = {
+            ("JCOM_023A_0623", 3, 294207),
+            ("JCOM_018A_1124", 3, 302240),
+            ("JCOM_001A_0323", 3, 291581),
+            ("JCOM_002Y_0322", 8, 289194),
+            ("JCOM_014N_1021", 4, 286002),
+            ("JCOM_004A_0920", 5, 282895),
+            ("JCOM_009A_0119", 3, 272016),
+            ("JCOM_002N_0219", 5, 272910),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
-                f"Skipping doubled action {self.action['actHistCod']} AU_SENDS_CORRECT "
-                f"for {self.preprintid}/{self.imported_version_num} (wrong data in wjapp)."
+                f"Skipping action {self.action['actHistCod']} AU_SENDS_CORRECT "
+                f"for {self.preprintid}/{self.imported_version_num} (duplicated - known case)."
             )
             return
 
@@ -5631,23 +6128,40 @@ ORDER BY dl.submissionDate DESC
         JCOM_017A_0624/4/AUANN/JCOM_017A_0624_AUANN004381124/JCOM_017A_0624_AUANN004381124.zip&fileType=zip
         """
 
+        filename_suffix = ""
+
+        # specific cases correction for AUANN filename
+        if document_layer_id == "JCOM_001Y_0624_AUANN006670724":
+            filename_suffix = ".BVL proofed"
+
+        if document_layer_id == "JCOM_001Y_0624_AUANN001100824":
+            filename_suffix = ".proof 20240805.BVL correction"
+
+        if document_layer_id == "JCOM_003N_0823_AUANN003910224":
+            filename_suffix = ".-JCOM - Proofreading - 26-02-2024"
+
+        if document_layer_id == "JCOM_013A_1021_AUANN004140722":
+            filename_suffix = ".29.22"
+
+        if document_layer_id == "JCOM_015A_1021_AUANN004030422":
+            filename_suffix = ".22.22"
+
+        if document_layer_id == "JCOM_002N_0619_AUANN002740819":
+            filename_suffix = ".docx"
+
+        if document_layer_id == "JCOM_003A_1217_AUANN002650518":
+            filename_suffix = ".odt"
+
+        if document_layer_id == "JCOM_005A_0916_AUANN001140317":
+            filename_suffix = ". Number of views according to the established classification."
+
+        if document_layer_id == "JCOM_002A_1215_AUANN000160816":
+            filename_suffix = ".02.16"
+
         file_url = (
             f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
-            f"{document_layer_id}.{annotation_extension}&fileType={annotation_extension}"
+            f"{document_layer_id}{filename_suffix}.{annotation_extension}&fileType={annotation_extension}"
         )
-
-        # specific cases correction for JCOM_001Y_062
-        if document_layer_id == "JCOM_001Y_0624_AUANN006670724":
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
-                f"{document_layer_id}.BVL proofed.{annotation_extension}&fileType={annotation_extension}"
-            )
-        if document_layer_id == "JCOM_001Y_0624_AUANN001100824":
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
-                f"{document_layer_id}.proof 20240805.BVL correction.{annotation_extension}"
-                f"&fileType={annotation_extension}"
-            )
 
         response = self.session.get(file_url)
         assert response.status_code == 200, f"Got {response.status_code}!"
@@ -5665,6 +6179,22 @@ class PUM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
     # e.g. JCOM_008A_0324
 
     def run(self):
+
+        # for (JCOM_001A_0917, 4): the workaround is necessary for a "missing"
+        # ready for publication in version 5, which creates a transition error
+        # if there are two PUM_SENDS_TO_TYP in sequence
+
+        noop_cases = {
+            ("JCOM_001A_0917", 4, 266532),
+            ("JCOM_001A_0917", 5, 266534),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} PUM_SENDS_TO_TYP "
+                f"for {self.preprintid}/{self.imported_version_num} (- known case)."
+            )
+            return
+
         # we need to get the admin user who did the action
         admin_cod = self.action["agentCod"]
         admin_lastname = self.action["agentLastname"]
@@ -5681,6 +6211,11 @@ class PUM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
             admin_privacy,
             self.connection,
         )
+
+        if not has_eo_role(admin):
+            eo_group, _ = Group.objects.get_or_create(name=constants.EO_GROUP)
+            logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
+            admin.groups.add(eo_group)
 
         back_to_typ_date = self.action["actionDate"]
         back_to_typesetter = self.read_pub_manager_annotation()
@@ -5754,18 +6289,23 @@ class DeclareReadyForPublication(BaseActionManager):
     ready_for_publication_agent: Account = None
 
     def run(self):
-        if (
-            self.preprintid == "JCOM_005A_0621"
-            and self.imported_version_num == 4
-            and self.action["actHistCod"] == 283684
-        ) or (
-            self.preprintid == "JCOM_005A_0621"
-            and self.imported_version_num == 4
-            and self.action["actHistCod"] == 283685
-        ):
+
+        noop_cases = {
+            ("JCOM_005A_0621", 4, 283684),
+            ("JCOM_005A_0621", 4, 283685),
+            ("JCOM_001N_0321", 6, 285546),
+            ("JCOM_005A_1221", 6, 286343),
+            ("JCOM_018A_1021", 3, 285172),
+            ("JCOM_023A_1020", 3, 282974),
+            ("JCOM_001BR_1018", 3, 270181),
+            ("JCOM_001CR_0517", 3, 265365),
+            ("JCOM_001BR_0616", 2, 262893),
+            ("JCOM_001A_0917", 4, 266531),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
-                f"Skipping repeated action {self.action['actHistCod']}  {self.action['actionID']} "
-                f"for {self.preprintid}/{self.imported_version_num} (known case)."
+                f"Skipping repeated action {self.action['actHistCod']} DeclareReadyForPublication "
+                f"for {self.preprintid}/{self.imported_version_num} (duplicated/wrong logic - known case)."
             )
             return
 
@@ -5958,7 +6498,119 @@ class PUM_SENDS_TO_EO(BaseActionManager):  # noqa N801
     # ready for publication to permit another ready for publication action
     # e.g. JCOM_015A_0224, JCOM_001E_0924
     def run(self):
+
+        noop_cases = {
+            ("JCOM_018A_1021", 4, 285245),
+            ("JCOM_023A_1020", 4, 283085),
+            ("JCOM_001CR_0517", 4, 265366),
+            ("JCOM_001BR_0616", 3, 262894),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} PUM_SENDS_TO_EO "
+                f"for {self.preprintid}/{self.imported_version_num} ( - known case)."
+            )
+            return
+
         self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
-        ta = self.article.articleworkflow.get_latest_typesetting_assignment(completed=False)
+        ta = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         ta.completed = None
         ta.save()
+
+
+@dataclass
+class PUB_REG_CREF_OK(BaseActionManager):  # noqa N801
+    """Wjapp action Crossref notification (registration ok/error)."""
+
+    # this action of wjapp is managed in other way in the logic of wjs
+    # so is skipped. i.e. JCOM_006A_0418, JCOM_003C_0818
+    def run(self):
+        pass
+
+
+@dataclass
+class PUB_REG_CREF_REQ(BaseActionManager):  # noqa N801
+    """Wjapp action Crossref notification (request)."""
+
+    # this action of wjapp is managed in other way in the logic of wjs
+    # so is skipped. i.e. JCOM_006A_1217
+    def run(self):
+        pass
+
+
+@dataclass
+class PUB_REG_CREF_ERR(BaseActionManager):  # noqa N801
+    """Wjapp action Crossref notification (error)."""
+
+    # this action of wjapp is managed in other way in the logic of wjs
+    # so is skipped. i.e. JCOM_006A_1217
+    def run(self):
+        pass
+
+
+@dataclass
+class PM_REQ_ED_CHECK(BaseActionManager):  # noqa N801
+    """Wjapp action EO requires editor check."""
+
+    # This action of wjapp is not supported by wjs
+    # but we need to deal with each single case,
+    # because they may need special treatment in other places
+    # (e.g. in the main loop, in ED_RESTARTS_REV, in TYP_UPLOADS_FOR_PM, etc.)
+    def run(self):
+
+        noop_cases = {
+            ("JCOM_003A_0417", 3, 266298),
+            ("JCOM_012A_0615", 3, 260997),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} PM_REQ_ED_CHECK "
+                f"for {self.preprintid}/{self.imported_version_num} (managed known case)."
+            )
+            pass
+        else:
+            logger.error(f"PM_REQ_ED_CHECK not managed for {self.preprintid} {self.article.id}")
+
+
+@dataclass
+class ED_RESTARTS_REV(BaseActionManager):  # noqa N801
+    """Wjapp action editor does not approve author`s proof changes. Revision requested to author."""
+
+    # This action of wjapp is not supported by wjs
+    # but we need to deal with each single case,
+    # because they may need special treatment in other places
+    # (e.g. in the main loop, in ED_RESTARTS_REV, in TYP_UPLOADS_FOR_PM, etc.)
+    def run(self):
+
+        noop_cases = {("JCOM_003A_0417", 3, 266304), ("JCOM_012A_0615", 3, 261008)}
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} ED_RESTARTS_REV "
+                f"for {self.preprintid}/{self.imported_version_num} (managed known case)."
+            )
+            pass
+        else:
+            logger.error(f"ED_RESTARTS_REV not managed for {self.preprintid} {self.article.id}")
+
+
+@dataclass
+class PM_UPLOADS_FORMAT_V(BaseActionManager):  # noqa N801
+    """Wjapp action PM uploads version."""
+
+    # This action of wjapp is not supported by wjs
+    # but we need to deal with each single case,
+    # because they may need special treatment in other places
+    # (e.g. in the main loop, in ED_RESTARTS_REV, in TYP_UPLOADS_FOR_PM, etc.)
+    def run(self):
+
+        noop_cases = {
+            ("JCOM_027Y_0615", 4, 260632),
+        }
+        if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
+            logger.warning(
+                f"Skipping action {self.action['actHistCod']} PM_UPLOADS_FORMAT_V "
+                f"for {self.preprintid}/{self.imported_version_num} (managed known case)."
+            )
+            pass
+        else:
+            logger.error(f"PM_UPLOADS_FORMAT_V not managed for {self.preprintid} {self.article.id}")
