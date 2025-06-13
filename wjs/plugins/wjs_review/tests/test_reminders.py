@@ -112,7 +112,7 @@ def test_reaa_reminder_rendering(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
             "message": "random message",
             "author_note_visible": False,
         },

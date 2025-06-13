@@ -16,7 +16,7 @@ from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.models import MessageRecipients
-from submission.models import Article
+from submission.models import REVIEW_ACCESSIBLE_STAGES, Article
 
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
@@ -37,10 +37,19 @@ Account = get_user_model()
 
 def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     """
-    Tell if a reviewer is late for the current article
+    Tell if a reviewer is late for the current article.
 
-    First we check if there's a reviewer late in accepting/declining the review.
-    Then we check if there's a reviewer late in writing the review.
+    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3 and
+    Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2 reminders are checked.
+
+    Editor's attention condition is triggered when the reminder has been sent,
+    EO's / director's attention condition is triggered 5 days after the reminder has been sent.
+
+    This is equal to:
+    - editor: 5 days after the review due date
+    - eo/director: 10 days after the review due date
+
+    Only assignments with date due in the past are considered, to ignore reminders sent before a due date postponement.
     """
     now_ = timezone.now()
 
@@ -69,6 +78,39 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
             for assignment in review_assignments
         ):
             return message
+    return ""
+
+
+def editor_is_late(article: Article) -> str:
+    """
+    Tell if a editor is late for the current article.
+
+    Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3 is checked.
+
+    EO's / director's attention condition is triggered 10 days after the reminder has been sent.
+
+    This is equal to:
+    - eo/director: 11 days after the submission date
+
+    Only articles in review are considered.
+    """
+    if article.stage not in REVIEW_ACCESSIBLE_STAGES:
+        return ""
+    now_ = timezone.now()
+
+    time_threshold = now_ - datetime.timedelta(days=3)
+
+    assignment = WjsEditorAssignment.objects.get_current(article)
+
+    all_reminders = Reminder.objects.filter(
+        object_id=assignment.pk,
+        content_type=ContentType.objects.get_for_model(assignment),
+    ).order_by("date_due")
+
+    if all_reminders.filter(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3, date_sent__lte=time_threshold
+    ).exists():
+        return "Editor has not yet taken a decision"
     return ""
 
 
@@ -179,7 +221,7 @@ def needs_assignment_all_editorreminders_sent(article: Article) -> str:
     editor_assignment = WjsEditorAssignment.objects.get_current(article)
     last_reminder_sent = Reminder.objects.filter(
         code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3.value,
-        date_sent__date__lte=timezone.now() - datetime.timedelta(days=3),
+        date_sent__date__lte=timezone.now() - datetime.timedelta(days=5),
         disabled=False,
         object_id=editor_assignment.id,
         content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
@@ -343,7 +385,7 @@ def author_revision_is_late(article: Article) -> str:
     ).order_by()
     if late_revision_requests.exists():
         expected = late_revision_requests.first().date_due
-        days_late = (timezone.now().date() - expected).days
+        days_late = (timezone.localtime(timezone.now()).date() - expected).days
         return f"The revision request is {days_late} days late (was expected by {expected})"
     else:
         return ""
@@ -386,7 +428,7 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
 
         if expired_reminders.exists():
             expected = late_revision_requests.first().date_due
-            days_late = (timezone.now().date() - expected).days
+            days_late = (timezone.localtime(timezone.now()).date() - expected).days
             return f"Revision is {days_late} days late. Pls consider reminding author"
 
     return ""
@@ -450,7 +492,7 @@ def author_appealsubmission_is_late(article: Article) -> str:
     ).order_by()
     if late_revision_requests.exists():
         expected = late_revision_requests.first().date_due
-        days_late = (timezone.now().date() - expected).days
+        days_late = (timezone.localtime(timezone.now()).date() - expected).days
         # Warning: used by both author and EO, but EO appends ". Withdraw?" to this string
         # To be fixed in specs#1029
         return f"Appeal is {days_late} days late"
