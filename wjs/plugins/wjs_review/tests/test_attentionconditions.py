@@ -28,7 +28,7 @@ from plugins.wjs_review.models import (
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
-from plugins.wjs_review.states import EditorToBeSelected
+from plugins.wjs_review.states import EditorSelected, EditorToBeSelected
 from review import models as review_models
 from submission.models import Article
 
@@ -137,7 +137,7 @@ def test_author_revision_is_late(
     reminders_count = reminders.count()
 
     state_cls = getattr(states, workflow.state)
-    expected = expected.date()
+    expected = localtime(expected).date()
 
     # author has a.c., but editor and eo don't, because reminders are not yet sent
     assert (
@@ -492,9 +492,9 @@ def test_needs_assignment(assigned_article: Article, director: JCOMProfile):
         == "Review process should start/restart"
     )
 
-    # all reminders sent 3 days ago, a.c. for director and EO
+    # all reminders sent 5 days ago, a.c. for director and EO
     for reminder in reminders_list:
-        reminder.date_sent = timezone.now() - datetime.timedelta(days=3)
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
         reminder.save()
 
     assert state_cls.article_requires_attention(article=article, user=eo) == "Review process not yet started/restarted"
@@ -560,7 +560,7 @@ def test_reviewer_is_late(
 
     reminders_list = list(reminders)
     for reminder in reminders_list:
-        reminder.date_sent = timezone.now()
+        reminder.date_sent = localtime(timezone.now()).date() - timezone.timedelta(days=3)
         reminder.save()
 
     assert (
@@ -570,7 +570,7 @@ def test_reviewer_is_late(
     assert state_cls.article_requires_attention(article=article, user=eo) == ""
 
     for reminder in reminders_list:
-        reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
         reminder.save()
 
     assert (
@@ -600,14 +600,14 @@ def test_reviewer_is_late(
 
     reminders_list = list(reminders)
     for reminder in reminders_list:
-        reminder.date_sent = timezone.now()
+        reminder.date_sent = localtime(timezone.now()).date() - timezone.timedelta(days=3)
         reminder.save()
 
     assert state_cls.article_requires_attention(article=article, user=section_editor) == "Reviewer is late"
     assert state_cls.article_requires_attention(article=article, user=eo) == "You have unread messages"
 
     for reminder in reminders_list:
-        reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
         reminder.save()
 
     assert state_cls.article_requires_attention(article=article, user=eo) == "Reviewer is late"
@@ -656,6 +656,32 @@ def test_editor_assignment_after_deassignment_is_late(
 
     message = EditorToBeSelected.article_requires_eo_attention(assigned_article)
     assert "5 days" in message
+
+
+@pytest.mark.django_db
+def test_editor_is_late(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Attention condition message when editor has not selected a reviewer.
+    """
+    assigned_article.date_submitted = now() - timedelta(days=20)
+    assigned_article.save()
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+
+    all_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+        disabled=False,
+    )
+    for reminder in all_reminders:
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
+        reminder.save()
+
+    message = EditorSelected.article_requires_eo_attention(assigned_article)
+    assert message == "Review process not yet started/restarted"
 
 
 @pytest.mark.django_db

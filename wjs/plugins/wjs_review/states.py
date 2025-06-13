@@ -675,7 +675,7 @@ class EditorSelected(BaseState):
             return attention_flag
         if attention_flag := conditions.reviewer_is_late(article):
             return attention_flag
-        if attention_flag := conditions.all_assignments_completed(article):
+        if attention_flag := conditions.editor_is_late(article):
             return attention_flag
         if attention_flag := conditions.article_has_old_unread_message(article):
             return attention_flag
@@ -690,7 +690,7 @@ class EditorSelected(BaseState):
             return attention_flag
         if attention_flag := conditions.reviewer_is_late(article):
             return attention_flag
-        if attention_flag := conditions.all_assignments_completed(article):
+        if attention_flag := conditions.editor_is_late(article):
             return attention_flag
         return ""
 

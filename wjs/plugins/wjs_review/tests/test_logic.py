@@ -1130,7 +1130,7 @@ def test_handle_accept_invite_reviewer(
         "reviewer_decision": "1",
         "accept_gdpr": accept_gdpr,
         "additional_comments": additional_comments,
-        "date_due": now().date() + datetime.timedelta(days=21),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=21),
     }
 
     # Message related to the editor assignment
