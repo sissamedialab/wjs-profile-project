@@ -1727,6 +1727,15 @@ def account_get_or_create_check_correspondence(
         account.is_active = True
         account.save()
 
+    # Refresh the account to ensure the corresponding JCOMProfile exists,
+    # otherwise we can get duplicated-email key-error when the cached object is saved.
+    # As site notes, remember that Account.email is a case-insensitive field
+    # (see https://www.postgresql.org/docs/current/citext.html)
+    # while Correspondence.email is a simple EmailField.
+    # Also, emails are normalized in Account.clean(),
+    # but clean() is called by a ModelForm.is_valid() and not by Model.save().
+    account.refresh_from_db()
+
     # set gdpr checkbox. privacy in wjapp can be 'Y', 'N' or empty string
     if not account.jcomprofile.gdpr_checkbox:
         if privacy == "Y":
