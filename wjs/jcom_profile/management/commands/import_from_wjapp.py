@@ -676,7 +676,7 @@ def check_mappings(
         full_match = mappings.get(
             user_cod=imported_usercod,
             source=imported_source,
-            email=imported_email,
+            email__iexact=imported_email,
         )
     except wjs_models.Correspondence.DoesNotExist:
         pass
