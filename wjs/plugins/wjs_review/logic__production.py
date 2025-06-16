@@ -440,6 +440,9 @@ class UploadFile:
     def _check_typesetter_condition(self):
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
 
+    def _check_state_condition(self):
+        return self.assignment.round.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
     def _check_file_condition(self):
         return self.file_to_upload and self.file_to_upload.content_type in ["application/zip"]
 
@@ -471,7 +474,9 @@ class UploadFile:
         """Execute the file upload logic."""
         with transaction.atomic():
             if not self._check_typesetter_condition():
-                raise ValueError("Invalid state transition")
+                raise ValueError("Invalid actor")
+            if not self._check_state_condition():
+                raise ValueError("Invalid article state")
             if not self._check_file_condition():
                 raise ValueError("Invalid file upload")
             # Check if there are any files already associated
