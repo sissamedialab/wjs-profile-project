@@ -6310,6 +6310,8 @@ class DeclareReadyForPublication(BaseActionManager):
             ("JCOM_001CR_0517", 3, 265365),
             ("JCOM_001BR_0616", 2, 262893),
             ("JCOM_001A_0917", 4, 266531),
+            ("JCOM_011A_0123", 6, 291147),
+            ("JCOM_005C_1118", 4, 270710),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -6513,6 +6515,8 @@ class PUM_SENDS_TO_EO(BaseActionManager):  # noqa N801
             ("JCOM_023A_1020", 4, 283085),
             ("JCOM_001CR_0517", 4, 265366),
             ("JCOM_001BR_0616", 3, 262894),
+            ("JCOM_011A_0123", 7, 291170),
+            ("JCOM_005C_1118", 5, 270711),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
