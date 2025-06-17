@@ -660,31 +660,18 @@ class Command(BaseCommand):
         logger.warning(f"{self.store_article_date_published=}")
 
         # depending on settings enabled during import the doi can be modified
-        try:
-            doi_identifier = identifiers_models.Identifier.objects.get(
-                id_type="doi",
-                article=article,
-            )
-        except identifiers_models.Identifier.DoesNotExist:
-            logger.error(f"No doi identifier found for {article.id}.")
-            doi_identifier = identifiers_models.Identifier.objects.create(
-                id_type="doi",
-                article=article,
-                enabled=True,
-            )
-        except identifiers_models.Identifier.MultipleObjectsReturned:
-            logger.error(f"More than doi identifier found for {article.id}, taken the first.")
-            doi_identifier = identifiers_models.Identifier.objects.filter(
-                id_type="doi",
-                article=article,
-            )[0]
-        if doi_identifier.identifier != self.store_article_doi:
-            logger.info(
-                f"Resetting old DOI {self.store_article_doi} onto generated {doi_identifier.identifier} "
-                f"for {article.id}"
-            )
-            doi_identifier.identifier = self.store_article_doi
-            doi_identifier.save()
+        # so we drop any DOI an re-create the correct one
+        identifiers_models.Identifier.objects.filter(
+            id_type="doi",
+            article=article,
+        ).delete()
+
+        identifiers_models.Identifier.objects.create(
+            id_type="doi",
+            article=article,
+            identifier=self.store_article_doi,
+        )
+        logger.warning(f"{self.store_article_doi=}")
 
         # depending on settings enabled during import the pubid can be modified
         try:
