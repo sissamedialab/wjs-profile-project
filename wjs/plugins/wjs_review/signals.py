@@ -2,6 +2,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django_fsm.signals import post_transition
+from hijack.signals import hijack_started
 from submission.models import Article, Section
 
 from .models import ArticleWorkflow, WjsSection
@@ -27,3 +28,18 @@ def create_section_handler(sender, instance, created, **kwargs):
     if not created:
         return
     WjsSection(section=instance).save_base(raw=True)
+
+
+@receiver(hijack_started, sender=None)
+def store_current_url_into_session(**kwargs) -> None:
+    """
+    Store the current URL into the web session.
+
+    Useful to be used as "next" URL when releasing the hijack.
+    Use as:
+    {% load wjs_tags %}  <!-- neede for "get_value" -->
+    ...next={{ request.session|get_value:'hijack_start_url'|default:'/' }}
+    """
+    request = kwargs["request"]
+    # We allow for missing "referer" mainly for tests
+    request.session["hijack_start_url"] = request.headers.get("referer", "/")

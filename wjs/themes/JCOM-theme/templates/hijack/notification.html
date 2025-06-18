@@ -1,11 +1,12 @@
 {% load i18n %}
+{% load wjs_tags %}
 {% if request.user.is_hijacked %}
   {% with request.user as user %}
     <div id="hijacked-warning-wrapper">
       <div id="hijacked-warning" class="hijacked-warning hijacked-warning-default">
         <div class="hijacked-warning-controls hijacked-warning-controls-pull-right">
           <span><b>{% blocktrans %}You are working on behalf of {{ user }}{% endblocktrans %}</b></span>
-          <form action="{% url 'hijack:release' %}?next=/" method="post">
+          <form action="{% url 'hijack:release' %}?next={{ request.session|get_value:'hijack_start_url'|default:'/' }}" method="post">
             {% csrf_token %}
             <button class="btn btn-primary btn-sm">{% translate "Release" %} <i class="bi bi-box-arrow-right"></i></button>
           </form>
