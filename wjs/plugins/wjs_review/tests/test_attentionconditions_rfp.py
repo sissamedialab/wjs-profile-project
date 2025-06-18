@@ -56,7 +56,7 @@ def test_article_requires_eo_attention_image_ok_but_missing_description(
         assert attention_condition == "Missing image and/or short description for social media"
 
 
-@pytest.mark.parametrize("batch_publish", (True, False))
+@pytest.mark.parametrize("batch_publish", [True, False])
 @pytest.mark.django_db
 def test_article_requires_eo_attention_description_ok_but_missing_image(
     rfp_article: Article, eo_user, settings, batch_publish

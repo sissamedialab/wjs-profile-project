@@ -296,7 +296,7 @@ def editor(create_jcom_user, roles, journal, keywords):
 
 
 @pytest.fixture()
-def section_editor(create_jcom_user, roles, journal, keywords):
+def section_editor(create_jcom_user, roles, journal, keywords) -> JCOMProfile:
     jcom_user = create_jcom_user("section_editor")
     jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
     return jcom_user

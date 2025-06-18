@@ -109,7 +109,7 @@ def apply_wjs_settings():
 
 @pytest.fixture
 def review_settings(
-    journal: Journal,  # noqa: F405
+    journal: Journal,
     eo_user: JCOMProfile,  # noqa: ARG001, F405
     apply_wjs_settings: Callable,  # noqa: ARG001
 ):
