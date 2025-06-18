@@ -12,13 +12,16 @@ from typing import Optional
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.models import MessageRecipients
 from submission.models import REVIEW_ACCESSIBLE_STAGES, Article
 
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
+from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
 from .logic import states_when_article_is_considered_archived_with_under_appeal
@@ -169,7 +172,7 @@ def no_tech_revision_request(workflow: ArticleWorkflow, user: Account) -> str:
 
 
 def review_accepted_not_completed(assignment: WorkflowReviewAssignment, user: Account) -> str:
-    """Tell if this review is not done but accepted"""
+    """Tell if this review is not done but accepted."""
     if assignment.date_accepted and not assignment.is_complete:
         return "Review accepted but not completed."
     return ""
@@ -257,38 +260,75 @@ def all_assignments_completed(article: Article) -> str:
         return ""
 
 
-def has_unread_message(article: Article, recipient: Account) -> str:
+def _unread_messages(article: Article) -> QuerySet[Message]:
     """
-    Tell if the recipient has any unread message for the current article.
+    Return a (possibly empty) queryset of unread messages for the given article.
 
-    Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
+    Notes are excluded.
+
+    Useful as a base for checks liske has_unread_message / paper_has_old_unread_message
     """
-    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(recipient).filter(article_id=article.pk)
-    if article_has_unread_messages.exists():
-        return "You have unread messages"
-    else:
-        return ""
-
-
-def article_has_old_unread_message(article: Article) -> str:
-    """Tell if there is any message left unread for a long time."""
-    days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
-    oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
-    unread_messages = Message.objects.filter(
-        content_type=ContentType.objects.get_for_model(article),
+    return Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(Article),
         object_id=article.id,
         messagerecipients__read=False,
+    ).exclude(
+        message_type=Message.MessageTypes.NOTE,
+    )
+
+
+def has_unread_message(article: Article, recipient: Account) -> str:
+    """Tell if the recipient has any unread message for the current article."""
+    messages = _unread_messages(article)
+    filters = Q(messagerecipients__recipient=recipient)
+
+    if has_eo_role(recipient):
+        # for EO people, "unread" means also:
+        filters |= Q(Q(read_by_eo=False) | Q(messagerecipients__recipient=get_eo_user(article)))
+
+    if messages.filter(filters).exists():
+        return "You have unread messages"
+    return ""
+
+
+def article_has_old_unread_message(article: Article, *, exclude_aus_and_revs: bool = True) -> str:
+    """
+    Tell if there is any message left unread for a long time.
+
+    Please note that this function should be called only for EO/staff people, because it exposes the names of the
+    recipients with overdue messages.
+
+    Arguments:
+      article: the article in question;
+
+      exclude_aus_and_revs: if True, ignore messages to the authors or to the reviewers of the paper. Note that an
+      editor thad does I-will-review is still considered an editor, not a reviewer.
+
+    """
+    messages = _unread_messages(article)
+    days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
+    oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
+    messages = messages.filter(
         created__lt=oldest_acceptable_message_date,
     )
-    if unread_messages.exists():
+    if exclude_aus_and_revs:
+        # ignore messages whose recipient is an author of the article
+        messages = messages.exclude(
+            messagerecipients__recipient__in=article.authors.all().values_list("id"),
+        )
+        messages = messages.exclude(
+            messagerecipients__recipient__in=article.reviewassignment_set.all().values_list("reviewer__id"),
+        )
+
+    if messages.exists():
         late_recipients = list(
-            MessageRecipients.objects.filter(message__in=unread_messages)
+            MessageRecipients.objects.filter(message__in=messages)
             .distinct()
             .values_list("recipient__last_name", flat=True),
         )
         return f"Paper has unread messages: {', '.join(late_recipients)}"
-    else:
-        return ""
+
+    return ""
 
 
 def one_review_assignment_late(article: Article) -> str:

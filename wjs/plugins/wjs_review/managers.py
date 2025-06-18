@@ -47,9 +47,15 @@ class ArticleWorkflowQuerySet(models.QuerySet):
 
         return qs
 
-    def with_unread_messages(self, user: Account = None, other_users_messages: bool = False) -> QuerySet:
+    def with_unread_messages(
+        self,
+        user: Account = None,
+        *,
+        other_users_messages: bool = False,
+    ) -> QuerySet:
         """
-        Returns every unread message the user has visibility on or every unread message whose recipient is the user.
+        Return every unread message the user has visibility on or every unread message whose recipient is the user.
+
         Also returns ones with read_by_eo=False for EO.
         :param user: the user to filter the unread messages for
         :type user: Account
@@ -62,7 +68,9 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         """
         from .models import Message
 
-        messages = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article)).exclude(
+        messages = Message.objects.filter(
+            content_type=ContentType.objects.get_for_model(Article),
+        ).exclude(
             message_type=Message.MessageTypes.NOTE,
         )
         filters = Q(messagerecipients__read=False)
@@ -70,6 +78,7 @@ class ArticleWorkflowQuerySet(models.QuerySet):
             filters &= Q(messagerecipients__recipient=user)
         if has_eo_role(user):
             filters |= Q(read_by_eo=False)
+
         messages = messages.filter(filters)
         return self.filter(article_id__in=Subquery(messages.values_list("object_id", flat=True)))
 

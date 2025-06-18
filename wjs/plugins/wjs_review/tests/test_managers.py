@@ -1,12 +1,14 @@
+from collections.abc import Callable
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Max
 from django.utils import timezone
-from plugins.wjs_review.models import WorkflowReviewAssignment
+from plugins.wjs_review.models import ArticleWorkflow, Message, WorkflowReviewAssignment
 from submission.models import Article
 
-from ..models import ArticleWorkflow, Message
+from wjs.jcom_profile.models import JCOMProfile
 
 Account = get_user_model()
 
@@ -72,9 +74,15 @@ def test_waiting_for_decision(create_set_of_articles_with_assignments):
 
 
 @pytest.mark.django_db
-def test_with_unread_messages(create_set_of_articles_with_assignments, normal_user, eo_user, accepted_article):
+def test_with_unread_messages(
+    create_set_of_articles_with_assignments: Callable,  # noqa: ARG001
+    normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
+    accepted_article: Article,
+):
     """
     with_unread_messages manager method filter ArticleWorkflow with at least one not unread message.
+
     Also if message is not read_by_eo it will be included.
     """
 
@@ -84,8 +92,8 @@ def test_with_unread_messages(create_set_of_articles_with_assignments, normal_us
     )
     articles_messages = [message.object_id for message in messages]
 
-    articles_with_review_round = ArticleWorkflow.objects.with_unread_messages(normal_user)
-    assert set(articles_messages) == set(articles_with_review_round.values_list("article_id", flat=True))
+    articles_with_unread_messages = ArticleWorkflow.objects.with_unread_messages(normal_user)
+    assert set(articles_messages) == set(articles_with_unread_messages.values_list("article_id", flat=True))
     eo_message = Message.objects.create(
         actor=eo_user,
         content_type=ContentType.objects.get_for_model(Article),
@@ -100,7 +108,6 @@ def test_with_unread_messages(create_set_of_articles_with_assignments, normal_us
 @pytest.mark.django_db
 def test_count_reviewer_completed_reviews(journal, article_factory, account_factory):
     """Test that the manager counts correctly."""
-
     a1 = article_factory(journal=journal)
     a2 = article_factory(journal=journal)
     assert a1.title != a2.title

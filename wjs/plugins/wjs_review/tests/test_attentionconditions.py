@@ -5,6 +5,7 @@ from datetime import timedelta
 
 import freezegun
 import pytest
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 from django.utils import timezone
@@ -30,10 +31,14 @@ from plugins.wjs_review.models import (
 )
 from plugins.wjs_review.states import EditorSelected, EditorToBeSelected
 from review import models as review_models
+from review.models import ReviewForm
 from submission.models import Article
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import get_eo_user
+
+from .conftest import _assign_article
+from .test_helpers import _create_review_assignment
 
 
 @pytest.mark.skipif("not config.getoption('--run-academic')")
@@ -604,6 +609,8 @@ def test_reviewer_is_late(
         reminder.save()
 
     assert state_cls.article_requires_attention(article=article, user=section_editor) == "Reviewer is late"
+    # EO gets "You have unread messages" because the message "reviewer accepted invite" from reviewer to editor
+    # is not marked "read-by-eo"
     assert state_cls.article_requires_attention(article=article, user=eo) == "You have unread messages"
 
     for reminder in reminders_list:
@@ -697,3 +704,160 @@ def test_editor_first_assignment_is_late(
 
     message = EditorToBeSelected.article_requires_eo_attention(submitted_article)
     assert "10 days" in message
+
+
+@pytest.mark.django_db
+def test_old_unread_messages_excludes_aus(
+    eo_user: JCOMProfile,
+    normal_user: JCOMProfile,
+    article: Article,
+    assigned_article: Article,
+):
+    """
+    Test conditions.article_has_old_unread_message().
+
+    It can be forced to ignore messages from an article's author or reviewer.
+
+    Here we will setup two articles with different authors.
+
+    The editor of the second article is the author of the first, and has unread messages both for the first and for the
+    second article.
+
+    All messages are set with read_by_eo=True so that we can ignore that.
+
+    """
+    Message.objects.all().delete()
+    article1 = article
+    article2 = assigned_article
+
+    # The first article:
+    # - the unread message is for the author of the article, it should be ignored!
+    # - the author is the editor of the second article
+    editor2 = WjsEditorAssignment.objects.get_current(article2).editor
+    author1 = editor2
+    assert editor2 != normal_user
+    article1.correspondence_author = author1
+    article.save()
+    article.authors.set([author1])  # ⇦ Important!
+    long_ago = timezone.localtime(
+        timezone.now() - timezone.timedelta(settings.WJS_UNREAD_MESSAGES_LATE_AFTER + 1),
+    )
+    m1 = Message.objects.create(
+        actor=normal_user,
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=article1.pk,
+        read_by_eo=True,
+        created=long_ago,
+    )
+    m1.recipients.add(author1)  # ⇦ Important!
+    assert MessageRecipients.objects.get(message=m1, recipient=author1).read is False
+    assert conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=False)
+    assert not conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=True)  # 🌟
+
+    # The second article:
+    # - the unread message is for the editor, it should be kept!
+    author2 = article2.correspondence_author
+    assert author2 != author1
+    assert author2 != normal_user
+    assert author2 != editor2
+    article2.authors.set([author2])  # ⇦ Important!
+    m2 = Message.objects.create(
+        actor=normal_user,
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=article2.pk,
+        read_by_eo=True,
+        created=long_ago,
+    )
+    m2.recipients.add(editor2)  # ⇦ Important!
+    assert MessageRecipients.objects.get(message=m2, recipient=editor2).read is False
+    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=False)
+    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=True)  # 🌟
+
+    # The AW manager with_unread_messages does not exclude authors or reviewers
+    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user)
+    assert qs.count() == 0
+    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user, other_users_messages=True)
+    assert qs.count() == ArticleWorkflow.objects.all().count()
+
+
+@pytest.mark.django_db
+def test_with_unread_messages_excludes_revs(
+    eo_user: JCOMProfile,
+    normal_user: JCOMProfile,
+    article: Article,
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    review_settings,  # noqa: ANN001, ARG001
+    review_form: ReviewForm,  # noqa: ARG001
+):
+    """
+    Test conditions.article_has_old_unread_message().
+
+    Same as above, but test the exclusion of unread messages for the reviewer.
+    """
+    article1 = article
+    article2 = assigned_article
+
+    # The first article:
+    # - the unread message is for the reviewer of the article, it should be ignored!
+    # - the reviewer is also the editor of the second article
+    editor1 = section_editor
+    _assign_article(fake_request=fake_request, article=article1, section_editor=editor1)
+    editor2 = WjsEditorAssignment.objects.get_current(article2).editor
+    ra1 = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=editor2.jcomprofile,
+        assigned_article=article1,
+    )
+    reviewer1 = ra1.reviewer
+    author1 = article1.correspondence_author
+    assert author1 != normal_user
+    assert author1 != editor1
+    assert author1 != reviewer1
+    article.authors.set([author1])  # ⇦ Important!
+    # ensure that eventual messages from the editor/reviewer assignments logic don't get in our way
+    Message.objects.all().delete()
+    long_ago = timezone.localtime(
+        timezone.now() - timezone.timedelta(settings.WJS_UNREAD_MESSAGES_LATE_AFTER + 1),
+    )
+    m1 = Message.objects.create(
+        actor=normal_user,
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=article1.pk,
+        read_by_eo=True,
+        created=long_ago,
+    )
+    m1.recipients.add(reviewer1)  # ⇦ Important!
+    assert MessageRecipients.objects.get(message=m1, recipient=reviewer1).read is False
+    assert conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=False)
+    assert not conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=True)  # 🌟
+
+    # The second article:
+    # - the unread message is for the editor, it should be kept!
+    author2 = article2.correspondence_author
+    assert author2 != author1
+    assert author2 != normal_user
+    assert author2 != editor2
+    assert author2 != reviewer1
+    article2.authors.set([author2])  # ⇦ Important!
+    m2 = Message.objects.create(
+        actor=normal_user,
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=article2.pk,
+        read_by_eo=True,
+        created=long_ago,
+    )
+    m2.recipients.add(editor2)  # ⇦ Important!
+    assert MessageRecipients.objects.get(message=m2, recipient=editor2).read is False
+    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=False)
+    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=True)  # 🌟
+
+    # Check the AW manager also
+    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user)
+    assert qs.count() == 0
+    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user, other_users_messages=True)
+    assert qs.count() == len([article1, article2])
+
+
+# TODO: write test for exclusions of both authors and reviewers

@@ -342,16 +342,20 @@ def message_unread_by_me(message: Message, user: Account) -> bool:
     """
     Return True if the message has not yet been read by the user (and the user is recipient).
 
-    If the reading user has EO role, both
+    If the reading user has EO role,
     - unread messages to him and
     - unread messages to the system eo user
+    - messages not yet read-by-eo
     should be considered unread.
     """
     if has_eo_role(user):
-        return message.recipients.filter(
-            messagerecipients__read=False,
-            messagerecipients__recipient__in=[user.pk, get_eo_user(message.target).id],
-        ).exists()
+        return (
+            not message.read_by_eo
+            or message.recipients.filter(
+                messagerecipients__read=False,
+                messagerecipients__recipient__in=[user.pk, get_eo_user(message.target).id],
+            ).exists()
+        )
     return message.recipients.filter(
         messagerecipients__read=False,
         messagerecipients__recipient=user.pk,
