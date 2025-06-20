@@ -244,6 +244,13 @@ class Command(BaseCommand):
         # regarding already imported articles
         #
 
+        # to be checked to avoid to add roles editor
+        self.original_editor_roles = Account.objects.filter(
+            accountrole__journal=self.journal, accountrole__role__slug=constants.SECTION_EDITOR_ROLE
+        )
+        # to avoid queryset lazy evaluation problem
+        self.ids_orig_list = list(self.original_editor_roles.values_list("id", flat=True))
+
         # search if exists an id for publicationid in the wjs journal
         pub_article = None
         if publicationid:
@@ -536,6 +543,16 @@ class Command(BaseCommand):
             ).run()
 
             self.clean_deleted_coauthors(article, document_cod)
+
+            # verify added editor roles
+            self.new_editor_roles = Account.objects.filter(
+                accountrole__journal=self.journal, accountrole__role__slug=constants.SECTION_EDITOR_ROLE
+            )
+
+            for a in self.new_editor_roles:
+                if a.id not in self.ids_orig_list:
+                    a.remove_account_role(constants.SECTION_EDITOR_ROLE, self.journal)
+                    logger.warning(f"editor role added by the import removed: {a.id} {a.full_name()}")
 
         except Exception as e:
             traceback.print_exc()
