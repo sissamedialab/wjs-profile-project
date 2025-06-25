@@ -12,7 +12,7 @@ from typing import Optional
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q, QuerySet
+from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -260,33 +260,35 @@ def all_assignments_completed(article: Article) -> str:
         return ""
 
 
-def _unread_messages(article: Article) -> QuerySet[Message]:
-    """
-    Return a (possibly empty) queryset of unread messages for the given article.
-
-    Notes are excluded.
-
-    Useful as a base for checks liske has_unread_message / paper_has_old_unread_message
-    """
-    return Message.objects.filter(
+def _has_unread_message(article: Article, recipient: Account) -> bool:
+    messages = Message.objects.filter(
         content_type=ContentType.objects.get_for_model(Article),
         object_id=article.id,
-        messagerecipients__read=False,
     ).exclude(
         message_type=Message.MessageTypes.NOTE,
     )
 
+    if has_eo_role(recipient):
+        # for EO people, "unread" means
+        # - unread-msgs to the user
+        # - unread-msgs to the EO system user
+        # - any msg to any user not yet read-by-eo
+        filters = Q(
+            Q(read_by_eo=False)
+            | Q(
+                messagerecipients__read=False,
+                messagerecipients__recipient__in=[get_eo_user(article), recipient],
+            ),
+        )
+    else:
+        filters = Q(messagerecipients__read=False, messagerecipients__recipient=recipient)
+
+    return messages.filter(filters).exists()
+
 
 def has_unread_message(article: Article, recipient: Account) -> str:
     """Tell if the recipient has any unread message for the current article."""
-    messages = _unread_messages(article)
-    filters = Q(messagerecipients__recipient=recipient)
-
-    if has_eo_role(recipient):
-        # for EO people, "unread" means also:
-        filters |= Q(Q(read_by_eo=False) | Q(messagerecipients__recipient=get_eo_user(article)))
-
-    if messages.filter(filters).exists():
+    if _has_unread_message(article, recipient):
         return "You have unread messages"
     return ""
 
@@ -305,7 +307,13 @@ def article_has_old_unread_message(article: Article, *, exclude_aus_and_revs: bo
       editor thad does I-will-review is still considered an editor, not a reviewer.
 
     """
-    messages = _unread_messages(article)
+    messages = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=article.id,
+        messagerecipients__read=False,
+    ).exclude(
+        message_type=Message.MessageTypes.NOTE,
+    )
     days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
     oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
     messages = messages.filter(
