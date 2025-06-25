@@ -3882,11 +3882,22 @@ def test_author_submits_after_appeal(under_appeal_article: Article, fake_request
 
     content_type = ContentType.objects.get_for_model(under_appeal_article)
 
+    # We expect only one message to the editor and it is author-read by EO and editord
     messages = Message.objects.filter(
-        content_type=content_type, object_id=under_appeal_article.pk, recipients=assignment.editor
+        content_type=content_type,
+        object_id=under_appeal_article.pk,
+        recipients=assignment.editor,
     )
     assert messages.count() == 1
-    assert "has appealed against rejection" in messages[0].body
+    message = messages.get()
+    assert "has appealed against rejection" in message.body
+    assert message.read_by_eo
+    assert message.recipients.count() == 1
+    assert MessageRecipients.objects.filter(
+        message=message,
+        recipient=assignment.editor,
+        read=True,
+    ).exists()
 
 
 @pytest.mark.django_db
