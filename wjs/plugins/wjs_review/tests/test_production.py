@@ -35,6 +35,7 @@ from ..logic__production import (
     BeginPublication,
     FinishPublication,
     TypesetterTestsGalleyGeneration,
+    UploadFile,
 )
 from ..models import (
     ArticleWorkflow,
@@ -890,6 +891,60 @@ def test_http_server_root(http_server):
     url = f"http://{http_server.server.server_name}:{http_server.server.server_port}/"
     response = requests.get(url)
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_check_state_on_typ_upload_file_with_query(
+    assigned_to_typesetter_article: Article,
+    zip_with_tex_with_query: Callable,
+    fake_request: HttpRequest,
+):
+
+    assert assigned_to_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+    assigned_to_typesetter_article.articleworkflow.production_flag_no_queries = True
+    assigned_to_typesetter_article.articleworkflow.save()
+    typesetting_assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
+
+    fake_request.user = typesetting_assignment.typesetter
+
+    UploadFile(
+        typesetter=typesetting_assignment.typesetter,
+        request=fake_request,
+        assignment=typesetting_assignment,
+        file_to_upload=zip_with_tex_with_query(assigned_to_typesetter_article),
+    ).run()
+
+    assigned_to_typesetter_article.refresh_from_db()
+    assert assigned_to_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+
+
+@pytest.mark.django_db
+def test_wrong_state_on_typ_upload_file_with_query(
+    stage_proofing_article: Article,
+    zip_with_tex_with_query: Callable,
+    fake_request: HttpRequest,
+):
+
+    assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
+
+    stage_proofing_article.articleworkflow.production_flag_no_queries = True
+    stage_proofing_article.articleworkflow.save()
+    typesetting_assignment = stage_proofing_article.typesettinground_set.first().typesettingassignment
+
+    fake_request.user = typesetting_assignment.typesetter
+
+    with pytest.raises(ValueError, match="Invalid article state"):
+        UploadFile(
+            typesetter=typesetting_assignment.typesetter,
+            request=fake_request,
+            assignment=typesetting_assignment,
+            file_to_upload=zip_with_tex_with_query(stage_proofing_article),
+            do_create_galleys=False,
+        ).run()
+
+    stage_proofing_article.refresh_from_db()
+    assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
 
 
 @pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")

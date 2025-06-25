@@ -151,10 +151,10 @@ class ReminderSetting:
         return template_context
 
     def _format_date(self, date_value: datetime.datetime | datetime.date) -> str:
-        if isinstance(date_value, datetime.date):
-            return formats.date_format(date_value, settings.DATE_FORMAT)
         if isinstance(date_value, datetime.datetime):
             return formats.date_format(localtime(date_value), settings.DATETIME_FORMAT)
+        if isinstance(date_value, datetime.date):
+            return formats.date_format(date_value, settings.DATE_FORMAT)
 
     def get_rendered_subject(self, target):
         context = self.build_context(target)

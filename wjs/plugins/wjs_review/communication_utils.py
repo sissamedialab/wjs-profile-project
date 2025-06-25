@@ -173,7 +173,7 @@ def log_operation(
     :param notify_actor: whether to notify the actor
     :param recipients: the recipients of the message
     :param message_type: the type of the message
-    :param flag_as_read: whether to flag the message as read
+    :param flag_as_read: whether to flag the message as read for all recipients
     :param flag_as_read_by_eo: whether to flag the message as read by eo
 
     :return: the created message

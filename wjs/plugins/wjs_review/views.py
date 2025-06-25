@@ -921,6 +921,11 @@ class SelectReviewerView(
         kwargs["request"] = self.request
         return kwargs
 
+    def get_initial(self):
+        initial = super().get_initial()
+        initial["author_note_visible"] = False if self.object.article.current_review_round() == 1 else True
+        return initial
+
     def get_search_form(self) -> ReviewerSearchForm:
         return ReviewerSearchForm(self.search_data if self.search_data else None)
 

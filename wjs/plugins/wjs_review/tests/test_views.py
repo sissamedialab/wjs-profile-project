@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils.formats import date_format
 from django.utils.timezone import now
 from review import models as review_models
-from review.models import ReviewAssignment, ReviewForm
+from review.models import ReviewAssignment, ReviewForm, ReviewRound
 from submission import models as submission_models
 from submission.models import Article
 from utils.setting_handler import get_setting
@@ -256,6 +256,26 @@ def test_select_reviewer_status_code_200_for_assigned_editor(
     response = client.get(url)
     assert response.status_code == 200
     assert response.context["workflow"] == assigned_article.articleworkflow
+
+
+@pytest.mark.parametrize("review_round,expected", ((1, False), (2, True)))
+@pytest.mark.django_db
+def test_author_note_visible_default(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_round: int,
+    expected: bool,
+):
+    """author_note_visible is False for first review round, True for the following."""
+    if review_round == 2:
+        ReviewRound.objects.create(article=assigned_article, round_number=review_round)
+    url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
+    client.force_login(section_editor.janeway_account)
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.context["workflow"] == assigned_article.articleworkflow
+    assert response.context["form"].initial["author_note_visible"] is expected
 
 
 @pytest.mark.django_db

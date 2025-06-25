@@ -240,6 +240,7 @@ class BaseAssignToEditor:
     editor: Account
     article: Article
     request: HttpRequest
+    actor: Account = None
     first_assignment: bool = False
     assignment_message: Optional[str] = None
     appeal: bool = False
@@ -293,10 +294,6 @@ class BaseAssignToEditor:
         }
 
     def _log_operation(self, context: Dict[str, Any], assignment_message: Optional[str] = None):
-        if self.request.user and self.request.user.is_authenticated and self.request.user != self.editor:
-            actor = self.request.user
-        else:
-            actor = None
         if not assignment_message:
             message_subject = render_template_from_setting(
                 setting_group_name="email_subject",
@@ -330,11 +327,14 @@ class BaseAssignToEditor:
             article=self.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=actor,
+            actor=self.actor,
             recipients=[self.editor],
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            # Msgs to the editors are auto-read
+            # this includes first assignments, new assignments, first ass. to guest eds
+            flag_as_read=True,
             flag_as_read_by_eo=True,
         )
 
@@ -354,7 +354,7 @@ class AssignToEditor:
     """
     Assigns an editor to an article and creates a review round to replicate the behaviour of janeway's move_to_review.
 
-    request attribute **must** have user attribute set to the current user.
+    request argument **must** have user attribute set to the current user.
     """
 
     editor: Account
@@ -408,6 +408,7 @@ class AssignToEditor:
                 editor=self.editor,
                 article=self.article,
                 request=self.request,
+                actor=self.request.user,
                 first_assignment=self.first_assignment,
                 assignment_message=self.assignment_message,
                 appeal=self.appeal,
@@ -1544,6 +1545,8 @@ class AuthorHandleRevision:
             recipients=[self.editor],
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
         )
 
     def _log_operation(self):
@@ -1872,6 +1875,7 @@ class HandleDecision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_decline(self, context):
@@ -1900,6 +1904,7 @@ class HandleDecision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_not_suitable(self, context):
@@ -1958,6 +1963,7 @@ class HandleDecision:
             verbosity=Message.MessageVerbosity.FULL,
             hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
             notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
         )
 
     def _log_revision_request(self, context, revision_type=None):

@@ -1170,13 +1170,6 @@ class MessageForm(forms.ModelForm):
             instance: Message = super().save()
             instance.recipients.set(self.cleaned_data["recipients"])
 
-            # Message to eo_user are considered read
-            # (see also communication_utils.log_operation())
-            MessageRecipients.objects.filter(
-                message=instance,
-                recipient=get_eo_user(instance.target),
-            ).update(read=True)
-
             if self.note:
                 # All personal notes are considered "read"
                 # ATM (24W11) personal notes only have _one_ recipient (the actor), but this way
@@ -1185,6 +1178,14 @@ class MessageForm(forms.ModelForm):
             if has_eo_role(self.actor):
                 instance.read_by_eo = True
                 instance.save()
+
+            # Message to eo_user should have read and read-by-eo flags coherent.
+            # See also ToggleMessageReadByEOForm.save()
+            MessageRecipients.objects.filter(
+                message=instance,
+                recipient=get_eo_user(instance.target),
+            ).update(read=instance.read_by_eo)
+
             if self.cleaned_data["attachment"]:
                 if instance.content_type.model_class() != Article:
                     # TODO: where do we save attachements of messages not related to articles?

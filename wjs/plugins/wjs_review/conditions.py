@@ -12,13 +12,16 @@ from typing import Optional
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.models import MessageRecipients
-from submission.models import Article
+from submission.models import REVIEW_ACCESSIBLE_STAGES, Article
 
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
+from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
 from .logic import states_when_article_is_considered_archived_with_under_appeal
@@ -37,10 +40,19 @@ Account = get_user_model()
 
 def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     """
-    Tell if a reviewer is late for the current article
+    Tell if a reviewer is late for the current article.
 
-    First we check if there's a reviewer late in accepting/declining the review.
-    Then we check if there's a reviewer late in writing the review.
+    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3 and
+    Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2 reminders are checked.
+
+    Editor's attention condition is triggered when the reminder has been sent,
+    EO's / director's attention condition is triggered 5 days after the reminder has been sent.
+
+    This is equal to:
+    - editor: 5 days after the review due date
+    - eo/director: 10 days after the review due date
+
+    Only assignments with date due in the past are considered, to ignore reminders sent before a due date postponement.
     """
     now_ = timezone.now()
 
@@ -49,9 +61,9 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     reminder_checks = [
         (
             Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
-            "Reviewer has not yet answered to the invitation",
+            "Reviewer has not yet answered the invitation",
         ),
-        (Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2, "Review assignment is late"),
+        (Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2, "Reviewer is late"),
     ]
 
     review_round = article.current_review_round_object()
@@ -69,6 +81,39 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
             for assignment in review_assignments
         ):
             return message
+    return ""
+
+
+def editor_is_late(article: Article) -> str:
+    """
+    Tell if a editor is late for the current article.
+
+    Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3 is checked.
+
+    EO's / director's attention condition is triggered 10 days after the reminder has been sent.
+
+    This is equal to:
+    - eo/director: 11 days after the submission date
+
+    Only articles in review are considered.
+    """
+    if article.stage not in REVIEW_ACCESSIBLE_STAGES:
+        return ""
+    now_ = timezone.now()
+
+    time_threshold = now_ - datetime.timedelta(days=3)
+
+    assignment = WjsEditorAssignment.objects.get_current(article)
+
+    all_reminders = Reminder.objects.filter(
+        object_id=assignment.pk,
+        content_type=ContentType.objects.get_for_model(assignment),
+    ).order_by("date_due")
+
+    if all_reminders.filter(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3, date_sent__lte=time_threshold
+    ).exists():
+        return "Editor has not yet taken a decision"
     return ""
 
 
@@ -127,7 +172,7 @@ def no_tech_revision_request(workflow: ArticleWorkflow, user: Account) -> str:
 
 
 def review_accepted_not_completed(assignment: WorkflowReviewAssignment, user: Account) -> str:
-    """Tell if this review is not done but accepted"""
+    """Tell if this review is not done but accepted."""
     if assignment.date_accepted and not assignment.is_complete:
         return "Review accepted but not completed."
     return ""
@@ -179,7 +224,7 @@ def needs_assignment_all_editorreminders_sent(article: Article) -> str:
     editor_assignment = WjsEditorAssignment.objects.get_current(article)
     last_reminder_sent = Reminder.objects.filter(
         code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3.value,
-        date_sent__date__lte=timezone.now() - datetime.timedelta(days=3),
+        date_sent__date__lte=timezone.now() - datetime.timedelta(days=5),
         disabled=False,
         object_id=editor_assignment.id,
         content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
@@ -215,38 +260,83 @@ def all_assignments_completed(article: Article) -> str:
         return ""
 
 
-def has_unread_message(article: Article, recipient: Account) -> str:
-    """
-    Tell if the recipient has any unread message for the current article.
+def _has_unread_message(article: Article, recipient: Account) -> bool:
+    messages = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(Article),
+        object_id=article.id,
+    ).exclude(
+        message_type=Message.MessageTypes.NOTE,
+    )
 
-    Use :py:meth:`ArticleWorkflowQuerySet.with_unread_messages` to filter articles with current unread messages.
-    """
-    article_has_unread_messages = ArticleWorkflow.objects.with_unread_messages(recipient).filter(article_id=article.pk)
-    if article_has_unread_messages.exists():
-        return "You have unread messages"
+    if has_eo_role(recipient):
+        # for EO people, "unread" means
+        # - unread-msgs to the user
+        # - unread-msgs to the EO system user
+        # - any msg to any user not yet read-by-eo
+        filters = Q(
+            Q(read_by_eo=False)
+            | Q(
+                messagerecipients__read=False,
+                messagerecipients__recipient__in=[get_eo_user(article), recipient],
+            ),
+        )
     else:
-        return ""
+        filters = Q(messagerecipients__read=False, messagerecipients__recipient=recipient)
+
+    return messages.filter(filters).exists()
 
 
-def article_has_old_unread_message(article: Article) -> str:
-    """Tell if there is any message left unread for a long time."""
-    days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
-    oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
-    unread_messages = Message.objects.filter(
-        content_type=ContentType.objects.get_for_model(article),
+def has_unread_message(article: Article, recipient: Account) -> str:
+    """Tell if the recipient has any unread message for the current article."""
+    if _has_unread_message(article, recipient):
+        return "You have unread messages"
+    return ""
+
+
+def article_has_old_unread_message(article: Article, *, exclude_aus_and_revs: bool = True) -> str:
+    """
+    Tell if there is any message left unread for a long time.
+
+    Please note that this function should be called only for EO/staff people, because it exposes the names of the
+    recipients with overdue messages.
+
+    Arguments:
+      article: the article in question;
+
+      exclude_aus_and_revs: if True, ignore messages to the authors or to the reviewers of the paper. Note that an
+      editor thad does I-will-review is still considered an editor, not a reviewer.
+
+    """
+    messages = Message.objects.filter(
+        content_type=ContentType.objects.get_for_model(Article),
         object_id=article.id,
         messagerecipients__read=False,
+    ).exclude(
+        message_type=Message.MessageTypes.NOTE,
+    )
+    days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
+    oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
+    messages = messages.filter(
         created__lt=oldest_acceptable_message_date,
     )
-    if unread_messages.exists():
+    if exclude_aus_and_revs:
+        # ignore messages whose recipient is an author of the article
+        messages = messages.exclude(
+            messagerecipients__recipient__in=article.authors.all().values_list("id"),
+        )
+        messages = messages.exclude(
+            messagerecipients__recipient__in=article.reviewassignment_set.all().values_list("reviewer__id"),
+        )
+
+    if messages.exists():
         late_recipients = list(
-            MessageRecipients.objects.filter(message__in=unread_messages)
+            MessageRecipients.objects.filter(message__in=messages)
             .distinct()
             .values_list("recipient__last_name", flat=True),
         )
         return f"Paper has unread messages: {', '.join(late_recipients)}"
-    else:
-        return ""
+
+    return ""
 
 
 def one_review_assignment_late(article: Article) -> str:
@@ -343,7 +433,7 @@ def author_revision_is_late(article: Article) -> str:
     ).order_by()
     if late_revision_requests.exists():
         expected = late_revision_requests.first().date_due
-        days_late = (timezone.now().date() - expected).days
+        days_late = (timezone.localtime(timezone.now()).date() - expected).days
         return f"The revision request is {days_late} days late (was expected by {expected})"
     else:
         return ""
@@ -386,7 +476,7 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
 
         if expired_reminders.exists():
             expected = late_revision_requests.first().date_due
-            days_late = (timezone.now().date() - expected).days
+            days_late = (timezone.localtime(timezone.now()).date() - expected).days
             return f"Revision is {days_late} days late. Pls consider reminding author"
 
     return ""
@@ -450,7 +540,7 @@ def author_appealsubmission_is_late(article: Article) -> str:
     ).order_by()
     if late_revision_requests.exists():
         expected = late_revision_requests.first().date_due
-        days_late = (timezone.now().date() - expected).days
+        days_late = (timezone.localtime(timezone.now()).date() - expected).days
         # Warning: used by both author and EO, but EO appends ". Withdraw?" to this string
         # To be fixed in specs#1029
         return f"Appeal is {days_late} days late"

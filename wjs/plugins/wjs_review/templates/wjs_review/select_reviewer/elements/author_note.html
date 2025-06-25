@@ -1,16 +1,18 @@
 {% load django_bootstrap5 wjs_permissions %}
 {% translate "Display author cover letter" as review_notes %}
 {% user_has_access_to workflow=workflow user=request.user target=review_version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=review_version.number secondary_permission=True as can_see_cover_letter %}
-{% if review_version.cover_letter and can_see_cover_letter %}
-  {% bootstrap_button button_type="button" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#authorNotesCollapse" aria_expanded="false" aria_controls="authorNotesCollapse" content=review_notes %}
-  <div class="collapse mt-3" id="authorNotesCollapse">
-    <div class="card card-body">
-      {{ review_version.cover_letter.text|safe }}&nbsp;
-      {% if review_version.cover_letter.file %}
-        <ul class="list-group">
-          <li class="list-group-item"><a href="{% url 'download_single_file' workflow.article.pk review_version.cover_letter.file.pk %}" target="_blank">{{ review_version.cover_letter.file.label }}</a></li>
-        </ul>
-      {% endif %}
+{% if can_see_cover_letter %}
+  {% if review_version.cover_letter.file or review_version.cover_letter.text %}
+    {% bootstrap_button button_type="button" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#authorNotesCollapse" aria_expanded="false" aria_controls="authorNotesCollapse" content=review_notes %}
+    <div class="collapse mt-3" id="authorNotesCollapse">
+      <div class="card card-body">
+        {{ review_version.cover_letter.text|safe }}&nbsp;
+        {% if review_version.cover_letter.file %}
+          <ul class="list-group">
+            <li class="list-group-item"><a href="{% url 'download_single_file' workflow.article.pk review_version.cover_letter.file.pk %}" target="_blank">{{ review_version.cover_letter.file.label }}</a></li>
+          </ul>
+        {% endif %}
+      </div>
     </div>
-  </div>
+  {% endif %}
 {% endif %}
