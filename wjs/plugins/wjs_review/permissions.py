@@ -641,7 +641,7 @@ def is_article_typesetter_or_eo(instance: "ArticleWorkflow", user: Account) -> b
     return base_permissions.has_eo_role(user) or is_article_typesetter(instance, user)
 
 
-def is_article_pure_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
+def is_assignment_pure_editor_or_eo(instance: "WorkflowReviewAssignment", user: Account) -> bool:
     """
     Check if the user is the editor or eo.
 
@@ -655,8 +655,10 @@ def is_article_pure_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> 
     :return: True if the user is the article editor or eo
     :rtype: bool
     """
-    manager = is_article_editor(instance, user) or is_article_supervisor(instance, user)
-    return manager and not is_article_reviewer(instance, user)
+    manager = is_article_editor(instance.article.articleworkflow, user) or is_article_supervisor(
+        instance.article.articleworkflow, user
+    )
+    return manager and not is_assignment_reviewer(instance, user)
 
 
 def is_article_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
@@ -705,7 +707,7 @@ def can_see_reviewer_name(assignment: "WorkflowReviewAssignment", user: Account)
     from .logic__visibility import PermissionChecker
     from .models import PermissionAssignment
 
-    has_editor_role = is_article_pure_editor_or_eo(assignment.article.articleworkflow, user)
+    has_editor_role = is_assignment_pure_editor_or_eo(assignment, user)
 
     return has_editor_role and PermissionChecker()(
         assignment.article.articleworkflow,
