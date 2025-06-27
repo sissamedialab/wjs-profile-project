@@ -568,6 +568,31 @@ class Command(BaseCommand):
         if publicationid:
             self.restore_article_status(article)
 
+            # for published import set the article stage to Published
+            if article.stage != submission_models.STAGE_PUBLISHED:
+                logger.warning(f"stage is '{article.stage}' for published article {preprintid} / {article.id}")
+                article.stage = submission_models.STAGE_PUBLISHED
+                article.save()
+                logger.warning(
+                    f"forced fixed stage to '{article.stage}' for published article {preprintid} / {article.id}"
+                )
+
+            # for published import set the article review state to Published.
+            # There are paper in wjapp which are published, but have incomplete history
+            # then the review state must be forced to published. e.g.JCOM_015A_0215
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                if article.articleworkflow.state != ArticleWorkflow.ReviewStates.PUBLISHED:
+                    logger.warning(
+                        f"review state is '{article.articleworkflow.state}' "
+                        f"for published article {preprintid} / {article.id}"
+                    )
+                    article.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+                    article.save()
+                    logger.warning(
+                        f"forced fixed review state to '{article.articleworkflow.state}' "
+                        f"for published article {preprintid} / {article.id}"
+                    )
+
         self.debug_list_article_files_imported(article)
         self.debug_list_reminder(article)
 
