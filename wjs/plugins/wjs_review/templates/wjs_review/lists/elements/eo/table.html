@@ -21,17 +21,19 @@
   </tbody>
 </table>
 {% include "wjs_review/base/elements/pagination.html" %}
-<script>
-  new DataTable("#papers", {
-    info: false,
-    searching: false,
-    ordering: true,
-    paging: false,
-    order: [[ 0, "desc" ]],
-    {% if view.configuration_options.table_type == "production" %}
-    columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }]
-    {% elif view.configuration_options.table_type == "review" %}
-    columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
-    {% endif %}
-  });
-</script>
+{% if not view.paginate_by %}
+  <script>
+    new DataTable("#papers", {
+      info: false,
+      searching: false,
+      ordering: true,
+      paging: false,
+      order: [[ 0, "desc" ]],
+      {% if view.configuration_options.table_type == "production" %}
+      columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }]
+      {% elif view.configuration_options.table_type == "review" %}
+      columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
+      {% endif %}
+    });
+  </script>
+{% endif %}
