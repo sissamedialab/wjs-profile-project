@@ -564,6 +564,29 @@ class Command(BaseCommand):
                 """
             )
 
+        # fix forced manual withdrawn appeal on wjapp without action in the history
+        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120"):
+            if article.stage != submission_models.STAGE_REJECTED:
+                logger.warning(f"stage is '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}")
+                article.stage = submission_models.STAGE_REJECTED
+                article.save()
+                logger.warning(
+                    f"forced fixed stage to '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}"
+                )
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                if article.articleworkflow.state != ArticleWorkflow.ReviewStates.REJECTED:
+                    logger.warning(
+                        f"review state is '{article.articleworkflow.state}' "
+                        f"for rejected article {preprintid} / {article.id}"
+                    )
+                    article.articleworkflow.state = ArticleWorkflow.ReviewStates.REJECTED
+                    article.articleworkflow.save()
+                    article.save()
+                    logger.warning(
+                        f"forced fixed review state to '{article.articleworkflow.state}' "
+                        f"for withdrawn appeal article {preprintid} / {article.id}"
+                    )
+
         # for published import restore the article status
         if publicationid:
             self.restore_article_status(article)
@@ -587,6 +610,7 @@ class Command(BaseCommand):
                         f"for published article {preprintid} / {article.id}"
                     )
                     article.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+                    article.articleworkflow.save()
                     article.save()
                     logger.warning(
                         f"forced fixed review state to '{article.articleworkflow.state}' "
