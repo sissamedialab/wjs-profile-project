@@ -1,4 +1,4 @@
-{% load wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
@@ -35,7 +35,24 @@
     </td>
     {% if view.configuration_options.table_type == "production" %}
       <td>
-        {{ article|article_current_typesetter }}
+        {{ article|article_current_typesetter|default:"" }}
+      </td>
+      <td>
+        {% article_needs_extra_article_information article request.user as need_extra_information %}
+        {% article_has_extra_article_information article as has_extra_information %}
+        {% if need_extra_information and not article.primary_issue.issueparameters.batch_publish %}
+          {# FIXME: Updated code to use implementation in https://gitlab.sissamedialab.it/wjs/specs/-/issues/874 #}
+          {% with modal_id="article_files_modal-"|concat:article.pk modal_target="#article_files_modal-"|concat:article.pk %}
+            <!-- djlint:off -->
+            {% if has_extra_information %}
+              {% bootstrap_button type="button" button_class="btn-outline-primary border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-folder-fill\"></i>" %}
+            {% else %}
+              {% bootstrap_button type="button" button_class="btn-outline-warning border-0" data_bs_toggle="modal" data_bs_target=modal_target content="<i class=\"bi bi-exclamation-triangle-fill\"></i>" %}
+            {% endif %}
+            <!-- djlint:on -->
+            {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=modal_title_label include_path="wjs_review/elements/article_additional_social_files.html" %}
+          {% endwith %}
+        {% endif %}
       </td>
     {% elif view.configuration_options.table_type == "review" %}
       <td>
