@@ -1,5 +1,6 @@
 @charset "UTF-8";
 $primary: #623d91;
+$dark-gray: #606a71;
 
 @import "bootstrap/scss/functions";
 @import "bootstrap/scss/variables";
@@ -333,6 +334,79 @@ $footer-copyright-bg-color: rgba(51, 51, 51, 0.08);
 
     &-link {
       @extend .text-decoration-none;
+    }
+  }
+}
+
+// SUBMISSION NAVIGATION STEPS
+
+.wjs-submission-container {
+  @extend .bg-white, .border, .rounded;
+  border-color: $gray-400;
+  padding: 3rem 5.25rem;
+  width: 100%;
+}
+
+.wjs-submission-navigation {
+  @extend .d-flex, .align-items-start;
+  width: 100%;
+}
+
+.wjs-submission-step {
+  @extend .d-flex, .flex-column, .align-items-center, .position-relative;
+  flex: 1;
+
+  &--active {
+    .wjs-submission-step__circle {
+      background-color: $primary;
+      color: $white;
+    }
+    .wjs-submission-step__line {
+      background-color: $primary;
+    }
+
+    .wjs-submission-step__label {
+      color: $primary;
+    }
+  }
+
+  &__circle {
+    @extend .rounded-circle, .d-flex, .align-items-center, .justify-content-center, .fw-bold;
+    background: $gray-200;
+    color: $dark-gray;
+    height: 2rem;
+    width: 2rem;
+    z-index: 1;
+  }
+
+  &__label {
+    @extend .mt-2, .fs-6, .text-center;
+    color: $dark-gray;
+    width: fit-content;
+  }
+
+  &__line {
+    @extend .position-absolute;
+    background: $gray-200;
+    height: 1px;
+    left: 50%;
+    top: 1rem;
+    width: 100%;
+    z-index: 0;
+  }
+
+  &:not(:first-child) .wjs-submission-step__line {
+    left: -50%;
+    right: 50%;
+  }
+
+  &__link {
+    @extend .text-decoration-none, .text-reset, .d-flex, .flex-column, .align-items-center;
+
+    &:visited,
+    &:active,
+    &:hover {
+      @extend .text-reset, .text-decoration-none;
     }
   }
 }
