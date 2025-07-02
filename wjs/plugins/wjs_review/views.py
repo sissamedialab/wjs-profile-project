@@ -318,6 +318,7 @@ class EditorPending(ArticleWorkflowBaseMixin):
 
 class EditorArchived(EditorPending):
     title = _("Archived preprints")
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -392,6 +393,7 @@ class EOPending(ArticleWorkflowBaseMixin):
 class EOArchived(EOPending):
     title = _("Archived preprints")
     configuration_options = {"hide_editor_age": True, "show_filter_editor": True, "show_filter_reviewer": True}
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -569,6 +571,7 @@ class DirectorArchived(DirectorPending):
         "hide_editor_age": True,
         "table_variant": "archive",
     }
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -658,6 +661,7 @@ class AuthorArchived(AuthorPending):
     show_filters = True
     configuration_options = {"show_author_due_date": True, "show_filter_author": True}
     """See :py:attr:`EOPending.configuration_options` for details."""
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -721,6 +725,7 @@ class ReviewerArchived(ReviewerPending):
         "archived_list": True,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """

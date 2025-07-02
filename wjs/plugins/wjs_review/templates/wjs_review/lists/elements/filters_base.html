@@ -24,4 +24,6 @@
     {% bootstrap_button id="id_filter_form_submit_button" button_type="submit" button_class="btn-primary" name="search" layout="floating" value=1 content=search_label size="sm" %}
   </div>
 </div>
-{% include "wjs_review/lists/elements/filters_visibility.html" %}
+{% if not view.paginate_by %}
+  {% include "wjs_review/lists/elements/filters_visibility.html" %}
+{% endif %}
