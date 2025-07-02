@@ -18,6 +18,7 @@ from django.http import (
     Http404,
     HttpRequest,
     HttpResponse,
+    HttpResponsePermanentRedirect,
     HttpResponseRedirect,
     QueryDict,
 )
@@ -1223,6 +1224,7 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
     title = _("Accept/Decline invite to review")
     use_access_code = True
     allow_anonymous_access = True
+    object = None  # noqa: A003 - Not set as default from Django base classes
 
     def load_initial(self, request, *args, **kwargs):
         if self.allow_anonymous_access and request.user.is_anonymous:
@@ -1236,6 +1238,30 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
         BaseRelatedViewsMixin.
         """
         return True
+
+    def get(self, request, *args, **kwargs):
+        if self._check_accepted_review_assignment():
+            return HttpResponsePermanentRedirect(self.get_success_url())
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if self._check_accepted_review_assignment():
+            return HttpResponsePermanentRedirect(self.get_success_url())
+        return super().post(request, *args, **kwargs)
+
+    def _check_accepted_review_assignment(self):
+        """
+        Check if the review assignment has been already accepted or not.
+
+        Check on declined assignments is not needed because they are filtered out in the get_queryset method.
+
+        :return: RA accepted review assignment or not
+        """
+        if not self.object:
+            self.object = self.get_object()
+        if self.object.date_accepted:
+            return True
+        return False
 
     def get_success_url(self) -> str:
         """Redirect to a different URL according to the decision."""
