@@ -1040,8 +1040,15 @@ class ArticleIdToDetails(RedirectView):
 
     def get_redirect_url(self, *args, **kwargs):
         """Given the article-id, redirect to the WJS status page."""
-        article = get_object_or_404(Article, pk=kwargs["article_id"])
-        return reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.id})
+        try:
+            article = Article.objects.get(pk=kwargs["article_id"])
+            return reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.pk})
+        except Article.DoesNotExist:
+            try:
+                articleworkflow = ArticleWorkflow.objects.get(pk=kwargs["article_id"])
+                return reverse("wjs_article_details", kwargs={"pk": articleworkflow.pk})
+            except ArticleWorkflow.DoesNotExist:
+                raise Http404(_("Article with id {article_id} does not exist").format(article_id=kwargs["article_id"]))
 
 
 class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
