@@ -727,6 +727,64 @@ def test_decline_invite(
 
 
 @pytest.mark.django_db
+def test_accepted_assignment_submit(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """If user accepts the invitation, access to review submit page is granted."""
+    reviewer = review_assignment.reviewer
+    client.force_login(reviewer)
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "1", "date_due": date_due}
+    # Message from the editor to the reviewer ("User ... invited to review")
+    assert Message.objects.count() == 1
+    response = client.post(url, data=data)
+    assert response.status_code == 302
+    review_assignment.refresh_from_db()
+    reviewer.refresh_from_db()
+
+    url = reverse("wjs_review_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_declined_assignment_submit(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """If user declines the invitation, access to review submit page is denied with 404."""
+    reviewer = review_assignment.reviewer
+    client.force_login(reviewer)
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "0", "additional_comments": "Don't say", "date_due": date_due}
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+    response = client.post(url, data=data)
+    assert response.status_code == 302
+    review_assignment.refresh_from_db()
+    reviewer.refresh_from_db()
+
+    url = reverse("wjs_review_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
 def test_double_accept_assignment(
     client: Client,
     review_assignment: ReviewAssignment,

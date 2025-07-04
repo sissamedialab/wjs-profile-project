@@ -1414,6 +1414,10 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
     title = _("Submit review")
     use_access_code = True
 
+    def _check_accepted_review_assignment(self):
+        """Skip the check for accepted review assignment as it's part of the :py:meth:`get_queryset` method call."""
+        return False
+
     @property
     def allow_draft(self):
         """
