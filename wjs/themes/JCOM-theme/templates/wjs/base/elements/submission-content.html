@@ -1,0 +1,208 @@
+<form method="post" action="">
+  <div class="mb-3">
+    <label class="form-label" for="id_subject">Title</label>
+    <div class="input-group">
+      <span class="input-group-text">[JCOM_1634]</span>
+      <input
+        type="text"
+        name="subject"
+        value=""
+        class="form-control"
+        placeholder="Title"
+        aria-required="true"
+        id="id_subject"
+        required
+      />
+    </div>
+  </div>
+
+  <div class="form-check mb-3">
+    <input type="checkbox" name="checkbox" class="form-check-input" id="id_checkbox" required aria-required="true" />
+    <label class="form-check-label" for="id_checkbox"> A checkbox </label>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="id_select">A select</label>
+    <select name="select" class="form-select" required aria-required="true" id="id_select">
+      <option value="" selected>Select one decision</option>
+      <option value="accept">Accept</option>
+      <option value="reject">Reject</option>
+      <option value="minor_revisions">Minor revision</option>
+      <option value="major_revisions">Major revision</option>
+      <option value="tech_revisions">Change Metadata</option>
+      <option value="not_suitable">Not suitable</option>
+      <option value="requires_resubmission">Requires resubmission</option>
+      <option value="open_appeal">Open appeal</option>
+    </select>
+  </div>
+
+  <fieldset class="mb-3">
+    <legend class="form-label">Radio</legend>
+    <div class="form-check">
+      <input
+        class="form-check-input"
+        type="radio"
+        name="radio_group"
+        id="radio1"
+        value="option1"
+        required
+        aria-required="true"
+      />
+      <label class="form-check-label" for="radio1">Option 1</label>
+    </div>
+    <div class="form-check">
+      <input
+        class="form-check-input"
+        type="radio"
+        name="radio_group"
+        id="radio2"
+        value="option2"
+        aria-required="true"
+      />
+      <label class="form-check-label" for="radio2">Option 2</label>
+    </div>
+    <div class="form-check">
+      <input
+        class="form-check-input"
+        type="radio"
+        name="radio_group"
+        id="radio3"
+        value="option3"
+        aria-required="true"
+      />
+      <label class="form-check-label" for="radio3">Option 3</label>
+    </div>
+  </fieldset>
+
+  <div class="mb-3">
+    <label class="form-label" for="id_textarea">Textarea</label>
+    <textarea
+      id="id_textarea"
+      name="message"
+      class="form-control"
+      rows="4"
+      required
+      aria-required="true"
+      placeholder="Type your message here..."
+    ></textarea>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="id_file">Upload file</label>
+    <input type="file" id="id_file" name="file_upload" class="form-control" required aria-required="true" />
+  </div>
+
+  <div id="form-footer">
+    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Save and continue</button>
+  </div>
+</form>
+
+<script>
+    // This script provides a dynamic checklist of required fields and controls the submit button's enabled state.
+    // It ensures that users are aware of which required fields still need to be completed
+    // before being able to proceed to the next step of the submission form.
+
+
+    // Wait for the DOM to be fully loaded before running the script
+    document.addEventListener("DOMContentLoaded", function () {
+
+
+      //  - Retrieves the label text for a given form field.
+      //  - For radio buttons, tries to find the enclosing fieldset's legend as the label.
+      //  - For other fields, finds the associated <label> by 'for' attribute.
+      //  - Falls back to field name or id if label is not found.
+
+      function getLabel(field) {
+        if (field.type === "radio") {
+          const legend = field.closest("fieldset")?.querySelector("legend");
+          if (legend) return legend.textContent.trim();
+          return field.name;
+        }
+        const label = form.querySelector(`label[for="${field.id}"]`);
+        return label?.textContent.trim() || field.name || field.id;
+      }
+
+
+      //  - Checks if a required field is filled.
+      //  - For radio groups, checks if any radio in the group is checked.
+      //  - For checkboxes, checks if it is checked.
+      //  - For selects, checks if a value is selected.
+      //  - For other fields, checks if the value is non-empty.
+      function isFilled({ key, type }) {
+        if (type === "radio") {
+          return !!form.querySelector(`input[type="radio"][name="${key}"]:checked`);
+        }
+        const field = form.querySelector(`#${key}`);
+        if (!field) return false;
+        if (field.type === "checkbox") return field.checked;
+        if (field.tagName === "SELECT") return field.value !== "";
+        return field.value?.trim() !== "";
+      }
+
+      // Get references to the form, submit button, and form footer
+      const form = document.querySelector("form");
+      const submitBtn = document.getElementById("submit-btn");
+      const formFooter = document.getElementById("form-footer");
+
+      // Create a dynamic checklist <ul> to display required fields
+      let list = document.createElement("ul");
+      list.id = "wjs-submission-form__fields-list";
+      list.setAttribute("aria-live", "polite"); // For accessibility
+      form.insertBefore(list, formFooter);
+
+      // Used to avoid duplicate radio group entries
+      const radios = new Set();
+      // Checklist array to track required fields and their associated <li> elements
+      const checklist = [];
+
+      // Find all required fields in the form and build the checklist
+      // Only add one entry per radio group (by name)
+      form.querySelectorAll("[required]").forEach(field => {
+        const { type, name, id } = field;
+        if (type === "radio") {
+          if (radios.has(name)) return;
+          radios.add(name);
+        }
+        const key = type === "radio" ? name : id;
+        const label = getLabel(field);
+        const li = document.createElement("li");
+        li.textContent = label;
+        li.dataset.field = key;
+        list.appendChild(li);
+        checklist.push({ key, type, li });
+      });
+
+
+      //  - Updates the checklist UI and submit button state.
+      //  - Adds a CSS class to filled fields.
+      //  - Enables the submit button only if all required fields are filled.
+      function update() {
+        let allFilled = true;
+        checklist.forEach(item => {
+          const filled = isFilled(item);
+          if (filled) {
+            item.li.classList.add("wjs-submission-form__label--filled");
+          } else {
+            item.li.classList.remove("wjs-submission-form__label--filled");
+            allFilled = false;
+          }
+        });
+        submitBtn.disabled = !allFilled;
+      }
+
+      // Attach event listeners to update the checklist when fields change
+      checklist.forEach(item => {
+        if (item.type === "radio") {
+          form.querySelectorAll(`input[type="radio"][name="${item.key}"]`).forEach(radio => radio.addEventListener("change", update));
+        } else {
+          const field = form.querySelector(`#${item.key}`);
+          if (field) {
+            ["input", "change"].forEach(event => field.addEventListener(event, update));
+          }
+        }
+      });
+
+      // Initial update to set the correct state on page load
+      update();
+    });
+  </script>

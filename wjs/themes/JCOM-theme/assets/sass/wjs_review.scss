@@ -316,7 +316,7 @@ $footer-copyright-bg-color: rgba(51, 51, 51, 0.08);
 }
 
 .wjs-footer {
-  @extend .d-flex, .fixed-bottom, .mt-5, .pb-5, .pt-4;
+  @extend .d-flex, .mt-5, .pb-5, .pt-4;
   background-color: $footer-copyright-bg-color;
 
   &__text {
@@ -407,6 +407,14 @@ $footer-copyright-bg-color: rgba(51, 51, 51, 0.08);
     &:active,
     &:hover {
       @extend .text-reset, .text-decoration-none;
+    }
+  }
+}
+
+.wjs-submission-form {
+  &__label {
+    &--filled {
+      text-decoration: line-through;
     }
   }
 }
