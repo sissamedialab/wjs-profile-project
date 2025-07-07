@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Union
+import datetime
+from typing import TYPE_CHECKING, List, Union
 
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
@@ -139,6 +140,28 @@ class WjsEditorAssignmentQuerySet(models.QuerySet):
         if isinstance(article, ArticleWorkflow):
             article = article.article
         return self.filter(article=article)
+
+    def get_final_reviews_in_timeframe(
+        self, user: Account, states_list: List["ArticleWorkflow.ReviewStates"], timeframe: datetime.timedelta
+    ) -> QuerySet:
+        """
+        Get the distinct editor assignments which are in the state_list of the review process
+        in the timeframe.
+        """
+
+        states = Q(article__articleworkflow__state__in=states_list)
+        return self.filter(Q(editor=user) & states & Q(assigned__gte=timeframe)).distinct()
+
+    def get_pending_reviews_in_timeframe(
+        self, user: Account, states_list: List["ArticleWorkflow.ReviewStates"], timeframe: datetime.timedelta
+    ) -> QuerySet:
+        """
+        Get the distinct editor assignments which are not in the state_list of the review process
+        in the timeframe.
+        """
+
+        states = Q(article__articleworkflow__state__in=states_list)
+        return self.filter(Q(editor=user) & ~states & Q(assigned__gte=timeframe)).distinct()
 
 
 class WorkflowReviewAssignmentQuerySet(models.QuerySet):
