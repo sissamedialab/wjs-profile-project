@@ -46,6 +46,7 @@ from ..logic import (
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_in_review,
     states_when_article_is_considered_in_review_for_eo_and_director,
+    states_where_article_is_considered_editor_completed,
 )
 from ..logic__visibility import get_recipient_label
 from ..models import (
@@ -736,3 +737,27 @@ def reminder_label(reminder: Reminder) -> str:
         return _(f"sent on {date_format(reminder.date_sent, settings.DATE_FORMAT)}")
     else:
         return _(f"will be sent on {date_format(reminder.date_due, settings.DATE_FORMAT)}")
+
+
+@register.simple_tag()
+def get_final_reviews_in_timeframe(user: Account) -> int:
+    """
+    Count number of articles assigned to the editor which are in a final decision state in the review process
+    in the last year.
+    """
+
+    return WjsEditorAssignment.objects.get_final_reviews_in_timeframe(
+        user, states_where_article_is_considered_editor_completed, timezone.now() - datetime.timedelta(days=365)
+    ).count()
+
+
+@register.simple_tag()
+def get_pending_reviews_in_timeframe(user: Account) -> int:
+    """
+    Count number of articles assigned to the editor which are not in a final decision state in the review process
+    in the last year.
+    """
+
+    return WjsEditorAssignment.objects.get_pending_reviews_in_timeframe(
+        user, states_where_article_is_considered_editor_completed, timezone.now() - datetime.timedelta(days=365)
+    ).count()

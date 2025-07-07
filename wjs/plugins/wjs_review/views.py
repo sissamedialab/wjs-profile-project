@@ -3140,8 +3140,6 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         qs = Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
             pk__in=article_authors
         )
-        qs = qs.annotate_final_reviews_in_timeframe(datetime.timedelta(days=365))
-        qs = qs.annotate_pending_reviews_in_timeframe(datetime.timedelta(days=365))
         if search_text:
             search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
             qs = qs.filter(search_filters)
