@@ -130,6 +130,7 @@ def assign_eo_to_articles(**kwargs) -> Optional["Account"]:
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     parameter = (
         StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=eo_users)
+        .exclude(workload=0)
         .annotate(
             assignment_count=Count("user__articleworkflow__eo_in_charge"),
             available_workload=F("workload") - F("assignment_count"),
