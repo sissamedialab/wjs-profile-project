@@ -724,7 +724,7 @@ class IncompleteSubmission(BaseState):
 
     article_actions = (
         ArticleAction(
-            permission=permissions.is_article_author,
+            permission=permissions.is_article_author_or_owner,
             name="resume incomplete submission",
             label="Resume incomplete submission",
             view_name="submit_info",

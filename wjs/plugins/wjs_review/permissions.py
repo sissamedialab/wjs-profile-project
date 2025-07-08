@@ -438,6 +438,22 @@ def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
     return instance.article.correspondence_author == user
 
 
+def is_article_author_or_owner(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is the Corresponding author or submitting author of the article.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is the Corresponding author or submitting author, False otherwise.
+    :rtype: bool
+    """
+    return user in (instance.article.correspondence_author, instance.article.owner)
+
+
 def is_article_author_and_paper_can_go_rfp(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the user is the Corresponding author and if the article can transition into READY_FOR_PUBLI CATION.
