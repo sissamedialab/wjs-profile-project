@@ -31,7 +31,12 @@ from ..models import (
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..views import EditorArchived, SelectReviewerView, SupervisorAssignEditor
+from ..views import (
+    ArticleIdToDetails,
+    EditorArchived,
+    SelectReviewerView,
+    SupervisorAssignEditor,
+)
 
 
 @pytest.mark.parametrize(
@@ -1227,3 +1232,30 @@ def test_eo_select_new_editor(
         == normal_user.janeway_account
     )
     assert PastEditorAssignment.objects.get(article=assigned_article.articleworkflow.article).editor == old_editor
+
+
+@pytest.mark.django_db
+def test_article_redirect(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
+    review_settings,
+):
+    view = ArticleIdToDetails()
+    view.request = fake_request
+    view.setup(fake_request)
+    view.args = ()
+    view.kwargs = {"article_id": assigned_article.pk}
+    url = view.get_redirect_url(**view.kwargs)
+    assert url == reverse("wjs_article_details", kwargs={"pk": assigned_article.articleworkflow.pk})
+
+    view.kwargs = {"article_id": assigned_article.articleworkflow.pk}
+    url = view.get_redirect_url(**view.kwargs)
+    assert url == reverse("wjs_article_details", kwargs={"pk": assigned_article.articleworkflow.pk})
+
+    view.kwargs = {"article_id": assigned_article.articleworkflow.pk + 1}
+    from django.http import Http404
+
+    with pytest.raises(Http404):
+        url = view.get_redirect_url(**view.kwargs)
