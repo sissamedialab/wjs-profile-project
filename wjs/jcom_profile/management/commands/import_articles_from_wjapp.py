@@ -1210,15 +1210,18 @@ WHERE
             self.connection,
         )
 
-        eo_in_charge = account_get_or_create_check_correspondence(
-            self.journal.code.lower(),
-            row["eoInChargeCod"],
-            row["eoInCharge_lastname"],
-            row["eoInCharge_firstname"],
-            row["eoInCharge_email"],
-            row["eoInCharge_privacy"],
-            self.connection,
-        )
+        if not row["eoInChargeCod"]:
+            eo_in_charge = None
+        else:
+            eo_in_charge = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                row["eoInChargeCod"],
+                row["eoInCharge_lastname"],
+                row["eoInCharge_firstname"],
+                row["eoInCharge_email"],
+                row["eoInCharge_privacy"],
+                self.connection,
+            )
 
         if not main_author.check_role(self.journal, "author", staff_override=False):
             main_author.add_account_role("author", self.journal)
