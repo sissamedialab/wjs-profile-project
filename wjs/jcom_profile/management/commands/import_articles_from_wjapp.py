@@ -1135,7 +1135,7 @@ WHERE
 
         if not ArticleWorkflow.objects.filter(article=article).exists():
             ArticleWorkflow.objects.create(article=article)
-            logger.critical(
+            logger.warning(
                 f"created ArticleWorkflow during reset article {article}, "
                 f"probably missing due to a crashed import, please check"
             )
