@@ -1,13 +1,10 @@
 import os
 import re
 import tempfile
-import urllib
-import urllib.request
 import xml.etree.ElementTree as ET  # noqa
 import zipfile
 from typing import IO
 
-import requests
 from django.conf import settings
 from django.utils.module_loading import import_string
 from submission.models import Article
@@ -83,75 +80,3 @@ def get_report_form(journal_code: str):
         settings.WJS_REVIEW_CUSTOM_REPORT_FORMS.get(None),
     )
     return import_string(form_path)
-
-
-def fetch_arxiv_metadata(arxiv_id: str) -> dict:
-    """
-    Query arXiv and retrieve metadata, PDF and source files.
-
-    Save the files in the cwd.
-
-    Return:
-       the metadata as a dictionary.
-       Eventual errors are in the "errors" key.
-
-    """
-    errors = {}
-    result = {
-        "title": None,
-        "abstract": None,
-        "category_term": None,
-        "source_file": None,
-        "pdf_file": None,
-        "errors": errors,
-    }
-
-    try:
-        url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
-        response = urllib.request.urlopen(url)
-        xml_content = response.read().decode("utf-8")
-        root = ET.fromstring(xml_content)
-        ns = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
-        entry = root.find("atom:entry", ns)
-
-        title_elem = entry.find("atom:title", ns)
-        abstract_elem = entry.find("atom:summary", ns)
-        category_elem = entry.find("arxiv:primary_category", ns)
-
-        result["title"] = title_elem.text
-        result["abstract"] = abstract_elem.text
-        result["category_term"] = category_elem.attrib.get("term")
-
-    except AttributeError as e:
-        errors["query"] = f"Attribute error: {e}"
-        return result
-    except urllib.error.URLError as e:
-        errors["query"] = f"URL error: {e.reason}"
-        return result
-    except ET.ParseError as e:
-        errors["query"] = f"XML parse error: {str(e)}"
-        return result
-    except Exception as e:
-        errors["query"] = str(e)
-        return result
-
-    specs = [
-        ("source_file", "https://arxiv.org/src/{}", ".tar.gz"),
-        ("pdf_file", "https://arxiv.org/pdf/{}", ".pdf"),
-    ]
-
-    for file_name, base_url, suffix in specs:
-        url = base_url.format(arxiv_id)
-        dest = f"{file_name}-{arxiv_id}{suffix}"
-        try:
-            resp = requests.get(url)
-            if resp.status_code == 200:
-                with open(dest, "wb") as f:
-                    f.write(resp.content)
-                result[file_name] = dest
-            else:
-                errors[file_name] = f"HTTP {resp.status_code}"
-        except Exception as e:
-            errors[file_name] = str(e)
-
-    return result

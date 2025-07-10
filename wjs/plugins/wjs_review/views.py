@@ -97,6 +97,7 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
+    ArXivToWjsArticle,
     HandleMessage,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -3568,3 +3569,24 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         self.workflow.article.snapshot_authors()
 
         return context
+
+
+class ArxivMicroservice(HtmxMixin, TemplateView):
+    template_name = "test_arxiv_endpoint/test_arxiv_endpoint.html"
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.arxiv_id = request.POST.get("arxiv_id", "").strip()
+
+    def get_template_names(self):
+        if self.htmx:
+            return ["test_arxiv_endpoint/fragment.html"]
+        return super().get_template_names()
+
+    def post(self, request, *args, **kwargs):
+        service = ArXivToWjsArticle(arxiv_id=self.arxiv_id, journal=self.request.journal, user=self.request.user)
+        try:
+            article = service.run()
+        except Exception as e:
+            return HttpResponse(f"Error: {e}")
+        return HttpResponse(f'Validated for "{article.title}"')
