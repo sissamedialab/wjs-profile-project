@@ -412,7 +412,7 @@ class Command(BaseCommand):
 
             # article special issue
             special_issue = self.read_article_special_issue(document_cod)
-            self.set_article_special_issue(article, special_issue)
+            self.set_article_special_issue(article, special_issue, preprintid)
 
             # article notes
             document_notes = self.read_article_document_notes(document_cod)
@@ -1471,11 +1471,15 @@ WHERE
             article.keywords.add(keyword)
         article.save()
 
-    def set_article_special_issue(self, article, special_issue):
+    def set_article_special_issue(self, article, special_issue, preprintid):
         """Set article special issue"""
 
         # in wjapp this means that is a normal article without special issue
         if "Normal" == special_issue["name"]:
+            return
+
+        if self.journal.code == "JCOM":
+            logger.debug(f"wjapp SI not imported '{special_issue['longname']}' for article {preprintid}/{article.id}")
             return
 
         editor_special_issue = account_get_or_create_check_correspondence(
