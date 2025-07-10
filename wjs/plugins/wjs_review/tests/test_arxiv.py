@@ -1,26 +1,44 @@
 import io
 import random
 import tarfile
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 import pytest
 import requests
 from core import files
 from django.core.files import File as DjangoFile
+from django.http import HttpResponse
+from django.test import RequestFactory
 from identifiers.models import Identifier
 from submission.models import Article
 
-from ..utils import fetch_arxiv_metadata
+from ..logic import ArXivConnectionError, ArXivQueryError, fetch_arxiv_metadata
+from ..views import ArxivMicroservice
 
 random.seed(42)
 
 
 class DummyResponse:
-    def __init__(self, content: bytes, status_code: int = 200):
+    def __init__(self, content: bytes, status_code: int = 200, text: str = None):
         self.content = content
         self.status_code = status_code
+        self.text = text if text is not None else content.decode(errors="ignore")
+
+    def raise_for_status(self):
+        if not (200 <= self.status_code < 300):
+            raise requests.exceptions.HTTPError(f"{self.status_code}")
+
+
+def mock_requests_get(monkeypatch, responses: dict = None):
+    """Mock requests.get for metadata and file downloads without raising on metadata."""
+
+    def fake_get(url, *args, **kwargs):
+        for pattern, response in (responses or {}).items():
+            if pattern in url:
+                return response
+        return DummyResponse(b"", 404)
+
+    monkeypatch.setattr(requests, "get", fake_get)
 
 
 @pytest.fixture()
@@ -29,60 +47,30 @@ def fixtures_data():
     base = Path(__file__).parent / "files"
     return {
         "xml": (base / "query.atom").open("rb").read(),
-        "pdf": (base / "arxiv_pdf_sample.pdf").open("rb").read(),
         "src": (base / "arxiv_tex_sample.tar.gz").open("rb").read(),
+        "xml_empty": b"""<feed xmlns="http://www.w3.org/2005/Atom"></feed>""",
     }
 
 
-@pytest.fixture(autouse=True)
-def chdir_tmp(monkeypatch, tmp_path):
-    """Change the context of the current working directory during a test."""
-    monkeypatch.chdir(tmp_path)
-
-
-def mock_urlopen(monkeypatch, xml: bytes):
-    monkeypatch.setattr(urllib.request, "urlopen", lambda url: io.BytesIO(xml))
-
-
-def mock_requests_get(monkeypatch, responses: dict = None, raise_exc=None):
-    def fake_get(url, *args, **kwargs):
-        if raise_exc:
-            raise raise_exc
-        for pattern, response in responses.items():
-            if pattern in url:
-                return response
-        return DummyResponse(b"", 404)
-
-    monkeypatch.setattr(requests, "get", fake_get)
-
-
 @pytest.mark.django_db
-def test_fetch_arxiv_metadata_all_success(fixtures_data, monkeypatch, tmp_path):
-    mock_urlopen(monkeypatch, fixtures_data["xml"])
+def test_fetch_arxiv_metadata_all_success(fixtures_data, monkeypatch):
+    metadata_resp = DummyResponse(fixtures_data["xml"], status_code=200, text=fixtures_data["xml"].decode())
+    src_resp = DummyResponse(fixtures_data["src"])
     mock_requests_get(
         monkeypatch,
-        {
-            "/pdf/": DummyResponse(fixtures_data["pdf"]),
-            "/src/": DummyResponse(fixtures_data["src"]),
-        },
+        responses={"api/query": metadata_resp, "/src/": src_resp},
     )
 
-    result = fetch_arxiv_metadata("1234.5678")
+    result, errors = fetch_arxiv_metadata("2504.10562v1")
 
     assert result["title"].strip()
     assert result["abstract"].strip()
     assert result["category_term"]
 
-    # Reminder: fetch_arxiv_metadata saves the files in the cwd with a name composed of {file_name}-{arxiv_id}{suffix}
-    expected_pdf = tmp_path / "pdf_file-1234.5678.pdf"
-    expected_src = tmp_path / "source_file-1234.5678.tar.gz"
+    assert result["arxiv_id"] == "2504.10562v1"
 
-    assert result["pdf_file"] == expected_pdf.name
-    assert result["source_file"] == expected_src.name
-
-    assert expected_pdf.read_bytes() == fixtures_data["pdf"]
-    assert expected_src.read_bytes() == fixtures_data["src"]
-    assert result["errors"] == {}
+    assert result["source_file"] == fixtures_data["src"]
+    assert errors == {}
 
 
 @pytest.mark.django_db
@@ -92,18 +80,15 @@ def test_article_creation(fixtures_data, monkeypatch, tmp_path, journal, author,
 
     Interesting parts in the code are marked with 🌟
     """
-    arxiv_id = "1234.5678"
-    mock_urlopen(monkeypatch, fixtures_data["xml"])
+    arxiv_id = "1234.5678v1"
+    metadata_resp = DummyResponse(fixtures_data["xml"], status_code=200, text=fixtures_data["xml"].decode())
+    src_resp = DummyResponse(fixtures_data["src"])
     mock_requests_get(
         monkeypatch,
-        {
-            "/pdf/": DummyResponse(fixtures_data["pdf"]),
-            "/src/": DummyResponse(fixtures_data["src"]),
-        },
+        responses={"api/query": metadata_resp, "/src/": src_resp},
     )
 
-    # 🌟 Fetch data
-    result = fetch_arxiv_metadata(arxiv_id)
+    result, errors = fetch_arxiv_metadata(arxiv_id)
 
     date_started = date_submitted = None
     new_article = Article.objects.create(
@@ -128,15 +113,10 @@ def test_article_creation(fixtures_data, monkeypatch, tmp_path, journal, author,
     new_article.articleworkflow.arxiv_category = result["category_term"]  # 🌟 use metadata
     new_article.articleworkflow.save()
 
-    # 🌟 Save/attach PDF as manuscript
-    file_data = io.BytesIO(fixtures_data["pdf"])
-    django_file = DjangoFile(file_data, f"Manuscript-{new_article.pk}.pdf")
-    file_instance = files.save_file_to_article(
-        django_file,
-        new_article,
-        author,
-    )
-    new_article.manuscript_files.add(file_instance)
+    assert result["title"] == new_article.title
+    assert result["abstract"] == new_article.abstract
+    assert arxiv_id == new_article.get_identifier(identifier_type="arxiv")
+    assert result["category_term"] == new_article.articleworkflow.arxiv_category
 
     # 🌟 Save/attach source files
     # for simplicity, suppose that the archive contains only one .tex file
@@ -155,106 +135,288 @@ def test_article_creation(fixtures_data, monkeypatch, tmp_path, journal, author,
     )
     new_article.source_files.add(file_instance)
 
-    assert result["title"] == new_article.title
-    assert result["abstract"] == new_article.abstract
-    assert arxiv_id == new_article.get_identifier(identifier_type="arxiv")
-    assert result["category_term"] == new_article.articleworkflow.arxiv_category
-
     source_file = new_article.source_files.first()
     with open(source_file.self_article_path(), "rb") as f:
         assert f.read() == tex_bytes
 
-    pdf_file = new_article.manuscript_files.first()
-    with open(pdf_file.self_article_path(), "rb") as f:
-        assert f.read() == fixtures_data["pdf"]
-
-    # 🌟 Clean-up: remember that arXiv files have been saved initially in the cwd. Clean-up if necessary.
-    cwd = Path.cwd()
-    (cwd / f"pdf_file-{arxiv_id}.pdf").unlink()
-    (cwd / f"source_file-{arxiv_id}.tar.gz").unlink()
-
 
 @pytest.mark.parametrize(
-    "xml,expected_error",
+    "xml_content,expected_msg",
     [
         (b"<invalid><xml>", "XML parse error"),
-        (b"<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'></feed>", "Attribute error"),
         (
-            b"""<?xml version='1.0'?>
-        <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
-            <entry>
-                <title>Sample Title</title>
-                <arxiv:primary_category term="cs.AI"/>
-            </entry>
-        </feed>""",
-            "Attribute error",
+            b"<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'></feed>",
+            "cannot be found on arxiv.org",
+        ),
+        (
+            b"<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom' "
+            b"xmlns:arxiv='http://arxiv.org/schemas/atom'>"
+            b"<entry><title>Sample</title></entry></feed>",
+            "Missing expected element in arXiv response",
         ),
     ],
 )
 @pytest.mark.django_db
-def test_fetch_arxiv_metadata_query_errors(monkeypatch, xml, expected_error):
-    mock_urlopen(monkeypatch, xml)
-    result = fetch_arxiv_metadata("0000.0000")
-    assert expected_error in result["errors"]["query"]
+def test_fetch_arxiv_metadata_query_errors(monkeypatch, xml_content, expected_msg):
+    def fake_get(url, *args, **kwargs):
+        return DummyResponse(xml_content, status_code=200, text=xml_content.decode(errors="ignore"))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    with pytest.raises(ArXivQueryError) as excinfo:
+        fetch_arxiv_metadata("0000.0000v1")
+    assert expected_msg in str(excinfo.value)
 
 
 @pytest.mark.django_db
 def test_fetch_arxiv_metadata_urlerror(monkeypatch):
-    def raise_urlerror(url):
-        raise urllib.error.URLError("network down")
+    def fake_get(url, *args, **kwargs):
+        raise requests.exceptions.RequestException("network down")
 
-    monkeypatch.setattr(urllib.request, "urlopen", raise_urlerror)
+    monkeypatch.setattr(requests, "get", fake_get)
 
-    result = fetch_arxiv_metadata("0000.0000")
-    assert result["errors"]["query"] == "URL error: network down"
+    with pytest.raises(ArXivConnectionError) as excinfo:
+        fetch_arxiv_metadata("0000.0000v1")
+    assert "Connection to arXiv could not be established" in str(excinfo.value)
 
 
 @pytest.mark.django_db
 def test_fetch_arxiv_metadata_file_download_failure(fixtures_data, monkeypatch):
-    mock_urlopen(monkeypatch, fixtures_data["xml"])
+    metadata_resp = DummyResponse(fixtures_data["xml"], status_code=200, text=fixtures_data["xml"].decode())
+    src_resp = DummyResponse(b"", status_code=403)
     mock_requests_get(
         monkeypatch,
         {
-            "/pdf/": DummyResponse(b"", 403),
-            "/src/": DummyResponse(b"", 403),
+            "api/query": metadata_resp,
+            "/src/": src_resp,
         },
     )
 
-    result = fetch_arxiv_metadata("0000.0000")
-    assert result["errors"]["pdf_file"] == "HTTP 403"
-    assert result["errors"]["source_file"] == "HTTP 403"
+    result, errors = fetch_arxiv_metadata("0000.0000v1")
+
+    assert "source_file" in errors
+    assert errors["source_file"] == "HTTP 403"
+
+
+@pytest.mark.django_db
+def test_fetch_arxiv_metadata_connection_request_exception(monkeypatch):
+    monkeypatch.setattr(
+        requests,
+        "get",
+        lambda url, *a, **k: (_ for _ in ()).throw(requests.exceptions.RequestException("network down")),
+    )
+    with pytest.raises(ArXivConnectionError) as excinfo:
+        fetch_arxiv_metadata("0000.0000v1")
+    assert "Connection to arXiv could not be established" in str(excinfo.value)
+
+
+@pytest.mark.django_db
+def test_fetch_arxiv_metadata_connection_http_error(monkeypatch):  # FIXME
+    resp_404 = DummyResponse(b"", status_code=404)
+    monkeypatch.setattr(
+        requests,
+        "get",
+        lambda url, *args, **kwargs: resp_404,
+    )
+
+    with pytest.raises(ArXivConnectionError) as excinfo:
+        fetch_arxiv_metadata("0000.0000v1")
+    assert "Connection to arXiv could not be established" in str(excinfo.value)
+
+
+@pytest.mark.django_db
+def test_fetch_arxiv_metadata_doi_extraction(monkeypatch):
+    doi_xml = (
+        b"<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'>"
+        b"<entry>"
+        b"<id>http://arxiv.org/abs/0000.0000v1</id>"
+        b"<title>Test</title>"
+        b"<summary>Abstr</summary>"
+        b"<arxiv:primary_category xmlns:arxiv='http://arxiv.org/schemas/atom' term='cs.AI'/>"
+        b"<link title='doi' href='https://doi.org/10.1000/test'/></entry></feed>"
+    )
+    meta_resp = DummyResponse(doi_xml, status_code=200, text=doi_xml.decode())
+    src_resp = DummyResponse(b"", status_code=403)
+    mock_requests_get(monkeypatch, {"api/query": meta_resp, "/src/": src_resp})
+
+    result, errors = fetch_arxiv_metadata("0000.0000v1")
+    assert 'href="https://doi.org/10.1000/test"' in result["doi_link"]
+    assert errors["source_file"] == "HTTP 403"
 
 
 @pytest.mark.django_db
 def test_fetch_arxiv_metadata_file_download_timeout(fixtures_data, monkeypatch):
-    mock_urlopen(monkeypatch, fixtures_data["xml"])
-    mock_requests_get(monkeypatch, raise_exc=requests.exceptions.Timeout("Request timed out"))
+    metadata_resp = DummyResponse(fixtures_data["xml"], status_code=200, text=fixtures_data["xml"].decode())
 
-    result = fetch_arxiv_metadata("0000.0000")
-    assert result["errors"]["pdf_file"] == "Request timed out"
-    assert result["errors"]["source_file"] == "Request timed out"
+    def fake_get(url, *args, **kwargs):
+        if "api/query" in url:
+            return metadata_resp
+        raise requests.exceptions.Timeout("Request timed out")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    result, errors = fetch_arxiv_metadata("0000.0000")
+    assert errors["source_file"] == "Request timed out"
 
 
 @pytest.mark.django_db
 def test_fetch_arxiv_metadata_unexpected_metadata_exception(monkeypatch):
-    def broken_urlopen(url):
+    def fake_get(url, *args, **kwargs):
         raise RuntimeError("unexpected parsing failure")
 
-    monkeypatch.setattr(urllib.request, "urlopen", broken_urlopen)
+    monkeypatch.setattr(requests, "get", fake_get)
 
-    result = fetch_arxiv_metadata("9999.9999")
-    assert result["errors"]["query"] == "unexpected parsing failure"
+    with pytest.raises(ArXivQueryError) as excinfo:
+        fetch_arxiv_metadata("9999.9999v1")
+    assert "unexpected parsing failure" in str(excinfo.value)
 
 
 @pytest.mark.django_db
-def test_fetch_arxiv_metadata_unexpected_download_exception(fixtures_data, monkeypatch):
-    mock_urlopen(monkeypatch, fixtures_data["xml"])
-
+def test_fetch_arxiv_metadata_unexpected_download_exception(monkeypatch, fixtures_data):
     class CustomError(Exception):
         pass
 
-    mock_requests_get(monkeypatch, raise_exc=CustomError("unexpected download crash"))
+    metadata_resp = DummyResponse(fixtures_data["xml"], status_code=200, text=fixtures_data["xml"].decode())
 
-    result = fetch_arxiv_metadata("9999.9999")
-    assert result["errors"]["pdf_file"] == "unexpected download crash"
-    assert result["errors"]["source_file"] == "unexpected download crash"
+    def fake_get(url, *args, **kwargs):
+        if "api/query" in url:
+            return metadata_resp
+        raise CustomError("unexpected download crash")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    result, errors = fetch_arxiv_metadata("9999.9999")
+    assert errors["source_file"] == "unexpected download crash"
+
+
+@pytest.fixture
+def rf():
+    return RequestFactory()
+
+
+def make_request(rf, user, journal, arxiv_id):
+    """
+    Build a POST request with arxiv_id and attach user/journal.
+    """
+    req = rf.post("/fake-url/", data={"arxiv_id": arxiv_id})
+    req.user = user
+    req.journal = journal
+    return req
+
+
+@pytest.mark.django_db
+def test_article_creation_and_endpoint(rf, author, journal, fixtures_data, monkeypatch):
+    xml_bytes = fixtures_data["xml"]
+    meta_resp = DummyResponse(content=xml_bytes, status_code=200, text=xml_bytes.decode("utf-8"))
+    src_resp = DummyResponse(content=fixtures_data["src"], status_code=200)
+
+    mock_requests_get(
+        monkeypatch,
+        responses={
+            "export.arxiv.org/api/query": meta_resp,
+            "arxiv.org/src/": src_resp,
+        },
+    )
+
+    request = make_request(rf, author, journal, "1234.5678v1")
+    response: HttpResponse = ArxivMicroservice.as_view()(request)
+
+    assert response.status_code == 200
+    assert 'Validated for "' in response.content.decode()
+
+    article = Article.objects.get()
+
+    assert article.title.strip() == "Notes on the double Wick rotated BTZ black hole"
+    assert article.abstract.strip().startswith("We analyze the double Wick rotated BTZ")
+
+    arxiv_id_obj = Identifier.objects.get(article=article, id_type="arxiv")
+    assert arxiv_id_obj.identifier.endswith("v1")
+
+    if "doi.org" in fixtures_data["xml"].decode():
+        doi_obj = Identifier.objects.get(article=article, id_type="doi")
+        assert doi_obj.identifier.startswith("https://doi.org/")
+
+    assert article.articleworkflow.arxiv_category == "hep-th"
+
+    assert article.source_files.count() == 1
+    saved = article.source_files.first().get_file(article, as_bytes=True)
+    assert saved == fixtures_data["src"]
+
+    assert article.current_step == 0
+
+
+@pytest.mark.django_db
+def test_not_found_error_bubbles_up_via_empty_feed(rf, author, journal, fixtures_data, monkeypatch):
+    empty_meta = DummyResponse(
+        content=fixtures_data["xml_empty"], status_code=200, text=fixtures_data["xml_empty"].decode()
+    )
+    mock_requests_get(monkeypatch, {"export.arxiv.org/api/query": empty_meta})
+
+    request = make_request(rf, author, journal, "9999.99999")
+    response: HttpResponse = ArxivMicroservice.as_view()(request)
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert body.startswith("Error: ArXiv query error:")
+    assert "cannot be found on arxiv.org" in body
+
+
+@pytest.mark.django_db
+def test_already_used_error_bubbles_up_when_article_exists(rf, author, journal, fixtures_data, monkeypatch):
+
+    good_meta = DummyResponse(content=fixtures_data["xml"], status_code=200, text=fixtures_data["xml"].decode())
+    good_src = DummyResponse(content=fixtures_data["src"], status_code=200)
+    mock_requests_get(
+        monkeypatch,
+        {
+            "export.arxiv.org/api/query": good_meta,
+            "arxiv.org/src/": good_src,
+        },
+    )
+    req1 = make_request(rf, author, journal, "1234.5678v1")
+    _ = ArxivMicroservice.as_view()(req1)
+    assert Article.objects.count() == 1
+
+    mock_requests_get(
+        monkeypatch,
+        {
+            "export.arxiv.org/api/query": good_meta,
+        },
+    )
+    req2 = make_request(rf, author, journal, "1234.5678v1")
+    resp2: HttpResponse = ArxivMicroservice.as_view()(req2)
+    body2 = resp2.content.decode()
+
+    assert resp2.status_code == 200
+    assert "Error: ArXiv query error: The arXiv ID must not already be in use" in body2
+
+
+@pytest.mark.django_db
+def test_connection_error_bubbles_up_on_requests_timeout(rf, author, journal, fixtures_data, monkeypatch):
+    def fail_get(url, *args, **kwargs):
+        raise requests.exceptions.Timeout("timed out")
+
+    monkeypatch.setattr(requests, "get", fail_get)
+
+    request = make_request(rf, author, journal, "1234.5678v1")
+    response: HttpResponse = ArxivMicroservice.as_view()(request)
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert body.startswith("Error: ArXiv query error:")
+    assert "Connection to arXiv could not be established" in body
+
+
+@pytest.mark.django_db
+def test_blank_arxiv_id_still_invokes_fetch_and_import(rf, author, journal, fixtures_data, monkeypatch):
+    empty_meta = DummyResponse(
+        content=fixtures_data["xml_empty"], status_code=200, text=fixtures_data["xml_empty"].decode()
+    )
+    mock_requests_get(monkeypatch, {"export.arxiv.org/api/query": empty_meta})
+
+    request = make_request(rf, author, journal, "")
+    response: HttpResponse = ArxivMicroservice.as_view()(request)
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert "cannot be found on arxiv.org" in body
