@@ -1495,7 +1495,12 @@ WHERE
             return
 
         if self.journal.code == "JCOM":
-            logger.debug(f"wjapp SI not imported '{special_issue['longname']}' for article {preprintid}/{article.id}")
+            issue = Issue.objects.get(pk=jcom_map_si[special_issue["issueCod"]])
+            issue.articles.add(article)
+            logger.debug(
+                f"article {preprintid}/{article.id} from {special_issue['longname']}"
+                f" added to issue: {issue.issue_title}"
+            )
             return
 
         editor_special_issue = account_get_or_create_check_correspondence(
@@ -1682,6 +1687,37 @@ user_notes_already_managed_in_this_article = []
 # global variable which contains the association wjapp usercod, and wjs account object
 # already imported: {...("usercod1": "account1" ), ...}
 already_imported_users = {}
+
+
+#
+# SI maps of wjapp (key) and wjs (value) for each journal
+#
+
+# JCOM
+
+jcom_map_si = {
+    105: 55,  # Special Issue on citizen science -- Special Issue: Citizen Science, Part I, 2016
+    # 105: 57, # Special Issue on citizen science -- Special Issue: Citizen Science, Part II, 2016
+    106: 63,  # History of Science Communication -- Special Issue: History of Science Communication, 2017
+    107: 70,  # Special Issue on User Experience of Digital... -- Special Issue: User Experience of Digital...
+    108: 72,  # Special Issue on Communication at the Intersect.. -- Special Issue: Communication at the Intersect...
+    109: 74,  # Special Issue on Stories in Science Communication -- Special Issue: Stories in Science Communication..
+    110: 88,  # Third International ECSA Conference -- Special Issue: Third International ECSA Conference, Trieste..
+    111: 80,  # COVID-19 and science communication -- Special Issue: COVID-19 and science communication, Part I, 2020
+    # 111: 82, # COVID-19 and science communication -- Special Issue: COVID-19 and science communication, Part II, 2020
+    112: 85,  # Re-examining Science Communication -- Special Issue: Re-examining Science Communication: models, ...
+    113: 91,  # Participatory Science Communication for... -- Special Issue Participatory science communication for...
+    114: 93,  # Responsible Science Communication acro... -- Special Issue: Responsible science communication acro...
+    115: 109,  # Living Labs Under Construction: Paradigms, ... -- Special Issue: Living labs under construction: ...
+    116: 113,  # Science Communication in Higher Educati.. -- Special Issue: Science communication in higher educati..
+    117: 117,  # Connecting Science Communication... -- Special Issue: Connecting science communication...
+    118: 120,  # Science communication for social justice -- Special Issue: Science communication for social justice
+    119: 126,  # Public (dis)trust in science... -- Special Issue: Public (dis)trust in science...
+    120: 124,  # Communicating Discovery Science -- Special Issue: Communicating Discovery Science
+    121: 129,  # Science Communication in the Age of Artificial... -- Science Communication in the Age of Artificial...
+    122: 130,  # Emotions and Science Communication -- Emotions and Science Communication
+    123: 131,  # Science in unexpected places -- Science in unexpected places
+}
 
 #
 # global functions
