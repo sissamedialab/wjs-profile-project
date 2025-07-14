@@ -617,6 +617,22 @@ class Command(BaseCommand):
                         f"for published article {preprintid} / {article.id}"
                     )
 
+        if ArticleWorkflow.objects.filter(article=article).exists():
+            for r in Reminder.objects.filter(disabled=False):
+                if article == r.get_related_article():
+                    if article.articleworkflow.state in (
+                        ArticleWorkflow.ReviewStates.PUBLISHED,
+                        ArticleWorkflow.ReviewStates.REJECTED,
+                        ArticleWorkflow.ReviewStates.WITHDRAWN,
+                        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+                    ):
+                        r.disabled = True
+                        r.save()
+                        logger.debug(
+                            f"forced disabled reminder for {article.id}/{preprintid}"
+                            f" in state {article.articleworkflow.state}"
+                        )
+
         self.debug_list_article_files_imported(article)
         self.debug_list_reminder(article)
 
