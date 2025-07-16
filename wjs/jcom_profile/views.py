@@ -59,8 +59,13 @@ logger = get_logger(__name__)
 
 def demo(request):
     """Demo view."""
+    from .forms import SwitchDemoForm
+
+    form = SwitchDemoForm(request)
     template = "wjs/base/base.html"
-    context = {}
+    context = {
+        "form": form,
+    }
     return render(request, template, context)
 
 
