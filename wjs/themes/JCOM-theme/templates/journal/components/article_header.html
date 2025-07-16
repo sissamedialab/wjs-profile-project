@@ -25,12 +25,6 @@
                                      alt="orcid logo" />
                             </a>
                         {% endif %}
-                        {% if author.institution and author.institution != " " %}
-                            <span itemprop="worksFor"
-                                  itemscope
-                                  itemtype="http://schema.org/CollegeOrUniversity"></span>
-                            <span itemprop="name">({{ author.institution }})</span>
-                        {% endif %}
                         {% if author.display_email and not journal_settings.article.hide_author_email_links %}
                             <a itemprop="email"
                                href="mailto:{{ author.email }}"
