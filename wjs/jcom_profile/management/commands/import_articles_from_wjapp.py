@@ -427,7 +427,7 @@ class Command(BaseCommand):
                 imported_version_cod = v["versionCod"]
                 imported_version_num = v["versionNumber"]
                 imported_version_state_cod = v["stateCod"]
-                imported_version_bios_text = v["authorsBio"]
+                # author bios no more imported #imported_version_bios_text = v["authorsBio"]
 
                 # read actions history from wjapp preprint
                 history = self.read_history_data(imported_version_cod)
@@ -516,8 +516,9 @@ class Command(BaseCommand):
                         else:
                             logger.warning(f"Action {action['actionID']} not yet managed.")
 
-                # set_authors bios
-                self.set_authors_bios(imported_version_bios_text, article, imported_version_num)
+                # set_authors bios(..)
+                # arguments: imported_version_bios_text, article, imported_version_num
+                # no more called because the source data are not reliable
 
                 ImportCorrespondenceManager(
                     connection=self.connection,
