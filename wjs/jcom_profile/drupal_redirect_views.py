@@ -116,6 +116,7 @@ class JcomFileRedirect(RedirectView):
                 Galley,
                 label=galley_label,
                 article=article,
+                public=True,
             )
             # TODO: refactor me!
             redirect = reverse(
