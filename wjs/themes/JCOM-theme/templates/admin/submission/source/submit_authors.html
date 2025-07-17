@@ -44,7 +44,7 @@
                 <h2>{% trans 'Add Authors' %}</h2>
             </div>
 
-            {% if not user in article.articleauthororder_set.all %}
+            {% if not user in article.authors.all %}
                 <p>{% trans "By default, your account is the owner of this submission, but is not an Author on record. You can add yourself using the button below." %}</p>
                 <a class="small success button"
                    href="{% url 'submit_authors' article.id %}?add_self=True">{% trans "Add Self as Author" %}</a>
@@ -95,7 +95,7 @@
                         <label for="main-author">{% trans "Corresponding author" %}:</label>
                         <select class="form-control" id="main-author" name="main-author">
                             <option value="None">---------</option>
-                            {% for author in article.articleauthororder_set.all %}
+                            {% for author in article.authors.all %}
                                 <option value="{{ author.pk }}"
                                         {% if article.correspondence_author.pk == author.pk %}selected{% endif %}>{{ author.full_name }}</option>
                             {% endfor %}
