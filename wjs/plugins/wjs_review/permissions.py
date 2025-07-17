@@ -48,7 +48,7 @@ def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
 
     logger.error(
         f"Function permissions.main_role_by_article() called for an Account ({user.id})"
-        " that has no role wrt to AW {article.id} ({article.article.id})",
+        f" that has no role wrt to AW {article.id} (A {article.article.id})",
     )
     return ""
 
