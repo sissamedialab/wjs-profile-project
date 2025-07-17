@@ -1498,6 +1498,13 @@ WHERE
         if self.journal.code == "JCOM":
             issue = Issue.objects.get(pk=jcom_map_si[special_issue["issueCod"]])
             issue.articles.add(article)
+            article.primary_issue = issue
+            article.save()
+            # primary issue saved directly article not refreshed
+            #
+            # Note from: wjs/jcom_profile/tests/conftest.py
+            # we must reload article from db as Article.primary_issue is set by a signal triggered by
+            # m2m save, and thus our in memory article object has no knowledge of that change
             logger.debug(
                 f"article {preprintid}/{article.id} from {special_issue['longname']}"
                 f" added to issue: {issue.issue_title}"
