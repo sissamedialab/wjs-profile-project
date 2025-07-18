@@ -16,6 +16,7 @@ from journal import models as journal_models
 from review import models as review_models
 from submission import models as submission_models
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.constants import DIRECTOR_MAIN_ROLE, DIRECTOR_ROLE
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import get_eo_user, render_template
@@ -30,6 +31,7 @@ from ..logic import (
     HandleDecision,
     HandleEditorDeclinesAssignment,
     SubmitReview,
+    SupervisorChangeEditorAssignment,
 )
 from ..models import (
     ArticleWorkflow,
@@ -44,6 +46,7 @@ from ..reminders.settings import (
     AuthorShouldSubmitMinorRevisionReminderManager,
     AuthorShouldSubmitTechnicalRevisionReminderManager,
     DirectorShouldAssignEditorReminderManager,
+    EditorShouldMakeDecisionReminderManager,
     EditorShouldSelectReviewerReminderManager,
     ReminderManager,
     ReviewerShouldEvaluateAssignmentReminderManager,
@@ -1640,6 +1643,42 @@ def test_editor_declines(
 
 
 @pytest.mark.django_db
+def test_change_editor(
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    assigned_article: submission_models.Article,
+    editors: list[JCOMProfile],
+    review_form: review_models.ReviewForm,
+):
+    """Reminders when changing editor are recreated for the new assignment."""
+    t0 = timezone.localtime(timezone.now()).date()
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
+    editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article)
+    new_assignment = SupervisorChangeEditorAssignment(
+        article=assigned_article,
+        assignment=editor_assignment,
+        new_editor=editors[1],
+        request=fake_request,
+        deassignment_message="Bye bye",
+        assignment_message="Hi",
+    ).run()
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
+    check_reminder_date(
+        new_assignment,
+        EditorShouldSelectReviewerReminderManager,
+        (
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+        ),
+        t0,
+        journal=assigned_article.journal,
+    )
+
+
+@pytest.mark.django_db
 def test_director_assigns(
     fake_request: HttpRequest,
     director: JCOMProfile,
@@ -1678,6 +1717,177 @@ def test_director_assigns(
         t0,
         journal=assigned_article.journal,
     )
+
+
+@pytest.mark.parametrize(
+    "pending,accepted,declined,completed,withdrawn,reminders",
+    (
+        (True, True, True, True, True, ""),
+        (True, True, True, True, False, ""),
+        (True, True, True, False, True, ""),
+        (True, True, True, False, False, ""),
+        (True, True, False, True, True, ""),
+        (True, True, False, True, False, ""),
+        (True, True, False, False, True, ""),
+        (True, True, False, False, False, ""),
+        (True, False, True, True, True, ""),
+        (True, False, True, True, False, ""),
+        (True, False, True, False, True, ""),
+        (True, False, True, False, False, ""),
+        (True, False, False, True, True, ""),
+        (True, False, False, True, False, ""),
+        (True, False, False, False, True, ""),
+        (True, False, False, False, False, ""),
+        (False, True, True, True, True, ""),
+        (False, True, True, True, False, ""),
+        (False, True, True, False, True, ""),
+        (False, True, True, False, False, ""),
+        (False, True, False, True, True, ""),
+        (False, True, False, True, False, ""),
+        (False, True, False, False, True, ""),
+        (False, True, False, False, False, ""),
+        (False, False, True, True, True, "EDMD"),
+        (False, False, True, True, False, "EDMD"),
+        (False, False, True, False, True, "EDSR"),
+        (False, False, True, False, False, "EDSR"),
+        (False, False, False, True, True, "EDMD"),
+        (False, False, False, True, False, "EDMD"),
+        (False, False, False, False, True, "EDSR"),
+        (False, False, False, False, False, "EDSR"),
+    ),
+)
+@pytest.mark.django_db
+def test_change_editor_with_reviewers(
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    assigned_article: submission_models.Article,
+    editors: list[JCOMProfile],
+    create_jcom_user: Callable,
+    review_form: review_models.ReviewForm,
+    pending,
+    accepted,
+    declined,
+    completed,
+    withdrawn,
+    reminders,
+):
+    """
+    Reminders when changing editor are recreated for the new assignment respecting existing reviewers."
+
+    If reviewers are already selected and not withdrawn, no reminder is needed.
+    If reviewers are already selected and all are completed, EDMD reminder is needed.
+    If no reviewer is been sleected, EDSR reminder is needed.
+
+    """
+    t0 = timezone.localtime(timezone.now()).date()
+    assert Reminder.objects.all().count() == 3
+    assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
+    editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article)
+    if pending:
+        reviewer_pending = create_jcom_user("reviewer_pending").janeway_account
+        reviewer_pending.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
+        AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=reviewer_pending,
+            editor=editor_assignment.editor,
+            form_data={"message": "msg"},
+            request=fake_request,
+            log_operation=False,
+        ).run()
+    if accepted:
+        reviewer_accepted = create_jcom_user("reviewer_accepted").janeway_account
+        reviewer_accepted.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
+        assignment_accepted = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=reviewer_accepted,
+            editor=editor_assignment.editor,
+            form_data={"message": "msg"},
+            request=fake_request,
+            log_operation=False,
+        ).run()
+        assignment_accepted.date_accepted = timezone.now()
+        assignment_accepted.save()
+    if declined:
+        reviewer_declined = create_jcom_user("reviewer_declined").janeway_account
+        reviewer_declined.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
+        assignment_declined = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=reviewer_declined,
+            editor=editor_assignment.editor,
+            form_data={"message": "msg"},
+            request=fake_request,
+            log_operation=False,
+        ).run()
+        assignment_declined.date_complete = timezone.now()
+        assignment_declined.date_declined = timezone.now()
+        assignment_declined.is_complete = True
+        assignment_declined.save()
+    if completed:
+        reviewer_completed = create_jcom_user("reviewer_completed").janeway_account
+        reviewer_completed.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
+        assignment_completed = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=reviewer_completed,
+            editor=editor_assignment.editor,
+            form_data={"message": "msg"},
+            request=fake_request,
+            log_operation=False,
+        ).run()
+        assignment_completed.date_complete = timezone.now()
+        assignment_completed.date_accepted = timezone.now()
+        assignment_completed.is_complete = True
+        assignment_completed.save()
+    if withdrawn:
+        reviewer_withdrawn = create_jcom_user("reviewer_withdrawn").janeway_account
+        reviewer_withdrawn.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
+        assignment_withdrawn = AssignToReviewer(
+            workflow=assigned_article.articleworkflow,
+            reviewer=reviewer_withdrawn,
+            editor=editor_assignment.editor,
+            form_data={"message": "msg"},
+            request=fake_request,
+            log_operation=False,
+        ).run()
+        assignment_withdrawn.withdraw()
+    # Deleting all reminders, assuring we can test the one created from here onward. The correct behavior of
+    # editor reminders creation is tested inother tests
+    Reminder.objects.all().delete()
+    new_assignment = SupervisorChangeEditorAssignment(
+        article=assigned_article,
+        assignment=editor_assignment,
+        new_editor=editors[1],
+        request=fake_request,
+        deassignment_message="Bye bye",
+        assignment_message="Hi",
+    ).run()
+    if reminders:
+        if reminders == "EDSR":
+            reminder_manager = EditorShouldSelectReviewerReminderManager
+            codes = (
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+            )
+        elif reminders == "EDMD":
+            reminder_manager = EditorShouldMakeDecisionReminderManager
+            codes = (
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
+            )
+        else:
+            raise Exception(f"Unexpected reminders: {reminders}")
+        assert Reminder.objects.all().count() == 3
+        assert Reminder.objects.filter(code__startswith=reminders).count() == 3
+        check_reminder_date(
+            new_assignment,
+            reminder_manager,
+            codes,
+            t0,
+            journal=assigned_article.journal,
+        )
+    else:
+        assert Reminder.objects.all().count() == 0
 
 
 class TestEditorDecides:

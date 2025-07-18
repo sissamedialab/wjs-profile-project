@@ -101,7 +101,10 @@ from .reminders.settings import (
     ReviewerShouldEvaluateAssignmentReminderManager,
     ReviewerShouldWriteReviewReminderManager,
 )
-from .utils import get_other_review_assignments_for_this_round
+from .utils import (
+    get_not_withdrawn_review_assignments_for_this_round,
+    get_other_review_assignments_for_this_round,
+)
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -267,9 +270,40 @@ class BaseAssignToEditor:
         review_round = CreateReviewRound(assignment=assignment, first=first_review_round).run()
         return review_round
 
-    def _create_editor_should_select_reviewer_reminders(self, assignment: WjsEditorAssignment):
-        """Create reminders for the editor to select a reviewer."""
-        EditorShouldSelectReviewerReminderManager(assignment.article, assignment.editor).create()
+    def _create_editor_should_select_reviewer_reminders_maybe(self, assignment: WjsEditorAssignment) -> bool:
+        """
+        Create reminders for the editor to select a reviewer.
+
+        Reminders are created only if there is no not withdrawn assignment for the current review round.
+        """
+        not_withdrawn_assignments = get_not_withdrawn_review_assignments_for_this_round(
+            assignment.article, assignment.article.current_review_round_object()
+        )
+        if not not_withdrawn_assignments.filter(date_declined__isnull=True).exists():
+            EditorShouldSelectReviewerReminderManager(assignment.article, assignment.editor).create()
+            return True
+        return False
+
+    def _create_editor_should_make_decision_reminders_maybe(self, assignment: WjsEditorAssignment) -> bool:
+        """
+        Create reminders for the editor to make a decision.
+
+        Reminders are created only if there is at least one complete assignment for the current review round.
+        """
+        not_withdrawn_assignments = get_not_withdrawn_review_assignments_for_this_round(
+            assignment.article, assignment.article.current_review_round_object()
+        )
+        # the condition is triggered only there is no incomplete assigment
+        # and at least 1 completed with report assignment
+        if (
+            not not_withdrawn_assignments.filter(is_complete=False).exists()
+            and not_withdrawn_assignments.filter(is_complete=True, date_accepted__isnull=False).exists()
+        ):
+            # ≊ article.active_reviews.
+            # NB: don't use Janeway's article.active_reviews since it includes "withdrawn" reviews.
+            EditorShouldMakeDecisionReminderManager(article=assignment.article, editor=assignment.editor).create()
+            return True
+        return False
 
     def _delete_director_reminders(self, assignment: WjsEditorAssignment):
         """Delete director's reminder."""
@@ -344,7 +378,9 @@ class BaseAssignToEditor:
             context = self._get_message_context(assignment=assignment)
             if not self.appeal:
                 self._log_operation(context=context, assignment_message=self.assignment_message)
-            self._create_editor_should_select_reviewer_reminders(assignment)
+            select_reviewers_reminders = self._create_editor_should_select_reviewer_reminders_maybe(assignment)
+            if not select_reviewers_reminders:
+                self._create_editor_should_make_decision_reminders_maybe(assignment)
             self._delete_director_reminders(assignment)
         return assignment
 
