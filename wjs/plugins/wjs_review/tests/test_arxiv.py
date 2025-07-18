@@ -1,4 +1,5 @@
 import io
+import json
 import random
 import tarfile
 from pathlib import Path
@@ -322,7 +323,11 @@ def test_article_creation_and_endpoint(rf, author, journal, fixtures_data, monke
     response: HttpResponse = ArxivMicroservice.as_view()(request)
 
     assert response.status_code == 200
-    assert 'Validated for "' in response.content.decode()
+
+    data = json.loads(response.content.decode())
+    assert data["status"] == "success"
+    assert "article_id" in data
+    assert 'Validated for "' in data["message"]
 
     article = Article.objects.get()
 
@@ -354,11 +359,13 @@ def test_not_found_error_bubbles_up_via_empty_feed(rf, author, journal, fixtures
 
     request = make_request(rf, author, journal, "9999.99999")
     response: HttpResponse = ArxivMicroservice.as_view()(request)
-    body = response.content.decode()
 
     assert response.status_code == 200
-    assert body.startswith("Error: ArXiv query error:")
-    assert "cannot be found on arxiv.org" in body
+
+    data = json.loads(response.content.decode())
+    assert data["status"] == "error"
+    assert data["message"].startswith("Error: ArXiv query error:")
+    assert "cannot be found on arxiv.org" in data["message"]
 
 
 @pytest.mark.django_db
@@ -400,11 +407,13 @@ def test_connection_error_bubbles_up_on_requests_timeout(rf, author, journal, fi
 
     request = make_request(rf, author, journal, "1234.5678v1")
     response: HttpResponse = ArxivMicroservice.as_view()(request)
-    body = response.content.decode()
 
     assert response.status_code == 200
-    assert body.startswith("Error: ArXiv query error:")
-    assert "Connection to arXiv could not be established" in body
+
+    data = json.loads(response.content.decode())
+    assert data["status"] == "error"
+    assert data["message"].startswith("Error: ArXiv query error:")
+    assert "Connection to arXiv could not be established" in data["message"]
 
 
 @pytest.mark.django_db

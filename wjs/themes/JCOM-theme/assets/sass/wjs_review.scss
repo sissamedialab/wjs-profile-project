@@ -411,10 +411,97 @@ $footer-copyright-bg-color: rgba(51, 51, 51, 0.08);
   }
 }
 
+@-webkit-keyframes rotating /* Safari and Chrome */ {
+  from {
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@keyframes rotating {
+  from {
+    -ms-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -webkit-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -ms-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -webkit-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+
 .wjs-submission-form {
+  .form-control {
+    width: fit-content;
+  }
+
+  &__section {
+    &--submission-checklist {
+      input[type="text"] {
+        @extend .w-100;
+      }
+    }
+  }
+
+  &__form-label {
+    @extend .border-bottom, .fs-4, .fw-bold, .mb-4, .pb-2, .w-100;
+    border-bottom-color: $gray-400;
+    color: $primary;
+  }
+
   &__label {
     &--filled {
       text-decoration: line-through;
+    }
+  }
+
+  // ARXIV VALIDATION
+
+  &__arxiv-validation-wrapper {
+    @extend .d-flex, .gap-3, .mb-3;
+  }
+
+  &__arxiv-validation-loader {
+    @extend .fs-6;
+    color: $primary;
+  }
+
+  &__arxiv-validation-loader-icon {
+    &:before {
+      -webkit-animation: rotating 1s linear infinite;
+      -moz-animation: rotating 1s linear infinite;
+      -ms-animation: rotating 1s linear infinite;
+      -o-animation: rotating 1s linear infinite;
+      animation: rotating 1s linear infinite;
+    }
+  }
+
+  &__arxiv-validation-suggestion {
+    @extend .fw-bold;
+    color: $dark-gray;
+  }
+
+  &__arxiv-validation-result {
+    @extend .alert;
+    color: $white;
+    width: fit-content;
+
+    &--error {
+      background-color: #e12f40;
+    }
+
+    &--success {
+      background-color: #007c4c;
     }
   }
 }
