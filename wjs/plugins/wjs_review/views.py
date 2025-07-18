@@ -19,6 +19,7 @@ from django.http import (
     HttpRequest,
     HttpResponse,
     HttpResponseRedirect,
+    JsonResponse,
     QueryDict,
 )
 from django.shortcuts import get_object_or_404
@@ -86,6 +87,7 @@ from .forms import (
     OpenAppealForm,
     ReviewerSearchForm,
     SelectReviewerForm,
+    SubmissionStep1ViewForm,
     SupervisorAssignEditorForm,
     TimelineFilterForm,
     ToggleDisableRemindersForm,
@@ -3583,10 +3585,34 @@ class ArxivMicroservice(HtmxMixin, TemplateView):
             return ["test_arxiv_endpoint/fragment.html"]
         return super().get_template_names()
 
+    from django.http import JsonResponse
+
     def post(self, request, *args, **kwargs):
         service = ArXivToWjsArticle(arxiv_id=self.arxiv_id, journal=self.request.journal, user=self.request.user)
         try:
             article = service.run()
+            return JsonResponse(
+                {"article_id": article.pk, "status": "success", "message": f'Validated for "{article.title}"'}
+            )
         except Exception as e:
-            return HttpResponse(f"Error: {e}")
-        return HttpResponse(f'Validated for "{article.title}"')
+            return JsonResponse({"status": "error", "message": f"Error: {e}"})
+
+
+class SubmissionStep1View(CreateView):
+    model = Article
+    template_name = "wjs/base/base.html"
+    form_class = SubmissionStep1ViewForm
+    success_url = reverse_lazy("wjs_review_eo_pending")  # FIXME: need the submission setup to redirect correctly
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["journal"] = self.request.journal
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        result = super().form_valid(form)
+        event_logic.Events.raise_event(
+            event_logic.Events.ON_ARTICLE_SUBMISSION_START, **{"request": self.request, "article": self.object}
+        )
+        return result

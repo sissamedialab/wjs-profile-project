@@ -58,6 +58,7 @@ from utils.setting_handler import get_setting
 
 import wjs.jcom_profile.permissions
 from wjs.jcom_profile import constants
+from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import (
@@ -3800,3 +3801,33 @@ class ArXivToWjsArticle:
             self._convert_source_archive(source_file.get_file(article, as_bytes=True))
 
         return article
+
+
+@dataclasses.dataclass
+class HandleArticleCreation:
+    user: Account
+    form_data: dict
+    journal: Journal
+    article_id: None
+
+    def _create_article(self):
+        new_article = Article.objects.create(
+            journal=self.journal,
+            correspondence_author=self.user,
+            owner=self.user,
+            language="eng",
+            current_step=0,
+        )
+        new_article.authors.add(self.user)
+        return new_article
+
+    def run(self):
+        if not base_permissions.has_author_role(self.journal, self.user):
+            self.user.add_account_role("author", self.journal)
+
+        if not self.article_id:
+            new_article = self._create_article()
+        else:
+            new_article = Article.objects.get(pk=self.article_id)
+
+        return new_article

@@ -1,0 +1,85 @@
+{% load django_bootstrap5 static field %}
+
+<script src="{% static "js/submission.js" %}"></script>
+
+<form method="post" action="" class="wjs-submission-form">
+  {% csrf_token %}
+  {#FIXME: will the following text be a setting?#}
+  <div class="mb-3">
+    All authors must agree to the below statement in order to submit an article to Journal of Science Communication. If you
+    do not agree with these terms you will be unable to proceed with your submission.
+  </div>
+  <div class="wjs-submission-form__section wjs-submission-form__section--submission-checklist mb-3">
+    <h3 class="wjs-submission-form__form-label">Submission Checklist</h3>
+    {{ journal_settings.general.submission_checklist|safe }}
+    {% bootstrap_field form.submission_requirements checkbox_style="switch" %}
+    {% bootstrap_field form.copyright_notice checkbox_style="switch" %}
+    {% for bound_field in form.visible_fields %}
+      {% if bound_field.name not in form.Meta.fields %}
+        {% bootstrap_field bound_field checkbox_style="switch" show_help=False %}
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="wjs-submission-form__section mb-3">
+    <h3 class="wjs-submission-form__form-label">ArXiv</h3>
+    <div class="mb-3">
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+      Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+    </div>
+    <div class="wjs-submission-form__arxiv-validation-wrapper">
+      <input id="arxiv-id-input" name="arxiv_id" class="form-control" placeholder="Enter arXiv ID" required aria-required="true" />
+
+      <button
+        class="btn btn-primary"
+        id="js-arxiv-validation-btn"
+        hx-post="{% url 'arxiv_microservice' %}"
+        hx-include="#arxiv-id-input"
+        hx-target="#js-arxiv-validation-result"
+        disabled
+        aria-label="Validate ArXiv ID"
+        type="button"
+      >
+        Validate ArXiv ID
+      </button>
+    </div>
+    <div class="wjs-submission-form__arxiv-validation-messages-wrapper" tabindex="-1">
+      <div id="js-arxiv-validation-result" class="wjs-submission-form__arxiv-validation-result d-none" role="alert" aria-live="assertive"></div>
+      <p id="js-arxiv-validation-suggestion" class="wjs-submission-form__arxiv-validation-suggestion d-none">
+        ArXiv ID must be in the following format: nnnn.nnnnn
+      </p>
+    </div>
+    <div id="js-arxiv-validation-loader" class="wjs-submission-form__arxiv-validation-loader d-none" role="status" aria-live="polite">
+      <i class="wjs-submission-form__arxiv-validation-loader-icon bi bi-arrow-clockwise"></i> Validating...
+    </div>
+  </div>
+
+  <div class="wjs-submission-form__section mb-3">
+    <h3 class="wjs-submission-form__form-label"> Conflict of interest</h3>
+    <div class="mb-3">
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+      Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+    </div>
+    {% bootstrap_field form.competing_interests show_help=False show_label=False %}
+  </div>
+
+  <div class="wjs-submission-form__section mb-3">
+    <h3 class="wjs-submission-form__form-label"> Cover letter</h3>
+    <div class="mb-3">
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+      Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+    </div>
+    {% bootstrap_field form.comments_editor show_help=False show_label=False %}
+  </div>
+
+  <input
+    type="hidden"
+    id="arxiv-article-id-input"
+    name="arxiv_article_id"
+    value=""
+  />
+
+  <div id="form-footer">
+    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Save and continue</button>
+  </div>
+</form>
