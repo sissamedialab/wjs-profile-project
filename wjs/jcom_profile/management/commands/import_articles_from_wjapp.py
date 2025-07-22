@@ -588,7 +588,7 @@ class Command(BaseCommand):
             )
 
         # fix forced manual withdrawn appeal on wjapp without action in the history
-        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120"):
+        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120", "JCOMAL_002Y_0921"):
             if article.stage != submission_models.STAGE_REJECTED:
                 logger.warning(f"stage is '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}")
                 article.stage = submission_models.STAGE_REJECTED
@@ -609,11 +609,11 @@ class Command(BaseCommand):
                         f"forced fixed review state to '{article.articleworkflow.state}' "
                         f"for withdrawn appeal article {preprintid} / {article.id}"
                     )
-        elif article_expected_final_state == "Rejected":
+        elif article_expected_final_state == "REJECTED":
             if article.stage != submission_models.STAGE_REJECTED:
-                logger.debug(f"stage not rejected: {article.stage=}")
+                logger.error(f"stage not rejected: {article.stage=}")
             if ArticleWorkflow.objects.filter(article=article).exists():
-                logger.debug(f"state not rejected: {article.articleworkflow.state=}")
+                logger.error(f"state not rejected: {article.articleworkflow.state=}")
         else:
             # TODO: verify cases where an error should be logged
             logger.debug(f"state: {article_expected_final_state=} {article.stage=}")
