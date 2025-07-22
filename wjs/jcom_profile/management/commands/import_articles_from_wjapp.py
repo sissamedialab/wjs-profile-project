@@ -117,10 +117,18 @@ class Command(BaseCommand):
             )
             return
         self.options = options
-        for journal_code in ("JCOM",):
+
+        journal_code = self.options["preprintid"].split("_")[0].upper()
+        if journal_code in (
+            "JCOM",
+            "JCOMAL",
+        ):
             self.journal = Journal.objects.get(code=journal_code)
             self.journal_data = JOURNALS_DATA[journal_code]
             self.import_data_article(**options)
+        else:
+            logger.error(f"Journal not identified from {self.options['preprintid']} {journal_code}. Please check.")
+            return
 
     def add_arguments(self, parser):
         """Add arguments to command."""
@@ -128,14 +136,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--preprintid",
             default="",
-            help="jcom wjApp preprintid ex: JCOM_010A_0324",
+            help="jcom/jcomal wjApp preprintid ex: JCOM_010A_0324",
             required=True,
         )
         parser.add_argument(
             "--importfiles",
             default=False,
             action="store_true",
-            help="also dowloads files from wjapp jcom",
+            help="also downloads files from wjapp jcom/jcomal",
             required=False,
         )
 
@@ -159,10 +167,10 @@ class Command(BaseCommand):
                 )
                 return
 
-            if not getattr(settings, "WJAPP_JCOM_BASE_URL", None):
+            if not getattr(settings, f"WJAPP_{self.journal.code.upper()}_BASE_URL", None):
                 self.stderr.write(
-                    """Missing base wjapp url, import files is not possible. Please set WJAPP_JCOM_BASE_URL
-                    in your django settings to proceed.""",
+                    f"Missing base wjapp url, import files is not possible. Please set "
+                    f"WJAPP_{self.journal.code.upper()}_BASE_URL in your django settings to proceed.",
                 )
                 return
 
@@ -235,6 +243,7 @@ class Command(BaseCommand):
         section = current_version_row["documentType"]
         language = current_version_row["language"]
         version_cod = current_version_row["versionCod"]
+        article_expected_final_state = current_version_row["stateID"]
         # current_version -> row  "versionNumber"
 
         logger.info(f"""Importing {preprintid}""")
@@ -243,6 +252,18 @@ class Command(BaseCommand):
         # check consistency between preprintid and publicationid
         # regarding already imported articles
         #
+
+        # specific case correction: different pubid:
+        # - preprintid: JCOMAL_006A_1022
+        # - wjapp pubid: JCOMAL_0602_2023_A10"
+        # - wjs pubid: JCOMAL_0602_2023_V01
+        if preprintid == "JCOMAL_006A_1022" and publicationid == "JCOMAL_0602_2023_A10":
+            publicationid = "JCOMAL_0602_2023_V01"
+            logger.warning(
+                f"replace pubid because different in wjapp and wjs for {preprintid},"
+                f" wjapp: {current_version_row['publicationId']}"
+                f" wjs: {publicationid}"
+            )
 
         # to be checked to avoid to add roles editor
         self.original_editor_roles = Account.objects.filter(
@@ -412,7 +433,7 @@ class Command(BaseCommand):
 
             # article special issue
             special_issue = self.read_article_special_issue(document_cod)
-            self.set_article_special_issue(article, special_issue)
+            self.set_article_special_issue(article, special_issue, preprintid)
 
             # article notes
             document_notes = self.read_article_document_notes(document_cod)
@@ -427,7 +448,7 @@ class Command(BaseCommand):
                 imported_version_cod = v["versionCod"]
                 imported_version_num = v["versionNumber"]
                 imported_version_state_cod = v["stateCod"]
-                imported_version_bios_text = v["authorsBio"]
+                # author bios no more imported #imported_version_bios_text = v["authorsBio"]
 
                 # read actions history from wjapp preprint
                 history = self.read_history_data(imported_version_cod)
@@ -483,6 +504,7 @@ class Command(BaseCommand):
                             imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                             action_triggers_import_files=False,
                             imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
+                            url_base=getattr(settings, f"WJAPP_{self.journal.code.upper()}_BASE_URL", None),
                         ).run()
                     else:
                         # ADMIN_RESETS_ED is skipped, only loaded the message as correspondence
@@ -516,8 +538,9 @@ class Command(BaseCommand):
                         else:
                             logger.warning(f"Action {action['actionID']} not yet managed.")
 
-                # set_authors bios
-                self.set_authors_bios(imported_version_bios_text, article, imported_version_num)
+                # set_authors bios(..)
+                # arguments: imported_version_bios_text, article, imported_version_num
+                # no more called because the source data are not reliable
 
                 ImportCorrespondenceManager(
                     connection=self.connection,
@@ -564,9 +587,84 @@ class Command(BaseCommand):
                 """
             )
 
+        # fix forced manual withdrawn appeal on wjapp without action in the history
+        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120"):
+            if article.stage != submission_models.STAGE_REJECTED:
+                logger.warning(f"stage is '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}")
+                article.stage = submission_models.STAGE_REJECTED
+                article.save()
+                logger.warning(
+                    f"forced fixed stage to '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}"
+                )
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                if article.articleworkflow.state != ArticleWorkflow.ReviewStates.REJECTED:
+                    logger.warning(
+                        f"review state is '{article.articleworkflow.state}' "
+                        f"for rejected article {preprintid} / {article.id}"
+                    )
+                    article.articleworkflow.state = ArticleWorkflow.ReviewStates.REJECTED
+                    article.articleworkflow.save()
+                    article.save()
+                    logger.warning(
+                        f"forced fixed review state to '{article.articleworkflow.state}' "
+                        f"for withdrawn appeal article {preprintid} / {article.id}"
+                    )
+        elif article_expected_final_state == "Rejected":
+            if article.stage != submission_models.STAGE_REJECTED:
+                logger.debug(f"stage not rejected: {article.stage=}")
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                logger.debug(f"state not rejected: {article.articleworkflow.state=}")
+        else:
+            # TODO: verify cases where an error should be logged
+            logger.debug(f"state: {article_expected_final_state=} {article.stage=}")
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                logger.debug(f"{article.articleworkflow.state=}")
+
         # for published import restore the article status
         if publicationid:
             self.restore_article_status(article)
+
+            # for published import set the article stage to Published
+            if article.stage != submission_models.STAGE_PUBLISHED:
+                logger.warning(f"stage is '{article.stage}' for published article {preprintid} / {article.id}")
+                article.stage = submission_models.STAGE_PUBLISHED
+                article.save()
+                logger.warning(
+                    f"forced fixed stage to '{article.stage}' for published article {preprintid} / {article.id}"
+                )
+
+            # for published import set the article review state to Published.
+            # There are paper in wjapp which are published, but have incomplete history
+            # then the review state must be forced to published. e.g.JCOM_015A_0215
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                if article.articleworkflow.state != ArticleWorkflow.ReviewStates.PUBLISHED:
+                    logger.warning(
+                        f"review state is '{article.articleworkflow.state}' "
+                        f"for published article {preprintid} / {article.id}"
+                    )
+                    article.articleworkflow.state = ArticleWorkflow.ReviewStates.PUBLISHED
+                    article.articleworkflow.save()
+                    article.save()
+                    logger.warning(
+                        f"forced fixed review state to '{article.articleworkflow.state}' "
+                        f"for published article {preprintid} / {article.id}"
+                    )
+
+        if ArticleWorkflow.objects.filter(article=article).exists():
+            for r in Reminder.objects.filter(disabled=False):
+                if article == r.get_related_article():
+                    if article.articleworkflow.state in (
+                        ArticleWorkflow.ReviewStates.PUBLISHED,
+                        ArticleWorkflow.ReviewStates.REJECTED,
+                        ArticleWorkflow.ReviewStates.WITHDRAWN,
+                        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+                    ):
+                        r.disabled = True
+                        r.save()
+                        logger.debug(
+                            f"forced disabled reminder for {article.id}/{preprintid}"
+                            f" in state {article.articleworkflow.state}"
+                        )
 
         self.debug_list_article_files_imported(article)
         self.debug_list_reminder(article)
@@ -805,11 +903,14 @@ u1.privacy AS author_privacy,
 v.versionCod,
 v.versionNumber,
 v.versionTitle,
-v.versionAbstract
+v.versionAbstract,
+v.stateCod,
+s.stateID
 FROM Document d
 LEFT JOIN User u1 ON (d.authorCod=u1.userCod)
 LEFT JOIN Version v ON (v.documentCod=d.documentCod)
 LEFT JOIN User u2 ON (d.eoInChargeCod=u2.userCod)
+LEFT JOIN State s ON (v.stateCod=s.stateCod)
 WHERE
     v.isCurrentVersion=1
 AND d.preprintId = %(preprintid)s
@@ -1086,7 +1187,7 @@ WHERE
 
         if not ArticleWorkflow.objects.filter(article=article).exists():
             ArticleWorkflow.objects.create(article=article)
-            logger.critical(
+            logger.warning(
                 f"created ArticleWorkflow during reset article {article}, "
                 f"probably missing due to a crashed import, please check"
             )
@@ -1161,15 +1262,18 @@ WHERE
             self.connection,
         )
 
-        eo_in_charge = account_get_or_create_check_correspondence(
-            self.journal.code.lower(),
-            row["eoInChargeCod"],
-            row["eoInCharge_lastname"],
-            row["eoInCharge_firstname"],
-            row["eoInCharge_email"],
-            row["eoInCharge_privacy"],
-            self.connection,
-        )
+        if not row["eoInChargeCod"]:
+            eo_in_charge = None
+        else:
+            eo_in_charge = account_get_or_create_check_correspondence(
+                self.journal.code.lower(),
+                row["eoInChargeCod"],
+                row["eoInCharge_lastname"],
+                row["eoInCharge_firstname"],
+                row["eoInCharge_email"],
+                row["eoInCharge_privacy"],
+                self.connection,
+            )
 
         if not main_author.check_role(self.journal, "author", staff_override=False):
             main_author.add_account_role("author", self.journal)
@@ -1419,11 +1523,43 @@ WHERE
             article.keywords.add(keyword)
         article.save()
 
-    def set_article_special_issue(self, article, special_issue):
+    def set_article_special_issue(self, article, special_issue, preprintid):
         """Set article special issue"""
 
         # in wjapp this means that is a normal article without special issue
         if "Normal" == special_issue["name"]:
+            return
+
+        if self.journal.code == "JCOMAL":
+            issue = Issue.objects.get(pk=jcomal_map_si[special_issue["issueCod"]])
+            issue.articles.add(article)
+            article.primary_issue = issue
+            article.save()
+            # primary issue saved directly article not refreshed
+            #
+            # Note from: wjs/jcom_profile/tests/conftest.py
+            # we must reload article from db as Article.primary_issue is set by a signal triggered by
+            # m2m save, and thus our in memory article object has no knowledge of that change
+            logger.debug(
+                f"article {preprintid}/{article.id} from {special_issue['longname']}"
+                f" added to issue: {issue.issue_title}"
+            )
+            return
+
+        if self.journal.code == "JCOM":
+            issue = Issue.objects.get(pk=jcom_map_si[special_issue["issueCod"]])
+            issue.articles.add(article)
+            article.primary_issue = issue
+            article.save()
+            # primary issue saved directly article not refreshed
+            #
+            # Note from: wjs/jcom_profile/tests/conftest.py
+            # we must reload article from db as Article.primary_issue is set by a signal triggered by
+            # m2m save, and thus our in memory article object has no knowledge of that change
+            logger.debug(
+                f"article {preprintid}/{article.id} from {special_issue['longname']}"
+                f" added to issue: {issue.issue_title}"
+            )
             return
 
         editor_special_issue = account_get_or_create_check_correspondence(
@@ -1611,6 +1747,43 @@ user_notes_already_managed_in_this_article = []
 # already imported: {...("usercod1": "account1" ), ...}
 already_imported_users = {}
 
+
+#
+# SI maps of wjapp (key) and wjs (value) for each journal
+#
+
+
+# JCOMAL
+jcomal_map_si = {
+    2: 115,  # Medioambiente -- Medioambiente y divulgación
+}
+
+
+# JCOM
+jcom_map_si = {
+    105: 55,  # Special Issue on citizen science -- Special Issue: Citizen Science, Part I, 2016
+    # 105: 57, # Special Issue on citizen science -- Special Issue: Citizen Science, Part II, 2016
+    106: 63,  # History of Science Communication -- Special Issue: History of Science Communication, 2017
+    107: 70,  # Special Issue on User Experience of Digital... -- Special Issue: User Experience of Digital...
+    108: 72,  # Special Issue on Communication at the Intersect.. -- Special Issue: Communication at the Intersect...
+    109: 74,  # Special Issue on Stories in Science Communication -- Special Issue: Stories in Science Communication..
+    110: 88,  # Third International ECSA Conference -- Special Issue: Third International ECSA Conference, Trieste..
+    111: 80,  # COVID-19 and science communication -- Special Issue: COVID-19 and science communication, Part I, 2020
+    # 111: 82, # COVID-19 and science communication -- Special Issue: COVID-19 and science communication, Part II, 2020
+    112: 85,  # Re-examining Science Communication -- Special Issue: Re-examining Science Communication: models, ...
+    113: 91,  # Participatory Science Communication for... -- Special Issue Participatory science communication for...
+    114: 93,  # Responsible Science Communication acro... -- Special Issue: Responsible science communication acro...
+    115: 109,  # Living Labs Under Construction: Paradigms, ... -- Special Issue: Living labs under construction: ...
+    116: 113,  # Science Communication in Higher Educati.. -- Special Issue: Science communication in higher educati..
+    117: 117,  # Connecting Science Communication... -- Special Issue: Connecting science communication...
+    118: 120,  # Science communication for social justice -- Special Issue: Science communication for social justice
+    119: 126,  # Public (dis)trust in science... -- Special Issue: Public (dis)trust in science...
+    120: 124,  # Communicating Discovery Science -- Special Issue: Communicating Discovery Science
+    121: 129,  # Science Communication in the Age of Artificial... -- Science Communication in the Age of Artificial...
+    122: 130,  # Emotions and Science Communication -- Emotions and Science Communication
+    123: 131,  # Science in unexpected places -- Science in unexpected places
+}
+
 #
 # global functions
 #
@@ -1685,12 +1858,12 @@ def account_get_or_create_check_correspondence(
         logger.debug(f"found cached user: {already_imported_users[user_cod]}")
         return already_imported_users[user_cod]
 
-    if imported_email == "jcom_hidden_user@jcom.sissa.it":
+    if imported_email == f"{source}_hidden_user@{source}.sissa.it":
         # using the wjapp userCod in the email the same hidden user is identified
         # in Correspondence in unique way after the hiding action on wjapp.
         # Searching in Correspondence with source and user_cod only can find
         # more than one match (email changes)
-        imported_email = f"{user_cod}_jcom_hidden_user@invalid.com"
+        imported_email = f"{user_cod}_{source}_hidden_user@invalid.com"
         logger.debug(f"found wjapp hidden user {user_cod=} {imported_email}")
 
     account_created = False
@@ -2440,9 +2613,9 @@ class BaseActionManager:
     importfiles: bool
     imported_document_layer_cod_list: list
     action_triggers_import_files: bool
-    imported_doclayer_check_visibility: dict
     """flag used when not all actions of a family have to import files"""
-    url_base: str = getattr(settings, "WJAPP_JCOM_BASE_URL", None)
+    imported_doclayer_check_visibility: dict
+    url_base: str  # = getattr(settings, "WJAPP_JCOM_BASE_URL", None)
 
     def run(self):
         raise NotImplementedError
@@ -2494,8 +2667,6 @@ class BaseActionManager:
             logger.debug(f"production version: {production_version}")
             response_pdf_galley_prod = self.download_pdf_galley_prod()
 
-            # TODO: in published papers import the production pdf galley appear in the
-            # published front-end page near the final galley
             if response_pdf_galley_prod.headers["Content-Length"] != "0":
                 pdf_galley_prod_dj = file_from_response(response_pdf_galley_prod, f"{self.preprintid}.pdf")
                 self.save_pdf_galley(pdf_galley_prod_dj)
@@ -2691,6 +2862,7 @@ class BaseActionManager:
 
         # preprintid of file different from the preprintid of article due to
         # wjapp maintenance change of article type or other type of manual maintenance
+
         if self.preprintid == "JCOM_003C_0622" and self.imported_version_num in (2, 3):
             file_url = (
                 f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
@@ -2748,6 +2920,40 @@ class BaseActionManager:
                 f"used JCOM_402_2015_A03.tar.gz for {self.preprintid}/" f"{self.imported_version_num} (- known case)."
             )
 
+        special_cases = {
+            ("JCOMAL_003A_0520", 4): "JCOMAL_001N_0520.tar.gz",
+            ("JCOMAL_003A_0520", 5): "JCOMAL_001N_0520.tar.gz",
+            ("JCOMAL_001A_1118", 3): "JCOMAL-Orozco.v2.tar.gz",
+            ("JCOMAL_001A_1118", 4): "JCOMAL-Orozco.v3.tar.gz",
+            ("JCOMAL_002A_1118", 3): "JCOMAL-Marandino_et_al.v2.1.tar.gz",
+            ("JCOMAL_002A_1118", 4): "JCOMAL-Marandino_et_al.v3.tar.gz",
+            ("JCOMAL_003A_1118", 4): "JCOMAL_003A_1118-proof.tar.gz",
+            ("JCOMAL_003A_1118", 5): "JCOMAL-Da_Silva_Lima_Moschem.v3.tar.gz",
+            ("JCOMAL_004A_1118", 4): "JCOMAL_003A_1118-proof.tar.gz",
+            ("JCOMAL_004A_1118", 5): "JCOMAL-Costa-v3.tar.gz",
+            ("JCOMAL_001Y_1118", 2): "JCOMAL_001Y_1118-proof.tar.gz",
+            ("JCOMAL_001Y_1118", 3): "JCOMAL-CastilhosAlmeida-v3.tar.gz",
+            ("JCOMAL_002Y_1118", 3): "JCOMAL-Cortassa.v2.tar.gz",
+            ("JCOMAL_002Y_1118", 4): "JCOMAL-Cortassa.v3.tar.gz",
+            ("JCOMAL_001R_1118", 2): "JCOMAL-Poenaru.v2.tar.gz",
+            ("JCOMAL_005A_1118", 3): "JCOMAL-NegreteRosenblatt.v2.tar.gz",
+            ("JCOMAL_006A_1118", 4): "JCOMAL_006A_1118-proof.tar.gz",
+            ("JCOMAL_006A_1118", 5): "JCOMAL-Lima.v3.tar.gz",
+            ("JCOMAL_004A_0320", 4): "JCOMAL_001N_0320.tar.gz",
+            ("JCOMAL_004A_0320", 5): "JCOMAL_001N_0320.tar.gz",
+            ("JCOMAL_001A_1018", 4): "JCOMAL_001A_1018-proof.tar.gz",
+            ("JCOMAL_001A_1018", 5): "JCOMAL-Massarani-v4.tar.gz",
+        }
+        if (self.preprintid, self.imported_version_num) in special_cases.keys():
+            fixed_filename = special_cases[(self.preprintid, self.imported_version_num)]
+            file_url = (
+                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
+                f"submission/{fixed_filename}&fileType=gz"
+            )
+            logger.warning(
+                f"used {fixed_filename} for {self.preprintid}/" f"{self.imported_version_num} (- known case)."
+            )
+
         file_type = "tar.gz"
         logger.debug(f"production source: {file_url=}")
         response = self.session.get(file_url)
@@ -2779,6 +2985,16 @@ class BaseActionManager:
         doc_type = "docx"
         url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}"
         file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+
+        special_cases = {("JCOMAL_001A_1218", 1)}
+        if (self.preprintid, self.imported_version_num) in special_cases:
+            url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/submission/00-art_div_vf"
+            file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+            logger.warning(
+                f"used 00-art_div_vf.docx for {self.preprintid}/"
+                f"{self.imported_version_num} (data problem on wjapp- known case)."
+            )
+
         logger.debug(f"{file_url=}")
         response = self.session.get(file_url)
 
@@ -3286,6 +3502,10 @@ WHERE editorCod=%(editor_cod)s
         # create all new editor kwds
         for ep in editor_parameters:
             kwd_word = ep["keywordName"]
+            # in wjapp-JCOMAL, the keyword string contains all three
+            # languages separated by ";". The first is English.
+            if self.journal.code.upper() == "JCOMAL":
+                kwd_word = kwd_word.split(";")[0].strip()
             kwd_weight = ep["keywordWeight"]
             logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
@@ -3634,6 +3854,7 @@ class AU_WITHD_DOC(BaseActionManager):  # noqa N801
             ("JCOM_016A_0924", 1, 299629),
             ("JCOM_003N_1224", 1, 300878),
             ("JCOM_003N_1224", 1, 300879),
+            ("JCOMAL_001R_1223", 1, 4664),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -4004,6 +4225,7 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
             ("JCOM_001E_0318", 1, 267325),  # assigned to ed and ed did I-will-review, but ed is also author
             ("JCOM_001E_0915", 1, 260742),  # assigned to ed and ed did I-will-review, but ed is also author
             ("JCOM_009A_0123", 2, 291251),
+            ("JCOMAL_001A_1018", 2, 10),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -4063,6 +4285,9 @@ class ReviewAssignmentAction(BaseActionManager):
 
         noop_cases = {
             ("JCOM_007A_0321", 1, 281937),
+            ("JCOMAL_005A_0622", 1, 2990),
+            ("JCOMAL_003A_0822", 3, 3121),
+            ("JCOMAL_001A_1022", 1, 3175),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -4935,12 +5160,25 @@ AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
 ORDER BY dl.submissionDate
 """
+
+        # Because the action date is out of the interval set in the query, it is forced
+        # like the documentlayer date. The option to enlarge more the interval in the query risks
+        # to bring errors considering all the articles imported.
+        action_date = str(self.action["actionDate"])
+        if (
+            self.preprintid == "JCOMAL_002A_0621"
+            and self.imported_version_cod == 390
+            and self.action["agentCod"] == 10293
+        ):
+            action_date = "20210804230010"
+            logger.debug(f"fixed reviewer date 20 seconds after action date {self.preprintid}")
+
         cursor_reviewer_report_message.execute(
             query_reviewer_report_message,
             {
                 "imported_version_cod": self.imported_version_cod,
                 "agent_cod": self.action["agentCod"],
-                "action_date": str(self.action["actionDate"]),
+                "action_date": action_date,
             },
         )
         if cursor_reviewer_report_message.rowcount != 1:
@@ -5125,9 +5363,47 @@ class EditorDecisionAction(BaseActionManager):
 
         self.check_editor_set()
 
+        # special case broken action data on wjapp, missing agentCod:
+        #
+        # -   actHistCod: 8
+        # -   versionCod: 1
+        # -    actionCod: 8
+        # -     agentCod: NULL
+        # -      userCod: 10004
+        # - realAgentCod: NULL
+        # -   actionDate: 2018-10-31 13:10:43
+
+        if self.action["actHistCod"] == 8 and self.journal.code == "JCOMAL" and self.preprintid == "JCOMAL_001A_1018":
+            self.action["agentCod"] = 10004
+            logger.warning(
+                f"fix action history jcomal/8: {self.imported_version_cod}"
+                f" {self.action['agentCod']} {self.action['actionDate']}"
+            )
+
         revision = self.editor_decides()
         if self.requires_revision:
             logger.debug(f"editor decision with revision request EditorRevisionRequest: {revision=}")
+
+    def download_edrep_file(self, document_layer_id):
+        """Download EDREP file.
+
+        special case:
+        edrep not into the wjapp database report url i.e.: JCOMAL_001A_1018_EDREP000071018
+
+        https://jcomal.sissa.it/jcomal/common/archiveFile?filePath=JCOMAL_001A_1018/1
+        /EDREP/JCOMAL_001A_1018_EDREP000071018/JCOMAL_001A_1018_EDREP000071018.txt&fileType=txt
+        """
+
+        file_url = (
+            f"{self.url_base}{self.preprintid}/{self.imported_version_num}/EDREP/{document_layer_id}/"
+            f"{document_layer_id}.txt&fileType=txt"
+        )
+
+        response = self.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(f"empty {document_layer_id} file downloaded: {response.headers['Content-Length']}")
+        return response.text
 
     def read_editor_report_message(self):
         """Read editor report message."""
@@ -5159,6 +5435,7 @@ AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
 AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
 ORDER BY dl.submissionDate
 """
+
         cursor_editor_report_message.execute(
             query_editor_report_message,
             {
@@ -5174,6 +5451,7 @@ ORDER BY dl.submissionDate
             editor_report_message = cursor_editor_report_message.fetchone()
             logger.debug(f"{self.preprintid} EDREP: {editor_report_message.get('documentLayerCod')}")
         cursor_editor_report_message.close()
+
         return editor_report_message
 
     def editor_decides(self):
@@ -5188,7 +5466,22 @@ ORDER BY dl.submissionDate
         # the (current) default review form element for editor report
         # has a rich-text/html widget.  Text from wjapp formatted to html
         # e.g. JCOM_027Y_0215 has the cover letter but not the report file
-        wjapp_editor_report_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
+
+        # special case missing documentLayerOnlyTeX data on wjapp
+        if (
+            self.journal.code == "JCOMAL"
+            and self.preprintid == "JCOMAL_001A_1018"
+            and wjapp_editor_report.get("documentLayerCod") == 7
+        ):
+            wjapp_editor_report_message = newlines_text_to_html(
+                str(self.download_edrep_file("JCOMAL_001A_1018_EDREP000071018"))
+            )
+            logger.warning(
+                f"fix missing edrep in documentLayerOnlyTeX: {wjapp_editor_report.get('documentLayerCod')=}"
+            )
+        else:
+            wjapp_editor_report_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
+
         editor_report_message = "<br><br><br><br>".join(
             filter(None, [wjapp_editor_cover_letter_message, wjapp_editor_report_message])
         )
@@ -5886,6 +6179,9 @@ class Requestproofs(BaseActionManager):
             ("JCOM_001BR_0616", 2, 262890),
             ("JCOM_004A_0616", 4, 263179),
             ("JCOM_019A_1216", 6, 265656),
+            ("JCOMAL_001N_1220", 4, 2678),
+            ("JCOMAL_001A_0122", 7, 3301),
+            ("JCOMAL_003A_0923", 4, 4686),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -5948,6 +6244,10 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
         # asked eo, authorized to loose this auann:
         # - JCOM_001A_0323_AUANN000690623.comments ASJ for team final.pdf
         # - JCOM_009A_0119_AUANN000710519 (two auann in the same version, kept the second one)
+        # - JCOMAL_003A_0923 resent 3 times, loose first and second keep third final version
+        #      - loose JCOMAL_003A_0923_AUANN000330124.docx
+        #      - loose JCOMAL_003A_0923_AUANN000340124.jpg
+        #
         noop_cases = {
             ("JCOM_023A_0623", 3, 294207),
             ("JCOM_018A_1124", 3, 302240),
@@ -5957,6 +6257,8 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
             ("JCOM_004A_0920", 5, 282895),
             ("JCOM_009A_0119", 3, 272016),
             ("JCOM_002N_0219", 5, 272910),
+            ("JCOMAL_003A_0923", 4, 4701),
+            ("JCOMAL_003A_0923", 4, 4702),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(
@@ -6171,6 +6473,9 @@ ORDER BY dl.submissionDate DESC
         if document_layer_id == "JCOM_002A_1215_AUANN000160816":
             filename_suffix = ".02.16"
 
+        if document_layer_id == "JCOMAL_001A_0524_AUANN000691024":
+            filename_suffix = ". Obra_ DAMIANA, créditos Fermín Bongiorno"
+
         file_url = (
             f"{self.url_base}{self.preprintid}/{self.imported_version_num}/AUANN/{document_layer_id}/"
             f"{document_layer_id}{filename_suffix}.{annotation_extension}&fileType={annotation_extension}"
@@ -6316,6 +6621,8 @@ class DeclareReadyForPublication(BaseActionManager):
             ("JCOM_001A_0917", 4, 266531),
             ("JCOM_011A_0123", 6, 291147),
             ("JCOM_005C_1118", 4, 270710),
+            ("JCOMAL_001A_0622", 5, 3199),
+            ("JCOMAL_001A_1224", 5, 5999),
         }
         if (self.preprintid, self.imported_version_num, self.action["actHistCod"]) in noop_cases:
             logger.warning(

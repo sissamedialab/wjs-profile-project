@@ -627,7 +627,7 @@ class EditorSelected(BaseState):
             view_name="wjs_reminders_per_assignment",
         ),
         ReviewAssignmentAction(
-            permission=permissions.is_article_pure_editor_or_eo,
+            assignment_permission=permissions.is_assignment_pure_editor_or_eo,
             condition=conditions.review_not_done,
             name="editor deselect reviewer",
             label="Deselect reviewer",
@@ -724,7 +724,7 @@ class IncompleteSubmission(BaseState):
 
     article_actions = (
         ArticleAction(
-            permission=permissions.is_article_author,
+            permission=permissions.is_article_author_or_owner,
             name="resume incomplete submission",
             label="Resume incomplete submission",
             view_name="submit_info",

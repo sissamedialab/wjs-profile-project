@@ -434,7 +434,7 @@ def test_emit_message_email_header_footer(
     assert str(assigned_article.pk) in email.body
     assert assigned_article.title in html_body
     assert assigned_article.title in email.body
-    for author in assigned_article.authors.all():
+    for author in assigned_article.articleauthororder_set.all():
         if can_see_names:
             assert author.full_name() in html_body
             assert author.full_name() in email.body

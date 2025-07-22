@@ -55,6 +55,7 @@ from ..logic import (
     HandleEditorDeclinesAssignment,
     InviteReviewer,
     PostponeReviewerDueDate,
+    PostponeRevisionRequestDueDate,
     SubmitReview,
 )
 from ..logic__visibility import PermissionChecker
@@ -3104,6 +3105,80 @@ def test_postpone_due_date(
         assert Message.objects.filter(recipients__pk=review_assignment.reviewer.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
         assert len(mail.outbox) == 2
+        updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+        for reminder in updated_reminder_dates.keys():
+            assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
+
+
+@pytest.mark.parametrize(
+    "postpone_date",
+    (
+        -1001,  # certainly in the past
+        -5,  # before the current due date
+        0,  # today
+        1,  # tomorrow
+        10,  # in the future
+    ),
+)
+@pytest.mark.django_db
+def test_postpone_revision_due_date(
+    assigned_article: submission_models.Article,
+    editor_revision: EditorRevisionRequest,
+    fake_request: HttpRequest,
+    postpone_date: int,
+):
+    """
+    PostponeRevisionRequestDueDate service postpones the due date of a revision request.
+
+    Different conditions are tested:
+
+     - date is in the past, the due date is not changed and an error is raised.
+     - date is today, the due date is not changed and an error is raised.
+     - date is tomorrow, the due date is changed and a message is created and sent.
+     - date is in the future, the due date is changed and a message is created and sent.
+     - date is too far in the future, the due date is changed and two messages are created and sent.
+    """
+    # reset messages from article fixture processing
+    Message.objects.all().delete()
+    editor_revision.refresh_from_db()
+    mail.outbox = []
+    eo_user = get_eo_user(assigned_article)
+    editor_revision.date_due = now()
+    editor_revision.save()
+
+    fake_request.user = editor_revision.editor
+    initial_date_due = editor_revision.date_due
+    form_data = {
+        "date_due": initial_date_due + datetime.timedelta(days=postpone_date),
+    }
+    service = PostponeRevisionRequestDueDate(
+        revision_request=editor_revision,
+        form_data=form_data,
+        request=fake_request,
+        original_due_date=initial_date_due,
+    )
+    reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(editor_revision),
+        object_id=editor_revision.pk,
+    )
+    reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+    date_diff = form_data["date_due"] - initial_date_due
+    if postpone_date < 1:
+        with pytest.raises(ValidationError):
+            service.run()
+        editor_revision.refresh_from_db()
+        assert editor_revision.date_due == localtime(initial_date_due).date()
+        assert Message.objects.count() == 0
+        assert len(mail.outbox) == 0
+        return
+    else:
+        service.run()
+        editor_revision.refresh_from_db()
+        assert editor_revision.date_due == localtime(initial_date_due + datetime.timedelta(days=postpone_date)).date()
+        assert Message.objects.count() == 1
+        assert Message.objects.filter(recipients__pk=assigned_article.correspondence_author.pk).count() == 1
+        assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 0
+        assert len(mail.outbox) == 1
         updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
         for reminder in updated_reminder_dates.keys():
             assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff

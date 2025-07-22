@@ -1292,6 +1292,7 @@ class EditorRevisionRequestDueDateForm(forms.ModelForm):
         self.user = kwargs.pop("user")
         self.request = kwargs.pop("request")
         super().__init__(*args, **kwargs)
+        self._original_date = self.instance.date_due
 
     def clean_date_due(self):
         date_due = self.cleaned_data["date_due"]
@@ -1299,11 +1300,12 @@ class EditorRevisionRequestDueDateForm(forms.ModelForm):
             raise forms.ValidationError(_("Date must be in the future"))
         return date_due
 
-    def get_logic_instance(self):
+    def get_logic_instance(self) -> PostponeRevisionRequestDueDate:
         service = PostponeRevisionRequestDueDate(
             revision_request=self.instance,
             form_data=self.cleaned_data,
             request=self.request,
+            original_due_date=self._original_date,
         )
         return service
 

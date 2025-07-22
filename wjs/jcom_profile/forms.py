@@ -554,6 +554,11 @@ class SelectSpecialIssueForm(SelectIssueForm):
         label=_("Choose the issue of publication"),
     )
 
+    def __init__(self, *args, **kwargs):
+        """Modify how issues are shown."""
+        super().__init__(*args, **kwargs)
+        self.fields["projected_issue"].label_from_instance = lambda obj: f"{obj.issue_title}"
+
     def save(self, commit=True):
         obj = super().save(commit=False)
         if not self.cleaned_data["projected_issue"]:

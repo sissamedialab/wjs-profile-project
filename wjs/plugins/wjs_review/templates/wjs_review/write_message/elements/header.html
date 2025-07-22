@@ -2,7 +2,11 @@
   <p>
     {{ article.section }} {{ article.pk }}<br>
     {% translate "Title" %}: {{ article.title }}
-    {% if show_authors %}<br>{% if article.authors.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}: {{ article.authors.all|join:", " }}{% endif %}<br>
+    {% if show_authors %}<br>{% if article.authors.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}:
+    {% for ao in article.articleauthororder_set.all %}
+    {{ ao.author }}{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+    {% endif %}<br>
     <a href="{{ status_url }}">{% translate "Go to web page" %}</a>
     {% if article.articleworkflow and not system %}
       &nbsp;<a href="{{ reply_url }}">{% translate "Reply" %}</a>

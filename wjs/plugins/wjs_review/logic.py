@@ -107,7 +107,10 @@ from .reminders.settings import (
     ReviewerShouldEvaluateAssignmentReminderManager,
     ReviewerShouldWriteReviewReminderManager,
 )
-from .utils import get_other_review_assignments_for_this_round
+from .utils import (
+    get_not_withdrawn_review_assignments_for_this_round,
+    get_other_review_assignments_for_this_round,
+)
 
 logger = get_logger(__name__)
 Account = get_user_model()
@@ -212,6 +215,32 @@ def handle_reviewer_deassignment_reminders(assignment: WorkflowReviewAssignment)
             ).create()
 
 
+def handle_update_due_date_reminders(
+    obj: EditorRevisionRequest | WorkflowReviewAssignment, date_diff: datetime.timedelta
+):
+    """
+    Update the reminder dates.
+
+    Unset reminders are move forward by the difference between the original due date and the postponed date.
+    Sent reminders are moved forward by the same amount if they have been sent within the clemency days window.
+    """
+
+    Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(obj),
+        object_id=obj.pk,
+        date_sent__isnull=True,
+    ).update(date_due=F("date_due") + date_diff)
+    for reminder in Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(obj),
+        object_id=obj.pk,
+        date_sent__isnull=False,
+    ):
+        if reminder.date_sent and reminder.date_sent > now() - datetime.timedelta(days=reminder.clemency_days):
+            reminder.date_sent = None
+            reminder.date_due = reminder.date_due + date_diff
+            reminder.save()
+
+
 @dataclasses.dataclass
 class CreateReviewRound:
     assignment: WjsEditorAssignment
@@ -273,9 +302,40 @@ class BaseAssignToEditor:
         review_round = CreateReviewRound(assignment=assignment, first=first_review_round).run()
         return review_round
 
-    def _create_editor_should_select_reviewer_reminders(self, assignment: WjsEditorAssignment):
-        """Create reminders for the editor to select a reviewer."""
-        EditorShouldSelectReviewerReminderManager(assignment.article, assignment.editor).create()
+    def _create_editor_should_select_reviewer_reminders_maybe(self, assignment: WjsEditorAssignment) -> bool:
+        """
+        Create reminders for the editor to select a reviewer.
+
+        Reminders are created only if there is no not withdrawn assignment for the current review round.
+        """
+        not_withdrawn_assignments = get_not_withdrawn_review_assignments_for_this_round(
+            assignment.article, assignment.article.current_review_round_object()
+        )
+        if not not_withdrawn_assignments.filter(date_declined__isnull=True).exists():
+            EditorShouldSelectReviewerReminderManager(assignment.article, assignment.editor).create()
+            return True
+        return False
+
+    def _create_editor_should_make_decision_reminders_maybe(self, assignment: WjsEditorAssignment) -> bool:
+        """
+        Create reminders for the editor to make a decision.
+
+        Reminders are created only if there is at least one complete assignment for the current review round.
+        """
+        not_withdrawn_assignments = get_not_withdrawn_review_assignments_for_this_round(
+            assignment.article, assignment.article.current_review_round_object()
+        )
+        # the condition is triggered only there is no incomplete assigment
+        # and at least 1 completed with report assignment
+        if (
+            not not_withdrawn_assignments.filter(is_complete=False).exists()
+            and not_withdrawn_assignments.filter(is_complete=True, date_accepted__isnull=False).exists()
+        ):
+            # ≊ article.active_reviews.
+            # NB: don't use Janeway's article.active_reviews since it includes "withdrawn" reviews.
+            EditorShouldMakeDecisionReminderManager(article=assignment.article, editor=assignment.editor).create()
+            return True
+        return False
 
     def _delete_director_reminders(self, assignment: WjsEditorAssignment):
         """Delete director's reminder."""
@@ -350,7 +410,9 @@ class BaseAssignToEditor:
             context = self._get_message_context(assignment=assignment)
             if not self.appeal:
                 self._log_operation(context=context, assignment_message=self.assignment_message)
-            self._create_editor_should_select_reviewer_reminders(assignment)
+            select_reviewers_reminders = self._create_editor_should_select_reviewer_reminders_maybe(assignment)
+            if not select_reviewers_reminders:
+                self._create_editor_should_make_decision_reminders_maybe(assignment)
             self._delete_director_reminders(assignment)
         return assignment
 
@@ -2331,9 +2393,14 @@ class PostponeRevisionRequestDueDate:
     revision_request: EditorRevisionRequest
     form_data: Dict[str, Any]
     request: HttpRequest
+    original_due_date: datetime.date
+    """
+    Storing original assignment date_due to calculate the difference because `EditorRevisionRequestDueDateForm` already
+    updates `revision_request` instance.
+    """
 
-    def _check_postponed_date_due_too_far_future(self, original_due_date: datetime.datetime) -> bool:
-        def new_date_greater_than_max_date(new_date_due: datetime.datetime, setting_name: str) -> bool:
+    def _check_postponed_date_due_too_far_future(self, original_due_date: datetime.date) -> bool:
+        def new_date_greater_than_max_date(new_date_due: datetime.date, setting_name: str) -> bool:
             try:
                 max_threshold = get_setting(
                     setting_group_name="wjs_review",
@@ -2358,7 +2425,7 @@ class PostponeRevisionRequestDueDate:
 
         return new_date_greater_than_max_date(self.form_data["date_due"], setting_name)
 
-    def _get_message_context(self, original_due_date: datetime.datetime) -> Dict[str, Any]:
+    def _get_message_context(self, original_due_date: datetime.date) -> Dict[str, Any]:
         return {
             "article": self.revision_request.article,
             "request": self.request,
@@ -2417,26 +2484,39 @@ class PostponeRevisionRequestDueDate:
             flag_as_read_by_eo=True,
         )
 
+    def _update_reminder_dates(self):
+        """
+        Update the reminder dates for the author.
+
+        Unset reminders are move forward by the difference between the original due date and the postponed date.
+        Sent reminders are moved forward by the same amount if they have been sent within the clemency days window.
+        """
+        date_diff = self.form_data["date_due"] - self.original_due_date
+        handle_update_due_date_reminders(self.revision_request, date_diff)
+
     def _save_date_due(self):
         self.revision_request.date_due = self.form_data["date_due"]
         self.revision_request.save()
 
-    # TODO: Really check the conditions
+    def check_date_conditions(self) -> bool:
+        """Check if the date is in the future."""
+        return timezone.localtime(self.form_data["date_due"]).date() > timezone.localtime(timezone.now()).date()
+
     def check_conditions(self):
         """Check if the conditions for the assignment are met."""
-        return True
+        return self.check_date_conditions()
 
     def run(self):
         with transaction.atomic():
             conditions = self.check_conditions()
             if not conditions:
                 raise ValidationError(_("Decision conditions not met"))
-            original_due_date = EditorRevisionRequest.objects.get(pk=self.revision_request.pk).date_due
-            context = self._get_message_context(original_due_date)
+            context = self._get_message_context(self.original_due_date)
             self._save_date_due()
-            if self._check_postponed_date_due_too_far_future(original_due_date):
+            if self._check_postponed_date_due_too_far_future(self.original_due_date):
                 self._log_eo_date_due_too_far_future(context)
             self._log_author_if_date_due_is_postponed(context)
+            self._update_reminder_dates()
 
 
 @dataclasses.dataclass
@@ -2874,13 +2954,14 @@ class PostponeReviewerDueDate:
         self._update_reminder_dates()
 
     def _update_reminder_dates(self):
-        """Update the reminder dates for the reviewer."""
+        """
+        Update the reminder dates for the reviewer.
+
+        Unset reminders are move forward by the difference between the original due date and the postponed date.
+        Sent reminders are moved forward by the same amount if they have been sent within the clemency days window.
+        """
         date_diff = self.form_data["date_due"] - self.original_due_date
-        Reminder.objects.filter(
-            content_type=ContentType.objects.get_for_model(self.assignment),
-            object_id=self.assignment.pk,
-            date_sent__isnull=True,
-        ).update(date_due=F("date_due") + date_diff)
+        handle_update_due_date_reminders(self.assignment, date_diff)
 
     @staticmethod
     def check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:

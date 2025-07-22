@@ -1,6 +1,7 @@
 import datetime
 from typing import Iterable, List
 
+import freezegun
 import pytest
 from core.models import Account
 from django.conf import settings
@@ -30,7 +31,12 @@ from ..models import (
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..views import EditorArchived, SelectReviewerView, SupervisorAssignEditor
+from ..views import (
+    ArticleIdToDetails,
+    EditorArchived,
+    SelectReviewerView,
+    SupervisorAssignEditor,
+)
 
 
 @pytest.mark.parametrize(
@@ -726,6 +732,225 @@ def test_decline_invite(
 
 
 @pytest.mark.django_db
+def test_accepted_assignment_submit(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """If user accepts the invitation, access to review submit page is granted."""
+    reviewer = review_assignment.reviewer
+    client.force_login(reviewer)
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "1", "date_due": date_due}
+    # Message from the editor to the reviewer ("User ... invited to review")
+    assert Message.objects.count() == 1
+    response = client.post(url, data=data)
+    assert response.status_code == 302
+    review_assignment.refresh_from_db()
+    reviewer.refresh_from_db()
+
+    url = reverse("wjs_review_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_declined_assignment_submit(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """If user declines the invitation, access to review submit page is denied with 404."""
+    reviewer = review_assignment.reviewer
+    client.force_login(reviewer)
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "0", "additional_comments": "Don't say", "date_due": date_due}
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+    response = client.post(url, data=data)
+    assert response.status_code == 302
+    review_assignment.refresh_from_db()
+    reviewer.refresh_from_db()
+
+    url = reverse("wjs_review_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_double_accept_assignment(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """If user accepts the invitation, a second acceptance is silently redirected to the review submissions."""
+    reviewer = review_assignment.reviewer
+    client.force_login(reviewer)
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    redirect_url = reverse("wjs_review_review", args=(review_assignment.pk,))
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "1", "date_due": date_due}
+    # Message from the editor to the reviewer ("User ... invited to review")
+    assert Message.objects.count() == 1
+    response = client.post(url, data=data)
+    request = response.wsgi_request
+    review_assignment.refresh_from_db()
+    reviewer.refresh_from_db()
+
+    # See also test_logic.test_handle_accept_invite_reviewer()
+    assert Message.objects.count() == 3
+    # Message related to the reviewer accepting the assignment
+    message = Message.objects.get(recipients__in=[review_assignment.editor])
+    assert message.actor == reviewer
+    assert list(message.recipients.all()) == [review_assignment.editor]
+    context = {
+        "article": review_assignment.article,
+        "request": request,
+        "review_assignment": review_assignment,
+        "review_url": reverse("wjs_review_review", kwargs={"assignment_id": review_assignment.id}),
+    }
+    message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="subject_reviewer_acknowledgement",
+        journal=review_assignment.article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+    message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="reviewer_acknowledgement",
+        journal=review_assignment.article.journal,
+        request=request,
+        context=context,
+        template_is_setting=True,
+    )
+    assert message.subject == message_subject
+    assert message.body == message_body
+    assert response.status_code == 302
+    assert response.headers["Location"] == redirect_url
+    assert reviewer.is_active
+    assert reviewer.jcomprofile.gdpr_checkbox
+    assert not reviewer.jcomprofile.invitation_token
+    assert review_assignment.date_accepted
+    assert not review_assignment.date_declined
+    assert not review_assignment.is_complete
+    # In the database ReviewAssignment.date_due is a DateField, so when loaded from the db it's a datetime.date
+    assert review_assignment.date_due == date_due
+
+    base_accept_date = review_assignment.date_accepted
+    open_attempt_1 = review_assignment.date_due + datetime.timedelta(days=1)
+    open_attempt_2 = review_assignment.date_due + datetime.timedelta(days=2)
+
+    assert Message.objects.count() == 3
+    initial_message = Message.objects.count()
+
+    with freezegun.freeze_time(open_attempt_1):
+        # A second acceptance will ignore the acceptance and redirect the user to the review submission
+        # Redirection is triggered by both post and get
+        client.force_login(reviewer)
+        response = client.get(url)
+        assert response.status_code == 301
+        assert response.headers["Location"] == redirect_url
+        # No new message is generated
+        assert Message.objects.count() == initial_message
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_accepted == base_accept_date
+
+    with freezegun.freeze_time(open_attempt_2):
+        client.force_login(reviewer)
+        response = client.post(url, data=data)
+        assert response.status_code == 301
+        assert response.headers["Location"] == redirect_url
+        review_assignment.refresh_from_db()
+        reviewer.refresh_from_db()
+        # No new message is generated
+        assert Message.objects.count() == initial_message
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_accepted == base_accept_date
+
+
+@pytest.mark.django_db
+def test_accept_declined_assignment(
+    client: Client,
+    review_assignment: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """If user declines the invitation, a second attempt of decline / accept yields 404."""
+    reviewer = review_assignment.reviewer
+    client.force_login(reviewer)
+    url = reverse("wjs_evaluate_review", args=(review_assignment.pk,))
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    date_due = review_assignment.date_due + datetime.timedelta(days=1)
+    data = {"reviewer_decision": "0", "additional_comments": "Don't say", "date_due": date_due}
+    # Message related to the editor assignment
+    assert Message.objects.count() == 1
+    response = client.post(url, data=data)
+    review_assignment.refresh_from_db()
+    reviewer.refresh_from_db()
+
+    # Original message + decline messages
+    assert Message.objects.count() == 3
+    assert response.status_code == 302
+    assert reviewer.is_active
+    assert reviewer.jcomprofile.gdpr_checkbox
+    assert not reviewer.jcomprofile.invitation_token
+    assert not review_assignment.date_accepted
+    assert review_assignment.date_declined
+    assert review_assignment.is_complete
+    assert review_assignment.date_due == date_due
+
+    base_declined_date = review_assignment.date_declined
+    open_attempt_1 = review_assignment.date_due + datetime.timedelta(days=1)
+    open_attempt_2 = review_assignment.date_due + datetime.timedelta(days=2)
+
+    assert Message.objects.count() == 3
+    initial_message = Message.objects.count()
+
+    with freezegun.freeze_time(open_attempt_1):
+        # A second decline will be ignored and produce a 404
+        client.force_login(reviewer)
+        response = client.get(url)
+        assert response.status_code == 404
+        # No new message is generated
+        assert Message.objects.count() == initial_message
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_declined == base_declined_date
+        assert not review_assignment.date_accepted
+
+    with freezegun.freeze_time(open_attempt_2):
+        client.force_login(reviewer)
+        response = client.post(url, data=data)
+        assert response.status_code == 404
+        review_assignment.refresh_from_db()
+        reviewer.refresh_from_db()
+        # No new message is generated
+        assert Message.objects.count() == initial_message
+        review_assignment.refresh_from_db()
+        assert review_assignment.date_declined == base_declined_date
+        assert not review_assignment.date_accepted
+
+
+@pytest.mark.django_db
 def test_user_is_coauthor(article: submission_models.Article, jcom_user: JCOMProfile):
     """user_is_coauthor check input user is coauthor."""
     article.correspondence_author = None
@@ -1007,3 +1232,30 @@ def test_eo_select_new_editor(
         == normal_user.janeway_account
     )
     assert PastEditorAssignment.objects.get(article=assigned_article.articleworkflow.article).editor == old_editor
+
+
+@pytest.mark.django_db
+def test_article_redirect(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
+    review_settings,
+):
+    view = ArticleIdToDetails()
+    view.request = fake_request
+    view.setup(fake_request)
+    view.args = ()
+    view.kwargs = {"article_id": assigned_article.pk}
+    url = view.get_redirect_url(**view.kwargs)
+    assert url == reverse("wjs_article_details", kwargs={"pk": assigned_article.articleworkflow.pk})
+
+    view.kwargs = {"article_id": assigned_article.articleworkflow.pk}
+    url = view.get_redirect_url(**view.kwargs)
+    assert url == reverse("wjs_article_details", kwargs={"pk": assigned_article.articleworkflow.pk})
+
+    view.kwargs = {"article_id": assigned_article.articleworkflow.pk + 1}
+    from django.http import Http404
+
+    with pytest.raises(Http404):
+        url = view.get_redirect_url(**view.kwargs)

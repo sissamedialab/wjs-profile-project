@@ -18,6 +18,7 @@ from django.http import (
     Http404,
     HttpRequest,
     HttpResponse,
+    HttpResponsePermanentRedirect,
     HttpResponseRedirect,
     JsonResponse,
     QueryDict,
@@ -321,6 +322,7 @@ class EditorPending(ArticleWorkflowBaseMixin):
 
 class EditorArchived(EditorPending):
     title = _("Archived preprints")
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -395,6 +397,7 @@ class EOPending(ArticleWorkflowBaseMixin):
 class EOArchived(EOPending):
     title = _("Archived preprints")
     configuration_options = {"hide_editor_age": True, "show_filter_editor": True, "show_filter_reviewer": True}
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -572,6 +575,7 @@ class DirectorArchived(DirectorPending):
         "hide_editor_age": True,
         "table_variant": "archive",
     }
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -661,6 +665,7 @@ class AuthorArchived(AuthorPending):
     show_filters = True
     configuration_options = {"show_author_due_date": True, "show_filter_author": True}
     """See :py:attr:`EOPending.configuration_options` for details."""
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -724,6 +729,7 @@ class ReviewerArchived(ReviewerPending):
         "archived_list": True,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
+    paginate_by = 20
 
     def _apply_base_filters(self, qs):
         """
@@ -1037,8 +1043,15 @@ class ArticleIdToDetails(RedirectView):
 
     def get_redirect_url(self, *args, **kwargs):
         """Given the article-id, redirect to the WJS status page."""
-        article = get_object_or_404(Article, pk=kwargs["article_id"])
-        return reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.id})
+        try:
+            article = Article.objects.get(pk=kwargs["article_id"])
+            return reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.pk})
+        except Article.DoesNotExist:
+            try:
+                articleworkflow = ArticleWorkflow.objects.get(pk=kwargs["article_id"])
+                return reverse("wjs_article_details", kwargs={"pk": articleworkflow.pk})
+            except ArticleWorkflow.DoesNotExist:
+                raise Http404(_("Article with id {article_id} does not exist").format(article_id=kwargs["article_id"]))
 
 
 class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
@@ -1221,6 +1234,7 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
     title = _("Accept/Decline invite to review")
     use_access_code = True
     allow_anonymous_access = True
+    object = None  # noqa: A003 - Not set as default from Django base classes
 
     def load_initial(self, request, *args, **kwargs):
         if self.allow_anonymous_access and request.user.is_anonymous:
@@ -1234,6 +1248,30 @@ class EvaluateReviewRequest(BaseRelatedViewsMixin, OpenReviewMixin, UpdateView):
         BaseRelatedViewsMixin.
         """
         return True
+
+    def get(self, request, *args, **kwargs):
+        if self._check_accepted_review_assignment():
+            return HttpResponsePermanentRedirect(self.get_success_url())
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if self._check_accepted_review_assignment():
+            return HttpResponsePermanentRedirect(self.get_success_url())
+        return super().post(request, *args, **kwargs)
+
+    def _check_accepted_review_assignment(self):
+        """
+        Check if the review assignment has been already accepted or not.
+
+        Check on declined assignments is not needed because they are filtered out in the get_queryset method.
+
+        :return: RA accepted review assignment or not
+        """
+        if not self.object:
+            self.object = self.get_object()
+        if self.object.date_accepted:
+            return True
+        return False
 
     def get_success_url(self) -> str:
         """Redirect to a different URL according to the decision."""
@@ -1385,6 +1423,10 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
     template_name = "wjs_review/submit_review/review_submit.html"
     title = _("Submit review")
     use_access_code = True
+
+    def _check_accepted_review_assignment(self):
+        """Skip the check for accepted review assignment as it's part of the :py:meth:`get_queryset` method call."""
+        return False
 
     @property
     def allow_draft(self):
@@ -3112,8 +3154,6 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         qs = Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
             pk__in=article_authors
         )
-        qs = qs.annotate_final_reviews_in_timeframe(datetime.timedelta(days=365))
-        qs = qs.annotate_pending_reviews_in_timeframe(datetime.timedelta(days=365))
         if search_text:
             search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
             qs = qs.filter(search_filters)

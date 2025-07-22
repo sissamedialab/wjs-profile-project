@@ -7,14 +7,36 @@ from typing import IO
 
 from django.conf import settings
 from django.utils.module_loading import import_string
+from review.models import ReviewRound
 from submission.models import Article
 
 from .models import WorkflowReviewAssignment, WorkflowReviewAssignmentQuerySet
 
 
+def get_not_withdrawn_review_assignments_for_this_round(
+    article: Article,
+    review_round: ReviewRound,
+) -> WorkflowReviewAssignmentQuerySet:
+    """Return a queryset of ReviewAssigments for a given article / review round.
+
+    The queryset does not include the give review_assigment.
+
+    """
+    # Janeway's article.active_reviews and similar do _not_ consider the review round, and, even if the business
+    # logic should prevent any issue concerning reminders (i.e. when a new round is created, all reminders are
+    # dealt with), we should look only at the review assignments of the current round.
+
+    # Not using `article.current_review_round_object()` should hit the db once less.
+    assignments_for_this_round = WorkflowReviewAssignment.objects.filter(
+        article=article,
+        review_round=review_round,
+    ).not_withdrawn()
+    return assignments_for_this_round
+
+
 def get_other_review_assignments_for_this_round(
     review_assignment: WorkflowReviewAssignment,
-) -> WorkflowReviewAssignmentQuerySet[WorkflowReviewAssignment]:
+) -> WorkflowReviewAssignmentQuerySet:
     """Return a queryset of ReviewAssigments for the same article/round of the given review_assigment.
 
     The queryset does not include the give review_assigment.
@@ -23,24 +45,13 @@ def get_other_review_assignments_for_this_round(
     whether to create/delete some editor reminder based on the presence/state of other review assignments on the
     article.
 
+    Internally it used :py:func:`get_not_withdrawn_review_assignments_for_this_round`.
     """
-    # Janeway's article.active_reviews and similar do _not_ consider the review round, and, even if the business
-    # logic should prevent any issue concerning reminders (i.e. when a new round is created, all reminders are
-    # dealt with), we should look only at the review assignments of the current round.
-
-    # Not using `article.current_review_round_object()` should hit the db once less.
-    review_round = review_assignment.review_round
-    my_id = review_assignment.pk
-    other_assignments_for_this_round = (
-        WorkflowReviewAssignment.objects.filter(
-            article=review_assignment.article,
-            editor=review_assignment.editor,
-            review_round=review_round,
-        )
-        .exclude(id=my_id)
-        .not_withdrawn()
+    return get_not_withdrawn_review_assignments_for_this_round(
+        review_assignment.article, review_assignment.review_round
+    ).exclude(
+        pk=review_assignment.pk,
     )
-    return other_assignments_for_this_round
 
 
 def get_tex_source_file_from_archive(source_files_archive, tex_source_name: str) -> IO:

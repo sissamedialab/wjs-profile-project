@@ -48,7 +48,7 @@ def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
 
     logger.error(
         f"Function permissions.main_role_by_article() called for an Account ({user.id})"
-        " that has no role wrt to AW {article.id} ({article.article.id})",
+        f" that has no role wrt to AW {article.id} (A {article.article.id})",
     )
     return ""
 
@@ -438,6 +438,22 @@ def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
     return instance.article.correspondence_author == user
 
 
+def is_article_author_or_owner(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is the Corresponding author or submitting author of the article.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is the Corresponding author or submitting author, False otherwise.
+    :rtype: bool
+    """
+    return user in (instance.article.correspondence_author, instance.article.owner)
+
+
 def is_article_author_and_paper_can_go_rfp(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the user is the Corresponding author and if the article can transition into READY_FOR_PUBLI CATION.
@@ -641,7 +657,7 @@ def is_article_typesetter_or_eo(instance: "ArticleWorkflow", user: Account) -> b
     return base_permissions.has_eo_role(user) or is_article_typesetter(instance, user)
 
 
-def is_article_pure_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
+def is_assignment_pure_editor_or_eo(instance: "WorkflowReviewAssignment", user: Account) -> bool:
     """
     Check if the user is the editor or eo.
 
@@ -655,8 +671,10 @@ def is_article_pure_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> 
     :return: True if the user is the article editor or eo
     :rtype: bool
     """
-    manager = is_article_editor(instance, user) or is_article_supervisor(instance, user)
-    return manager and not is_article_reviewer(instance, user)
+    manager = is_article_editor(instance.article.articleworkflow, user) or is_article_supervisor(
+        instance.article.articleworkflow, user
+    )
+    return manager and not is_assignment_reviewer(instance, user)
 
 
 def is_article_editor_or_eo(instance: "ArticleWorkflow", user: Account) -> bool:
@@ -705,7 +723,7 @@ def can_see_reviewer_name(assignment: "WorkflowReviewAssignment", user: Account)
     from .logic__visibility import PermissionChecker
     from .models import PermissionAssignment
 
-    has_editor_role = is_article_pure_editor_or_eo(assignment.article.articleworkflow, user)
+    has_editor_role = is_assignment_pure_editor_or_eo(assignment, user)
 
     return has_editor_role and PermissionChecker()(
         assignment.article.articleworkflow,

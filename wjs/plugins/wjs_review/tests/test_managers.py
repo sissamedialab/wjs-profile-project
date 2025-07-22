@@ -45,9 +45,13 @@ def test_with_pending_reviews(create_set_of_articles_with_assignments):
             workflow.article.reviewassignment_set.all().order_by("review_round__round_number").last().review_round
         )
         assert workflow.article.reviewassignment_set.filter(review_round_id=last_round).exists()
+        # Remember that tech_revisions do not withdraw RAs;
+        # so we can have AW under technical-revision with RAs.
+        # For the purpose of this assert, we can ignore them.
         assert (
             not workflow.article.current_review_round_object()
             .editorrevisionrequest_set.filter(review_round_id=last_round)
+            .exclude(editor_decision__decision=ArticleWorkflow.Decisions.TECHNICAL_REVISION)
             .exists()
         )
     # check that article not in the queryset do not have any open review assignment
