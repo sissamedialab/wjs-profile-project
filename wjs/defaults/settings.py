@@ -222,6 +222,13 @@ WJAPP_JCOM_IMPORT_CONNECTION_PARAMS = {
     "host": "",
     "database": "",
 }
+WJAPP_JCOMAL_IMPORT_CONNECTION_PARAMS = {
+    "user": "",
+    "password": "",
+    "host": "",
+    "database": "",
+}
+
 
 # http wjapp login data to import files from wjapp
 # (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
@@ -232,9 +239,18 @@ WJAPP_JCOM_IMPORT_LOGIN_PARAMS = {
     "http_ba_username": "",
     "http_ba_password": "",
 }
+WJAPP_JCOMAL_IMPORT_LOGIN_PARAMS = {
+    "username": "",
+    "password": "",
+    "login_base_url": "",
+    "http_ba_username": "",
+    "http_ba_password": "",
+}
 
 # base url for files import from wjapp (one for journal)
 WJAPP_JCOM_BASE_URL = "https://old.wjapp.it/jcom/common/archiveFile?filePath="
+WJAPP_JCOMAL_BASE_URL = "https://jcomal.sissa.it/jcomal/common/archiveFile?filePath="
+
 
 NO_NOTIFICATION = False
 
