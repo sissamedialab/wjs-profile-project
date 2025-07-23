@@ -163,6 +163,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
             "wjs_review_director_archived": _("Archived preprints"),
             "wjs_review_director_issues_list": _("Pending Issues"),
             "wjs_review_director_workon": _("Search preprints"),
+            "wjs_messages_overview": _("Activity"),
         },
         constants.SECTION_EDITOR_ROLE: {
             "wjs_review_list": _("Pending preprints"),
@@ -1875,7 +1876,9 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, ListView, FilterMixin):
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
-        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+        return base_permissions.has_admin_role(
+            self.request.journal, self.request.user
+        ) or base_permissions.has_director_role(self.request.journal, self.request.user)
 
     def get_template_names(self):
         if self.htmx:
@@ -1884,11 +1887,11 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, ListView, FilterMixin):
 
     def get_queryset(self):
         """Return the the list of all messages related to an article."""
-        article_id = self.request.GET.get("article_id")
-        queryset = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article)).order_by("-created")
-        if article_id:
-            return queryset.filter(object_id=article_id)
-        return queryset
+        if self.request.GET.get("article_id"):
+            workflow = ArticleWorkflow.objects.get(article_id=self.request.GET.get("article_id"))
+            return get_messages_related_to_me(self.request.user, workflow.article)
+        else:
+            return get_messages_related_to_me(self.request.user, journal=self.request.journal)
 
     def get(self, request, *args, **kwargs):
         # Calling the FilterView get() method and then the ListView get() method to both have filters and pagination
