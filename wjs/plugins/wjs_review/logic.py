@@ -3594,7 +3594,10 @@ class ConvertManuscriptToPdf:
                 owner=self.article.correspondence_author,
                 label="Manuscript File",
             )
-
+        # Move what's in the A.manuscript into A.source
+        # and fill A.manuscript with the generated PDF.
+        # The idea is that the author uploads a source-file into the A.manuscript slot (Janeway's default)
+        # we take it, generate the "real" manuscript and place everything in its correct place.
         self.article.source_files.clear()
         self.article.source_files.set(self.article.manuscript_files.all())
         self.article.manuscript_files.clear()
