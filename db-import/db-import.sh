@@ -12,7 +12,7 @@ if [ -z "${user}" -o -z "${database}" -o -z "${dump}" ]; then
     exit 1
 fi
 
-if [[ -z "${host}" ]];
+if [ -n "${host}" ]; then
     host_connection="-H $host"
 fi
 
