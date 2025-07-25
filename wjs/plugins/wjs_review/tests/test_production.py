@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
+from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.test import override_settings
 from django.test.client import Client
@@ -23,17 +24,18 @@ from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Article
+from submission.models import Article, Keyword
 from utils import setting_handler
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
-from wjs.jcom_profile.utils import get_eo_user, render_template
+from wjs.jcom_profile.utils import get_eo_user
 
 from ..logic__production import (
     BeginPublication,
     FinishPublication,
+    HandleDownloadRevisionFiles,
     TypesetterTestsGalleyGeneration,
     UploadFile,
 )
@@ -563,7 +565,7 @@ def test_automatic_preamble_generation(
         "journal": journal,
         "article": article,
     }
-    rendered_preamble = render_template(jcom_automatic_preamble, context)
+    rendered_preamble = HandleDownloadRevisionFiles.render_latexpreamble(jcom_automatic_preamble, context)
 
     local_date_accepted = timezone.localtime(article.date_accepted)
     formatted_date_accepted = local_date_accepted.strftime("%Y-%m-%d")
@@ -899,7 +901,6 @@ def test_check_state_on_typ_upload_file_with_query(
     zip_with_tex_with_query: Callable,
     fake_request: HttpRequest,
 ):
-
     assert assigned_to_typesetter_article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
 
     assigned_to_typesetter_article.articleworkflow.production_flag_no_queries = True
@@ -925,7 +926,6 @@ def test_wrong_state_on_typ_upload_file_with_query(
     zip_with_tex_with_query: Callable,
     fake_request: HttpRequest,
 ):
-
     assert stage_proofing_article.articleworkflow.state == ArticleWorkflow.ReviewStates.PROOFREADING
 
     stage_proofing_article.articleworkflow.production_flag_no_queries = True
@@ -957,7 +957,6 @@ def test_identifiers_on_takes_in_charge_producion_settings(
     zip_with_tex_without_query: Callable,
     tmp_path: Path,
 ):
-
     # production settings and crossref_test True
     setting_handler.save_setting(
         "Identifiers",
@@ -1019,7 +1018,6 @@ def test_identifiers_on_typ_upload_file_with_query(
     tmp_path: Path,
     fake_request: HttpRequest,
 ):
-
     # production settings and crossref_test True
     setting_handler.save_setting(
         "Identifiers",
@@ -1093,7 +1091,6 @@ def test_identifiers_on_typesetter_galley_generation(
     client: Client,
     fake_request: HttpRequest,
 ):
-
     # production settings and crossref_test True
     setting_handler.save_setting(
         "Identifiers",
@@ -1161,7 +1158,6 @@ def test_identifiers_on_author_sends_corrections(
     stage_proofing_article: Article,
     client: Client,
 ):
-
     # production settings and crossref_test True
     setting_handler.save_setting(
         "Identifiers",
@@ -1385,7 +1381,6 @@ def test_identifiers_on_eo_sends_back_to_typesetter(
     client: Client,
     eo_user: JCOMProfile,
 ):
-
     # production settings and crossref_test True
     setting_handler.save_setting(
         "Identifiers",
@@ -1440,3 +1435,81 @@ def test_identifiers_on_eo_sends_back_to_typesetter(
     assert stage_proofing_article.get_doi() == test_doi
     assert stage_proofing_article.get_identifier("preprintid") == test_preprintid
     assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
+
+
+@pytest.mark.django_db
+def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: HttpRequest):
+    """Verify that authors are frozen (snapshotted) at acceptance."""
+    article = assigned_article
+    assert article.authors.count() == 2
+    assert len(article.frozen_authors()) == 0
+
+    a1 = article.authors.order_by("id").first()
+    a1.orcid = "1234-0000-0000-000X"
+    a1.save()
+
+    fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    _accept_article(fake_request, article)
+
+    assert len(article.frozen_authors()) == 2
+    a1_f = article.frozen_authors().order_by("author_id").first()
+    # We should use the property FrozenAuthor.orcid, not FrozenAuthor.frozen_orcid directly!
+    assert not a1_f.frozen_orcid
+    assert a1_f.orcid == a1.orcid
+
+
+@pytest.mark.django_db
+def test_preamble_authors(accepted_article: Article, keywords: QuerySet[Keyword]):
+    """Document a viable preamble template."""
+    article = accepted_article
+    assert article.authors.count() == 2
+    assert len(article.frozen_authors()) == 2
+
+    a1: Account = article.authors.order_by("id").first()
+    # Note that here we modify the account, not the froze-author object,
+    # but FrozenAuthor objects have `orcid` and `biography` properties (and other)
+    # that fallback to the account values if values from FA are missing.
+    a1.orcid = "1234-0000-0000-000X"
+    a1.biography = "Vita, morte e miracoli."
+    a1.save()
+
+    for kwd in keywords[:3]:
+        article.keywords.add(kwd)
+
+    context = {"article": article, "journal": article.journal}
+    preamble = r"""{% load wjs_tex %}
+{% for au in article.frozen_authors %}
+\author[{{ au.last_name }},~{{ au.first_name|first }}.]
+ {{{ au.full_name|space_to_tilde }}}
+ {{{ au.email }}}
+ {% if au.orcid %}[{{ au.orcid }}]{% else %}% [orcid]{% endif %}
+ {{{ au.biography }}}
+
+{% endfor %}
+
+\keywords{{% for kwd in article.keywords.all %}{{ kwd }}{% if not forloop.last %}; {% endif %}{% endfor %}}{}{}
+"""
+    rendered_preamble = HandleDownloadRevisionFiles.render_latexpreamble(preamble, context)
+
+    assert (
+        rendered_preamble
+        == r"""
+
+\author[author,~U.]
+ {User~author}
+ {author@sissa.it}
+ [1234-0000-0000-000X]
+ {Vita, morte e miracoli.}
+
+
+\author[Coauthor,~C.]
+ {Coauthor~Coauthor}
+ {coauthor@coauthor.it}
+ % [orcid]
+ {}
+
+
+
+\keywords{0-keyword; 1-keyword; 2-keyword}{}{}
+"""
+    )

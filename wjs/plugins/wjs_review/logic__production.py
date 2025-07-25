@@ -533,10 +533,31 @@ class HandleDownloadRevisionFiles:
             "journal": self.workflow.article.journal,
             "article": self.workflow.article,
         }
-        rendered_preamble = render_template(automatic_preamble_text, context)
+        rendered_preamble = self.rendered_preamble(automatic_preamble_text, context)
         # TODO: refactor with utils.guess_tex_filename()
         preamble_name = f"{self.workflow.article.journal.code.lower()}-{self.workflow.article.id}-preamble.tex"
         return rendered_preamble, preamble_name
+
+    @staticmethod
+    def render_latexpreamble(preamble: str, context: dict) -> str:
+        r"""
+        Render the latex preamble, applying pre- and post-processing due to curly braces.
+
+        In a template for latex code, we can have fragments such as
+        \author{{{ account.fullname }}}
+        where the first "{" is for the tex macro
+        and the next two "{{" are for the template variable.
+
+        Same for
+        \keywords{{% for ... {% endfor %}}
+
+        These fragments cannot be parsed/rendered,
+        so we replace the outer curly brace with a placeholder
+        to be removed after the rendering.
+        """
+        preamble = preamble.replace("{{{", "🙂{{").replace("}}}", "}}🙁").replace("{{%", "🙂{%").replace("%}}", "%}🙁")
+        preamble = render_template(preamble, context)
+        return preamble.replace("🙂", "{").replace("🙁", "}")
 
     def _create_archive(self, files):
         """Create a ZIP archive from the given files."""
