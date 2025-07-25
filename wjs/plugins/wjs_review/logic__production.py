@@ -533,7 +533,7 @@ class HandleDownloadRevisionFiles:
             "journal": self.workflow.article.journal,
             "article": self.workflow.article,
         }
-        rendered_preamble = self.rendered_preamble(automatic_preamble_text, context)
+        rendered_preamble = self.render_latexpreamble(automatic_preamble_text, context)
         # TODO: refactor with utils.guess_tex_filename()
         preamble_name = f"{self.workflow.article.journal.code.lower()}-{self.workflow.article.id}-preamble.tex"
         return rendered_preamble, preamble_name
