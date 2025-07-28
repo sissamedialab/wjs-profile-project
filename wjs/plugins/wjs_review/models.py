@@ -2120,15 +2120,61 @@ class Reminder(models.Model):
         """Render the reminder message body."""
         return render_template(self.message_body, {"reminder": self, "article": self.get_related_article()})
 
+    def update_recipient(self, account: Account):
+        """
+        Update the recipient and re-render the message subject and body based on the current target's settings.
+
+        This function sets a new recipient for the instance and retrieves the
+        corresponding subject and body templates using the given settings. The
+        retrieved subject and body are then applied to the instance and saved.
+
+        :param: account: User to set as new recipient.
+        :type: account: Account
+        """
+        from .reminders.settings import ReminderManager
+
+        self.recipient = account
+        setting = ReminderManager.get_settings(self)
+        subject = setting.get_rendered_subject(self.target)
+        body = setting.get_rendered_body(self.target)
+        self.message_body = body
+        self.message_subject = subject
+        self.save()
+
+    def update_actor(self, account: Account):
+        """
+        Update the actor and re-render the message subject and body based on the current target's settings.
+
+        This function sets a new actor for the instance and retrieves the
+        corresponding subject and body templates using the given settings. The
+        retrieved subject and body are then applied to the instance and saved.
+
+        :param: account: User to set as new actor.
+        :type: account: Account
+        """
+        from .reminders.settings import ReminderManager
+
+        self.actor = account
+        setting = ReminderManager.get_settings(self)
+        subject = setting.get_rendered_subject(self.target)
+        body = setting.get_rendered_body(self.target)
+        self.message_body = body
+        self.message_subject = subject
+        self.save()
+
     def create_message(self) -> Message:
         """
-        Create a message from the reminder.
+        Create a new message object for the reminder.
 
-        Raises:
-           ValueError: if the article related to this reminder cannot be found.
+        This method constructs a `Message` object by collecting relevant data such as the actor,
+        subject, body, verbosity, type, and other metadata. It determines the related article for
+        the reminder and attaches its metadata to the message. If the related article cannot be
+        retrieved, an exception is raised. The method ensures the creation of the `Message` without
+        triggering any notifications.
 
-        Returns a Message instance that is _not_ saved into the DB.
-
+        :raises: ValueError: If the related article for the reminder cannot be identified.
+        :return: A `Message` object containing the constructed data for the reminder.
+        :rtype: Message
         """
         from .reminders.settings import ReminderManager  # noqa: PLC0415
 
