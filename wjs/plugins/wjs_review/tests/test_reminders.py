@@ -1720,7 +1720,7 @@ def test_director_assigns(
 
 
 @pytest.mark.parametrize(
-    "pending,accepted,declined,completed,withdrawn,reminders",
+    "pending,accepted,declined,completed,withdrawn,editor_reminders_code",
     (
         (True, True, True, True, True, ""),
         (True, True, True, True, False, ""),
@@ -1769,20 +1769,21 @@ def test_change_editor_with_reviewers(
     declined,
     completed,
     withdrawn,
-    reminders,
+    editor_reminders_code,
 ):
     """
     Reminders when changing editor are recreated for the new assignment respecting existing reviewers."
 
     If reviewers are already selected and not withdrawn, no reminder is needed.
     If reviewers are already selected and all are completed, EDMD reminder is needed.
-    If no reviewer is been sleected, EDSR reminder is needed.
+    If no reviewer has been selected, EDSR reminder is needed.
 
     """
     t0 = timezone.localtime(timezone.now()).date()
     assert Reminder.objects.all().count() == 3
     assert Reminder.objects.filter(code__startswith="EDSR").count() == 3
     editor_assignment = WjsEditorAssignment.objects.get(article=assigned_article)
+
     if pending:
         reviewer_pending = create_jcom_user("reviewer_pending").janeway_account
         reviewer_pending.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
@@ -1794,6 +1795,7 @@ def test_change_editor_with_reviewers(
             request=fake_request,
             log_operation=False,
         ).run()
+        assert Reminder.objects.all().count() == 3
     if accepted:
         reviewer_accepted = create_jcom_user("reviewer_accepted").janeway_account
         reviewer_accepted.add_account_role(constants.REVIEWER_ROLE, assigned_article.journal)
@@ -1849,9 +1851,6 @@ def test_change_editor_with_reviewers(
             log_operation=False,
         ).run()
         assignment_withdrawn.withdraw()
-    # Deleting all reminders, assuring we can test the one created from here onward. The correct behavior of
-    # editor reminders creation is tested inother tests
-    Reminder.objects.all().delete()
     new_assignment = SupervisorChangeEditorAssignment(
         article=assigned_article,
         assignment=editor_assignment,
@@ -1860,15 +1859,15 @@ def test_change_editor_with_reviewers(
         deassignment_message="Bye bye",
         assignment_message="Hi",
     ).run()
-    if reminders:
-        if reminders == "EDSR":
+    if editor_reminders_code:
+        if editor_reminders_code == "EDSR":
             reminder_manager = EditorShouldSelectReviewerReminderManager
             codes = (
                 Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
                 Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
                 Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
             )
-        elif reminders == "EDMD":
+        elif editor_reminders_code == "EDMD":
             reminder_manager = EditorShouldMakeDecisionReminderManager
             codes = (
                 Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
@@ -1876,9 +1875,8 @@ def test_change_editor_with_reviewers(
                 Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
             )
         else:
-            raise Exception(f"Unexpected reminders: {reminders}")
-        assert Reminder.objects.all().count() == 3
-        assert Reminder.objects.filter(code__startswith=reminders).count() == 3
+            raise Exception(f"Unexpected reminders: {editor_reminders_code}")
+        assert Reminder.objects.filter(code__startswith=editor_reminders_code).count() == 3
         check_reminder_date(
             new_assignment,
             reminder_manager,
@@ -1886,8 +1884,21 @@ def test_change_editor_with_reviewers(
             t0,
             journal=assigned_article.journal,
         )
+        for reminder in Reminder.objects.filter(code__startswith=editor_reminders_code):
+            assert reminder.target == new_assignment
+            # EDSR3 / EDMD3 does not have editor has actor / recipient
+            if reminder.code not in (
+                Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+                Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
+            ):
+                assert reminder.recipient == new_assignment.editor
     else:
-        assert Reminder.objects.all().count() == 0
+        # Only reminders for the reviewers exist here
+        assert set(Reminder.objects.filter(code__startswith="REEA").values_list("id", flat=True)) == set(
+            Reminder.objects.all().values_list("id", flat=True)
+        )
+    for reminder in Reminder.objects.filter(recipient=editors[1]):
+        assert editors[1].full_name() in reminder.message_body
 
 
 class TestEditorDecides:

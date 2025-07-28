@@ -3096,9 +3096,11 @@ class SupervisorChangeEditorAssignment:
         Replace editor for existing review assignments for the current review round and assign permissions to the old
         editor on completed review assignments.
         """
-        assignments = WorkflowReviewAssignment.objects.filter(
-            editor=old_editor, article=self.assignment.article, review_round=self.assignment.review_rounds.first()
+        base_qs = WorkflowReviewAssignment.objects.filter(
+            article=self.assignment.article, review_round=self.assignment.review_rounds.first()
         )
+        base_qs.filter(editor=old_editor).update(editor=self.new_editor)
+        assignments = base_qs.filter(editor=self.new_editor)
         for assignment in assignments:
             if assignment.is_complete:
                 PermissionAssignment.objects.create(
@@ -3109,7 +3111,6 @@ class SupervisorChangeEditorAssignment:
                     permission_secondary=PermissionAssignment.BinaryPermissionType.ALL,
                 )
             self._migrate_assignment_reminders(old_editor, assignment)
-        assignments.update(editor=self.new_editor)
 
     def _migrate_assignment_reminders(self, old_editor: Account, assignment: WorkflowReviewAssignment):
         """
@@ -3117,18 +3118,20 @@ class SupervisorChangeEditorAssignment:
 
         Replace editor for unsent reminders for the current article.
         """
-        Reminder.objects.filter(
+        for reminder in Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(assignment),
             object_id=assignment.pk,
             date_sent__isnull=True,
             recipient=old_editor,
-        ).update(recipient=self.new_editor)
-        Reminder.objects.filter(
+        ):
+            reminder.update_recipient(self.new_editor)
+        for reminder in Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(assignment),
             object_id=assignment.pk,
             date_sent__isnull=True,
             actor=old_editor,
-        ).update(actor=self.new_editor)
+        ):
+            reminder.update_actor(self.new_editor)
 
     def _migrate_article_reminders(self, old_editor: Account):
         """
@@ -3432,7 +3435,7 @@ class WithdrawPreprint:
             message_subject=self.form_data.get("notification_subject"),
             message_body=self.form_data.get("notification_body"),
             actor=self.workflow.article.correspondence_author,
-            recipients=[(current_editor if current_editor else get_eo_user(self.workflow.article))],
+            recipients=[current_editor if current_editor else get_eo_user(self.workflow.article)],
         )
 
     def _get_editor_assignment(self) -> WjsEditorAssignment | None:

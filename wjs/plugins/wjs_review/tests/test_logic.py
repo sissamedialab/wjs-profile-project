@@ -3684,42 +3684,50 @@ def test_assign_different_editor(
     pending_ra.refresh_from_db()
     assert accepted_ra.editor == normal_user.janeway_account
     assert pending_ra.editor == normal_user.janeway_account
-    assert (
+
+    def assert_reminder_recipient(filtered_reminders, count, check_body=True):
+        assert filtered_reminders.count() == count
+        if check_body:
+            for reminder in filtered_reminders:
+                assert reminder.recipient.full_name() in reminder.message_body
+
+    assert_reminder_recipient(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(accepted_ra),
             object_id=accepted_ra.pk,
             code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
             recipient=normal_user,
-        ).count()
-        == 1
+        ),
+        1,
     )
-    assert (
+    assert_reminder_recipient(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(accepted_ra),
             object_id=accepted_ra.pk,
             code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
             recipient=reviewer1,
-        ).count()
-        == 1
+        ),
+        1,
+        False,
     )
-
-    assert (
+    assert_reminder_recipient(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(pending_ra),
             object_id=pending_ra.pk,
             code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
             actor=normal_user,
-        ).count()
-        == 2
+        ),
+        2,
+        False,
     )
-    assert (
+    assert_reminder_recipient(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(pending_ra),
             object_id=pending_ra.pk,
             code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
             recipient=normal_user,
-        ).count()
-        == 1
+        ),
+        1,
     )
 
     assert not Reminder.objects.filter(
