@@ -3145,6 +3145,7 @@ def test_postpone_revision_due_date(
     eo_user = get_eo_user(assigned_article)
     editor_revision.date_due = now()
     editor_revision.save()
+    editor_revision.refresh_from_db()  # date_due datetime is now a date
 
     fake_request.user = editor_revision.editor
     initial_date_due = editor_revision.date_due
@@ -3167,14 +3168,14 @@ def test_postpone_revision_due_date(
         with pytest.raises(ValidationError):
             service.run()
         editor_revision.refresh_from_db()
-        assert editor_revision.date_due == localtime(initial_date_due).date()
+        assert editor_revision.date_due == initial_date_due
         assert Message.objects.count() == 0
         assert len(mail.outbox) == 0
         return
     else:
         service.run()
         editor_revision.refresh_from_db()
-        assert editor_revision.date_due == localtime(initial_date_due + datetime.timedelta(days=postpone_date)).date()
+        assert editor_revision.date_due == initial_date_due + datetime.timedelta(days=postpone_date)
         assert Message.objects.count() == 1
         assert Message.objects.filter(recipients__pk=assigned_article.correspondence_author.pk).count() == 1
         assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 0
