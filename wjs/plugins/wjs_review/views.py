@@ -236,13 +236,17 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
     title: str
     show_filters = True
     configuration_options: Dict[str, Any] = {}
+    paginate_by = 50
 
     def load_initial(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
         super().load_initial(request, *args, **kwargs)
+        data = self.request.GET.copy()
+        if base_permissions.has_eo_role(request.user):
+            data["eo_in_charge"] = request.user
         if getattr(self, "filterset_class", None):
             self.filterset = self.filterset_class(
-                data=self.request.GET if self.request.GET.get("search") else None,
+                data=self.request.GET if self.request.GET.get("search") else data,
                 queryset=self._apply_base_filters(self.model.objects.all()),
                 request=self.request,
                 journal=self.request.journal,
@@ -275,8 +279,10 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
 
     def get_context_data(self, **kwargs):
         """Add the filterset."""
+        querystring = self.request.GET.copy()
         context = super().get_context_data(**kwargs)
         context["filter"] = self.filterset
+        context["querystring"] = querystring
         return context
 
 
