@@ -71,9 +71,15 @@ def get_messages_related_to_me(
         # Get messages for this article...
         by_article = Q(Q(content_type=content_type) & Q(object_id=article.pk))
         journal = article.journal
+    elif journal:
+        # Get messages linked to all article objects in the ...
+        journal_articles = Article.objects.filter(journal=journal).values_list("id", flat=True)
+        by_article = Q(Q(content_type=content_type) & Q(object_id__in=journal_articles))
     else:
-        # Get messages linked to article objects ...
-        by_article = Q(content_type=content_type)
+        msg = "get_messages_related_to_me requires either an article object or journal."
+        logger.error(msg, stack_info=True)
+        raise RuntimeError(msg)
+
     excluded = None
     if user.is_superuser or has_eo_role(user):
         # EO/staff have access to all the messages (excluding the generic users notes) + EO personal notes

@@ -46,7 +46,7 @@ from utils import setting_handler
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
+from wjs.jcom_profile.permissions import get_hijacker, has_director_role, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user
 
 from ..communication_utils import (
@@ -639,6 +639,47 @@ def test_director_sees_all_journal_messages(
     # all messages - excluding the ones involving the article for which the director is author
     messages = get_messages_related_to_me(director, journal=article.journal)
     assert messages.count() == 4
+
+
+@pytest.mark.django_db
+def test_director_sees_only_his_journal_messages(
+    article: Article,
+    director: JCOMProfile,
+    eo_user: JCOMProfile,
+    article_factory: Callable,
+):
+    """Test that a director sees all messages related to the journal they are director of."""
+    article_j2 = article_factory(owner=article.owner, correspondence_author=article.correspondence_author)
+    journal_2 = article_j2.journal
+    journal_1 = article.journal
+    assert journal_2 != journal_1
+
+    assert has_director_role(journal_1, director)
+    assert not has_director_role(journal_2, director)
+
+    assert Message.objects.count() == 0
+    msg1 = Message.objects.create(
+        actor=article.owner,
+        subject="",
+        body="CIAOOONE",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+    )
+    msg1.recipients.add(eo_user)
+
+    msg2 = Message.objects.create(
+        actor=article_j2.owner,
+        subject="",
+        body="CIAOOONE",
+        content_type=ContentType.objects.get_for_model(article_j2),
+        object_id=article_j2.pk,
+    )
+    msg2.recipients.add(eo_user)
+
+    assert get_messages_related_to_me(director, journal=journal_1).count() == 1
+    assert get_messages_related_to_me(director, journal=journal_2).count() == 0
+    assert get_messages_related_to_me(eo_user, journal=journal_1).count() == 1
+    assert get_messages_related_to_me(eo_user, journal=journal_2).count() == 1
 
 
 @pytest.mark.django_db

@@ -1398,7 +1398,6 @@ class Message(TimeStampedModel):
     # number of chars to show in a "VERBINE" message
     verbine_lenght = 111
 
-    # TODO: do we need these indexes?
     class Meta:
         indexes = [
             models.Index(fields=["content_type", "object_id"]),
