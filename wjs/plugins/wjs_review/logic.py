@@ -2494,7 +2494,7 @@ class PostponeRevisionRequestDueDate:
 
     def check_date_conditions(self) -> bool:
         """Check if the date is in the future."""
-        return timezone.localtime(self.form_data["date_due"]).date() > timezone.localtime(timezone.now()).date()
+        return self.form_data["date_due"] > timezone.localtime(timezone.now()).date()
 
     def check_conditions(self):
         """Check if the conditions for the assignment are met."""
