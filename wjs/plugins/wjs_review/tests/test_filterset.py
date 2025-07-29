@@ -357,6 +357,7 @@ class TestListViews:
         Pending views returns article only in pending states.
         """
         user = setup_data[role]
+        ArticleWorkflow.objects.filter(state=ArticleWorkflow.ReviewStates.EDITOR_SELECTED).update(eo_in_charge=user)
         # GET must be set to empty dict, otherwise it's interpreted by filterset and used as filter parameters
         # resulting in an empty queryset
         fake_request.GET = {}
@@ -410,6 +411,7 @@ class TestListViews:
         Archived views returns article only in archived states.
         """
         user = setup_data[role]
+        ArticleWorkflow.objects.filter(state=ArticleWorkflow.ReviewStates.PUBLISHED).update(eo_in_charge=user)
         # GET must be set to empty dict, otherwise it's interpreted by filterset and used as filter parameters
         # resulting in an empty queryset
         fake_request.GET = {}
