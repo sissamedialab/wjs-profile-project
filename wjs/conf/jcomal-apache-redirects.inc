@@ -1,6 +1,8 @@
 # JCOMAL redirects
 RewriteEngine On
 
+RewriteRule "^/jcomal.*" "/site/help-new-system/" [R=301,L]
+
 # RSS
 # We had:
 # - Plone:
