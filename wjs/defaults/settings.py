@@ -249,7 +249,7 @@ WJAPP_JCOMAL_IMPORT_LOGIN_PARAMS = {
 
 # base url for files import from wjapp (one for journal)
 WJAPP_JCOM_BASE_URL = "https://old.wjapp.it/jcom/common/archiveFile?filePath="
-WJAPP_JCOMAL_BASE_URL = "https://jcomal.sissa.it/jcomal/common/archiveFile?filePath="
+WJAPP_JCOMAL_BASE_URL = "https://old.wjapp.it/jcomal/common/archiveFile?filePath="
 
 
 NO_NOTIFICATION = False
