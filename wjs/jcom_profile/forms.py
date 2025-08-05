@@ -561,12 +561,15 @@ class SelectSpecialIssueForm(SelectIssueForm):
 
     def save(self, commit=True):
         obj = super().save(commit=False)
-        if not self.cleaned_data["projected_issue"]:
-            # Reset all links to any previously selected issue and clear the article primary isssue
-            Issue.articles.through.objects.filter(article=obj).delete()
-            ArticleOrdering.objects.filter(article=obj).delete()
-            obj.primary_issue = None
-        else:
+        # Reset all links to any previously selected issue and clear the article primary issue
+        # Note that in the submit_info view, after this form is saved, handle_assign_issue() is called,
+        # which adds the article to it's (projected-)Issue.articles list,
+        # which, in turn, triggers a signal (see below) that sets the ordering and the article.primary_issue.
+        # The following line also activates the signal "issue_articles_change"
+        Issue.articles.through.objects.filter(article=obj).delete()
+        ArticleOrdering.objects.filter(article=obj).delete()
+        obj.primary_issue = None
+        if self.cleaned_data["projected_issue"]:
             obj.primary_issue = self.cleaned_data["projected_issue"]
         return obj
 
