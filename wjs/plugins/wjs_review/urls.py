@@ -13,7 +13,6 @@ from .views import (
     ArticleReminders,
     ArticleRevisionFileUpdate,
     ArticleRevisionUpdate,
-    ArxivMicroservice,
     AssignEoToArticle,
     AuthorArchived,
     AuthorPending,
@@ -55,7 +54,6 @@ from .views import (
     ReviewerPending,
     ReviewSubmit,
     SelectReviewerView,
-    SubmissionStep1View,
     SupervisorAssignEditor,
     ToggleDisableReminders,
     ToggleIssueBatch,
@@ -293,6 +291,4 @@ urlpatterns = [
     path("open_appeal/<int:pk>/", AdminOpensAppealView.as_view(), name="wjs_open_appeal"),
     path("withdraw/<int:pk>/", AuthorWithdrawPreprint.as_view(), name="wjs_author_withdraw_preprint"),
     path("issue/<int:pk>/toggle-batch/", ToggleIssueBatch.as_view(), name="toggle-issue-batch"),
-    path("arxiv_microservice/", ArxivMicroservice.as_view(), name="arxiv_microservice"),
-    path("submission_step_1/", SubmissionStep1View.as_view(), name="submission_step_1"),
 ]

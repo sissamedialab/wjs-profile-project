@@ -7,8 +7,9 @@
           <small><i class="bi bi-clock"></i> <i>{{ by_day.grouper }} - {{ message.created|date:TIME_FORMAT_NO_SECONDS }}</i></small>
           {% translate "From" %}:
           <a
-             href="?actor_recipients={{ message.actor.id }}"
-             class="text-primary">
+            href="?actor_recipients={{ message.actor.id }}"
+            title="{% translate "Filter by sender" %}"
+            class="text-primary">
             {{ message.actor }}
           </a>
           -
@@ -17,23 +18,33 @@
             {# djlint:off #}
             <a
               href="?actor_recipients={{ recipient.id }}"
+              title="{% translate "Filter by recipient" %}"
               class="text-primary">
-            {{ recipient }}
+              {{ recipient }}
             </a>
             {% if not forloop.last %},{% endif %}
             {# djlint:on #}
           {% endfor %}
-          <a
-            href="?article_id={{ message.object_id }}"
-            class="text-primary">
-            [ {{ message.target.articleworkflow }} ]
+        </div>
+        <div class="d-flex space-between">
+          <div class="d-flex gap-2 mx-5">
+            <i class="bi bi-funnel-fill"></i>
+            <a
+              href="?article_id={{ message.object_id }}"
+              title="{% translate "Filter by article" %}"
+              class="text-primary">
+              [ {{ message.target.articleworkflow }} ]
+            </a>
+            <a
+              href="?type={{ message.message_type }}"
+              title="{% translate "Filter by type" %}"
+              class="text-primary"><i class="bi {{ message|message_type_icon }}"></i></a>
+          </div>
+          <a href="{% url "wjs_article_messages" pk=message.target.articleworkflow.pk %}#message-item-{{ message.pk }}" title="{% translate "Go to timeline" %}" target="_blank">
+            <i class="bi bi-list-task"></i>
           </a>
         </div>
-      <a
-        href="?type={{ message.message_type }}"
-        class="text-primary">
-        <i class="bi {{ message|message_type_icon }}"></i>
-      </a>
+
       </div>
       <h6>{% translate "Subject" %}: <b>{{ message.subject }}</b></h6>
       <div class="body">{{ message.body|safe }}</div>

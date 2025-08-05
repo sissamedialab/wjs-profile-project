@@ -57,18 +57,6 @@ from .utils import generate_token
 logger = get_logger(__name__)
 
 
-def demo(request):
-    """Demo view."""
-    from .forms import SwitchDemoForm
-
-    form = SwitchDemoForm(request)
-    template = "wjs/base/base.html"
-    context = {
-        "form": form,
-    }
-    return render(request, template, context)
-
-
 @login_required
 def edit_profile(request):
     """Edit profile view for wjs app."""

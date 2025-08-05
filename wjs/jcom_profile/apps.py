@@ -1,7 +1,10 @@
 """Configure this application."""
 
+from pathlib import Path
+
 # https://docs.djangoproject.com/en/4.0/ref/applications/
 from django.apps import AppConfig
+from django.conf import settings
 
 
 class JCOMProfileConfig(AppConfig):
@@ -9,12 +12,15 @@ class JCOMProfileConfig(AppConfig):
 
     name = "wjs.jcom_profile"
     verbose_name = "WJS JCOM profile"
+    path = Path(__file__).parent.absolute()
 
     def ready(self):
         """Call during initialization."""
         # TODO: Clarify this line (unused import but without them process breaks)
         from wjs.jcom_profile import signals, urls  # NOQA
 
+        # Inject bas jcom templates directory to allow overriding templates from wjs-themes to inject wjs templates
+        settings.TEMPLATES[0]["DIRS"].insert(0, self.path / "templates")
         self.register_hooks()
 
     def register_hooks(self):

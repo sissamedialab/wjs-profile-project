@@ -575,6 +575,7 @@ def test_messages_to_eo_always_read(
 @pytest.mark.django_db
 def test_director_sees_all_journal_messages(
     article: Article,
+    submitted_articles: list[Article],
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,
 ):
@@ -587,7 +588,7 @@ def test_director_sees_all_journal_messages(
         subject="",
         body="CIAOOONE",
         content_type=ContentType.objects.get_for_model(article),
-        object_id=article.id,
+        object_id=article.pk,
     )
     msg1.recipients.add(tuvok)
     msg2 = Message.objects.create(
@@ -595,9 +596,34 @@ def test_director_sees_all_journal_messages(
         subject="",
         body="EHILAAAAA",
         content_type=ContentType.objects.get_for_model(article),
-        object_id=article.id,
+        object_id=article.pk,
     )
     msg2.recipients.add(chakotay)
+    Message.objects.create(
+        actor=tuvok,
+        subject="",
+        body="EHILAAAAA",
+        content_type=ContentType.objects.get_for_model(submitted_articles[0]),
+        object_id=submitted_articles[0].pk,
+    )
+    msg2.recipients.add(chakotay)
+    submitted_articles[1].authors.add(director)
+    msg3 = Message.objects.create(
+        actor=tuvok,
+        subject="",
+        body="EHILAAAAA",
+        content_type=ContentType.objects.get_for_model(submitted_articles[1]),
+        object_id=submitted_articles[1].pk,
+    )
+    msg3.recipients.add(chakotay)
+    msg_as_author = Message.objects.create(
+        actor=tuvok,
+        subject="",
+        body="EHILAAAAA",
+        content_type=ContentType.objects.get_for_model(submitted_articles[1]),
+        object_id=submitted_articles[1].pk,
+    )
+    msg_as_author.recipients.add(director)
     assert msg1.recipients.count() == 1
     assert msg1.recipients.first() != chakotay
     assert msg1.actor != director
@@ -607,8 +633,12 @@ def test_director_sees_all_journal_messages(
     assert msg2.recipients.first() != tuvok
     assert msg2.actor != director
     assert msg2.recipients.first() != director
+    # filtered by article
     messages = get_messages_related_to_me(director, article)
     assert messages.count() == 2
+    # all messages - excluding the ones involving the article for which the director is author
+    messages = get_messages_related_to_me(director, journal=article.journal)
+    assert messages.count() == 4
 
 
 @pytest.mark.django_db
