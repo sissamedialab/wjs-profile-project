@@ -419,14 +419,14 @@ class MessagesOverviewFilter(django_filters.FilterSet):
 
     from_date = django_filters.DateFilter(
         field_name="created",
-        lookup_expr="gte",
+        lookup_expr="date__gte",
         label=_("From date"),
         widget=forms.DateInput(attrs={"type": "date"}),
     )
 
     to_date = django_filters.DateFilter(
         field_name="created",
-        lookup_expr="lte",
+        lookup_expr="date__lte",
         label=_("To date"),
         widget=forms.DateInput(attrs={"type": "date"}),
     )

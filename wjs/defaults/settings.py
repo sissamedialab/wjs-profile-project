@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "hijack.contrib.admin",
     "django_filters",
     "django_q",
+    "wjs.themes",
 ]
 
 try:

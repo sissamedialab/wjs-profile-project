@@ -10,7 +10,6 @@ from wjs.jcom_profile.newsletter import views as newsletter_views
 from wjs.jcom_profile.views import AuthorSearchView, KeywordListView
 
 urlpatterns = [
-    path("demo/", views.demo, name="demo"),
     path("profile/", views.edit_profile, name="core_edit_profile"),
     path("register/step/1/", views.register, name="core_register"),
     re_path(

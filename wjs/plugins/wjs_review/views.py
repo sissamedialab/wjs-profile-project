@@ -20,7 +20,6 @@ from django.http import (
     HttpResponse,
     HttpResponsePermanentRedirect,
     HttpResponseRedirect,
-    JsonResponse,
     QueryDict,
 )
 from django.shortcuts import get_object_or_404
@@ -88,7 +87,6 @@ from .forms import (
     OpenAppealForm,
     ReviewerSearchForm,
     SelectReviewerForm,
-    SubmissionStep1ViewForm,
     SupervisorAssignEditorForm,
     TimelineFilterForm,
     ToggleDisableRemindersForm,
@@ -100,7 +98,6 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
-    ArXivToWjsArticle,
     HandleMessage,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -166,6 +163,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
             "wjs_review_director_archived": _("Archived preprints"),
             "wjs_review_director_issues_list": _("Pending Issues"),
             "wjs_review_director_workon": _("Search preprints"),
+            "wjs_messages_overview": _("Activity"),
         },
         constants.SECTION_EDITOR_ROLE: {
             "wjs_review_list": _("Pending preprints"),
@@ -1878,7 +1876,9 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, ListView, FilterMixin):
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
-        return base_permissions.has_admin_role(self.request.journal, self.request.user)
+        return base_permissions.has_admin_role(
+            self.request.journal, self.request.user
+        ) or base_permissions.has_director_role(self.request.journal, self.request.user)
 
     def get_template_names(self):
         if self.htmx:
@@ -1887,11 +1887,11 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, ListView, FilterMixin):
 
     def get_queryset(self):
         """Return the the list of all messages related to an article."""
-        article_id = self.request.GET.get("article_id")
-        queryset = Message.objects.filter(content_type=ContentType.objects.get_for_model(Article)).order_by("-created")
-        if article_id:
-            return queryset.filter(object_id=article_id)
-        return queryset
+        if self.request.GET.get("article_id"):
+            workflow = ArticleWorkflow.objects.get(article_id=self.request.GET.get("article_id"))
+            return get_messages_related_to_me(self.request.user, workflow.article)
+        else:
+            return get_messages_related_to_me(self.request.user, journal=self.request.journal)
 
     def get(self, request, *args, **kwargs):
         # Calling the FilterView get() method and then the ListView get() method to both have filters and pagination
@@ -3611,48 +3611,3 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         self.workflow.article.snapshot_authors()
 
         return context
-
-
-class ArxivMicroservice(HtmxMixin, TemplateView):
-    template_name = "test_arxiv_endpoint/test_arxiv_endpoint.html"
-
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
-        self.arxiv_id = request.POST.get("arxiv_id", "").strip()
-
-    def get_template_names(self):
-        if self.htmx:
-            return ["test_arxiv_endpoint/fragment.html"]
-        return super().get_template_names()
-
-    from django.http import JsonResponse
-
-    def post(self, request, *args, **kwargs):
-        service = ArXivToWjsArticle(arxiv_id=self.arxiv_id, journal=self.request.journal, user=self.request.user)
-        try:
-            article = service.run()
-            return JsonResponse(
-                {"article_id": article.pk, "status": "success", "message": f'Validated for "{article.title}"'}
-            )
-        except Exception as e:
-            return JsonResponse({"status": "error", "message": f"Error: {e}"})
-
-
-class SubmissionStep1View(CreateView):
-    model = Article
-    template_name = "wjs/base/base.html"
-    form_class = SubmissionStep1ViewForm
-    success_url = reverse_lazy("wjs_review_eo_pending")  # FIXME: need the submission setup to redirect correctly
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["journal"] = self.request.journal
-        kwargs["user"] = self.request.user
-        return kwargs
-
-    def form_valid(self, form):
-        result = super().form_valid(form)
-        event_logic.Events.raise_event(
-            event_logic.Events.ON_ARTICLE_SUBMISSION_START, **{"request": self.request, "article": self.object}
-        )
-        return result

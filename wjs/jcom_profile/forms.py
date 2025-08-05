@@ -653,9 +653,3 @@ class WjsArticleStart(ArticleStart):
             "If you have any conflict of interests in the publication of this article please state them here."
         ),
     )
-
-
-class SwitchDemoForm(forms.Form):
-    """Form to demonstrate/fix the switch input."""
-
-    field1 = forms.BooleanField(required=False, label="Campo con lo switch nuovo")

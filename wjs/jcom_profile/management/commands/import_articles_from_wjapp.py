@@ -588,7 +588,7 @@ class Command(BaseCommand):
             )
 
         # fix forced manual withdrawn appeal on wjapp without action in the history
-        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120"):
+        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120", "JCOMAL_002Y_0921"):
             if article.stage != submission_models.STAGE_REJECTED:
                 logger.warning(f"stage is '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}")
                 article.stage = submission_models.STAGE_REJECTED
@@ -609,11 +609,14 @@ class Command(BaseCommand):
                         f"forced fixed review state to '{article.articleworkflow.state}' "
                         f"for withdrawn appeal article {preprintid} / {article.id}"
                     )
-        elif article_expected_final_state == "Rejected":
+        elif article_expected_final_state == "REJECTED":
             if article.stage != submission_models.STAGE_REJECTED:
-                logger.debug(f"stage not rejected: {article.stage=}")
-            if ArticleWorkflow.objects.filter(article=article).exists():
-                logger.debug(f"state not rejected: {article.articleworkflow.state=}")
+                logger.error(f"stage not rejected: {article.stage=}")
+            if (
+                ArticleWorkflow.objects.filter(article=article).exists()
+                and article.articleworkflow.state != ArticleWorkflow.ReviewStates.REJECTED
+            ):
+                logger.error(f"state not rejected: {article.articleworkflow.state=}")
         else:
             # TODO: verify cases where an error should be logged
             logger.debug(f"state: {article_expected_final_state=} {article.stage=}")
@@ -705,7 +708,23 @@ class Command(BaseCommand):
         self.store_article_language = article.language
 
         self.store_article_title = article.title
+
+        if hasattr(article, "title_en") and article.title_en:
+            self.store_article_title_en = article.title_en
+        if hasattr(article, "title_es") and article.title_es:
+            self.store_article_title_es = article.title_es
+        if hasattr(article, "title_pt") and article.title_pt:
+            self.store_article_title_pt = article.title_pt
+
         self.store_article_abstract = article.abstract
+
+        if hasattr(article, "abstract_en") and article.abstract_en:
+            self.store_article_abstract_en = article.abstract_en
+        if hasattr(article, "abstract_es") and article.abstract_es:
+            self.store_article_abstract_es = article.abstract_es
+        if hasattr(article, "abstract_pt") and article.abstract_pt:
+            self.store_article_abstract_pt = article.abstract_pt
+
         self.store_article_date_submitted = article.date_submitted
         self.store_article_date_published = article.date_published
         self.store_article_date_accepted = article.date_accepted
@@ -762,8 +781,32 @@ class Command(BaseCommand):
         article.title = self.store_article_title
         logger.warning(f"{self.store_article_title=}")
 
+        if hasattr(self, "store_article_title_en"):
+            article.title_en = self.store_article_title_en
+            logger.warning(f"{self.store_article_title_en=}")
+
+        if hasattr(self, "store_article_title_es"):
+            article.title_es = self.store_article_title_es
+            logger.warning(f"{self.store_article_title_es=}")
+
+        if hasattr(self, "store_article_title_pt"):
+            article.title_pt = self.store_article_title_pt
+            logger.warning(f"{self.store_article_title_pt=}")
+
         article.abstract = self.store_article_abstract
         logger.warning(f"{self.store_article_abstract=}")
+
+        if hasattr(self, "store_article_abstract_en"):
+            article.abstract_en = self.store_article_abstract_en
+            logger.warning(f"{self.store_article_abstract_en=}")
+
+        if hasattr(self, "store_article_abstract_es"):
+            article.abstract_es = self.store_article_abstract_es
+            logger.warning(f"{self.store_article_abstract_es=}")
+
+        if hasattr(self, "store_article_abstract_pt"):
+            article.abstract_pt = self.store_article_abstract_pt
+            logger.warning(f"{self.store_article_abstract_pt=}")
 
         article.date_submitted = self.store_article_date_submitted
         logger.warning(f"{self.store_article_date_submitted=}")

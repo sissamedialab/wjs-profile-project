@@ -19,6 +19,7 @@ pip install --extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60
 info "Linking plugins..."
 cd /janeway/src/plugins && rm -f wjs*  # cleanup plugins directory
 cd /janeway/src/plugins && for p in `ls -1d ${CI_PROJECT_DIR}/wjs/plugins/wjs*`; do ln -s $p; done
+cd /janeway/src/plugins && for p in `ls -1d /usr/local/lib/python3.11/site-packages/wjs/plugins/wjs*`; do ln -s $p; done
 cd /janeway/src
 
 info "Copying settings modules..."

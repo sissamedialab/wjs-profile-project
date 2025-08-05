@@ -1,8 +1,0 @@
-{% extends "admin/core/base.html" %}
-{% block body %}
-    <form class="large-6" action="" method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="button">{% trans "Invite" %}</button>
-    </form>
-{% endblock body %}

@@ -44,11 +44,14 @@ MESSAGE_TYPE_ICONS = {
 }
 
 
-def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Message]:
+def get_messages_related_to_me(
+    user: Account, article: Article | None = None, journal: Journal | None = None
+) -> QuerySet[Message]:
     """Return a queryset of messages that can be of interest to the given user."""
-    content_type = ContentType.objects.get_for_model(article)
-    object_id = article.id
+    content_type = ContentType.objects.get_for_model(Article)
 
+    # Track read status: this query is used to annotate messages as read (if recipient and mark as read) or
+    # actor/sender (and in this case the read status is implied)
     _filter = MessageRecipients.objects.filter(
         Q(
             message=OuterRef("id"),
@@ -64,22 +67,46 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
         ),
     )
 
-    # Get messages for this article...
-    by_article = Q(Q(content_type=content_type) & Q(object_id=object_id))
+    if article:
+        # Get messages for this article...
+        by_article = Q(Q(content_type=content_type) & Q(object_id=article.pk))
+        journal = article.journal
+    else:
+        # Get messages linked to article objects ...
+        by_article = Q(content_type=content_type)
+    excluded = None
     if user.is_superuser or has_eo_role(user):
-        # if I am a EO/staff, in that case I see all messages, using a dummy filter, excluding personal notes; but
-        # personal notes from an EO are shared by all EO
+        # EO/staff have access to all the messages (excluding the generic users notes) + EO personal notes
         by_current_user = Q(
-            Q(message_type=Message.MessageTypes.NOTE) & Q(actor__groups__name=EO_GROUP),
+            # - EO notes: notes created by any member of the EO group
+            Q(message_type=Message.MessageTypes.NOTE)
+            & Q(actor__groups__name=EO_GROUP),
         ) | Q(
-            ~Q(message_type=Message.MessageTypes.NOTE) & Q(pk__gt=0),
+            # - All non notes messages (pk__gt=0 is used to have an always true condition)
+            ~Q(message_type=Message.MessageTypes.NOTE)
+            & Q(pk__gt=0),
         )
-    elif has_director_role(journal=article.journal, user=user):
-        # if I am a director, in that case I see all messages, using a dummy filter, excluding personal notes
+    elif has_director_role(journal=journal, user=user):
+        # Director have access to all the messages (excluding the generic users notes) + my personal notes
         by_current_user = Q(
-            Q(message_type=Message.MessageTypes.NOTE) & Q(actor=user),
+            # - Personal notes
+            Q(message_type=Message.MessageTypes.NOTE)
+            & Q(actor=user),
         ) | Q(
-            ~Q(message_type=Message.MessageTypes.NOTE) & Q(pk__gt=0),
+            # - All non notes messages (pk__gt=0 is used to have an always true condition)
+            ~Q(message_type=Message.MessageTypes.NOTE)
+            & Q(pk__gt=0),
+        )
+        # for directors we want to exclude papers for which they are an author (unless they are actor / recipient)
+        authored_articles = Article.objects.filter(authors=user).values_list("pk", flat=True)
+        # We must use a negative Q syntax + filter (applied last at the end of the function) because using
+        # exclude function creates wrong queries: we must then use a filter and NOT query
+        excluded = ~Q(
+            # Exclude all the authored articles
+            Q(content_type=content_type)
+            & Q(object_id__in=authored_articles)
+            # Unless the director is recipient / actor
+            & ~Q(Q(recipients__in=[user]) | Q(actor=user))
         )
     else:
         # if they have some relation with me
@@ -94,6 +121,9 @@ def get_messages_related_to_me(user: Account, article: Article) -> QuerySet[Mess
         .annotate(read=Exists(_filter))
         .order_by("-created")
     )
+    if excluded:
+        # exclusion must be applied last to simplify the ORM work when building the query
+        messages = messages.filter(excluded)
     return messages
 
 
