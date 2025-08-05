@@ -1,4 +1,5 @@
-"""URLs.
+"""
+URLs.
 
 Remember that they are all relative to /plugins/wjs_stats/.
 """
@@ -16,4 +17,9 @@ urlpatterns = [
     path("munin-proxy/<str:server>/<str:image>/", views.MuninProxy.as_view(), name="wjs_stats_munin_proxy"),
     path("articles/", views.ArticlesStatsView.as_view(), name="wjs_stats_articles"),
     path("typesetters/", views.TypesettersStatsView.as_view(), name="wjs_stats_typesetters"),
+    path(
+        "double-accounts/",
+        views.DoubleAccountsView.as_view(),
+        name="wjs_stats_double_accounts",
+    ),
 ]

@@ -1,0 +1,88 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+  WJS Stats
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section class="container">
+    <div class="mb-3">
+      <h2>{% translate "Possible double accounts" %}</h2>
+      <p>{{ double_groups|length }} {% translate "different accounts with the same first and last names" %}</p>
+      <p>
+        {% translate "Go to" %} <a href="{% url 'merge_users' %}">{% translate "merge users" %}</a>
+      </p>
+      <div>
+        <strong>Instructions</strong>:
+        <ul>
+          <li>
+            the last column in the table of each group shows the user notes if they exist. Please always check them before proceeding
+          </li>
+          <li>if two accounts refer to the same user, please user "merge users" above to merge them</li>
+          <li>
+            if two accounts refer to different people, please add a "user note" to both of them, saying something like "different from ID-OF-THE-OTHER-ACCOUNT
+          </li>
+          <li>
+            if you want to safekeep the email of the account that is going to be merged, please do so using a "correspondence" (a "mapping")
+            {# Not implemented! See also logic_production.MetadataFromTeX._enrich_similar_accounts #}
+          </li>
+        </ul>
+      </div>
+      <ol>
+        {% for group in double_groups %}
+          <li>
+            <strong>{{ group|first }}</strong>
+            <table>
+              <tbody>
+                {% for account in group %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'core_user_edit' account.pk %}" title="Profile">{{ account.pk }}</a>
+                      <a href="{% url 'admin:core_account_change' object_id=account.pk %}"
+                         title="Admin">⚙</a>
+                    </td>
+                    <td>
+                      <a href="mailto:{{ account.email }}">{{ account.email }}</a>
+                    </td>
+                    <td>{{ account.first_name }} • {{ account.middle_name }} • {{ account.last_name }}</td>
+                    <td>{{ account.institution }}</td>
+                    <td>{{ account.country|default:"" }}</td>
+                    <td>
+                      {% if account.is_active %}
+                        Active
+                      {% else %}
+                        Non active
+                      {% endif %}
+                    </td>
+                    <td>{{ account.biography|truncatewords:11 }}</td>
+                    <td>{{ account.jcomprofile.usernotes|linebreaksbr }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </section>
+  <section class="container">
+    <div class="mb-3">
+      <h2>{% translate "Ready-for-publication queue" %}</h2>
+      <p>{% translate "Lenght of RFP queues. Too few paper in queue mean problems ahead." %}</p>
+      <p>WRITEME!</p>
+      <div>JCOM: X papers in queue; high is 🟢 / low is 🟠</div>
+      <div>JCOMAL: ...</div>
+    </div>
+  </section>
+{% endblock body %}
