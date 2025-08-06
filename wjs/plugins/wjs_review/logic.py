@@ -38,7 +38,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
@@ -215,8 +215,10 @@ def handle_update_due_date_reminders(
     """
     Update the reminder dates.
 
-    Unset reminders are move forward by the difference between the original due date and the postponed date.
-    Sent reminders are moved forward by the same amount if they have been sent within the clemency days window.
+    Reminders are moved forward by the difference between the original due date and the postponed dat if and onlu if
+
+    - the new reminder's due date is in the future AND
+    - reminder's new due date - reminder's sent date > clemency time
     """
 
     Reminder.objects.filter(
@@ -229,7 +231,8 @@ def handle_update_due_date_reminders(
         object_id=obj.pk,
         date_sent__isnull=False,
     ):
-        if reminder.date_sent and reminder.date_sent > now() - datetime.timedelta(days=reminder.clemency_days):
+        new_date = reminder.date_due + date_diff
+        if new_date - localtime(reminder.date_sent).date() > datetime.timedelta(days=reminder.clemency_days):
             reminder.date_sent = None
             reminder.date_due = reminder.date_due + date_diff
             reminder.save()
