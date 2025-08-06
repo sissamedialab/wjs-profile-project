@@ -186,6 +186,28 @@ states_where_article_is_considered_editor_completed = [
     ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS,
 ]
 
+states_where_article_needs_eo_in_charge = [
+    ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED,
+    ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+    ArticleWorkflow.ReviewStates.SUBMITTED,
+    ArticleWorkflow.ReviewStates.TO_BE_REVISED,
+    ArticleWorkflow.ReviewStates.ACCEPTED,
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+    ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+    ArticleWorkflow.ReviewStates.SEND_TO_EDITOR_FOR_CHECK,
+    ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS,
+    ArticleWorkflow.ReviewStates.UNDER_APPEAL,
+]
+
+states_where_article_needs_editor = [
+    ArticleWorkflow.ReviewStates.EDITOR_SELECTED,
+    ArticleWorkflow.ReviewStates.SUBMITTED,
+    ArticleWorkflow.ReviewStates.TO_BE_REVISED,
+]
+
 
 def handle_reviewer_deassignment_reminders(assignment: WorkflowReviewAssignment):
     """Create reminders for the editor.
@@ -2832,7 +2854,7 @@ class AdminActions:
         """
         self.workflow.admin_deems_issues_not_important()
         self.workflow.save()
-        dispatch_assignment(article=self.workflow.article, request=self.request)
+        dispatch_assignment(article=self.workflow.article)
         self.workflow.refresh_from_db()
         self._log_reassign(self._get_message_context(workflow=self.workflow))
         return self.workflow
