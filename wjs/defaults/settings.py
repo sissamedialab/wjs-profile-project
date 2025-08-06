@@ -146,7 +146,7 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
 }
 
 WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS = {
-    None: "plugins.wjs_review.events.assignment.assign_eo_to_articles",
+    None: "plugins.wjs_review.events.assignment.get_select_eo_by_workload",
 }
 
 # Functions that check if a just-accepted article might have issues
