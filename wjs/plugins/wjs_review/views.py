@@ -12,7 +12,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
+from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
     Http404,
@@ -400,7 +401,12 @@ class EOPending(ArticleWorkflowBaseMixin):
 
 class EOArchived(EOPending):
     title = _("Archived preprints")
-    configuration_options = {"hide_editor_age": True, "show_filter_editor": True, "show_filter_reviewer": True}
+    configuration_options = {
+        "hide_editor_age": True,
+        "show_filter_editor": True,
+        "show_filter_reviewer": True,
+        "table_type": "archived",
+    }
     paginate_by = 20
 
     def _apply_base_filters(self, qs):
@@ -410,8 +416,19 @@ class EOArchived(EOPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_archived,
+        return (
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+            .filter(
+                state__in=states_when_article_is_considered_archived,
+            )
+            .annotate(
+                sort_date=Coalesce(
+                    F("article__date_published"),
+                    F("article__date_declined"),
+                    F("latest_state_change"),
+                )
+            )
+            .order_by("-sort_date")
         )
 
 
@@ -549,7 +566,6 @@ class DirectorPending(ArticleWorkflowBaseMixin):
         "show_filter_editor": True,
         "show_filter_reviewer": True,
         "table_type": "review",
-        "table_variant": "pending",
         "is_pending": True,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
@@ -577,7 +593,7 @@ class DirectorArchived(DirectorPending):
     configuration_options = {
         **DirectorPending.configuration_options,
         "hide_editor_age": True,
-        "table_variant": "archive",
+        "table_type": "archived",
     }
     paginate_by = 20
 
@@ -589,9 +605,19 @@ class DirectorArchived(DirectorPending):
         sure to use the original method.
         """
         return (
-            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_archived)
-            .exclude(article__authors=self.request.user)
+            (
+                ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+                .filter(state__in=states_when_article_is_considered_archived)
+                .exclude(article__authors=self.request.user)
+            )
+            .annotate(
+                sort_date=Coalesce(
+                    F("article__date_published"),
+                    F("article__date_declined"),
+                    F("latest_state_change"),
+                )
+            )
+            .order_by("-sort_date")
         )
 
 
