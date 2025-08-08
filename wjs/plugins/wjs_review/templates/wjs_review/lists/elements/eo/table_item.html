@@ -18,6 +18,12 @@
         <span title="Submitted on {{ article|get_version_submission_date }}">{{ article|get_version_submission_date|date:"d-M" }}</span>
       {% elif view.configuration_options.table_type == "production" %}
         <span title="Accepted on {{ article.date_accepted }}">{{ article.date_accepted|date:"d-M" }}</span>
+      {% elif view.configuration_options.table_type == "archived" %}
+        {% if article.date_submitted %}
+        <span title="v1 submitted on {{ article.date_submitted }}">{{ article.date_submitted|date:"d-M-Y" }}</span>
+        {% else %}
+          <span title="Submission started on {{ article.date_started }}">{{ article.date_started|date:"d-M-Y" }}</span>
+        {% endif %}
       {% endif %}
       <br />
       {{ article.articleworkflow.eo_in_charge|default:"—" }}
@@ -53,6 +59,9 @@
             {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=modal_title_label include_path="wjs_review/elements/article_additional_social_files.html" %}
           {% endwith %}
         {% endif %}
+      </td>
+      <td>
+        <span title="To be published on {{ article.date_published }}">{{ article.date_published|date:"d-M" }}</span>
       </td>
     {% elif view.configuration_options.table_type == "review" %}
       <td>

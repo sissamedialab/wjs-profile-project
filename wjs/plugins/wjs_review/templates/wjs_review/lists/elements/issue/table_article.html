@@ -17,6 +17,11 @@
              class="fw-bold">{{ article.pk }}</a>
         </div>
       </div>
+      {% with status_date=workflow|get_final_decision_or_withdrawn_date %}
+        {% if status_date %}
+            <span title="{% translate "Last update" %}: {{ status_date }}">({{ status_date }})</span>
+        {% endif %}
+      {% endwith %}
     </td>
     <td>
       {% include "wjs_review/lists/elements/corresponding_author.html" with workflow=article.articleworkflow %}

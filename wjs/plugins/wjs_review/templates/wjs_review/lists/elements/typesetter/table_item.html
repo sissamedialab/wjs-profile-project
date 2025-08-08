@@ -20,6 +20,9 @@
     <td>
       {{ article.primary_issue|internal_title|default:"—" }}
     </td>
+    <td>
+      <span title="To be published on {{ article.date_published }}">{{ article.date_published|date:"d-M" }}</span>
+    </td>
     <td title="Your last note">
       {% last_user_note target=workflow.article as note %}
       {% if note %}
