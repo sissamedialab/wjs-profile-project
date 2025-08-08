@@ -206,6 +206,35 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
             return queryset.filter(filters)
         return queryset
 
+    def filter_status(self, queryset: ArticleWorkflowQuerySet, name: str, value: str) -> QuerySet:
+        """
+        Filter by symbolic status cases.
+
+        If the value matches one of the supported queryset methods, it will be called and the result returned,
+        otherwise the queryset will be filtered on the state field matching the value.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: target article foreign key field name
+        :type name: str
+        :param value: the value to filter
+        :type value: Union[str, int]
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value == "with_unread_messages":
+            return queryset.with_unread_messages(self.request.user, other_users_messages=True)
+        if value == "submitted_re":
+            return queryset.submitted_re()
+        if value == "with_pending_reviews":
+            return queryset.with_pending_reviews()
+        if value == "waiting_for_decision":
+            return queryset.waiting_for_decision()
+        if value:
+            return queryset.filter(**{name: value})
+        return queryset
+
 
 class AuthorArticleWorkflowFilter(BaseArticleWorkflowFilter):
     # Empty to ease further customization
@@ -241,35 +270,6 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         ]
         filters["status"].field.choices = full_choices
         return filters
-
-    def filter_status(self, queryset: ArticleWorkflowQuerySet, name: str, value: str) -> QuerySet:
-        """
-        Filter by symbolic status cases.
-
-        If the value matches one of the supported queryset methods, it will be called and the result returned,
-        otherwise the queryset will be filtered on the state field matching the value.
-
-        :param queryset: the queryset to filter
-        :type queryset: QuerySet
-        :param name: target article foreign key field name
-        :type name: str
-        :param value: the value to filter
-        :type value: Union[str, int]
-
-        :return: the filtered queryset
-        :rtype: QuerySet
-        """
-        if value == "with_unread_messages":
-            return queryset.with_unread_messages(self.request.user, other_users_messages=True)
-        if value == "submitted_re":
-            return queryset.submitted_re()
-        if value == "with_pending_reviews":
-            return queryset.with_pending_reviews()
-        if value == "waiting_for_decision":
-            return queryset.waiting_for_decision()
-        if value:
-            return queryset.filter(**{name: value})
-        return queryset
 
     def filter_user(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
         """

@@ -114,6 +114,7 @@ from .mixins import (
     AuthenticatedUserPassesTest,
     EditorRequiredMixin,
     OpenReviewMixin,
+    PaginatedViewMixin,
     ReviewerRequiredMixin,
 )
 from .models import (
@@ -228,7 +229,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
         return role_label(self.role)
 
 
-class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
+class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListView):
     model = ArticleWorkflow
     filterset_class = None
     filterset: Optional[django_filters.FilterSet]
@@ -247,7 +248,7 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
             data["eo_in_charge"] = request.user
         if getattr(self, "filterset_class", None):
             self.filterset = self.filterset_class(
-                data=self.request.GET if self.request.GET.get("search") else data,
+                data=self.request.GET,
                 queryset=self._apply_base_filters(self.model.objects.all()),
                 request=self.request,
                 journal=self.request.journal,
@@ -280,10 +281,8 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, ListView):
 
     def get_context_data(self, **kwargs):
         """Add the filterset."""
-        querystring = self.request.GET.copy()
         context = super().get_context_data(**kwargs)
         context["filter"] = self.filterset
-        context["querystring"] = querystring
         return context
 
 
@@ -382,10 +381,19 @@ class EOPending(ArticleWorkflowBaseMixin):
     - reviewer_status: Hide detailed status information and show reviewer's status only
     - show_author_due_date: Show due dates for authors (for revision request and proofreading)
     """
+    prefilter_by_eo = True
 
     def test_func(self):
         """Allow access only to EO (or staff)."""
         return base_permissions.has_admin_role(self.request.journal, self.request.user)
+
+    def load_initial(self, request, *args, **kwargs):
+        """Setup and validate filterset data."""
+        data = self.request.GET.copy()
+        if base_permissions.has_eo_role(request.user) and not self.request.GET.get("search") and self.prefilter_by_eo:
+            data["eo_in_charge"] = request.user
+        self.request.GET = data
+        super().load_initial(request, *args, **kwargs)
 
     def _apply_base_filters(self, qs):
         """
@@ -408,6 +416,7 @@ class EOArchived(EOPending):
         "table_type": "archived",
     }
     paginate_by = 20
+    prefilter_by_eo = False
 
     def _apply_base_filters(self, qs):
         """
@@ -436,6 +445,7 @@ class EOProduction(EOPending):
     title = _("Papers in production")
     configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
     ordering = ["-article__date_accepted"]
+    prefilter_by_eo = False
 
     def _apply_base_filters(self, qs):
         """
@@ -456,6 +466,7 @@ class EOWorkOnAPaper(EOPending):
     filterset_class = WorkOnAPaperArticleWorkflowFilter
     filterset: WorkOnAPaperArticleWorkflowFilter
     paginate_by = 100
+    prefilter_by_eo = False
 
     def _apply_base_filters(self, qs):
         """
@@ -804,7 +815,7 @@ class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, E
 
 
 class SelectReviewerView(
-    BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView
+    BaseRelatedViewsMixin, HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, PaginatedViewMixin, UpdateView
 ):
     """Select user as reviewer.
 
@@ -932,9 +943,6 @@ class SelectReviewerView(
         paginator, page, objects_list, is_paginated = self.paginate_queryset(
             self.get_objects_list(), self.get_paginate_by(self.get_objects_list())
         )
-        querystring = self.request.GET.copy()
-        if "page" in querystring:
-            del querystring["page"]
         context.update(
             {
                 "paginator": paginator,
@@ -942,7 +950,6 @@ class SelectReviewerView(
                 "is_paginated": is_paginated,
                 "object_list": objects_list,
                 "reviewers": objects_list,
-                "querystring": querystring,
                 "eo_user": get_eo_user(self.object.article),
             }
         )
@@ -1889,7 +1896,7 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         return context
 
 
-class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, ListView, FilterMixin):
+class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, ListView, FilterMixin):
     """
     A tool used by EO to have an overview on every message in the system.
     """
