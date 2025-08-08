@@ -28,6 +28,7 @@ from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.http import HttpRequest
+from django.utils import timezone
 from events import logic as events_logic
 from identifiers.models import Identifier
 from journal.models import Issue, Journal
@@ -736,7 +737,7 @@ def editor_revision(assigned_article: Article, fake_request: HttpRequest) -> Edi
         form_data={
             "decision": ArticleWorkflow.Decisions.MAJOR_REVISION,
             "decision_editor_report": "skip",
-            "date_due": "2024-01-01",
+            "date_due": timezone.localtime(timezone.now()).date(),
             "withdraw_notice": "automatic",
         },
         user=WjsEditorAssignment.objects.get_current(assigned_article).editor,

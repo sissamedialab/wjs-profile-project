@@ -32,13 +32,13 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import F, QuerySet
+from django.db.models import QuerySet
 from django.db.models.query import FlatValuesListIterable
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.timezone import localtime, now
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
@@ -231,35 +231,21 @@ def handle_reviewer_deassignment_reminders(assignment: WorkflowReviewAssignment)
             ).create()
 
 
-def handle_update_due_date_reminders(
-    obj: EditorRevisionRequest | WorkflowReviewAssignment, date_diff: datetime.timedelta
-):
+def handle_update_due_date_reminders(obj: EditorRevisionRequest | WorkflowReviewAssignment):
     """
     Update the reminder dates.
 
-    Reminders are moved forward by the difference between the original due date and the postponed dat if and onlu if
+    Reminders are updated by recalculating the date based on the new target due date.
 
-    - the new reminder's due date is in the future AND
+    - the new reminder's due date is in the future OR
     - reminder's new due date - reminder's sent date > clemency time
     """
 
-    Reminder.objects.filter(
-        content_type=ContentType.objects.get_for_model(obj),
-        object_id=obj.pk,
-        date_sent__isnull=True,
-    ).update(date_due=F("date_due") + date_diff)
     for reminder in Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(obj),
         object_id=obj.pk,
-        date_sent__isnull=False,
     ):
-        new_date = reminder.date_sent + date_diff
-        if localtime(new_date).date() - localtime(reminder.date_sent).date() > datetime.timedelta(
-            days=reminder.clemency_days
-        ):
-            reminder.date_sent = None
-            reminder.date_due = reminder.date_due + date_diff
-            reminder.save()
+        reminder.update_due_date(obj.article.journal)
 
 
 @dataclasses.dataclass
@@ -2512,8 +2498,7 @@ class PostponeRevisionRequestDueDate:
         Unset reminders are move forward by the difference between the original due date and the postponed date.
         Sent reminders are moved forward by the same amount if they have been sent within the clemency days window.
         """
-        date_diff = self.form_data["date_due"] - self.original_due_date
-        handle_update_due_date_reminders(self.revision_request, date_diff)
+        handle_update_due_date_reminders(self.revision_request)
 
     def _save_date_due(self):
         self.revision_request.date_due = self.form_data["date_due"]
@@ -2981,8 +2966,7 @@ class PostponeReviewerDueDate:
         Unset reminders are move forward by the difference between the original due date and the postponed date.
         Sent reminders are moved forward by the same amount if they have been sent within the clemency days window.
         """
-        date_diff = self.form_data["date_due"] - self.original_due_date
-        handle_update_due_date_reminders(self.assignment, date_diff)
+        handle_update_due_date_reminders(self.assignment)
 
     @staticmethod
     def check_editor_conditions(assignment: WorkflowReviewAssignment, editor: Account) -> bool:
