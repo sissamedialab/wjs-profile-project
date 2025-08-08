@@ -856,15 +856,13 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     {% with article.articleworkflow.latex_desc as latex_desc %}
     {% with article.ancestors.first.parent.articleworkflow.latex_desc as latex_desc_parent %}
     {% with article.primary_issue.issueparameters.latex_fragment as latex_desc_issue %}
-    {% angular_variables %}
-    \\article{<title>}
-    \\accepted{<date_accepted>}
-    \\journal{<journal>}
-    \\doc_type{<type_code>}
-    \\latex_desc{<latex_desc>}
-    \\latex_desc_parent{<latex_desc_parent>}
-    \\subheader{<latex_desc_issue>}
-    {% endangular_variables %}
+    \\article{{{ title }}}
+    \\accepted{{{ date_accepted }}}
+    \\journal{{{ journal }}}
+    \\doc_type{{{ type_code }}}
+    \\latex_desc{{{ latex_desc }}}
+    \\latex_desc_parent{{{ latex_desc_parent }}}
+    \\subheader{{{ latex_desc_issue }}}
     {% endwith %}
     {% endwith %}
     {% endwith %}

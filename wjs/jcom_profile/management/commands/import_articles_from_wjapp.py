@@ -81,17 +81,13 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
     JANEWAY_LANGUAGES_BY_CODE,
-    set_author_country,
-    sync_frozen_authors_with_authors,
-)
-from wjs.jcom_profile.management.commands.import_from_drupal import (
     JOURNALS_DATA,
     NON_PEER_REVIEWED,
-    rome_timezone,
-)
-from wjs.jcom_profile.management.commands.import_from_wjapp import (
     SECTIONS_MAPPING,
     check_mappings,
+    rome_timezone,
+    set_author_country,
+    sync_frozen_authors_with_authors,
 )
 from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user

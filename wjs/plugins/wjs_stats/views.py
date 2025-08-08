@@ -497,3 +497,34 @@ class ArticlesStatsView(BaseStatsFormView):
         # include a reference to each issue selected, so that the web page can point to the issue
         context["issues"] = Issue.objects.filter(id__in=form.cleaned_data["issues"])
         return self.render_to_response(context)
+
+
+class DoubleAccountsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Lists accounts with the same first and last name."""
+
+    template_name = "wjs_stats/glitches.html"
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
+
+    def get_context_data(self, **kwargs):
+        """Find accounts with the same first and last name."""
+        context = super().get_context_data(**kwargs)
+        double_names = (
+            Account.objects.values("first_name", "last_name")
+            .order_by()
+            .annotate(count=Count("pk"))
+            .filter(count__gt=1)
+            .exclude(first_name__in=["", "hidden"], last_name__in=["", "user"])
+        )
+        groups = []
+        for name_group in double_names:
+            accounts = Account.objects.filter(
+                first_name=name_group["first_name"],
+                last_name=name_group["last_name"],
+            ).order_by("pk")
+            groups.append(accounts)
+
+        context["double_groups"] = groups
+        return context

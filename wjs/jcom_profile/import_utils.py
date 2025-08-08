@@ -6,16 +6,66 @@ from typing import Optional
 
 import lxml.html
 import pycountry
+import pytz
 import requests
 from core.models import Account, Country
 from django.conf import settings
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, QuerySet, Subquery
 from lxml.html import HtmlElement
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder
 from utils.logger import get_logger
 
+from wjs.jcom_profile import models as wjs_models
+
 logger = get_logger(__name__)
+
+rome_timezone = pytz.timezone("Europe/Rome")
+
+# Non-peer reviewd sections (#200)
+NON_PEER_REVIEWED = ("Editorial", "Commentary")
+
+JOURNALS_DATA = {
+    "JCOM": {
+        "inception_year": 2001,
+        "correspondence_source": "jcom",
+        "wjapp_url": getattr(settings, "WJAPP_JCOM_URL", "https://jcom.sissa.it/jcom/services/jsonpublished"),
+        "wjapp_api_key": "WJAPP_JCOM_APIKEY",
+        # Default order of sections in any issue.
+        # It is not possible to mix different types (e.g. A1 E1 A2...)
+        "section_order": {
+            "Editorial": (1, "Editorials"),
+            "Article": (2, "Articles"),
+            "Review Article": (3, "Review Articles"),
+            "Practice Insight": (4, "Practice Insights"),
+            "Essay": (5, "Essays"),
+            "Focus": (6, "Focus"),
+            "Commentary": (7, "Commentaries"),
+            "Letter": (8, "Letters"),
+            "Book Review": (9, "Book Reviews"),
+            "Conference Review": (10, "Conference Reviews"),
+        },
+        "expected_languages": ("und",),
+    },
+    "JCOMAL": {
+        "inception_year": 2017,
+        "correspondence_source": "jcomal",
+        "wjapp_url": getattr(settings, "WJAPP_JCOMAL_URL", "https://jcomal.sissa.it/jcomal/services/jsonpublished"),
+        "wjapp_api_key": "WJAPP_JCOMAL_APIKEY",
+        "section_order": {
+            "Editorial": (1, "Editorials"),
+            "Article": (2, "Articles"),
+            "Review Article": (3, "Review Articles"),
+            "Practice Insight": (4, "Practice Insights"),
+            "Essay": (5, "Essays"),
+            "Focus": (6, "Focus"),
+            "Commentary": (7, "Commentaries"),
+            "Letter": (8, "Letters"),
+            "Review": (9, "Reviews"),
+        },
+        "expected_languages": ("es", "pt-br"),
+    },
+}
 
 
 # wjapp:janeway country names complete mapping
@@ -64,6 +114,22 @@ COUNTRIES_MAPPING = {
     "Venezuela (Bolivarian Republic of)": "Venezuela, Bolivarian Republic of",
     "Virgin Islands (U.S.)": "Virgin Islands, U.S.",
     "Western Sahara*": "Western Sahara",
+}
+
+# Map wjapp article types to Janeway section names
+SECTIONS_MAPPING = {
+    "editorial": "Editorial",
+    "article": "Article",
+    "review article": "Review Article",
+    "practice insight": "Practice Insight",
+    "essay": "Essay",
+    "focus": "Focus",
+    "commentary": "Commentary",
+    "comment": "Commentary",  # comment ↔ commentary
+    "letter": "Letter",
+    "book review": "Book Review",
+    "conference review": "Conference Review",
+    "review": "Review",
 }
 
 JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}
@@ -515,3 +581,73 @@ def evince_language_from_filename_and_article(filename: str, article):
     if "_pt" in filename:
         return "por"
     return article.language
+
+
+def check_mappings(
+    mappings: QuerySet[wjs_models.Correspondence],
+    imported_email: str,
+    imported_usercod: str,
+    imported_source: str,
+) -> wjs_models.Correspondence:
+    """Run throught the given mappings comparing them to info from the XML.
+
+    If necessary update one mapping or add a new one.
+    """
+    # Sanity check: all mapping with the same source/usercod or email
+    # should point to the same account.
+    accounts = [mapping.account for mapping in mappings]
+    if len(set(accounts)) != 1:
+        logger.critical(
+            f"More than 1 mapping from {imported_source}/{imported_usercod}, but they point to different accounts!"
+            " You should quit and check your DB!",
+        )
+        return mappings.first()
+
+    try:
+        full_match = mappings.get(
+            user_cod=imported_usercod,
+            source=imported_source,
+            email__iexact=imported_email,
+        )
+    except wjs_models.Correspondence.DoesNotExist:
+        pass
+    else:
+        return full_match
+
+    # If we get here, we are sure that there is no full-match (same
+    # source/usercod/email wrt XML) in the Correspondence table.
+
+    # Let's see if we have an "incomplete" match (i.e. same
+    # source/usercod, but missing email)
+    try:
+        match = mappings.get(
+            user_cod=imported_usercod,
+            source=imported_source,
+            email__isnull=True,
+        )
+    except wjs_models.Correspondence.DoesNotExist:
+        pass
+    else:
+        logger.info(f"Setting {imported_email} onto previously empty mapping {match.id}")
+        match.email = imported_email
+        match.save()
+        return match
+
+    # If we get here, then there is not mapping with the
+    # source/usercod/email under consideration, so we should add one
+    #
+    # NB: we don't check if the imported_email is the same as the
+    # account.email. The new mapping is not however redundand, since
+    # it is a proof that the imported_email also exists/existed in the
+    # source.
+    account = mappings.first().account
+    new_mapping = wjs_models.Correspondence.objects.create(
+        user_cod=imported_usercod,
+        source=imported_source,
+        email=imported_email,
+        account=account,
+    )
+    logger.warning(
+        f"Created new mapping {imported_source}/{imported_usercod}/{imported_email} for account {account}.",
+    )
+    return new_mapping

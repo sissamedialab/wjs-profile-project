@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+{% load truncate %}
+{% load i18n %}
+{% load wjs_tags %}
+{% block title %}
+    {{ journal_settings.news.news_title }}
+{% endblock title %}
+{% block body %}
+    <div class="row">
+        <div class="col m12">
+            <div class="cms-page card">
+                <div class="cms-page-content card-content">
+                    {% if tag.text == "call" %}
+                        <h1 class="main-title">{% trans "Call for papers" %}</h1>
+                    {% elif tag.text == "archived-calls" %}
+                        <h1 class="main-title">{% trans "Call for papers" %}</h1>
+                    {% else %}
+                        <h1 class="main-title">{{ journal_settings.news.news_title }}</h1>
+                        {% if tag %}
+                            <h3>{% trans "Filtering tag" %}: {{ tag }}</h3>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% for item in news_items %}
+            <div class="col m12">
+                <div class="card full-width-card">
+                    {% if item.large_image_file or request.journal and request.journal.default_large_image or request.press.default_carousel_image %}
+                        <div class="card-image full-width-card-image">
+                            <img src="{{ item.best_image_url }}" alt="{{ item.title }}" />
+                        </div>
+                    {% endif %}
+                    <div class="card-content">
+                        {% if not item.large_image_file or request.journal and not request.journal.default_large_image or not request.press.default_carousel_image %}
+                            <span class="date"><i class="fa fa-calendar"></i> {{ item.posted|date:DATE_FORMAT }}</span>
+                            <h5 class="article-title">
+                                <a href="{% url 'core_news_item' item.pk %}">{{ item.title }}</a>
+                            </h5>
+                        {% endif %}
+                        {{ item|news_part:'abstract'|safe }}
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <h4>{% trans "We receive submissions of manuscripts during the whole year. There is no call currently for a special issue." %}</h4>
+        {% endfor %}
+    </div>
+    {% include "elements/pagination.html" with page=news_items %}
+{% endblock body %}

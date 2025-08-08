@@ -271,6 +271,15 @@ def get_status_date_label(article: Article) -> str:
         )
         if revision_request:
             return revision_request.date_completed.strftime("%d-%b")
+    if workflow.state in (
+        ArticleWorkflow.ReviewStates.REJECTED,
+        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+    ):
+        return workflow.article.date_declined.strftime("%d-%b-%Y")
+    if workflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN:
+        return workflow.latest_state_change.strftime("%d-%b-%Y")
+    if workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED:
+        return workflow.article.date_published.strftime("%d-%b-%Y")
     return ""
 
 
@@ -761,3 +770,20 @@ def get_pending_reviews_in_timeframe(user: Account) -> int:
     return WjsEditorAssignment.objects.get_pending_reviews_in_timeframe(
         user, states_where_article_is_considered_editor_completed, timezone.now() - datetime.timedelta(days=365)
     ).count()
+
+
+@register.filter()
+def get_final_decision_or_withdrawn_date(workflow: ArticleWorkflow) -> str:
+    """Return withdrawn date or the date of the final editor decision."""
+    if workflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN:
+        return workflow.latest_state_change.strftime("%d-%b")
+    if decision := EditorDecision.objects.filter(
+        workflow=workflow,
+        decision__in=[
+            ArticleWorkflow.Decisions.REJECT,
+            ArticleWorkflow.Decisions.ACCEPT,
+            ArticleWorkflow.Decisions.NOT_SUITABLE,
+        ],
+    ).last():
+        return decision.modified.strftime("%d-%b")
+    return ""

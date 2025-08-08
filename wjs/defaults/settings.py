@@ -147,7 +147,7 @@ WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
 }
 
 WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS = {
-    None: "plugins.wjs_review.events.assignment.assign_eo_to_articles",
+    None: "plugins.wjs_review.events.assignment.get_select_eo_by_workload",
 }
 
 # Functions that check if a just-accepted article might have issues
@@ -250,7 +250,7 @@ WJAPP_JCOMAL_IMPORT_LOGIN_PARAMS = {
 
 # base url for files import from wjapp (one for journal)
 WJAPP_JCOM_BASE_URL = "https://old.wjapp.it/jcom/common/archiveFile?filePath="
-WJAPP_JCOMAL_BASE_URL = "https://jcomal.sissa.it/jcomal/common/archiveFile?filePath="
+WJAPP_JCOMAL_BASE_URL = "https://old.wjapp.it/jcomal/common/archiveFile?filePath="
 
 
 NO_NOTIFICATION = False
