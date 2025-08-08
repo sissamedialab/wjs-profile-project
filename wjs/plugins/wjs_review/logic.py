@@ -253,8 +253,10 @@ def handle_update_due_date_reminders(
         object_id=obj.pk,
         date_sent__isnull=False,
     ):
-        new_date = reminder.date_due + date_diff
-        if new_date - localtime(reminder.date_sent).date() > datetime.timedelta(days=reminder.clemency_days):
+        new_date = reminder.date_sent + date_diff
+        if localtime(new_date).date() - localtime(reminder.date_sent).date() > datetime.timedelta(
+            days=reminder.clemency_days
+        ):
             reminder.date_sent = None
             reminder.date_due = reminder.date_due + date_diff
             reminder.save()
