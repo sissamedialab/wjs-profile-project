@@ -7,7 +7,7 @@ import urllib
 from typing import Callable, Optional, Type
 
 from django.contrib.auth import get_user_model
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
@@ -156,6 +156,30 @@ def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", use
             "article_id": workflow.article.pk,
         },
     )
+    if action.querystring_params is not None:
+        url += "?"
+        url += urllib.parse.urlencode(action.querystring_params)
+    return url
+
+
+def get_resume_submission_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    try:
+        view_name = "wjs_submission_continue"
+        url = reverse(
+            view_name,
+            kwargs={
+                "article_id": workflow.article.pk,
+            },
+        )
+    except NoReverseMatch:
+        # If above resolution fails, it means the new submission is not available and we revert to the old one
+        view_name = "submit_info"
+        url = reverse(
+            view_name,
+            kwargs={
+                "article_id": workflow.article.pk,
+            },
+        )
     if action.querystring_params is not None:
         url += "?"
         url += urllib.parse.urlencode(action.querystring_params)
@@ -727,8 +751,8 @@ class IncompleteSubmission(BaseState):
             permission=permissions.is_article_author_or_owner,
             name="resume incomplete submission",
             label="Resume incomplete submission",
-            view_name="submit_info",
-            custom_get_url=get_article_pk_url,
+            view_name="wjs_submission_continue",  # unused, kept for compatibility
+            custom_get_url=get_resume_submission_url,
         ),
     ) + BaseState.article_actions
 
