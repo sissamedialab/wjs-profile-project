@@ -3143,9 +3143,8 @@ def test_postpone_revision_due_date(
     editor_revision.refresh_from_db()
     mail.outbox = []
     eo_user = get_eo_user(assigned_article)
-    editor_revision.date_due = now()
+    editor_revision.date_due = localtime(now()).date()
     editor_revision.save()
-    editor_revision.refresh_from_db()  # date_due datetime is now a date
 
     fake_request.user = editor_revision.editor
     initial_date_due = editor_revision.date_due
