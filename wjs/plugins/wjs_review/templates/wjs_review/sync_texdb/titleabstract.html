@@ -1,0 +1,51 @@
+{% load django_bootstrap5 %}
+<div class="mb-3">
+  <div>
+    <h2>{% translate "Title and abstract" %}</h2>
+    <table class="table">
+      <tr {% if title_tex != title_db %}class="table-warning"{% endif %}>
+        <td colspan="2">Title</td>
+      </tr>
+      <tr>
+        <td>TeX</td>
+        <td>{{ title_tex }}</td>
+      </tr>
+      <tr>
+        <td>DB</td>
+        <td>{{ title_db }}</td>
+      </tr>
+      <tr {% if abstract_tex != abstract_db %}class="table-warning"{% endif %}>
+        <td colspan="2">Abstract</td>
+      </tr>
+      <tr>
+        <td>TeX</td>
+        <td>{{ abstract_tex }}</td>
+      </tr>
+      <tr>
+        <td>DB</td>
+        <td>{{ abstract_db }}</td>
+      </tr>
+    </table>
+    {% if form_title %}
+      <div>
+        <div id="diff-container"></div>
+        <!-- Raw diff content (hidden) -->
+        <pre id="diff-data" class="d-none">{{ diff_abstract|escape }}</pre>
+        <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
+        <script>
+        const diffText = document.getElementById('diff-data').textContent;
+        const targetElement = document.getElementById('diff-container');
+        const diffHtml = Diff2Html.html(diffText, { drawFileList: true, matching: 'lines', outputFormat: 'side-by-side' });
+        targetElement.innerHTML = diffHtml;
+        </script>
+      </div>
+      <form name="sync_titleabstract" method="post">
+        {% csrf_token %}
+        {% bootstrap_form form_title %}
+        {% bootstrap_button button_type="submit" value=1 content=update_label %}
+      </form>
+    {% else %}
+      <p>{% translate "Title and abstract are identical. Nothing to do." %}</p>
+    {% endif %}
+  </div>
+</div>

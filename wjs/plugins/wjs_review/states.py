@@ -1011,6 +1011,12 @@ class TypesetterSelected(BaseState):
             view_name="wjs_article_additional_info",
             condition=conditions.needs_extra_article_information,
         ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter_or_eo,
+            name="sync tex and db",
+            label="Sync TeX and DB",
+            view_name="wjs_sync_tex_db",
+        ),
     ) + BaseState.article_actions
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(

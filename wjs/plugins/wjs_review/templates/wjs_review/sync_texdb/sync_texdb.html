@@ -1,0 +1,24 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 %}
+{% block bootstrap5_extra_head %}
+  {{ block.super }}
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+{% endblock bootstrap5_extra_head %}
+{% block content_wrapper %}
+  {% translate "Update" as update_label %}
+  <div class="container mb-3">
+    <h1 class="page-title">{{ view.title }}</h1>
+    <div>
+      <p>
+        {% translate "Ensure metadata coherence between TeX and DB: if the metadata differ, you can update the DB values with value taken from the TeX source." %}
+      </p>
+    </div>
+    <div class="d-flex flex-column justify-content-between">
+      {% include "wjs_review/sync_texdb/titleabstract.html" %}
+      {% include "wjs_review/sync_texdb/keywords.html" %}
+      {% include "wjs_review/sync_texdb/authors.html" %}
+    </div>
+  </div>
+  <div class="container mb-3">{% include "wjs_review/base/elements/back.html" with workflow=workflow %}</div>
+{% endblock content_wrapper %}

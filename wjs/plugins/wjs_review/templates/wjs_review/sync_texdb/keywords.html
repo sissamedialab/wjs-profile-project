@@ -1,0 +1,40 @@
+{% load django_bootstrap5 %}
+<div class="mb-3">
+  <div>
+    <h2>{% translate "Keywords" %}</h2>
+    <div class="d-flex flex-row justify-content-between mb-3">
+      <div>
+        {% if kwds_error %}
+          <div class="alert alert-danger" role="alert">{{ kwds_error }}</div>
+        {% else %}
+          <p>{% translate "TeX - this the source of truth" %}:</p>
+          <ol>
+            {% for k in kwds_tex %}<li>{{ k }}</li>{% endfor %}
+          </ol>
+        {% endif %}
+      </div>
+      <div>⇨</div>
+      <div>
+        <p>DB:</p>
+        <ol>
+          {% for k in kwds_db %}<li>{{ k }}</li>{% endfor %}
+        </ol>
+        {% if kwds_db_raw %}
+          <p>{% translate "Raw" %}</p>
+          <ol>
+            {% for k in kwds_db_raw %}<li>{{ k }}</li>{% endfor %}
+          </ol>
+        {% endif %}
+      </div>
+    </div>
+    {% if form_kwds %}
+      <form name="sync_keywords" method="post">
+        {% csrf_token %}
+        {% bootstrap_form form_kwds %}
+        {% bootstrap_button button_type="submit" value=1 content=update_label %}
+      </form>
+    {% else %}
+      <p>{% translate "Keywords are identical. Nothing to do." %}</p>
+    {% endif %}
+  </div>
+</div>

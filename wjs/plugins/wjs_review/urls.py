@@ -74,6 +74,7 @@ from .views__production import (  # noqa F401
     ListSupplementaryFileView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
+    SyncTeXDB,
     TogglePublishableFlagView,
     TypesetterArchived,
     TypesetterPending,
@@ -251,6 +252,7 @@ urlpatterns = [
     path("journal_editors/", JournalEditorsView.as_view(), name="wjs_journal_editors"),
     path("esm_files/<int:pk>/", ListSupplementaryFileView.as_view(), name="wjs_article_esm_files"),
     path("upload_files/<int:pk>/", TypesetterUploadFiles.as_view(), name="wjs_typesetter_upload_files"),
+    path("sync_texdb/<int:pk>/", SyncTeXDB.as_view(), name="wjs_sync_tex_db"),
     path("download_revision_files/<int:pk>/", DownloadRevisionFiles.as_view(), name="download_revision_files"),
     path("ready_for_proofreading/<int:pk>/", ReadyForProofreadingView.as_view(), name="wjs_ready_for_proofreading"),
     path(

@@ -1,0 +1,106 @@
+{% load django_bootstrap5 %}
+<div class="mb-3">
+  <div>
+    <h2>{% translate "Authors" %}</h2>
+    <div class="d-flex flex-row justify-content-between mb-3">
+      <div>
+        <p>{% translate "TeX - this the source of truth" %}:</p>
+        <ol>
+          {% for a in authors_tex %}
+            <li>
+              {{ a.first_name }} |
+              {{ a.surname }}
+              <br>
+              <span class="fw-light">
+                ({{ a.email }})
+              {{ a.orcid }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div>
+        <p>{% translate "proposed mapping" %}:</p>
+        <ol>
+          {% for a in authors_map %}
+            <li>
+              {{ a.first_name }} |
+              {{ a.last_name }}
+              {# mappings with must_be_created=True and those who have a warning do not have account_id #}
+              {% if a.account_id %}
+                <a href="{% url 'core_user_edit' user_id=a.account_id %}"
+                   class="text-decoration-none">{{ a.account_id }}</a>
+              {% endif %}
+              <br>
+              <span class="fw-light">
+                ({{ a.email }})
+              {{ a.orcid|default:"" }}</span>
+              {% if a.warning %}
+                <p>
+                  <span class="text-danger">{{ a.warning }}</span>
+                </p>
+              {% endif %}
+              {% if a.similar_accounts %}
+                <ul>
+                  {% for sa in a.similar_accounts %}
+                    <li>
+                      <a href="{% url 'core_user_edit' user_id=sa.pk %}"
+                         class="text-decoration-none"
+                         title="{{ sa.pk }}"
+                         target="_blank">{{ sa.first_name }} {{ sa.last_name }}</a>
+                      <span class="fw-light">({{ sa.email }})</span>
+                      {% if sa.country or sa.institution %}
+                        <br />
+                        <span>{{ sa.country }} <i class="bi bi-globe2"></i> {{ sa.institution }}</span>
+                      {% endif %}
+                      {% if sa.link_to_mapping %}
+                        <br />
+                        <a href="{{ sa.link_to_mapping }}" target="_blank">map</a>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+              {% if a.must_be_created %}
+                <p>
+                  <span class="text-danger">{% translate "A new account will be created and an email will be sent to the new user!" %}</span>
+                </p>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div>⇨</div>
+      <div>
+        <p>DB:</p>
+        <ol>
+          {% for a in authors_db %}
+            <li>
+              {{ a.first_name }}
+              {{ a.last_name }}
+              <a href="{% url 'core_user_edit' user_id=a.id %}"
+                 class="text-decoration-none">{{ a.id }}</a>
+              <br>
+              <span class="fw-light">
+                ({{ a.email }})
+              {{ a.orcid|default:"" }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+    <div>
+      {% if form_authors and not authors_errors %}
+        <form name="sync_keywords" method="post">
+          {% csrf_token %}
+          {% bootstrap_form form_authors %}
+          {% bootstrap_button button_type="submit" value=1 content=update_label %}
+        </form>
+      {% elif authors_errors %}
+        {% for error in authors_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+        <p>{% translate "Update not possible." %}</p>
+      {% else %}
+        <p>{% translate "Authors are identical. Nothing to do." %}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>

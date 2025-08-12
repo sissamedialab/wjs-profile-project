@@ -6,17 +6,22 @@ This module should be *-imported into logic.py
 import dataclasses
 import datetime
 import os
+import re
 import shutil
 import tarfile
 import tempfile
 import traceback
 import zipfile
+from dataclasses import dataclass
 from io import BytesIO
+from itertools import permutations
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
+from urllib.parse import urlencode
 from zipfile import ZipFile
 
 import lxml.html
+import pycountry
 import requests
 from core.files import save_file_to_article
 from core.models import File as JanewayFile
@@ -26,10 +31,11 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.db import transaction
+from django.db.models import Case, IntegerField, OuterRef, QuerySet, Subquery, When
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from django.urls import reverse_lazy
-from django.utils import timezone
+from django.urls import reverse, reverse_lazy
+from django.utils import timezone, translation
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
@@ -49,6 +55,9 @@ from submission.models import (
     STAGE_READY_FOR_PUBLICATION,
     STAGE_TYPESETTING,
     Article,
+    ArticleAuthorOrder,
+    Keyword,
+    KeywordArticle,
 )
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
@@ -59,7 +68,9 @@ from wjs.jcom_profile.import_utils import (
     decide_galley_label,
     evince_language_from_filename_and_article,
     process_body,
+    sync_frozen_authors_with_authors,
 )
+from wjs.jcom_profile.models import Correspondence
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import (
     create_rich_fake_request,
@@ -1870,3 +1881,586 @@ def finishpublication_wrapper(workflow_pk: int, user_pk: int):
         user=user,
         request=request,
     ).run()
+
+
+def reunite_divided_kwds(kwds: QuerySet[Keyword]) -> tuple[list[int], list[int]]:
+    """
+    Given some kwds, return the correct ones.
+
+    If any permutation of the given kwds exists as a whole kwd,
+    consider the member of the permutation as "bad" kwds, and the combined one as a "good" one.
+
+    Raises:
+      ValueError: if we find more than one kwd with a certain "combined-word" in the DB.
+
+    """
+    good: list[int] = []
+    bad: list[int] = []
+    unprocessed_kwds = list(kwds.values_list("id", "word"))  # e.g. [(12, 'a, b'), (13, 'a'), ...
+    r = len(unprocessed_kwds)
+    while True:
+        if r < 2:
+            break
+        if len(unprocessed_kwds) < 2:
+            break
+        for permutation in permutations(unprocessed_kwds, r):
+            joined_word = ", ".join([k[1] for k in permutation])
+            kwds_for_joined_word = Keyword.objects.filter(word=joined_word)
+            if kwds_for_joined_word.count() > 1:
+                msg = f"{kwds_for_joined_word.count()} matches for {joined_word}. Expected max 1!"
+                raise ValueError(msg)
+            if kwds_for_joined_word.count() == 1:
+                good.append(kwds_for_joined_word.values_list("id", flat=True).get())
+                for k in permutation:
+                    bad.append(k[0])
+                    unprocessed_kwds.remove(k)
+                r -= 1
+                break  # we can safely assume that if "a, b" exists, then "b, a" does not
+        r -= 1
+    good.extend([k[0] for k in unprocessed_kwds])
+    return (good, bad)
+
+
+@dataclasses.dataclass
+class MetadataFromTeX:
+    """
+    Extract metadata from TeX.
+
+    Send the latest typesetted tex source file to jcomassistant and
+    receive the metadata extracted from that.
+
+    Enrich returned metadata with a mapping of the kwds strings to DB objects.
+
+    """
+
+    workflow: ArticleWorkflow
+    _data: dict[str:Any] = dataclasses.field(init=False)
+
+    # TODO: refactor with data_extractor.Author (or drop?)
+    @dataclass
+    class SimilarAccount:
+        """Convenience."""
+
+        pk: int
+        last_name: str
+        first_name: str
+        email: str
+        orcid: str | None
+        country: str | None
+        institution: str | None
+        biography: str | None
+        link_to_mapping: str | None
+
+    @dataclass
+    class AuthorStruct:
+        """Convenience."""
+
+        last_name: str
+        first_name: str
+        email: str
+        orcid: str | None
+        extra_email: str | None
+        account_id: int | None
+        warning: str | None
+        similar_accounts: QuerySet[Account] | None = None
+        must_be_created: bool = False
+
+    # TODO: allow for type-hint TexData without depending from jcomassistant
+    def get_raw_data(self) -> dict:
+        """
+        Ask Jcomassistant to extract structured metadata from TeX.
+
+        Raises:
+          HTTPError: if jcomassistant returned something different that 200
+
+        """
+        # Use the source file from the latest typesetting round.  We probably will never change these data after
+        # publication (when the source file is AW.publication_galleys_source_file), but even if we do, title and
+        # abstract should be the same in the two source files.
+        tex_source_file = self._get_source_file()
+        files = {"file": tex_source_file}
+        url = settings.JCOMASSISTANT_URL.replace("jcomassistant/", "texdata")
+        response = requests.post(url=url, files=files, timeout=10)
+        if response.status_code != 200:
+            msg = f"Unexpected status code {response.status_code} for {url}"
+            raise requests.exceptions.HTTPError(msg)
+        return response.json()
+
+    def get_data(self) -> dict:
+        """Adapt and enrich TeX data."""
+        self._data = self.get_raw_data()
+
+        # Adapt abstract (see also wjs/specs#1773)
+        self._data["abstract_adapted"] = re.sub(r"\n", " ", self._data.get("abstract"))
+        self._data["abstract_adapted"] = re.sub(r"  +", " ", self._data["abstract_adapted"])
+
+        # Map kwds data from TeX to DB objects
+        self._data["kwds_tex"] = self._get_tex_kwds()
+        # These two can be dropped after wjs/wjs-help#44 is solved
+        self._data["kwds_db"] = self._get_db_kwds()
+        self._data["kwds_db_raw"] = self.workflow.article.keywords.all()
+
+        # Map authors and find eventual related errors
+        self._data["authors_map"] = self._map_authors()
+        self._data["authors_errors"] = self._find_authors_errors()
+
+        return self._data
+
+    def update_titleabstract(self):
+        """Retrieve data and use it to update DB title and abstract."""
+        self.get_data()
+
+        self.workflow.article.title = self._data.get("title")
+        # NB: we use the "adapted" abstract
+        # becuase it's the closer to the result of a manual edit from the manager interface
+        self.workflow.article.abstract = self._data.get("abstract_adapted")
+        self.workflow.article.save()
+
+    def update_keywords(self):
+        """Retrieve data and use it to update DB keywords."""
+        self.get_data()
+
+        article = self.workflow.article
+        # Using self.workflow.keywords.set(self._data["kwds_tex"]) gives
+        # create_m2m_ordered_through_manager.<locals>.M2MOrderedThroughManager.add() got
+        #   an unexpected keyword argument 'through_defaults'
+        # So I fallback to the following one-by-one approach:
+        article.keywords.clear()
+        for order, kwd in enumerate(self._data["kwds_tex"]):
+            KeywordArticle.objects.update_or_create(
+                article=article,
+                keyword=kwd,
+                defaults={"order": order},
+            )
+
+    def update_authors(self):
+        """
+        Retrieve data and use it to update DB authors; also freeze authors.
+
+        Raises:
+          ValueError: if called while any authors-errors exist.
+
+        """
+        self.get_data()
+
+        if self._data["authors_errors"]:
+            raise ValueError(self._data["authors_errors"])
+
+        # 🤔 article.authors.clear() does not delete records in the "through" table!?
+        self.workflow.article.authors.clear()
+        ArticleAuthorOrder.objects.filter(article=self.workflow.article).delete()
+        for order, am in enumerate(self._data["authors_map"]):
+            if am.must_be_created:
+                author = Account.objects.create(
+                    first_name=am.first_name,
+                    last_name=am.last_name,
+                    email=am.email,
+                    orcid=am.orcid,
+                )
+                self._log_new_coauthor_created(author)
+            else:
+                author = Account.objects.get(
+                    id=am.account_id,
+                )
+                # FIXME: update with data from DB:
+                # - first/last name (only if longer than DB)
+                # - email (only add to jcom_profile.Correspondence)
+                # - orcid
+                # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1804
+
+            # ???? why do I need both authors.add(author) and AAO.create(author...) ????
+            self.workflow.article.authors.add(author)
+            ArticleAuthorOrder.objects.create(article=self.workflow.article, order=order, author=author)
+
+        sync_frozen_authors_with_authors(self.workflow.article)
+
+    # TODO: refactor with logic__production.BeginPublication._get_source_file()
+    def _get_source_file(self) -> BytesIO:
+        """
+        Extract the source file of the article galleys.
+
+        Return the main TeX file.
+
+        Raises:
+          FileNotFoundError:
+          - if we cannot find the zip source.
+          - if we cannot find the main tex file in the zip source.
+
+        """
+        ta = self.workflow.get_latest_typesetting_assignment(only_completed=False)
+        zip_source_file = ta.files_to_typeset.first()
+        if not zip_source_file:
+            msg = _("No source files. Please upload some!")
+            raise FileNotFoundError(msg)
+        zip_source_file = zip_source_file.self_article_path()
+
+        tex_source_name = f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex"
+
+        with zipfile.ZipFile(zip_source_file) as zip_file:
+            if tex_source_name in zip_file.namelist():
+                main_tex = zip_file.open(tex_source_name)
+            else:
+                msg = f"Cannot read {tex_source_name} from {zip_source_file} for {self.workflow.article.id}"
+                raise FileNotFoundError(msg)
+        return main_tex
+
+    def _get_db_kwds(self) -> QuerySet[Keyword]:
+        """
+        Get the "real" article kwds.
+
+        Deal with the case when the kwds on the DB have been erroneously split by Janeway manger UI (it splits
+        a kwd on the ",", so that a single kwd "aaa, bbb" becomes two kwds: "aaa" and "bbb").
+
+        """
+        # Note that kwds are implicitly ordered because of core.models_utils.M2MOrderedThroughField, however, when we
+        # "reunite" them, we get back a list of ids of kwds that might not even be linked to the article. So we must
+        # ensure that the order is "maintained".
+        good, _ = reunite_divided_kwds(self.workflow.article.keywords.all())
+        order_of_ids = Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(good)])
+        return Keyword.objects.filter(id__in=good).order_by(order_of_ids)
+
+    def _get_tex_kwds(self) -> QuerySet[Keyword]:
+        """
+        Get the kwds that exist in the TeX file.
+
+        Raises:
+          ValueError: if any kwd from the TeX does not exists in the DB.
+
+        """
+        tex_kwds_strings = self._data.get("keywords")
+
+        # Expect kwds to be in the article's language, so we need to compare the received string with the
+        # appropriate translation.
+        tex_kwds = Keyword.objects.none()
+        lang = pycountry.languages.get(alpha_3=self.workflow.article.language).alpha_2
+        with translation.override(lang):
+            tex_kwds = (
+                Keyword.objects.filter(
+                    journal=self.workflow.article.journal,
+                    word__in=tex_kwds_strings,
+                )
+                # We need to manully order the queryset to maintain the order we found in the TeX
+                .annotate(
+                    manual_order=Case(
+                        *[When(word=word, then=pos) for pos, word in enumerate(tex_kwds_strings)],
+                        output_field=IntegerField(),
+                    ),
+                ).order_by("manual_order")
+            )
+
+        if len(tex_kwds_strings) != tex_kwds.count():
+            tex_kwds_indb = set(tex_kwds.values_list("word", flat=True))
+            msg = ""
+            if only_tex := set(tex_kwds_strings) - tex_kwds_indb:
+                msg += f" Kwds from TeX that do not exist in the DB: {'; '.join(only_tex)}."
+            if only_db := tex_kwds_indb - set(tex_kwds_strings):
+                msg += f" 😱 This cannot be! Only in DB: {'; '.join(only_db)}."
+            msg += " Please contact assistance!"
+            raise ValueError(msg)
+        return tex_kwds
+
+    def _map_authors(self) -> list["AuthorStruct"]:
+        """
+        Use TeX data to retrieve Accounts from DB.
+
+        When no suitable account can be found, data suitable to create a new account is also prepared.
+        """
+        article = self.workflow.article
+        subq = Subquery(
+            ArticleAuthorOrder.objects.filter(
+                article=article,
+                author__id=OuterRef("id"),
+            ).values_list("order"),
+        )
+        db_authors = article.authors.all().annotate(order=subq).order_by("order")
+
+        # 🤔 ugly code: side effect in a method that returns something...
+        self._data["authors_db"] = db_authors
+
+        tex_authors = self._data.get("authors_data")
+        authors_map = []
+        for tex_author in tex_authors:
+            accountstruct = self._find_corresponding_account(tex_author)
+            authors_map.append(accountstruct)
+        return authors_map
+
+    def _find_corresponding_account(self, tex_author: dict) -> "AuthorStruct":
+        """
+        Find an Account in the DB, given some author data.
+
+        Try to find the account in many ways:
+        - by email
+        - by orcid (if available)
+        - by old wjapp correspondence / mapping using the email (aka via extra_email)
+        - by first + last on article.authors
+        - by first-initial + last on article.authors
+        - by first + last on all DB (select first and add a "warning" if >1)
+        - by first-initial + last on all DB (select first and add a "warning" if >1)
+        - give up and propose to add a new Account
+          - notify the author of the new account
+
+        If no account in the DB can be found, an Account() object populated with data from the TeX is returned.
+        """
+        try:
+            account = Account.objects.get(email=tex_author["email"])
+        except Account.DoesNotExist:
+            pass
+        else:
+            return MetadataFromTeX.AuthorStruct(
+                last_name=account.last_name,
+                first_name=account.first_name,
+                email=account.email,
+                orcid=account.orcid,
+                extra_email=None,
+                account_id=account.id,
+                must_be_created=False,
+                warning=None,
+            )
+
+        if tex_author["orcid"]:
+            try:
+                account = Account.objects.get(orcid=tex_author["orcid"])
+            except Account.DoesNotExist:
+                pass
+            else:
+                return MetadataFromTeX.AuthorStruct(
+                    last_name=account.last_name,
+                    first_name=account.first_name,
+                    email=account.email,
+                    orcid=account.orcid,
+                    extra_email=None,  # FIXME!
+                    account_id=account.id,
+                    must_be_created=False,
+                    warning=None,
+                )
+
+        try:
+            wjapp_mapping = Correspondence.objects.get(email=tex_author["email"])
+        except Correspondence.DoesNotExist:
+            pass
+        else:
+            return MetadataFromTeX.AuthorStruct(
+                last_name=wjapp_mapping.account.last_name,
+                first_name=wjapp_mapping.account.first_name,
+                email=wjapp_mapping.account.email,
+                orcid=wjapp_mapping.account.orcid,
+                extra_email=None,  # FIXME!
+                account_id=wjapp_mapping.account.id,
+                must_be_created=False,
+                warning=None,
+            )
+
+        similaraccounts_warning = """Similar accounts: either set the orcid on the existing account (if the TeX has
+        it), or create/edit a "correspondence" (a mapping) with the TeX email."""
+        try:
+            wjapp_mapping = self.workflow.article.authors.get(
+                first_name=tex_author["first_name"],
+                last_name=tex_author["surname"],
+            )
+        except Account.DoesNotExist:
+            pass
+        except Account.MultipleObjectsReturned:
+            # Any other euristics after this would contain these accounts also.
+            # So we can stop here and ask for help.
+            similar_accounts = self.workflow.article.authors.filter(
+                first_name=tex_author["first_name"],
+                last_name=tex_author["surname"],
+            )
+            return MetadataFromTeX.AuthorStruct(
+                last_name="NA",
+                first_name="NA",
+                email="NA",
+                orcid="NA",
+                extra_email=None,
+                account_id=None,
+                must_be_created=False,
+                warning=similaraccounts_warning,
+                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
+            )
+
+        try:
+            wjapp_mapping = self.workflow.article.authors.get(
+                last_name=tex_author["surname"],
+            )
+        except Account.DoesNotExist:
+            pass
+        except Account.MultipleObjectsReturned:
+            # Any other euristics after this would contain these accounts also.
+            # So we can stop here and ask for help.
+            similar_accounts = self.workflow.article.authors.filter(
+                last_name=tex_author["surname"],
+            )
+            return MetadataFromTeX.AuthorStruct(
+                last_name="NA",
+                first_name="NA",
+                email="NA",
+                orcid="NA",
+                extra_email=None,
+                account_id=None,
+                must_be_created=False,
+                warning=similaraccounts_warning,
+                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
+            )
+
+        try:
+            wjapp_mapping = Account.objects.get(
+                first_name=tex_author["first_name"],
+                last_name=tex_author["surname"],
+            )
+        except Account.DoesNotExist:
+            pass
+        except Account.MultipleObjectsReturned:
+            # Any other euristics after this would contain these accounts also.
+            # So we can stop here and ask for help.
+            similar_accounts = Account.objects.filter(
+                first_name=tex_author["first_name"],
+                last_name=tex_author["surname"],
+            )
+            return MetadataFromTeX.AuthorStruct(
+                last_name="NA",
+                first_name="NA",
+                email="NA",
+                orcid="NA",
+                extra_email=None,
+                account_id=None,
+                must_be_created=False,
+                warning=similaraccounts_warning,
+                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
+            )
+
+        try:
+            wjapp_mapping = Account.objects.get(
+                first_name__startswith=tex_author["first_name"][0],
+                last_name__endswith=tex_author["surname"].split(" ")[-1],
+            )
+        except Account.DoesNotExist:
+            pass
+        except Account.MultipleObjectsReturned:
+            # Any other euristics after this would contain these accounts also.
+            # So we can stop here and ask for help.
+            similar_accounts = Account.objects.filter(
+                first_name__startswith=tex_author["first_name"][0],
+                last_name__endswith=tex_author["surname"].split(" ")[-1],
+            )
+            return MetadataFromTeX.AuthorStruct(
+                last_name="NA",
+                first_name="NA",
+                email="NA",
+                orcid="NA",
+                extra_email=None,
+                account_id=None,
+                must_be_created=False,
+                warning=similaraccounts_warning,
+                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
+            )
+
+        return MetadataFromTeX.AuthorStruct(
+            last_name=tex_author["surname"],
+            first_name=tex_author["first_name"],
+            email=tex_author["email"],
+            orcid=tex_author["orcid"],
+            extra_email=None,
+            account_id=None,
+            must_be_created=True,
+            warning=None,
+        )
+
+    def _find_authors_errors(self) -> list[str]:
+        """
+        Tell if there is some unresolvable error in the authors list.
+
+        ATM only check that owner and corresondence author are in the list of mapped authors.
+        """
+        errors = []
+        proposed_authors_ids = [a.account_id for a in self._data["authors_map"] if a.account_id]
+        if self.workflow.article.owner.id not in proposed_authors_ids:
+            errors.append(_("No owner in the new authors list!"))
+        if self.workflow.article.correspondence_author.id not in proposed_authors_ids:
+            errors.append(_("No correspondence author in the new authors list!"))
+        if any(am.similar_accounts for am in self._data["authors_map"]):
+            errors.append(_("Similar accounts exist!"))
+        return errors
+
+    def _enrich_similar_accounts(self, tex_author: dict, similar_accounts: QuerySet[Account]) -> list[SimilarAccount]:
+        """
+        Enrich the list of similar accounts by computing the appropriate correspondence URL.
+
+        Since it's possible to have existing mappings/correspondences with empty email, the idea here is to give the
+        operator a direct link to the most appropriate action: edit the exising correspondence if the email is missing
+        or add a new correspondence.
+
+        """
+        result = []
+        for i, account in enumerate(similar_accounts):
+            if not Correspondence.objects.filter(account=account, email__isnull=True).exists():
+                link_to_mapping = reverse("admin:jcom_profile_correspondence_add")
+                querystring = urlencode(
+                    {
+                        "account": account.pk,
+                        "email": tex_author["email"],
+                        # "source" and "user_cod" are mandatory for a Correspondence
+                        # below we make-up suitable values:
+                        "source": "tex",
+                        "user_cod": self.workflow.article.pk * 100 + i,
+                    },
+                )
+            else:
+                correspondence = Correspondence.objects.filter(account=account, email__isnull=True).first()
+
+                link_to_mapping = reverse("admin:jcom_profile_correspondence_change", args=[correspondence.pk])
+                querystring = urlencode(
+                    {
+                        "email": tex_author["email"],
+                        "source": "tex",
+                        "user_cod": self.workflow.article.pk * 100 + i,
+                    },
+                )
+            link_to_mapping = f"{link_to_mapping}?{querystring}"
+
+            result.append(
+                MetadataFromTeX.SimilarAccount(
+                    pk=account.pk,
+                    last_name=account.last_name,
+                    first_name=account.first_name,
+                    email=account.email,
+                    orcid=account.orcid,
+                    country=account.country.name if account.country else "",
+                    institution=account.institution,
+                    biography=account.biography,
+                    link_to_mapping=link_to_mapping,
+                ),
+            )
+        return result
+
+    def _log_new_coauthor_created(self, newaccount: Account) -> Message:
+        """Send a notification to the newly-created account."""
+        fake_request = create_fake_request(
+            user=get_eo_user(self.workflow.article.journal),
+            journal=self.workflow.article.journal,
+        )
+        message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="add_coauthor_manually_subject",
+            journal=self.workflow.article.journal,
+            request=fake_request,
+            context={"article": self.workflow.article},
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="add_coauthor_manually_body",
+            journal=self.workflow.article.journal,
+            request=fake_request,
+            context={"article": self.workflow.article, "newaccount": newaccount},
+            template_is_setting=True,
+        )
+        return communication_utils.log_operation(
+            article=self.workflow.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[newaccount],
+            verbosity=Message.MessageVerbosity.EMAIL,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
