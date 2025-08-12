@@ -1,7 +1,10 @@
 """Views related to typesetting/production."""
 
+import difflib
+import re
 from typing import TYPE_CHECKING, List
 
+import requests
 from core.models import File, SupplementaryFile
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -24,6 +27,9 @@ from .forms__production import (
     EOSendBackToTypesetterForm,
     EsmFileForm,
     SectionOrderForm,
+    SyncAuthorsForm,
+    SyncKwdsForm,
+    SyncTitleForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
 )
@@ -38,6 +44,7 @@ from .logic__production import (
     AuthorSendsCorrections,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
+    MetadataFromTeX,
     ReadyForPublication,
     RequestProofs,
     TogglePublishableFlag,
@@ -50,6 +57,7 @@ from .permissions import (
     is_article_author,
     is_article_supervisor,
     is_article_typesetter,
+    is_article_typesetter_or_eo,
 )
 from .states import BaseState
 from .views import ArticleWorkflowBaseMixin, BaseRelatedViewsMixin
@@ -744,3 +752,168 @@ class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):
             message=_("Galley generation started - You will receive an email after it is completed."),
         )
         return HttpResponseRedirect(self.object.article.url)
+
+
+class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
+    """View allowing sync of paper metadata between TeX and DB."""
+
+    model = ArticleWorkflow
+    title = _("Sync TeX and DB")
+    template_name = "wjs_review/sync_texdb/sync_texdb.html"
+    context_object_name = "workflow"
+
+    def test_func(self):
+        """Only typs can do."""
+        self.object = self.get_object()
+        return is_article_typesetter_or_eo(self.object, self.request.user)
+
+    @property
+    def breadcrumbs(self) -> list["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
+            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
+        ]
+
+    def get_success_url(self):
+        """Point back here."""
+        return self.request.path
+
+    def get(self, request, *args, **kwargs):
+        """
+        Deal with possible exceptions while building the context data.
+
+        The process is delicate because it involves extracting data from the tex sources, which can fail in many ways.
+
+        """
+        try:
+            context = self.get_context_data(object=self.object)
+        except FileNotFoundError as e:
+            messages.add_message(self.request, messages.ERROR, e)
+            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
+        except requests.exceptions.HTTPError as e:
+            messages.add_message(self.request, messages.ERROR, e)
+            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
+        except ValueError as e:
+            # Raised when, for instance, a kwd from the TeX does not exist in the DB
+            messages.add_message(self.request, messages.ERROR, e)
+            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
+        else:
+            return self.render_to_response(context)
+
+    def get_context_data(self, **kwargs):
+        """Prepare forms and context for three different blocks of metadata."""
+        context = super().get_context_data(**kwargs)
+        tex_data = MetadataFromTeX(self.object).get_data()
+        context.update(self._get_titleabstract_context(tex_data))
+        context.update(self._get_keywords_context(tex_data))
+        context.update(self._get_authors_context(tex_data))
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """
+        Perform the appropriate metadata update, given the submitted form.
+
+        All forms will post here:
+        - title and abstract
+        - keywords
+        - authors
+        """
+        self.object = self.get_object()
+        # TODO: refactor out of this view; see also wjs/specs#1885
+        actions = {
+            "sync_title": {
+                "callable": MetadataFromTeX(self.object).update_titleabstract,
+                "message": _("Title and abstract synchronized."),
+            },
+            "sync_keywords": {
+                "callable": MetadataFromTeX(self.object).update_keywords,
+                "message": _("Keywords synchronized."),
+            },
+            "sync_authors": {
+                "callable": MetadataFromTeX(self.object).update_authors,
+                "message": _("Authors synchronized."),
+            },
+            None: {
+                "message": _("No se pol! Come te son rivà qua?!?"),
+                "message_type": messages.ERROR,
+            },
+        }
+        action = actions.get(request.POST.get("action")) or actions[None]
+        if "callable" in action:
+            action["callable"]()
+        if "message" in action:
+            messages.add_message(
+                request,
+                action.get("message_type", messages.SUCCESS),
+                action["message"],
+            )
+        return HttpResponseRedirect(self.get_success_url())
+
+    def _get_titleabstract_context(self, tex_data: dict) -> dict:
+        """Return context info related to title and abstract."""
+        # Note that db abstract is wrapped with <p> by the TinyMCE widget...
+        abstract_db = re.sub(r"^<p>", "", self.object.article.abstract)
+        abstract_db = re.sub(r"</p>$", "", abstract_db)
+        # ...and tex abstract can have newlines here and there
+        # se we used the adapted version:
+        abstract_tex = tex_data.get("abstract_adapted")
+
+        context = {
+            "title_db": self.object.article.title,
+            "title_tex": tex_data.get("title"),
+            "abstract_db": abstract_db,
+            "abstract_tex": abstract_tex,
+        }
+
+        # Include diff-like display of the abstract
+        # see also https://github.com/rtfpessoa/diff2html
+        if abstract_tex != abstract_db:
+            diff = difflib.unified_diff(
+                abstract_tex.splitlines(),
+                abstract_db.splitlines(),
+                fromfile="TeX",
+                tofile="DB",
+                lineterm="",
+            )
+            context["diff_abstract"] = "\n".join(diff)
+
+        # Add the form only if necessary
+        if context["title_tex"] != context["title_db"] or context["abstract_tex"] != context["abstract_db"]:
+            context["form_title"] = SyncTitleForm()
+
+        return context
+
+    def _get_keywords_context(self, tex_data: dict) -> dict:
+        """Return context info related to kwds."""
+        # Remember that tex_data holds kwds as QuerySets!
+        context = {
+            "kwds_tex": list(tex_data["kwds_tex"].values_list("word", flat=True)),
+            "kwds_db": list(tex_data["kwds_db"].values_list("word", flat=True)),
+        }
+        if tex_data["kwds_db_raw"].count() != len(context["kwds_db"]):
+            context["kwds_db_raw"] = list(tex_data["kwds_db_raw"].values_list("word", flat=True))
+
+        # Add the form only if necessary
+        if context["kwds_db"] != context["kwds_tex"] or "kwds_db_raw" in context:
+            context["form_kwds"] = SyncKwdsForm()
+
+        return context
+
+    def _get_authors_context(self, tex_data: dict) -> dict:
+        context = {
+            "authors_tex": tex_data.get("authors_data"),
+            # Do not just use article.authors.all() because the order is not guaranteed:
+            "authors_db": tex_data.get("authors_db"),
+            "authors_map": tex_data.get("authors_map"),
+            "authors_errors": tex_data.get("authors_errors"),
+        }
+
+        # Add the form only if  possible and necessary
+        if not tex_data.get("authors_errors") and list(tex_data.get("authors_db").values_list("id", flat=True)) != [
+            a.account_id for a in tex_data.get("authors_map")
+        ]:
+            context["form_authors"] = SyncAuthorsForm()
+
+        return context

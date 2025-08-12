@@ -1,5 +1,6 @@
 import datetime
 from typing import Callable, List, Optional
+from unittest import mock
 from unittest.mock import patch
 
 import freezegun
@@ -16,9 +17,10 @@ from django.urls import reverse
 from django.utils.timezone import localtime, now
 from faker import Faker
 from journal import models as journal_models
+from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
 from review import models as review_models
 from submission import models as submission_models
-from submission.models import Article, Keyword
+from submission.models import Article, ArticleAuthorOrder, Keyword
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -4172,3 +4174,196 @@ def test_last_eo_note(
         message_type=Message.MessageTypes.NOTE,
     )
     assert last_eo_note(article) == eo_note
+
+
+@pytest.mark.parametrize(
+    ("all_kwds", "article_kwds", "good_ones", "bad_ones"),
+    [
+        (
+            ["a, b", "a", "b", "c"],
+            ["a, b", "a", "b", "c"],
+            {"a, b", "c"},
+            {"a", "b"},
+        ),
+        (
+            ["a, b", "a", "b", "c"],
+            ["a", "b", "c"],
+            {"a, b", "c"},
+            {"a", "b"},
+        ),
+        (  # Article 1484
+            [
+                "Informal learning",
+                "Science education",
+                "Bridging research, practice and teaching",
+                "Diversity, equity, inclusion and accessibility in science communication",
+                "Policy-making, communication and governance of science",
+                "Professionalism, professional development and teaching in science communication",
+                "Professionalism, professional development and training in science communication",
+                "Science and technology, art and literature",
+                # Erroneously split kwds:
+                "Bridging research",
+                "practice and teaching",
+                "Diversity",
+                "equity",
+                "inclusion and accessibility in science communication",
+                "Policy-making",
+                "communication and governance of science",
+                "Professionalism",
+                "professional development and teaching in science communication",
+                "professional development and training in science communication",
+                "Science and technology",
+                "art and literature",
+            ],
+            [
+                "Informal learning",
+                "Science education",
+                "Diversity",
+                "equity",
+                "inclusion and accessibility in science communication",
+            ],
+            {
+                "Informal learning",
+                "Science education",
+                "Diversity, equity, inclusion and accessibility in science communication",
+            },
+            {
+                "Diversity",
+                "equity",
+                "inclusion and accessibility in science communication",
+            },
+        ),
+    ],
+)
+@pytest.mark.django_db
+def test_reunite_divided_kwds(
+    all_kwds: list[str],
+    article_kwds: list[str],
+    good_ones: set[str],
+    bad_ones: set[str],
+):
+    """Test reunite_divided_kwds."""
+    assert not Keyword.objects.exists()
+    for word in all_kwds:
+        Keyword.objects.create(word=word)
+
+    good, bad = reunite_divided_kwds(Keyword.objects.filter(word__in=article_kwds))
+
+    good_kwds = set(Keyword.objects.filter(id__in=good).values_list("word", flat=True))
+    assert good_kwds == good_ones
+
+    bad_kwds = set(Keyword.objects.filter(id__in=bad).values_list("word", flat=True))
+    assert bad_kwds == bad_ones
+
+
+@pytest.mark.django_db
+def test_metadatafromtex_get_data(
+    article_with_keywords: Article,
+):
+    """
+    Document assumptions and basic working of MetadataFromTeX service.
+
+    MetadataFromTeX pre-processe data received from JA, and expects an article to have at least
+    - some authors
+    - some kwds
+    - an abstract
+
+    """
+    article = article_with_keywords
+    author = article.owner
+    service = MetadataFromTeX(workflow=article.articleworkflow)
+    mock_data = {
+        "abstract": "a\nb",
+        "keywords": list(article.keywords.all().values_list("word", flat=True)),
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": author.orcid,
+            },
+        ],
+    }
+    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
+        data = service.get_data()
+        assert data["abstract_adapted"] == "a b"
+
+        # Interesting fact: the system does not fail even if the authors are not ordered
+        #                   but, of course, the order is not guaranteed
+        assert not ArticleAuthorOrder.objects.exists()
+        assert set(
+            data["authors_db"].values_list("id", flat=True),
+        ) == set(
+            article.authors.all().values_list("id", flat=True),
+        )
+        assert len(data["authors_errors"]) == 0
+        assert len(data["authors_map"]) == 1
+        assert data["authors_map"][0].account_id == author.pk
+        assert not data["authors_map"][0].similar_accounts
+        assert not data["authors_map"][0].must_be_created
+
+        assert list(
+            data["kwds_db"].values_list("id", flat=True),
+        ) == list(
+            data["kwds_db_raw"].values_list("id", flat=True),
+        )
+        assert list(
+            data["kwds_db"].values_list("id", flat=True),
+        ) == list(
+            data["kwds_tex"].values_list("id", flat=True),
+        )
+        assert list(
+            data["kwds_db"].values_list("id", flat=True),
+        ) == list(
+            article.keywords.all().values_list("id", flat=True),
+        )
+
+
+@pytest.mark.django_db
+def test_sync_texdb(
+    article_with_keywords: Article,
+):
+    """Sync title, abstract, kwds and authors. Simplest cases."""
+    article = article_with_keywords
+    article.title = "old title"
+    article.abstract = "old abstract"
+    article.save()
+
+    # this fixture-article has a co-author...
+    assert article.authors.count() == 2
+    # ...and three kwds
+    assert article.keywords.count() == 3
+
+    author = article.owner
+    new_keyword = article.journal.keywords.first()
+    service = MetadataFromTeX(workflow=article.articleworkflow)
+    mock_data = {
+        "title": "new title",
+        "abstract": "new abstract",
+        # We are going to keep only one kwd:
+        "keywords": [new_keyword.word],
+        # We are going to drop the co-author and keep only one author:
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": author.orcid,
+            },
+        ],
+    }
+    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
+        service.update_titleabstract()
+        article.refresh_from_db()
+        assert article.title == "new title"
+        assert article.abstract == "new abstract"
+
+        service.update_authors()
+        article.refresh_from_db()
+        assert set(article.authors.all().values_list("id", flat=True)) == {author.pk}
+
+        service.update_keywords()
+        article.refresh_from_db()
+        assert set(article.keywords.all().values_list("id", flat=True)) == {new_keyword.pk}
