@@ -25,6 +25,7 @@ psql -U $user $host_connection $database <<EOF
 update press_press set domain='press.local:8000', is_secure='f';
 update journal_journal set domain='jcom.local:8000', is_secure='f' where code='JCOM';
 update journal_journal set domain='jcomal.local:8000', is_secure='f' where code='JCOMAL';
+update journal_journal set domain='jquant.local:8000', is_secure='f' where code='JQUANT';
 EOF
 
 psql -U $user $host_connection $database <<EOF
