@@ -1791,6 +1791,71 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def add_coauthor_manually():
+        """Add settings for new account manually created during sync of TeX and DB data."""
+        setting_parms: SettingParams = {
+            "name": "add_coauthor_manually_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of new coauthor added while syncing TeX and DB"),
+            "description": _(
+                "Subject of the notification sent to a new account for a coauthor"
+                " created during production while syncing TeX and DB data.",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Associated with your {{ article.journal.code }} profile – Now in proofreading",  # noqa: RUF001
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        setting_parms: SettingParams = {
+            "name": "add_coauthor_manually_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of new coauthor added while syncing TeX and DB"),
+            "description": _(
+                "Body of the notification sent to a new account for a coauthor"
+                " created during production while syncing TeX and DB data.",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ newaccount.full_name }},
+<br><br>
+We would like to inform you that the {{ article.section.name }} mentioned above
+has been automatically associated with your {{ article.journal.code }} profile.
+This association was made because the manuscript file, submitted by {{ article.owner.full_name }}
+on {{ article.date_submitted }}, lists you as a co-author.
+<br><br>
+The manuscript has been accepted for publication and is currently in the proofreading stage.
+<br><br>
+If you believe this association was made in error or if you require any further information,
+please do not hesitate to contact the {{ article.journal.code }} Editorial Office.
+<br>
+Thank you and best regards,
+<br>
+{{ article.journal.code }} Journal
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -1819,6 +1884,7 @@ Thank you and best regards,
         csv_writer.write_settings(eo_send_back_to_typesetting_message())
         csv_writer.write_settings(technicalrevisions_complete_reviewer_notification())
         csv_writer.write_settings(editor_assignment_manual())
+        csv_writer.write_settings(add_coauthor_manually())
 
 
 def ensure_workflow_elements():

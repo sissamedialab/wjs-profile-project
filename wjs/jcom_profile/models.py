@@ -64,6 +64,7 @@ class Correspondence(models.Model):
         ("jcom", "jcom"),
         ("jcomal", "jcomal"),
         ("sgp", "sgp"),
+        ("tex", "TeX"),
     )
     source = models.CharField(max_length=6, choices=sources)
     notes = JSONField(blank=True, null=True, encoder=DjangoJSONEncoder)

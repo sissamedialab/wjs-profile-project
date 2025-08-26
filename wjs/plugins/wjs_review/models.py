@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.functional import cached_property
-from django.utils.timezone import make_naive
+from django.utils.timezone import localtime, make_naive
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
@@ -2116,6 +2116,33 @@ class Reminder(models.Model):
     def render_body(self) -> str:
         """Render the reminder message body."""
         return render_template(self.message_body, {"reminder": self, "article": self.get_related_article()})
+
+    def update_due_date(self, journal: Journal):
+        """
+        Update the reminder due date according to the target due date.
+
+        The new due date is recalculated as if the reminder was freshly created
+        (eg: the reminder due date is ignored and we just calculate the new one from the target object due date).
+
+        In case the reminder has already been sent, the due date is updated only if the difference between the
+        new date and the sen date is larger than clemency days to avoid spamming the user.
+
+        :param: journal: Current journal.
+        :type: journal: Journal
+        """
+        from .reminders.settings import ReminderManager
+
+        setting = ReminderManager.get_settings(self)
+        new_date = setting.get_date_due(self.target, journal)
+        if self.date_sent:
+            if isinstance(new_date, datetime.datetime):
+                new_date = localtime(new_date).date()
+            if new_date - localtime(self.date_sent).date() > datetime.timedelta(days=self.clemency_days):
+                self.date_sent = None
+                self.date_due = new_date
+        else:
+            self.date_due = new_date
+        self.save()
 
     def update_recipient(self, account: Account):
         """

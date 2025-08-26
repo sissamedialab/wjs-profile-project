@@ -13,6 +13,7 @@ from django.conf import settings as django_settings
 from django.contrib.auth.models import Group
 from django.core import management
 from django.core.cache import cache
+from django.db.models import QuerySet
 from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
 from django.utils.timezone import now
@@ -738,7 +739,8 @@ def clear_script_prefix_fix():
 
 
 @pytest.fixture
-def keywords(journal):
+def keywords(journal: Journal) -> QuerySet[submission_models.Keyword]:
+    """Return a queryset of 10 newly created keywords linked to the given journal."""
     # we must explicitly determine the created keywords because articles might be created by other fixtures
     # and returning a blanket "all" queryset would include sections articles by those fixtures
     keywords_pk = []
