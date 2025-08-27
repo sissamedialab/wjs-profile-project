@@ -83,6 +83,11 @@ class JCOMProfile(Account):
     keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
     usernotes = models.TextField(_("User notes"), blank=True, null=True, default="")
 
+    def save(self, *args, **kwargs):
+        # is_admin is a flag of janeway which protects some manager site parts
+        self.is_admin = self.is_superuser
+        super().save(*args, **kwargs)
+
 
 class Correspondence(models.Model):
     """Storage area for wjapp, PoS, SGP,... userCods."""
