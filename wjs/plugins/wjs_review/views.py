@@ -55,7 +55,7 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.mixins import HtmxMixin
-from wjs.jcom_profile.models import IssueParameters
+from wjs.jcom_profile.models import IssueParameters, StaffWorkloadParameters
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
@@ -390,7 +390,12 @@ class EOPending(ArticleWorkflowBaseMixin):
     def load_initial(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
         data = self.request.GET.copy()
-        if base_permissions.has_eo_role(request.user) and not self.request.GET.get("search") and self.prefilter_by_eo:
+        if (
+            base_permissions.has_eo_role(request.user)
+            and not self.request.GET.get("search")
+            and self.prefilter_by_eo
+            and StaffWorkloadParameters.objects.filter(journal=request.journal, user=request.user, workload__gt=0)
+        ):
             data["eo_in_charge"] = request.user
         self.request.GET = data
         super().load_initial(request, *args, **kwargs)
