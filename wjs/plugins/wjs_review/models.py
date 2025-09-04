@@ -653,7 +653,7 @@ class ArticleWorkflow(TimeStampedModel):
         """
         # This function would probably be better placed in the Journal model,
         # but since we don't yet have a o2o/wrapper on that model I'm leaving it here.
-        if self.article.journal.code != "JCOM":
+        if self.article.journal.code not in {"JCOM", "JCOMAL"}:
             raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
 
         # Feel free to fail badly.
