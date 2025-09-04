@@ -889,14 +889,18 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         """Return context info related to kwds."""
         # Remember that tex_data holds kwds as QuerySets!
         context = {
-            "kwds_tex": list(tex_data["kwds_tex"].values_list("word", flat=True)),
-            "kwds_db": list(tex_data["kwds_db"].values_list("word", flat=True)),
+            "kwds_tex": tex_data["kwds_tex"],
+            "kwds_db": tex_data["kwds_db"],
         }
-        if tex_data["kwds_db_raw"].count() != len(context["kwds_db"]):
-            context["kwds_db_raw"] = list(tex_data["kwds_db_raw"].values_list("word", flat=True))
+        if tex_data["kwds_db_raw"].count() != tex_data["kwds_tex"].count():
+            context["kwds_db_raw"] = tex_data["kwds_db_raw"]
 
         # Add the form only if necessary
-        if context["kwds_db"] != context["kwds_tex"] or "kwds_db_raw" in context:
+        if (
+            set(tex_data["kwds_db"].values_list("id", flat=True))
+            != set(tex_data["kwds_tex"].values_list("id", flat=True))
+            or "kwds_db_raw" in context
+        ):
             context["form_kwds"] = SyncKwdsForm()
 
         return context
