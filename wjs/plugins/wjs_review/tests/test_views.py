@@ -1,5 +1,5 @@
 import datetime
-from typing import Iterable, List
+from typing import Callable, Iterable, List, Optional
 
 import freezegun
 import pytest
@@ -1259,3 +1259,97 @@ def test_article_redirect(
 
     with pytest.raises(Http404):
         url = view.get_redirect_url(**view.kwargs)
+
+
+@pytest.mark.django_db
+def test_assigns_themselves_as_reviewer_no_double_assignation(
+    assigned_article: Article,
+    client: Client,
+    review_form: ReviewForm,
+):
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+    client.force_login(assignment.editor)
+
+    url = (
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/"
+        f"editor_assigns_themselves_as_reviewer/{assigned_article.articleworkflow.pk}/"
+    )
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    response = client.post(url, data={"acceptance_due_date": "2025-09-20"})
+    assert response.status_code == 200
+
+    assert (
+        review_models.ReviewAssignment.objects.filter(
+            reviewer=assignment.editor,
+            article=assigned_article,
+        ).count()
+        == 1
+    )
+
+    response = client.post(url, data={"acceptance_due_date": "2025-09-20"})
+    assert response.status_code == 200
+
+    assert (
+        review_models.ReviewAssignment.objects.filter(
+            reviewer=assignment.editor,
+            article=assigned_article,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_editor_selects_reviewer_no_double_assignment(
+    assigned_article: Article,
+    client: Client,
+    review_form: ReviewForm,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+):
+    reviewer_1 = create_jcom_user("reviewer_1")
+    assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+    client.force_login(assignment.editor)
+
+    url = (
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/"
+        f"select_reviewer/{assigned_article.articleworkflow.pk}/"
+    )
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    response = client.post(
+        url,
+        data={
+            "reviewer": reviewer_1.pk,
+            "message": "I invite you to review this article.",
+        },
+    )
+    assert response.status_code == 200
+
+    assert (
+        review_models.ReviewAssignment.objects.filter(
+            reviewer=reviewer_1,
+            article=assigned_article,
+        ).count()
+        == 1
+    )
+
+    response = client.post(
+        url,
+        data={
+            "reviewer": reviewer_1.pk,
+            "message": "I invite you to review this article.",
+        },
+    )
+    assert response.status_code == 200
+
+    assert (
+        review_models.ReviewAssignment.objects.filter(
+            reviewer=reviewer_1,
+            article=assigned_article,
+        ).count()
+        == 1
+    )
