@@ -157,6 +157,14 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     "JCOMAL": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
 }
 
+# Email addresses that must receive the notification when an article is published.
+# https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
+WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {
+    None: ("j-social@medialab.sissa.it",),
+    "JCOM": ("j-social@medialab.sissa.it",),
+    "JCOMAL": ("j-social@medialab.sissa.it",),
+}
+
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")
 # TODO: drop this when going to production
 # (ATM wjs_review plugin is installed only in development instances; see specs#1132)

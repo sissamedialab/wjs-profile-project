@@ -1791,6 +1791,68 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    # refs specs#1705
+    def add_social_notification_when_article_is_published_settings() -> tuple[SettingValue, ...]:
+        email_settings_group = get_group("email")
+        email_subject_settings_group = get_group("email_subject")
+        setting_params: SettingParams = {
+            "name": "article_publication_social_subject",
+            "group": email_subject_settings_group,
+            "types": "text",
+            "pretty_name": "Subject of the notification sent to social email when an article is published",
+            "description": "Email subject",
+            "is_translatable": True,
+        }
+        settingvalue_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "New {{ article.journal.code }} publication",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "article publication social subject",
+            force=force,
+        )
+        setting_params: SettingParams = {
+            "name": "article_publication_social_body",
+            "group": email_settings_group,
+            "types": "rich-text",
+            "pretty_name": "Body of the notification sent to social email when an article is published",
+            "description": "Email body",
+            "is_translatable": True,
+        }
+        settingvalue_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+The following manuscript has been published in {{ article.journal.code }}:
+<p>
+Authors:<br/>
+{{ authors_string }}
+</p>
+<p>
+Title:<br/>
+{{ article.title }}
+</p>
+DOI:<br/>
+<a href="{{ article.get_doi_url }}">{{ article.get_doi }}</a>
+</p>
+<p>
+To retrieve the short description for the post, go to the <a href="{{ article.articleworkflow.url }}">article web page</a>.
+</p>
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "article publication social body",
+            force=force,
+        )
+        return setting_1, setting_2
+
     def add_coauthor_manually():
         """Add settings for new account manually created during sync of TeX and DB data."""
         setting_parms: SettingParams = {
@@ -1884,6 +1946,7 @@ Thank you and best regards,
         csv_writer.write_settings(eo_send_back_to_typesetting_message())
         csv_writer.write_settings(technicalrevisions_complete_reviewer_notification())
         csv_writer.write_settings(editor_assignment_manual())
+        csv_writer.write_settings(add_social_notification_when_article_is_published_settings())
         csv_writer.write_settings(add_coauthor_manually())
 
 

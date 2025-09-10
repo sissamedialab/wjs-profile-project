@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Callable
 from unittest import mock
 
+import html2text
 import pytest
 import requests
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
@@ -30,7 +32,7 @@ from utils import setting_handler
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
-from wjs.jcom_profile.utils import get_eo_user
+from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
 from ..logic__production import (
     BeginPublication,
@@ -713,6 +715,7 @@ and text
 
 @pytest.mark.django_db
 def test_publication(
+    review_settings,
     rfp_article: Article,
     fake_request: HttpRequest,
     eo_user: Account,
@@ -728,6 +731,27 @@ def test_publication(
     workflow: ArticleWorkflow = rfp_article.articleworkflow
     assert workflow.compute_eid() == "A01"
 
+    context = {
+        "article": workflow.article,
+        "authors_string": workflow.article_authors_string,
+    }
+    message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="article_publication_social_subject",
+        journal=workflow.article.journal,
+        request=fake_request,
+        context=context,
+    )
+    message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="article_publication_social_body",
+        journal=workflow.article.journal,
+        request=fake_request,
+        context=context,
+    )
+    message_body_text = html2text.html2text(message_body)
+    # Save the current email messages to exclude them below
+    mails_before = list(mail.outbox)
     with mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
@@ -736,6 +760,17 @@ def test_publication(
     assert workflow.compute_eid() == "A01"
     # ...because it's stored as page_numbers
     assert workflow.article.page_numbers == "A01"
+    # refs #1705
+    # Check that we did not send a social email before
+    recipients = settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS[workflow.article.journal.code]
+    for m in mails_before:
+        assert recipients[0] not in m.recipients()
+    # Check the new email sent to the social address
+    new_mails = [x for x in mail.outbox if x not in mails_before and list(x.recipients()) == list(recipients)]
+    assert len(new_mails) == 1
+    new_mail_to_check = new_mails[0]
+    assert new_mail_to_check.subject == message_subject
+    assert new_mail_to_check.body == message_body_text
 
 
 @pytest.mark.django_db
