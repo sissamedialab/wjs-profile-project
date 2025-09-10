@@ -39,6 +39,7 @@ Bonus:
 {% url 'wjs_journal_editors' as wjs_journal_editors %}
 {% url 'wjs_review_typesetter_pending' as wjs_review_typesetter_pending %}
 {% url 'wjs_review_typesetter_workingon' as wjs_review_typesetter_workingon %}
+{% url 'wjs_article_details' article.articleworkflow.pk as wjs_article_details %}
 
 <ul id="dropdown1" class="dropdown-content">
     {% if not journal_settings.general.disable_journal_submission and submission_start %}
@@ -219,6 +220,12 @@ Bonus:
                 <a class="dropdown-item"
                    href="{{ manage_archive_article }}">{% trans "Edit Article" %}</a>
             </li>
+        {% endif %}
+        {% if request.user|is_user_eo and request.resolver_match.url_name and request.resolver_match.url_name == 'article_view' and article %}
+          <li>
+              <a class="dropdown-item"
+                 href="{{ wjs_article_details }}">{% trans "Go to status page" %}</a>
+          </li>
         {% endif %}
         {% if request.resolver_match.url_name and request.resolver_match.url_name == 'journal_issue' and issue and manage_issues_id %}
             <li>
