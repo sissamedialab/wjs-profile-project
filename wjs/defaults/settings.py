@@ -339,8 +339,8 @@ LOCALE_PATHS = [Path(__file__).parents[1] / "locale"]
 PROOFING_ASSIGNMENT_MIN_DUE_DAYS = 3
 PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
 
-JCOMASSISTANT_URL = "http://janeway-services.ud.sissamedialab.it:1234/jcomassistant/"
-YAKUNIN_URL = "http://janeway-services.ud.sissamedialab.it:1235/watermark/"
+JCOMASSISTANT_URL = "http://wjs-services.ud.sissamedialab.it:1234/jcomassistant/"
+YAKUNIN_URL = "http://wjs-services.ud.sissamedialab.it:1235/watermark/"
 
 # Useful in development: set this to the path of a file that mimics what Jcomassistant would generate.
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
