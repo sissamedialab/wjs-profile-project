@@ -77,6 +77,7 @@ class WjsReviewConfig(AppConfig):
             perform_checks_at_acceptance,
             process_submission,
             restart_review_process_after_revision_submission,
+            send_notification_when_article_is_published,
             send_to_prophy,
             sync_article_articleworkflow,
         )
@@ -200,4 +201,8 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_PUBLISHED,
             clear_cache,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_PUBLISHED,
+            send_notification_when_article_is_published,
         )

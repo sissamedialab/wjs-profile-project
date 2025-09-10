@@ -5,8 +5,10 @@ Generally registered onto some event in the `app` module.
 
 from typing import Optional
 
+import html2text
 from django.conf import settings
 from django.core.cache import cache as django_cache
+from django.core.mail import send_mail
 from django.utils.module_loading import import_string
 from events import logic as events_logic
 from submission import logic as submission_logic
@@ -227,6 +229,48 @@ def send_to_prophy(**kwargs) -> None:
     p = Prophy(article)
     p.async_article_prophy_upload()
     return
+
+
+def send_notification_when_article_is_published(**kwargs):
+    """Send notification via email when article is published."""
+    article = kwargs["article"]
+    if article.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED:
+        try:
+            recipients = settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS[article.journal.code]
+        except (AttributeError, KeyError) as e:
+            logger.error(
+                f"Article published in {article.journal.code}, but no social email sent because "
+                f"WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS is not properly set: {e}"
+            )
+            return
+        request = kwargs["request"]
+        authors_string = article.articleworkflow.article_authors_string
+        context = {
+            "article": article,
+            "authors_string": authors_string,
+        }
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="article_publication_social_subject",
+            journal=article.journal,
+            request=request,
+            context=context,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="article_publication_social_body",
+            journal=article.journal,
+            request=request,
+            context=context,
+        )
+        message_body_text = html2text.html2text(message_body)
+        send_mail(
+            subject=message_subject,
+            message=message_body_text,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=recipients,
+            html_message=message_body,
+        )
 
 
 def perform_checks_at_acceptance(**kwargs):
