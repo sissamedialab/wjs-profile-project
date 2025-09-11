@@ -361,6 +361,26 @@ def is_assignment_reviewer(instance: "WorkflowReviewAssignment", user: Account) 
     return instance.reviewer == user
 
 
+def is_assignment_reviewer_only(instance: "WorkflowReviewAssignment", user: Account) -> bool:
+    """
+    Check if the user is the is assignment reviewer.
+
+    This is useful to differentiate between a reviewer and an editor who self-assigned for review.
+
+    :param instance: An instance of the WorkflowReviewAssignment class.
+    :type instance: WorkflowReviewAssignment
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is assigned to the article as reviewer role and not a manager, False otherwise.
+    :rtype: bool
+    """
+    is_reviewer = is_assignment_reviewer(instance, user)
+    is_supervisor = is_article_supervisor(instance.article.articleworkflow, user)
+    return is_reviewer and not is_supervisor
+
+
 def is_article_reviewer(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the user is one of reviewers of the article (eg: a ReviewAssignment exists).
@@ -378,6 +398,26 @@ def is_article_reviewer(instance: "ArticleWorkflow", user: Account) -> bool:
     :rtype: bool
     """
     return ReviewAssignment.objects.filter(article=instance.article, reviewer=user).exists()
+
+
+def is_article_reviewer_only(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is one of reviewers of the article but not a supervisor (editor, director etc).
+
+    This is useful to differentiate between a reviewer and an editor who self-assigned for review.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user is assigned to the article as reviewer role and not a manager, False otherwise.
+    :rtype: bool
+    """
+    is_reviewer = ReviewAssignment.objects.filter(article=instance.article, reviewer=user).exists()
+    is_supervisor = is_article_supervisor(instance, user)
+    return is_reviewer and not is_supervisor
 
 
 def is_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:

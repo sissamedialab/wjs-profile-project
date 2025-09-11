@@ -128,7 +128,7 @@ def review_done(assignment: WorkflowReviewAssignment, user: Account) -> str:
     Warning: assignment.is_complete is True also for declined reviews.
     Here I consider as "done" only assignments accepted and completed.
     """
-    if assignment.date_accepted and assignment.is_complete:
+    if assignment.date_accepted and assignment.is_complete and assignment.decision != "withdrawn":
         return "The review is ready."
     else:
         return ""
