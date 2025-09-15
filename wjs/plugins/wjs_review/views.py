@@ -81,6 +81,7 @@ from .forms import (
     EditorDeclinesAssignmentForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
+    EditorRevisionRequestForm,
     EvaluateReviewForm,
     ForwardMessageForm,
     InviteUserForm,
@@ -2737,13 +2738,13 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
             kwargs["data"] = d
         return kwargs
 
-    def _get_metadata_form_class(self) -> Type[model_forms.BaseModelForm]:
+    def _get_metadata_form_class(self) -> Type[EditorRevisionRequestForm]:
         """
         Generate a MetadataForm class for the article.
 
         Form stores data in :py:class:`EditorRevisionRequest`.
         """
-        return model_forms.modelform_factory(EditorRevisionRequest, fields=self.meta_data_fields)
+        return EditorRevisionRequestForm
 
     def _get_metadata_form(self) -> Optional[model_forms.BaseModelForm]:
         """

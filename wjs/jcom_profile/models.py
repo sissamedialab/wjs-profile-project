@@ -6,7 +6,9 @@ from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import JSONField
+from django.forms import TextInput
 from django.utils.translation import gettext as _
+from django_bleach.forms import BleachField as BleachFormField
 from journal.models import Issue, Journal
 from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article
@@ -26,6 +28,15 @@ PROFESSIONS = (
     (2, "An active scientist"),
     (3, "Other profession"),
 )
+
+
+class WjsSimpleBleach(BleachFormField):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.widget = TextInput()
+        self.bleach_options["tags"] = []
+        self.bleach_options["attributes"] = {}
+        self.bleach_options["strip_comments"] = True  # Remove also html comments
 
 
 class WjsMiniHTMLFormField(MiniHTMLFormField):
