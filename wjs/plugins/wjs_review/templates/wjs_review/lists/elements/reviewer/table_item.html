@@ -10,8 +10,8 @@
     <td>
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
     </td>
-    <td title="{{ article.title }}">
-      {{ article.title|truncatewords:6 }}
+    <td title="{{ article.title|safe }}">
+      {{ article.title|truncatewords:6|safe }}
     </td>
     <td>
       {% with editor_assignment_data=article|article_current_editor %}

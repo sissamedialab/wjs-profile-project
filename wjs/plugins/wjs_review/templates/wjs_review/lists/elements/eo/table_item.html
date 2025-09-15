@@ -33,8 +33,8 @@
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
     </td>
-    <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title }}">
-      {{ article.title|truncatewords:6 }}
+    <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title|safe }}">
+      {{ article.title|truncatewords:6|safe }}
     </td>
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" with show_details=True %}

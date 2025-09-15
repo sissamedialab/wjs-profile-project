@@ -33,6 +33,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
+from wjs.jcom_profile.models import WjsSimpleBleach
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
@@ -1956,3 +1957,11 @@ class ToggleDisableRemindersForm(forms.ModelForm):
         self.instance.refresh_from_db()
         self.instance.disabled = not self.instance.disabled
         return super().save(commit=commit)
+
+
+class EditorRevisionRequestForm(forms.ModelForm):
+    title = WjsSimpleBleach()
+
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["title", "abstract"]
