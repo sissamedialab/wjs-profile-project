@@ -3580,6 +3580,7 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         for ta in [
             TypesettingAssignment.objects.filter(files_to_typeset__pk=self.attachment.pk).first(),
             TypesettingAssignment.objects.filter(galleys_created__file__pk=self.attachment.pk).first(),
+            TypesettingAssignment.objects.filter(galleys_created__images__pk=self.attachment.pk).first(),
         ]:
             if ta:
                 related_instances.append((ta, True))
@@ -3597,6 +3598,32 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
     def get(self, request, *args, **kwargs):
         """Serve an article file."""
         return core_files.serve_file(request, self.attachment, self.article)
+
+
+class DownloadSingleFileImage(DownloadSingleFile):
+    """
+    View to allow any user to download single images in typesetter preview.
+    """
+
+    def setup(self, request, *args, **kwargs):
+        super(DownloadSingleFile, self).setup(request, *args, **kwargs)
+
+        self.article = ArticleWorkflow.objects.get(pk=self.kwargs["aw_id"]).article
+
+        # the filename is not a unique key and can be the same in the different typesetting uploads
+        ta = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+
+        # the filename image must be present in the last created typesetter galley
+        for galley in ta.galleys_created.all():
+            if galley and galley.label == "HTML":
+                # an article galley could have more images with the same filename
+                image = (
+                    galley.images.filter(original_filename=self.kwargs["file_name"]).order_by("-last_modified").first()
+                )
+                if image:
+                    self.attachment = image
+                else:
+                    raise Http404()
 
 
 class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
