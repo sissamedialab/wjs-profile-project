@@ -9,8 +9,7 @@ from journal.models import Journal
 from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
-from wjs.jcom_profile.management.commands.import_from_drupal import JOURNALS_DATA
-from wjs.jcom_profile.management.commands.import_from_wjapp import check_mappings
+from wjs.jcom_profile.import_utils import JOURNALS_DATA, check_mappings
 
 logger = get_logger(__name__)
 
