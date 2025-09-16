@@ -1548,3 +1548,30 @@ def test_preamble_authors(accepted_article: Article, keywords: QuerySet[Keyword]
 \keywords{0-keyword; 1-keyword; 2-keyword}{}{}
 """
     )
+
+
+@pytest.mark.django_db
+def test_set_label_of_esm_file(
+    client: Client,
+    typesetter: JCOMProfile,
+    assigned_to_typesetter_article: Article,
+    zip_with_tex_without_query: Callable,
+):
+
+    url = reverse("create_supplementary_file", kwargs={"article_id": assigned_to_typesetter_article.id})
+    client.force_login(typesetter.janeway_account)
+    existing_supplementary_files_ids = set(
+        assigned_to_typesetter_article.supplementary_files.all().values_list("id", flat=True)
+    )
+    new_supplementary_file = zip_with_tex_without_query(assigned_to_typesetter_article)
+    new_supplementary_file_label = "ESM_file_1.zip (zip)"
+    form_data = {
+        "user": typesetter,
+        "file": new_supplementary_file,
+        "label": new_supplementary_file_label,
+    }
+    response = client.post(url, data=form_data)
+    assert response.status_code == 200
+    assigned_to_typesetter_article.refresh_from_db()
+    s_files = assigned_to_typesetter_article.supplementary_files.all().exclude(id__in=existing_supplementary_files_ids)
+    assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label
