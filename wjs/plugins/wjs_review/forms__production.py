@@ -71,6 +71,7 @@ class EsmFileForm(forms.Form):
         label=_("Select supplementary file"),
         required=True,
     )
+    label = forms.CharField(required=True, label=_("Supplementary file label"))
 
     def __init__(self, *args, **kwargs):
         self.instance = kwargs.pop("instance")
@@ -83,6 +84,7 @@ class EsmFileForm(forms.Form):
             file=self.files["file"],
             article=self.instance.article,
             user=self.user,
+            label=self.cleaned_data["label"],
         )
 
     def save(self, commit=True) -> ArticleWorkflow:
