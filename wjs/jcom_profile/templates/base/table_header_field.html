@@ -1,0 +1,21 @@
+{% load i18n %}
+<span class="d-flex flex-nowrap justify-content-between">
+  <span>
+    {% translate label %}
+  </span>
+  {% if enabled %}
+    <span class="text-nowrap">
+    {% if sort_up_current %}
+      <i class="bi bi-caret-up-fill"></i>
+    {% else %}
+      <a href="{{ sort_up_link }}"><i class="bi bi-caret-up"></i></a>
+    {% endif %}
+      /
+      {% if sort_down_current %}
+        <i class="bi bi-caret-down-fill"></i>
+      {% else %}
+        <a href="{{ sort_down_link }}"><i class="bi bi-caret-down"></i></a>
+      {% endif %}
+  </span>
+  {% endif %}
+</span>
