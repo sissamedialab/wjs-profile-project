@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from journal.models import Journal
 
 from . import constants
+from .models import StaffWorkloadParameters
 
 Account = get_user_model()
 
@@ -49,6 +50,25 @@ def has_eo_role(user: Account) -> bool:
     :rtype: bool
     """
     return user.groups.filter(name=constants.EO_GROUP).exists()
+
+
+def has_eo_with_workload_role(journal: Journal, user: Account) -> bool:
+    """
+    Check if the given user is part of the EO group and has active workload value.
+
+    :param journal: An instance of the Journal class.
+    :type journal: Journal
+
+    :param user: The user to check for role.
+    :type user: Account
+
+    :return: True if the user belongs to the EO group, False otherwise.
+    :rtype: bool
+    """
+    return (
+        has_eo_role(user)
+        and StaffWorkloadParameters.objects.filter(user=user, journal=journal, workload__gt=0).exists()
+    )
 
 
 def has_eo_or_director_role(journal: Journal, user: Account) -> bool:

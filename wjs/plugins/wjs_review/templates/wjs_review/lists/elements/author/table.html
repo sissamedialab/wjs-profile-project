@@ -1,14 +1,15 @@
+{% load wjs_tags %}
 <table class="table table-hover table-striped table-bordered table-small-font" id="papers">
   <thead class="sticky-top bg-light">
   <tr>
-    <th scope="col">{% translate "General" %}</th>
-    <th scope="col">{% translate "Article Type" %}</th>
-    <th scope="col">{% translate "Authors" %}</th>
-    <th scope="col">{% translate "Title" %}</th>
-    <th scope="col">{% translate "Status" %}</th>
-    <th scope="col">{% translate "Issue" %}</th>
-    {% if table.configuration_options.show_author_due_date %}
-      <th scope="col">{% translate "Upcoming due date" %}</th>
+    <th scope="col">{% sortable_header_field label="General" sorting_field="article__date_submitted" %}</th>
+    <th scope="col">{% sortable_header_field label="Article Type" sorting_field="article__section__name" %}</th>
+    <th scope="col">{% sortable_header_field label="Authors" %}</th>
+    <th scope="col">{% sortable_header_field label="Title" %}</th>
+    <th scope="col">{% sortable_header_field label="Status" sorting_field="state" %}</th>
+    <th scope="col">{% sortable_header_field label="Issue" sorting_field="projected_issue__short_name" %}</th>
+    {% if view.configuration_options.show_author_due_date and not view.configuration_options.archived_list %}
+      <th scope="col">{% sortable_header_field label="Upcoming due date" sorting_field="sort_date" %}</th>
     {% endif %}
   </tr>
   </thead>
@@ -19,17 +20,3 @@
   </tbody>
 </table>
 {% include "wjs_review/base/elements/pagination.html" %}
-<script>
-  new DataTable("#papers", {
-    info: false,
-    searching: false,
-    ordering: true,
-    paging: false,
-    order: [[ 0, "desc" ]],
-    {% if table.configuration_options.show_author_due_date %}
-    columns: [null, null, { orderable: false }, { orderable: false }, null, null, null]
-    {% else %}
-    columns: [null, null, { orderable: false }, { orderable: false }, null, null]
-    {% endif %}
-  });
-</script>

@@ -262,3 +262,24 @@ def list_non_correspondence_authors(article):
     """
     authors = [author.full_name() for author in article.authors.all() if author != article.correspondence_author]
     return ", ".join(authors)
+
+
+@register.inclusion_tag("base/table_header_field.html", takes_context=True)
+def sortable_header_field(context, label, sorting_key="o", sorting_field=""):
+    if not sorting_key or not sorting_field:
+        return {"label": label}
+    current_sorting_field = context["ordering_value"]
+    ordering = "-" if current_sorting_field and current_sorting_field.startswith("-") else ""
+    current_sorting_field = current_sorting_field.replace("-", "")
+    sort_up_current = sorting_field == current_sorting_field and ordering == "-"
+    sort_down_current = sorting_field == current_sorting_field and ordering == ""
+    sort_up_link = f"?{sorting_key}={sorting_field}"
+    sort_down_link = f"?{sorting_key}=-{sorting_field}"
+    return {
+        "label": label,
+        "sort_up_current": sort_up_current,
+        "sort_down_current": sort_down_current,
+        "sort_up_link": sort_up_link,
+        "sort_down_link": sort_down_link,
+        "enabled": True,
+    }
