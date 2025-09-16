@@ -897,8 +897,8 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
 
         # Add the form only if necessary
         if (
-            set(tex_data["kwds_db"].values_list("id", flat=True))
-            != set(tex_data["kwds_tex"].values_list("id", flat=True))
+            list(tex_data["kwds_db"].values_list("id", flat=True))
+            != list(tex_data["kwds_tex"].values_list("id", flat=True))
             or "kwds_db_raw" in context
         ):
             context["form_kwds"] = SyncKwdsForm()
