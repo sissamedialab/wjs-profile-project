@@ -1278,7 +1278,7 @@ def test_assigns_themselves_as_reviewer_no_double_assignation(
     response = client.get(url)
     assert response.status_code == 200
 
-    response = client.post(url, data={"acceptance_due_date": "2025-09-20"})
+    response = client.post(url, data={"acceptance_due_date": now().date() + datetime.timedelta(days=7)})
     assert response.status_code == 200
 
     assert (
@@ -1289,7 +1289,7 @@ def test_assigns_themselves_as_reviewer_no_double_assignation(
         == 1
     )
 
-    response = client.post(url, data={"acceptance_due_date": "2025-09-20"})
+    response = client.post(url, data={"acceptance_due_date": now().date() + datetime.timedelta(days=7)})
     assert response.status_code == 200
 
     assert (
