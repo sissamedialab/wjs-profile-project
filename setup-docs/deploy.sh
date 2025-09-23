@@ -31,7 +31,7 @@ set -e
 JANEWAY_ROOT=/home/wjs/janeway
 
 # The path to the `bin` folder of the virtual env. This contains `python` and `pip`
-VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
+VENV_BIN=/home/wjs/.virtualenvs/janeway/bin
 
 # The uwsgi vassal file to "touch" in order to reload the application server
 UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
@@ -112,15 +112,15 @@ function set_prod_variables() {
     JANEWAY_ROOT=/home/wjs/janeway
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
-    JANEWAY_BRANCH=wjs-develop
+    JANEWAY_BRANCH=wjs-production
     QCLUSTER_SERVICE="qcluster.service"
 }
 
 function set_pp_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-pp
-    VENV_BIN=/home/wjs/.virtualenvs/janeway-pp-1.5/bin
+    VENV_BIN=/home/wjs/.virtualenvs/janeway-pp/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-pp.ini
-    JANEWAY_BRANCH=wjs-develop
+    JANEWAY_BRANCH=wjs-production
     # Permit install pre-release pkgs in pre-prod
     # this allows us to test pkg install when needed.
     PIP_PRE="yes please"
@@ -140,7 +140,7 @@ function set_test_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-test
     VENV_BIN=/home/wjs/.virtualenvs/janeway-test/bin
     UWSGI_VASSAL=/home/wjs/uwsgi/janeway-test.ini
-    JANEWAY_BRANCH=wjs-develop
+    JANEWAY_BRANCH=wjs-production
     PIP_PRE="yes please"
     QCLUSTER_SERVICE="qcluster-test.service"
 }
@@ -175,10 +175,10 @@ case "$SSH_ORIGINAL_COMMAND" in
         set_dev_variables
         deploy_wjs
         ;;
-    # Test (?)
+    # Test
     "deploy-test-janeway")
-        echo "Not implemented!"
-        exit 1
+        set_test_variables
+        deploy_janeway
         ;;
     # Install a given tag on test:
     # Don't be too generous with the pattern here: watch out for sh injections!
