@@ -1286,7 +1286,7 @@ WHERE
     def create_main_article_data(self, row, article):
         """Create the article."""
 
-        article.title = row["versionTitle"]
+        article.title = wjs_models.WjsSimpleBleach().to_python(row["versionTitle"])
         article.abstract = row["versionAbstract"]
         article.imported = True
         article.date_submitted = rome_timezone.localize(row["submissionDate"])
