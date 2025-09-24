@@ -7,7 +7,7 @@ from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
-from django.http import HttpRequest
+from django.http import HttpRequest, QueryDict
 from django.test.client import Client
 from django.urls import reverse
 from django.utils.formats import date_format
@@ -24,6 +24,7 @@ from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 from ..logic import AssignToEditor, HandleDecision, HandleEditorDeclinesAssignment
 from ..models import (
     ArticleWorkflow,
+    EditorDecision,
     EditorRevisionRequest,
     Message,
     PastEditorAssignment,
@@ -31,9 +32,11 @@ from ..models import (
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
+from ..templatetags.wjs_review import get_version_submission_date
 from ..views import (
     ArticleIdToDetails,
     EditorArchived,
+    EOPending,
     SelectReviewerView,
     SupervisorAssignEditor,
 )
@@ -1352,4 +1355,120 @@ def test_editor_selects_reviewer_no_double_assignment(
             article=assigned_article,
         ).count()
         == 1
+    )
+
+
+@pytest.mark.django_db
+def test_last_revision_date(
+    admin,
+    fake_request: HttpRequest,
+    submitted_articles,
+):
+    """
+    Calculated last_revision_date matches the templatetag selection.
+    """
+    ArticleWorkflow.objects.update(eo_in_charge=admin, state=ArticleWorkflow.ReviewStates.EDITOR_SELECTED)
+    articles = Article.objects.all()
+    article_with_multiple_revisions = articles[0]
+    article_with_completed_revision = articles[1]
+    article_with_open_revision = articles[2]
+    article_without_revisions = articles[3]
+
+    rr_multiple_revisions_1 = ReviewRound.objects.create(round_number=1, article=article_with_multiple_revisions)
+    EditorRevisionRequest.objects.create(
+        article=article_with_multiple_revisions,
+        editor=admin,
+        review_round=rr_multiple_revisions_1,
+        editor_decision=EditorDecision.objects.create(
+            review_round=rr_multiple_revisions_1,
+            editor=admin,
+            workflow=article_with_multiple_revisions.articleworkflow,
+            decision=ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
+        date_due=now(),
+        date_completed=now() + datetime.timedelta(days=10),
+    )
+    rr_multiple_revisions_2 = ReviewRound.objects.create(round_number=2, article=article_with_multiple_revisions)
+    EditorRevisionRequest.objects.create(
+        article=article_with_multiple_revisions,
+        editor=admin,
+        review_round=rr_multiple_revisions_2,
+        editor_decision=EditorDecision.objects.create(
+            review_round=rr_multiple_revisions_2,
+            editor=admin,
+            workflow=article_with_multiple_revisions.articleworkflow,
+            decision=ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
+        date_due=now(),
+        date_completed=now() + datetime.timedelta(days=10),
+    )
+    rr_multiple_revisions_3 = ReviewRound.objects.create(round_number=3, article=article_with_multiple_revisions)
+    EditorRevisionRequest.objects.create(
+        article=article_with_multiple_revisions,
+        editor=admin,
+        review_round=rr_multiple_revisions_3,
+        editor_decision=EditorDecision.objects.create(
+            review_round=rr_multiple_revisions_3,
+            editor=admin,
+            workflow=article_with_multiple_revisions.articleworkflow,
+            decision=ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
+        date_due=now(),
+    )
+
+    rr_completed_revision = ReviewRound.objects.create(round_number=1, article=article_with_completed_revision)
+    EditorRevisionRequest.objects.create(
+        article=article_with_completed_revision,
+        editor=admin,
+        review_round=rr_completed_revision,
+        editor_decision=EditorDecision.objects.create(
+            review_round=rr_completed_revision,
+            editor=admin,
+            workflow=article_with_completed_revision.articleworkflow,
+            decision=ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
+        date_due=now(),
+        date_completed=now() + datetime.timedelta(days=10),
+    )
+    rr_open_revision = ReviewRound.objects.create(round_number=1, article=article_with_open_revision)
+    EditorRevisionRequest.objects.create(
+        article=article_with_open_revision,
+        editor=admin,
+        review_round=rr_open_revision,
+        editor_decision=EditorDecision.objects.create(
+            review_round=rr_open_revision,
+            editor=admin,
+            workflow=article_with_open_revision.articleworkflow,
+            decision=ArticleWorkflow.Decisions.MINOR_REVISION,
+        ),
+        date_due=now(),
+    )
+    fake_request.GET = QueryDict()
+    fake_request.user = admin
+    view_obj = EOPending()
+    view_obj.kwargs = {}
+    view_obj.args = {}
+    view_obj.request = fake_request
+    view_obj.load_initial(fake_request)
+    qs = view_obj.get_queryset()
+    assert qs.exists()
+    assert article_with_completed_revision.articleworkflow in qs
+    assert article_with_open_revision.articleworkflow in qs
+    assert article_with_multiple_revisions.articleworkflow in qs
+    article_with_multiple_revisions_from_qs = qs.get(pk=article_with_multiple_revisions.articleworkflow.pk)
+    article_with_completed_revision_from_qs = qs.get(pk=article_with_completed_revision.articleworkflow.pk)
+    article_with_open_revision_from_qs = qs.get(pk=article_with_open_revision.articleworkflow.pk)
+    article_without_revisions_from_qs = qs.get(pk=article_without_revisions.articleworkflow.pk)
+    assert article_with_multiple_revisions_from_qs.last_revision_date == get_version_submission_date(
+        article_with_multiple_revisions
+    )
+    assert article_with_completed_revision_from_qs.last_revision_date == get_version_submission_date(
+        article_with_completed_revision
+    )
+    assert article_with_open_revision_from_qs.last_revision_date == get_version_submission_date(
+        article_with_open_revision
+    )
+    assert (
+        article_without_revisions_from_qs.last_revision_date
+        == article_without_revisions_from_qs.article.date_submitted
     )

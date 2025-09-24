@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
-from django.db.models import F, Q, QuerySet, Subquery
+from django.db.models import F, Max, Q, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
@@ -281,11 +281,38 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
             article__journal=self.request.journal,
         )
 
+    def _annotate_typesetter(self, base_qs):
+        """Annotate the queryset with the typesetter's last name."""
+        base_qs = base_qs.annotate(
+            typesetter_sorting=Coalesce(
+                F("article__typesettinground__typesettingassignment__typesetter__last_name"), None
+            )
+        )
+        return base_qs
+
+    def _annotate_editor(self, base_qs):
+        """Annotate the queryset with the editors's last name."""
+        base_qs = base_qs.annotate(editor_sorting=Coalesce(F("article__editorassignment__editor__last_name"), None))
+        return base_qs
+
+    def _annotate_last_revision_date(self, base_qs):
+        """Annotate the queryset with submission of the latest revision (or original submission)."""
+        base_qs = base_qs.annotate(
+            revision_date=Max(F("article__revisionrequest__date_completed")),
+            last_submitted_date=F("article__date_submitted"),
+        )
+        base_qs = base_qs.annotate(last_revision_date=Coalesce(F("revision_date"), F("last_submitted_date")))
+        return base_qs
+
     def get_queryset(self):
         """Filter article by state and filterset values."""
         base_qs = self.model._default_manager.all()
-        base_qs = base_qs.annotate(editor_sorting=Coalesce(F("article__editorassignment__editor__last_name"), None))
         base_qs = self._apply_base_filters(base_qs)
+        base_qs = self._annotate_last_revision_date(base_qs)
+        if "editor_sorting" in self.get_ordering() or "-editor_sorting" in self.get_ordering():
+            base_qs = self._annotate_editor(base_qs)
+        elif "typesetter_sorting" in self.get_ordering() or "-typesetter_sorting" in self.get_ordering():
+            base_qs = self._annotate_typesetter(base_qs)
         try:
             if self.filterset.is_valid():
                 base_qs = self.filterset.filter_queryset(base_qs)
@@ -375,7 +402,7 @@ class EOPending(ArticleWorkflowBaseMixin):
     template_table = "wjs_review/lists/elements/eo/table.html"
     filterset_class = EOArticleWorkflowFilter
     filterset: EOArticleWorkflowFilter
-    ordering = ["-article__date_submitted"]
+    ordering = ["-last_revision_date"]
     configuration_options = {
         "show_filter_editor": True,
         "show_filter_reviewer": True,
@@ -601,7 +628,7 @@ class DirectorPending(ArticleWorkflowBaseMixin):
         "is_pending": True,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
-    ordering = ["-article__date_submitted"]
+    ordering = ["-last_revision_date"]
 
     def test_func(self):
         """Allow access only to director."""
@@ -698,7 +725,7 @@ class AuthorPending(ArticleWorkflowBaseMixin):
     show_filters = False
     configuration_options = {"show_author_due_date": True}
     """See :py:attr:`EOPending.configuration_options` for details."""
-    ordering = ["-article__date_submitted"]
+    ordering = ["-last_revision_date"]
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""

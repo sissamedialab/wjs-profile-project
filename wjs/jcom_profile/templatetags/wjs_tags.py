@@ -273,8 +273,10 @@ def sortable_header_field(context, label, sorting_key="o", sorting_field=""):
     current_sorting_field = current_sorting_field.replace("-", "")
     sort_up_current = sorting_field == current_sorting_field and ordering == "-"
     sort_down_current = sorting_field == current_sorting_field and ordering == ""
-    sort_up_link = f"?{sorting_key}={sorting_field}"
-    sort_down_link = f"?{sorting_key}=-{sorting_field}"
+    original_querystring = context["request"].GET.copy()
+    original_querystring.pop("o", None)
+    sort_up_link = f"?{sorting_key}={sorting_field}&{original_querystring.urlencode()}"
+    sort_down_link = f"?{sorting_key}=-{sorting_field}&{original_querystring.urlencode()}"
     return {
         "label": label,
         "sort_up_current": sort_up_current,
