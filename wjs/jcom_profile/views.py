@@ -1071,7 +1071,12 @@ class PublishedArticlesListView(FormMixin, ListView):
                 site=self.request.site_object,
             )
             if isinstance(articles, RawQuerySet):
-                articles_pk = [article.id for article in articles]
+                try:
+                    articles_pk = [article.id for article in articles]
+                except IndexError:
+                    # TODO: investigate and fix the querystring escape problem
+                    logger.warning("index error due to search_term escape problem")
+                    articles_pk = []
                 articles = self.model.objects.filter(pk__in=articles_pk)
         else:
             articles = self.model.objects.all()

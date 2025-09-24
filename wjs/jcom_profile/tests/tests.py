@@ -42,6 +42,21 @@ class TestJCOMProfileProfessionModelTests:
 # profile extension. Do I really care?
 
 
+class TestJCOMProfileSaveTests:
+    @pytest.mark.django_db
+    def test_jcomprofile_save_is_admin_flag(self, user):
+        """A newly created account has is_admin False.
+
+        JCOMprofile save() sets is_admin = is_superuser.
+        """
+
+        account_jp = JCOMProfile.objects.get(username=user.username)
+        account_jp.is_superuser = True
+        assert not account_jp.is_admin
+        account_jp.save()
+        assert account_jp.is_admin
+
+
 class TestJCOMProfileURLs:
     @pytest.mark.skip(reason="Package installed as app (not as plugin).")
     def test_register_url_points_to_plugin(self, journal):

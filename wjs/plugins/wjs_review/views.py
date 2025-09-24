@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
-from django.db.models import F, Q, QuerySet
+from django.db.models import F, Max, Q, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
@@ -81,6 +81,7 @@ from .forms import (
     EditorDeclinesAssignmentForm,
     EditorRevisionRequestDueDateForm,
     EditorRevisionRequestEditForm,
+    EditorRevisionRequestForm,
     EvaluateReviewForm,
     ForwardMessageForm,
     InviteUserForm,
@@ -234,6 +235,7 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
     filterset_class = None
     filterset: Optional[django_filters.FilterSet]
     context_object_name = "workflows"
+    ordering_key = "o"
     ordering = ["-modified"]
     title: str
     show_filters = True
@@ -243,9 +245,6 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
     def load_initial(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
         super().load_initial(request, *args, **kwargs)
-        data = self.request.GET.copy()
-        if base_permissions.has_eo_role(request.user):
-            data["eo_in_charge"] = request.user
         if getattr(self, "filterset_class", None):
             self.filterset = self.filterset_class(
                 data=self.request.GET,
@@ -258,6 +257,20 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
         else:
             self.filterset = None
 
+    def get_ordering(self) -> tuple | list:
+        """Get ordering key from GET parameters or fallback to view default."""
+        return self.request.GET.getlist(self.ordering_key, None) or self.ordering
+
+    def _get_ordering_value(self):
+        """"""
+        order_value = self.get_ordering()[0]
+        if not order_value:
+            return order_value
+        if order_value.startswith("-"):
+            return order_value[1:]
+        else:
+            return f"-{order_value}"
+
     def _apply_base_filters(self, qs):
         """Apply some base filters before the filterset's "dynamic" ones.
 
@@ -268,21 +281,50 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
             article__journal=self.request.journal,
         )
 
+    def _annotate_typesetter(self, base_qs):
+        """Annotate the queryset with the typesetter's last name."""
+        base_qs = base_qs.annotate(
+            typesetter_sorting=Coalesce(
+                F("article__typesettinground__typesettingassignment__typesetter__last_name"), None
+            )
+        )
+        return base_qs
+
+    def _annotate_editor(self, base_qs):
+        """Annotate the queryset with the editors's last name."""
+        base_qs = base_qs.annotate(editor_sorting=Coalesce(F("article__editorassignment__editor__last_name"), None))
+        return base_qs
+
+    def _annotate_last_revision_date(self, base_qs):
+        """Annotate the queryset with submission of the latest revision (or original submission)."""
+        base_qs = base_qs.annotate(
+            revision_date=Max(F("article__revisionrequest__date_completed")),
+            last_submitted_date=F("article__date_submitted"),
+        )
+        base_qs = base_qs.annotate(last_revision_date=Coalesce(F("revision_date"), F("last_submitted_date")))
+        return base_qs
+
     def get_queryset(self):
         """Filter article by state and filterset values."""
-        qs = super().get_queryset()
-        base_qs = self._apply_base_filters(qs)
+        base_qs = self.model._default_manager.all()
+        base_qs = self._apply_base_filters(base_qs)
+        base_qs = self._annotate_last_revision_date(base_qs)
+        if "editor_sorting" in self.get_ordering() or "-editor_sorting" in self.get_ordering():
+            base_qs = self._annotate_editor(base_qs)
+        elif "typesetter_sorting" in self.get_ordering() or "-typesetter_sorting" in self.get_ordering():
+            base_qs = self._annotate_typesetter(base_qs)
         try:
             if self.filterset.is_valid():
-                return self.filterset.filter_queryset(base_qs).distinct()
+                base_qs = self.filterset.filter_queryset(base_qs)
         except AttributeError:
             pass
-        return base_qs.distinct()
+        return base_qs.distinct().order_by(*self.get_ordering())
 
     def get_context_data(self, **kwargs):
         """Add the filterset."""
         context = super().get_context_data(**kwargs)
         context["filter"] = self.filterset
+        context["ordering_value"] = self._get_ordering_value()
         return context
 
 
@@ -302,6 +344,7 @@ class EditorPending(ArticleWorkflowBaseMixin):
         "is_pending": True,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
+    ordering = ["-modified"]
 
     def test_func(self):
         """Allow access only for Editors of this Journal"""
@@ -359,7 +402,7 @@ class EOPending(ArticleWorkflowBaseMixin):
     template_table = "wjs_review/lists/elements/eo/table.html"
     filterset_class = EOArticleWorkflowFilter
     filterset: EOArticleWorkflowFilter
-    ordering = ["-article__date_submitted"]
+    ordering = ["-last_revision_date"]
     configuration_options = {
         "show_filter_editor": True,
         "show_filter_reviewer": True,
@@ -390,7 +433,11 @@ class EOPending(ArticleWorkflowBaseMixin):
     def load_initial(self, request, *args, **kwargs):
         """Setup and validate filterset data."""
         data = self.request.GET.copy()
-        if base_permissions.has_eo_role(request.user) and not self.request.GET.get("search") and self.prefilter_by_eo:
+        if (
+            base_permissions.has_eo_with_workload_role(request.journal, request.user)
+            and not self.request.GET.get("search")
+            and self.prefilter_by_eo
+        ):
             data["eo_in_charge"] = request.user
         self.request.GET = data
         super().load_initial(request, *args, **kwargs)
@@ -417,6 +464,7 @@ class EOArchived(EOPending):
     }
     paginate_by = 20
     prefilter_by_eo = False
+    ordering = ["-sort_date"]
 
     def _apply_base_filters(self, qs):
         """
@@ -437,7 +485,6 @@ class EOArchived(EOPending):
                     F("latest_state_change"),
                 )
             )
-            .order_by("-sort_date")
         )
 
 
@@ -467,6 +514,7 @@ class EOWorkOnAPaper(EOPending):
     filterset: WorkOnAPaperArticleWorkflowFilter
     paginate_by = 100
     prefilter_by_eo = False
+    ordering = ("article__date_submitted",)
 
     def _apply_base_filters(self, qs):
         """
@@ -475,7 +523,7 @@ class EOWorkOnAPaper(EOPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).order_by("-article__date_submitted")
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
 
 
 class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
@@ -580,6 +628,7 @@ class DirectorPending(ArticleWorkflowBaseMixin):
         "is_pending": True,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
+    ordering = ["-last_revision_date"]
 
     def test_func(self):
         """Allow access only to director."""
@@ -607,6 +656,7 @@ class DirectorArchived(DirectorPending):
         "table_type": "archived",
     }
     paginate_by = 20
+    ordering = ["-sort_date"]
 
     def _apply_base_filters(self, qs):
         """
@@ -616,19 +666,15 @@ class DirectorArchived(DirectorPending):
         sure to use the original method.
         """
         return (
-            (
-                ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-                .filter(state__in=states_when_article_is_considered_archived)
-                .exclude(article__authors=self.request.user)
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+            .filter(state__in=states_when_article_is_considered_archived)
+            .exclude(article__authors=self.request.user)
+        ).annotate(
+            sort_date=Coalesce(
+                F("article__date_published"),
+                F("article__date_declined"),
+                F("latest_state_change"),
             )
-            .annotate(
-                sort_date=Coalesce(
-                    F("article__date_published"),
-                    F("article__date_declined"),
-                    F("latest_state_change"),
-                )
-            )
-            .order_by("-sort_date")
         )
 
 
@@ -664,7 +710,7 @@ class DirectorWorkOnAPaper(DirectorPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).order_by("-article__date_submitted")
+        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
 
 
 class AuthorPending(ArticleWorkflowBaseMixin):
@@ -677,8 +723,9 @@ class AuthorPending(ArticleWorkflowBaseMixin):
     filterset_class = AuthorArticleWorkflowFilter
     filterset: AuthorArticleWorkflowFilter
     show_filters = False
-    configuration_options = {}
+    configuration_options = {"show_author_due_date": True}
     """See :py:attr:`EOPending.configuration_options` for details."""
+    ordering = ["-last_revision_date"]
 
     def test_func(self):
         """Allow access only for Authors of this Journal"""
@@ -691,20 +738,28 @@ class AuthorPending(ArticleWorkflowBaseMixin):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            (
-                Q(state__in=states_when_article_is_considered_in_review)
-                | Q(state__in=states_when_article_is_considered_in_production)
-                | Q(state__in=states_when_article_is_considered_author_pending)
+        latest_revision_request = EditorRevisionRequest.objects.filter(
+            article__correspondence_author=self.request.user, date_completed__isnull=True
+        )
+
+        return (
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+            .filter(
+                (
+                    Q(state__in=states_when_article_is_considered_in_review)
+                    | Q(state__in=states_when_article_is_considered_in_production)
+                    | Q(state__in=states_when_article_is_considered_author_pending)
+                )
+                & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
             )
-            & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
+            .annotate(sort_date=Subquery(latest_revision_request.values("date_due")))
         )
 
 
 class AuthorArchived(AuthorPending):
     title = _("Archived preprints")
     show_filters = True
-    configuration_options = {"show_author_due_date": True, "show_filter_author": True}
+    configuration_options = {"show_filter_author": True, "archived_list": True}
     """See :py:attr:`EOPending.configuration_options` for details."""
     paginate_by = 20
 
@@ -739,6 +794,7 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
         "archived_list": False,
     }
     """See :py:attr:`EOPending.configuration_options` for details."""
+    ordering = ["sort_date"]
 
     def test_func(self):
         """Allow access only for Reviewers of this Journal"""
@@ -751,9 +807,19 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            article__reviewassignment__reviewer=self.request.user,
-            article__reviewassignment__is_complete=False,
+        latest_assignment = WorkflowReviewAssignment.objects.filter(reviewer=self.request.user, is_complete=False)
+
+        return (
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+            .filter(
+                article__reviewassignment__reviewer=self.request.user,
+                article__reviewassignment__is_complete=False,
+            )
+            .annotate(
+                sort_date=Subquery(
+                    latest_assignment.values("date_due"),
+                )
+            )
         )
 
 
@@ -779,9 +845,19 @@ class ReviewerArchived(ReviewerPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            article__reviewassignment__reviewer=self.request.user,
-            article__reviewassignment__is_complete=True,
+        latest_assignment = WorkflowReviewAssignment.objects.filter(reviewer=self.request.user, is_complete=False)
+
+        return (
+            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+            .filter(
+                article__reviewassignment__reviewer=self.request.user,
+                article__reviewassignment__is_complete=True,
+            )
+            .annotate(
+                sort_date=Subquery(
+                    latest_assignment.values("date_due"),
+                )
+            )
         )
 
 
@@ -2732,13 +2808,13 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
             kwargs["data"] = d
         return kwargs
 
-    def _get_metadata_form_class(self) -> Type[model_forms.BaseModelForm]:
+    def _get_metadata_form_class(self) -> Type[EditorRevisionRequestForm]:
         """
         Generate a MetadataForm class for the article.
 
         Form stores data in :py:class:`EditorRevisionRequest`.
         """
-        return model_forms.modelform_factory(EditorRevisionRequest, fields=self.meta_data_fields)
+        return EditorRevisionRequestForm
 
     def _get_metadata_form(self) -> Optional[model_forms.BaseModelForm]:
         """
@@ -3574,6 +3650,7 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         for ta in [
             TypesettingAssignment.objects.filter(files_to_typeset__pk=self.attachment.pk).first(),
             TypesettingAssignment.objects.filter(galleys_created__file__pk=self.attachment.pk).first(),
+            TypesettingAssignment.objects.filter(galleys_created__images__pk=self.attachment.pk).first(),
         ]:
             if ta:
                 related_instances.append((ta, True))
@@ -3591,6 +3668,32 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
     def get(self, request, *args, **kwargs):
         """Serve an article file."""
         return core_files.serve_file(request, self.attachment, self.article)
+
+
+class DownloadSingleFileImage(DownloadSingleFile):
+    """
+    View to allow any user to download single images in typesetter preview.
+    """
+
+    def setup(self, request, *args, **kwargs):
+        super(DownloadSingleFile, self).setup(request, *args, **kwargs)
+
+        self.article = ArticleWorkflow.objects.get(pk=self.kwargs["aw_id"]).article
+
+        # the filename is not a unique key and can be the same in the different typesetting uploads
+        ta = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+
+        # the filename image must be present in the last created typesetter galley
+        for galley in ta.galleys_created.all():
+            if galley and galley.label == "HTML":
+                # an article galley could have more images with the same filename
+                image = (
+                    galley.images.filter(original_filename=self.kwargs["file_name"]).order_by("-last_modified").first()
+                )
+                if image:
+                    self.attachment = image
+                else:
+                    raise Http404()
 
 
 class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):

@@ -1,19 +1,26 @@
+{% load wjs_tags %}
 <table class="table table-hover table-striped table-bordered table-small-font table-border-medium" id="papers">
   <thead class="sticky-top bg-light">
   <tr>
-    <th scope="col">{% translate "General" %}</th>
-    <th scope="col">{% translate "Authors" %}</th>
-    <th scope="col">{% translate "Title" %}</th>
-    <th scope="col">{% translate "Status" %}</th>
     {% if view.configuration_options.table_type == "production" %}
-      <th scope="col">{% translate "Typesetter" %}</th>
-      <th scope="col">{% translate "Extra" %}</th>
-      <th scope="col">{% translate "Publication date" %}</th>
+      <th scope="col">{% sortable_header_field label="General" sorting_field="article__date_accepted" %}</th>
+    {% elif view.configuration_options.table_type == "archived" %}
+      <th scope="col">{% sortable_header_field label="General" sorting_field="sort_date" %}</th>
     {% elif view.configuration_options.table_type == "review" %}
-      <th scope="col">{% translate "Editor" %}</th>
-      <th scope="col">{% translate "Reviewers" %}</th>
+      <th scope="col">{% sortable_header_field label="General" sorting_field="last_revision_date" %}</th>
     {% endif %}
-    <th scope="col">{% translate "Notes" %}</th>
+    <th scope="col">{% sortable_header_field label="Authors" %}</th>
+    <th scope="col">{% sortable_header_field label="Title" %}</th>
+    <th scope="col">{% sortable_header_field label="Status" %}</th>
+    {% if view.configuration_options.table_type == "production" %}
+      <th scope="col">{% sortable_header_field label="Typesetter" sorting_field="typesetter_sorting" %}</th>
+      <th scope="col">{% sortable_header_field label="Extra" %}</th>
+      <th scope="col">{% sortable_header_field label="Publication date" %}</th>
+    {% elif view.configuration_options.table_type == "review" %}
+      <th scope="col">{% sortable_header_field label="Editor" sorting_field="editor_sorting" %}</th>
+      <th scope="col">{% sortable_header_field label="Reviewers" %}</th>
+    {% endif %}
+    <th scope="col">{% sortable_header_field label="Notes" %}</th>
   </tr>
   </thead>
   <tbody>
@@ -23,19 +30,3 @@
   </tbody>
 </table>
 {% include "wjs_review/base/elements/pagination.html" %}
-{% if not view.paginate_by %}
-  <script>
-    new DataTable("#papers", {
-      info: false,
-      searching: false,
-      ordering: true,
-      paging: false,
-      order: [[ 0, "desc" ]],
-      {% if view.configuration_options.table_type == "production" %}
-      columns: [null, { orderable: false }, { orderable: false }, null, null, null, { orderable: false }]
-      {% elif view.configuration_options.table_type == "review" %}
-      columns: [null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
-      {% endif %}
-    });
-  </script>
-{% endif %}

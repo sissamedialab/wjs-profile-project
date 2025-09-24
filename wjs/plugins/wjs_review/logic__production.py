@@ -603,9 +603,10 @@ class HandleCreateSupplementaryFile:
     file: File
     article: Article
     user: Account
+    label: str | None
 
     def _create_file_instance(self):
-        file_instance = save_file_to_article(self.file, self.article, self.user)
+        file_instance = save_file_to_article(self.file, self.article, self.user, self.label)
         return file_instance
 
     def _check_typesetter_condition(self):

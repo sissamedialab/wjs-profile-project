@@ -528,6 +528,19 @@ class AssignToReviewer:
         """
         return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
 
+    def _reviewer_already_assigned(self) -> bool:
+        """
+        Check that the view has not already been called.
+
+        Make sure the reviewer we are trying to assign isn't already assigned.
+        :return: True if reviewer is already assigned, else False
+        """
+        return WorkflowReviewAssignment.objects.filter(
+            article=self.workflow.article,
+            reviewer=self.reviewer,
+            is_complete=False,
+        ).exists()
+
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
         reviewer_conditions = self.check_reviewer_conditions(self.workflow, self.reviewer)
@@ -745,6 +758,8 @@ class AssignToReviewer:
         # - si emette un evento signal
         # - si ritorna l'oggetto
         with transaction.atomic():
+            if self._reviewer_already_assigned():
+                return self.assignment
             conditions = self.check_conditions()
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))

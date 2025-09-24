@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from core.models import Account
 from django.contrib.auth.models import Group
-from django.http import HttpRequest
+from django.http import HttpRequest, QueryDict
 from django.utils import timezone
 from django.views.generic.list import MultipleObjectMixin
 from journal import models as journal_models
@@ -360,7 +360,7 @@ class TestListViews:
         ArticleWorkflow.objects.filter(state=ArticleWorkflow.ReviewStates.EDITOR_SELECTED).update(eo_in_charge=user)
         # GET must be set to empty dict, otherwise it's interpreted by filterset and used as filter parameters
         # resulting in an empty queryset
-        fake_request.GET = {}
+        fake_request.GET = QueryDict()
         fake_request.user = user
         view_obj = view_class()
         view_obj.kwargs = {}
@@ -414,7 +414,7 @@ class TestListViews:
         ArticleWorkflow.objects.filter(state=ArticleWorkflow.ReviewStates.PUBLISHED).update(eo_in_charge=user)
         # GET must be set to empty dict, otherwise it's interpreted by filterset and used as filter parameters
         # resulting in an empty queryset
-        fake_request.GET = {}
+        fake_request.GET = QueryDict()
         fake_request.user = user
         view_obj = view_class()
         view_obj.kwargs = {}

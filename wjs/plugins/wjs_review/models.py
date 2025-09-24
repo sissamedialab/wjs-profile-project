@@ -509,6 +509,20 @@ class ArticleWorkflow(TimeStampedModel):
             authors |= Account.objects.filter(pk=self.article.correspondence_author.pk)
         return authors
 
+    @property
+    def article_authors_string(self) -> str:
+        authors = []
+        correspondence_author = self.article.correspondence_author
+        for aao in self.article.articleauthororder_set.all():
+            author = aao.author
+            if author == correspondence_author:
+                email_address = author.email
+                authors.append(f"{author.get_full_name()} ({email_address})")
+            else:
+                authors.append(f"{aao.author.get_full_name()}")
+        authors_string = ", ".join(authors)
+        return authors_string
+
     def __str__(self):
         return self.preprint_id
 
@@ -651,7 +665,7 @@ class ArticleWorkflow(TimeStampedModel):
         """
         # This function would probably be better placed in the Journal model,
         # but since we don't yet have a o2o/wrapper on that model I'm leaving it here.
-        if self.article.journal.code != "JCOM":
+        if self.article.journal.code not in {"JCOM", "JCOMAL"}:
             raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
 
         # Feel free to fail badly.

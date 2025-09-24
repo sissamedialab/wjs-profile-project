@@ -4,13 +4,13 @@
 {% block breadcrumbs %}{% endblock breadcrumbs %}
 
 {% block bootstrap5_extra_head %}
-    {{ block.super }}
-    <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
-    <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
-    <script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
-    <script>
-      EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
-    </script>
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
+  <script type="text/javascript" src="{% static '/js/datatables.min.js' %}"></script>
+  <script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
+  <script>
+    EnableSubmitEnterButton("id_filter_form", "id_filter_form_submit_button");
+  </script>
 {% endblock bootstrap5_extra_head %}
 
 {% block content_wrapper %}
@@ -25,6 +25,7 @@
     {% if filter %}
       <div class="container mb-3">
         <form id="id_filter_form" method="get">
+          {% if request.GET.o %}<input type="hidden" name="o" value="{{ request.GET.o }}">{% endif %}
           {% include filter.template_name %}
         </form>
       </div>
