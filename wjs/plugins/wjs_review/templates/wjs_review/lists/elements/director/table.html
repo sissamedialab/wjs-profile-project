@@ -7,11 +7,11 @@
     {% elif view.configuration_options.table_type == "archived" %}
       <th scope="col">{% sortable_header_field label="General" sorting_field="sort_date" %}</th>
     {% elif view.configuration_options.table_type == "review" %}
-      <th scope="col">{% sortable_header_field label="General" sorting_field="article__date_submitted" %}</th>
+      <th scope="col">{% sortable_header_field label="General" sorting_field="last_revision_date" %}</th>
     {% endif %}
     <th scope="col">{% sortable_header_field label="Authors" %}</th>
     <th scope="col">{% sortable_header_field label="Title" %}</th>
-    <th scope="col">{% sortable_header_field label="Status" sorting_field="state" %}</th>
+    <th scope="col">{% sortable_header_field label="Status" %}</th>
     {% if view.configuration_options.table_type == "production" %}
       <th scope="col">{% sortable_header_field label="Typesetter" sorting_field="typesetter_sorting" %}</th>
     {% elif view.configuration_options.table_type == "review" %}
