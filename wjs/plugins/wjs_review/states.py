@@ -440,7 +440,7 @@ class BaseState:
     )
     review_assignment_actions = (
         ReviewAssignmentAction(
-            assignment_permission=permissions.is_assignment_reviewer,
+            assignment_permission=permissions.is_assignment_reviewer_only,
             condition=conditions.review_done,
             name="read review",
             label="Read Review",

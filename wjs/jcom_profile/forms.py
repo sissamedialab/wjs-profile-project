@@ -30,6 +30,8 @@ from utils.forms import CaptchaForm, JanewayTranslationModelForm
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
+from wjs.jcom_profile.models import WjsSimpleBleach
+
 from .models import (
     JCOMProfile,
     Recipient,
@@ -575,7 +577,7 @@ class SelectSpecialIssueForm(SelectIssueForm):
 
 
 class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
-    title = forms.CharField(label=_("Title"))
+    title = WjsSimpleBleach(label=_("Title"))
     abstract = WjsMiniHTMLFormField(label=_("Abstract"))
     keywords = forms.ModelMultipleChoiceField(
         queryset=Keyword.objects.none(),

@@ -6,7 +6,9 @@ from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import JSONField
+from django.forms import TextInput
 from django.utils.translation import gettext as _
+from django_bleach.forms import BleachField as BleachFormField
 from journal.models import Issue, Journal
 from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article
@@ -28,6 +30,15 @@ PROFESSIONS = (
 )
 
 
+class WjsSimpleBleach(BleachFormField):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.widget = TextInput()
+        self.bleach_options["tags"] = []
+        self.bleach_options["attributes"] = {}
+        self.bleach_options["strip_comments"] = True  # Remove also html comments
+
+
 class JCOMProfile(Account):
     """An enrichment of Janeway's Account."""
 
@@ -46,6 +57,11 @@ class JCOMProfile(Account):
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
     keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
     usernotes = models.TextField(_("User notes"), blank=True, null=True, default="")
+
+    def save(self, *args, **kwargs):
+        # is_admin is a flag of janeway which protects some manager site parts
+        self.is_admin = self.is_superuser
+        super().save(*args, **kwargs)
 
 
 class Correspondence(models.Model):

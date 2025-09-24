@@ -1,14 +1,15 @@
+{% load wjs_tags %}
 <table class="table table-hover table-striped table-bordered table-small-font" id="papers">
   <thead class="sticky-top bg-light">
   <tr>
-    <th scope="col">{% translate "General" %}</th>
-    <th scope="col">{% translate "Article Type" %}</th>
-    <th scope="col">{% translate "Authors" %}</th>
-    <th scope="col">{% translate "Title" %}</th>
-    <th scope="col">{% translate "Status" %}</th>
-    <th scope="col">{% translate "Reviewers" %}</th>
-    <th scope="col">{% translate "Issue" %}</th>
-    <th scope="col">{% translate "Notes" %}</th>
+    <th scope="col">{% sortable_header_field label="General" sorting_field="modified" %}</th>
+    <th scope="col">{% sortable_header_field label="Article Type" sorting_field="article__section__name" %}</th>
+    <th scope="col">{% sortable_header_field label="Authors" %}</th>
+    <th scope="col">{% sortable_header_field label="Title" %}</th>
+    <th scope="col">{% sortable_header_field label="Status" %}</th>
+    <th scope="col">{% sortable_header_field label="Reviewers" %}</th>
+    <th scope="col">{% sortable_header_field label="Issue" %}</th>
+    <th scope="col">{% sortable_header_field label="Notes" %}</th>
   </tr>
   </thead>
   <tbody>
@@ -24,7 +25,7 @@
     searching: false,
     ordering: true,
     paging: false,
-    order: [[ 0, "desc" ]],
-    columns: [null, null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }]
+    order: [[0, "desc"]],
+    columns: [null, null, { orderable: false }, { orderable: false }, null, null, { orderable: false }, { orderable: false }],
   });
 </script>

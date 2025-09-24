@@ -60,7 +60,7 @@
         {% endif %}
       </td>
     </tr>
-    {% if request.user|is_user_eo and workflow|is_production_state %}
+    {% if request.user|is_user_eo and workflow|is_production_state or request.user|is_user_eo and workflow.state == "Published" %}
       <tr>
         {% current_typesetting_assignment article as typesetting_assigment %}
         <th>{% translate "Typesetter" %}</th>

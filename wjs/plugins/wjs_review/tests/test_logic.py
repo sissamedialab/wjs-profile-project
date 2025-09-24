@@ -115,53 +115,53 @@ def test_articleworkflow__get_sorted_review_assignments(
     and verify that the sorting function behaves correctly.
     """
     today = now().date()
-    reviewer_1 = create_jcom_user("reviewer_1")
-    reviewer_2 = create_jcom_user("reviewer_2")
-    for reviewer in [reviewer_1, reviewer_2]:
-        fake_request.user = reviewer
-        submitted_review = _create_review_assignment(
-            fake_request=fake_request,
-            reviewer_user=reviewer,
-            assigned_article=assigned_article,
-        )
-        _submit_review(submitted_review, fake_request)
-        if reviewer == reviewer_2:
-            submitted_review.date_complete = today + datetime.timedelta(days=3)
-            submitted_review.save()
 
-        accepted_review = _create_review_assignment(
-            fake_request=fake_request,
-            reviewer_user=reviewer,
-            assigned_article=assigned_article,
-        )
-        if reviewer == reviewer_1:
-            accepted_review.date_accepted = today + datetime.timedelta(days=3)
-        else:
-            accepted_review.date_accepted = today
-        accepted_review.save()
+    reviewers = [create_jcom_user(f"reviewer_{i}") for i in range(6)]
+    # Submitted assignments
+    submitted_review1 = _create_review_assignment(fake_request, reviewers[0], assigned_article)
+    _submit_review(submitted_review1, fake_request)
+    submitted_review1.date_complete = today
+    submitted_review1.save()
 
-        declined_review = _create_review_assignment(
-            fake_request=fake_request,
-            reviewer_user=reviewer,
-            assigned_article=assigned_article,
-        )
-        if reviewer == reviewer_2:
-            declined_review.date_declined = today + datetime.timedelta(days=3)
-        else:
-            declined_review.date_declined = today
-        declined_review.date_accepted = None
-        declined_review.is_complete = True
-        declined_review.save()
+    submitted_review2 = _create_review_assignment(fake_request, reviewers[1], assigned_article)
+    _submit_review(submitted_review2, fake_request)
+    submitted_review2.date_complete = today + datetime.timedelta(days=3)
+    submitted_review2.save()
+
+    # Accepted assignments
+    accepted_review1 = _create_review_assignment(fake_request, reviewers[2], assigned_article)
+    accepted_review1.date_accepted = today + datetime.timedelta(days=3)
+    accepted_review1.save()
+
+    accepted_review2 = _create_review_assignment(fake_request, reviewers[3], assigned_article)
+    accepted_review2.date_accepted = today
+    accepted_review2.save()
+
+    # Declined assignments
+    declined_review1 = _create_review_assignment(fake_request, reviewers[4], assigned_article)
+    declined_review1.date_declined = today
+    declined_review1.date_accepted = None
+    declined_review1.is_complete = True
+    declined_review1.save()
+
+    declined_review2 = _create_review_assignment(fake_request, reviewers[5], assigned_article)
+    declined_review2.date_declined = today + datetime.timedelta(days=3)
+    declined_review2.date_accepted = None
+    declined_review2.is_complete = True
+    declined_review2.save()
+
     sorted_review_assignments = assigned_article.articleworkflow._get_sorted_review_assignments(
         assigned_article.current_review_round_object()
     )
     # Declined assignments:
-    assert sorted_review_assignments.filter(date_declined__isnull=False).first().reviewer.jcomprofile == reviewer_2
+    assert sorted_review_assignments.filter(date_declined__isnull=False).first().reviewer.jcomprofile == reviewers[5]
+
     # Completed assignments:
-    assert sorted_review_assignments.filter(date_complete__isnull=False).first().reviewer.jcomprofile == reviewer_2
-    # Accepted assignemts:
+    assert sorted_review_assignments.filter(date_complete__isnull=False).first().reviewer.jcomprofile == reviewers[1]
+    # Accepted assignments:
     # warning: do not use date_accepted only, becuase it is also set (i.e. it is not-null)
     #          for completed-assignments
+
     assert (
         sorted_review_assignments.filter(
             date_accepted__isnull=False,
@@ -169,7 +169,7 @@ def test_articleworkflow__get_sorted_review_assignments(
         )
         .first()
         .reviewer.jcomprofile
-        == reviewer_1
+        == reviewers[2]
     )
 
 
@@ -2873,30 +2873,39 @@ def test_handle_withdraw_review_assignment(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
     review_assignment: review_models.ReviewAssignment,
-    jcom_user: JCOMProfile,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     review_form: review_models.ReviewForm,
 ):
     """
     If the editor request a revision, pending review assignment are marked as withdrawn.
     """
     section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
-    fake_request.user = jcom_user
+
+    reviewer_submitted = create_jcom_user("rev_submitted")
+    reviewer_accepted = create_jcom_user("rev_accepted")
+    reviewer_declined = create_jcom_user("rev_declined")
+
+    fake_request.user = reviewer_submitted
     submitted_review = _create_review_assignment(
         fake_request=fake_request,
-        reviewer_user=jcom_user,
+        reviewer_user=reviewer_submitted,
         assigned_article=assigned_article,
     )
     _submit_review(submitted_review, fake_request)
+
+    fake_request.user = reviewer_accepted
     accepted_review = _create_review_assignment(
         fake_request=fake_request,
-        reviewer_user=jcom_user,
+        reviewer_user=reviewer_accepted,
         assigned_article=assigned_article,
     )
     accepted_review.date_accepted = now()
     accepted_review.save()
+
+    fake_request.user = reviewer_declined
     declined_review = _create_review_assignment(
         fake_request=fake_request,
-        reviewer_user=jcom_user,
+        reviewer_user=reviewer_declined,
         assigned_article=assigned_article,
     )
     declined_review.date_declined = now()

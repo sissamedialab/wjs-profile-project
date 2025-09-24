@@ -9,10 +9,10 @@
 
 {% if assignment.date_declined %}
   <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
-  <p>{% translate "Decline date" %}: {{ assignment.date_declined|date:DATE_FORMAT }}</p>
+  <p>{% translate "Declined on" %}: {{ assignment.date_declined|date:DATE_FORMAT }}</p>
 {% elif not assignment.date_accepted and not assignment.date_declined and not assignment.decision == "withdrawn" %}
   <p>{% translate "Accept/decline due date" %}: {{ assignment.date_due|date:DATE_FORMAT }}</p>
-{% elif not assignment.date_accepted and not assignment.date_declined and assignment.decision == "withdrawn" %}
+{% elif not assignment.date_declined and assignment.decision == "withdrawn" %}
   <p>{% translate "Assignment date" %}: {{ assignment.date_requested|date:DATE_FORMAT }}</p>
   <p>{% translate "Deselected on" %}: {{ assignment.date_complete|date:DATE_FORMAT }}</p>
 {% elif assignment.date_complete %}

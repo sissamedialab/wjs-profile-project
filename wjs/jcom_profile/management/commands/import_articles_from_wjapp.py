@@ -1286,7 +1286,7 @@ WHERE
     def create_main_article_data(self, row, article):
         """Create the article."""
 
-        article.title = row["versionTitle"]
+        article.title = wjs_models.WjsSimpleBleach().to_python(row["versionTitle"])
         article.abstract = row["versionAbstract"]
         article.imported = True
         article.date_submitted = rome_timezone.localize(row["submissionDate"])
@@ -1574,7 +1574,8 @@ WHERE
             issue.articles.add(article)
             article.primary_issue = issue
             article.save()
-            # primary issue saved directly article not refreshed
+            # primary issue saved directly article not refreshed because the signal at the refresh is triggered
+            # only if the m2m is changed. For example it does not work when the same article is reloaded.
             #
             # Note from: wjs/jcom_profile/tests/conftest.py
             # we must reload article from db as Article.primary_issue is set by a signal triggered by
@@ -1590,7 +1591,8 @@ WHERE
             issue.articles.add(article)
             article.primary_issue = issue
             article.save()
-            # primary issue saved directly article not refreshed
+            # primary issue saved directly article not refreshed because the signal at the refresh is triggered
+            # only if the m2m is changed. For example it does not work when the same article is reloaded.
             #
             # Note from: wjs/jcom_profile/tests/conftest.py
             # we must reload article from db as Article.primary_issue is set by a signal triggered by
@@ -1652,10 +1654,14 @@ WHERE
 
         issue.articles.add(article)
         issue.save()
+        article.primary_issue = issue
+        article.save()
+        # primary issue saved directly article not refreshed because the signal at the refresh is triggered
+        # only if the m2m is changed. For example it does not work when the same article is reloaded.
+        #
         # Note from: wjs/jcom_profile/tests/conftest.py
         # we must reload article from db as Article.primary_issue is set by a signal triggered by
         # m2m save, and thus our in memory article object has no knowledge of that change
-        article.refresh_from_db()
         return issue
 
     def set_article_document_notes(self, article, document_notes):

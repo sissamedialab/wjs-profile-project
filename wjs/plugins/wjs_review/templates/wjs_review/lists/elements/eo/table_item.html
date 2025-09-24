@@ -2,7 +2,7 @@
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td data-order="{% if view.configuration_options.table_type == "review" %}{{ article|get_version_submission_date|date:"U" }}{% elif view.configuration_options.table_type == "production" %}{{ article.date_accepted|date:"U" }}{% endif %}" class="text-nowrap">
+    <td class="text-nowrap">
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
       <a
          href="{% url 'wjs_article_details' workflow.id %}"
@@ -15,7 +15,7 @@
         {% endif %}
       {% endwith %}
       {% if view.configuration_options.table_type == "review" %}
-        <span title="Submitted on {{ article|get_version_submission_date }}">{{ article|get_version_submission_date|date:"d-M" }}</span>
+        <span title="Submitted on {{ workflow.last_revision_date }}{% if request.user.is_staff %} [by ttag: {{ article|get_version_submission_date|date:"d-M" }}]{% endif %}">{{ workflow.last_revision_date|date:"d-M" }}</span>
       {% elif view.configuration_options.table_type == "production" %}
         <span title="Accepted on {{ article.date_accepted }}">{{ article.date_accepted|date:"d-M" }}</span>
       {% elif view.configuration_options.table_type == "archived" %}
@@ -33,8 +33,8 @@
     <td class="{% if attention_flag %}fw-bolder{% endif %}">
       {% include "wjs_review/lists/elements/corresponding_author.html" %}
     </td>
-    <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title }}">
-      {{ article.title|truncatewords:6 }}
+    <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title|safe }}">
+      {{ article.title|truncatewords:6|safe }}
     </td>
     <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
       {% include "wjs_review/lists/elements/table_item_status.html" with show_details=True %}
