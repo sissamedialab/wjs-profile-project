@@ -1,4 +1,5 @@
-"""Default WJS settings.
+"""
+Default WJS settings.
 
 For details on how to use this, see
 https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
@@ -29,6 +30,15 @@ try:
 
     INSTALLED_APPS.append(
         "wjs_mgmt_cmds",
+    )
+except ImportError:
+    pass
+
+try:
+    import wjs.user_search
+
+    INSTALLED_APPS.append(
+        "wjs.user_search",
     )
 except ImportError:
     pass
@@ -354,7 +364,10 @@ WJS_TYPESET_REVISION_MOCK_FILE = ""
 # our own customizations
 # We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact
 # for now as it's just the dashboard css
-BOOTSTRAP5 = {"css_url": "/static/JCOM-theme/css/wjs_review.css"}
+BOOTSTRAP5 = {
+    "css_url": "/static/JCOM-theme/css/wjs_review.css",
+    "hyphenate_attribute_prefixes": ["data", "hx"],
+}
 
 # The list of journals that supports multiple languages and needs base english for display on the website
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
