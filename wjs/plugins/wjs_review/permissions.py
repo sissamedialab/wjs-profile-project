@@ -21,6 +21,11 @@ def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
     """
     Return the main role of the user.
 
+    NB: Security and permissions are not managed here!
+
+    NB: Even if a user with role typesetter is not "the" typesetter of this article,
+        we consider his role wrt to the article to be that of a typesetter anyway.
+
     :param article: An instance of the ArticleWorkflow class.
     :type article: ArticleWorkflow
 
@@ -45,6 +50,10 @@ def main_role_by_article(article: "ArticleWorkflow", user: Account) -> str:
         return constants.REVIEWER_ROLE
     if is_one_of_the_authors(article, user):
         return constants.AUTHOR_ROLE
+    if user.check_role(article.article.journal, constants.TYPESETTER_ROLE, staff_override=False):
+        # Even if the user is not "the" typesetter of this article (yet?),
+        # we consider his role wrt to the article to be that of a typesetter
+        return constants.TYPESETTER_ROLE
 
     logger.error(
         f"Function permissions.main_role_by_article() called for an Account ({user.id})"
@@ -57,7 +66,7 @@ def main_role_by_assignment(assignment: "WorkflowReviewAssignment", user: Accoun
     """
     Return the main role of the user.
 
-    :param assignment: An instance of the ArticleWorkflow class.
+    :param assignment: A review-assignment.
     :type assignment: WjsReviewAssignment
 
     :param user: The user to check for role.
@@ -68,10 +77,10 @@ def main_role_by_assignment(assignment: "WorkflowReviewAssignment", user: Accoun
     """
     if assignment.editor == user:
         return constants.SECTION_EDITOR_ROLE
-    elif assignment.reviewer == user:
+    if assignment.reviewer == user:
         return constants.REVIEWER_ROLE
-    else:
-        return main_role_by_article(assignment.article.articleworkflow, user)
+
+    return main_role_by_article(assignment.article.articleworkflow, user)
 
 
 def can_see_other_user_name(instance: "ArticleWorkflow", actor: Account, target: Account) -> bool:
