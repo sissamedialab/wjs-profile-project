@@ -4,6 +4,7 @@ from unittest import mock
 from unittest.mock import patch
 
 import freezegun
+import pycountry
 import pytest
 from core.models import Account
 from django.conf import settings
@@ -14,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
+from django.utils import translation
 from django.utils.timezone import localtime, now
 from faker import Faker
 from journal import models as journal_models
@@ -4282,6 +4284,7 @@ def test_metadatafromtex_get_data(
     author = article.owner
     service = MetadataFromTeX(workflow=article.articleworkflow)
     mock_data = {
+        "language": "eng",
         "abstract": "a\nb",
         "keywords": list(article.keywords.all().values_list("word", flat=True)),
         "authors_data": [
@@ -4348,6 +4351,7 @@ def test_sync_texdb(
     new_keyword = article.journal.keywords.first()
     service = MetadataFromTeX(workflow=article.articleworkflow)
     mock_data = {
+        "language": "eng",
         "title": "new title",
         "abstract": "new abstract",
         # We are going to keep only one kwd:
@@ -4376,3 +4380,78 @@ def test_sync_texdb(
         service.update_keywords()
         article.refresh_from_db()
         assert set(article.keywords.all().values_list("id", flat=True)) == {new_keyword.pk}
+
+
+@pytest.mark.django_db
+def test_sync_texdb_lang(
+    article_with_keywords: Article,
+):
+    """Sync title, abstract only for article language translation."""
+    article = article_with_keywords
+
+    # this fixture-article has a co-author...
+    assert article.authors.count() == 2
+    # ...and three kwds
+    assert article.keywords.count() == 3
+
+    # we want to change only the spa (es) translation of title and abstract
+    article.language = "spa"
+
+    # title and abstract values
+    title_es = "title spanish"
+    abstract_es = "abstract spanish"
+
+    title_en = "title english"
+    abstract_en = "abstract english"
+
+    # set initial values
+    article.title = title_es
+    article.abstract = abstract_es
+
+    article.title_en = title_en
+    article.abstract_en = abstract_en
+
+    article.title_es = title_es
+    article.abstract_es = abstract_es
+
+    # We are not testing keywords sync here, but it is still
+    # necessary to have also spa (es) keywords translations otherwise
+    # the service does not find the mock tex keyword in the db
+    for k in article.keywords.all():
+        k.word_es = k.word
+        k.save()
+    article.save()
+
+    # new values
+    new_title_es = "new title spanish"
+    new_abstract_es = "new abstract spanish"
+
+    author = article.owner
+    new_keyword = article.journal.keywords.first()
+    service = MetadataFromTeX(workflow=article.articleworkflow)
+    mock_data = {
+        "language": "spa",
+        "title": new_title_es,
+        "abstract": new_abstract_es,
+        "keywords": [new_keyword.word],
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": author.orcid,
+            },
+        ],
+    }
+    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
+        lang = pycountry.languages.get(alpha_3=article.language.upper()).alpha_2
+        with translation.override(lang):
+            service.update_titleabstract()
+            article.refresh_from_db()
+            # not changed
+            assert article.title_en == title_en
+            assert article.abstract_en == abstract_en
+            # changed
+            assert article.title == article.title_es == new_title_es
+            assert article.abstract == article.abstract_es == new_abstract_es
