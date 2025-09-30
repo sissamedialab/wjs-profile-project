@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
+from django.db import IntegrityError
 from django.db.models import F, Max, Q, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
@@ -873,8 +874,12 @@ class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, E
     template_name = "wjs_review/details/editor_assigns_themselves_as_reviewer.html"
 
     def form_valid(self, form):
-        super().form_valid(form)
-        messages.success(self.request, _("You have been assigned as a reviewer."))
+        try:
+            super().form_valid(form)
+            messages.success(self.request, _("You have been assigned as a reviewer."))
+        except IntegrityError as e:
+            if str(e) != "Double request detected":
+                raise
         response = HttpResponse("ok")
         response["HX-Redirect"] = self.get_success_url()
         return response
@@ -1060,13 +1065,16 @@ class SelectReviewerView(
         try:
             super().form_valid(form)
             messages.success(self.request, _("The reviewer has been succesfully selected."))
-            response = HttpResponse("ok")
-            response["HX-Redirect"] = self.get_success_url()
-            return response
+        except IntegrityError as e:
+            if str(e) != "Double request detected":
+                raise
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
 
 
 class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
@@ -1129,13 +1137,16 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         try:
             super().form_valid(form)
             messages.success(self.request, _("The reviewer has been succesfully selected."))
-            response = HttpResponse("ok")
-            response["HX-Redirect"] = self.get_success_url()
-            return response
+        except IntegrityError as e:
+            if str(e) != "Double request detected":
+                raise
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         """

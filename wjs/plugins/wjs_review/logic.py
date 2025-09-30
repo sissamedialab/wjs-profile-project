@@ -31,7 +31,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 from django.db.models.query import FlatValuesListIterable
 from django.http import HttpRequest
@@ -758,7 +758,7 @@ class AssignToReviewer:
         # - si ritorna l'oggetto
         with transaction.atomic():
             if self._reviewer_already_assigned():
-                return self.assignment
+                raise IntegrityError("Double request detected")
             conditions = self.check_conditions()
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
