@@ -9,6 +9,7 @@ from django.utils import timezone
 from identifiers.logic import get_dois_for_articles
 from journal.models import Journal
 from plugins.wjs_review.models import ArticleWorkflow
+from submission.models import Section
 from utils import setting_handler
 
 from wjs.jcom_profile.constants import JCOM_SECTION_TO_PUBIDSECTIONCODE
@@ -102,6 +103,7 @@ def test_doi_generation_jcom__independent(
     article_factory: Callable,
     section_factory: Callable,
     issue_factory: Callable,
+    review_sections: list[Section],  # noqa: ARG001
     volume: int,
     issue: str,
     num_published_siblings: int,
@@ -178,16 +180,18 @@ def test_doi_generation_jcom__conference_and_book_review(
     # Set the stage: an issue with two book reviews and a conference review already published
     issue = issue_factory(journal=journal, volume=1, issue="02")
 
-    section_name = "book review"
+    section_name = "Book Review"
     bookreview_section = section_factory(name=section_name, journal=journal)
     bookreview_section.refresh_from_db()
-    bookreview_section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[section_name]
+    bookreview_section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[section_name.lower()]
     bookreview_section.wjssection.save()
 
-    section_name = "conference review"
+    section_name = "Conference Review"
     conferencereview_section = section_factory(name=section_name, journal=journal)
     conferencereview_section.refresh_from_db()
-    conferencereview_section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[section_name]
+    conferencereview_section.wjssection.pubid_and_tex_sectioncode = JCOM_SECTION_TO_PUBIDSECTIONCODE[
+        section_name.lower()
+    ]
     conferencereview_section.wjssection.save()
     br1 = article_factory(
         title="Book review 1",
@@ -220,11 +224,12 @@ def test_doi_generation_jcom__conference_and_book_review(
     # Now the test: new book or conference reviews should get counter == 4
     # I could use one of the articles created above,
     # but I prefer to simulate a scenario closer to the most common situation
+    # Note that br3 and cr2 are not published, so they don't enter in the count
+    # for the pubid
     br3 = article_factory(
         journal=journal,
         section=bookreview_section,
         primary_issue=issue,
-        date_published=timezone.now(),
     )
 
     time_when_doi_is_generated = timezone.localtime(timezone.now())
@@ -235,13 +240,13 @@ def test_doi_generation_jcom__conference_and_book_review(
     assert generated_doi == expected_doi
     assert br3.articleworkflow.compute_pubid() == f"JCOM_0102_{year}_R04"
 
-    cr = article_factory(
+    cr2 = article_factory(
         journal=journal,
         section=conferencereview_section,
         primary_issue=issue,
     )
     with freezegun.freeze_time(time_when_doi_is_generated):
-        generated_doi = get_dois_for_articles([cr], create=True)[0].identifier
-    expected_doi = f"{doi_prefix}/{cr.id}{timezone.localtime(time_when_doi_is_generated).strftime('%Y%m%d%H%M%S')}"
+        generated_doi = get_dois_for_articles([cr2], create=True)[0].identifier
+    expected_doi = f"{doi_prefix}/{cr2.id}{timezone.localtime(time_when_doi_is_generated).strftime('%Y%m%d%H%M%S')}"
     assert generated_doi == expected_doi
-    assert cr.articleworkflow.compute_pubid() == f"JCOM_0102_{year}_R04"
+    assert cr2.articleworkflow.compute_pubid() == f"JCOM_0102_{year}_R04"
