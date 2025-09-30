@@ -1991,6 +1991,13 @@ class MetadataFromTeX:
         """Adapt and enrich TeX data."""
         self._data = self.get_raw_data()
 
+        if self._data.get("language") != self.workflow.article.language:
+            msg = (
+                f"DB language: '{self.workflow.article.language}', TeX language: '{self._data.get('language')}' - "
+                " Please check!"
+            )
+            raise ValueError(msg)
+
         # Adapt abstract (see also wjs/specs#1773)
         self._data["abstract_adapted"] = re.sub(r"\n", " ", self._data.get("abstract"))
         self._data["abstract_adapted"] = re.sub(r"  +", " ", self._data["abstract_adapted"])
@@ -2011,10 +2018,15 @@ class MetadataFromTeX:
         """Retrieve data and use it to update DB title and abstract."""
         self.get_data()
 
-        self.workflow.article.title = self._data.get("title")
         # NB: we use the "adapted" abstract
-        # becuase it's the closer to the result of a manual edit from the manager interface
-        self.workflow.article.abstract = self._data.get("abstract_adapted")
+        # because it's the closer to the result of a manual edit from the manager interface
+
+        # the title and abstract of the tex are saved in the correspondent translation of the article
+        lang = pycountry.languages.get(alpha_3=self.workflow.article.language.upper()).alpha_2
+        with translation.override(lang):
+            self.workflow.article.title = self._data.get("title")
+            self.workflow.article.abstract = self._data.get("abstract_adapted")
+
         self.workflow.article.save()
 
     def update_keywords(self):
