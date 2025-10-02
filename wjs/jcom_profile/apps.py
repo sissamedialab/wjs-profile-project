@@ -27,6 +27,7 @@ class JCOMProfileConfig(AppConfig):
         """Register my functions to Janeway's hooks."""
         hooks = [
             {"extra_corefields": {"module": "wjs.jcom_profile.hooks", "function": "extra_core_fields_hook"}},
+            {"extra_article_metadata": {"module": "wjs.jcom_profile.hooks", "function": "wjs_section_information"}},
             {
                 "extra_edit_profile_parameters": {
                     "module": "wjs.jcom_profile.hooks",

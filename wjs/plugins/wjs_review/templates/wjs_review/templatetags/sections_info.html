@@ -1,21 +1,21 @@
 <div>
-<p>{% translate "Please make sure your manuscript complies with the following requirements." %}</p>
-{% for section in sections %}
-  <div class="wjs-section-information {% if default_section != section.pk %}hide{% endif %}" id="wjs-section-description-{{ section.pk }}">
-    <label>{{ section.name }}</label>
-    {{ section.description|safe }}
-  </div>
-{% endfor %}
+  <p>{% translate "Please make sure your manuscript complies with the following requirements." %}</p>
+  {% for section in sections %}
+    <div class="wjs-section-information {% if default_section != section.pk %}d-none hide{% endif %}" id="wjs-section-description-{{ section.pk }}">
+      <label>{{ section.name }}</label>
+      {{ section.description|safe }}
+    </div>
+  {% endfor %}
 </div>
 <script>
   const showSectionDescription = (sectionId) => {
     const sectionDescriptions = document.querySelectorAll(".wjs-section-information");
     const sectionDescription = document.getElementById(`wjs-section-description-${sectionId}`);
     sectionDescriptions.forEach((section) => {
-      section.classList.add('hide');
+      section.classList.add("d-none", "hide");
     });
-    sectionDescription.classList.remove('hide');
-  }
+    sectionDescription.classList.remove("d-none", "hide");
+  };
 
   // Add an event listener to the select element with id "id_section"
   document.getElementById("id_section").addEventListener("change", (event) => {
@@ -24,11 +24,11 @@
     // Call the showSectionDescription function with the selected section ID
     showSectionDescription(selectedSectionId);
   });
-  document.addEventListener('DOMContentLoaded', (event) => {
-    const selectElement = document.getElementById('id_section');
+  document.addEventListener("DOMContentLoaded", (event) => {
+    const selectElement = document.getElementById("id_section");
     const selectedValue = selectElement.value;
-    if (typeof selectedValue !== 'undefined' && selectedValue !== null) {
-        showSectionDescription(selectedValue);
+    if (typeof selectedValue !== "undefined" && selectedValue !== null) {
+      showSectionDescription(selectedValue);
     }
   });
 
