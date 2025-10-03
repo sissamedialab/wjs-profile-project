@@ -366,7 +366,7 @@ WJS_TYPESET_REVISION_MOCK_FILE = ""
 # for now as it's just the dashboard css
 BOOTSTRAP5 = {
     "css_url": "/static/JCOM-theme/css/wjs_review.css",
-    "hyphenate_attribute_prefixes": ["data", "hx"],
+    "hyphenate_attribute_prefixes": ["data", "hx", "aria"],
 }
 
 # The list of journals that supports multiple languages and needs base english for display on the website

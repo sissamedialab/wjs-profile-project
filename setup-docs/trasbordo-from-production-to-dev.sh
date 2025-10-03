@@ -127,12 +127,18 @@ PYTHON_BIN="${VENV_PATH}/bin/python"
 ${PYTHON_BIN} manage.py import_keywords_json ${WJS_SUBMISSION_PATH}/install/jhep-kwds.json --journal=JQUANT
 ${PYTHON_BIN} manage.py import_keywords_json ${WJS_SUBMISSION_PATH}/install/jhep-kwds.json --journal=JHEP
 ${PYTHON_BIN} manage.py install_plugins
+${PYTHON_BIN} manage.py set_setting --journal=JCOM --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=disabled
+${PYTHON_BIN} manage.py set_setting --journal=JCOM --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JCOMAL --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=disabled
+${PYTHON_BIN} manage.py set_setting --journal=JCOMAL --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
 ${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=required
 ${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
-${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=False
+${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
 ${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=required
 ${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
-${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=False
+${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
 
 debug "$dev_db_name ready"
 
