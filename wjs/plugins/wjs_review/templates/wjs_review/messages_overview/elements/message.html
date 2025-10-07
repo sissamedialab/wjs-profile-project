@@ -26,8 +26,8 @@
             {# djlint:on #}
           {% endfor %}
         </div>
-        <div class="d-flex space-between">
-          <div class="d-flex gap-2 mx-5">
+        <div class="d-flex space-between align-items-center gap-4">
+          <div class="d-flex gap-2 align-items-center">
             <i class="bi bi-funnel-fill"></i>
             <a
               href="?article_id={{ message.object_id }}"
@@ -43,6 +43,7 @@
           <a href="{% url "wjs_article_messages" pk=message.target.articleworkflow.pk %}#message-item-{{ message.pk }}" title="{% translate "Go to timeline" %}" target="_blank">
             <i class="bi bi-list-task"></i>
           </a>
+          {% include "wjs_review/article_messages/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.pk %}
         </div>
 
       </div>
