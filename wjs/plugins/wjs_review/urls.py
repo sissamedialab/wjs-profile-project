@@ -160,6 +160,11 @@ urlpatterns = [
         name="download_single_image",
     ),
     path("additional_info/<int:pk>/", ArticleExtraInformationUpdateView.as_view(), name="wjs_article_additional_info"),
+    path(
+        "translation/<int:pk>/",
+        ArticleExtraInformationUpdateView.as_view(translation=True),
+        name="wjs_article_translate_info",
+    ),
     path("decision/<int:pk>/", ArticleDecision.as_view(), name="wjs_article_decision"),
     path("admin_decision/<int:pk>/", ArticleAdminDecision.as_view(), name="wjs_article_admin_decision"),
     path(
