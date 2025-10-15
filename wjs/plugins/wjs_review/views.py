@@ -13,7 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
 from django.db import IntegrityError
-from django.db.models import F, Max, Q, QuerySet, Subquery
+from django.db.models import F, Max, OuterRef, Q, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
@@ -740,7 +740,9 @@ class AuthorPending(ArticleWorkflowBaseMixin):
         sure to use the original method.
         """
         latest_revision_request = EditorRevisionRequest.objects.filter(
-            article__correspondence_author=self.request.user, date_completed__isnull=True
+            article__correspondence_author=self.request.user,
+            date_completed__isnull=True,
+            article=OuterRef("article_id"),
         )
 
         return (
