@@ -810,7 +810,9 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        latest_assignment = WorkflowReviewAssignment.objects.filter(reviewer=self.request.user, is_complete=False)
+        latest_assignment = WorkflowReviewAssignment.objects.filter(
+            reviewer=self.request.user, is_complete=False, article=OuterRef("article_id")
+        ).order_by("-date_due")
 
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
@@ -848,7 +850,9 @@ class ReviewerArchived(ReviewerPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        latest_assignment = WorkflowReviewAssignment.objects.filter(reviewer=self.request.user, is_complete=False)
+        latest_assignment = WorkflowReviewAssignment.objects.filter(
+            reviewer=self.request.user, is_complete=False, article=OuterRef("article_id")
+        ).order_by("-date_due")
 
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
