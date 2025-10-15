@@ -104,8 +104,8 @@ deploy-to-test:
 deploy-to-dev:
   extends:
     - .deploy
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  when: manual
+  environment: dev
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"

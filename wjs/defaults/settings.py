@@ -365,7 +365,7 @@ WJS_TYPESET_REVISION_MOCK_FILE = ""
 # We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact
 # for now as it's just the dashboard css
 BOOTSTRAP5 = {
-    "css_url": "/static/JCOM-theme/css/wjs_review.css",
+    "css_url": "/static/wjs-bootstrap/css/wjs_review.css",
     "hyphenate_attribute_prefixes": ["data", "hx", "aria"],
 }
 
