@@ -1,11 +1,14 @@
 """Tests related to the permissions module."""
 
+from unittest import mock
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django.utils import timezone
 from plugins.wjs_review.forms import MessageForm
 from plugins.wjs_review.logic import AssignToReviewer
+from plugins.wjs_review.logic__production import AssignTypesetter
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     WjsEditorAssignment,
@@ -135,6 +138,7 @@ def test_main_role_by_article(
     fake_request: HttpRequest,
     review_form: ReviewForm,  # noqa: ARG001
     eo_user: JCOMProfile,
+    typesetter: JCOMProfile,
 ):
     """Test what we mean by main-role."""
     article = assigned_article_with_reviewer
@@ -170,3 +174,21 @@ def test_main_role_by_article(
     # same reasoning if the editor is the main director
     editor.add_account_role(constants.DIRECTOR_MAIN_ROLE, article.journal)
     assert main_role_by_article(article=aw, user=editor) == constants.EDITOR_ROLE
+
+    # any journal typesetter is considered "typesetter" wrt to the article,
+    # even if he is not assigned to it yet...
+    assert main_role_by_article(article=aw, user=typesetter) == constants.TYPESETTER_ROLE
+
+    # ...and, of course, the paper's typesetter is considered "typesetter"
+    fake_request.user = typesetter
+    with (
+        mock.patch("plugins.wjs_review.logic__production.AssignTypesetter._update_state"),
+        mock.patch("plugins.wjs_review.logic__production.AssignTypesetter._check_conditions", return_value=True),
+    ):
+        AssignTypesetter(article=article, typesetter=typesetter, request=fake_request).run()
+    # Sanity check; we simulated a typesetting assignment, let's check that what's needed (a typesetting-assignment) is
+    # in place:
+    assert article.typesettinground_set.exists()
+    assert article.typesettinground_set.first().typesettingassignment.typesetter == typesetter.janeway_account
+    # The actual test:
+    assert main_role_by_article(article=aw, user=typesetter) == constants.TYPESETTER_ROLE

@@ -12,22 +12,24 @@ from submission.models import Article
 from wjs.jcom_profile.models import JCOMProfile
 
 ORCIDS = [
-    ("0000-0002-8324-7644"),
-    ("https://orcid.org/0000-0002-8324-7644"),
-    ("http://orcid.org/0000-0002-8324-7644"),
+    ("0000-0002-8324-7644", True),
+    ("0000-0002-1694-233X", True),
+    ("https://orcid.org/0000-0002-8324-7644", False),
+    ("http://orcid.org/0000-0002-8324-7644", False),
 ]
 
 
 @pytest.mark.parametrize(
-    argnames="orcid",
+    argnames="orcid,valid",
     argvalues=ORCIDS,
 )
 @pytest.mark.django_db
 def test_orcid_input(
     client: Client,
     normal_user: JCOMProfile,
-    orcid: str,
     country: Country,
+    orcid: str,
+    valid: bool,
 ):
     """
     Document that the orcid is saved as given by the user.
@@ -35,7 +37,7 @@ def test_orcid_input(
     I.e., if a user inputs "https://orcid.org/123-456"
     then  "https://orcid.org/123-456" is saved into the DB.
 
-    This is a problem during DOI registration, becuase the
+    This is a problem during DOI registration, because the
     domain part is added again.
     """
     user = normal_user.janeway_account  # an alias
@@ -57,11 +59,14 @@ def test_orcid_input(
     assert response.status_code == 200
 
     user.refresh_from_db()
-    assert user.orcid == orcid
+    if valid:
+        assert user.orcid == orcid
+    else:
+        assert user.orcid is None
 
 
 @pytest.mark.parametrize(
-    argnames="orcid",
+    argnames=("orcid", "valid"),
     argvalues=ORCIDS,
 )
 @pytest.mark.django_db
@@ -70,8 +75,14 @@ def test_doi_batch(
     doi_identifier: Identifier,
     normal_user: JCOMProfile,
     orcid: str,
+    valid: bool,
 ):
-    """Test handling of the users' orcids when creating the registration deposit."""
+    """
+    Test handling of the users' orcids when creating the registration deposit.
+
+    Since we use both valid and invalid orcids (see :py:param: valid), this test also documents that the code that
+    builds the deposit does not verify the correctness of the orcid (this is acceptable).
+    """
     normal_user.janeway_account.orcid = orcid
     normal_user.janeway_account.save()
     article.authors.add(normal_user.janeway_account)

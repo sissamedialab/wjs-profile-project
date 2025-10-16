@@ -35,7 +35,7 @@ from journal.models import Issue, Journal
 from PIL import Image
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
-from submission.models import Article
+from submission.models import Article, Section
 from utils import setting_handler
 
 from wjs.jcom_profile.models import Genealogy
@@ -1042,3 +1042,21 @@ def _doi_identifier(article: Article) -> Identifier:
 def doi_identifier() -> Callable:
     """Return a function that can be used to create the DOI of an article."""
     return _doi_identifier
+
+
+@pytest.fixture
+def review_sections(journal: Journal, section_factory: Callable) -> list[Section]:
+    """
+    Create and return review sections in JCOM.
+
+    We need these two section to exist in JCOM, because of the way that the publicationid-eid is computed
+    """
+    sections = []
+    if journal.code == "JCOM":
+        sections.extend(
+            (
+                section_factory(name="Conference Review", journal=journal),  # noqa: F405
+                section_factory(name="Book Review", journal=journal),  # noqa: F405
+            ),
+        )
+    return sections

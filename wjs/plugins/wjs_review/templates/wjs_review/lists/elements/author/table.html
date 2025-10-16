@@ -7,7 +7,7 @@
     <th scope="col">{% sortable_header_field label="Authors" %}</th>
     <th scope="col">{% sortable_header_field label="Title" %}</th>
     <th scope="col">{% sortable_header_field label="Status" %}</th>
-    <th scope="col">{% sortable_header_field label="Issue" sorting_field="projected_issue__short_name" %}</th>
+    <th scope="col">{% sortable_header_field label="Issue" sorting_field="article__projected_issue__short_name" %}</th>
     {% if view.configuration_options.show_author_due_date and not view.configuration_options.archived_list %}
       <th scope="col">{% sortable_header_field label="Upcoming due date" sorting_field="sort_date" %}</th>
     {% endif %}

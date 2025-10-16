@@ -108,6 +108,41 @@ function deploy_wjs() {
     systemctl --user restart "$QCLUSTER_SERVICE"
 }
 
+function deploy_submission() {
+    set_derivable_variables
+
+    # If given, the first argument to this function will be used to pip install the pacakge.
+    # It should be in the form such as
+    # "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
+    if [[ -n "$1" ]]; then
+        "$PIP" uninstall --yes wjs_submission
+        "$PIP" install --no-cache-dir "$1"
+    else
+        if [[ -z "$PIP_PRE" ]]
+        then
+            "$PIP" install -U wjs_submission
+        else
+            "$PIP" install --pre -U wjs_submission
+        fi
+    fi
+
+    # Do _not_ install jcomassistant. Since May '24 it's a service.
+    # No: "$PIP" install -U "jcomassistant"
+
+    cd "$MANAGE_DIR"
+
+    # "$PYTHON" -mmanage run_customizations
+
+    "$PYTHON" -mmanage migrate
+    "$PYTHON" -mmanage sync_translation_fields --noinput
+
+    "$PYTHON" -mmanage build_assets
+    "$PYTHON" -mmanage collectstatic --noinput
+
+    touch --no-dereference "$UWSGI_VASSAL"
+    systemctl --user restart "$QCLUSTER_SERVICE"
+}
+
 function set_prod_variables() {
     JANEWAY_ROOT=/home/wjs/janeway
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
@@ -175,6 +210,20 @@ case "$SSH_ORIGINAL_COMMAND" in
         set_dev_variables
         deploy_wjs
         ;;
+    # Install a given tag on dev:
+    # Don't be too generous with the pattern here: watch out for sh injections!
+    # Remember Bobby Tables https://xkcd.com/327/
+    "deploy-dev-wjs:"+([[:word:]]))
+        set_dev_variables
+        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs://')
+        echo "Installing wjs.jcom_profile at ${TAGNAME}"
+        # temporary workaround: pull latest changes from wjs-themes and wjs-submission also
+        # set_derivable_variables
+        # "$PIP" uninstall --yes wjs-submission && "$PIP" install --no-cache-dir "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-submission-project"
+        # "$PIP" uninstall --yes wjs-themes && "$PIP" install --no-cache-dir "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-themes"
+
+        deploy_wjs "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
+        ;;
     # Test
     "deploy-test-janeway")
         set_test_variables
@@ -188,6 +237,14 @@ case "$SSH_ORIGINAL_COMMAND" in
         TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs://')
         echo "Installing wjs.jcom_profile at ${TAGNAME}"
         deploy_wjs "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
+        ;;
+    "deploy-dev-wjs-submission:"+([[:word:]]))
+        set_dev_variables
+        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs-submission://')
+        echo "Installing wjs-submission at ${TAGNAME}"
+        set_derivable_variables
+
+        deploy_submission "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-submission-project@${TAGNAME}#egg=wjs-submission"
         ;;
     *)
         echo "Unknown command $SSH_ORIGINAL_COMMAND"
