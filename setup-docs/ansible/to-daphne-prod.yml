@@ -1,0 +1,120 @@
+# Enable Daphne in wjs-prod.
+# See to-daphne.yml for wjs-test instances.
+---
+- name: Replace uwsgi with daphne on wjs-prod
+  hosts: prod
+  remote_user: root
+  become: yes
+  vars:
+    wjs_user_id: "1000"
+
+
+  tasks:
+    - name: Enable mod_rewrite
+      apache2_module:
+        name: rewrite
+        state: present
+      notify: restart apache
+
+    - name: Copy Apache-daphne socket configuration
+      copy:
+        src: apache/apache-proxy-and-socket-daphne.inc
+        dest: /etc/apache2/conf-available/wjs/apache-proxy-and-socket-daphne.inc
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Render and copy Apache virtualhost configuration
+      copy:
+        src: apache/wjs-prod.conf
+        dest: /etc/apache2/sites-available/wjs-{{ instance_name }}.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+
+
+
+    - name: Copy daphne systemd tmpfiles configuration
+      copy:
+        src: systemd/wjs-rundir.conf
+        dest: /etc/tmpfiles.d/wjs-rundir.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create files specified in wjs-rundir.conf
+      command: systemd-tmpfiles --create /etc/tmpfiles.d/wjs-rundir.conf
+
+    - name: Ensure systemd user config directory exists for wjs user
+      file:
+        path: /home/wjs/.config/systemd/user
+        state: directory
+        owner: wjs
+        group: www-data  # FIXME: specs#2059!
+        mode: '0755'
+
+    - name: Copy daphne systemd service to user config
+      copy:
+        src: systemd/daphne.service
+        dest: /home/wjs/.config/systemd/user/daphne.service
+        owner: wjs
+        group: www-data  # FIXME: specs#2059!
+        mode: '0644'
+      notify: Reload user systemd
+
+
+
+    # Overkill?
+    - name: Install daphne package in virtualenv
+      pip:
+        name: daphne
+        virtualenv: /home/wjs/.virtualenvs/janeway
+      become_user: wjs
+
+
+
+    - name: Disable the old Apache janeway-xxx.conf site (points to uwsgi)
+      command: a2dissite janeway.conf
+      ignore_errors: yes
+      # NB: do not reload apache just yet!
+
+    - name: Enable Apache wjs.conf site (points to daphne)
+      command: a2ensite wjs.conf
+
+    - name: Add SECURE_PROXY_SSL_HEADER setting if missing
+      lineinfile:
+        path: /home/wjs/janeway/src/core/settings/__init__.py
+        line: "SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')"
+        state: present
+      become_user: wjs
+
+    - name: Start daphne service as user wjs
+      ansible.builtin.systemd_service:
+        name: daphne.service
+        state: restarted
+        scope: user
+      become_user: wjs
+      # should not be necessary, because wjs is `loginctl enable-linger`, but...
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+
+    - name: Stop uwsgi by renaming config file
+      command: mv /home/wjs/uwsgi/janeway.ini /home/wjs/uwsgi/DISABLED__janeway.ini
+      args:
+        creates: /home/wjs/uwsgi/DISABLED__janeway.ini
+      become_user: wjs
+
+    - name: Reload Apache configuration
+      service:
+        name: apache2
+        state: reloaded
+
+  handlers:
+    - name: Reload user systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: yes
+        scope: user
+      become_user: wjs
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"

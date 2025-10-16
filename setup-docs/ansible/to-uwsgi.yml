@@ -1,0 +1,100 @@
+# Utility to try to switch back from daphne to uwsgi,
+# in order to verify that wjs-profile code that includes channels
+# can co-hexist with uwsgi.
+# If so, we can procced to deploy such code in prod, still under uwsgi,
+# and then switch to daphne in a second step (which simplifies the deployment a lot).
+#
+# This is not to be used to setup a pritine machine!
+---
+- name: Replace daphne with uwsgi
+  hosts: test
+  remote_user: root
+  become: yes
+  vars:
+    wjs_user_id: "1000"
+    # Define variables that can be passed through the CL, e.g.:
+    # ansible-playbook setup-docs/ansible/to-daphne.yml \
+    #   -e "instance_name=dev instance_venv_name=janeway-dev"
+    # Note: don't use the save name for the CL variable and for the yml variable
+    instance_name: "{{ instance | default('test', true) }}"
+    instance_venv_name: "{{ instance_venv | default('janeway-' + instance_name, true) }}"
+    instance_home_name: "{{ instance_home | default('janeway-' + instance_name, true) }}"
+
+
+  tasks:
+    # - name: Enable mod_rewrite
+    #   apache2_module:
+    #     name: rewrite
+    #     state: present
+    #   notify: restart apache
+
+    - name: Copy Apache-uwsgi socket configuration
+      copy:
+        src: ../obsolete/apache-proxy-and-socket-uwsgi.inc
+        dest: /etc/apache2/conf-available/wjs/apache-proxy-and-socket-uwsgi.inc
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Render and copy Apache virtualhost configuration
+      # Note that the template "wjs-test.conf.j2" in "src" is called "wjs-test..."
+      # because it's a template for the "wjs-test.ud" machine.
+      # Don't confuse with the "test" instance 🙂
+      template:
+        src: ../obsolete/wjs-test.conf.uwsgi.j2
+        dest: /etc/apache2/sites-available/janeway-{{ instance_name }}.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+
+
+    # Rundir (/run/uwsgi) is assumed to exist.
+    # See to-daphne.yml.
+    - name: Copy uwsgi ini file
+      template:
+        src: ../obsolete/uwsgi-vassal.ini.j2
+        dest: /home/wjs/uwsgi/janeway-{{ instance_name }}.ini
+        owner: wjs
+        group: www-data  # FIXME: specs#2059!
+        mode: '0644'
+
+    - name: Touch uwsgi ini file to trigger reload
+      command: touch --no-dereference /home/wjs/uwsgi/janeway-{{ instance_name }}.ini
+      # file:
+      #   path: /home/wjs/uwsgi/janeway-{{ instance_name }}.ini
+      #   state: touch
+      #   modification_time: preserve
+      #   access_time: preserve
+      become_user: wjs
+
+    - name: Disable the Apache wjs-xxx.conf site (points to daphne)
+      command: a2dissite wjs-{{ instance_name }}.conf
+      ignore_errors: yes
+
+    - name: Enable old Apache janeway-{{ instance_name }}.conf site (points to uwsgi)
+      command: a2ensite janeway-{{ instance_name }}.conf
+
+    # - name: Add SECURE_PROXY_SSL_HEADER setting if missing
+    #   lineinfile:
+    #     path: /home/wjs/{{ instance_home_name }}/src/core/settings/__init__.py
+    #     line: "SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')"
+    #     state: present
+    #   become_user: wjs
+
+    - name: Stop daphne service if running
+      ansible.builtin.systemd_service:
+        name: daphne-{{ instance_name }}.service
+        state: stopped
+        scope: user
+      become_user: wjs
+      # should not be necessary, because wjs is `loginctl enable-linger`, but...
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      ignore_errors: yes
+
+
+    - name: Reload Apache configuration
+      service:
+        name: apache2
+        state: reloaded

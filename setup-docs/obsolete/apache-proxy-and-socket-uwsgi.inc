@@ -33,6 +33,12 @@ RequestHeader unset X-Forwarded-Host
 RequestHeader unset X-Forwarded-For
 RequestHeader unset X-Forwarded-Server
 
+
+# These are needed only if we receive proxy connections non TLS
+# RequestHeader set X-Forwarded-Proto 'https' env=HTTPS
+# RequestHeader set X-Forwarded-Port 443
+
+
 # Please define SOCKET_NAME from the including file as follows
 # (allows for multiple instances)
 # Define SOCKET_NAME /var/run/uwsgi/janeway.sock

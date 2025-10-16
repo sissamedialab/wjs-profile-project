@@ -1,0 +1,67 @@
+# Utility to try to switch back from daphne to uwsgi.
+# Just in case 😉
+#
+# This is not to be used to setup a pritine machine!
+---
+- name: Replace daphne with uwsgi
+  hosts: test
+  remote_user: root
+  become: yes
+  vars:
+    wjs_user_id: "1000"
+
+
+  tasks:
+    - name: Copy Apache-uwsgi socket configuration
+      copy:
+        src: ../obsolete/apache-proxy-and-socket-uwsgi.inc
+        dest: /etc/apache2/conf-available/wjs/apache-proxy-and-socket-uwsgi.inc
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy Apache virtualhost configuration
+      copy:
+        src: ../obsolete/wjs-prod.conf.uwsgi
+        dest: /etc/apache2/sites-available/janeway.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+
+
+    # Rundir (/run/uwsgi) is assumed to exist.
+    # See to-daphne.yml.
+    - name: Copy uwsgi ini file
+      copy:
+        src: ../obsolete/uwsgi-vassal-prod.ini
+        dest: /home/wjs/uwsgi/janeway.ini
+        owner: wjs
+        group: www-data  # FIXME: specs#2059!
+        mode: '0644'
+
+    - name: Touch uwsgi ini file to trigger reload
+      command: touch --no-dereference /home/wjs/uwsgi/janeway.ini
+      become_user: wjs
+
+    - name: Disable the Apache wjs-xxx.conf site (points to daphne)
+      command: a2dissite wjs.conf
+      ignore_errors: yes
+
+    - name: Enable old Apache janeway.conf site (points to uwsgi)
+      command: a2ensite janeway.conf
+
+    - name: Stop daphne service if running
+      ansible.builtin.systemd_service:
+        name: daphne.service
+        state: stopped
+        scope: user
+      become_user: wjs
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      ignore_errors: yes
+
+    - name: Reload Apache configuration
+      service:
+        name: apache2
+        state: reloaded

@@ -1,0 +1,90 @@
+# NB: uwsgi has many aliases for the same same option.
+# E.g.: home, virtualenv, venv and pyhome all set PYTHONHOME/virtualenv
+# see https://uwsgi-docs.readthedocs.io/en/latest/Options.html
+
+[uwsgi]
+plugins = python3
+# plugins = 0:python3
+
+# Django-related settings
+# the base directory (full path)
+chdir = /home/wjs/{{ instance_home_name }}/src
+# Django's wsgi file
+module = core.wsgi
+# the virtualenv (full path)
+home  = /home/wjs/.virtualenvs/{{ instance_venv_name }}
+
+#env = PATH=/usr/local/texlive/2023/bin/x86_64-linux:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+
+# process-related settings
+# master
+# master          = true
+
+# maximum number of worker processes
+# processes = 4
+# harakiri = 30
+
+# usefult for debugging:
+processes = 1
+harakiri = 3600
+
+
+# the socket (use the full path to be safe
+socket          = /var/run/uwsgi/janeway-{{ instance_name }}.sock
+# NO! don't put sockets in /tmp (maledetto systemd!)
+# socket          = /tmp/janeway.sock
+
+# ... with appropriate permissions
+chmod-socket = 664
+# chmod-socket = 666
+#
+# It is uwsgi that creates the socket, not apache
+# and the socket is deleted when uwsgi stops.
+
+
+# Default protocol is uwsgi
+# protocol = uwsgi
+
+# clear environment on exit
+vacuum = true
+
+# set this environment variable for rosetta
+# (alternatively, one should define SETTINGS_MODULE
+# in django's settings)
+env = DJANGO_SETTINGS_MODULE=core.janeway_global_settings
+# Usually this is not needed, probably because we run from django's root dir and we
+# point directly to the wsgi module (core/wsgi.py), which does it's
+# own magic.
+
+# create a pidfile
+# safe-pidfile = /tmp/janeway-uwsgi-master.pid
+safe-pidfile = /var/run/uwsgi/janeway-{{ instance_name }}-uwsgi-master.pid
+
+# enable post buffering
+# see e.g. https://stackoverflow.com/a/20216582/1581629
+post-buffering = 4096
+
+# limit the project to 128 MB
+# limit-as = 128
+
+# respawn processes after serving 5000 requests
+max-requests = 5000
+
+# see also uid/gid in /etc/uwsgi-emperor/emperor.ini
+uid = wjs
+gid = www-data
+
+# background the process & log
+# This is uwsgi's log. Janeway logs to other files (see settings.py).
+daemonize = /home/wjs/janeway-{{ instance_name }}/logs/uwsgi.log
+log-backupname = /home/wjs/janeway-{{ instance_name }}/logs/uwsgi-upto-@(exec://date +%%Y-%%m-%%d).log
+log-maxsize = 2000000
+
+# umask = 002
+
+enable-threads = true
+
+# log-format = %(addr) - %(user) [%(ltime)] "%(method) %(uri) %(proto)" %(status) %(size) "%(referer)" "%(uagent)"
+
+# alarm = mailme cmd:mail -s 'uWSGI alarm' -a 'From: janeway@jannon.ud.sissamedialab.it' wjs-support@medialab.sissa.it
+# log-alarm = mailme Traceback
