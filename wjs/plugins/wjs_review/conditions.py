@@ -293,18 +293,19 @@ def has_unread_message(article: Article, recipient: Account) -> str:
     return ""
 
 
-def article_has_old_unread_message(article: Article, *, exclude_aus_and_revs: bool = True) -> str:
+def article_has_old_unread_message(
+    article: Article, recipient: Account | None = None, *, exclude_aus_and_revs: bool = True
+) -> str:
     """
     Tell if there is any message left unread for a long time.
 
     Please note that this function should be called only for EO/staff people, because it exposes the names of the
     recipients with overdue messages.
 
-    Arguments:
-      article: the article in question;
-
-      exclude_aus_and_revs: if True, ignore messages to the authors or to the reviewers of the paper. Note that an
-      editor thad does I-will-review is still considered an editor, not a reviewer.
+    :param article: the article in question;
+    :param recipient: the recipient of the message;
+    :param exclude_aus_and_revs: if True, ignore messages to the authors or to the reviewers of the paper. Note that an
+        editor thad does I-will-review is still considered an editor, not a reviewer.
 
     """
     messages = Message.objects.filter(
@@ -314,7 +315,10 @@ def article_has_old_unread_message(article: Article, *, exclude_aus_and_revs: bo
     ).exclude(
         message_type=Message.MessageTypes.NOTE,
     )
-    days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
+    if recipient and has_eo_role(recipient):
+        days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO
+    else:
+        days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
     oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
     messages = messages.filter(
         created__lt=oldest_acceptable_message_date,

@@ -667,7 +667,7 @@ class EditorSelected(BaseState):
         return ""
 
     @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
         """
         Tell if the article requires attention by the EO.
         """
@@ -677,7 +677,7 @@ class EditorSelected(BaseState):
             return attention_flag
         if attention_flag := conditions.editor_is_late(article):
             return attention_flag
-        if attention_flag := conditions.article_has_old_unread_message(article):
+        if attention_flag := conditions.article_has_old_unread_message(article, recipient=user):
             return attention_flag
         return ""
 
@@ -1047,14 +1047,14 @@ class TypesetterSelected(BaseState):
         return ""
 
     @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
         """
         Tell if the article requires attention by the EO.
         """
         typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
             return attention_flag
-        if attention_flag := conditions.article_has_old_unread_message(article):
+        if attention_flag := conditions.article_has_old_unread_message(article, recipient=user):
             return attention_flag
         return ""
 
@@ -1113,7 +1113,7 @@ class Proofreading(BaseState):
     ) + BaseState.article_actions
 
     @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
+    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
         """
         Tell if the article requires attention by the EO.
         """
@@ -1127,7 +1127,7 @@ class Proofreading(BaseState):
         )
         if attention_flag := conditions.is_author_proofing_late(assignment):
             return attention_flag
-        if attention_flag := conditions.article_has_old_unread_message(article):
+        if attention_flag := conditions.article_has_old_unread_message(article, recipient=user):
             return attention_flag
         return ""
 
