@@ -1,0 +1,128 @@
+# This file is the same as ansible/apache/wjs-prod.conf
+# except for the Include of the proxy/socket config:
+# - for old uwsgi (in here)
+# - for daphne (in wjs-prod.conf)
+
+ServerAdmin wjs-sysadmin@medialab.sissa.it
+
+<VirtualHost *:443>
+    Define NAME journals
+    ServerName ${NAME}.sissamedialab.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME jcom
+    ServerName ${NAME}.sissa.it
+    ServerAlias ${NAME}-prod.sissamedialab.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+
+    # Include redirects maintained in the project's repo
+    Include "/home/wjs/.virtualenvs/janeway/lib/python3.11/site-packages/wjs/conf/${NAME}-apache-redirects.inc"
+
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME jcomal
+    ServerName ${NAME}.sissa.it
+    ServerAlias ${NAME}-prod.sissamedialab.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+
+    # Include redirects maintained in the project's repo
+    Include "/home/wjs/.virtualenvs/janeway/lib/python3.11/site-packages/wjs/conf/${NAME}-apache-redirects.inc"
+
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME jquant
+    ServerName ${NAME}.sissa.it
+    ServerAlias ${NAME}-prod.sissamedialab.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME jhep
+    ServerName ${NAME}.sissa.it
+    ServerAlias ${NAME}-prod.sissamedialab.it
+
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME jcap
+    ServerName ${NAME}.sissa.it
+    ServerAlias ${NAME}-prod.sissamedialab.it
+
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME jstat
+    ServerName ${NAME}.sissa.it
+    ServerAlias ${NAME}-prod.sissamedialab.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-uwsgi.inc"
+</VirtualHost>
+
+# vim: syntax=apache ts=4 sw=4 sts=4 sr et
