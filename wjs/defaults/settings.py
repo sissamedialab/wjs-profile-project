@@ -32,6 +32,20 @@ try:
 except ImportError:
     pass
 
+REDIS_CACHE_URL = os.environ.get("REDIS_CACHE_URL", "redis://localhost:6379/1")
+REDIS_QCLUSTER_URL = os.environ.get("REDIS_QCLUSTER_URL", "redis://localhost:6379/10")
+# TODO: parametrize CHANNEL_LAYERS redis CONFIG?
+
+ASGI_APPLICATION = "wjs.channels.asgi.application"
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
+
 # This is the default redirect if no other sites are found.
 DEFAULT_HOST = "https://www.example.org"
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
@@ -309,9 +323,6 @@ TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS = 3
 # When the last reminder has been sent (e.g. REVIEWER_SHOULD_WRITE_REVIEW_2) and the following number of days
 # have passed, a reviewer (for instance) is considered "late". This can effect the "attention conditions".
 WJS_REMINDER_LATE_AFTER = 3
-
-REDIS_CACHE_URL = os.environ.get("REDIS_CACHE_URL", "redis://localhost:6379/1")
-REDIS_QCLUSTER_URL = os.environ.get("REDIS_QCLUSTER_URL", "redis://localhost:6379/10")
 
 Q_CLUSTER = {
     "name": "wjs-janeway",

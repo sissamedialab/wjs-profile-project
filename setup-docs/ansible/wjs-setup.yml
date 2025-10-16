@@ -1,0 +1,67 @@
+---
+# DRAFT ONLY! Do NOT use!
+- hosts: NONE
+  become: yes
+  tasks:
+    - name: Create user wjs
+      user:
+        name: wjs
+        group: wjs
+        shell: /bin/bash
+
+    - name: Install packages
+      apt:
+        update_cache: yes
+        name:
+          - apache2
+          - postgresql
+          - git
+          - build-essential
+          - libssl-dev
+          - zlib1g-dev
+          - libbz2-dev
+          - libreadline-dev
+          - libsqlite3-dev
+          - libffi-dev
+
+    - name: Clone pyenv
+      git:
+        repo: https://github.com/pyenv/pyenv.git
+        dest: /home/wjs/.pyenv
+      become_user: wjs
+
+    - name: Setup pyenv in bashrc
+      lineinfile:
+        path: /home/wjs/.bashrc
+        line: "{{ item }}"
+      loop:
+        - 'export PATH="$HOME/.pyenv/bin:$PATH"'
+        - 'eval "$(pyenv init -)"'
+
+    - name: Install Python 3.11
+      shell: |
+        export PATH="/home/wjs/.pyenv/bin:$PATH"
+        eval "$(pyenv init -)"
+        pyenv install -s 3.11.10
+        pyenv global 3.11.10
+      become_user: wjs
+      args:
+        creates: /home/wjs/.pyenv/versions/3.11.10
+
+    - name: Copy Apache virtualhost configuration
+      copy:
+        src: apache/wjs.conf
+        dest: /etc/apache2/sites-available/wjs.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable virtualhost
+      command: a2ensite wjs.conf
+      args:
+        creates: /etc/apache2/sites-enabled/wjs.conf
+
+    - name: Reload Apache
+      systemd:
+        name: apache2
+        state: reloaded

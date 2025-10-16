@@ -1,0 +1,158 @@
+Define SOCKET_NAME /run/wjs/daphne-{{ instance_name }}.sock
+
+
+<VirtualHost *:80>
+    ServerName wjs-test-{{ instance_name }}-journals.wjapp.it
+    ServerAlias  wjs-test-{{ instance_name }}-jcom.wjapp.it
+    ServerAlias  wjs-test-{{ instance_name }}-jcomal.wjapp.it
+
+    DocumentRoot /var/www/hosts/test-journals/html
+    CustomLog ${APACHE_LOG_DIR}/janeway80-access.log combined
+    ErrorLog  ${APACHE_LOG_DIR}/janeway80-error.log
+
+    LogLevel alert rewrite:trace3
+
+    RewriteEngine On
+    RewriteRule ^(.*)$          https://%{SERVER_NAME}$1 [last,redirect=301]
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-journals
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME ${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jcom
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME ${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+
+    # Include redirects maintained in the project's repo
+    Include "/home/wjs/.virtualenvs/{{ instance_venv_name }}/lib/python3.11/site-packages/wjs/conf/jcom-apache-redirects.inc"
+
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jcomal
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME ${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+
+    # Include redirects maintained in the project's repo
+    Include "/home/wjs/.virtualenvs/{{ instance_venv_name }}/lib/python3.11/site-packages/wjs/conf/jcom-apache-redirects.inc"
+
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jquant
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jhep
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jcap
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jstat
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jinst
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/hosts/${NAME}/html
+    <Directory   /var/www/hosts/${NAME}/html >
+    </Directory>
+
+    Include "conf-available/wjs/apache-static-files-block.inc"
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+    Include "conf-available/wjs/apache-proxy-and-socket-daphne.inc"
+
+</VirtualHost>
+
+
+# vim: syntax=apache ts=4 sw=4 sts=4 sr et

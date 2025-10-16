@@ -1,0 +1,35 @@
+[Unit]
+Description=Daphne ASGI Server for WJS {{ instance_name }}
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wjs/janeway-test/src
+
+# Runtime directory (/run/wjs) for socket is expected to exist!
+
+# Logs:
+StandardOutput=append:/home/wjs/janeway-{{ instance_name }}/logs/daphne.log
+StandardError=append:/home/wjs/janeway-{{ instance_name }}/logs/daphne.log
+
+# Start Daphne with Unix socket
+ExecStart=/home/wjs/.virtualenvs/janeway-test/bin/daphne \
+    --unix-socket /run/wjs/daphne-test.sock \
+    wjs.channels.asgi:application
+# No need for --proxy-header (see spiegone in apache-proxy-and-socket.inc)
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Process management
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=5
+
+# Security hardening (optional but recommended)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
