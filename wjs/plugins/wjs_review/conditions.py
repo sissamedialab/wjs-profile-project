@@ -773,7 +773,7 @@ def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) ->
     """
     Tell if the article needs social media information.
 
-    Article does not need social media information if either:
+    Article needs social media information if both:
     - journal does not need english language extra content
     - article is in an issue published piecemeal
 
@@ -784,7 +784,25 @@ def needs_extra_article_information(workflow: ArticleWorkflow, user: Account) ->
     :return True if the article needs social media information, False otherwise.
     :rtype: bool
     """
-    return journal_requires_english_content(workflow.article.journal) or article_is_published_piecemeal(workflow)
+    return not journal_requires_english_content(workflow.article.journal) and article_is_published_piecemeal(workflow)
+
+
+def needs_extra_article_translations(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Tell if the article needs translations for social media information.
+
+    Article needs translations for social media information if both:
+    - journal needs english language extra content
+    - article is in an issue published piecemeal
+
+    :param workflow: The workflow to check access to.
+    :type workflow: ArticleWorkflow
+    :param user: The user requesting the information. Not used but required by the condition function signature.
+    :type user: Account
+    :return True if the article needs social media information, False otherwise.
+    :rtype: bool
+    """
+    return journal_requires_english_content(workflow.article.journal) and article_is_published_piecemeal(workflow)
 
 
 def can_withdraw_preprint(workflow: ArticleWorkflow, user: Account) -> bool:

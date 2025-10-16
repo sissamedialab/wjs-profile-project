@@ -709,7 +709,14 @@ class ArticleWorkflow(TimeStampedModel):
         return eid
 
     def _count_published_papers_in_same_issue_and_section(self) -> int:
-        """Nomen omen, but reviews are special 😢 (see the code)."""
+        """
+        Nomen omen, but reviews are special 😢 (see the code).
+
+        Raises:
+          ValueError: if the primary issue is missing,
+          or if there is some configuration issue related to sections/article types.
+
+        """
         if not self.article.primary_issue:
             # Manually raising error to give explanatory message
             raise ValueError(f"Trying to count similar papers but no primary issue set for article {self.article.id}")
@@ -724,11 +731,17 @@ class ArticleWorkflow(TimeStampedModel):
                 ArticleWorkflow.ReviewStates.PUBLISHED,
             ],
         )
-        pesky_sections = ("book review", "conference review")
-        if self.article.section.name in pesky_sections:
-            return base_qs.filter(section__name__in=pesky_sections).count()
-        else:
-            return base_qs.filter(section_id=self.article.section.pk).count()
+        if self.article.journal.code == "JCOM":
+            pesky_sections_names = ["Book Review", "Conference Review"]
+            pesky_sections = Section.objects.filter(name__in=pesky_sections_names)
+            if pesky_sections.count() != 2:
+                raise ValueError(
+                    f"Cannot find sections {pesky_sections_names}."
+                    "Cannot compute pubid. Please check journal's sections names!",
+                )
+            if self.article.section in pesky_sections:
+                return base_qs.filter(section__in=pesky_sections).count()
+        return base_qs.filter(section_id=self.article.section.pk).count()
 
     def set_pubid(self):
         return Identifier.objects.create(

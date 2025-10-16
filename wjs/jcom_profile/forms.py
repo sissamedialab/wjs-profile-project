@@ -1,11 +1,13 @@
 """Forms for the additional fields in this profile extension."""
 
+import re
 import uuid
 
 from core import models as core_models
 from core.forms import EditAccountForm
 from django import forms
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.forms import ModelForm, inlineformset_factory
 from django.urls import reverse
@@ -32,6 +34,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import WjsSimpleBleach
 
+from .constants import ORCID_VALIDATION_REGEXP
 from .models import (
     JCOMProfile,
     Recipient,
@@ -75,6 +78,19 @@ def _get_privacy_url(journal):
     return privacy_url
 
 
+def validate_orcid(value):
+    """Validator for ORCID ID format xxxx-xxxx-xxxx-xxxx"""
+    # ORCID format is XXXX-XXXX-XXXX-XXXX where X can be 0-9 or X
+    # The last character can be 'X' which is used as a checksum
+    pattern = re.compile(ORCID_VALIDATION_REGEXP)
+
+    if value and not pattern.match(value):
+        raise ValidationError(
+            _("ORCID ID must be in the format xxxx-xxxx-xxxx-xxxx (e.g., 0000-0000-0000-0000)"),
+            code="invalid_orcid_format",
+        )
+
+
 class JCOMProfileForm(EditAccountForm):
     """Additional fields of the JCOM profile."""
 
@@ -88,6 +104,20 @@ class JCOMProfileForm(EditAccountForm):
         label=_("By registering an account you agree to our Privacy Policy"),
     )
     twitter = forms.CharField(label=_("X.com handle"), required=False)
+    orcid = forms.CharField(
+        label=_("ORCID ID"),
+        validators=[validate_orcid],
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "0000-0000-0000-0000",
+                "pattern": ORCID_VALIDATION_REGEXP,
+                "title": _("Please provide the ORCID using only the id notation: 0000-0000-0000-0000"),
+                "minlength": "19",
+                "maxlength": "19",
+            }
+        ),
+        required=False,
+    )
 
     class Meta:
         model = JCOMProfile

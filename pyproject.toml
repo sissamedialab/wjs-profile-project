@@ -35,7 +35,8 @@ ignore = [
   "ANN201",  # missing return type annotation (too invasive, expecially for "-> None" cases)
   "ANN202",  # missing return type annotation
   "TRY003",  # long message outside the exception class
-  ]
+  "EM102",  # Exception must not use an f-string literal, assign to variable first
+]
 
 fixable = ["ALL"]
 unfixable = []

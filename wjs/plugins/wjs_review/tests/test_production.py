@@ -26,7 +26,7 @@ from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Article, Keyword
+from submission.models import Article, Keyword, Section
 from utils import setting_handler
 
 from wjs.jcom_profile import constants
@@ -716,6 +716,7 @@ and text
 @pytest.mark.django_db
 def test_publication(
     review_settings,
+    review_sections: list[Section],  # noqa: ARG001
     rfp_article: Article,
     fake_request: HttpRequest,
     eo_user: Account,
@@ -779,8 +780,10 @@ def test_publication_with_fake_galley_generation(
     fake_request: HttpRequest,
     eo_user: Account,
     http_server: ThreadedHTTPServer,
+    review_sections: list[Section],  # noqa: ARG001
 ):
-    """Test publication.
+    """
+    Test publication.
 
     Galleys are stored (they are received from a dummy server).
     """
@@ -802,15 +805,16 @@ def test_publication_with_fake_galley_generation(
 
 @pytest.mark.django_db
 def test_publication_multiple_articles(
-    journal,
-    jcom_doi_prefix,
-    article_factory,
-    section_factory,
-    issue_factory,
-    review_settings,
+    journal: Journal,
+    jcom_doi_prefix: Callable,  # noqa: ARG001
+    article_factory: Callable,
+    section_factory: Callable,
+    issue_factory: Callable,
+    review_settings: Callable,  # noqa: ARG001
     fake_request: HttpRequest,
     create_jcom_user: Callable,
     http_server: ThreadedHTTPServer,
+    review_sections: list[Section],  # noqa: ARG001
 ):
     """Publication proceeds correctly even if one article's final galleys fail.
 

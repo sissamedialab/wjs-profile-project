@@ -4,6 +4,7 @@ import difflib
 import re
 from typing import TYPE_CHECKING, List
 
+import pycountry
 import requests
 from core.models import File, SupplementaryFile
 from django.contrib import messages
@@ -13,6 +14,7 @@ from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.template import RequestContext
 from django.urls import reverse, reverse_lazy
+from django.utils import translation
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, UpdateView, View
 from django_q.tasks import async_task
@@ -797,6 +799,7 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
         except ValueError as e:
             # Raised when, for instance, a kwd from the TeX does not exist in the DB
+            # or TeX and DB have different language
             messages.add_message(self.request, messages.ERROR, e)
             return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
         else:
@@ -854,14 +857,18 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
     def _get_titleabstract_context(self, tex_data: dict) -> dict:
         """Return context info related to title and abstract."""
         # Note that db abstract is wrapped with <p> by the TinyMCE widget...
-        abstract_db = re.sub(r"^<p>", "", self.object.article.abstract)
+
+        lang = pycountry.languages.get(alpha_3=self.object.article.language).alpha_2
+        with translation.override(lang):
+            title_db = self.object.article.title
+            abstract_db = re.sub(r"^<p>", "", self.object.article.abstract)
         abstract_db = re.sub(r"</p>$", "", abstract_db)
         # ...and tex abstract can have newlines here and there
         # se we used the adapted version:
         abstract_tex = tex_data.get("abstract_adapted")
 
         context = {
-            "title_db": self.object.article.title,
+            "title_db": title_db,
             "title_tex": tex_data.get("title"),
             "abstract_db": abstract_db,
             "abstract_tex": abstract_tex,

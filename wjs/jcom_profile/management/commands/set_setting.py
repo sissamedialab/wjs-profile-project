@@ -46,7 +46,7 @@ class Command(BaseCommand):
                 value=options["setting_value"],
             )
             value = get_setting(
-                journal=journal, setting_group_name=options["setting_name"], setting_name=options["setting_name"]
+                journal=journal, setting_group_name=options["group_name"], setting_name=options["setting_name"]
             )
         if options["verbosity"] > 1:
             sys.stdout.write(f"Setting updated: {options['group_name']} - {options['setting_name']}: {value}")

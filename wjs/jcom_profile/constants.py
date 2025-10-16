@@ -68,3 +68,5 @@ JCOM_SECTION_TO_DOISECTIONCODE = {
 # - they are counted together (as if they were in the same section; e.g. CR-1, BR-2, CR-3)
 # - have same PUBID section code (both are "R", as in JCOM_0000_0000_R00)
 # - have different DOI section code (e.g. prefix/0.00000600 vs prefix/0.00000700)
+
+ORCID_VALIDATION_REGEXP = r"^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]{1}$"

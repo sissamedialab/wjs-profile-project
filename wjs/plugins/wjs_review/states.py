@@ -1036,6 +1036,13 @@ class TypesetterSelected(BaseState):
             condition=conditions.needs_extra_article_information,
         ),
         ArticleAction(
+            permission=permissions.is_article_author,
+            name="author_add_extra_information",
+            label="Send translations and info for social media",
+            view_name="wjs_article_translate_info",
+            condition=conditions.needs_extra_article_translations,
+        ),
+        ArticleAction(
             permission=permissions.is_article_typesetter_or_eo,
             name="sync tex and db",
             label="Sync TeX and DB",
@@ -1102,6 +1109,13 @@ class Proofreading(BaseState):
             label="Send short description and image for social media",
             view_name="wjs_article_additional_info",
             condition=conditions.needs_extra_article_information,
+        ),
+        ArticleAction(
+            permission=permissions.is_article_author,
+            name="author_add_extra_information",
+            label="Send translations and info for social media",
+            view_name="wjs_article_translate_info",
+            condition=conditions.needs_extra_article_translations,
         ),
         ArticleAction(
             permission=permissions.is_article_author_and_paper_can_go_rfp,

@@ -12,7 +12,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
-from django.db.models import F, Max, Q, QuerySet, Subquery
+from django.db import IntegrityError
+from django.db.models import F, Max, OuterRef, Q, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
@@ -739,7 +740,9 @@ class AuthorPending(ArticleWorkflowBaseMixin):
         sure to use the original method.
         """
         latest_revision_request = EditorRevisionRequest.objects.filter(
-            article__correspondence_author=self.request.user, date_completed__isnull=True
+            article__correspondence_author=self.request.user,
+            date_completed__isnull=True,
+            article=OuterRef("article_id"),
         )
 
         return (
@@ -807,7 +810,9 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        latest_assignment = WorkflowReviewAssignment.objects.filter(reviewer=self.request.user, is_complete=False)
+        latest_assignment = WorkflowReviewAssignment.objects.filter(
+            reviewer=self.request.user, is_complete=False, article=OuterRef("article_id")
+        ).order_by("-date_due")
 
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
@@ -845,7 +850,9 @@ class ReviewerArchived(ReviewerPending):
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        latest_assignment = WorkflowReviewAssignment.objects.filter(reviewer=self.request.user, is_complete=False)
+        latest_assignment = WorkflowReviewAssignment.objects.filter(
+            reviewer=self.request.user, is_complete=False, article=OuterRef("article_id")
+        ).order_by("-date_due")
 
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
@@ -873,8 +880,12 @@ class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, E
     template_name = "wjs_review/details/editor_assigns_themselves_as_reviewer.html"
 
     def form_valid(self, form):
-        super().form_valid(form)
-        messages.success(self.request, _("You have been assigned as a reviewer."))
+        try:
+            super().form_valid(form)
+            messages.success(self.request, _("You have been assigned as a reviewer."))
+        except IntegrityError as e:
+            if str(e) != "Double request detected":
+                raise
         response = HttpResponse("ok")
         response["HX-Redirect"] = self.get_success_url()
         return response
@@ -1060,13 +1071,16 @@ class SelectReviewerView(
         try:
             super().form_valid(form)
             messages.success(self.request, _("The reviewer has been succesfully selected."))
-            response = HttpResponse("ok")
-            response["HX-Redirect"] = self.get_success_url()
-            return response
+        except IntegrityError as e:
+            if str(e) != "Double request detected":
+                raise
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
 
 
 class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMixin, UpdateView):
@@ -1129,13 +1143,16 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         try:
             super().form_valid(form)
             messages.success(self.request, _("The reviewer has been succesfully selected."))
-            response = HttpResponse("ok")
-            response["HX-Redirect"] = self.get_success_url()
-            return response
+        except IntegrityError as e:
+            if str(e) != "Double request detected":
+                raise
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
             # required to handle exception raised in the form save method (coming for janeway business logic)
             return super().form_invalid(form)
+        response = HttpResponse("ok")
+        response["HX-Redirect"] = self.get_success_url()
+        return response
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         """
@@ -3403,10 +3420,16 @@ class ForwardMessage(BaseRelatedViewsMixin, CreateView):
 
 
 class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
-    title = _("Send short description and image for social media")
     model = ArticleWorkflow
     template_name = "wjs_review/details/articleworkflow_form.html"
     form_class = ArticleExtraInformationUpdateForm
+    translation = False
+
+    @property
+    def title(self):
+        if self.translation:
+            return _("Send translations and info for social media")
+        return _("Send short description and image for social media")
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
