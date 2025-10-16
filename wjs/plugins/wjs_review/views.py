@@ -3420,10 +3420,16 @@ class ForwardMessage(BaseRelatedViewsMixin, CreateView):
 
 
 class ArticleExtraInformationUpdateView(BaseRelatedViewsMixin, UpdateView):
-    title = _("Send short description and image for social media")
     model = ArticleWorkflow
     template_name = "wjs_review/details/articleworkflow_form.html"
     form_class = ArticleExtraInformationUpdateForm
+    translation = False
+
+    @property
+    def title(self):
+        if self.translation:
+            return _("Send translations and info for social media")
+        return _("Send short description and image for social media")
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:
