@@ -657,7 +657,7 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
         if posted_keywords:
             instance.keywords.add(*posted_keywords)
 
-        # Copied logic to save additional fields from submission.forms.ArticleInfo.save
+        # Copied logic to save additional and defaults fields from submission.forms.ArticleInfo.save
         if request:
             additional_fields = submission_models.Field.objects.filter(journal=request.journal)
 
@@ -672,6 +672,9 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
                         field_answer = submission_models.FieldAnswer.objects.create(
                             article=instance, field=field, answer=answer
                         )
+
+            if self.pop_disabled_fields:
+                request.journal.submissionconfiguration.handle_defaults(instance)
 
         return instance
 
