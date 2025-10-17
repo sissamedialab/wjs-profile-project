@@ -65,6 +65,20 @@ JOURNALS_DATA = {
         },
         "expected_languages": ("es", "pt-br"),
     },
+    "JHEP": {
+        "inception_year": 1997,
+        "correspondence_source": "jhep",
+        "wjapp_url": getattr(
+            settings,
+            "WJAPP_JHEP_URL",
+            "https://robur.medialab.sissa.it/test-migration-jhep/jhep/services/jsonpublished",
+        ),
+        "wjapp_api_key": "WJAPP_JHEP_APIKEY",
+        "section_order": {
+            "Article": (2, "Articles"),
+        },
+        "expected_languages": ("en"),
+    },
 }
 
 
@@ -130,6 +144,7 @@ SECTIONS_MAPPING = {
     "book review": "Book Review",
     "conference review": "Conference Review",
     "review": "Review",
+    "paper": "Article",
 }
 
 JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}
