@@ -2025,6 +2025,15 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
         else:
             return get_messages_related_to_me(self.request.user, journal=self.request.journal)
 
+    def get_context_data(self, **kwargs) -> Context:
+        context = super().get_context_data(**kwargs)
+        eo_forms = {
+            mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}")
+            for mr in context["messages_list"]
+        }
+        context["eo_forms"] = eo_forms
+        return context
+
     def get(self, request, *args, **kwargs):
         # Calling the FilterView get() method and then the ListView get() method to both have filters and pagination
         filterset_class = self.get_filterset_class()
