@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/wjs/janeway-test/src
+WorkingDirectory=/home/wjs/janeway-{{ instance_name }}/src
 
 # Runtime directory (/run/wjs) for socket is expected to exist!
 
@@ -13,8 +13,8 @@ StandardOutput=append:/home/wjs/janeway-{{ instance_name }}/logs/daphne.log
 StandardError=append:/home/wjs/janeway-{{ instance_name }}/logs/daphne.log
 
 # Start Daphne with Unix socket
-ExecStart=/home/wjs/.virtualenvs/janeway-test/bin/daphne \
-    --unix-socket /run/wjs/daphne-test.sock \
+ExecStart=/home/wjs/.virtualenvs/janeway-{{ instance_name }}/bin/daphne \
+    --unix-socket /run/wjs/daphne-{{ instance_name }}.sock \
     wjs.channels.asgi:application
 # No need for --proxy-header (see spiegone in apache-proxy-and-socket.inc)
 
