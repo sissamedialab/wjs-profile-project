@@ -1,6 +1,6 @@
 {% load django_bootstrap5 %}
 {% url "wjs_message_toggle_read_by_eo" message_id=message.pk as toggle_read_url %}
-<div id="read-toggle-{{ message.pk }}">
+<div id="read-toggle-{{ message.pk }}" class="mb-1">
   {% comment %}
     Mechanics
     The label is designed as a button and it's linked to the hidden checkbox
@@ -12,9 +12,9 @@
     {% bootstrap_field form.read_by_eo wrapper_class="d-none" %}
     <label class="btn btn-sm {% if message.read_by_eo %}btn-secondary{% else %}btn-success text-white{% endif %}" for="{{ form.read_by_eo.auto_id }}">
       {% if message.read_by_eo %}
-        <i class="bi bi-envelope-fill"></i> Mark as unread
+        <i class="bi bi-envelope-fill"></i> Mark as unread by EO
       {% else %}
-        <i class="bi bi-envelope-paper"></i> Mark as read
+        <i class="bi bi-envelope-paper"></i> Mark as read by EO
       {% endif %}
     </label>
   </form>
