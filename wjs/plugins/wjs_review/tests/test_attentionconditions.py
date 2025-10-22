@@ -670,6 +670,7 @@ def test_editor_is_late(
     assigned_article: Article,
     fake_request: HttpRequest,
     review_form: review_models.ReviewForm,
+    eo_user: JCOMProfile,
 ):
     """
     Attention condition message when editor has not selected a reviewer.
@@ -687,7 +688,7 @@ def test_editor_is_late(
         reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
         reminder.save()
 
-    message = EditorSelected.article_requires_eo_attention(assigned_article)
+    message = EditorSelected.article_requires_eo_attention(assigned_article, eo_user)
     assert message == "Review process not yet started/restarted"
 
 
@@ -751,8 +752,11 @@ def test_old_unread_messages_excludes_aus(
     )
     m1.recipients.add(author1)  # ⇦ Important!
     assert MessageRecipients.objects.get(message=m1, recipient=author1).read is False
-    assert conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=False)
-    assert not conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=True)  # 🌟
+    assert conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=False, recipient=normal_user)
+    assert not conditions.article_has_old_unread_message(
+        article1, exclude_aus_and_revs=True, recipient=normal_user
+    )  # 🌟
+    assert not conditions.article_has_old_unread_message(article1, recipient=eo_user)
 
     # The second article:
     # - the unread message is for the editor, it should be kept!
@@ -770,8 +774,9 @@ def test_old_unread_messages_excludes_aus(
     )
     m2.recipients.add(editor2)  # ⇦ Important!
     assert MessageRecipients.objects.get(message=m2, recipient=editor2).read is False
-    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=False)
-    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=True)  # 🌟
+    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=False, recipient=normal_user)
+    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=True, recipient=normal_user)  # 🌟
+    assert not conditions.article_has_old_unread_message(article2, recipient=eo_user)
 
     # The AW manager with_unread_messages does not exclude authors or reviewers
     qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user)

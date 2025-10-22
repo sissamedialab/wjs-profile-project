@@ -33,8 +33,8 @@ JANEWAY_ROOT=/home/wjs/janeway
 # The path to the `bin` folder of the virtual env. This contains `python` and `pip`
 VENV_BIN=/home/wjs/.virtualenvs/janeway/bin
 
-# The uwsgi vassal file to "touch" in order to reload the application server
-UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
+# The WJS systemd unit to restart
+WJS_SERVICE=daphne.service
 
 # The git branches where the code lives
 JANEWAY_BRANCH=wjs-develop
@@ -72,7 +72,7 @@ function deploy_janeway() {
     "$PYTHON" -mmanage collectstatic --noinput
     "$PYTHON" -mmanage compilemessages --settings core.settings
 
-    touch --no-dereference "$UWSGI_VASSAL"
+    systemctl --user restart "$WJS_SERVICE"
     systemctl --user restart "$QCLUSTER_SERVICE"
 }
 
@@ -104,7 +104,7 @@ function deploy_wjs() {
     "$PYTHON" -mmanage build_assets
     "$PYTHON" -mmanage collectstatic --noinput
 
-    touch --no-dereference "$UWSGI_VASSAL"
+    systemctl --user restart "$WJS_SERVICE"
     systemctl --user restart "$QCLUSTER_SERVICE"
 }
 
@@ -113,7 +113,7 @@ function deploy_submission() {
 
     # If given, the first argument to this function will be used to pip install the pacakge.
     # It should be in the form such as
-    # "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
+    # "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs-submission"
     if [[ -n "$1" ]]; then
         "$PIP" uninstall --yes wjs_submission
         "$PIP" install --no-cache-dir "$1"
@@ -139,14 +139,14 @@ function deploy_submission() {
     "$PYTHON" -mmanage build_assets
     "$PYTHON" -mmanage collectstatic --noinput
 
-    touch --no-dereference "$UWSGI_VASSAL"
+    systemctl --user restart "$WJS_SERVICE"
     systemctl --user restart "$QCLUSTER_SERVICE"
 }
 
 function set_prod_variables() {
     JANEWAY_ROOT=/home/wjs/janeway
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
-    UWSGI_VASSAL=/home/wjs/uwsgi/janeway.ini
+    WJS_SERVICE="daphne.service"
     JANEWAY_BRANCH=wjs-production
     QCLUSTER_SERVICE="qcluster.service"
 }
@@ -154,7 +154,7 @@ function set_prod_variables() {
 function set_pp_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-pp
     VENV_BIN=/home/wjs/.virtualenvs/janeway-pp/bin
-    UWSGI_VASSAL=/home/wjs/uwsgi/janeway-pp.ini
+    WJS_SERVICE="daphne-pp.service"
     JANEWAY_BRANCH=wjs-production
     # Permit install pre-release pkgs in pre-prod
     # this allows us to test pkg install when needed.
@@ -165,7 +165,7 @@ function set_pp_variables() {
 function set_dev_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-dev
     VENV_BIN=/home/wjs/.virtualenvs/janeway-dev/bin
-    UWSGI_VASSAL=/home/wjs/uwsgi/janeway-dev.ini
+    WJS_SERVICE="daphne-dev.service"
     JANEWAY_BRANCH=wjs-develop
     PIP_PRE="yes please"
     QCLUSTER_SERVICE="qcluster-dev.service"
@@ -174,7 +174,7 @@ function set_dev_variables() {
 function set_test_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-test
     VENV_BIN=/home/wjs/.virtualenvs/janeway-test/bin
-    UWSGI_VASSAL=/home/wjs/uwsgi/janeway-test.ini
+    WJS_SERVICE="daphne-test.service"
     JANEWAY_BRANCH=wjs-production
     PIP_PRE="yes please"
     QCLUSTER_SERVICE="qcluster-test.service"

@@ -1,7 +1,21 @@
 {% load django_bootstrap5 %}
 {% url "wjs_message_toggle_read" message_id=message.pk recipient_id=user.id as toggle_read_url %}
-<div id="read-toggle-{{ message.pk }}-{{ user.pk }}" >
-  <form name="form-toggle-{{ message.pk }}" autocomplete="off" hx-target="#read-toggle-{{ message.pk }}-{{ user.id }}" hx-post="{{ toggle_read_url }}" hx-trigger="click" hx-swap="outerHTML">
-    {% bootstrap_field form.read show_help=False %}
+<div id="read-toggle-{{ message.pk }}-{{ user.pk }}" class="mb-1">
+  {% comment %}
+    Mechanics
+    The label is designed as a button and it's linked to the hidden checkbox
+    when the user clicks on the label, the `for` attribute on label toggles the value of the checkbox
+    in turn the change of the checkbox triggers the form submit (due to the hx-trigger=change attribute on the form)
+    this toggles the value inside the checkbox before the submit is triggered
+  {% endcomment %}
+  <form name="form-toggle-{{ message.pk }}" autocomplete="off" hx-target="#read-toggle-{{ message.pk }}-{{ user.id }}" hx-post="{{ toggle_read_url }}" hx-trigger="change" hx-swap="outerHTML">
+    {% bootstrap_field form.read wrapper_class="d-none" %}
+    <label class="btn btn-sm {% if form.read.value %}ybtn-secondary{% else %}btn-success text-white{% endif %}" for="{{ form.read.auto_id }}">
+      {% if form.read.value %}
+        <i class="bi bi-envelope-fill"></i> Mark as unread
+      {% else %}
+        <i class="bi bi-envelope-paper"></i> Mark as read
+      {% endif %}
+    </label>
   </form>
 </div>

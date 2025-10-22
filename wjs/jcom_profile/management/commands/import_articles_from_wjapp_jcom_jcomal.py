@@ -1,7 +1,6 @@
 """Import article from wjapp."""
 
 import datetime
-import io
 import os
 import tarfile
 import textwrap
@@ -20,7 +19,6 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File as DjangoFile
-from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
@@ -116,14 +114,10 @@ class Command(BaseCommand):
             return
         self.options = options
 
-        if self.options["preprintid"].startswith("JHEP"):
-            journal_code = "JHEP"
-        else:
-            journal_code = self.options["preprintid"].split("_")[0].upper()
+        journal_code = self.options["preprintid"].split("_")[0].upper()
         if journal_code in (
             "JCOM",
             "JCOMAL",
-            "JHEP",
         ):
             self.journal = Journal.objects.get(code=journal_code)
             self.journal_data = JOURNALS_DATA[journal_code]
@@ -142,17 +136,10 @@ class Command(BaseCommand):
             required=True,
         )
         parser.add_argument(
-            "--importfilesweb",
+            "--importfiles",
             default=False,
             action="store_true",
             help="also downloads files from wjapp jcom/jcomal",
-            required=False,
-        )
-        parser.add_argument(
-            "--importfilesfake",
-            default=False,
-            action="store_true",
-            help="create only empty fake files for the article",
             required=False,
         )
 
@@ -160,18 +147,7 @@ class Command(BaseCommand):
         """Process one article."""
 
         session = None
-
-        if self.options["importfilesfake"]:
-            logger.info("option --importfilesfake creates only fake files")
-
-        if self.options["importfilesweb"] and self.journal.code.upper() == "JHEP":
-            logger.error(
-                f"option import_files from web is not enabled for {self.journal.code}."
-                f"use --importfilesfake instead."
-            )
-            return
-
-        if self.options["importfilesweb"]:
+        if self.options["importfiles"]:
             login_setting = f"WJAPP_{self.journal.code.upper()}_IMPORT_LOGIN_PARAMS"
             login_parameters = getattr(settings, login_setting, None)
             if login_parameters is None:
@@ -259,8 +235,6 @@ class Command(BaseCommand):
         document_cod = current_version_row["documentCod"]
         preprintid = current_version_row["preprintId"]
         publicationid = current_version_row["publicationId"]
-        if self.journal.code.upper() in ("JHEP"):
-            publication_date = current_version_row["publicationDate"]
         document_revision_dead_line = current_version_row["revisionDeadline"]
         section = current_version_row["documentType"]
         language = current_version_row["language"]
@@ -296,7 +270,7 @@ class Command(BaseCommand):
 
         # search if exists an id for publicationid in the wjs journal
         pub_article = None
-        if publicationid and self.journal.code.upper() in ("JCOM", "JCOMAL"):
+        if publicationid:
             pub_article = submission_models.Article.get_article(
                 journal=self.journal,
                 identifier_type="pubid",
@@ -522,7 +496,7 @@ class Command(BaseCommand):
                             imported_version_num=imported_version_num,
                             imported_version_cod=imported_version_cod,
                             imported_version_state_cod=imported_version_state_cod,
-                            importfiles=self.options["importfilesfake"],
+                            importfiles=self.options["importfiles"],
                             imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                             action_triggers_import_files=False,
                             imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
@@ -572,7 +546,7 @@ class Command(BaseCommand):
                     article=article,
                     imported_version_num=imported_version_num,
                     imported_version_cod=imported_version_cod,
-                    importfiles=self.options["importfilesfake"],
+                    importfiles=self.options["importfiles"],
                     imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                 ).run()
 
@@ -647,11 +621,7 @@ class Command(BaseCommand):
 
         # for published import restore the article status
         if publicationid:
-            if self.journal.code.upper() != "JHEP":
-                self.restore_article_status(article)
-            else:
-                article.date_published = publication_date
-                article.save()
+            self.restore_article_status(article)
 
             # for published import set the article stage to Published
             if article.stage != submission_models.STAGE_PUBLISHED:
@@ -955,7 +925,6 @@ SELECT
 d.documentCod,
 d.preprintId,
 d.publicationId,
-d.publicationDate,
 d.documentType,
 d.submissionDate,
 d.authorCod,
@@ -1484,13 +1453,6 @@ WHERE
         # JCOM_002A_0325 English
         # JCOM_001L_0325 ""
         # JCOM_004N_1024 ---
-
-        # default for jhep when not defined
-        if not language and article.journal.code == "JHEP":
-            article.language = "eng"
-            article.save()
-            logger.debug(f"jhep {article.id} undefined language saved as 'eng'")
-            return
 
         # default for jcom when not defined
         if not language and article.journal.code == "JCOM":
@@ -2492,27 +2454,19 @@ class ImportCorrespondenceManager:
                 # case like JCOM_002N_0724
                 author = get_eo_user(self.journal)
             else:
+                if not author_from_wjapp:
+                    raise RuntimeError(f"msg {m['documentLayerCod']} Missing author. type {m['documentLayerType']}")
 
-                # Note: only for jhep stress test
-                if self.journal.code == "JHEP" and not author_from_wjapp:
-                    author = get_eo_user(self.journal)
-                    logger.debug(f"added author JST:{author}")
-                else:
-                    if not author_from_wjapp:
-                        raise RuntimeError(
-                            f"msg {m['documentLayerCod']} Missing author. type {m['documentLayerType']}"
-                        )
-
-                    # author data comes from wjapp
-                    author = account_get_or_create_check_correspondence(
-                        self.journal.code.lower(),
-                        author_from_wjapp[0]["userCod"],
-                        author_from_wjapp[0]["lastname"],
-                        author_from_wjapp[0]["firstname"],
-                        author_from_wjapp[0]["email"],
-                        author_from_wjapp[0]["privacy"],
-                        self.connection,
-                    )
+                # author data comes from wjapp
+                author = account_get_or_create_check_correspondence(
+                    self.journal.code.lower(),
+                    author_from_wjapp[0]["userCod"],
+                    author_from_wjapp[0]["lastname"],
+                    author_from_wjapp[0]["firstname"],
+                    author_from_wjapp[0]["email"],
+                    author_from_wjapp[0]["privacy"],
+                    self.connection,
+                )
 
             document_layer_subject = (
                 m["documentLayerSubject"]
@@ -2540,20 +2494,15 @@ class ImportCorrespondenceManager:
                     logger.debug(f"msg {m['documentLayerCod']} add recipient eo_user {document_layer_subject}")
 
                 for msg_rec in message_recipients_no_bcc:
-                    # Note: only for jhep stress test
-                    if self.journal.code == "JHEP" and not msg_rec["userCod"]:
-                        recipient = get_eo_user(self.journal)
-                        logger.debug(f"added recipient JST:{recipient}")
-                    else:
-                        recipient = account_get_or_create_check_correspondence(
-                            self.journal.code.lower(),
-                            msg_rec["userCod"],
-                            msg_rec["lastname"],
-                            msg_rec["firstname"],
-                            msg_rec["email"],
-                            msg_rec["privacy"],
-                            self.connection,
-                        )
+                    recipient = account_get_or_create_check_correspondence(
+                        self.journal.code.lower(),
+                        msg_rec["userCod"],
+                        msg_rec["lastname"],
+                        msg_rec["firstname"],
+                        msg_rec["email"],
+                        msg_rec["privacy"],
+                        self.connection,
+                    )
                     if recipient not in msg.recipients.all():
                         msg.recipients.add(recipient)
 
@@ -2572,15 +2521,10 @@ class ImportCorrespondenceManager:
 
                 # error if no recipients at all from wjapp and not added eo_user
                 if not msg.recipients.all():
-                    # Note: Only for JHEP stress test
-                    if self.journal.code == "JHEP":
-                        msg.recipients.add(get_eo_user(self.journal))
-                        logger.debug("add recipient eo for JHEPST")
-                    else:
-                        raise RuntimeError(
-                            f"msg {m['documentLayerCod']} without recipients: {self.article.id}"
-                            f" {document_layer_subject} {m['documentLayerType']} {message_recipients_no_bcc=}"
-                        )
+                    raise RuntimeError(
+                        f"msg {m['documentLayerCod']} without recipients: {self.article.id}"
+                        f" {document_layer_subject} {m['documentLayerType']} {message_recipients_no_bcc=}"
+                    )
 
         logger.debug(f"imported correspondence for {self.preprintid}/{self.imported_version_num}")
 
@@ -2678,17 +2622,10 @@ AND ur.userType!='readerBCC'
             },
         )
         if cursor_all_message_author_recipients.rowcount == 0:
-            # Note: only for JHEPST
-            if self.journal.code == "JHEP":
-                logger.debug(
-                    f"Found {cursor_all_message_author_recipients.rowcount} users for message {document_layer_cod}"
-                    f" {self.preprintid}/{self.imported_version_num}"
-                )
-            else:
-                logger.error(
-                    f"Found {cursor_all_message_author_recipients.rowcount} users for message {document_layer_cod}"
-                    f" {self.preprintid}/{self.imported_version_num}"
-                )
+            logger.error(
+                f"Found {cursor_all_message_author_recipients.rowcount} users for message {document_layer_cod}"
+                f" {self.preprintid}/{self.imported_version_num}"
+            )
             all_message_author_recipients = []
         else:
             all_message_author_recipients = cursor_all_message_author_recipients.fetchall()
@@ -2737,176 +2674,7 @@ class BaseActionManager:
             self.connection.close()
             raise Exception
 
-    def import_files_fake(self, production_version=False):
-        """Save fake files for imported version."""
-
-        # TBV: action admin resets editor will be skip in the import. New version is created when
-        #     the editor is assigned. Verify that the import of the files is coerent in wjapp
-        # TODO: import files is different for imported_version_state_cod published
-        #       pubid.pdf instead of preprintid.pdf (fake files)
-        #
-        # fake pdf published version pubid.pdf (no source): "PDF", "pdf",
-        #   JCOM_003N_0623/8/JCOM_2305_2024_N03.pdf&fileType=pdf
-        #
-        # published version: create fake tar.gz loaded by typesetter from previous version
-        #       JCOM_003N_0623/7/submission/JCOM_003N_0623.tar.gz
-        # TODO: also download and add (to be decided how) to the tar.gz from current_hidden
-        #       JCOM_003N_0623.tex which has the placeholders replaced
-        #
-        # fake preprintid.docx, preprintid.pdf for not published version: "ZIP", "zip"
-        #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
-        #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
-        #
-        #   TBV if necessary:
-        #   Note: other fake files like Figure1.docx submitted by the author
-        #         created also a fake source file produduction/JCOM_003N_0623.zip which
-        #         contains submission/
-        #
-        # attachments read data from db for each attachment (no source file name)
-        #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
-        # and create fake files
-
-        # wjapp version state 22 is the published version
-        if self.imported_version_state_cod == 22:
-            # TBV:
-            # we don't want to import files for the published version because the final
-            # galleys and supplementary are already imported when the published paper
-            # has been imported
-            return
-
-        elif production_version:
-            logger.debug(f"production version: {production_version}")
-            fake_pdf_file = self.create_minimal_djangofile(f"{self.preprintid}.pdf", "pdf")
-            self.save_pdf_galley(fake_pdf_file)
-
-        else:
-            fake_pdf_file = self.create_minimal_djangofile(f"{self.preprintid}.pdf", "pdf")
-            self.save_manuscript(fake_pdf_file)
-
-            # remove previous source files relations already saved as historical files
-            # necessary to clear() when the version import files starts because
-            # there are two files preprintid.docx and submit.zip
-            self.article.source_files.clear()
-
-            fake_tex_file = self.create_minimal_djangofile(f"{self.preprintid}.tex", "tex")
-            self.save_source(fake_tex_file, "tex")
-
-            # we want to create the fake source files sent by the author,
-            # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
-            fake_zip_file = self.create_minimal_djangofile(f"{self.preprintid}.zip", "zip")
-            self.save_source(fake_zip_file, "zip")
-
-        # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
-        # the original name of the attachment file is not imported but it is not relevant
-        if not production_version:
-            self.article.data_figure_files.clear()
-        wjapp_attachments = self.read_attachments_data()
-        wjapp_fake_prod_attachments = []
-        for dff_data in wjapp_attachments:
-            dff_dj = self.create_minimal_djangofile(
-                f"{dff_data['attachID']}.{dff_data['attachFormat']}", f"{dff_data['attachFormat']}"
-            )
-            if production_version:
-                ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(
-                    only_completed=False,
-                )
-                dff_file = files.save_file_to_article(
-                    dff_dj,
-                    self.article,
-                    ta_assignment.typesetter,
-                )
-                dff_file.label = dff_data["attachType"]
-                dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
-                dff_file.save()
-                # for a production version, each attachment is as SF in a list
-                wjapp_fake_prod_attachments.append(SupplementaryFile.objects.create(file=dff_file))
-            else:
-                # in review version each attachments is saved as DFF
-                self.save_data_figure_file(dff_dj, dff_data)
-
-        # if the production version is not of a published paper
-        # the prepared list is saved as SF list
-        if production_version and not self.publicationid and wjapp_fake_prod_attachments:
-            self.article.supplementary_files.set(wjapp_fake_prod_attachments)
-
-    def create_minimal_djangofile(self, filename: str, filetype: str) -> DjangoFile:
-        """
-        Create and return a minimal DjangoFile for the specified type.
-        Supported filetype values: 'pdf', 'tex', 'zip', 'tar.gz', 'tar', 'targz', 'jpg', 'jpeg', 'png'
-        """
-        ft = filetype.lower()
-        if ft == "pdf":
-            content = (
-                b"%PDF-1.1\n%\xE2\xE3\xCF\xD3\n1 0 obj\n"
-                b"<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-                b"xref\n0 1\n0000000000 65535 f \n"
-                b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
-            )
-            return DjangoFile(ContentFile(content), name=filename)
-
-        if ft == "tex":
-            tex_text = r"""\documentclass{article}
-\begin{document}
-Minimal TeX file.
-\end{document}
-"""
-            return DjangoFile(ContentFile(tex_text.encode("utf-8")), name=filename)
-
-        if ft in ("zip",):
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr("readme.txt", "Minimal ZIP content\n")
-            buf.seek(0)
-            return DjangoFile(ContentFile(buf.read()), name=filename)
-
-        if ft in ("tar.gz", "targz", "tar"):
-            buf = io.BytesIO()
-            with tarfile.open(fileobj=buf, mode="w:gz") as tf:
-                info = tarfile.TarInfo("readme.txt")
-                data = b"Minimal tar.gz content\n"
-                info.size = len(data)
-                tf.addfile(info, io.BytesIO(data))
-            buf.seek(0)
-            return DjangoFile(ContentFile(buf.read()), name=filename)
-
-        if ft in ("jpg", "jpeg"):
-            # Minimal valid JPEG (JFIF) header with no image data — decoders accept it as a small image.
-            jpeg = (
-                b"\xFF\xD8"  # SOI
-                b"\xFF\xE0\x00\x10"  # APP0 marker, length 16
-                b"JFIF\x00"  # Identifier
-                b"\x01\x01\x00\x00\x01\x00\x01\x00"  # Version, density, thumbnail
-                b"\xFF\xD9"  # EOI
-            )
-            return DjangoFile(ContentFile(jpeg), name=filename)
-
-        if ft == "png":
-            # Minimal valid PNG: signature + IHDR chunk (1x1, truecolor, no compression/filter/interlace)
-            # + IDAT empty + IEND
-            png = (
-                b"\x89PNG\r\n\x1a\n"
-                b"\x00\x00\x00\x0dIHDR"
-                b"\x00\x00\x00\x01"  # width:1
-                b"\x00\x00\x00\x01"  # height:1
-                b"\x08"  # bit depth
-                b"\x02"  # color type: truecolor
-                b"\x00\x00\x00"  # compression, filter, interlace
-                b"\x90wS\xde"  # CRC (precomputed for this IHDR)
-                b"\x00\x00\x00\x0aIDAT"
-                b"\x08\xd7c\xf8\x0f\x00\x01\x01\x01\x00"  # small deflate data (may be accepted)
-                b"\x00\x00\x00\x00IEND\xaeB`\x82"
-            )
-            return DjangoFile(ContentFile(png), name=filename)
-
-        # fallback: empty binary
-        return DjangoFile(ContentFile(b""), name=filename)
-
-    def file_fake_source_prod(self):
-        "save minimal fake targz file loaded by typesetter."
-
-        return self.create_minimal_djangofile(f"{self.preprintid}.tar.gz", "tat.gz")
-
-    def import_files_from_web(self, production_version=False):
+    def import_files(self, production_version=False):
         """Downloads and save files for imported version."""
 
         # TBV: action admin resets editor will be skip in the import. New version is created when
@@ -3668,7 +3436,7 @@ class EditorAssignmentAction(BaseActionManager):
             # for example more attachments of the base version,or the files of the new version could have been
             # replaced with a maintenance operation.
             if self.action_triggers_import_files and self.importfiles:
-                self.import_files_fake()
+                self.import_files()
 
     # TODO: check why new review_round is not created
     def set_editor(
@@ -3991,8 +3759,8 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             service.run()
 
             # do again import_files because there is a new review round
-            if self.import_files_fake:
-                self.import_files_fake()
+            if self.import_files:
+                self.import_files()
 
         if not WjsEditorAssignment.objects.filter(article=self.article).exists():
             # i.e. JCOM_005A_0523 editor decline
@@ -4985,16 +4753,9 @@ ORDER BY dl.submissionDate
                     r.save()
                     logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
-                # Note: for JHEP import stress test
-                if self.journal.code == "JHEP":
-                    if reviewer_data["report_due_date"]:
-                        r.date_due = rome_timezone.localize(reviewer_data["report_due_date"]).date()
-                        logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
-                        r.save()
-                else:
-                    r.date_due = rome_timezone.localize(reviewer_data["report_due_date"]).date()
-                    logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
-                    r.save()
+                r.date_due = rome_timezone.localize(reviewer_data["report_due_date"]).date()
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
+                r.save()
 
             if r.recipient == review_assignment.editor and r.code == "REWR2":
                 # REWR2 "Reviewer should write review" -> editorReminderForRefereeReportDate
@@ -5010,22 +4771,12 @@ ORDER BY dl.submissionDate
                     r.save()
                     logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
-                # Note: for JHEP import stress test
-                if self.journal.code == "JHEP":
-                    if reviewer_data["report_due_date"]:
-                        r.date_due = (
-                            rome_timezone.localize(reviewer_data["report_due_date"])
-                            + datetime.timedelta(days=referee_report_reminder_for_editor_days)
-                        ).date()
-                        logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
-                        r.save()
-                else:
-                    r.date_due = (
-                        rome_timezone.localize(reviewer_data["report_due_date"])
-                        + datetime.timedelta(days=referee_report_reminder_for_editor_days)
-                    ).date()
-                    logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
-                    r.save()
+                r.date_due = (
+                    rome_timezone.localize(reviewer_data["report_due_date"])
+                    + datetime.timedelta(days=referee_report_reminder_for_editor_days)
+                ).date()
+                logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
+                r.save()
 
 
 class ED_ASS_REF(ReviewAssignmentAction):  # noqa N801
@@ -6044,7 +5795,7 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         }
 
         if self.importfiles:
-            self.import_files_fake()
+            self.import_files()
 
         self.check_and_fix_all_reminder()
 
@@ -6401,7 +6152,7 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
 
         # get typesetter file tar.gz
         if self.importfiles:
-            source_prod_dj = self.file_fake_source_prod()
+            source_prod_dj = self.file_source_prod()
         else:
             # empty tar.gz when importfiles is disabled
             # the logic action requires a file
@@ -6430,7 +6181,7 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
 
         # e.g. JCOM_017A_0624
         if self.importfiles:
-            self.import_files_fake(production_version=True)
+            self.import_files(production_version=True)
 
 
 class Requestproofs(BaseActionManager):
@@ -6572,7 +6323,7 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
         author_proofs.save()
 
         # get author anotation file if it exists
-        if self.importfiles and self.journal.code.upper() in ("JCOM", "JCOMAL"):
+        if self.importfiles:
             (extension, author_annotation_file_dj) = self.get_author_annotation_file(
                 author_annotation_data.get("documentLayerID")
             )

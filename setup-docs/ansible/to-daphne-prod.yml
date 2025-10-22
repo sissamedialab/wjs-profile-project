@@ -27,7 +27,7 @@
     - name: Render and copy Apache virtualhost configuration
       copy:
         src: apache/wjs-prod.conf
-        dest: /etc/apache2/sites-available/wjs-{{ instance_name }}.conf
+        dest: /etc/apache2/sites-available/wjs.conf
         owner: root
         group: root
         mode: '0644'
