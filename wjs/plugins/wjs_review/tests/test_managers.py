@@ -118,7 +118,7 @@ def test_count_reviewer_completed_reviews(journal, article_factory, account_fact
 
     r1 = account_factory()
     r2 = account_factory()
-    assert r1.first_name != r2.first_name
+    assert (r1.first_name != r2.first_name) or (r1.last_name != r2.last_name)
 
     _now = timezone.now()
     a1_r1_1 = WorkflowReviewAssignment.objects.create(
