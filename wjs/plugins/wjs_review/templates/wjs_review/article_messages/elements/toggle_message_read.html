@@ -1,6 +1,6 @@
 {% load django_bootstrap5 %}
 {% url "wjs_message_toggle_read" message_id=message.pk recipient_id=user.id as toggle_read_url %}
-<div id="read-toggle-{{ message.pk }}-{{ user.pk }}" >
+<div id="read-toggle-{{ message.pk }}-{{ user.pk }}" class="mb-1">
   {% comment %}
     Mechanics
     The label is designed as a button and it's linked to the hidden checkbox

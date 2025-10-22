@@ -43,7 +43,12 @@
           <a href="{% url "wjs_article_messages" pk=message.target.articleworkflow.pk %}#message-item-{{ message.pk }}" title="{% translate "Go to timeline" %}" target="_blank">
             <i class="bi bi-list-task"></i>
           </a>
-          {% include "wjs_review/article_messages/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.pk %}
+          {% if user in message.recipients.all and not user == message.actor %}
+            {% include "wjs_review/article_messages/elements/toggle_message_read.html" with form=forms|keyvalue:message.pk %}
+          {% endif %}
+          {% if request.user|is_user_eo %}
+            {% include "wjs_review/article_messages/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.pk %}
+          {% endif %}
         </div>
 
       </div>

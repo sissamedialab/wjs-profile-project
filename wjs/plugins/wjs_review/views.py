@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
@@ -1901,6 +1902,48 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         return context
 
 
+@dataclasses.dataclass
+class MarkAsReadForms:
+    """
+    Utility class to handle form generation.
+    """
+
+    request: HttpRequest
+    queryset: QuerySet[WorkflowReviewAssignment]
+
+    def get_forms(self):
+        """
+        Return toggle-read form for each message the current user is a recipient.
+        """
+        # Retrieve manytomany through model:
+        # - self.queryset returns the Messages
+        # - the toggle form wants MessageRecipients (because the "read" flag is in the through-table)
+        # This works because there is only one MessageRecipient for each Message-Recipient combination.
+        messagerecipients_records = MessageRecipients.objects.filter(
+            message__in=self.queryset,
+            recipient=self.request.user,
+        )
+        return {
+            mr.message.pk: ToggleMessageReadForm(instance=mr, prefix=f"toggle-{mr.pk}")
+            for mr in messagerecipients_records
+        }
+
+    def get_eo_forms(self):
+        """
+        Return toggle-read form for each message when the user is EO.
+        """
+        if base_permissions.has_eo_role(self.request.user):
+            # The following is context to allow the EO to mark messages as read
+            # TODO Refactor ArticleMessages to not create a form for each message. Issue 55
+            message_records = Message.objects.filter(
+                id__in=self.queryset,
+            )
+            return {
+                mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}") for mr in message_records
+            }
+        return {}
+
+
 class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
     """
     All messages of a certain user that are related to an article.
@@ -1964,28 +2007,9 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         context["workflow"] = self.article.articleworkflow
         context["article"] = self.article
         context["messagetype_note"] = Message.MessageTypes.NOTE
-        # Retrieve manytomany through model:
-        # - self.get_queryset() gives Messages
-        # - the toggle form wants MessageRecipients (because the "read" flag is in the through-table)
-        # This works because there is only one MessageRecipient for each Message-Recipient combination.
-        messagerecipients_records = MessageRecipients.objects.filter(
-            message__in=self.get_queryset(),
-            recipient=self.request.user,
-        )
-        forms = {
-            mr.message.pk: ToggleMessageReadForm(instance=mr, prefix=f"toggle-{mr.pk}")
-            for mr in messagerecipients_records
-        }
-        context["forms"] = forms
-        # The following is context to allow the EO to mark messages as read
-        # TODO Refactor ArticleMessages to not create a form for each message. Issue 55
-        message_records = Message.objects.filter(
-            id__in=self.get_queryset(),
-        )
-        eo_forms = {
-            mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}") for mr in message_records
-        }
-        context["eo_forms"] = eo_forms
+        forms_service = MarkAsReadForms(request=self.request, queryset=self.get_queryset())
+        context["forms"] = forms_service.get_forms()
+        context["eo_forms"] = forms_service.get_eo_forms()
         return context
 
 
@@ -2027,11 +2051,9 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
-        eo_forms = {
-            mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}")
-            for mr in context["messages_list"]
-        }
-        context["eo_forms"] = eo_forms
+        forms_service = MarkAsReadForms(request=self.request, queryset=self.get_queryset())
+        context["forms"] = forms_service.get_forms()
+        context["eo_forms"] = forms_service.get_eo_forms()
         return context
 
     def get(self, request, *args, **kwargs):
