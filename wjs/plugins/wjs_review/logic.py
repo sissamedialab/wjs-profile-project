@@ -1702,7 +1702,7 @@ class DeselectReviewer:
         else:
             verbosity = Message.MessageVerbosity.TIMELINE
             message_body = ""
-            recipients = [self.assignment.reviewer]
+            recipients = [get_eo_user(self.assignment.article)]
 
         communication_utils.log_operation(
             article=self.assignment.article,

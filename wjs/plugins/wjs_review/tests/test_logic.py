@@ -3399,6 +3399,7 @@ def test_deassign_reviewer(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
     review_assignment: WorkflowReviewAssignment,
+    eo_user: Account,
     send_reviewer_notification: bool,
     approved_assignment: bool,
 ):
@@ -3449,7 +3450,7 @@ def test_deassign_reviewer(
     else:
         # no email has been sent, but the Message still has the reviewer as recipient
         assert len(mail.outbox) == 0
-        assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
+        assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
         assert Message.objects.filter(recipients__isnull=True).count() == 0
     # Reminders are modified
     assert not Reminder.objects.filter(
@@ -3473,6 +3474,7 @@ def test_deassign_reviewer_existing_assignment(
     review_assignment: WorkflowReviewAssignment,
     review_form: review_models.ReviewForm,
     normal_user: JCOMProfile,
+    eo_user: Account,
     extra_assignment_state: bool,
 ):
     """
@@ -3530,13 +3532,13 @@ def test_deassign_reviewer_existing_assignment(
         send_reviewer_notification=False,  # ⇦ don't send the email!
         form_data={"notification_subject": "subject", "notification_body": "body"},
     ).run()
-    reviewer = review_assignment.reviewer
+
     assert run
     assert review_assignment.is_complete
     assert review_assignment.decision == "withdrawn"
 
     assert Message.objects.count() == 1
-    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1
+    assert Message.objects.filter(recipients__pk=eo_user.pk).count() == 1
     assert Message.objects.filter(recipients__isnull=True).count() == 0
     assert len(mail.outbox) == 0  # no email has been sent
     # Reminders are modified
