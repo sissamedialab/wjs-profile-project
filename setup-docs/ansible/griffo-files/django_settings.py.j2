@@ -1,0 +1,41 @@
+import os
+from pathlib import Path
+from wjs.defaults.settings import *  # noqa
+
+SECRET_KEY = "{{ django_secret_key | default('change-me-in-production') }}"
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "janeway",
+        "USER": "wjs",
+        "PASSWORD": "{{ postgres_password | default('cambiami-please') }}",
+        "HOST": "localhost",
+        "PORT": "5432",
+    },
+}
+WJAPP_JHEP_APIKEY = "{{ jhep_api_key | default('change-me') }}"
+
+WJS_NEWSLETTER_TOKEN_SALT = WJAPP_JHEP_APIKEY
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    },
+    "session": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/2",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    },
+}
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "session"
