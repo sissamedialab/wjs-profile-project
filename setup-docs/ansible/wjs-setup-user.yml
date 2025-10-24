@@ -1,0 +1,265 @@
+# See wjs-setup.yml for instructions
+---
+- hosts: import
+  remote_user: wjs
+  vars:
+    django_settings: "/home/wjs/projects/janeway/src/core/settings/__init__.py"
+    janeway_safe_languages: 'LANGUAGES = ( ("en", ugettext("English")), ("en-us", ugettext("English (US)")), ("fr", ugettext("French")), ("de", ugettext("German")), ("nl", ugettext("Dutch")), ("cy", ugettext("Welsh")) ); MODELTRANSLATION_FALLBACK_LANGUAGES = ("en",)'
+    postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('cambiami-please', true) }}"
+
+  tasks:
+    - name: Install pyenv for wjs user
+      git:
+        repo: https://github.com/pyenv/pyenv.git
+        dest: /home/wjs/.pyenv
+        version: master
+
+    - name: Add pyenv to PATH in bashrc
+      lineinfile:
+        path: /home/wjs/.bashrc
+        line: "{{ item }}"
+        create: yes
+      loop:
+        - 'export PYENV_ROOT="$HOME/.pyenv"'
+        - 'export PATH="$PYENV_ROOT/bin:$PATH"'
+        - 'eval "$(pyenv init -)"'
+
+    - name: Add Django management alias
+      lineinfile:
+        path: /home/wjs/.bashrc
+        line: 'alias m="cd ~/projects/janeway/src && python -m manage"'
+        create: yes
+
+    - name: Copy Git configuration
+      copy:
+        src: griffo-files/dot.gitconfig
+        dest: /home/wjs/.gitconfig
+        mode: '0644'
+
+    # FIXME: do I still need to export env variables?
+    # the previous task already initialized pyenv...
+    - name: Install Python 3.11 using pyenv
+      shell: |
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init -)"
+        pyenv install -s 3.11.10
+        pyenv global 3.11.10
+      args:
+        creates: /home/wjs/.pyenv/versions/3.11.10
+
+    - name: Add gitlab.sissamedialab.it to known_hosts
+      known_hosts:
+        path: /home/wjs/.ssh/known_hosts
+        name: gitlab.sissamedialab.it
+        key: "{{ lookup('pipe', 'ssh-keyscan -H gitlab.sissamedialab.it') }}"
+        state: present
+
+    - name: Clone WJS repositories
+      git:
+        repo: "{{ item.repo }}"
+        dest: "/home/wjs/projects/{{ item.name }}"
+        version: "{{ item.branch | default('main') }}"
+      loop:
+        - { repo: "git@gitlab.sissamedialab.it:wjs/janeway.git", name: "janeway", branch: "wjs-production" }
+        - { repo: "git@gitlab.sissamedialab.it:wjs/wjs-profile-project.git", name: "wjs-profile-project", branch: "wjs-production" }
+        - { repo: "git@gitlab.sissamedialab.it:wjs/wjs-submission-project.git", name: "wjs-submission-project", branch: "wjs-develop" }
+        - { repo: "git@gitlab.sissamedialab.it:wjs/wjs-themes.git", name: "wjs-themes", branch: "wjs-develop" }
+        - { repo: "git@gitlab.sissamedialab.it:wjs/wjs-utils-project.git", name: "wjs-utils-project", branch: "master" }
+        - { repo: "git@gitlab.sissamedialab.it:wjs/wjs-search-user.git", name: "wjs-search-user", branch: "wjs-develop" }
+        - { repo: "https://github.com/BirkbeckCTP/typesetting.git", name: "typesetting", branch: "v1.7.0-RC-2" }
+
+    - name: Create Python virtual environment
+      shell: |
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init -)"
+        cd /home/wjs/projects/janeway
+        python -m venv venv
+      args:
+        creates: /home/wjs/projects/janeway/venv
+
+    - name: Upgrade pip in virtual environment
+      pip:
+        name: pip
+        state: latest
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Install Python requirements from Janeway
+      pip:
+        requirements: /home/wjs/projects/janeway/requirements.txt
+        extra_args: "-c /home/wjs/projects/janeway/constraints.txt"
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    # TBV: we don't "require" daphne from anywhere
+    # (seems correct to me, because it's not strictly required by our code)
+    - name: Install Daphne
+      pip:
+        name: daphne
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Install WJS packages in editable mode
+      pip:
+        name: "{{ item }}"
+        extra_args: "--extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
+        virtualenv: /home/wjs/projects/janeway/venv
+        editable: yes
+      loop:
+        - /home/wjs/projects/wjs-themes
+        - /home/wjs/projects/wjs-submission-project[test]
+        - /home/wjs/projects/wjs-profile-project[test]
+        - /home/wjs/projects/wjs-search-user
+
+    - name: Uninstall wjs_mgmt_cmds if present
+      pip:
+        name: wjs_mgmt_cmds
+        state: absent
+        virtualenv: /home/wjs/projects/janeway/venv
+      ignore_errors: yes
+
+    - name: Create Django settings directory
+      file:
+        path: /home/wjs/projects/janeway/src/core/settings
+        state: directory
+        mode: '0755'
+
+    # TBV: add secrets into .env file and read them from there instead of expecting them to be defined in the command line
+    #      OR, add variables to .yml file (to be kept outside of repo)
+    # FIXME: check if ansible's "vault" can be used
+    - name: Create Django settings file
+      template:
+        dest: "{{ django_settings }}"
+        src: griffo-files/django_settings.py.j2
+        mode: '0644'
+      tags: pesky
+
+    - name: Create janeway database
+      postgresql_db:
+        name: janeway
+        owner: wjs
+        login_user: wjs
+        login_password: "{{ postgres_password }}"
+        state: present
+
+    # Janeway migrations include stuff that should be left to django-model-translation's mgmt cmds
+    - name: Temporarily disable our language settings
+      lineinfile:
+        path: "{{ django_settings }}"
+        line: "{{ janeway_safe_languages }}"
+        insertafter: EOF
+        state: present
+
+    - name: Run Django migrations
+      django_manage:
+        command: migrate
+        app_path: /home/wjs/projects/janeway/src
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Re-instate our language settings
+      lineinfile:
+        path: "{{ django_settings }}"
+        line: "{{ janeway_safe_languages }}"
+        state: absent
+
+    - name: Sync model translations
+      django_manage:
+        command: sync_translation_fields --noinput
+        app_path: /home/wjs/projects/janeway/src
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Create symbolic links for plugins
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+      loop:
+        - { src: "/home/wjs/projects/typesetting", dest: "/home/wjs/projects/janeway/src/plugins/typesetting" }
+        - { src: "/home/wjs/projects/wjs-profile-project/wjs/plugins/wjs_latest_articles", dest: "/home/wjs/projects/janeway/src/plugins/wjs_latest_articles" }
+        - { src: "/home/wjs/projects/wjs-profile-project/wjs/plugins/wjs_latest_news", dest: "/home/wjs/projects/janeway/src/plugins/wjs_latest_news" }
+        - { src: "/home/wjs/projects/wjs-profile-project/wjs/plugins/wjs_review", dest: "/home/wjs/projects/janeway/src/plugins/wjs_review" }
+        - { src: "/home/wjs/projects/wjs-profile-project/wjs/plugins/wjs_stats", dest: "/home/wjs/projects/janeway/src/plugins/wjs_stats" }
+        - { src: "/home/wjs/projects/wjs-profile-project/wjs/plugins/wjs_subscribe_newsletter", dest: "/home/wjs/projects/janeway/src/plugins/wjs_subscribe_newsletter" }
+
+    - name: Install Django plugins
+      django_manage:
+        command: install_plugins
+        app_path: /home/wjs/projects/janeway/src
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Install Django themes
+      django_manage:
+        command: install_themes
+        app_path: /home/wjs/projects/janeway/src
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    # TBD: manually link plugins (as we did above)? or use mgmt command?
+    # - name: Link Django plugins
+    #   django_manage:
+    #     command: link_plugins
+    #     app_path: /home/wjs/projects/janeway/src
+    #     virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Build Django assets
+      django_manage:
+        command: build_assets
+        app_path: /home/wjs/projects/janeway/src
+        virtualenv: /home/wjs/projects/janeway/venv
+
+    - name: Create press and journals
+      django_manage:
+        command: "shell --command '{{ item.command }}'"
+        app_path: /home/wjs/projects/janeway/src
+        virtualenv: /home/wjs/projects/janeway/venv
+      loop:
+        - { command: "from press.models import Press; Press.objects.get_or_create(domain=\"import-journals.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JCOM\", domain=\"import-jcom.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JCOMAL\", domain=\"import-jcomal.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JQUANT\", domain=\"import-jquant.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JHEP\", domain=\"import-jhep.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JCAP\", domain=\"import-jcap.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JSTAT\", domain=\"import-jstat.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JINST\", domain=\"import-jinst.griffo.wjapp.it\")" }
+
+    - name: Install wjs-utils-project
+      pip:
+        name: /home/wjs/projects/wjs-utils-project
+        state: present
+        virtualenv: /home/wjs/projects/janeway/venv
+        extra_args: "--extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
+        editable: yes
+      # ignore_errors: yes
+
+
+    - name: Ensure systemd user config directory exists for wjs user
+      file:
+        path: /home/wjs/.config/systemd/user
+        state: directory
+        owner: wjs
+        group: wjs
+        mode: '0755'
+      # www-data  # FIXME: specs#2059! ???
+
+    - name: Copy daphne systemd service to user config
+      copy:
+        src: griffo-files/daphne.service
+        dest: /home/wjs/.config/systemd/user/daphne.service
+        owner: wjs
+        group: wjs
+        mode: '0644'
+      # www-data  # FIXME: specs#2059! ???
+      notify: Reload user systemd
+
+
+    - name: Start daphne service
+      systemd:
+        name: daphne.service
+        state: restarted
+        scope: user
+        enabled: true
+
+
+  handlers:
+    - name: Reload user systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
