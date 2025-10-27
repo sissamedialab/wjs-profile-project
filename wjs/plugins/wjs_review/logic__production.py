@@ -2092,6 +2092,10 @@ class MetadataFromTeX:
         """
         Extract the source file of the article galleys.
 
+        Use the latest available files:
+        if the latest production version (typesetting-assignment) has just started,
+        the files are taken from the previous version.
+
         Return the main TeX file.
 
         Raises:
@@ -2100,7 +2104,14 @@ class MetadataFromTeX:
           - if we cannot find the main tex file in the zip source.
 
         """
-        ta = self.workflow.get_latest_typesetting_assignment(only_completed=False)
+        ta = (
+            TypesettingAssignment.objects.filter(
+                round__article=self.workflow.article,
+                files_to_typeset__isnull=False,
+            )
+            .order_by("-round__round_number")
+            .first()
+        )
         zip_source_file = ta.files_to_typeset.first()
         if not zip_source_file:
             msg = _("No source files. Please upload some!")

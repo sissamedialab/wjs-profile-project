@@ -1,4 +1,8 @@
 import datetime
+import tempfile
+import zipfile
+from io import BytesIO
+from pathlib import Path
 from typing import Callable, List, Optional
 from unittest import mock
 from unittest.mock import patch
@@ -6,19 +10,22 @@ from unittest.mock import patch
 import freezegun
 import pycountry
 import pytest
+from core.files import save_file_to_article
 from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.exceptions import ValidationError
+from django.core.files import File
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
-from django.utils import translation
+from django.utils import timezone, translation
 from django.utils.timezone import localtime, now
 from faker import Faker
 from journal import models as journal_models
+from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
 from review import models as review_models
 from submission import models as submission_models
@@ -4457,3 +4464,68 @@ def test_sync_texdb_lang(
             # changed
             assert article.title == article.title_es == new_title_es
             assert article.abstract == article.abstract_es == new_abstract_es
+
+
+@pytest.mark.django_db
+def test_typesetting_rounds_and_assignments_with_files(
+    article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+):
+    """Test creating TypesettingRounds and TypesettingAssignments with zip files containing tex content."""
+    # Create a typesetter user
+    typesetter = create_jcom_user("typesetter")
+    typesetter.add_account_role("typesetter", article.journal)
+
+    # Create 3 TypesettingRounds and the relativeTypesettingAssignments
+    rounds = []
+    for i in range(1, 4):
+        round_obj = TypesettingRound.objects.create(
+            article=article,
+            round_number=i,
+        )
+        rounds.append(round_obj)
+
+    assignments = []
+    for round_obj in rounds:
+        assignment = TypesettingAssignment.objects.create(
+            round=round_obj,
+            typesetter=typesetter.janeway_account,
+            accepted=timezone.now(),
+            due=timezone.now() + timezone.timedelta(days=7),
+        )
+        assignments.append(assignment)
+
+    # Create zip files with tex content
+    tex_file_name = f"{article.journal.code}_{article.id}.tex"
+    # First assignment, tex file contains "A"
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip1:
+        with zipfile.ZipFile(temp_zip1, "w") as zip_file:
+            zip_file.writestr(tex_file_name, "A")
+        temp_zip1.flush()
+
+        django_file1 = File(BytesIO(Path(temp_zip1.name).read_bytes()), name="file_a.zip")
+        file_obj1 = save_file_to_article(django_file1, article, typesetter.janeway_account, label="Source files A")
+        Path(temp_zip1.name).unlink()
+    assignments[0].files_to_typeset.add(file_obj1)
+
+    # Second assignment, the file contains "B"
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip2:
+        with zipfile.ZipFile(temp_zip2, "w") as zip_file:
+            zip_file.writestr(tex_file_name, "B")
+        temp_zip2.flush()
+
+        django_file2 = File(BytesIO(Path(temp_zip2.name).read_bytes()), name="file_b.zip")
+        file_obj2 = save_file_to_article(django_file2, article, typesetter.janeway_account, label="Source files B")
+        Path(temp_zip2.name).unlink()
+    assignments[1].files_to_typeset.add(file_obj2)
+
+    # Verify the setup
+    assert TypesettingRound.objects.filter(article=article).count() == 3
+    assert TypesettingAssignment.objects.filter(round__article=article).count() == 3
+    assert assignments[0].files_to_typeset.count() == 1
+    assert assignments[1].files_to_typeset.count() == 1
+    assert assignments[2].files_to_typeset.count() == 0
+
+    service = MetadataFromTeX(article.articleworkflow)
+    tex_file = service._get_source_file()  # noqa: SLF001
+    assert tex_file.read() == b"B"
