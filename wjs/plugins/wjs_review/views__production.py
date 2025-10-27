@@ -789,6 +789,7 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         The process is delicate because it involves extracting data from the tex sources, which can fail in many ways.
 
         """
+        self._warn_if_not_latest_round_sources()
         try:
             context = self.get_context_data(object=self.object)
         except FileNotFoundError as e:
@@ -804,6 +805,25 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
         else:
             return self.render_to_response(context)
+
+    def _warn_if_not_latest_round_sources(self):
+        """Add a warning if the TeX sources are not taken from the latest production version."""
+        latest_ta = self.object.get_latest_typesetting_assignment(only_completed=False)
+        latest_ta_with_sources = (
+            TypesettingAssignment.objects.filter(
+                round__article=self.object.article,
+                files_to_typeset__isnull=False,
+            )
+            .order_by("-round__round_number")
+            .first()
+        )
+        if latest_ta != latest_ta_with_sources:
+            messages.add_message(
+                self.request,
+                messages.WARNING,
+                f"Warning: you are working on sources from v.{latest_ta_with_sources.round.round_number},"
+                f" that is not the lastest version (v.{latest_ta.round.round_number})",
+            )
 
     def get_context_data(self, **kwargs):
         """Prepare forms and context for three different blocks of metadata."""
