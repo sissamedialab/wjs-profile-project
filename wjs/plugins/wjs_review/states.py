@@ -1162,6 +1162,12 @@ class ReadyForPublication(BaseState):
             tooltip="Ask the typesetter for some changes...",
             view_name="wjs_send_back_to_typ",
         ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="sync tex and db",
+            label="Sync TeX and DB",
+            view_name="wjs_sync_tex_db",
+        ),
     ) + BaseState.article_actions
 
     @classmethod
