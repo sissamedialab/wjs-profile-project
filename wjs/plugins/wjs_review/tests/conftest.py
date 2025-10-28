@@ -51,7 +51,7 @@ from ..logic import (
     OpenAppeal,
     ReadyForPublication,
     RequestProofs,
-    UploadFile,
+    TypesettedFilesUpload,
     VerifyProductionRequirements,
 )
 from ..models import (
@@ -390,7 +390,7 @@ def _assigned_to_typesetter_article_with_files_to_typeset(
 ) -> Article:
     assignment = assigned_to_typesetter_article.typesettinground_set.first().typesettingassignment
     fake_request.user = typesetter
-    article_with_file = UploadFile(
+    article_with_file = TypesettedFilesUpload(
         typesetter=typesetter,
         request=fake_request,
         assignment=assignment,
@@ -546,7 +546,7 @@ def _create_rfp_article(
     # Article.source_files
     ta = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
     request.user = ta.typesetter
-    UploadFile(
+    TypesettedFilesUpload(
         typesetter=ta.typesetter,
         request=request,
         assignment=ta,
@@ -996,7 +996,7 @@ def _jump_article_to_rfp(article: Article, typesetter: Account, request: HttpReq
 
     # Upload typesetted source files
     request.user = typesetter
-    UploadFile(
+    TypesettedFilesUpload(
         typesetter=typesetter,
         request=request,
         assignment=ta,

@@ -38,8 +38,8 @@ from ..logic__production import (
     BeginPublication,
     FinishPublication,
     HandleDownloadRevisionFiles,
+    TypesettedFilesUpload,
     TypesetterTestsGalleyGeneration,
-    UploadFile,
 )
 from ..models import (
     ArticleWorkflow,
@@ -948,7 +948,7 @@ def test_check_state_on_typ_upload_file_with_query(
 
     fake_request.user = typesetting_assignment.typesetter
 
-    UploadFile(
+    TypesettedFilesUpload(
         typesetter=typesetting_assignment.typesetter,
         request=fake_request,
         assignment=typesetting_assignment,
@@ -974,7 +974,7 @@ def test_wrong_state_on_typ_upload_file_with_query(
     fake_request.user = typesetting_assignment.typesetter
 
     with pytest.raises(ValueError, match="Invalid article state"):
-        UploadFile(
+        TypesettedFilesUpload(
             typesetter=typesetting_assignment.typesetter,
             request=fake_request,
             assignment=typesetting_assignment,
