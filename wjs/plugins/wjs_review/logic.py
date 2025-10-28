@@ -70,7 +70,7 @@ from .logic__production import (  # noqa F401
     FinishPublication,
     ReadyForPublication,
     RequestProofs,
-    UploadFile,
+    TypesettedFilesUpload,
     VerifyProductionRequirements,
 )
 from .models import (

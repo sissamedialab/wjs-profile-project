@@ -439,7 +439,7 @@ def typesettertestsgalleygeneration_wrapper(
 
 
 @dataclasses.dataclass
-class UploadFile:
+class TypesettedFilesUpload:
     """Allow the typesetter to upload typesetted files."""
 
     typesetter: Account
@@ -448,6 +448,8 @@ class UploadFile:
     file_to_upload: File
     do_create_galleys: bool = True
 
+    VALID_FILE_TYPES = ["application/zip", "application/x-zip-compressed"]
+
     def _check_typesetter_condition(self):
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
 
@@ -455,7 +457,7 @@ class UploadFile:
         return self.assignment.round.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
 
     def _check_file_condition(self):
-        return self.file_to_upload and self.file_to_upload.content_type in ["application/zip"]
+        return self.file_to_upload and self.file_to_upload.content_type in self.VALID_FILE_TYPES
 
     def _remove_file_from_assignment(self):
         """Empty the files_to_typeset field of TypesettingAssignment."""
