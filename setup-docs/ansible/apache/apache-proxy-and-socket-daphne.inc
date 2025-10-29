@@ -5,11 +5,6 @@ ProxyPassMatch    ".*\.php$" !
 RedirectMatch 403 ".*\.php$"
 
 
-# Proxy mailcatcher
-# =================
-ProxyPass        /mailcatcher  http://127.0.0.1:1080/mailcatcher
-
-
 # Proxy to daphne
 # ==============
 
@@ -48,7 +43,8 @@ RequestHeader set X-Forwarded-Proto "https" env=HTTPS
 ProxyPreserveHost On
 
 RewriteEngine On
-RewriteCond %{HTTP:Upgrade} =websocket [NC]
+RewriteCond %{HTTP:Upgrade} =websocket [NC,OR]
+RewriteCond %{REQUEST_URI} ^/ws/
 RewriteRule /(.*) unix:${SOCKET_NAME}|ws://%{HTTP_HOST}/$1 [P,L]
 
 # Proxy other HTTP requests
