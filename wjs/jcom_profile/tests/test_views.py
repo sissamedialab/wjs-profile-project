@@ -52,6 +52,54 @@ def test_filter_articles_by_author(editor, published_articles, press, admin, sec
 
 
 @pytest.mark.django_db
+def test_filter_articles_by_author_not_found_error(editor, published_articles, press, admin, sections, keywords):
+    journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
+
+    client = Client()
+    active_authors = core_models.Account.objects.filter(pk__in=published_articles.values_list("authors", flat=True))
+    author = random.choice(active_authors)
+    # replace argument because reverse path converter refuses not int value
+    baseurl = reverse("articles_by_author", kwargs={"author": author.pk})
+    url = baseurl.replace(f"/{author.pk}/", "/abc/")
+    response = client.get(url)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_filter_articles_by_section_not_found_error(editor, published_articles, press, admin, sections, keywords):
+    journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
+
+    client = Client()
+    active_sections = Section.objects.filter(pk__in=published_articles.values_list("section", flat=True))
+    section = random.choice(active_sections)
+    # replace argument because reverse path coverter refuses not int value
+    baseurl = reverse("articles_by_section", kwargs={"section": section.pk})
+    url = baseurl.replace(f"/{section.pk}/", "/abc/")
+    response = client.get(url)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_filter_articles_by_keyword_not_found_error(editor, published_articles, press, admin, sections, keywords):
+    journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
+
+    client = Client()
+    active_keywords = Keyword.objects.filter(pk__in=published_articles.values_list("keywords", flat=True))
+    keyword = random.choice(active_keywords)
+    # replace argument because reverse path converter refuses not int value
+    baseurl = reverse("articles_by_keyword", kwargs={"keyword": keyword.pk})
+    url = baseurl.replace(f"/{keyword.pk}/", "/abc/")
+    response = client.get(url)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
 def test_filter_articles_by_section(editor, published_articles, press, admin, sections, keywords, journal):
     journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
     _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)

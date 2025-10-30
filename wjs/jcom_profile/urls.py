@@ -87,18 +87,18 @@ urlpatterns = [
         views.PublishedArticlesListView.as_view(exclude_children=True),
         name="journal_articles",
     ),
-    re_path(
-        r"^articles/keyword/(?P<keyword>[\w.-]+)/$",
+    path(
+        "articles/keyword/<int:keyword>/",
         views.PublishedArticlesListView.as_view(filter_by="keyword"),
         name="articles_by_keyword",
     ),
-    re_path(
-        r"^articles/section/(?P<section>[\w.-]+)/$",
+    path(
+        "articles/section/<int:section>/",
         views.PublishedArticlesListView.as_view(filter_by="section"),
         name="articles_by_section",
     ),
-    re_path(
-        r"^articles/author/(?P<author>[\w.-]+)/$",
+    path(
+        "articles/author/<int:author>/",
         views.PublishedArticlesListView.as_view(filter_by="author"),
         name="articles_by_author",
     ),
