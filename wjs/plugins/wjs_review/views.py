@@ -2077,6 +2077,20 @@ class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):
     model = Message
     pk_url_kwarg = "message_id"
 
+    def _message_can_be_read_by_director(self, user: Account, journal: Journal, message: Message):
+        """
+        Check if the message can be read by Director.
+
+        Useful because Director can read some messages even if he is not actor/recipient but can't read everything.
+
+        :return: True if the message can be read by Director
+        """
+        if not base_permissions.has_director_role(journal, user):
+            return False
+        if message in get_messages_related_to_me(user, journal=journal):
+            return True
+        return False
+
     def test_func(self):
         """The recipients and the actor of the message can download the file."""
         user = self.request.user
@@ -2085,6 +2099,7 @@ class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):
             user == message.actor
             or user in message.recipients.all()
             or base_permissions.has_admin_role(self.request.journal, user)
+            or self._message_can_be_read_by_director(user, self.request.journal, message)
         )
 
     def get(self, request, *args, **kwargs):
