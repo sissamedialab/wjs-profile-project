@@ -45,14 +45,15 @@
         env:
           MP_WEBROOT: /mailpit
 
-    - name: Add weekly Docker cleanup cron job
-      cron:
-        name: "Docker system prune"
-        job: "docker system prune -f"
-        minute: "0"
-        hour: "2"
-        weekday: "0"
-        user: root
+    - name: Add weekly Docker cleanup script
+      copy:
+        dest: /etc/cron.weekly/docker-cleanup
+        content: |
+          #!/bin/bash
+          docker system prune -f > /dev/null
+        owner: root
+        group: root
+        mode: '0755'
 
 
 
