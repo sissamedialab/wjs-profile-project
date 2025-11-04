@@ -57,7 +57,7 @@ from plugins.wjs_review.logic__production import (
     HandleEOSendBackToTypesetter,
     ReadyForPublication,
     RequestProofs,
-    TypesetterUploadFiles,
+    TypesettedFilesUpload,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
@@ -3783,8 +3783,9 @@ WHERE editorCod=%(editor_cod)s
             return
 
         if not editor_maxworkload:
-            logger.error(f"Missing editor max workload: {editor_maxworkload}")
-            raise ValueError("Missing editor max workload")
+            editor_maxworkload = 1
+            logger.warning(f"JHEP ST: Missing editor max workload, forced to 1 {self.article.id} / {self.preprintid}")
+            # import JHEP ST exception not raised ValueError("Missing editor max workload")
 
         if editor_maxworkload == 9999:
             logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
@@ -6455,10 +6456,10 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
         with freezegun.freeze_time(
             rome_timezone.localize(typesetter_uploads_date),
         ):
-            TypesetterUploadFiles._check_file_condition = noop_true
-            TypesetterUploadFiles._look_for_queries_in_archive = noop_true
+            TypesettedFilesUpload._check_file_condition = noop_true
+            TypesettedFilesUpload._look_for_queries_in_archive = noop_true
 
-            article_with_file = TypesetterUploadFiles(
+            article_with_file = TypesettedFilesUpload(
                 typesetter=ta_assignment.typesetter,
                 request=fake_request,
                 assignment=ta_assignment,
