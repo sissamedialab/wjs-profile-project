@@ -528,3 +528,37 @@ class DoubleAccountsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
         context["double_groups"] = groups
         return context
+
+
+class OrcidsStatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Shows statistics about accounts with and without ORCID fields."""
+
+    template_name = "wjs_stats/orcids.html"
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
+
+    def get_context_data(self, **kwargs):
+        """Count accounts with and without ORCID fields."""
+        context = super().get_context_data(**kwargs)
+
+        with_orcid = Account.objects.filter(orcid__isnull=False).exclude(orcid="").count()
+        without_orcid = Account.objects.filter(Q(orcid__isnull=True) | Q(orcid="")).count()
+        total_accounts = Account.objects.count()
+
+        # Calculate percentages
+        with_orcid_percentage = (with_orcid * 100 / total_accounts) if total_accounts > 0 else 0
+        without_orcid_percentage = (without_orcid * 100 / total_accounts) if total_accounts > 0 else 0
+
+        context.update(
+            {
+                "with_orcid": with_orcid,
+                "without_orcid": without_orcid,
+                "total_accounts": total_accounts,
+                "with_orcid_percentage": with_orcid_percentage,
+                "without_orcid_percentage": without_orcid_percentage,
+            },
+        )
+
+        return context

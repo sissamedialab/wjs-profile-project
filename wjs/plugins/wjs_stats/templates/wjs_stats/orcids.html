@@ -1,0 +1,53 @@
+{% extends "admin/core/base.html" %}
+{% load django_bootstrap5 wjs_tags %}
+{% block title %}
+  WJS Stats - ORCID Statistics
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>ORCID Statistics</h2>
+    <div class="row expanded">
+      <div class="large-6 columns end">
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Count</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Total Accounts</th>
+              <td>{{ total_accounts }}</td>
+              <td>100%</td>
+            </tr>
+            <tr>
+              <th>With ORCID</th>
+              <td>{{ with_orcid }}</td>
+              <td>{{ with_orcid_percentage|floatformat:1 }}%</td>
+            </tr>
+            <tr>
+              <th>Without ORCID</th>
+              <td>{{ without_orcid }}</td>
+              <td>{{ without_orcid_percentage|floatformat:1 }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endblock body %}
