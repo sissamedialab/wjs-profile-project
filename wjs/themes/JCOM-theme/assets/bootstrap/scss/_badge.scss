@@ -20,7 +20,6 @@
   line-height: 1;
   color: var(--#{$prefix}badge-color);
   text-align: center;
-  white-space: nowrap;
   vertical-align: baseline;
   @include border-radius(var(--#{$prefix}badge-border-radius));
   @include gradient-bg();
@@ -28,6 +27,10 @@
   // Empty badges collapse automatically
   &:empty {
     display: none;
+  }
+
+  @media (min-width: 1024px) {
+    white-space: nowrap;
   }
 }
 
