@@ -42,11 +42,7 @@ RequestHeader set X-Forwarded-Proto "https" env=HTTPS
 
 ProxyPreserveHost On
 
-RewriteEngine On
-RewriteCond %{HTTP:Upgrade} =websocket [NC,OR]
-RewriteCond %{REQUEST_URI} ^/ws/
-RewriteRule /(.*) unix:${SOCKET_NAME}|ws://%{HTTP_HOST}/$1 [P,L]
-
-# Proxy other HTTP requests
-ProxyPass / unix:${SOCKET_NAME}|http://%{HTTP_HOST}/
+# Proxy other HTTP requests,
+# let the application server upgrade the procol when needed
+ProxyPass / unix:${SOCKET_NAME}|http://%{HTTP_HOST}/ upgrade=websocket
 ProxyPassReverse / unix:${SOCKET_NAME}|http://%{HTTP_HOST}/
