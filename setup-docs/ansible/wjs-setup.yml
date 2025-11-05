@@ -172,7 +172,7 @@
       loop:
         - headers
         - proxy_http
-        - proxy_wstunnel
+        - proxy_http2
         - remoteip
         - rewrite
         - ssl
