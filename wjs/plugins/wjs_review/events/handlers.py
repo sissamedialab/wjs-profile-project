@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.cache import cache as django_cache
 from django.core.mail import send_mail
 from django.utils.module_loading import import_string
+from django_q.tasks import async_task
 from events import logic as events_logic
 from submission import logic as submission_logic
 from submission import models as submission_models
@@ -302,13 +303,28 @@ def clean_prophy_candidates(**kwargs) -> None:
         ProphyAccount.objects.filter(prophycandidate__isnull=True).delete()
 
 
+def _run_conversion(
+    article_id: int,
+    feedback_ws_url: Optional[str] = None,
+):
+    conversion = ConvertManuscriptToPdf(
+        article_id=article_id,
+        feedback_ws_url=feedback_ws_url,
+    )
+    conversion.run()
+
+
 def convert_manuscript_to_pdf(**kwargs) -> None:
     """This responds to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
     article = kwargs["article"]
     file_type = kwargs["file_type"]
+    feedback_ws_url = kwargs.get("feedback_ws_url", None)
 
-    if file_type == "manuscript":
-        ConvertManuscriptToPdf(article).run()
+    if file_type.startswith("manuscript"):
+        if file_type.endswith(":async"):
+            async_task(_run_conversion, article.pk, feedback_ws_url)
+        else:
+            _run_conversion(article.pk)
     elif file_type == "data":
         pass
 

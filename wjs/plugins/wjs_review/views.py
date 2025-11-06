@@ -1288,7 +1288,6 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
 
 
 class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
-
     title = _("Decline review")
     form_class = DeclineReviewForm
     template_name = "wjs_review/details/decline_review.html"
@@ -2961,8 +2960,8 @@ class ArticleRevisionFileUpdate(AuthenticatedUserPassesTest, View):
         from the selected version (technically an EditorRevisionRequest linked to a certain review round),
         and set them as the Article.TYPE_files.
         """
-        src_file_attr = getattr(self.object, f'{self.kwargs["file_type"]}_files')
-        dst_file_attr = getattr(self.object.article, f'{self.kwargs["file_type"]}_files')
+        src_file_attr = getattr(self.object, f"{self.kwargs['file_type']}_files")
+        dst_file_attr = getattr(self.object.article, f"{self.kwargs['file_type']}_files")
         dst_file_attr.set(src_file_attr.all())
         messages.success(self.request, "Files replaced.")
         return HttpResponseRedirect(
@@ -3362,7 +3361,6 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
 
 class JournalEditorsView(BaseRelatedViewsMixin, ListView):
-
     title = _("Journal Editors")
     model = Account
     template_name = "wjs_review/journal_editors/editor_list.html"

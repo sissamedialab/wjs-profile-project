@@ -13,6 +13,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa
 from copy import copy
+from functools import cached_property
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -3536,7 +3537,14 @@ class WithdrawPreprint:
 class ConvertManuscriptToPdf:
     """Use Yakunin service to convert the manuscript file uploaded by the author into a PDF."""
 
-    article: Article
+    article_id: int
+    feedback_ws_url: str | None = None
+
+    _failed_conversion_log = "Failed conversion log"
+
+    @cached_property
+    def article(self) -> Article:
+        return Article.objects.get(pk=self.article_id)
 
     def create_in_memory_ini_file(self) -> BytesIO:
         """Create wjs.ini file.
@@ -3569,7 +3577,6 @@ class ConvertManuscriptToPdf:
         if getattr(settings, "YAKUNIN_MOCK_FILE", None):
             with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
                 return mock_file.read()
-        url = settings.YAKUNIN_URL
 
         files = {
             "file": (
@@ -3579,13 +3586,22 @@ class ConvertManuscriptToPdf:
             "ini": (ini_file.name, ini_file.getvalue()),
         }
 
-        response = requests.post(url, files=files)
+        if self.feedback_ws_url:
+            url = f"{settings.YAKUNIN_URL}/mkpdf/ws/"
+            if settings.DEBUG:
+                logger.debug(f"POST {url} with files {files.keys()}")
+            response = requests.post(url, files=files, data={"feedback_ws_url": self.feedback_ws_url})
+        else:
+            url = f"{settings.YAKUNIN_URL}/mkpdf/"
+            if settings.DEBUG:
+                logger.debug(f"POST {url} with files {files.keys()}")
+            response = requests.post(url, files=files)
         if response.status_code != 200:
             raise ValueError(_(f"Unexpected status code {response.status_code}."))
 
         return response.content
 
-    def unpack_response_file(self, content: bytes) -> Path:
+    def _unpack_response_file(self, content: bytes) -> Path:
         unpack_dir = tempfile.mkdtemp()
 
         with BytesIO(content) as file_obj:
@@ -3595,19 +3611,32 @@ class ConvertManuscriptToPdf:
 
         return unpack_dir
 
-    def check_yakunin_logs(self, unpack_dir: Path) -> bool:
-        has_error_or_critical = False
+    def _extract_yakunin_logs(self, unpack_dir: Path) -> str:
         # Assuming the file is always present if response.status_code is 200
         yakunin_log_file = next(unpack_dir.glob("yakunin-task.log"), None)
+        yakunin_log_filename = f"conversion-task_{self.article}.log"
+        with open(yakunin_log_file, "rb") as log_file:
+            log_content = log_file.read()
+            log_file.seek(0)
+            log_content_file = File(log_file, name=yakunin_log_filename)
+            core_files.save_file_to_article(
+                file_to_handle=log_content_file,
+                article=self.article,
+                owner=self.article.correspondence_author,
+                label=self._failed_conversion_log,
+            )
+            return log_content.decode("utf-8")
 
-        with open(yakunin_log_file) as log_file:
-            for line in log_file:
-                if line.startswith("ERROR"):
-                    has_error_or_critical = True
-                    break
-                elif line.startswith("CRITICAL"):
-                    has_error_or_critical = True
-                    break
+    def _report_yakunin_errors(self, log_content: str) -> bool:
+        has_error_or_critical = False
+
+        for line in log_content:
+            if line.startswith("ERROR"):
+                has_error_or_critical = True
+                break
+            elif line.startswith("CRITICAL"):
+                has_error_or_critical = True
+                break
         return not has_error_or_critical
 
     def handle_generated_pdf(self, unpack_dir: Path):
@@ -3633,11 +3662,14 @@ class ConvertManuscriptToPdf:
         self.article.manuscript_files.clear()
         self.article.manuscript_files.add(generated_manuscript)
         self.article.save()
+        # Remove any log file from failed conversion
+        core_models.File.objects.filter(article_id=self.article_id, label=self._failed_conversion_log).delete()
 
     def run(self):
         content = self.ask_yakunin_to_process(self.create_in_memory_ini_file())
-        unpack_dir = self.unpack_response_file(content)
-        if not self.check_yakunin_logs(unpack_dir):
+        unpack_dir = self._unpack_response_file(content)
+        yakunin_log = self._extract_yakunin_logs(unpack_dir)
+        if not self._report_yakunin_errors(yakunin_log):
             raise ValueError(_("Error in generating the PDF file."))
         self.handle_generated_pdf(unpack_dir)
         # cleanup temporary dir created by unzip_response_file
