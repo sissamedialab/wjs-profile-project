@@ -659,7 +659,7 @@ class Command(BaseCommand):
             if self.journal.code.upper() != "JHEP":
                 self.restore_article_status(article)
             else:
-                article.date_published = publication_date
+                article.date_published = rome_timezone.localize(publication_date)
                 article.save()
 
             # for published import set the article stage to Published
@@ -704,8 +704,9 @@ class Command(BaseCommand):
                             f" in state {article.articleworkflow.state}"
                         )
 
-        self.debug_list_article_files_imported(article)
-        self.debug_list_reminder(article)
+        if settings.DEBUG:
+            self.debug_list_article_files_imported(article)
+            self.debug_list_reminder(article)
 
         self.connection.close()
         return 0
@@ -1786,8 +1787,6 @@ WHERE
 
         for f in article.articleworkflow.supplementary_files_at_acceptance.all():
             logger.debug(f"imported: {article.id} suppl. file at acceptance: {f.id} {f}")
-
-        from plugins.wjs_review.models import EditorRevisionRequest
 
         err_list = EditorRevisionRequest.objects.filter(article=article)
         for e in err_list:
