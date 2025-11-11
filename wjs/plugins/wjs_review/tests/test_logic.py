@@ -4342,6 +4342,59 @@ def test_metadatafromtex_get_data(
 
 
 @pytest.mark.django_db
+def test_sync_texdb_keyword_order_lang(
+    article_with_keywords: Article,
+):
+    """Sync keywords order with translation."""
+    article = article_with_keywords
+
+    # this fixture-article has a co-author...
+    assert article.authors.count() == 2
+    # ...and three kwds
+    assert article.keywords.count() == 3
+
+    # we want to change only the spa (es) translation of kwds
+    article.language = "spa"
+    article.save()
+
+    # we insert keywords spa translations
+    kwds = article.keywords.all()
+    for k in kwds:
+        k.word_es = f"ES - {k.word}"
+        k.save()
+
+    # list with keywords in mixed order
+    new_kwds_mixed_order = [kwds[2].word_es, kwds[0].word_es, kwds[1].word_es]
+    service = MetadataFromTeX(workflow=article.articleworkflow)
+    author = article.owner
+    mock_data = {
+        "language": "spa",
+        "title": article.title,
+        "abstract": article.abstract,
+        # we set keywords in mixed order
+        "keywords": new_kwds_mixed_order,
+        # set owner data for authors to have a consistent
+        # mocked data (not updated in this test)
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": author.orcid,
+            },
+        ],
+    }
+    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
+        service.update_keywords()
+        article.refresh_from_db()
+        assert article.keywords.all().count() == 3
+        # verify that the update has kept the tex keywords order
+        for i, key in enumerate(article.keywords.all()):
+            assert key.word_es == new_kwds_mixed_order[i]
+
+
+@pytest.mark.django_db
 def test_sync_texdb(
     article_with_keywords: Article,
 ):
