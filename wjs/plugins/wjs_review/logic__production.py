@@ -2159,16 +2159,20 @@ class MetadataFromTeX:
         # appropriate translation.
         tex_kwds = Keyword.objects.none()
         lang = pycountry.languages.get(alpha_3=self.workflow.article.language).alpha_2
+        # Apparently `annotate` is not patched by django-modeltranslation
+        # https://django-modeltranslation.readthedocs.io/en/latest/usage.html#multilingual-manager-1
+        # so we have to manually select the correct field to use:
+        lang_field = f"word_{lang}"
         with translation.override(lang):
             tex_kwds = (
                 Keyword.objects.filter(
                     journal=self.workflow.article.journal,
-                    word__in=tex_kwds_strings,
+                    **{f"{lang_field}__in": tex_kwds_strings},
                 )
                 # We need to manully order the queryset to maintain the order we found in the TeX
                 .annotate(
                     manual_order=Case(
-                        *[When(word=word, then=pos) for pos, word in enumerate(tex_kwds_strings)],
+                        *[When(**{lang_field: word}, then=pos) for pos, word in enumerate(tex_kwds_strings)],
                         output_field=IntegerField(),
                     ),
                 ).order_by("manual_order")
