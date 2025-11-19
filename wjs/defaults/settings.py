@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "django_filters",
     "django_q",
     "wjs.themes",
+    "wjs.advanced_admin",
 ]
 
 try:

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .plugin_settings import MANAGER_URL
 from .views import (
@@ -87,6 +87,10 @@ from .views__production import (  # noqa F401
 from .views__visibility import EditUserPermissions
 
 urlpatterns = [
+    path(
+        "advanced_admin/",
+        include("wjs.advanced_admin.urls"),
+    ),
     path("manager/", Manager.as_view(), name=MANAGER_URL),
     path("editor/pending/", EditorPending.as_view(), name="wjs_review_list"),
     path("editor/archived/", EditorArchived.as_view(), name="wjs_review_archived_papers"),
