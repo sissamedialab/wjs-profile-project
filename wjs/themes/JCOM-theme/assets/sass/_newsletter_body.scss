@@ -21,9 +21,6 @@ body {
 
 .logos {
   background: none;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: flex-end;
   margin-bottom: 1.25rem;
 
   &__left {
@@ -36,22 +33,16 @@ body {
     }
   }
 
-  &__line-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: end;
-    margin-left: 0.5rem;
-    position: relative;
-    width: 100%;
-    border-bottom: 4px solid color("journal-color", "base");
-    padding-bottom: 1rem;
-  }
-
   &__line-text {
     font-size: 1.5rem;
     font-weight: bold;
     color: color("journal-color", "base");
+    float: left;
+    width: 88%;
+    text-align: left;
+    border-bottom: 4px solid color("journal-color", "base");
+    margin-left: 20px;
+    padding-top: 20px;
   }
 
   &__line {
@@ -59,8 +50,10 @@ body {
   }
 
   &__right {
+    position: absolute;
     text-align: right;
     max-width: 40px;
+    right: 20px;
 
     img {
       width: 100%;

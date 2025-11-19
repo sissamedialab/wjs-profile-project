@@ -24,18 +24,49 @@ body {
 }
 
 .logos__right {
+  @media (min-width: 640px) {
+    right: 55px !important;
+  }
+
   @media (min-width: 768px) {
     max-width: 40px !important;
-    justify-content: end !important;
-    align-items: end;
-    align-self: end;
-    display: flex;
   }
 }
 
 .logos__line-text {
+  @media (min-width: 520px) {
+    padding: 40px 0 10px 0 !important;
+    width: 50% !important;
+  }
+
+  @media (min-width: 640px) {
+    width: 55% !important;
+  }
+
+  @media (min-width: 640px) {
+    width: 60% !important;
+  }
+
   @media (min-width: 768px) {
+    width: 65% !important;
     font-size: 2rem !important;
+    padding: 30px 0 10px 0 !important;
+  }
+
+  @media (min-width: 1024px) {
+    width: 70% !important;
+  }
+
+  @media (min-width: 1280px) {
+    width: 75% !important;
+  }
+
+  @media (min-width: 1440px) {
+    width: 80% !important;
+  }
+
+  @media (min-width: 1920px) {
+    width: 85% !important;
   }
 }
 

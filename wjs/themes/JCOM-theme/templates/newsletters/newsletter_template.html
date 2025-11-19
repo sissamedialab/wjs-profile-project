@@ -11,17 +11,21 @@
     <link rel="stylesheet" href="{% static "JCOM-theme/css/newsletter_mobile.css" %}" data-premailer="ignore">
   </head>
   <body>
-    <div class="logos">
-      <div class="logos__left">
-          {% svg_or_image journal.default_cover_image %}
-      </div>
-      <div class="logos__line-container">
-        <div class="logos__line-text">Publication alert</div>
-        <div class="logos__right">
-          {% svg_or_image journal.press_image_override %}
-        </div>
-      </div>
-    </div>
+    <table class="logos" role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+      <thead width="100%">
+        <tr>
+          <td class="logos__left" align="left" valign="middle">
+            {% svg_or_image journal.default_cover_image %}
+          </td>
+          <td class="logos__line-text" align="center" valign="middle">
+            Publication alert
+          </td>
+          <td class="logos__right" align="right" valign="middle">
+            {% svg_or_image journal.press_image_override %}
+          </td>
+        </tr>
+      </thead>
+    </table>
     <div class="container">
       {% block content %}
         {{ content|safe }}
