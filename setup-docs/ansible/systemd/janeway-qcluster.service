@@ -17,4 +17,4 @@ WorkingDirectory=/home/wjs/janeway/src
 ExecStart=/home/wjs/.virtualenvs/janeway/bin/python manage.py qcluster
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
