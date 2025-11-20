@@ -1192,6 +1192,16 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
     context_object_name = "workflow"
     form_class = TimelineFilterForm
 
+    def get(self, request, *args, **kwargs):
+        "If necessary fix domain and redirect using article journal site url."
+
+        workflow = self.get_object()
+        if request.journal.site_url() != workflow.article.journal.site_url():
+            path = reverse("wjs_article_details", kwargs={"pk": workflow.pk})
+            redirect_url = workflow.article.journal.site_url(path=path)
+            return HttpResponseRedirect(redirect_url)
+        return super().get(request, *args, **kwargs)
+
     def test_func(self):
         """Allow access only one has permission on the article."""
 

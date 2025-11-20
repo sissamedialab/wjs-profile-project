@@ -7,11 +7,13 @@ from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
-from django.http import HttpRequest, QueryDict
+from django.http import HttpRequest, HttpResponseRedirect, QueryDict
 from django.test.client import Client
 from django.urls import reverse
 from django.utils.formats import date_format
 from django.utils.timezone import now
+from journal.models import Journal
+from press.models import Press
 from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm, ReviewRound
 from submission import models as submission_models
@@ -19,6 +21,7 @@ from submission.models import Article
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
 from ..logic import AssignToEditor, HandleDecision, HandleEditorDeclinesAssignment
@@ -34,6 +37,7 @@ from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
 from ..templatetags.wjs_review import get_version_submission_date
 from ..views import (
+    ArticleDetails,
     ArticleIdToDetails,
     EditorArchived,
     EOPending,
@@ -1472,3 +1476,58 @@ def test_last_revision_date(
         article_without_revisions_from_qs.last_revision_date
         == article_without_revisions_from_qs.article.date_submitted
     )
+
+
+@pytest.mark.django_db
+def test_article_details_fix_site_url(
+    press: Press,
+    journal: Journal,
+    article_factory: Callable,
+    fake_request: HttpRequest,
+    normal_user: JCOMProfile,
+):
+    wrong_journal = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
+    article = article_factory(
+        journal=journal,
+        correspondence_author=normal_user,
+        title="",
+    )
+    assert article.journal.site_url() == journal.site_url() == "http://testserver/JCOM"
+    assert wrong_journal.site_url() == "http://testserver/JCOMAL"
+
+    view = ArticleDetails()
+    fake_request.user = normal_user
+    fake_request.journal = wrong_journal
+    view.request = fake_request
+    view.setup(fake_request, pk=article.articleworkflow.pk)
+
+    response = view.get(fake_request, pk=article.articleworkflow.pk)
+    expected_path = reverse("wjs_article_details", kwargs={"pk": article.articleworkflow.pk})
+    assert isinstance(response, HttpResponseRedirect)
+    assert article.journal.site_url(expected_path) == response.url
+
+
+@pytest.mark.django_db
+def test_article_details_no_redirect(
+    journal: Journal,
+    article_factory: Callable,
+    fake_request: HttpRequest,
+    normal_user: JCOMProfile,
+):
+
+    article = article_factory(
+        journal=journal,
+        correspondence_author=normal_user,
+        title="",
+    )
+    assert article.journal.site_url() == journal.site_url() == "http://testserver/JCOM"
+
+    view = ArticleDetails()
+    fake_request.user = normal_user
+    fake_request.journal = journal
+    view.request = fake_request
+    view.setup(fake_request, pk=article.articleworkflow.pk)
+
+    response = view.get(fake_request, pk=article.articleworkflow.pk)
+    assert not isinstance(response, HttpResponseRedirect)
+    assert response.status_code == 200
