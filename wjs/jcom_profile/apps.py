@@ -14,6 +14,18 @@ class JCOMProfileConfig(AppConfig):
     verbose_name = "WJS JCOM profile"
     path = Path(__file__).parent.absolute()
 
+    def _prevent_public_email_send(self):
+        """
+        Force console backend for emails during development.
+
+        Overrides EMAIL_BACKEND with console backend and store the original EMAIL_BACKEND in NEWSLETTER_EMAIL_BACKEND.
+        """
+        debug_active = settings.DEBUG
+        mailpit_configured = settings.EMAIL_PORT == 1025
+        if debug_active and not mailpit_configured:
+            settings.NEWSLETTER_EMAIL_BACKEND = settings.EMAIL_BACKEND
+            settings.EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
     def ready(self):
         """Call during initialization."""
         # TODO: Clarify this line (unused import but without them process breaks)
@@ -22,6 +34,7 @@ class JCOMProfileConfig(AppConfig):
         # Inject bas jcom templates directory to allow overriding templates from wjs-themes to inject wjs templates
         settings.TEMPLATES[0]["DIRS"].insert(0, self.path / "templates")
         self.register_hooks()
+        self._prevent_public_email_send()
 
     def register_hooks(self):
         """Register my functions to Janeway's hooks."""
