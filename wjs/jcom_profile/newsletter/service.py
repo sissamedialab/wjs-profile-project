@@ -298,10 +298,20 @@ class NewsletterMailerService:
         try:
             # If settings.WJS_NEWSLETTER_TEST_RECIPIENT is set, send the sample message to that address
             if settings.WJS_NEWSLETTER_TEST_RECIPIENT:
+                # Temporarely undo wjs.jcom_profile.apps.JCOMProfileConfig._prevent_public_email_send if sending test
+                # email.
+                # This is not safe, in general, but as NEWSLETTER_EMAIL_BACKEND is only really set in local
+                # environments, it's not an issue
+                real_backend = getattr(settings, "NEWSLETTER_EMAIL_BACKEND", None)
+                current_backend = getattr(settings, "EMAIL_BACKEND", None)
+                if real_backend:
+                    settings.EMAIL_BACKEND = real_backend
                 self._send_newsletter(
                     Recipient(journal=journal, email=settings.WJS_NEWSLETTER_TEST_RECIPIENT),
                     message["content"],
                 )
+                if real_backend:
+                    settings.EMAIL_BACKEND = current_backend
         except Exception:
             # Skip message sending if no test email is configured
             pass
