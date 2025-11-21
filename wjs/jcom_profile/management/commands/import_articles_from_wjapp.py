@@ -1,8 +1,11 @@
 """Import article from wjapp."""
 
+# profiling
+import cProfile
 import datetime
 import io
 import os
+import pstats
 import sys
 import tarfile
 import textwrap
@@ -96,6 +99,38 @@ from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
 
 
+def profile_command(func):
+    """Decorator to profile the management command"""
+
+    def wrapper(self, *args, **options):
+        if options.get("profile"):
+            pr = cProfile.Profile()
+            pr.enable()
+
+            try:
+                result = func(self, *args, **options)
+            finally:
+                pr.disable()
+
+                # define profiling result
+                s = io.StringIO()
+                ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
+                ps.print_stats("jcom_profile", 50)
+
+                # save to file
+                filename = f"command_profile_{options.get('preprintid')}.prof"
+                with open(f"/tmp/{filename}", "w") as f:
+                    f.write(s.getvalue())
+
+                self.stdout.write(self.style.SUCCESS("Profiling saved in {filename}"))
+
+            return result
+        else:
+            return func(self, *args, **options)
+
+    return wrapper
+
+
 class UnknownSection(Exception):
     """Unknown section / article-type."""
 
@@ -106,6 +141,7 @@ logger = get_logger(__name__)
 class Command(BaseCommand):
     help = "Connect to wjApp jcom database and read article data."  # noqa A003
 
+    @profile_command
     def handle(self, *args, **options):
         """Command entry point."""
 
@@ -140,6 +176,12 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Add arguments to command."""
+
+        parser.add_argument(
+            "--profile",
+            action="store_true",
+            help="activates the profiling of the command",
+        )
 
         parser.add_argument(
             "--preprintid",
