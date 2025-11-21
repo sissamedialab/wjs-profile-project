@@ -38,7 +38,7 @@ body {
     font-weight: bold;
     color: color("journal-color", "base");
     float: left;
-    width: 88%;
+    width: 75%;
     text-align: left;
     border-bottom: 4px solid color("journal-color", "base");
     margin-left: 20px;
@@ -52,11 +52,11 @@ body {
   &__right {
     position: absolute;
     text-align: right;
-    max-width: 40px;
     right: 20px;
 
     img {
-      width: 100%;
+      height: auto;
+      width: 40px;
     }
   }
 }
