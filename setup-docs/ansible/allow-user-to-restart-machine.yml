@@ -1,0 +1,23 @@
+# Configure a machine so that the given user can restart it
+# ansible-playbook allow-user-to-restart-machine.yml -e user=wjs
+---
+- hosts: test
+  remote_user: root
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install system packages
+      apt:
+        name:
+          - sudo
+        state: present
+
+    - name: Copy config to sudoers.d
+      template:
+        src: etc/sudoers.d/reboot.j2
+        dest: /etc/sudoers.d/{{ user }}
+        owner: root
+        group: root
+        mode: '0640'

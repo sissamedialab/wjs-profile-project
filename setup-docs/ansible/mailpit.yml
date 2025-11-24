@@ -1,0 +1,96 @@
+# Install mailpit via docker
+---
+- hosts: test
+  remote_user: root
+  vars:
+    instance_name: "{{ instance | default('test', true) }}"
+    instance_venv_name: "{{ instance_venv | default('janeway-' + instance_name, true) }}"
+    instance_home_name: "{{ instance_home | default('janeway-' + instance_name, true) }}"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install docker
+      apt:
+        name:
+          - docker.io
+        state: present
+
+
+
+    - name: Stop and disable mailcatcher
+      systemd:
+        name: mailcatcher
+        state: stopped
+        enabled: no
+
+
+
+    - name: Pull mailpit Docker image
+      docker_image:
+        name: axllent/mailpit
+        source: pull
+
+    - name: Run mailpit container
+      docker_container:
+        name: mailpit
+        image: axllent/mailpit
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8025:8025"
+          - "1025:1025"
+        env:
+          MP_WEBROOT: /mailpit
+
+    - name: Add weekly Docker cleanup script
+      copy:
+        dest: /etc/cron.weekly/docker-cleanup
+        content: |
+          #!/bin/bash
+          docker system prune -f > /dev/null
+        owner: root
+        group: root
+        mode: '0755'
+
+
+
+    # In specs#2094 we separate mailcatcher/mailpit proxy from webapp proxy
+    - name: Copy mailpit Apache configuration
+      copy:
+        src: apache/proxy-mailpit.inc
+        dest: /etc/apache2/conf-available/wjs/
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy daphne Apache
+      copy:
+        src: apache/apache-proxy-and-socket-daphne.inc
+        dest: /etc/apache2/conf-available/wjs/
+        owner: root
+        group: root
+        mode: '0644'
+
+
+    - name: Render and copy Apache virtualhost configuration
+      # Note that the template "wjs-test.conf.j2" in "src" is called "wjs-test..."
+      # because it's a template for the "wjs-test.ud" machine.
+      # Don't confuse with the "test" instance 🙂
+      template:
+        src: apache/wjs-test.conf.j2
+        dest: /etc/apache2/sites-available/wjs-{{ instance_name }}.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload Apache
+
+
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded

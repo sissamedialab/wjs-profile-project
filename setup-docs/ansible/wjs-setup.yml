@@ -1,67 +1,235 @@
+# Call as
+# ansible-playbook wjs-setup.yml wjs-setup-user.yml wjs-setup-tidyup.yml -e postgres_password="new-pass"
 ---
-# DRAFT ONLY! Do NOT use!
-- hosts: NONE
+- hosts: import
+  remote_user: root
   become: yes
+  vars:
+    postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('cambiami-please', true) }}"
   tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install system packages
+      apt:
+        name:
+          - apache2
+          - build-essential
+          - git
+          - lib32z1-dev
+          - libbz2-dev
+          - libffi-dev
+          - libjpeg-dev
+          - libmariadb-dev
+          - libpq-dev
+          - libreadline-dev
+          - libsqlite3-dev
+          - libssl-dev
+          - libxml2-dev
+          - libxslt1-dev
+          - postgresql
+          - postgresql-contrib
+          - python3-packaging
+          - python3-psycopg2
+          - redis-server
+          - ripgrep
+          - sudo
+          - tree
+          - zlib1g-dev
+        state: present
+
+    # See https://stackoverflow.com/a/42007139/1581629
+    # Did not work 😢
+    # - name: Enable SSH forwarding for sudo
+    #   lineinfile:
+    #     dest: /etc/sudoers
+    #     insertafter: '^#?\s*Defaults\s+env_keep\b'
+    #     line: 'Defaults    env_keep += "SSH_AUTH_SOCK"'
+
+
+    # TBD: it seems overkill for wjs to have www-data as the main group
+    - name: Create wjs group
+      group:
+        name: wjs
+        state: present
+
     - name: Create user wjs
       user:
         name: wjs
         group: wjs
+        groups: www-data
         shell: /bin/bash
+        home: /home/wjs
+        create_home: yes
 
-    - name: Install packages
-      apt:
-        update_cache: yes
-        name:
-          - apache2
-          - postgresql
-          - git
-          - build-essential
-          - libssl-dev
-          - zlib1g-dev
-          - libbz2-dev
-          - libreadline-dev
-          - libsqlite3-dev
-          - libffi-dev
+    - name: Set wjs home traversable by www-data
+      file:
+        path: /home/wjs
+        mode: "0755"
 
-    - name: Clone pyenv
-      git:
-        repo: https://github.com/pyenv/pyenv.git
-        dest: /home/wjs/.pyenv
-      become_user: wjs
-
-    - name: Setup pyenv in bashrc
-      lineinfile:
-        path: /home/wjs/.bashrc
-        line: "{{ item }}"
+    - name: Create directories for wjs user
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: wjs
+        group: wjs
+        mode: '0755'
       loop:
-        - 'export PATH="$HOME/.pyenv/bin:$PATH"'
-        - 'eval "$(pyenv init -)"'
+        - /home/wjs/projects
+        - /home/wjs/logs
 
-    - name: Install Python 3.11
-      shell: |
-        export PATH="/home/wjs/.pyenv/bin:$PATH"
-        eval "$(pyenv init -)"
-        pyenv install -s 3.11.10
-        pyenv global 3.11.10
-      become_user: wjs
-      args:
-        creates: /home/wjs/.pyenv/versions/3.11.10
+
+
+    - name: Copy systemd tmpfiles configuration for rundirs
+      copy:
+        src: systemd/wjs-rundir.conf
+        dest: /etc/tmpfiles.d/wjs-rundir.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create files specified in wjs-rundir.conf
+      command: systemd-tmpfiles --create /etc/tmpfiles.d/wjs-rundir.conf
+
+
+
+
+    - name: Create web directories for journals
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+      loop:
+        - /var/www/hosts/import-journals/html
+        - /var/www/hosts/import-jcap/html
+        - /var/www/hosts/import-jcom/html
+        - /var/www/hosts/import-jcomal/html
+        - /var/www/hosts/import-jquant/html
+        - /var/www/hosts/import-jhep/html
+        - /var/www/hosts/import-jstat/html
+        - /var/www/hosts/import-jinst/html
+
+    - name: Link Django media directory to journal web directories
+      file:
+        src: /home/wjs/projects/janeway/src/media
+        dest: "{{ item }}/media"
+        state: link
+        force: yes
+        # owner: www-data
+        # group: www-data
+      loop:
+        - /var/www/hosts/import-journals/html
+        - /var/www/hosts/import-jcap/html
+        - /var/www/hosts/import-jcom/html
+        - /var/www/hosts/import-jcomal/html
+        - /var/www/hosts/import-jquant/html
+        - /var/www/hosts/import-jhep/html
+        - /var/www/hosts/import-jstat/html
+        - /var/www/hosts/import-jinst/html
+
+    - name: Link Django static directory to journal web directories
+      file:
+        src: /home/wjs/projects/janeway/src/collected-static
+        dest: "{{ item }}/static"
+        state: link
+        force: yes
+        # owner: www-data
+        # group: www-data
+      loop:
+        - /var/www/hosts/import-journals/html
+        - /var/www/hosts/import-jcap/html
+        - /var/www/hosts/import-jcom/html
+        - /var/www/hosts/import-jcomal/html
+        - /var/www/hosts/import-jquant/html
+        - /var/www/hosts/import-jhep/html
+        - /var/www/hosts/import-jstat/html
+        - /var/www/hosts/import-jinst/html
+
+    - name: Create .ssh directory for wjs user
+      file:
+        path: /home/wjs/.ssh
+        state: directory
+        owner: wjs
+        group: wjs
+        mode: '0700'
+
+    - name: Copy root's authorized_keys to wjs user
+      copy:
+        src: /root/.ssh/authorized_keys
+        dest: /home/wjs/.ssh/authorized_keys
+        owner: wjs
+        group: wjs
+        mode: '0644'
+        remote_src: yes
+
+    - name: Enable Apache modules
+      apache2_module:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - headers
+        - proxy_http
+        - proxy_http2
+        - remoteip
+        - rewrite
+        - ssl
 
     - name: Copy Apache virtualhost configuration
       copy:
-        src: apache/wjs.conf
+        src: griffo-files/wjs.conf
         dest: /etc/apache2/sites-available/wjs.conf
         owner: root
         group: root
         mode: '0644'
+
+    - name: Create apache wjs conf directory
+      file:
+        path: /etc/apache2/conf-available/wjs
+        state: directory
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy Apache configuration
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - { src: "apache/apache-log-and-ssl.inc", dest: "/etc/apache2/conf-available/wjs/apache-log-and-ssl.inc" }
+        - { src: "apache/apache-proxy-and-socket-daphne.inc", dest: "/etc/apache2/conf-available/wjs/apache-proxy-and-socket-daphne.inc" }
+        - { src: "apache/apache-static-files-block.inc", dest: "/etc/apache2/conf-available/wjs/apache-static-files-block.inc" }
 
     - name: Enable virtualhost
       command: a2ensite wjs.conf
       args:
         creates: /etc/apache2/sites-enabled/wjs.conf
 
-    - name: Reload Apache
+    - name: Start and enable services
       systemd:
-        name: apache2
-        state: reloaded
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - postgresql
+        - redis-server
+        - apache2
+
+    - name: Create PostgreSQL role wjs
+      postgresql_user:
+        name: wjs
+        password: "{{ postgres_password }}"
+        role_attr_flags: "LOGIN,CREATEDB"
+        state: present
+      become_user: postgres
+
+    - name: Create citext extension in PostgreSQL
+      postgresql_query:
+        query: "CREATE EXTENSION IF NOT EXISTS citext;"
+        login_db: postgres
+      become_user: postgres

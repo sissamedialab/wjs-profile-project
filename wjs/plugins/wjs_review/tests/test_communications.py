@@ -573,16 +573,31 @@ def test_messages_to_eo_always_read(
 
 
 @pytest.mark.django_db
-def test_director_sees_all_journal_messages(
+def test_director_sees_all_journal_messages_and_attachments(
     article: Article,
     submitted_articles: list[Article],
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     director: JCOMProfile,
+    client,
 ):
     """Test that a director sees all messages related to the journal they are director of."""
     chakotay = create_jcom_user("Chakotay")
     tuvok = create_jcom_user("Tuvok")
     assert Message.objects.count() == 0
+
+    def _add_attachment(message: Message, actor: Account, article: Article):
+        attachment_dj = DjangoFile(BytesIO(b"ciao"), "Msg attachment.txt")
+        attachment_file = core_files.save_file_to_article(
+            attachment_dj,
+            article,
+            actor,
+        )
+        attachment_file.label = "Attachment LABEL"
+        attachment_file.description = "Long and useless attachment file description"
+        attachment_file.save()
+        message.attachments.add(attachment_file)
+        return attachment_file
+
     msg1 = Message.objects.create(
         actor=chakotay,
         subject="",
@@ -591,6 +606,15 @@ def test_director_sees_all_journal_messages(
         object_id=article.pk,
     )
     msg1.recipients.add(tuvok)
+    attachment_file1 = _add_attachment(msg1, chakotay, article)
+    url = reverse(
+        "wjs_message_download_attachment",
+        kwargs={"message_id": msg1.id, "attachment_id": attachment_file1.id},
+    )
+    client.force_login(director)
+    response = client.get(url)
+    assert response.status_code == 200
+
     msg2 = Message.objects.create(
         actor=tuvok,
         subject="",
@@ -599,6 +623,18 @@ def test_director_sees_all_journal_messages(
         object_id=article.pk,
     )
     msg2.recipients.add(chakotay)
+    attachment_file2 = _add_attachment(msg2, tuvok, article)
+    url = reverse(
+        "wjs_message_download_attachment",
+        kwargs={"message_id": msg2.id, "attachment_id": attachment_file2.id},
+    )
+    client.force_login(director)
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # For completeness, here we create a message with no recipient:
+    # these are messages visible by anyone;
+    # we will test that the director does see it.
     Message.objects.create(
         actor=tuvok,
         subject="",
@@ -616,6 +652,16 @@ def test_director_sees_all_journal_messages(
         object_id=submitted_articles[1].pk,
     )
     msg3.recipients.add(chakotay)
+    attachment_file3 = _add_attachment(msg3, tuvok, submitted_articles[1])
+    url = reverse(
+        "wjs_message_download_attachment",
+        kwargs={"message_id": msg3.id, "attachment_id": attachment_file3.id},
+    )
+    client.force_login(director)
+    response = client.get(url)
+    # Director is also the author so can't download the attachment
+    assert response.status_code == 403
+
     msg_as_author = Message.objects.create(
         actor=tuvok,
         subject="",
@@ -624,6 +670,16 @@ def test_director_sees_all_journal_messages(
         object_id=submitted_articles[1].pk,
     )
     msg_as_author.recipients.add(director)
+    attachment_file_as_author = _add_attachment(msg_as_author, tuvok, submitted_articles[1])
+    url = reverse(
+        "wjs_message_download_attachment",
+        kwargs={"message_id": msg_as_author.id, "attachment_id": attachment_file_as_author.id},
+    )
+    client.force_login(director)
+    response = client.get(url)
+    # Director is also recipient so can download the attachment even if is author
+    assert response.status_code == 200
+
     assert msg1.recipients.count() == 1
     assert msg1.recipients.first() != chakotay
     assert msg1.actor != director
@@ -1209,6 +1265,7 @@ def test_message_attachment_access(
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
     fake_request: HttpRequest,
     eo_user: JCOMProfile,
+    director: JCOMProfile,
     review_form: review_models.ReviewForm,
     client,
     review_settings,
@@ -1302,6 +1359,11 @@ def test_message_attachment_access(
     client.force_login(reviewer_2)
     response = client.get(url)
     assert response.status_code == 403
+
+    # Director
+    client.force_login(director)
+    response = client.get(url)
+    assert response.status_code == 200
 
 
 @pytest.mark.parametrize(

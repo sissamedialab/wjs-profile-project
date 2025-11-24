@@ -22,4 +22,5 @@ urlpatterns = [
         views.DoubleAccountsView.as_view(),
         name="wjs_stats_double_accounts",
     ),
+    path("orcids/", views.OrcidsStatsView.as_view(), name="wjs_stats_orcids"),
 ]

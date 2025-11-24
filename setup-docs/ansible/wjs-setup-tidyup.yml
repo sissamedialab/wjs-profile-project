@@ -1,0 +1,24 @@
+# See wjs-setup.yml for instructions
+---
+- hosts: import
+  remote_user: root
+  tasks:
+
+    - name: Include Apache redirects managed in the wjs-profile repo
+      # We can't add them directly to the apache conf file, because they don't exist untill the repo is cloned,
+      # and we perform some operations on apapche (module loading etc.) that require a valid configuration.
+      lineinfile:
+        dest: /etc/apache2/sites-available/wjs.conf
+        line: "{{ item.line }}"
+        insertafter: "{{ item.after }}"
+        state: present
+      loop:
+        - { line: '    Include "/home/wjs/projects/wjs-profile-project/wjs/conf/${NAME}-apache-redirects.inc"
+', after: '# Include JCOM redirects'}
+        - { line: '    Include "/home/wjs/projects/wjs-profile-project/wjs/conf/${NAME}-apache-redirects.inc"
+', after: '# Include JCOMAL redirects'}
+
+    - name: Reload Apache
+      systemd:
+        name: apache2
+        state: reloaded

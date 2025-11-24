@@ -439,7 +439,7 @@ def typesettertestsgalleygeneration_wrapper(
 
 
 @dataclasses.dataclass
-class UploadFile:
+class TypesettedFilesUpload:
     """Allow the typesetter to upload typesetted files."""
 
     typesetter: Account
@@ -448,6 +448,8 @@ class UploadFile:
     file_to_upload: File
     do_create_galleys: bool = True
 
+    VALID_FILE_TYPES = ["application/zip", "application/x-zip-compressed"]
+
     def _check_typesetter_condition(self):
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
 
@@ -455,7 +457,7 @@ class UploadFile:
         return self.assignment.round.article.articleworkflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
 
     def _check_file_condition(self):
-        return self.file_to_upload and self.file_to_upload.content_type in ["application/zip"]
+        return self.file_to_upload and self.file_to_upload.content_type in self.VALID_FILE_TYPES
 
     def _remove_file_from_assignment(self):
         """Empty the files_to_typeset field of TypesettingAssignment."""
@@ -2092,6 +2094,10 @@ class MetadataFromTeX:
         """
         Extract the source file of the article galleys.
 
+        Use the latest available files:
+        if the latest production version (typesetting-assignment) has just started,
+        the files are taken from the previous version.
+
         Return the main TeX file.
 
         Raises:
@@ -2100,7 +2106,14 @@ class MetadataFromTeX:
           - if we cannot find the main tex file in the zip source.
 
         """
-        ta = self.workflow.get_latest_typesetting_assignment(only_completed=False)
+        ta = (
+            TypesettingAssignment.objects.filter(
+                round__article=self.workflow.article,
+                files_to_typeset__isnull=False,
+            )
+            .order_by("-round__round_number")
+            .first()
+        )
         zip_source_file = ta.files_to_typeset.first()
         if not zip_source_file:
             msg = _("No source files. Please upload some!")
@@ -2146,16 +2159,20 @@ class MetadataFromTeX:
         # appropriate translation.
         tex_kwds = Keyword.objects.none()
         lang = pycountry.languages.get(alpha_3=self.workflow.article.language).alpha_2
+        # Apparently `annotate` is not patched by django-modeltranslation
+        # https://django-modeltranslation.readthedocs.io/en/latest/usage.html#multilingual-manager-1
+        # so we have to manually select the correct field to use:
+        lang_field = f"word_{lang}"
         with translation.override(lang):
             tex_kwds = (
                 Keyword.objects.filter(
                     journal=self.workflow.article.journal,
-                    word__in=tex_kwds_strings,
+                    **{f"{lang_field}__in": tex_kwds_strings},
                 )
                 # We need to manully order the queryset to maintain the order we found in the TeX
                 .annotate(
                     manual_order=Case(
-                        *[When(word=word, then=pos) for pos, word in enumerate(tex_kwds_strings)],
+                        *[When(**{lang_field: word}, then=pos) for pos, word in enumerate(tex_kwds_strings)],
                         output_field=IntegerField(),
                     ),
                 ).order_by("manual_order")

@@ -72,7 +72,7 @@ from .logic__production import (  # noqa F401
     FinishPublication,
     ReadyForPublication,
     RequestProofs,
-    UploadFile,
+    TypesettedFilesUpload,
     VerifyProductionRequirements,
 )
 from .models import (
@@ -1704,7 +1704,7 @@ class DeselectReviewer:
         else:
             verbosity = Message.MessageVerbosity.TIMELINE
             message_body = ""
-            recipients = [self.assignment.reviewer]
+            recipients = [get_eo_user(self.assignment.article)]
 
         communication_utils.log_operation(
             article=self.assignment.article,

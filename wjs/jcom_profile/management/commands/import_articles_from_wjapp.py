@@ -3,6 +3,7 @@
 import datetime
 import io
 import os
+import sys
 import tarfile
 import textwrap
 import traceback
@@ -56,7 +57,7 @@ from plugins.wjs_review.logic__production import (
     HandleEOSendBackToTypesetter,
     ReadyForPublication,
     RequestProofs,
-    UploadFile,
+    TypesettedFilesUpload,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
@@ -113,7 +114,7 @@ class Command(BaseCommand):
                 """Notifications are enabled, not importing to avoid spamming. Please set `NO_NOTIFICATION = True`
                 in your django settings to proceed.""",
             )
-            return
+            sys.exit(1)
         self.options = options
 
         if self.options["preprintid"].startswith("JHEP"):
@@ -127,10 +128,15 @@ class Command(BaseCommand):
         ):
             self.journal = Journal.objects.get(code=journal_code)
             self.journal_data = JOURNALS_DATA[journal_code]
-            self.import_data_article(**options)
+            exitcode = self.import_data_article(**options)
+            if exitcode != 0:
+                logger.error(f"import_data_article exitcode={exitcode} quitting")
+                sys.exit(1)
+            else:
+                return
         else:
             logger.error(f"Journal not identified from {self.options['preprintid']} {journal_code}. Please check.")
-            return
+            sys.exit(1)
 
     def add_arguments(self, parser):
         """Add arguments to command."""
@@ -169,7 +175,7 @@ class Command(BaseCommand):
                 f"option import_files from web is not enabled for {self.journal.code}."
                 f"use --importfilesfake instead."
             )
-            return
+            return 1
 
         if self.options["importfilesweb"]:
             login_setting = f"WJAPP_{self.journal.code.upper()}_IMPORT_LOGIN_PARAMS"
@@ -179,20 +185,20 @@ class Command(BaseCommand):
                     f'Missing login data for {self.journal.code}. Please ensure "{login_setting}" exists in settings.'
                     f"Cannot import files, quitting."
                 )
-                return
+                return 1
             elif login_parameters.get("username", "") == "":
                 logger.error(
                     f'Empty username parameter for "{login_setting}". Please ensure `username`, etc. are correct.'
                     f"Cannot login, quitting."
                 )
-                return
+                return 1
 
             if not getattr(settings, f"WJAPP_{self.journal.code.upper()}_BASE_URL", None):
                 self.stderr.write(
                     f"Missing base wjapp url, import files is not possible. Please set "
                     f"WJAPP_{self.journal.code.upper()}_BASE_URL in your django settings to proceed.",
                 )
-                return
+                return 1
 
             username = login_parameters.get("username", "")
             passwd = login_parameters.get("password", "")
@@ -205,7 +211,7 @@ class Command(BaseCommand):
                     f"Missing Basic Authentication username for {self.journal.code.upper()}. "
                     f"Check your django settings to proceed."
                 )
-                return
+                return 1
 
             session = self.wjapp_login(username, passwd, login_base_url, http_ba_username, http_ba_password)
 
@@ -239,13 +245,13 @@ class Command(BaseCommand):
                 f'Missing connection parameters for {self.journal.code}. Please ensure "{setting}" exists in settings.'
                 f"Cannot connect, quitting."
             )
-            return
+            return 1
         elif connection_parameters.get("user", "") == "":
             logger.error(
                 f'Empty connection parameters for "{setting}". Please ensure `user`, `host`, etc. are correct.'
                 f"Cannot connect, quitting."
             )
-            return
+            return 1
 
         self.connection = mariadb.connect(**connection_parameters)
 
@@ -254,7 +260,7 @@ class Command(BaseCommand):
         if not current_version_row:
             self.connection.close()
             logger.debug(f"Article not found {self.journal.code} {preprintid}.")
-            return
+            return 1
 
         document_cod = current_version_row["documentCod"]
         preprintid = current_version_row["preprintId"]
@@ -307,7 +313,7 @@ class Command(BaseCommand):
                     f"missing published version for {publicationid}. Import published version"
                     f" before to import review and production versions of {preprintid}"
                 )
-                return
+                return 1
 
         # search if exists an id for preprintid in the wjs journal
         article = submission_models.Article.get_article(
@@ -608,6 +614,7 @@ class Command(BaseCommand):
                 The preprintid {article.id} / {preprintid} must be imported again
                 """
             )
+            return 1
 
         # fix forced manual withdrawn appeal on wjapp without action in the history
         if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120", "JCOMAL_002Y_0921"):
@@ -633,12 +640,14 @@ class Command(BaseCommand):
                     )
         elif article_expected_final_state == "REJECTED":
             if article.stage != submission_models.STAGE_REJECTED:
-                logger.error(f"stage not rejected: {article.stage=}")
+                logger.error(f"stage not rejected: {article.stage=} for {article.id} / {preprintid}")
+                return 1
             if (
                 ArticleWorkflow.objects.filter(article=article).exists()
                 and article.articleworkflow.state != ArticleWorkflow.ReviewStates.REJECTED
             ):
-                logger.error(f"state not rejected: {article.articleworkflow.state=}")
+                logger.error(f"state not rejected: {article.articleworkflow.state=} for {article.id} / {preprintid}")
+                return 1
         else:
             # TODO: verify cases where an error should be logged
             logger.debug(f"state: {article_expected_final_state=} {article.stage=}")
@@ -650,7 +659,7 @@ class Command(BaseCommand):
             if self.journal.code.upper() != "JHEP":
                 self.restore_article_status(article)
             else:
-                article.date_published = publication_date
+                article.date_published = rome_timezone.localize(publication_date)
                 article.save()
 
             # for published import set the article stage to Published
@@ -695,10 +704,12 @@ class Command(BaseCommand):
                             f" in state {article.articleworkflow.state}"
                         )
 
-        self.debug_list_article_files_imported(article)
-        self.debug_list_reminder(article)
+        if settings.DEBUG:
+            self.debug_list_article_files_imported(article)
+            self.debug_list_reminder(article)
 
         self.connection.close()
+        return 0
 
     #
     # http login to wjapp
@@ -799,7 +810,7 @@ class Command(BaseCommand):
     def restore_article_status(self, article):
         if not self.stored_status:
             logger.error("no article status stored")
-            return
+            raise ValueError("no article status stored")
 
         article.language = self.store_article_language
         logger.warning(f"{self.store_article_language=}")
@@ -1777,8 +1788,6 @@ WHERE
         for f in article.articleworkflow.supplementary_files_at_acceptance.all():
             logger.debug(f"imported: {article.id} suppl. file at acceptance: {f.id} {f}")
 
-        from plugins.wjs_review.models import EditorRevisionRequest
-
         err_list = EditorRevisionRequest.objects.filter(article=article)
         for e in err_list:
             for m in e.manuscript_files.all():
@@ -2479,7 +2488,9 @@ class ImportCorrespondenceManager:
                 )
 
             if m["documentLayerType"] in self.types_skipped:
-                logger.error(
+                # demoted to warning for JHEPST, if considered error, the execution must be stopped
+                # with an exception
+                logger.warning(
                     f"msg {m['documentLayerCod']} type skipped {self.article.id} {m['documentLayerSubject']}"
                     f" {m['documentLayerType']}"
                 )
@@ -2689,6 +2700,7 @@ AND ur.userType!='readerBCC'
                     f"Found {cursor_all_message_author_recipients.rowcount} users for message {document_layer_cod}"
                     f" {self.preprintid}/{self.imported_version_num}"
                 )
+                raise ValueError("Recipients not found")
             all_message_author_recipients = []
         else:
             all_message_author_recipients = cursor_all_message_author_recipients.fetchall()
@@ -3037,6 +3049,7 @@ Minimal TeX file.
 
                         except Exception as e:
                             logger.error(f"Error processing file {file_info.filename}: {e}")
+                            raise ValueError("Error processing file")
 
         return DjangoFile(memory_zip, name)
 
@@ -3052,6 +3065,7 @@ Minimal TeX file.
             logger.error(
                 f"check wjapp login credentials empty file pdf downloaded: {response.headers['Content-Length']}"
             )
+            raise ValueError("Empty pdf downloaded")
         return response
 
     # production version files
@@ -3078,6 +3092,7 @@ Minimal TeX file.
             logger.error(
                 f"check wjapp login credentials empty pdf galley downloaded: {response.headers['Content-Length']}"
             )
+            raise ValueError("Empty pdf galley downloaded")
         return response
 
     def save_pdf_galley(self, pdf_galley_dj):
@@ -3251,7 +3266,7 @@ Minimal TeX file.
                 logger.error(
                     f"production submission: also tex empty file downloaded: {self.article.id} / {self.preprintid}"
                 )
-
+                raise ValueError("Tex empty file downloaded")
         return (response, file_type)
 
     # review files
@@ -3283,7 +3298,7 @@ Minimal TeX file.
             else:
                 return (response, doc_type)
         else:
-            logger.error(f"With docx got {response.status_code}!")
+            logger.warning(f"With docx got {response.status_code}!")
 
         # try with doc instead of docx
         doc_type = "doc"
@@ -3296,7 +3311,7 @@ Minimal TeX file.
             logger.error(
                 f"check wjapp login credentials empty file {doc_type} downloaded: {response.headers['Content-Length']}"
             )
-
+            raise ValueError("Empty doc/docx file downloaded")
         return (response, doc_type)
 
     def regenerate_production_archives(self):
@@ -3324,6 +3339,7 @@ Minimal TeX file.
         except requests.exceptions.ChunkedEncodingError:
             # known cases: JCOM_003A_0724 JCOM_004N_1024 JCOM_008A_0125 JCOM_014A_0524
             logger.error(f"Exception: ChunkedEncodingError {file_url_versions_page}")
+            raise RuntimeError("ChunkedEncodingError ")
 
     def download_source_compressed_archive(self):
         """Download compressed zip with submission folder for imported version."""
@@ -3350,7 +3366,7 @@ Minimal TeX file.
                 logger.error(
                     f"check wjapp login data empty file {doc_type}downloaded: {response.headers['Content-Length']}"
                 )
-
+                raise ValueError("Empty zip downloaded")
         return (response, doc_type)
 
     def save_manuscript(self, manuscript_dj):
@@ -3405,6 +3421,7 @@ Minimal TeX file.
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":
             logger.error(f"check wjapp login credentials empty DFF downloaded: {response.headers['Content-Length']}")
+            raise ValueError("Empty DFF downloaded")
         return response
 
     def save_data_figure_file(self, dff_dj, dff_data):
@@ -3765,7 +3782,9 @@ WHERE editorCod=%(editor_cod)s
             return
 
         if not editor_maxworkload:
-            logger.error(f"Missing editor max workload: {editor_maxworkload}")
+            editor_maxworkload = 1
+            logger.warning(f"JHEP ST: Missing editor max workload, forced to 1 {self.article.id} / {self.preprintid}")
+            # import JHEP ST exception not raised ValueError("Missing editor max workload")
 
         if editor_maxworkload == 9999:
             logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
@@ -4253,6 +4272,8 @@ ORDER BY dl.submissionDate
                     f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
                 )
                 author_withdrawn_message = None
+                # added for JHEPST
+                raise ValueError("Not found author withdrawn messages")
         else:
             author_withdrawn_message = cursor_author_withdrawn_message.fetchone()
             logger.debug(
@@ -4479,6 +4500,8 @@ ORDER BY dl.submissionDate
                     f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
                 )
                 editor_decline_message = None
+                # added for JHEPST
+                raise ValueError("Missing editor decline message")
         else:
             editor_decline_message = cursor_editor_decline_message.fetchone()
         cursor_editor_decline_message.close()
@@ -4761,6 +4784,8 @@ ORDER BY dl.submissionDate
         if cursor_reviewer_message.rowcount != 1:
             logger.error(f"Found {cursor_reviewer_message.rowcount} reviewer assignment messages: {self.preprintid}")
             reviewer_message = None
+            # added for JHEPST
+            raise ValueError("Not found reviewer assignment message")
         else:
             reviewer_message = cursor_reviewer_message.fetchone()
         cursor_reviewer_message.close()
@@ -5190,6 +5215,8 @@ ORDER BY dl.submissionDate
                     f"Found {cursor_deselect_reviewer_message.rowcount} deselect reviewer messages: {self.preprintid}"
                 )
                 deselect_reviewer_message = None
+                # added for JHEPST
+                raise ValueError("Not found deselect reviewer message")
         else:
             deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
         cursor_deselect_reviewer_message.close()
@@ -5305,6 +5332,8 @@ ORDER BY dl.submissionDate
                 f"Found {cursor_reviewer_decline_message.rowcount} reviewer decline messages: {self.preprintid}"
             )
             reviewer_decline_message = None
+            # added for JHEPST
+            raise ValueError("Not found reviewer decline message")
         else:
             reviewer_decline_message = cursor_reviewer_decline_message.fetchone()
         cursor_reviewer_decline_message.close()
@@ -5478,6 +5507,8 @@ ORDER BY dl.submissionDate
         if cursor_reviewer_report_message.rowcount != 1:
             logger.error(f"Found {cursor_reviewer_report_message.rowcount} reviewer report: {self.preprintid}")
             reviewer_report_message = None
+            # added for JHEPST
+            raise ValueError("Not found reviewer report message")
         else:
             reviewer_report_message = cursor_reviewer_report_message.fetchone()
         cursor_reviewer_report_message.close()
@@ -5697,6 +5728,8 @@ class EditorDecisionAction(BaseActionManager):
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":
             logger.error(f"empty {document_layer_id} file downloaded: {response.headers['Content-Length']}")
+            # added for JHEPST
+            raise ValueError("Not found edrep file")
         return response.text
 
     def read_editor_report_message(self):
@@ -5741,6 +5774,8 @@ ORDER BY dl.submissionDate
         if cursor_editor_report_message.rowcount != 1:
             logger.error(f"Found {cursor_editor_report_message.rowcount} editor report: {self.preprintid}")
             editor_report_message = None
+            # added for JHEPST
+            raise ValueError("Not found editor report")
         else:
             editor_report_message = cursor_editor_report_message.fetchone()
             logger.debug(f"{self.preprintid} EDREP: {editor_report_message.get('documentLayerCod')}")
@@ -6110,6 +6145,8 @@ ORDER BY dl.submissionDate
         if cursor_cover_letter_message.rowcount != 1:
             logger.error(f"Found {cursor_cover_letter_message.rowcount} cover letter: {self.preprintid}")
             cover_letter_message = None
+            # added for JHEPST
+            raise ValueError("Not found cover letter")
         else:
             cover_letter_message = cursor_cover_letter_message.fetchone()
             logger.debug(f"{self.preprintid} CVLETT: {cover_letter_message.get('documentLayerCod')}")
@@ -6151,6 +6188,8 @@ class AU_SUB_REV_ED_CH(AuthorSubmitRevisionAction):  # noqa N801
                 f"case not managed {self.action['actHistCod']} AU_SUB_REV_ED_CH "
                 f"for {self.preprintid}/{self.imported_version_num}."
             )
+            # added for JHEPST
+            raise ValueError("case not managed AU_SUB_REV_ED_CH")
         else:
             logger.warning(
                 f"AU_SUB_REV_ED_CH {self.action['actHistCod']} "
@@ -6416,10 +6455,10 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
         with freezegun.freeze_time(
             rome_timezone.localize(typesetter_uploads_date),
         ):
-            UploadFile._check_file_condition = noop_true
-            UploadFile._look_for_queries_in_archive = noop_true
+            TypesettedFilesUpload._check_file_condition = noop_true
+            TypesettedFilesUpload._look_for_queries_in_archive = noop_true
 
-            article_with_file = UploadFile(
+            article_with_file = TypesettedFilesUpload(
                 typesetter=ta_assignment.typesetter,
                 request=fake_request,
                 assignment=ta_assignment,
@@ -6658,6 +6697,8 @@ ORDER BY dl.submissionDate DESC
         if cursor_author_annotation.rowcount == 0:
             logger.error(f"Found {cursor_author_annotation.rowcount} author annotation: {self.preprintid}")
             author_annotation = None
+            # added for JHEPST
+            raise ValueError("Not found author annotation")
         else:
             # JCOM_023A_0623 has two AUANN in the same version (data error) in any case we take the
             # most recent one
@@ -6682,6 +6723,8 @@ ORDER BY dl.submissionDate DESC
             )
         else:
             logger.error(f"Empty AUANN file downloaded for {document_layer_id=}!")
+            # added for JHEPST
+            raise ValueError("Empty AUANN file downloaded")
 
     def extract_annotation_file_extension(self, document_layer_id):
         """Extract annotation file extension from compressed contribution zip., if exists.
@@ -6716,11 +6759,14 @@ ORDER BY dl.submissionDate DESC
             logger.error(
                 f"check wjapp login credentials empty production zip: {response.headers['Content-Length']} {file_url=}"
             )
+            # added for JHEPST
+            raise ValueError("Empty production zip downloaded")
         try:
             files_zip = zipfile.ZipFile(BytesIO(response.content))
         except zipfile.BadZipFile:
             logger.error(f"file not open: {file_url}")
-            return
+            # added for JHEPST
+            raise ValueError("zip file not open")
 
         for filepath in files_zip.namelist():
             # We assume that the chance of find any other file in the production zip
@@ -6781,6 +6827,8 @@ ORDER BY dl.submissionDate DESC
             logger.error(
                 f"check wjapp login credentials empty AUANN file downloaded: {response.headers['Content-Length']}"
             )
+            # added for JHEPST
+            raise ValueError("Empty AUANN file downloaded")
         return response
 
 
@@ -6884,6 +6932,8 @@ ORDER BY dl.submissionDate
                 f"{self.preprintid}/{self.imported_version_num}"
             )
             pub_manager_annotation = None
+            # added for JHEPST
+            raise ValueError("Not found publication manager annotation")
         else:
             pub_manager_annotation = cursor_pub_manager_annotation.fetchone()
             logger.debug(f"{self.preprintid} PUMANN: {pub_manager_annotation.get('documentLayerCod')}")
@@ -7188,6 +7238,8 @@ class PM_REQ_ED_CHECK(BaseActionManager):  # noqa N801
             pass
         else:
             logger.error(f"PM_REQ_ED_CHECK not managed for {self.preprintid} {self.article.id}")
+            # added for JHEPST
+            raise ValueError("PM_REQ_ED_CHECK not managed")
 
 
 @dataclass
@@ -7209,6 +7261,8 @@ class ED_RESTARTS_REV(BaseActionManager):  # noqa N801
             pass
         else:
             logger.error(f"ED_RESTARTS_REV not managed for {self.preprintid} {self.article.id}")
+            # added for JHEPST
+            raise ValueError("ED_RESTARTS_REV not managed")
 
 
 @dataclass
@@ -7232,3 +7286,5 @@ class PM_UPLOADS_FORMAT_V(BaseActionManager):  # noqa N801
             pass
         else:
             logger.error(f"PM_UPLOADS_FORMAT_V not managed for {self.preprintid} {self.article.id}")
+            # added for JHEPST
+            raise ValueError("PM_UPLOADS_FORMAT_V not managed")

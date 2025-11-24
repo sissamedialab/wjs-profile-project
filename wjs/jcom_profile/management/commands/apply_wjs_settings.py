@@ -60,7 +60,9 @@ class Command(BaseCommand):
         self.rename_settings()
         self.drop_obsolete_settings()
         self.set_jcom_defaults_over_janeways()
-        self.create_overrides()
+        # The following method overrides JCOMAL setting values, It was decided not to execute this to avoid
+        # overwriting changes made by EO. https://gitlab.sissamedialab.it/wjs/specs/-/issues/1864
+        # self.create_overrides()
 
     @staticmethod
     def rename_settings() -> None:

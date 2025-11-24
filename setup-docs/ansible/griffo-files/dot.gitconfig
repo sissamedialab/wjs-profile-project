@@ -1,0 +1,12 @@
+[alias]
+    st = status
+    co = checkout
+    br = branch
+    ci = commit
+    df = diff
+    dc = diff --cached
+    lg = log --oneline --decorate --graph
+    lol = log --graph --decorate --pretty=oneline --abbrev-commit
+    lola = log --graph --decorate --pretty=oneline --abbrev-commit --all
+    ls = ls-files
+    ign = ls-files -o -i --exclude-standard

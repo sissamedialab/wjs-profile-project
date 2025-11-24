@@ -17,7 +17,7 @@ from .logic__production import (
     HandleCreateSupplementaryFile,
     HandleDeleteAnnotatedFile,
     HandleEOSendBackToTypesetter,
-    UploadFile,
+    TypesettedFilesUpload,
 )
 from .models import ArticleWorkflow, Message
 
@@ -43,13 +43,13 @@ class TypesetterUploadFilesForm(forms.ModelForm):
 
     def clean_file_to_upload(self):
         file = self.cleaned_data["file_to_upload"]
-        if file and file.content_type not in ["application/zip"]:
+        if file and file.content_type not in TypesettedFilesUpload.VALID_FILE_TYPES:
             raise ValidationError(_("Only ZIP files are allowed"))
         return file
 
-    def get_logic_instance(self) -> UploadFile:
+    def get_logic_instance(self) -> TypesettedFilesUpload:
         """Instantiate :py:class:`UploadFile` class."""
-        return UploadFile(
+        return TypesettedFilesUpload(
             typesetter=self.user,
             request=self.request,
             assignment=self.instance,
