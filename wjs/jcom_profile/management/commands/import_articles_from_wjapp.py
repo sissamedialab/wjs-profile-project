@@ -115,7 +115,7 @@ def profile_command(func):
                 # define profiling result
                 s = io.StringIO()
                 ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
-                ps.print_stats("jcom_profile", 50)
+                ps.print_stats()
 
                 # save to file
                 filename = f"command_profile_{options.get('preprintid')}.prof"
@@ -731,27 +731,54 @@ class Command(BaseCommand):
                     )
 
         if ArticleWorkflow.objects.filter(article=article).exists():
-            for r in Reminder.objects.filter(disabled=False):
-                if article == r.get_related_article():
-                    if article.articleworkflow.state in (
-                        ArticleWorkflow.ReviewStates.PUBLISHED,
-                        ArticleWorkflow.ReviewStates.REJECTED,
-                        ArticleWorkflow.ReviewStates.WITHDRAWN,
-                        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
-                    ):
-                        r.disabled = True
-                        r.save()
-                        logger.debug(
-                            f"forced disabled reminder for {article.id}/{preprintid}"
-                            f" in state {article.articleworkflow.state}"
-                        )
+            if article.articleworkflow.state in (
+                ArticleWorkflow.ReviewStates.PUBLISHED,
+                ArticleWorkflow.ReviewStates.REJECTED,
+                ArticleWorkflow.ReviewStates.WITHDRAWN,
+                ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+            ):
+                num_disabled = self.disable_reminders_for_article(article)
+                logger.debug(
+                    f"forced disabled of {num_disabled} reminder for {article.id}/{preprintid}"
+                    f" in state {article.articleworkflow.state}"
+                )
 
-        if settings.DEBUG:
+        if settings.DEBUG and self.journal.code.upper() != "JHEP":
             self.debug_list_article_files_imported(article)
             self.debug_list_reminder(article)
 
         self.connection.close()
         return 0
+
+    def disable_reminders_for_article(self, article):
+        """Disable reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
+
+        article_reminders = Q(
+            content_type=ContentType.objects.get_for_model(submission_models.Article),
+            object_id=article.pk,
+            disabled=False,
+        )
+        review_assignments = WorkflowReviewAssignment.objects.filter(article=article).values_list("pk")
+        reviewer_reminders = Q(
+            content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
+            object_id__in=review_assignments,
+            disabled=False,
+        )
+        editor_assignments = WjsEditorAssignment.objects.filter(article=article).values_list("pk")
+        editor_reminders = Q(
+            content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
+            object_id__in=editor_assignments,
+            disabled=False,
+        )
+        revision_requests = EditorRevisionRequest.objects.filter(article=article).values_list("pk")
+        author_reminders = Q(
+            content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
+            object_id__in=revision_requests,
+            disabled=False,
+        )
+        return Reminder.objects.filter(
+            article_reminders | editor_reminders | reviewer_reminders | author_reminders
+        ).update(disabled=True)
 
     #
     # http login to wjapp
