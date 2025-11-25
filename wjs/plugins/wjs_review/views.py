@@ -2061,7 +2061,7 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
-        forms_service = MarkAsReadForms(request=self.request, queryset=self.get_queryset())
+        forms_service = MarkAsReadForms(request=self.request, queryset=context["messages_list"])
         context["forms"] = forms_service.get_forms()
         context["eo_forms"] = forms_service.get_eo_forms()
         return context
