@@ -627,7 +627,7 @@ def test_production_flag_galleys_ok(
         messages = list(get_messages(response.wsgi_request))
         assert not any("I am a teapot" in message.message for message in messages)
 
-        assert mail.outbox[0].subject == "Unexpected error during galley generation"
+        assert mail.outbox[0].subject == "Galleys generation error"
         assert "I am a teapot" in mail.outbox[0].body
 
 
