@@ -2113,11 +2113,12 @@ class Reminder(models.Model):
         """
         # Reminder: get_setting() with journal=None returns the default value for that setting
         # and the default value for "from_address" is sound (ATM it's "no-reply@medialab.sissa.it")
-        journal = article.journal if (article := self.get_related_article()) else None
+        article = self.get_related_article()
+        journal = article.journal if article else None
         email_part = get_setting("general", "from_address", journal).processed_value
 
-        if self.get_related_article() and not permissions.can_see_other_user_name(
-            instance=self.get_related_article().articleworkflow,
+        if article and not permissions.can_see_other_user_name(
+            instance=article.articleworkflow,
             actor=self.actor,
             target=self.recipient,
         ):
