@@ -3406,8 +3406,8 @@ class WithdrawPreprint:
     form_data: Dict[str, Any]
 
     def _check_user_conditions(self) -> bool:
-        """Check if the user is the correspondence author."""
-        return self.workflow.article.correspondence_author == self.request.user
+        """Check if the user is the correspondence author or owner."""
+        return self.request.user in [self.workflow.article.correspondence_author, self.workflow.article.owner]
 
     def _has_past_rejection(self) -> bool:
         """Check if the article was already rejected one time."""
@@ -3419,10 +3419,11 @@ class WithdrawPreprint:
     def _check_state_conditions(self) -> bool:
         """Check if the FSM transition can be made."""
         withdraw_without_rejection = (
-            can_proceed(self.workflow.author_withdraws_preprint) and not self._has_past_rejection()
+            can_proceed(self.workflow.author_or_owner_withdraws_preprint) and not self._has_past_rejection()
         )
         withdraw_after_a_rejection = (
-            can_proceed(self.workflow.author_withdraws_preprint_after_a_rejection) and self._has_past_rejection()
+            can_proceed(self.workflow.author_or_owner_withdraws_preprint_after_a_rejection)
+            and self._has_past_rejection()
         )
         return withdraw_without_rejection or withdraw_after_a_rejection
 
@@ -3444,10 +3445,12 @@ class WithdrawPreprint:
 
     def _update_state(self):
         """Run FSM transition."""
-        if self._has_past_rejection() and can_proceed(self.workflow.author_withdraws_preprint_after_a_rejection):
-            self.workflow.author_withdraws_preprint_after_a_rejection()
+        if self._has_past_rejection() and can_proceed(
+            self.workflow.author_or_owner_withdraws_preprint_after_a_rejection
+        ):
+            self.workflow.author_or_owner_withdraws_preprint_after_a_rejection()
         else:
-            self.workflow.author_withdraws_preprint()
+            self.workflow.author_or_owner_withdraws_preprint()
         self.workflow.save()
 
     def _log_supervisor(self):
