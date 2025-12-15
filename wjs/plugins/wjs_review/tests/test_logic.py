@@ -3913,51 +3913,68 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
         "under_appeal_article",
     ],
 )
-def test_author_withdraws_preprint(
+def test_author_or_owner_withdraws_preprint(
     fixture_article,
     request,
     fake_request: HttpRequest,
     review_settings,
+    create_jcom_user,
 ):
-    """Check if author can Withdraw manuscript in different scenarios."""
-    article = request.getfixturevalue(fixture_article)
-    incomplete_submission = article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
-    under_appeal_state = article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
-    fake_request.user = article.correspondence_author
-    form_data = {
-        "notification_body": "Test body",
-    }
+    """Check if author or owner can Withdraw manuscript in different scenarios."""
+    new_owner = create_jcom_user("new_owner")
+    this_article = request.getfixturevalue(fixture_article)
+    incomplete_submission = this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+    under_appeal_state = this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    this_article.owner = new_owner.janeway_account
+    # FIXME when the article fixtures *all* have the right type in the owner and correspondence_author fields (Account)
+    if hasattr(this_article.correspondence_author, "janeway_account"):
+        this_article.correspondence_author = this_article.correspondence_author.janeway_account
+    this_article.save()
+    this_article.refresh_from_db()
+    assert type(this_article.owner) is type(this_article.correspondence_author)
+    assert this_article.owner != this_article.correspondence_author
     # only assigned_article assigned_article_with_reviewer fixtures have reminders
     if fixture_article in ("assigned_article", "assigned_article_with_reviewer"):
         assert Reminder.objects.all().exists()
-    else:
+    for request_user in [this_article.owner, this_article.correspondence_author]:
+        fake_request.user = request_user
+        form_data = {
+            "notification_body": "Test body",
+        }
+
+        # Save the current state to reset it at the end of the loop, for the correspondence_author
+        # It's not the cleanest way to "reuse" (for the correspondence_author) the same article after the modification
+        # during the owner loop
+        previous_state = this_article.articleworkflow.state
+        form = WithdrawPreprintForm(
+            data=form_data,
+            request=fake_request,
+            instance=this_article.articleworkflow,
+            initial={"notification_subject": "Test subject"},
+        )
+
+        form.is_valid()
+        form.save()
+        this_article.refresh_from_db()
+        if incomplete_submission:
+            assert WjsEditorAssignment.objects.get_all(this_article).count() == 0
+        else:
+            assert WjsEditorAssignment.objects.get_all(this_article).count() == 1
+        if under_appeal_state:
+            assert this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.REJECTED
+        else:
+            assert this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
+
+        for assignment in this_article.reviewassignment_set.all():
+            assert assignment.is_complete
+
+        # No reminder survives the article withdrawal
+        # We are testing a simplified case here, as we should filter on the reminder linked to the related objects
+        # of the article. but as we only have 1 article, it's redundant and simplify test code a lot
         assert not Reminder.objects.all().exists()
-    form = WithdrawPreprintForm(
-        data=form_data,
-        request=fake_request,
-        instance=article.articleworkflow,
-        initial={"notification_subject": "Test subject"},
-    )
-
-    form.is_valid()
-    form.save()
-    article.refresh_from_db()
-    if incomplete_submission:
-        assert WjsEditorAssignment.objects.get_all(article).count() == 0
-    else:
-        assert WjsEditorAssignment.objects.get_all(article).count() == 1
-    if under_appeal_state:
-        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.REJECTED
-    else:
-        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
-
-    for assignment in article.reviewassignment_set.all():
-        assert assignment.is_complete
-
-    # No reminder survives the article withdrawal
-    # We are testing a simplified case here, as we should filter on the reminder linked to the related objects of the
-    # article. but as we only have 1 article, it's redundant and simplify test code a lot
-    assert not Reminder.objects.all().exists()
+        # Reset the state like it was before the withdrawal, to "reset" the ArticleWorkflow, ready for the second loop
+        this_article.articleworkflow.state = previous_state
+        this_article.articleworkflow.save()
 
 
 @pytest.mark.django_db

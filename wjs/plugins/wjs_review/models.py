@@ -1059,10 +1059,10 @@ class ArticleWorkflow(TimeStampedModel):
             ReviewStates.PUBLICATION_IN_PROGRESS,
         ),
         target=ReviewStates.WITHDRAWN,
-        permission=permissions.is_article_author,
+        permission=permissions.is_article_author_or_owner,
         # TODO: conditions=[],
     )
-    def author_withdraws_preprint(self):
+    def author_or_owner_withdraws_preprint(self):
         pass
 
     @transition(
@@ -1077,10 +1077,10 @@ class ArticleWorkflow(TimeStampedModel):
             ReviewStates.UNDER_APPEAL,
         ),
         target=ReviewStates.REJECTED,
-        permission=permissions.is_article_author,
+        permission=permissions.is_article_author_or_owner,
         # TODO: conditions=[],
     )
-    def author_withdraws_preprint_after_a_rejection(self):
+    def author_or_owner_withdraws_preprint_after_a_rejection(self):
         pass
 
     # EO initiates publication

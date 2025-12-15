@@ -3564,11 +3564,12 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
     context_object_name = "workflow"
 
     def test_func(self):
-        """User must be corresponding author of the article."""
-        return self.model.objects.filter(
-            pk=self.kwargs["pk"],
-            article__correspondence_author=self.request.user,
-        ).exists()
+        """User must be corresponding author or owner of the article."""
+        return (
+            self.model.objects.filter(pk=self.kwargs["pk"])
+            .filter(Q(article__correspondence_author=self.request.user) | Q(article__owner=self.request.user))
+            .exists()
+        )
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:

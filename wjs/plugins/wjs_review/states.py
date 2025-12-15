@@ -407,7 +407,7 @@ class BaseState:
             is_modal=True,
         ),
         ArticleAction(
-            permission=permissions.is_article_author,
+            permission=permissions.is_article_author_or_owner,
             name="Withdraw manuscript",
             label="Withdraw manuscript",
             view_name="wjs_author_withdraw_preprint",
