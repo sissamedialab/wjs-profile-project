@@ -3558,10 +3558,14 @@ class PressNotificationHandler:
         article = self.workflow.article
         try:
             recipients = settings.WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS[article.journal.code]
+            enabled = settings.WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED[article.journal.code]
+            if not enabled:
+                return
         except (AttributeError, KeyError) as e:
             logger.error(
                 f"Article withdrawn after acceptance in {article.journal.code}, but no press email sent because "
-                f"WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS is not properly set: {e}"
+                f"WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS or "
+                f"WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED are not properly set: {e}"
             )
             return
         authors_string = self.workflow.article_authors_string

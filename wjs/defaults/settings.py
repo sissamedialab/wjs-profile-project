@@ -179,12 +179,18 @@ WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {
     "JCOMAL": ("j-social@medialab.sissa.it",),
 }
 
-# Email addresses that must receive the notification when an article is published.
+# Press email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
 WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS = {
     None: ("j_journals_press@medialab.sissa.it",),
     "JCOM": ("j_journals_press@medialab.sissa.it",),
     "JCOMAL": ("j_journals_press@medialab.sissa.it",),
+}
+# Press email enabled flag
+WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED = {
+    None: False,
+    "JCOM": True,
+    "JCOMAL": False,
 }
 
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")
