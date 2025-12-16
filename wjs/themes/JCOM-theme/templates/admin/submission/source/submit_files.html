@@ -108,8 +108,8 @@
       </div>
     </div>
   </article>
-  {% include "admin/elements/submit/file.html" with modaltype="manuscript" %}
-  {% include "admin/elements/submit/file.html" with modaltype="data" %}
+  {% include "admin/elements/submit/file.html" with modaltype="manuscript" form=ms_form %}
+  {% include "admin/elements/submit/file.html" with modaltype="data" form=data_form %}
 {% endblock body %}
 {% block js %}
   <script>
