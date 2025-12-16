@@ -8,6 +8,7 @@ from unittest import mock
 from unittest.mock import patch
 
 import freezegun
+import html2text
 import pycountry
 import pytest
 from core.files import save_file_to_article
@@ -54,7 +55,7 @@ from ..forms import (
     SupervisorAssignEditorForm,
     WithdrawPreprintForm,
 )
-from ..logic import (
+from ..logic import (  # WithdrawPreprint,
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
@@ -3975,6 +3976,91 @@ def test_author_or_owner_withdraws_preprint(
         # Reset the state like it was before the withdrawal, to "reset" the ArticleWorkflow, ready for the second loop
         this_article.articleworkflow.state = previous_state
         this_article.articleworkflow.save()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "fixture_article,num_mail_expected",
+    [
+        ("article", 1),
+        ("assigned_article", 1),
+        ("accepted_article", 2),
+        ("ready_for_typesetter_article", 2),
+        ("assigned_to_typesetter_article", 3),
+        ("stage_proofing_article", 3),
+        ("rfp_article", 5),
+        ("under_appeal_article", 1),
+    ],
+)
+def test_withdraw_preprint_press_notification(
+    fixture_article,
+    num_mail_expected: int,
+    request,
+    fake_request: HttpRequest,
+    review_settings,
+):
+    article = request.getfixturevalue(fixture_article)
+    fake_request.user = article.correspondence_author
+
+    context = {
+        "article": article,
+        "authors_string": article.articleworkflow.article_authors_string,
+    }
+    press_message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="article_withdrawn_press_subject",
+        journal=article.journal,
+        request=fake_request,
+        context=context,
+    )
+    press_message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="article_withdrawn_press_body",
+        journal=article.journal,
+        request=fake_request,
+        context=context,
+    )
+    press_message_body_text = html2text.html2text(press_message_body)
+
+    supervisor_message_subject = "Test subject"
+    form_data = {
+        "notification_body": "Test body",
+    }
+
+    form = WithdrawPreprintForm(
+        data=form_data,
+        request=fake_request,
+        instance=article.articleworkflow,
+        initial={"notification_subject": supervisor_message_subject},
+    )
+    form.is_valid()
+    form.save()
+
+    # notifications sent: supervisor
+    if num_mail_expected == 1:
+        assert len(mail.outbox) == 1
+        assert supervisor_message_subject in mail.outbox[0].subject
+
+    # notifications sent: supervisor, press
+    elif num_mail_expected == 2:
+        assert len(mail.outbox) == 2
+        assert supervisor_message_subject in mail.outbox[0].subject
+        assert mail.outbox[1].subject == press_message_subject
+        assert mail.outbox[1].body == press_message_body_text
+
+    # notifications sent: supervisor, typesetter, press
+    elif num_mail_expected == 3:
+        assert len(mail.outbox) == 3
+        assert supervisor_message_subject in mail.outbox[0].subject
+        assert mail.outbox[2].subject == press_message_subject
+        assert mail.outbox[2].body == press_message_body_text
+
+    # notifications sent: 2 to typesetter (rfp_article), supervisor, typesetter, press
+    elif num_mail_expected == 5:
+        assert len(mail.outbox) == 5
+        assert supervisor_message_subject in mail.outbox[2].subject
+        assert mail.outbox[4].subject == press_message_subject
+        assert mail.outbox[4].body == press_message_body_text
 
 
 @pytest.mark.django_db
