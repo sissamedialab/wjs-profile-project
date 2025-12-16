@@ -1,5 +1,6 @@
 import dataclasses
 import datetime
+import json
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
@@ -106,6 +107,8 @@ from .logic import (
     ConvertEditorLatexReport,
     ConvertReviewerLatexReport,
     HandleMessage,
+    YakuninPDFGenerationError,
+    YakuninRequestError,
     render_template_from_setting,
     states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_with_under_appeal,
@@ -1633,10 +1636,26 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         if report_form.is_valid():
             try:
                 if self.request.POST.get("author_review_tex", None):
-                    ConvertReviewerLatexReport(
+                    client = ConvertReviewerLatexReport(
                         report_text=self.request.POST.get("author_review_tex"),
                         instance=self.object.workflowreviewassignment,
-                    ).run()
+                    )
+                    try:
+                        client.run()
+                    except YakuninPDFGenerationError:
+                        logfile = core_models.File.objects.get(
+                            article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                        )
+                        download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
+                        link_html = (
+                            f"Error generating the report. A diagnostic log is available: "
+                            f'<a href="{download_url}" target="_blank">Download log</a>'
+                        )
+                        report_form.add_error(None, mark_safe(link_html))
+                        return self.render_to_response(self.get_context_data(report_form=report_form))
+                    except YakuninRequestError as e:
+                        report_form.add_error(None, mark_safe(str(e)))
+                        return self.render_to_response(self.get_context_data(report_form=report_form))
                 report_form.save()
                 return HttpResponseRedirect(self.get_success_url())
             except (ValueError, ValidationError) as e:
@@ -1777,10 +1796,26 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
             if get_setting(
                 setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
             ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
-                assignment = WjsEditorAssignment.objects.get(pk=self.object.article.articleworkflow)
-                ConvertEditorLatexReport(
+                assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
+                client = ConvertEditorLatexReport(
                     report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
-                ).run()
+                )
+                try:
+                    client.run()
+                except YakuninPDFGenerationError:
+                    logfile = core_models.File.objects.get(
+                        article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                    )
+                    download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
+                    link_html = (
+                        f"Error generating the report. A diagnostic log is available:"
+                        f' <a href="{download_url}" target="_blank">Download log</a>'
+                    )
+                    form.add_error(None, mark_safe(link_html))
+                    return self.render_to_response(self.get_context_data(form=form))
+                except YakuninRequestError as e:
+                    form.add_error(None, mark_safe(str(e)))
+                    return self.render_to_response(self.get_context_data(form=form))
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -1888,9 +1923,25 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
                 setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
             ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
                 assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
-                ConvertEditorLatexReport(
+                client = ConvertEditorLatexReport(
                     report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
-                ).run()
+                )
+                try:
+                    client.run()
+                except YakuninPDFGenerationError:
+                    logfile = core_models.File.objects.get(
+                        article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                    )
+                    download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
+                    link_html = (
+                        f"Error generating the report. A diagnostic log is available:"
+                        f' <a href="{download_url}" target="_blank">Download log</a>'
+                    )
+                    form.add_error(None, mark_safe(link_html))
+                    return self.render_to_response(self.get_context_data(form=form))
+                except YakuninRequestError as e:
+                    form.add_error(None, mark_safe(str(e)))
+                    return self.render_to_response(self.get_context_data(form=form))
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -3673,6 +3724,8 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
 
     def test_func(self):
         """Check if the user can see(download) the file. Both full permission and NO_NAME grant access to files."""
+        if self.request.user == self.attachment.owner:
+            return True
         related_instances = self._get_related_instances()
         for instance, primary in related_instances:
             if primary:
@@ -3879,12 +3932,27 @@ class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
 
     def post(self, request, *args, **kwargs):
         try:
-            generated_tex_review = ConvertReviewerLatexReport(
+            client = ConvertReviewerLatexReport(
                 report_text=self.request.POST.get("author_review_tex"),
                 instance=self.assignment,
-            ).run()
-        except ValidationError as e:
-            return HttpResponse(str(e), status=400)
+            )
+            generated_tex_review = client.run()
+        except YakuninPDFGenerationError as e:
+            logfile = core_models.File.objects.get(
+                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
+            )
+            download_url = reverse(
+                "download_single_file",
+                args=[self.assignment.article.pk, logfile.pk],
+            )
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            response["HX-Redirect"] = download_url
+            return response
+        except YakuninRequestError as e:
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            return response
 
         download_url = reverse(
             "download_single_file",
@@ -3907,12 +3975,27 @@ class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, Vie
 
     def post(self, request, *args, **kwargs):
         try:
-            generated_tex_review = ConvertEditorLatexReport(
+            client = ConvertEditorLatexReport(
                 report_text=self.request.POST.get("decision_editor_report"),
                 instance=self.assignment,
-            ).run()
-        except ValidationError as e:
-            return HttpResponse(str(e), status=400)
+            )
+            generated_tex_review = client.run()
+        except YakuninPDFGenerationError as e:
+            logfile = core_models.File.objects.get(
+                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
+            )
+            download_url = reverse(
+                "download_single_file",
+                args=[self.assignment.article.pk, logfile.pk],
+            )
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            response["HX-Redirect"] = download_url
+            return response
+        except YakuninRequestError as e:
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            return response
 
         download_url = reverse(
             "download_single_file",

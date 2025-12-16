@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
 import requests
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
@@ -107,6 +109,7 @@ from .reminders.settings import (
 from .utils import (
     get_not_withdrawn_review_assignments_for_this_round,
     get_other_review_assignments_for_this_round,
+    remove_existing_files_from_filesystem,
 )
 
 logger = get_logger(__name__)
@@ -3544,6 +3547,18 @@ class WithdrawPreprint:
             return
 
 
+class YakuninPDFGenerationError(Exception):
+    """Raised when Yakunin fails to generate the PDF due to content or processing issues."""
+
+    pass
+
+
+class YakuninRequestError(Exception):
+    """Raised when the request to Yakunin fails (network, timeout, HTTP errors)."""
+
+    pass
+
+
 @dataclasses.dataclass
 class YakuninClient:
     file: bytes
@@ -3596,13 +3611,17 @@ class YakuninClient:
             response = requests.post(url, files=files, data=data)
             response.raise_for_status()
         except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
-            raise ValidationError(f"Error generating PDF via Yakunin: {e}")
+            raise YakuninRequestError(str(e)) from e
 
         tmpdir = self._unpack_response_file(response.content)
         log = self._extract_yakunin_logs(tmpdir)
-
+        # store logs in a class variable to be able to access them later even if ValueError is raised
+        self._log = log
         if not self._report_yakunin_errors(log):
-            raise ValueError(_("Error in generating the PDF file."))
+            shutil.rmtree(tmpdir)
+            raise YakuninPDFGenerationError(
+                _("Error generating the PDF file. A log file containing diagnostic details has been downloaded.")
+            )
         return tmpdir, log
 
     # This method is not currently used bud could be useful, maybe?
@@ -3729,12 +3748,29 @@ class YakuninClient:
 class ConvertManuscriptToPdf:
     article_id: int
     feedback_ws_url: str | None
+    feedback_ws_name: str | None
 
     _failed_conversion_log = "Failed conversion log ConvertManuscriptToPdf"
 
     @cached_property
     def article(self) -> Article:
         return Article.objects.get(pk=self.article_id)
+
+    @property
+    def yakunin_log_filename(self):
+        return f"conversion-task_{self.article}.log"
+
+    def _report_error_via_ws(self, status: str, error_description: str, log_file=None):
+        channel_layer = get_channel_layer()
+        payload = {
+            "status": status,
+            "text": error_description,
+        }
+        if log_file:
+            payload["data"] = log_file
+        async_to_sync(channel_layer.group_send)(
+            f"group_{self.feedback_ws_name}", {"type": "error.log", "message": payload}
+        )
 
     def run(self):
         """
@@ -3757,11 +3793,28 @@ class ConvertManuscriptToPdf:
         file_bytes = self.article.source_files.first().get_file(self.article, as_bytes=True)
         try:
             client = YakuninClient(file=file_bytes, filename=filename)
-            tmpdir, log = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
-            self.logfile = self._save_yakunin_logs(log)
+            tmpdir, log_content = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
+            self.logfile = self._save_yakunin_logs(log_content)
             generated_file = self._handle_generated_pdf(tmpdir)
             return generated_file
-        except ValueError:  # TODO: exception handling
+        except YakuninPDFGenerationError as e:
+            log_content = getattr(client, "_log", None)
+            if not log_content:
+                log_content = str(e)
+            self.logfile = self._save_yakunin_logs(log_content)
+            log_file_url = reverse(
+                "download_single_file", kwargs={"file_id": self.logfile.id, "article_id": self.article_id}
+            )
+            self._report_error_via_ws("error", str(e), log_file_url)
+            raise
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            self.logfile = self._save_yakunin_logs(str(e))
+            log_file_url = reverse(
+                "download_single_file", kwargs={"file_id": self.logfile.id, "article_id": self.article_id}
+            )
+            self._report_error_via_ws("error", str(msg), log_file_url)
             raise
         finally:
             if tmpdir:
@@ -3813,9 +3866,9 @@ class ConvertManuscriptToPdf:
         :type log: str
         :return: None
         """
-        yakunin_log_filename = f"conversion-task_{self.article}.log"
+        remove_existing_files_from_filesystem(self.article.pk, self.yakunin_log_filename)
         log_file = BytesIO(log.encode("utf-8"))
-        log_content_file = File(log_file, name=yakunin_log_filename)
+        log_content_file = File(log_file, name=self.yakunin_log_filename)
 
         return core_files.save_file_to_article(
             file_to_handle=log_content_file,
@@ -3839,7 +3892,8 @@ class ConvertManuscriptToPdf:
         generated_pdf_path = next(tmpdir.glob("*.pdf"), None)
         # Let's call the PDF that we are storing in Janeway the same as the source file that originated it,
         # but with extension ".pdf"
-        generated_pdf_filename = Path(self.article.manuscript_files.first().original_filename).with_suffix(".pdf")
+        generated_pdf_filename = Path(self.article.source_files.first().original_filename).with_suffix(".pdf")
+        remove_existing_files_from_filesystem(self.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
             generated_manuscript = core_files.save_file_to_article(
@@ -3862,6 +3916,10 @@ class ConvertEditorLatexReport:
     instance: WjsEditorAssignment
 
     _failed_conversion_log = "Failed conversion log ConvertEditorLatexReport"
+
+    @property
+    def yakunin_log_filename(self):
+        return f"conversion-EA_{self.instance}.log"
 
     def _create_in_memory_ini_file(self) -> BytesIO:
         """
@@ -3903,8 +3961,14 @@ class ConvertEditorLatexReport:
             tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
             self.logfile = self._save_yakunin_logs(log)
             return self._handle_generated_file(tmpdir)
-        except ValueError:  # TODO: exception handling
+        except YakuninPDFGenerationError:
+            log = getattr(client, "_log", None)
+            self._save_yakunin_logs(log)
             raise
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            raise YakuninRequestError(msg) from e
         finally:
             if tmpdir:
                 shutil.rmtree(tmpdir)
@@ -3936,14 +4000,14 @@ class ConvertEditorLatexReport:
         :return: A reference to the saved file.
         :rtype: core_models.File
         """
-        yakunin_log_filename = f"conversion-EA_{self.instance}.log"
+        remove_existing_files_from_filesystem(self.instance.article.pk, self.yakunin_log_filename)
         log_file = BytesIO(log.encode("utf-8"))
-        log_content_file = File(log_file, name=yakunin_log_filename)
+        log_content_file = File(log_file, name=self.yakunin_log_filename)
 
         return core_files.save_file_to_article(
             file_to_handle=log_content_file,
             article=self.instance.article,
-            owner=self.instance.article.correspondence_author,
+            owner=self.instance.editor,
             label=self._failed_conversion_log,
         )
 
@@ -3961,6 +4025,7 @@ class ConvertEditorLatexReport:
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
         generated_pdf_filename = f"{self.filename}.pdf"
+        remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
             generated_tex = core_files.save_file_to_article(
@@ -3980,6 +4045,10 @@ class ConvertReviewerLatexReport:
     instance: WorkflowReviewAssignment
 
     _failed_conversion_log = "Failed conversion log ConvertReviewerLatexReport"
+
+    @property
+    def yakunin_log_filename(self):
+        return f"conversion-RA_{self.instance}.log"
 
     def _create_in_memory_ini_file(self) -> BytesIO:
         """
@@ -4022,11 +4091,17 @@ class ConvertReviewerLatexReport:
             self.filename = f"latex_report_RA-{self.instance.pk}"
             tex_file = self._prepare_tex_file()
             client = YakuninClient(file=tex_file, filename=self.filename)
-            tmpdir, log = tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
+            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
             self.logfile = self._save_yakunin_logs(log)
             return self._handle_generated_file(tmpdir)
-        except ValueError:  # TODO: exception handling
+        except YakuninPDFGenerationError:
+            log = getattr(client, "_log", None)
+            self._save_yakunin_logs(log)
             raise
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            raise YakuninRequestError(msg) from e
         finally:
             if tmpdir:
                 shutil.rmtree(tmpdir)
@@ -4059,14 +4134,14 @@ class ConvertReviewerLatexReport:
         :return: A File object representing the saved log file.
         :rtype: core_models.File
         """
-        yakunin_log_filename = f"conversion-RA_{self.instance}.log"
+        remove_existing_files_from_filesystem(self.instance.article.pk, self.yakunin_log_filename)
         log_file = BytesIO(log.encode("utf-8"))
-        log_content_file = File(log_file, name=yakunin_log_filename)
+        log_content_file = File(log_file, name=self.yakunin_log_filename)
 
         return core_files.save_file_to_article(
             file_to_handle=log_content_file,
             article=self.instance.article,
-            owner=self.instance.article.correspondence_author,
+            owner=self.instance.reviewer,
             label=self._failed_conversion_log,
         )
 
@@ -4084,6 +4159,7 @@ class ConvertReviewerLatexReport:
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
         generated_pdf_filename = f"{self.filename}.pdf"
+        remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
             generated_tex = core_files.save_file_to_article(

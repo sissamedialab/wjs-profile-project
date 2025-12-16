@@ -70,6 +70,15 @@ class FeedbackConsumer(AsyncWebsocketConsumer):
         message = event["message"]
         await self.send(text_data=json.dumps({"status_log": message["text"], "status": message["status"]}))
 
+    async def error_log(self, event):
+        """Receive message from group and send to client."""
+        message = event["message"]
+        await self.send(
+            text_data=json.dumps(
+                {"status_log": message["text"], "status": message["status"], "log_file": message.get("data")}
+            )
+        )
+
     async def completed_data(self, event):
         """Receive message from group and send to client."""
         message = event["message"]

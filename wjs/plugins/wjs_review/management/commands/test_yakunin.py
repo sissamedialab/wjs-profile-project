@@ -4,7 +4,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from ...logic import YakuninClient
+from ...logic import YakuninClient, YakuninPDFGenerationError, YakuninRequestError
 
 
 class Command(BaseCommand):
@@ -52,11 +52,20 @@ class Command(BaseCommand):
                     }
                 )
 
-            except Exception as e:
+            except YakuninRequestError as e:
                 results["errors"].append(
                     {
                         "file": name,
-                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    }
+                )
+
+            except YakuninPDFGenerationError as e:
+                results["errors"].append(
+                    {
+                        "file": name,
+                        "error_log": client._log,
+                        "error_type": type(e).__name__,
                     }
                 )
 
