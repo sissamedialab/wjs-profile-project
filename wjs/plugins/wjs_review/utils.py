@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET  # noqa
 import zipfile
 from typing import IO
 
+from core import models as core_models
 from django.conf import settings
 from django.utils.module_loading import import_string
 from review.models import ReviewRound
@@ -91,3 +92,10 @@ def get_report_form(journal_code: str):
         settings.WJS_REVIEW_CUSTOM_REPORT_FORMS.get(None),
     )
     return import_string(form_path)
+
+
+def remove_existing_files_from_filesystem(article_id: int, filename: str):
+    """Delete from the filesystem all the files with a given name and relate to a given article"""
+    files = core_models.File.objects.filter(article_id=article_id, original_filename=filename)
+    for file in files:
+        file.delete()

@@ -118,20 +118,20 @@
     if (editor.value) editor.value += "\n\n-------------------\n\n"
     editor.value += latex
   })
-  function showError(event) {
-  document.getElementById("pdf_error").innerText =
-      event.detail.xhr.responseText || "PDF generation failed";
-  }
+
+  document.body.addEventListener("yakunin-error", ev => {
+      document.getElementById("pdf_error").innerText = ev.detail.value;
+  });
 
   function clearError() {
       document.getElementById("pdf_error").innerText = "";
   }
 
-  function clearErrorOnSuccess(event) {
+  document.body.addEventListener("htmx:afterRequest", event => {
       const xhr = event.detail.xhr;
       if (xhr.status >= 200 && xhr.status < 300) {
           clearError();
       }
-  }
+  });
   </script>
 {% endblock content_wrapper %}

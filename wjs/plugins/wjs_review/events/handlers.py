@@ -306,10 +306,12 @@ def clean_prophy_candidates(**kwargs) -> None:
 def _run_conversion(
     article_id: int,
     feedback_ws_url: Optional[str] = None,
+    feedback_ws_name: Optional[str] = None,
 ):
     conversion = ConvertManuscriptToPdf(
         article_id=article_id,
         feedback_ws_url=feedback_ws_url,
+        feedback_ws_name=feedback_ws_name,
     )
     conversion.run()
 
@@ -319,10 +321,11 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
     article = kwargs["article"]
     file_type = kwargs["file_type"]
     feedback_ws_url = kwargs.get("feedback_ws_url", None)
+    feedback_ws_name = kwargs.get("feedback_ws_name", None)
 
     if file_type.startswith("manuscript"):
         if file_type.endswith(":async"):
-            async_task(_run_conversion, article.pk, feedback_ws_url)
+            async_task(_run_conversion, article.pk, feedback_ws_url, feedback_ws_name)
         else:
             _run_conversion(article.pk)
     elif file_type == "data":
