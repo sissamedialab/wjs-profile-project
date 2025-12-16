@@ -486,6 +486,72 @@ def test_reviewer_accepts__deletes_some_reminders(
     assert r_2.date_due == review_completion_due_date + datetime.timedelta(days=r_2_date)
 
 
+@pytest.mark.django_db
+def test_reminder_rendering_date(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+):
+    """Reminder rendering function render Datetime as Date."""
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        reviewer=normal_user.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    )
+    # Ugly hack: create_reminder needs a service already "half-run", because the target is one of the results of the
+    # processing (e.g. a WorkflowReviewAssignment). However, the `run()` method will call create_reminder itself.
+    service._ensure_reviewer()
+    service.assignment = service._assign_reviewer()
+
+    ReviewerShouldEvaluateAssignmentReminderManager(
+        assignment=service.assignment,
+    ).create()
+    assert isinstance(service.assignment.date_requested, datetime.datetime)
+
+    for code in (
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+    ):
+        reminder_obj = Reminder.objects.get(code=code)
+        reminder_setting = ReviewerShouldEvaluateAssignmentReminderManager.get_settings(reminder_obj)
+        formatted_data = formats.date_format(localtime(service.assignment.date_requested), settings.DATE_FORMAT)
+        not_expected_data_format = formats.date_format(
+            localtime(service.assignment.date_requested), settings.DATETIME_FORMAT
+        )
+        rendered_body = reminder_setting.get_rendered_body(reminder_obj.target)
+        assert formatted_data in rendered_body
+        assert not_expected_data_format not in rendered_body
+
+    # The `assigned_article` fixture already performed the assignment of EditorShouldSelectReviewerReminderManager
+    # reminders, so we just check the reminders
+    # We should check EditorShouldSelectReviewerReminderManager reminders
+    # because it was mentioned in wjs/specs/-/issues/2156
+    reminders = Reminder.objects.filter(
+        code__in=[
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+        ]
+    )
+    for reminder_obj in reminders:
+        reminder_setting = EditorShouldSelectReviewerReminderManager.get_settings(reminder_obj)
+        assignment = WjsEditorAssignment.objects.get_current(assigned_article)
+        assigned_date = max(assignment.assigned, assignment.review_rounds.last().date_started)
+        formatted_data = formats.date_format(localtime(assigned_date), settings.DATE_FORMAT)
+        not_expected_data_format = formats.date_format(localtime(assigned_date), settings.DATETIME_FORMAT)
+        rendered_body = reminder_setting.get_rendered_body(reminder_obj.target)
+        assert formatted_data in rendered_body
+        assert not_expected_data_format not in rendered_body
+
+
 class TestReviewerDeclines:
     """What happens when a reviewer declines an assignment.
 
