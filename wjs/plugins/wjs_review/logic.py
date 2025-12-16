@@ -16,6 +16,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import html2text
 import requests
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
@@ -31,6 +32,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
+from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 from django.db.models.query import FlatValuesListIterable
@@ -3526,12 +3528,70 @@ class WithdrawPreprint:
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
             self._close_review_assignments()
+            # handler initialized before state update
+            handler = PressNotificationHandler(self.workflow, self.request)
             self._update_state()
             self._log_supervisor()
             self._delete_editor_reminders()
             if assignment := self._get_typesetting_assignment():
                 self._log_typesetter(assignment)
+            handler.run()
             return
+
+
+@dataclasses.dataclass
+class PressNotificationHandler:
+    """Send notification to journal press if required"""
+
+    workflow: ArticleWorkflow
+    request: HttpRequest
+
+    def __post_init__(self):
+        self._press_to_be_notified = self.workflow.state in states_when_article_is_considered_in_production
+
+    def run(self) -> None:
+        if self._press_to_be_notified:
+            self.notification_journalpress()
+
+    def notification_journalpress(self) -> None:
+        """Send notification to journal press via email when article is witdrawn after acceptance."""
+        article = self.workflow.article
+        try:
+            recipients = settings.WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS[article.journal.code]
+        except (AttributeError, KeyError) as e:
+            logger.error(
+                f"Article withdrawn after acceptance in {article.journal.code}, but no press email sent because "
+                f"WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS is not properly set: {e}"
+            )
+            return
+        authors_string = self.workflow.article_authors_string
+        context = {
+            "article": article,
+            "authors_string": authors_string,
+        }
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="article_withdrawn_press_subject",
+            journal=article.journal,
+            request=self.request,
+            context=context,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="article_withdrawn_press_body",
+            journal=article.journal,
+            request=self.request,
+            context=context,
+        )
+        message_body_text = html2text.html2text(message_body)
+        from_email = get_setting("general", "from_address", article.journal).processed_value
+        send_mail(
+            subject=message_subject,
+            message=message_body_text,
+            from_email=from_email,
+            recipient_list=recipients,
+            html_message=message_body,
+        )
 
 
 @dataclasses.dataclass
