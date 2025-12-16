@@ -103,7 +103,8 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
-    HandleLatexReport,
+    ConvertEditorLatexReport,
+    ConvertReviewerLatexReport,
     HandleMessage,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -1632,10 +1633,9 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         if report_form.is_valid():
             try:
                 if self.request.POST.get("author_review_tex", None):
-                    HandleLatexReport(
-                        self.object.workflowreviewassignment,
-                        self.request.POST.get("author_review_tex"),
-                        self.request.user,
+                    ConvertReviewerLatexReport(
+                        report_text=self.request.POST.get("author_review_tex"),
+                        instance=self.object.workflowreviewassignment,
                     ).run()
                 report_form.save()
                 return HttpResponseRedirect(self.get_success_url())
@@ -1778,7 +1778,9 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
                 setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
             ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
                 assignment = WjsEditorAssignment.objects.get(pk=self.object.article.articleworkflow)
-                HandleLatexReport(assignment, form.cleaned_data.get("decision_editor_report"), self.request.user).run()
+                ConvertEditorLatexReport(
+                    report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
+                ).run()
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -1886,7 +1888,9 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
                 setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
             ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
                 assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
-                HandleLatexReport(assignment, form.cleaned_data.get("decision_editor_report"), self.request.user).run()
+                ConvertEditorLatexReport(
+                    report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
+                ).run()
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -3875,8 +3879,9 @@ class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
 
     def post(self, request, *args, **kwargs):
         try:
-            generated_tex_review = HandleLatexReport(
-                self.assignment, self.request.POST.get("author_review_tex"), self.request.user
+            generated_tex_review = ConvertReviewerLatexReport(
+                report_text=self.request.POST.get("author_review_tex"),
+                instance=self.assignment,
             ).run()
         except ValidationError as e:
             return HttpResponse(str(e), status=400)
@@ -3902,8 +3907,9 @@ class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, Vie
 
     def post(self, request, *args, **kwargs):
         try:
-            generated_tex_review = HandleLatexReport(
-                self.assignment, self.request.POST.get("decision_editor_report"), self.request.user
+            generated_tex_review = ConvertEditorLatexReport(
+                report_text=self.request.POST.get("decision_editor_report"),
+                instance=self.assignment,
             ).run()
         except ValidationError as e:
             return HttpResponse(str(e), status=400)

@@ -16,7 +16,7 @@ from copy import copy
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 import requests
 
@@ -32,7 +32,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
-from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import UploadedFile
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
@@ -3546,23 +3545,241 @@ class WithdrawPreprint:
 
 
 @dataclasses.dataclass
+class YakuninClient:
+    file: bytes
+    filename: str
+
+    def _handle_mock_file(self):
+        """
+        Handles the processing of a mock file designated by the YAKUNIN_MOCK_FILE
+        setting. The file is processed by reading its content, unpacking it, and
+        returning a temporary directory along with a predefined message. Thi is
+        returned instead of a file deriving from the real execution.
+
+        :return: A tuple containing the temporary directory created during unpacking
+                 and a string message simulating a successful log.
+        :rtype: tuple
+        """
+        with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
+            tmpdir = self._unpack_response_file(mock_file.read())
+            return tmpdir, "No logs for mock file"
+
+    def _request(
+        self, endpoint: str, files: dict[str, tuple[str, bytes]], data: Optional[Mapping[str, str]] = None
+    ) -> tuple[Path, str]:
+        """
+        Sends a POST request to the specified endpoint with files and data, processes the response, and
+        handles potential issues such as network errors or problems with the response content. The method
+        is specifically used for interactions with the Yakunin system for generating PDFs.
+
+        :param endpoint: Endpoint URL path to which the request is sent.
+        :type endpoint: str
+        :param files: Dictionary of files to send in the request. Keys represent file field names, and
+                      values are tuples containing the file name and the file's content in bytes.
+        :type files: dict[str, tuple[str, bytes]]
+        :param data: Optional dictionary of data to send in the request. Each key-value pair represents
+                     form data sent along with the files.
+        :type data: Optional[Mapping[str, str]]
+        :return: A tuple containing the path to the unpacked directory (as a Path object) and the
+                 Yakunin log string extracted from the response.
+        :rtype: tuple[Path, str]
+        :raises ValidationError: If there is an issue with the network connection, the request times out,
+                                  or the server returns an HTTP error.
+        :raises ValueError: If the Yakunin logs indicate an error during PDF generation.
+        """
+        if getattr(settings, "YAKUNIN_MOCK_FILE", None):
+            tmpdir, log = self._handle_mock_file()
+            return tmpdir, log
+
+        url = settings.YAKUNIN_URL + endpoint
+        try:
+            response = requests.post(url, files=files, data=data)
+            response.raise_for_status()
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+            raise ValidationError(f"Error generating PDF via Yakunin: {e}")
+
+        tmpdir = self._unpack_response_file(response.content)
+        log = self._extract_yakunin_logs(tmpdir)
+
+        if not self._report_yakunin_errors(log):
+            raise ValueError(_("Error in generating the PDF file."))
+        return tmpdir, log
+
+    # This method is not currently used bud could be useful, maybe?
+    def call_yakunin_mkpdf(self) -> tuple[Path, str]:
+        """
+        Calls the 'mkpdf/' endpoint to generate a PDF file using the provided file
+        data and filename. This method wraps the request and retrieves the result
+        including the file path and additional metadata.
+
+        :return: A tuple containing the path to the generated PDF file and metadata
+                 as a string.
+        :rtype: tuple[Path, str]
+        """
+        files = {
+            "file": (
+                self.filename,
+                self.file,
+            ),
+        }
+        return self._request("mkpdf/", files)
+
+    def call_yakunin_watermark(self, ini_file: BytesIO, feedback_ws_url: str | None = None) -> tuple[Path, str]:
+        """
+        Calls the Yakunin watermark service.
+
+        This method sends files and their configuration settings to a specific Yakunin
+        watermarking service endpoint. Depending on whether a feedback WebSocket URL
+        is provided, it either interacts with the feedback-enabled endpoint or the
+        basic one. The method processes the input files, constructs the necessary
+        payload, and internally calls the service.
+
+        :param ini_file: Configuration file provided as a BytesIO object for the
+            watermarking process.
+        :type ini_file: BytesIO
+        :param feedback_ws_url: WebSocket URL string for processing feedback data
+            during watermarking.
+        :type feedback_ws_url: str
+        :return: A tuple containing the resulting file path and a response string
+            from the watermarking service.
+        :rtype: tuple[Path, str]
+        """
+        files = {
+            "file": (
+                self.filename,
+                self.file,
+            ),
+            "ini": (ini_file.name, ini_file.getvalue()),
+        }
+
+        if feedback_ws_url:
+            return self._request("watermark/ws/", files, {"feedback_ws_url": feedback_ws_url})
+        return self._request("watermark/", files)
+
+    def _unpack_response_file(self, content: bytes) -> Path:
+        """
+        Unpacks the content of a tar.gz file into a temporary directory.
+
+        This function creates a temporary directory, unpacks the provided compressed
+        content (in tar.gz format) into it, and returns the path of the created
+        temporary directory.
+
+        :param content: The tar.gz file content to unpack.
+        :type content: bytes
+        :return: Path to the temporary directory where the content is unpacked.
+        :rtype: Path
+        """
+        unpack_dir = tempfile.mkdtemp()
+
+        with BytesIO(content) as file_obj:
+            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+                tar.extractall(path=unpack_dir)
+        unpack_dir = Path(unpack_dir)
+
+        return unpack_dir
+
+    def _extract_yakunin_logs(self, tmpdir: Path) -> str:
+        """
+        Extracts the content of a specific Yakunin log file located in a given temporary
+        directory. This method searches for the first occurrence of a log file named
+        'yakunin-task.log', reads its binary content, and decodes it into a string.
+
+        :param tmpdir: A pathlib.Path object pointing to the temporary directory where
+                       the Yakunin log file is expected to reside.
+        :type tmpdir: Path
+        :return: The decoded content of the Yakunin log file as a string.
+        :rtype: str
+        """
+        yakunin_log_file = next(tmpdir.glob("yakunin-task.log"), None)
+        with open(yakunin_log_file, "rb") as log_file:
+            log_content = log_file.read()
+            return log_content.decode("utf-8")
+
+    def _report_yakunin_errors(self, log: str) -> bool:
+        """
+        Analyzes the given log for critical or error-level messages and
+        determines whether any such messages are present.
+
+        This function inspects each line of the given log string. If it encounters
+        a line that starts with "ERROR" or "CRITICAL", it sets a flag indicating
+        the presence of such messages and stops further inspection. The final
+        decision is then returned as a boolean value indicating the absence of
+        "errors" or "critical" messages.
+
+        :param log: The log string to be analyzed line by line.
+        :type log: str
+        :return: A boolean value indicating the absence of "ERROR" or
+            "CRITICAL" messages. Returns True if no such messages exist,
+            otherwise False.
+        :rtype: bool
+        """
+        has_error_or_critical = False
+
+        for line in log.splitlines():
+            if line.startswith("ERROR"):
+                has_error_or_critical = True
+                break
+            elif line.startswith("CRITICAL"):
+                has_error_or_critical = True
+                break
+        return not has_error_or_critical
+
+
+@dataclasses.dataclass
 class ConvertManuscriptToPdf:
-    """Use Yakunin service to convert the manuscript file uploaded by the author into a PDF."""
-
     article_id: int
-    feedback_ws_url: str | None = None
+    feedback_ws_url: str | None
 
-    _failed_conversion_log = "Failed conversion log"
+    _failed_conversion_log = "Failed conversion log ConvertManuscriptToPdf"
 
     @cached_property
     def article(self) -> Article:
         return Article.objects.get(pk=self.article_id)
 
-    def create_in_memory_ini_file(self) -> BytesIO:
-        """Create wjs.ini file.
+    def run(self):
+        """
+        Run the watermarking process for the manuscript file of an article.
 
-        This is used to control the position of the watermark that yakunin overlays on the PDF and what to write on it.
+        This method creates an in-memory INI file for configuration and retrieves the
+        first manuscript file associated with the article. The file's content and name
+        are passed to the YakuninClient to generate a watermarked version of the PDF
+        file. Logs generated during the process are saved, and the resulting watermarked
+        PDF is handled appropriately. Temporary directories used during the process
+        are cleaned up to ensure no residual data remains.
 
+        :raises ValueError: If an error occurs during the Yakunin watermarking process.
+
+        :return: The generated watermarked PDF file.
+        """
+        tmpdir = None
+        ini = self._create_in_memory_ini_file()
+        filename = self.article.source_files.first().original_filename
+        file_bytes = self.article.source_files.first().get_file(self.article, as_bytes=True)
+        try:
+            client = YakuninClient(file=file_bytes, filename=filename)
+            tmpdir, log = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
+            self.logfile = self._save_yakunin_logs(log)
+            generated_file = self._handle_generated_pdf(tmpdir)
+            return generated_file
+        except ValueError:  # TODO: exception handling
+            raise
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+    def _create_in_memory_ini_file(self) -> BytesIO:
+        """
+        Creates an in-memory .ini file containing metadata related to the current article version.
+
+        The method generates a `.ini` configuration file in memory that stores information concerning
+        the article being processed, such as its journal code, unique identifier, version number, and
+        positioning settings for a watermark. The generated `.ini` file is designed to be used
+        internally to aid in the submission or revision-submission workflow. It handles both initial
+        submission and revision-submission scenarios by considering whether the article already belongs
+        to a review round.
+
+        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
+        :rtype: BytesIO
         """
         # Warning: we can be called during submission, in which case there exists no version of the paper, so we are
         # generating the first PDF (v1) or we can be called during the revision-submission process. In the second case,
@@ -3574,88 +3791,52 @@ class ConvertManuscriptToPdf:
             # the first submission phase.
             version_number += 1
         ini_content = f"""
-    [wjs]
-    text = Not for distribution {self.article.journal.code} {self.article.id} v{version_number}
-    x = {settings.WATERMARK_X_POSITION}
-    y = {settings.WATERMARK_Y_POSITION}
-    """
+        [wjs]
+        text = Not for distribution {self.article.journal.code} {self.article.id} v{version_number}
+        x = {settings.WATERMARK_X_POSITION}
+        y = {settings.WATERMARK_Y_POSITION}
+        """
 
         ini_file = BytesIO(ini_content.encode("utf-8"))
         ini_file.name = "wj.ini"
         ini_file.seek(0)
         return ini_file
 
-    def ask_yakunin_to_process(self, ini_file: BytesIO) -> bytes:
-        if getattr(settings, "YAKUNIN_MOCK_FILE", None):
-            with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
-                return mock_file.read()
-        url = settings.YAKUNIN_URL + "watermark/"
+    def _save_yakunin_logs(self, log: str) -> core_models.File:
+        """
+        Saves the Yakunin logs associated with a specific conversion task. This function
+        takes a string containing log data, encodes it, and saves the log file as part
+        of an article's associated files. The file is saved with a standardized name
+        including the associated article's information.
 
-        files = {
-            "file": (
-                self.article.manuscript_files.first().original_filename,
-                self.article.manuscript_files.first().get_file(self.article, as_bytes=True),
-            ),
-            "ini": (ini_file.name, ini_file.getvalue()),
-        }
-
-        if self.feedback_ws_url:
-            url = f"{settings.YAKUNIN_URL}mkpdf/ws/"
-            if settings.DEBUG:
-                logger.debug(f"POST {url} with files {files.keys()}")
-            response = requests.post(url, files=files, data={"feedback_ws_url": self.feedback_ws_url})
-        else:
-            url = f"{settings.YAKUNIN_URL}mkpdf/"
-            if settings.DEBUG:
-                logger.debug(f"POST {url} with files {files.keys()}")
-            response = requests.post(url, files=files)
-        if response.status_code != 200:
-            raise ValueError(_(f"Unexpected status code {response.status_code}."))
-
-        return response.content
-
-    @staticmethod
-    def _unpack_response_file(content: bytes) -> Path:
-        unpack_dir = tempfile.mkdtemp()
-
-        with BytesIO(content) as file_obj:
-            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-                tar.extractall(path=unpack_dir)
-        unpack_dir = Path(unpack_dir)
-
-        return unpack_dir
-
-    def _extract_yakunin_logs(self, unpack_dir: Path) -> str:
-        # Assuming the file is always present if response.status_code is 200
-        yakunin_log_file = next(unpack_dir.glob("yakunin-task.log"), None)
+        :param log: The log content to save, provided as a string.
+        :type log: str
+        :return: None
+        """
         yakunin_log_filename = f"conversion-task_{self.article}.log"
-        with open(yakunin_log_file, "rb") as log_file:
-            log_content = log_file.read()
-            log_file.seek(0)
-            log_content_file = File(log_file, name=yakunin_log_filename)
-            core_files.save_file_to_article(
-                file_to_handle=log_content_file,
-                article=self.article,
-                owner=self.article.correspondence_author,
-                label=self._failed_conversion_log,
-            )
-            return log_content.decode("utf-8")
+        log_file = BytesIO(log.encode("utf-8"))
+        log_content_file = File(log_file, name=yakunin_log_filename)
 
-    def _report_yakunin_errors(self, log_content: str) -> bool:
-        has_error_or_critical = False
+        return core_files.save_file_to_article(
+            file_to_handle=log_content_file,
+            article=self.article,
+            owner=self.article.correspondence_author,
+            label=self._failed_conversion_log,
+        )
 
-        for line in log_content:
-            if line.startswith("ERROR"):
-                has_error_or_critical = True
-                break
-            elif line.startswith("CRITICAL"):
-                has_error_or_critical = True
-                break
-        return not has_error_or_critical
+    def _handle_generated_pdf(self, tmpdir: Path) -> File:
+        """
+        Handles the generated PDF, processes it, and saves it appropriately
+        to the manuscript files of an article. This method updates the article's
+        file associations, placing the generated PDF in the correct slot while
+        clearing and reassigning other related files.
 
-    def handle_generated_pdf(self, unpack_dir: Path):
-        # Assuming the pdf is always present if no error or critical in logs
-        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        :param tmpdir: Temporary directory path containing the generated PDF
+        :type tmpdir: Path
+        :return: The first manuscript file of the article after processing
+        :rtype: File
+        """
+        generated_pdf_path = next(tmpdir.glob("*.pdf"), None)
         # Let's call the PDF that we are storing in Janeway the same as the source file that originated it,
         # but with extension ".pdf"
         generated_pdf_filename = Path(self.article.manuscript_files.first().original_filename).with_suffix(".pdf")
@@ -3667,63 +3848,117 @@ class ConvertManuscriptToPdf:
                 owner=self.article.correspondence_author,
                 label="Manuscript File",
             )
-        # Move what's in the A.manuscript into A.source
-        # and fill A.manuscript with the generated PDF.
-        # The idea is that the author uploads a source-file into the A.manuscript slot (Janeway's default)
-        # we take it, generate the "real" manuscript and place everything in its correct place.
-        self.article.source_files.clear()
-        self.article.source_files.set(self.article.manuscript_files.all())
         self.article.manuscript_files.clear()
         self.article.manuscript_files.add(generated_manuscript)
         self.article.save()
         # Remove any log file from failed conversion
         core_models.File.objects.filter(article_id=self.article_id, label=self._failed_conversion_log).delete()
-
-    def run(self):
-        content = self.ask_yakunin_to_process(self.create_in_memory_ini_file())
-        unpack_dir = self._unpack_response_file(content)
-        yakunin_log = self._extract_yakunin_logs(unpack_dir)
-        if not self._report_yakunin_errors(yakunin_log):
-            raise ValueError(_("Error in generating the PDF file."))
-        self.handle_generated_pdf(unpack_dir)
-        # cleanup temporary dir created by unzip_response_file
-        shutil.rmtree(unpack_dir)
+        return self.article.manuscript_files.first()
 
 
 @dataclasses.dataclass
-class HandleLatexReport:
-    instance: WorkflowReviewAssignment | WjsEditorAssignment
+class ConvertEditorLatexReport:
     report_text: str
-    user: Account
+    instance: WjsEditorAssignment
 
-    def _get_filename(self):
-        if isinstance(self.instance, WorkflowReviewAssignment):
-            return f"latex_report_RA-{self.instance.pk}"
-        elif isinstance(self.instance, WjsEditorAssignment):
-            return f"latex_editor_report_EA-{self.instance.pk}"
+    _failed_conversion_log = "Failed conversion log ConvertEditorLatexReport"
 
-    def prepare_tex_file(self) -> ContentFile:
+    def _create_in_memory_ini_file(self) -> BytesIO:
+        """
+        Creates an in-memory .ini file containing metadata related to the current article version.
+
+        Yet to be decides the caratheristics of the ini file.
+
+        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
+        :rtype: BytesIO
+        """
+        ini_content = f"""
+        [wjs]
+        text = Not for distribution ...WRITEME...
+        x = {settings.WATERMARK_X_POSITION}
+        y = {settings.WATERMARK_Y_POSITION}
+        """
+
+        ini_file = BytesIO(ini_content.encode("utf-8"))
+        ini_file.name = "wj.ini"
+        ini_file.seek(0)
+        return ini_file
+
+    def run(self):
+        """
+        Executes the process for generating, handling, and processing a LaTeX file using the Yakunin client service.
+
+        The method prepares a temporary directory for the process, creates required files, and interacts with the
+        Yakunin client to apply a watermark and handle the resulting files, ensuring clean up is performed after
+        execution. Error handling should be extended for robustness.
+
+        :return: Result of the `_handle_generated_file` method which processes the generated file.
+        :rtype: Any
+        """
+        tmpdir = None
+        try:
+            self.filename = f"latex_editor_report_EA-{self.instance.pk}"
+            tex_file = self._prepare_tex_file()
+            client = YakuninClient(file=tex_file, filename=self.filename)
+            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
+            self.logfile = self._save_yakunin_logs(log)
+            return self._handle_generated_file(tmpdir)
+        except ValueError:  # TODO: exception handling
+            raise
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+    def _prepare_tex_file(self) -> bytes:
+        """
+        Prepares the LaTeX file content as a byte-encoded string. This method combines a preamble retrieved
+        from a database and the report text, then appends the LaTeX document end command. The resulting
+        content is encoded into UTF-8.
+
+        :return: The complete LaTeX document as a UTF-8 encoded byte string.
+        :rtype: bytes
+        """
         preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
         full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
-        tex_file = ContentFile(full_text.encode("utf-8"), name=f"{self.filename}.tex")
-        return tex_file
+        return full_text.encode("utf-8")
 
-    def call_yakunin(self, tex_file: ContentFile) -> bytes:
-        url = settings.YAKUNIN_URL + "mkpdf/"
-        file = {
-            "file": (
-                f"{self.filename}.tex",
-                tex_file,
-            ),
-        }
-        try:
-            response = requests.post(url, files=file)
-            response.raise_for_status()
-        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
-            raise ValidationError(f"Error generating PDF via Yakunin: {e}")
-        return response.content
+    def _save_yakunin_logs(self, log: str) -> core_models.File:
+        """
+        Saves Yakunin logs into a file and associates it with an article.
 
-    def handle_generated_file(self, unpack_dir: Path) -> File:
+        This function takes a string representing the log content, converts it into
+        a file object, and saves it as a log file associated with a specific article.
+        The file is owned by the correspondence author of the article. It is labeled
+        appropriately to indicate it contains conversion logs.
+
+        :param log: The log content as a UTF-8 encoded string.
+        :type log: str
+        :return: A reference to the saved file.
+        :rtype: core_models.File
+        """
+        yakunin_log_filename = f"conversion-EA_{self.instance}.log"
+        log_file = BytesIO(log.encode("utf-8"))
+        log_content_file = File(log_file, name=yakunin_log_filename)
+
+        return core_files.save_file_to_article(
+            file_to_handle=log_content_file,
+            article=self.instance.article,
+            owner=self.instance.article.correspondence_author,
+            label=self._failed_conversion_log,
+        )
+
+    def _handle_generated_file(self, unpack_dir: Path) -> File:
+        """
+        Handles a generated PDF file within the specified unpack directory, processes it,
+        and associates it with the relevant article.
+
+        :param unpack_dir: A directory containing the unpacked files including the
+            generated PDF.
+        :type unpack_dir: Path
+        :return: A processed file associated with the article, labeled as "Yakunin
+            generated file".
+        :rtype: File
+        """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
         generated_pdf_filename = f"{self.filename}.pdf"
         with generated_pdf_path.open("rb") as pdf_file:
@@ -3731,37 +3966,132 @@ class HandleLatexReport:
             generated_tex = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.instance.article,
-                owner=self.user,
+                owner=self.instance.editor,
                 label="Yakunin generated file",
             )
-        if isinstance(self.instance, WjsEditorAssignment):
-            self.instance.editor_report_pdf_draft = generated_tex
-        elif isinstance(self.instance, WorkflowReviewAssignment):
-            self.instance.tex_report_pdf = generated_tex
+        self.instance.editor_report_pdf_draft = generated_tex
         self.instance.save()
         return generated_tex
 
-    def check_yakunin_logs(self, unpack_dir: Path) -> bool:
-        has_error_or_critical = False
-        # Assuming the file is always present if response.status_code is 200
-        yakunin_log_file = next(unpack_dir.glob("yakunin-task.log"), None)
 
-        with open(yakunin_log_file) as log_file:
-            for line in log_file:
-                if line.startswith("ERROR"):
-                    has_error_or_critical = True
-                    break
-                elif line.startswith("CRITICAL"):
-                    has_error_or_critical = True
-                    break
-        return not has_error_or_critical
+@dataclasses.dataclass
+class ConvertReviewerLatexReport:
+    report_text: str
+    instance: WorkflowReviewAssignment
+
+    _failed_conversion_log = "Failed conversion log ConvertReviewerLatexReport"
+
+    def _create_in_memory_ini_file(self) -> BytesIO:
+        """
+        Creates an in-memory .ini file containing metadata related to the current article version.
+
+        Yet to be decides the caratheristics of the ini file.
+
+        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
+        :rtype: BytesIO
+        """
+        ini_content = f"""
+        [wjs]
+        text = Not for distribution ...WRITEME...
+        x = {settings.WATERMARK_X_POSITION}
+        y = {settings.WATERMARK_Y_POSITION}
+        """
+
+        ini_file = BytesIO(ini_content.encode("utf-8"))
+        ini_file.name = "wj.ini"
+        ini_file.seek(0)
+        return ini_file
 
     def run(self):
-        self.filename = self._get_filename()
-        tex_file = self.prepare_tex_file()
-        response_content = self.call_yakunin(tex_file)
-        unpack_dir = ConvertManuscriptToPdf._unpack_response_file(response_content)
-        if not self.check_yakunin_logs(unpack_dir):
-            raise ValidationError("Error generating PDF from LaTeX review")
-        generated_tex = self.handle_generated_file(unpack_dir)
+        """
+        Executes the process to generate and handle a LaTeX report with Yakunin's watermarking process.
+
+        This method prepares the necessary LaTeX file, interacts with the Yakunin client to
+        apply a watermark, processes the logs, and handles the final output file. Temporary
+        directories are safely cleaned up upon completion.
+
+        :return: The result of the `_handle_generated_file` method, which processes the
+            final generated file.
+        :rtype: Any
+
+        :raises ValueError: Propagates an exception related to value errors encountered
+            during processing.
+        """
+        tmpdir = None
+        try:
+            self.filename = f"latex_report_RA-{self.instance.pk}"
+            tex_file = self._prepare_tex_file()
+            client = YakuninClient(file=tex_file, filename=self.filename)
+            tmpdir, log = tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
+            self.logfile = self._save_yakunin_logs(log)
+            return self._handle_generated_file(tmpdir)
+        except ValueError:  # TODO: exception handling
+            raise
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+    def _prepare_tex_file(self) -> bytes:
+        """
+        Prepares and returns a LaTeX report file content as bytes.
+
+        This method generates a LaTeX document by combining a journal-specific
+        preamble and the report text, appending the necessary LaTeX document
+        ending sequence. The final content is then encoded into bytes.
+
+        :return: Bytes representing the LaTeX report file content.
+        :rtype: bytes
+        """
+        preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
+        full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
+        return full_text.encode("utf-8")
+
+    def _save_yakunin_logs(self, log: str) -> core_models.File:
+        """
+        Saves Yakunin logs to a file associated with the current article instance.
+
+        The method processes the provided log string, encodes it into bytes,
+        creates a file with a specific naming convention, and saves it using
+        the associated article details for proper organization and access.
+
+        :param log: The log content to be saved, provided as a string.
+        :type log: str
+        :return: A File object representing the saved log file.
+        :rtype: core_models.File
+        """
+        yakunin_log_filename = f"conversion-RA_{self.instance}.log"
+        log_file = BytesIO(log.encode("utf-8"))
+        log_content_file = File(log_file, name=yakunin_log_filename)
+
+        return core_files.save_file_to_article(
+            file_to_handle=log_content_file,
+            article=self.instance.article,
+            owner=self.instance.article.correspondence_author,
+            label=self._failed_conversion_log,
+        )
+
+    def _handle_generated_file(self, unpack_dir: Path) -> File:
+        """
+        Handles a generated PDF file located in the given unpack directory and processes it
+        to save it as part of the associated article. This method assigns the processed file
+        to the current instance for further usage.
+
+        :param unpack_dir: The directory in which the generated PDF file can be found
+                          (path should point to a directory containing the PDF file).
+        :type unpack_dir: Path
+        :return: The processed PDF file saved and linked to the article.
+        :rtype: File
+        """
+        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        generated_pdf_filename = f"{self.filename}.pdf"
+        with generated_pdf_path.open("rb") as pdf_file:
+            generated_pdf = File(pdf_file, name=generated_pdf_filename)
+            generated_tex = core_files.save_file_to_article(
+                file_to_handle=generated_pdf,
+                article=self.instance.article,
+                owner=self.instance.reviewer,
+                label="Yakunin generated file",
+            )
+        self.instance.tex_report_pdf = generated_tex
+        self.instance.save()
         return generated_tex
