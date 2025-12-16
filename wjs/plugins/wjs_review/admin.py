@@ -45,7 +45,7 @@ class ArticleWorkflowAdmin(admin.ModelAdmin):
 class LatexPreambleAdmin(admin.ModelAdmin):
     """Helper class to "admin" LatexPreamble."""
 
-    list_display = ["journal", "preamble"]
+    list_display = ["journal", "preamble", "report_preamble"]
     list_filter = ["journal"]
     search_fields = ["journal__code"]
 

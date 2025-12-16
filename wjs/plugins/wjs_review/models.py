@@ -1256,6 +1256,14 @@ class EditorDecision(TimeStampedModel):
     review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     decision = models.CharField(max_length=255, choices=ArticleWorkflow.Decisions.choices)
     decision_editor_report = models.TextField(blank=True, null=True)
+    decision_editor_report_pdf = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Editor report in PDF"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="editor_report_pdf_files",
+    )
 
     class Meta:
         verbose_name = _("Editor decision")
@@ -1608,6 +1616,14 @@ class MessageThread(models.Model):
 
 class WjsEditorAssignment(EditorAssignment):
     review_rounds = models.ManyToManyField("review.ReviewRound", verbose_name=_("Managed review rounds"), blank=True)
+    editor_report_pdf_draft = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Editor report in PDF draft version"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="editor_report_pdf_files_draft",
+    )
 
     objects = WjsEditorAssignmentQuerySet.as_manager()
 
@@ -1722,6 +1738,14 @@ class WorkflowReviewAssignment(ReviewAssignment):
     #  Quando si aggiungono nuovi campi modificare il metodo AssignToReviewer._assign_reviewer per evitare di ottenere
     #  errori nel salvataggio.
     report_form_answers = models.JSONField(default=dict, verbose_name=_("Report form answers"))
+    tex_report_pdf = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Tex report PDF file"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tex_report_files",
+    )
     editor_invite_message = models.ForeignKey(
         Message,
         null=True,
@@ -2254,6 +2278,15 @@ class LatexPreamble(models.Model):
 
     journal = models.ForeignKey(Journal, on_delete=models.CASCADE)
     preamble = models.TextField(null=False, blank=False)
+    report_preamble = models.TextField(
+        null=False,
+        blank=False,
+        help_text=_(
+            "LaTeX preamble prepended to reviewers and "
+            "editors reports. Please note that it "
+            "should end with \\begin{document}."
+        ),
+    )
 
     class Meta:
         verbose_name = _("LaTeX preamble")

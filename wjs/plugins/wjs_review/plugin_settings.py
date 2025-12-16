@@ -1918,6 +1918,30 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def reviewer_report_type() -> tuple[SettingValue, ...]:
+        reviewer_report_type_setting: SettingParams = {
+            "name": "reviewer_report_type",
+            "group": wjs_review_settings_group,
+            "types": "char",
+            "pretty_name": _("Type of report allowed"),
+            "description": _('Type of reviewer report allowed ("text", "tex", "text+tex")'),
+            "is_translatable": False,
+        }
+        reviewer_report_type_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "text",
+            "translations": {},
+        }
+        return (
+            create_customization_setting(
+                reviewer_report_type_setting,
+                reviewer_report_type_setting_value,
+                reviewer_report_type_setting["name"],
+                force=force,
+            ),
+        )
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -1948,6 +1972,7 @@ Thank you and best regards,
         csv_writer.write_settings(editor_assignment_manual())
         csv_writer.write_settings(add_social_notification_when_article_is_published_settings())
         csv_writer.write_settings(add_coauthor_manually())
+        csv_writer.write_settings(reviewer_report_type())
 
 
 def ensure_workflow_elements():

@@ -1,14 +1,25 @@
 {% load django_bootstrap5 %}
 {% load wjs_tags %}
-{% url 'download_single_file' review.article.pk review.review_file.pk as download_file %}
+{% url 'download_single_file' review.article.pk review.review_file.pk as download_review_file %}
+{% url 'download_single_file' review.article.pk review.tex_report_pdf.pk as download_review_tex_report %}
 {% with author_file_title=review.workflowreviewassignment.report_form_answers|get_value:'author_file_title'|default:"----" %}
 <!-- djlint:off -->
 {% with author_file_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:author_file_title %}
+{% with author_tex_report_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:'LaTex Report' %}
 <!-- djlint:on -->
-  {% if author_file_title %}
-    {% bootstrap_button type="link" href=download_file content=author_file_label|safe button_class="btn-outline-primary" %}
-  {% else %}
-    {% bootstrap_button type="link" href=download_file content=review.review_file button_class="btn-outline-primary" %}
+{% if show_file == "text" %}
+  {% if review.review_file %}
+    {% if author_file_title %}
+      {% bootstrap_button type="link" href=download_file content=author_file_label|safe button_class="btn-outline-primary" %}
+    {% else %}
+      {% bootstrap_button type="link" href=download_file content=review.review_file button_class="btn-outline-primary" %}
+    {% endif %}
   {% endif %}
+{% elif show_file == "tex" %}
+  {% if review.tex_report_pdf %}
+    {% bootstrap_button type="link" href=download_review_tex_report content=author_tex_report_label|safe button_class="btn-outline-primary" %}
+  {% endif %}
+{% endif %}
+{% endwith %}
 {% endwith %}
 {% endwith %}

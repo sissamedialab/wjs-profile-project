@@ -1378,7 +1378,11 @@ def test_three_papers_three_reviewers(
     # --------------------------------------------
     report_form = get_report_form(journal.code)
     rf = report_form(
-        data=jcom_report_form_data, review_assignment=assignment_D_r1, request=fake_request, submit_final=True
+        data=jcom_report_form_data,
+        review_assignment=assignment_D_r1,
+        request=fake_request,
+        journal=fake_request.journal,
+        submit_final=True,
     )
     assert rf.is_valid()
     SubmitReview(

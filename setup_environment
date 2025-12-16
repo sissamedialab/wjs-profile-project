@@ -12,6 +12,9 @@ export -f info
 
 export PGPASSWORD=${POSTGRES_PASSWORD}
 
+info "Installing pandoc..."
+apt-get update -qq && apt-get install -y pandoc
+
 info "Installing wjs..."
 # NB: need -e because of how we run pytest in ci/cd test job
 pip install --extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple -e ${CI_PROJECT_DIR}/[test]

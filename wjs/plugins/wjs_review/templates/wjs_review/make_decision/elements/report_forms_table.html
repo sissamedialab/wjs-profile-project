@@ -2,9 +2,11 @@
 <!-- djlint:off -->
 {% translate "<i class=\"bi bi-clipboard-fill\"></i> Read the review" as read_review_label %}
 {% translate "<i class=\"bi bi-clipboard-fill\"></i> Read cover letter" as read_cover_letter_label %}
+{% translate "<i class=\"bi bi-clipboard-fill\"></i> Read the review (LaTeX)" as read_review_tex_label %}
 <!-- djlint:on -->
 {% translate "Review for editor" as editor_cover_letter_modal_title %}
 {% translate "Review for author" as author_review_modal_title %}
+{% translate "Review for author (LaTeX)" as author_review_tex_modal_title %}
 <h5>{% translate "Reviewers\' feedback" %}</h5>
 <table class="table table-hover table-striped table-bordered mt-4" id="report-forms">
   <thead class="bg-light">
@@ -18,7 +20,7 @@
   <tbody>
     {% for field_name, field in form_fields.items %}
       <tr>
-        {% if field_name != 'author_file_title' and field_name != 'conflict_of_interest' and field_name != 'review_file' and field_name != 'author_review' %}
+        {% if field_name != 'author_file_title' and field_name != 'conflict_of_interest' and field_name != 'review_file' and field_name != 'author_review' and field_name != 'author_review_tex' and field_name != 'review_choice' %}
           <th>{% translate field.label %}</th>
           {% for review in submitted_reviews %}
             {% if field_name != 'editor_cover_letter' %}
@@ -54,26 +56,70 @@
       </tr>
       <tr>
         <th class="ps-4">{% translate "Text" %}</th>
-        {% for review in submitted_reviews %}
-          {% with modal_id="author_review_modal-"|concat:review.pk modal_target="#author_review_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review'|safe|default:"----" %}
-          <td>
-            {% bootstrap_button type="button" content=read_review_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
-            {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_modal_title modal_body=modal_content %}
-          </td>
-          {% endwith %}
-        {% endfor %}
+          {% for review in submitted_reviews %}
+             <td>
+               {% if review.workflowreviewassignment.report_form_answers|get_value:'author_review' %}
+                 {% with modal_id="author_review_modal-"|concat:review.pk modal_target="#author_review_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review'|safe|default:"----" %}
+                   {% bootstrap_button type="button" content=read_review_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+                   {% if tex_review_allowed %}
+                     <button
+                          type="button"
+                          class="btn btn-danger ms-2 copy-tex-btn"
+                          hx-post="{% url 'text-to-latex' assignment_id=review.workflowreviewassignment.pk %}"
+                          hx-swap="none"
+                     >
+                    USE
+                    </button>
+                   {% endif %}
+                   {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_modal_title modal_body=modal_content %}
+                 {% endwith %}
+               {% endif %}
+            </td>
+          {% endfor %}
       </tr>
+    {% if tex_review_allowed %}
+      <tr>
+          <th class="ps-4">{% translate "Source LaTeX" %}</th>
+          {% for review in submitted_reviews %}
+            <td>
+            {% if review.workflowreviewassignment.report_form_answers|get_value:'author_review_tex' %}
+              {% with modal_id="author_review_tex_modal-"|concat:review.pk modal_target="#author_review_tex_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review_tex'|safe|default:"----" %}
+                  {% bootstrap_button type="button" content=read_review_tex_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
+                  <button type="button" class="btn btn-danger ms-2 copy-tex-btn" data-review-id="{{ review.pk }}">
+                    Use
+                  </button>
+                  {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_tex_modal_title modal_body=modal_content %}
+              {% endwith %}
+            {% endif %}
+            </td>
+          {% endfor %}
+      </tr>
+    {% endif %}
       <tr>
         <th class="ps-4">{% translate "Files" %}</th>
         {% for review in submitted_reviews %}
           {% if review.review_file %}
             <td>
-              {% include "wjs_review/make_decision/elements/author_file_download.html" %}
+              {% include "wjs_review/make_decision/elements/author_file_download.html" with show_file="text" %}
             </td>
           {% else %}
             <td></td>
           {% endif %}
         {% endfor %}
       </tr>
+    {% if tex_review_allowed %}
+      <tr>
+       <th class="ps-4">{% translate "LaTeX Report" %}</th>
+          {% for review in submitted_reviews %}
+          {% if review.tex_report_pdf %}
+            <td>
+              {% include "wjs_review/make_decision/elements/author_file_download.html" with show_file="tex" %}
+            </td>
+          {% else %}
+            <td></td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+    {% endif %}
   </tbody>
 </table>
