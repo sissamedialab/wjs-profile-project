@@ -18,6 +18,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files import File
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
@@ -30,6 +31,7 @@ from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divide
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder, Keyword
+from utils import setting_handler
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -3519,7 +3521,11 @@ def test_deassign_reviewer_existing_assignment(
     elif extra_assignment_state == "completed":
         report_form = get_report_form(fake_request.journal.code)
         rf = report_form(
-            data=jcom_report_form_data, review_assignment=extra_assignment, request=fake_request, submit_final=True
+            data=jcom_report_form_data,
+            review_assignment=extra_assignment,
+            request=fake_request,
+            journal=fake_request.journal,
+            submit_final=True,
         )
         assert rf.is_valid()
         SubmitReview(
@@ -4582,3 +4588,69 @@ def test_typesetting_rounds_and_assignments_with_files(
     service = MetadataFromTeX(article.articleworkflow)
     tex_file = service._get_source_file()  # noqa: SLF001
     assert tex_file.read() == b"B"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "tex_review_setting, author_review, review_file, author_review_tex, should_be_valid",
+    [
+        # Scenario: Only TeX allowed → must provide LaTeX review
+        ("tex", None, None, "LaTeX review", True),  # valid: LaTeX review provided
+        ("tex", "Some review", None, None, False),  # invalid: only rich text provided
+        ("tex", None, "file.pdf", None, False),  # invalid: only file provided
+        # Scenario: Only text allowed → must provide rich text or review file
+        ("text", "Some review", None, None, True),  # valid: rich text review provided
+        ("text", None, "file.pdf", None, True),  # valid: review file provided
+        ("text", None, None, None, False),  # invalid: nothing provided
+        ("text", None, None, "LaTeX review", False),  # invalid: LaTeX review provided, not allowed
+        # Scenario: Both TeX and text allowed → any combination of valid fields accepted
+        ("tex+text", None, None, None, False),  # invalid: nothing provided
+        ("tex+text", "Some review", None, None, True),  # valid: rich text review provided
+        ("tex+text", None, "file.pdf", None, True),  # valid: review file provided
+        ("tex+text", None, None, "LaTeX review", True),  # valid: LaTeX review provided
+    ],
+)
+def test_rich_text_or_tex_validation(
+    review_assignment,
+    fake_request,
+    tex_review_setting,
+    author_review,
+    review_file,
+    author_review_tex,
+    should_be_valid,
+):
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="reviewer_report_type",
+        journal=review_assignment.article.journal,
+        value=tex_review_setting,
+    )
+
+    data = jcom_report_form_data.copy()
+    data["review_choice"] = "tex" if tex_review_setting in ("tex", "tex+text") else "rich_text"
+
+    if author_review is not None:
+        data["author_review"] = author_review
+    else:
+        data.pop("author_review", None)
+
+    if author_review_tex is not None:
+        data["author_review_tex"] = author_review_tex
+    else:
+        data.pop("author_review_tex", None)
+
+    files = {}
+    if review_file is not None:
+        files["review_file"] = SimpleUploadedFile(review_file, b"dummy content")
+
+    report_form = get_report_form(fake_request.journal.code)
+    form = report_form(
+        data=data,
+        files=files,
+        review_assignment=review_assignment,
+        submit_final=True,
+        request=fake_request,
+        journal=fake_request.journal,
+    )
+
+    assert form.is_valid() == should_be_valid

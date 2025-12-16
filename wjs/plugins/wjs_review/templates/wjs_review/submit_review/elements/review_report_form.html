@@ -32,11 +32,72 @@
             </div>
         </div>
         <div class="mb-3">
-            {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title' %}
-            {% bootstrap_field form.author_review label_class="fw-bold" addon_before=author_review_label addon_before_class=None %}
-            {% bootstrap_field form.review_file label_class="fw-bold" %}
-            {% bootstrap_field form.author_file_title %}
-        </div>
+          {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title, author_review_tex, review_choice' %}
+          {% if form.reviewer_report_type == 'tex+text' %}
+            <label class="form-label fw-bold">{{ form.review_choice.label }}</label>
+            <div class="d-flex gap-3 mb-2">
+                <div class="form-check">
+                    <input
+                        class="form-check-input"
+                        type="radio"
+                        name="review_choice"
+                        id="review_choice_tex"
+                        value="tex"
+                        {% if form.initial.review_choice == 'tex' %}checked{% endif %}
+                    >
+                    <label class="form-check-label" for="review_choice_tex">
+                        TeX Review
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input
+                        class="form-check-input"
+                        type="radio"
+                        name="review_choice"
+                        id="review_choice_rich_text"
+                        value="rich_text"
+                        {% if form.initial.review_choice == 'rich_text' %}checked{% endif %}
+                    >
+                    <label class="form-check-label" for="review_choice_rich_text">
+                        Rich Text Review
+                    </label>
+                </div>
+            </div>
+          {% endif %}
+          {% if form.reviewer_report_type == 'tex+text' or form.reviewer_report_type == 'tex' %}
+          <!-- djlint:off -->
+          <div id="field_author_review_tex" {% if form.reviewer_report_type == 'tex+text' %}style="display:none;"{% endif %}>
+          <!-- djlint:on -->
+              {% bootstrap_field form.author_review_tex label_class="fw-bold" addon_before_class=None %}
+              <div class="d-flex justify-content-end mt-1">
+              <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  hx-post="{% url 'elaborate-latex-report' assignment.pk %}"
+                  hx-include="[name='author_review_tex']"
+                     hx-on="
+        htmx:beforeRequest: clearError();
+        htmx:responseError: showError(event);
+        htmx:afterRequest: clearErrorOnSuccess(event);
+    "
+              >
+                  Test PDF
+              </button>
+              </div>
+              <div id="pdf_error" class="text-danger small"></div>
+          </div>
+          {% endif %}
+          {% if form.reviewer_report_type == 'tex+text' or form.reviewer_report_type == 'text' %}
+          <!-- djlint:off -->
+          <div id="field_author_review" {% if form.reviewer_report_type == 'tex+text' %}style="display:none;"{% endif %}>
+          <!-- djlint:on -->
+              {% bootstrap_field form.author_review label_class="fw-bold" addon_before=author_review_label addon_before_class=None %}
+          </div>
+          {% endif %}
+
+          {% bootstrap_field form.review_file label_class="fw-bold" %}
+          {% bootstrap_field form.author_file_title %}
+      </div>
     </div>
     <div class="row">
         {% if allow_draft %}
@@ -109,4 +170,49 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+document.addEventListener("DOMContentLoaded", function() {
+    const texRadio = document.getElementById("review_choice_tex");
+    const richTextRadio = document.getElementById("review_choice_rich_text");
+    const texField = document.getElementById("field_author_review_tex");
+    const richTextField = document.getElementById("field_author_review");
+    const mode = "{{ form.reviewer_report_type }}";
+
+    function toggleFields() {
+        if (mode === "tex") {
+            texField.style.display = "block";
+            if (richTextField) richTextField.style.display = "none";
+            return;
+        }
+        if (mode === "text") {
+            richTextField.style.display = "block";
+            if (texField) texField.style.display = "none";
+            return;
+        }
+        if (mode === "tex+text") {
+            texField.style.display = texRadio.checked ? "block" : "none";
+            richTextField.style.display = richTextRadio.checked ? "block" : "none";
+        }
+    }
+
+    toggleFields();
+    texRadio?.addEventListener("change", toggleFields);
+    richTextRadio?.addEventListener("change", toggleFields);
+});
+
+function showError(event) {
+    document.getElementById("pdf_error").innerText =
+        event.detail.xhr.responseText || "PDF generation failed";
+}
+
+function clearError() {
+    document.getElementById("pdf_error").innerText = "";
+}
+
+function clearErrorOnSuccess(event) {
+    const xhr = event.detail.xhr;
+    if (xhr.status >= 200 && xhr.status < 300) {
+        clearError();
+    }
+}
 </script>

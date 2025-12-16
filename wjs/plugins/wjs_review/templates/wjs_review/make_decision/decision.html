@@ -42,7 +42,27 @@
           {% else %}
             {% bootstrap_field form.date_due wrapper_class="date-due mb-3" %}
           {% endif %}
-          {% if form.decision_editor_report %}{% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}{% endif %}
+          {% if form.decision_editor_report %}
+            {% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}
+            {% if tex_review_allowed %}
+            <div class="d-flex justify-content-end mt-1">
+              <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  hx-post="{% url 'elaborate-latex-editor-report' workflow.pk %}"
+                  hx-include="[name='decision_editor_report']"
+                     hx-on="
+                      htmx:beforeRequest: clearError();
+                      htmx:responseError: showError(event);
+                      htmx:afterRequest: clearErrorOnSuccess(event);
+                  "
+              >
+                  Test PDF
+              </button>
+              </div>
+              <div id="pdf_error" class="text-danger small"></div>
+            {% endif %}
+          {% endif %}
           {% include "wjs_review/make_decision/elements/review_files_table.html" %}
           {% if form.withdraw_notice %}
             <div class="py-3">
@@ -78,5 +98,40 @@
       checkDateVisibility(decision);
 
     })();
+
+  document.addEventListener("click", e => {
+    if (!e.target.classList.contains("copy-tex-btn")) return
+    const id = e.target.dataset.reviewId
+    const text = document.querySelector(`#author_review_tex_modal-${id} .modal-body`)?.innerText.trim()
+    if (!text) return
+    const editor = document.getElementById("id_decision_editor_report")
+    if (!editor) return
+    if (editor.value) editor.value += "\n\n-------------------\n\n"
+    editor.value += text
+  })
+  document.body.addEventListener("htmx:afterOnLoad", e => {
+    if (!e.target.classList.contains("copy-tex-btn")) return
+    const latex = e.detail.xhr.responseText.trim()
+    if (!latex) return
+    const editor = document.getElementById("id_decision_editor_report")
+    if (!editor) return
+    if (editor.value) editor.value += "\n\n-------------------\n\n"
+    editor.value += latex
+  })
+  function showError(event) {
+  document.getElementById("pdf_error").innerText =
+      event.detail.xhr.responseText || "PDF generation failed";
+  }
+
+  function clearError() {
+      document.getElementById("pdf_error").innerText = "";
+  }
+
+  function clearErrorOnSuccess(event) {
+      const xhr = event.detail.xhr;
+      if (xhr.status >= 200 && xhr.status < 300) {
+          clearError();
+      }
+  }
   </script>
 {% endblock content_wrapper %}

@@ -32,6 +32,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
+from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import UploadedFile
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
@@ -79,6 +80,7 @@ from .models import (
     ArticleWorkflow,
     EditorDecision,
     EditorRevisionRequest,
+    LatexPreamble,
     Message,
     PastEditorAssignment,
     PermissionAssignment,
@@ -295,6 +297,7 @@ class BaseAssignToEditor:
         # class and setting the id of the pointer field to the id of the original model.
         assignment_id = assignment.pk
         assignment.__class__ = WjsEditorAssignment
+        assignment.editor_report_pdf_draft = None
         assignment.editorassignment_ptr_id = assignment_id
         assignment.save()
         current_review_round_object = self.article.current_review_round_object()
@@ -594,6 +597,7 @@ class AssignToReviewer:
             assignment.reviewassignment_ptr_id = assignment_id
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.editor_invite_message = None
+            assignment.tex_report_pdf = None
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -2354,6 +2358,13 @@ class HandleDecision:
         )
         return decision
 
+    def _handle_latex_pdf(self, decision):
+        """If decision contains a report and It has a latex version we save it in EditorDecision."""
+        assignment = WjsEditorAssignment.objects.get_current(self.workflow.article)
+        if self.form_data.get("decision_editor_report", []) and assignment.editor_report_pdf_draft:
+            decision.decision_editor_report_pdf = assignment.editor_report_pdf_draft
+            decision.save()
+
     def _mark_send_review_file(self):
         """Fix permissions on review-files for the author, based on the editor's selections."""
         send_review_file_pks = self.form_data.get("send_review_file", [])
@@ -2400,6 +2411,7 @@ class HandleDecision:
             if not conditions:
                 raise ValidationError(_("Decision conditions not met"))
             decision = self._store_decision()
+            self._handle_latex_pdf(decision)
             self._mark_send_review_file()
             handler = self._decision_handlers.get(self.form_data["decision"], None)
             if handler:
@@ -3577,6 +3589,7 @@ class ConvertManuscriptToPdf:
         if getattr(settings, "YAKUNIN_MOCK_FILE", None):
             with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
                 return mock_file.read()
+        url = settings.YAKUNIN_URL + "watermark/"
 
         files = {
             "file": (
@@ -3587,12 +3600,12 @@ class ConvertManuscriptToPdf:
         }
 
         if self.feedback_ws_url:
-            url = f"{settings.YAKUNIN_URL}/mkpdf/ws/"
+            url = f"{settings.YAKUNIN_URL}mkpdf/ws/"
             if settings.DEBUG:
                 logger.debug(f"POST {url} with files {files.keys()}")
             response = requests.post(url, files=files, data={"feedback_ws_url": self.feedback_ws_url})
         else:
-            url = f"{settings.YAKUNIN_URL}/mkpdf/"
+            url = f"{settings.YAKUNIN_URL}mkpdf/"
             if settings.DEBUG:
                 logger.debug(f"POST {url} with files {files.keys()}")
             response = requests.post(url, files=files)
@@ -3601,7 +3614,8 @@ class ConvertManuscriptToPdf:
 
         return response.content
 
-    def _unpack_response_file(self, content: bytes) -> Path:
+    @staticmethod
+    def _unpack_response_file(content: bytes) -> Path:
         unpack_dir = tempfile.mkdtemp()
 
         with BytesIO(content) as file_obj:
@@ -3674,3 +3688,80 @@ class ConvertManuscriptToPdf:
         self.handle_generated_pdf(unpack_dir)
         # cleanup temporary dir created by unzip_response_file
         shutil.rmtree(unpack_dir)
+
+
+@dataclasses.dataclass
+class HandleLatexReport:
+    instance: WorkflowReviewAssignment | WjsEditorAssignment
+    report_text: str
+    user: Account
+
+    def _get_filename(self):
+        if isinstance(self.instance, WorkflowReviewAssignment):
+            return f"latex_report_RA-{self.instance.pk}"
+        elif isinstance(self.instance, WjsEditorAssignment):
+            return f"latex_editor_report_EA-{self.instance.pk}"
+
+    def prepare_tex_file(self) -> ContentFile:
+        preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
+        full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
+        tex_file = ContentFile(full_text.encode("utf-8"), name=f"{self.filename}.tex")
+        return tex_file
+
+    def call_yakunin(self, tex_file: ContentFile) -> bytes:
+        url = settings.YAKUNIN_URL + "mkpdf/"
+        file = {
+            "file": (
+                f"{self.filename}.tex",
+                tex_file,
+            ),
+        }
+        try:
+            response = requests.post(url, files=file)
+            response.raise_for_status()
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+            raise ValidationError(f"Error generating PDF via Yakunin: {e}")
+        return response.content
+
+    def handle_generated_file(self, unpack_dir: Path) -> File:
+        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        generated_pdf_filename = f"{self.filename}.pdf"
+        with generated_pdf_path.open("rb") as pdf_file:
+            generated_pdf = File(pdf_file, name=generated_pdf_filename)
+            generated_tex = core_files.save_file_to_article(
+                file_to_handle=generated_pdf,
+                article=self.instance.article,
+                owner=self.user,
+                label="Yakunin generated file",
+            )
+        if isinstance(self.instance, WjsEditorAssignment):
+            self.instance.editor_report_pdf_draft = generated_tex
+        elif isinstance(self.instance, WorkflowReviewAssignment):
+            self.instance.tex_report_pdf = generated_tex
+        self.instance.save()
+        return generated_tex
+
+    def check_yakunin_logs(self, unpack_dir: Path) -> bool:
+        has_error_or_critical = False
+        # Assuming the file is always present if response.status_code is 200
+        yakunin_log_file = next(unpack_dir.glob("yakunin-task.log"), None)
+
+        with open(yakunin_log_file) as log_file:
+            for line in log_file:
+                if line.startswith("ERROR"):
+                    has_error_or_critical = True
+                    break
+                elif line.startswith("CRITICAL"):
+                    has_error_or_critical = True
+                    break
+        return not has_error_or_critical
+
+    def run(self):
+        self.filename = self._get_filename()
+        tex_file = self.prepare_tex_file()
+        response_content = self.call_yakunin(tex_file)
+        unpack_dir = ConvertManuscriptToPdf._unpack_response_file(response_content)
+        if not self.check_yakunin_logs(unpack_dir):
+            raise ValidationError("Error generating PDF from LaTeX review")
+        generated_tex = self.handle_generated_file(unpack_dir)
+        return generated_tex

@@ -734,6 +734,11 @@ class DecisionForm(forms.ModelForm):
             del self.fields["withdraw_notice"]
         elif not self.has_pending_reviews:
             del self.fields["withdraw_notice"]
+        reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value
+        if "tex" in reviewer_report_type:
+            self.fields["decision_editor_report"].widget = forms.Textarea()
         if kwargs["initial"].get("decision", None) == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             del self.fields["decision_editor_report"]
             if "withdraw_notice" in self.fields:
@@ -1860,7 +1865,18 @@ class JCOMReportForm(forms.Form):
             ),
         },
     )
+    review_choice = forms.ChoiceField(
+        choices=[("tex", _("TeX Review")), ("rich_text", _("Rich Text Review"))],
+        widget=forms.RadioSelect,
+        required=False,
+        label=_("Choose to submit your report in TeX or Rich Text"),
+    )
     author_review = WjsMiniHTMLFormField(label=_("Review (for the Author)"), required=False)
+    author_review_tex = forms.CharField(
+        label=_("Review (for the Author) in LaTeX"),
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("LaTeX")}),
+    )
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(
         label="File (to be sent to Author)", required=False, widget=forms.ClearableFileInput()
@@ -1871,7 +1887,21 @@ class JCOMReportForm(forms.Form):
         self.instance = kwargs.pop("review_assignment", None)
         self.submit_final = kwargs.pop("submit_final", None)
         self.request = kwargs.pop("request", None)
+        # This kwarg may be redundant but is useful when we call the form just to retrieve the fields and we need
+        # minimal initialization (and review assignments may be unavailable/not submitted yet)
+        self.journal = kwargs.pop("journal", None)
         super().__init__(*args, **kwargs)
+        self.reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.journal
+        ).value
+        if self.reviewer_report_type == "tex":
+            self.fields["review_choice"].initial = "tex"
+            del self.fields["author_review"]
+        elif self.reviewer_report_type == "text":
+            self.fields["review_choice"].initial = "rich_text"
+            del self.fields["author_review_tex"]
+        elif self.reviewer_report_type == "tex+text":
+            self.fields["review_choice"].required = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1879,7 +1909,8 @@ class JCOMReportForm(forms.Form):
         recommendation = cleaned_data.get("recommendation")
         follow_up_action = cleaned_data.get("follow_up_action")
         author_review = cleaned_data.get("author_review")
-        author_file = cleaned_data.get("author_file")
+        author_file = cleaned_data.get("review_file")
+        author_review_tex = cleaned_data.get("author_review_tex")
         # follow_up_action is required only if recommendation is to revise_minor or revise_major
         if conflict_of_interest == "yes":
             self.add_error(
@@ -1894,11 +1925,34 @@ class JCOMReportForm(forms.Form):
         if recommendation in ["revise_minor", "revise_major"]:
             if not follow_up_action:
                 self.add_error("follow_up_action", _("This field is required if the recommendation is to revise."))
-        if not author_review and not author_file:
-            self.add_error(
-                "author_review",
-                _('Please provide either "Review (to be sent to Authors)" and/or "Files (to be sent to Authors)'),
-            )
+        if self.reviewer_report_type == "tex+text":
+            if not (author_review or author_file or author_review_tex):
+                self.add_error(
+                    "author_review",
+                    _(
+                        'Please provide either "Review (to be sent to Authors)" or "Files (to be sent to Authors)", '
+                        "or LaTeX review."
+                    ),
+                )
+                self.add_error(
+                    "author_review_tex",
+                    _(
+                        'Please provide either "Review (to be sent to Authors)" or "Files (to be sent to Authors)", '
+                        "or LaTeX review."
+                    ),
+                )
+        elif self.reviewer_report_type == "text":
+            if not (author_review or author_file):
+                self.add_error(
+                    "author_review",
+                    _('Please provide either "Review (to be sent to Authors)" or "Files (to be sent to Authors)".'),
+                )
+        elif self.reviewer_report_type == "tex":
+            if not author_review_tex:
+                self.add_error(
+                    "author_review_tex",
+                    _("Please provide the LaTeX review."),
+                )
         return cleaned_data
 
     def get_logic_instance(self) -> SubmitReview:

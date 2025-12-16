@@ -17,6 +17,7 @@ from .views import (
     AuthorArchived,
     AuthorPending,
     AuthorWithdrawPreprint,
+    ConvertTextToLatex,
     DeleteRevisionFile,
     DeselectReviewer,
     DirectorArchived,
@@ -32,6 +33,8 @@ from .views import (
     EditorDeclineAssignmentView,
     EditorPending,
     EditorWorkOnIssue,
+    ElaborateLatexEditorReportView,
+    ElaborateLatexReportView,
     EOArchived,
     EOPending,
     EOProduction,
@@ -308,4 +311,17 @@ urlpatterns = [
     path("open_appeal/<int:pk>/", AdminOpensAppealView.as_view(), name="wjs_open_appeal"),
     path("withdraw/<int:pk>/", AuthorWithdrawPreprint.as_view(), name="wjs_author_withdraw_preprint"),
     path("issue/<int:pk>/toggle-batch/", ToggleIssueBatch.as_view(), name="toggle-issue-batch"),
+    path(
+        "elaborate_latex_report/<int:assignment_id>", ElaborateLatexReportView.as_view(), name="elaborate-latex-report"
+    ),
+    path(
+        "elaborate_editor_latex_report/<int:workflow_id>",
+        ElaborateLatexEditorReportView.as_view(),
+        name="elaborate-latex-editor-report",
+    ),
+    path(
+        "text_to_latex/<int:assignment_id>",
+        ConvertTextToLatex.as_view(),
+        name="text-to-latex",
+    ),
 ]

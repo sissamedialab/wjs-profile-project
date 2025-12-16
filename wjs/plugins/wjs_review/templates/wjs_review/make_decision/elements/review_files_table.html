@@ -15,7 +15,7 @@
           {% if review.review_file %}
             <tr>
               <td>{{ review.reviewer }}</td>
-              <td>{% include "wjs_review/make_decision/elements/author_file_download.html" %}</td>
+              <td>{% include "wjs_review/make_decision/elements/author_file_download.html" with show_file="text" %}</td>
               <td>
               <div class="form-check form-check-inline">
                   <input class="form-check-input" type="radio" name="send_review_file_{{ review.pk }}" id="send_review_file_yes_{{ review.pk }}" value="yes">

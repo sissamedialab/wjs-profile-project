@@ -4,6 +4,7 @@ from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
+import pypandoc
 from core import files as core_files
 from core import models as core_models
 from django import forms
@@ -102,6 +103,7 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
+    HandleLatexReport,
     HandleMessage,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -122,6 +124,7 @@ from .mixins import (
 )
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     EditorRevisionRequest,
     Message,
     MessageRecipients,
@@ -1545,7 +1548,8 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        assignment = WorkflowReviewAssignment.objects.get(pk=self.kwargs.get("assignment_id"))
+        context["form_fields"] = get_report_form(self.object.article.journal.code)(review_assignment=assignment).fields
         return context
 
 
@@ -1605,6 +1609,7 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
             review_assignment=self.object,
             submit_final=self._submitting_report_final,
             request=self.request,
+            journal=self.request.journal,
             **self._get_report_data(),
         )
 
@@ -1614,6 +1619,7 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         if "report_form" not in context:
             context["report_form"] = self._get_report_form()
         context["allow_draft"] = self.allow_draft
+        context["assignment"] = self.object
         return context
 
     def _process_report(self) -> Union[HttpResponseRedirect, HttpResponse]:
@@ -1625,6 +1631,12 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         report_form = self._get_report_form()
         if report_form.is_valid():
             try:
+                if self.request.POST.get("author_review_tex", None):
+                    HandleLatexReport(
+                        self.object.workflowreviewassignment,
+                        self.request.POST.get("author_review_tex"),
+                        self.request.user,
+                    ).run()
                 report_form.save()
                 return HttpResponseRedirect(self.get_success_url())
             except (ValueError, ValidationError) as e:
@@ -1762,6 +1774,11 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
         Even if the form is valid, checks in logic.HandleDecision -called by form.save- may fail as well.
         """
         try:
+            if get_setting(
+                setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+            ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
+                assignment = WjsEditorAssignment.objects.get(pk=self.object.article.articleworkflow)
+                HandleLatexReport(assignment, form.cleaned_data.get("decision_editor_report"), self.request.user).run()
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -1771,7 +1788,10 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["submitted_reviews"] = self.submitted_reviews
-        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        context["form_fields"] = get_report_form(self.object.article.journal.code)(journal=self.request.journal).fields
+        context["tex_review_allowed"] = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value in ["tex", "tex+text"]
         return context
 
 
@@ -1862,6 +1882,11 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         Even if the form is valid, checks in logic.HandleDecision -called by form.save- may fail as well.
         """
         try:
+            if get_setting(
+                setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+            ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
+                assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
+                HandleLatexReport(assignment, form.cleaned_data.get("decision_editor_report"), self.request.user).run()
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -1893,11 +1918,14 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["submitted_reviews"] = self.submitted_reviews
-        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        context["form_fields"] = get_report_form(self.object.article.journal.code)(journal=self.request.journal).fields
         context["pending_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.pending_reviews])
         context["not_metadata_change"] = (
             self.request.GET.get("decision", None) != ArticleWorkflow.Decisions.TECHNICAL_REVISION
         )
+        context["tex_review_allowed"] = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value in ["tex", "tex+text"]
         return context
 
 
@@ -3694,6 +3722,16 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         # Add a tuple to related_instances with the second item being if use the primary  permission (True) or the
         # Secondary permission (False)
 
+        # EditorDecision's files
+        for ed in [EditorDecision.objects.filter(decision_editor_report_pdf__pk=self.attachment.pk).first()]:
+            if ed:
+                related_instances.append((ed, True))
+
+        # WjsEditorAssignment's files
+        for wja in [WjsEditorAssignment.objects.filter(editor_report_pdf_draft__pk=self.attachment.pk).first()]:
+            if wja:
+                related_instances.append((wja, True))
+
         # EditorRevisionRequest's files
         for err in [
             EditorRevisionRequest.objects.filter(manuscript_files__pk=self.attachment.pk).first(),
@@ -3710,8 +3748,12 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
                 related_instances.append((err, False))
 
         # WorkflowReviewAssignment's files (reviewers' report files)
-        if wra := WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first():
-            related_instances.append((wra, False))
+        for wra in [
+            WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first(),
+            WorkflowReviewAssignment.objects.filter(tex_report_pdf__pk=self.attachment.pk).first(),
+        ]:
+            if wra:
+                related_instances.append((wra, False))
 
         # TypesettingAssignment's files
         for ta in [
@@ -3820,3 +3862,74 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         self.workflow.article.snapshot_authors()
 
         return context
+
+
+class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.assignment = WorkflowReviewAssignment.objects.get(pk=kwargs["assignment_id"])
+
+    def test_func(self):
+        return permissions.is_article_reviewer(self.assignment.article.articleworkflow, self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            generated_tex_review = HandleLatexReport(
+                self.assignment, self.request.POST.get("author_review_tex"), self.request.user
+            ).run()
+        except ValidationError as e:
+            return HttpResponse(str(e), status=400)
+
+        download_url = reverse(
+            "download_single_file",
+            args=[self.assignment.article.pk, generated_tex_review.pk],
+        )
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = download_url
+        return response
+
+
+class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        workflow = ArticleWorkflow.objects.get(pk=kwargs["workflow_id"])
+        self.assignment = WjsEditorAssignment.objects.get_current(workflow)
+
+    def test_func(self):
+        return permissions.is_article_editor_or_eo(self.assignment.article.articleworkflow, self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            generated_tex_review = HandleLatexReport(
+                self.assignment, self.request.POST.get("decision_editor_report"), self.request.user
+            ).run()
+        except ValidationError as e:
+            return HttpResponse(str(e), status=400)
+
+        download_url = reverse(
+            "download_single_file",
+            args=[self.assignment.article.pk, generated_tex_review.pk],
+        )
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = download_url
+        return response
+
+
+class ConvertTextToLatex(HtmxMixin, AuthenticatedUserPassesTest, View):
+    """HTMX view to convert text to latex."""
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.assignment = WorkflowReviewAssignment.objects.get(pk=self.kwargs["assignment_id"])
+
+    def test_func(self):
+        return permissions.is_article_editor_or_eo(self.assignment.article.articleworkflow, self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        author_review = self.assignment.report_form_answers.get("author_review")
+        latex_author_review = pypandoc.convert_text(author_review, "latex", format="html")
+        response = HttpResponse(latex_author_review, status=200)
+        response["Content-Type"] = "text/plain; charset=utf-8"
+        return response
