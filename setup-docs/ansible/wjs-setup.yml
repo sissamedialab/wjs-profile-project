@@ -28,6 +28,7 @@
           - libssl-dev
           - libxml2-dev
           - libxslt1-dev
+          - pandoc
           - postgresql
           - postgresql-contrib
           - python3-packaging
