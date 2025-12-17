@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from plugins.wjs_submission.events import SubmissionEvent
 
 
 class WjsReviewConfig(AppConfig):
@@ -77,6 +78,7 @@ class WjsReviewConfig(AppConfig):
             perform_checks_at_acceptance,
             process_submission,
             restart_review_process_after_revision_submission,
+            send_access_mode_special_requirements_notification_,
             send_notification_when_article_is_published,
             send_to_prophy,
             sync_article_articleworkflow,
@@ -205,4 +207,8 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             events_logic.Events.ON_ARTICLE_PUBLISHED,
             send_notification_when_article_is_published,
+        )
+        events_logic.Events.register_for_event(
+            SubmissionEvent.ON_ACCESS_MODE_SELECTION,
+            send_access_mode_special_requirements_notification_,
         )

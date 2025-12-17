@@ -65,6 +65,7 @@ from wjs.jcom_profile.utils import (
     render_template_from_setting,
 )
 
+from ..wjs_submission.models import ArticleSubmission
 from . import communication_utils, permissions
 from .events.assignment import dispatch_assignment
 from .logic__production import (  # noqa F401
@@ -4171,3 +4172,45 @@ class ConvertReviewerLatexReport:
         self.instance.tex_report_pdf = generated_tex
         self.instance.save()
         return generated_tex
+
+
+@dataclasses.dataclass
+class AccessModeSpecialRequestNotification:
+    submission_data: ArticleSubmission
+
+    def _check_conditions(self):
+        return self.submission_data.special_request
+
+    def _send_notification(self):
+        """Logs a message to the typesetter containing information about the withdrawal."""
+        from utils.management.commands.test_fire_event import create_fake_request
+
+        fake_request = create_fake_request(user=None, journal=self.submission_data.article.journal)
+        context = {
+            "article": self.submission_data.article,
+            "submission_data": self.submission_data,
+        }
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="access_mode_special_request_notification_subject",
+            journal=self.submission_data.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="access_mode_special_request_notification_body",
+            journal=self.submission_data.article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.submission_data.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.submission_data.article.correspondence_author,
+            recipients=[get_eo_user(self.submission_data.article)],
+        )
+
+    def run(self):
+        if self._check_conditions():
+            self._send_notification()
