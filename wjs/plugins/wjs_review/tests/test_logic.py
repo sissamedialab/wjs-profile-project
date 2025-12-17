@@ -24,6 +24,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone, translation
 from django.utils.timezone import localtime, now
+from events import logic as events_logic
 from faker import Faker
 from journal import models as journal_models
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
@@ -41,6 +42,7 @@ from wjs.jcom_profile.utils import (
     render_template_from_setting,
 )
 
+from ...wjs_submission.events import SubmissionEvent
 from .. import permissions
 from ..communication_utils import get_system_user
 from ..events.handlers import (
@@ -4654,3 +4656,24 @@ def test_rich_text_or_tex_validation(
     )
 
     assert form.is_valid() == should_be_valid
+
+
+@pytest.mark.parametrize("special_request", ("some message", ""))
+@pytest.mark.django_db
+def test_submission_special_request(article: Article, review_settings, special_request: str):
+    """If ArticleSubmission.special_request is set, a notification is sent to EO."""
+    article.submission_data.special_request = special_request
+    article.submission_data.save()
+    Message.objects.all().delete()
+    events_logic.Events.raise_event(
+        SubmissionEvent.ON_ACCESS_MODE_SELECTION, article=article, submission_data=article.submission_data
+    )
+    if special_request:
+        assert Message.objects.all().count() == 1
+        message = Message.objects.all().get()
+        assert "Access mode" in message.subject
+        assert special_request in message.body
+        assert list(message.recipients.all()) == [get_eo_user(article)]
+        assert message.actor == article.correspondence_author.janeway_account
+    else:
+        assert not Message.objects.all().exists()
