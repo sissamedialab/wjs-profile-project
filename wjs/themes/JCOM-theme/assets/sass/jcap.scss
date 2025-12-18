@@ -1,0 +1,67 @@
+@charset "UTF-8";
+@import url("https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap");
+
+// Custom colors
+@import "components/color-variables";
+@import "jcom-color-variables";
+
+// Color
+@import "components/color-classes";
+
+// Variables;
+@import "components/variables";
+@import "variables";
+
+// Reset
+@import "components/normalize";
+
+// components
+@import "components/global";
+@import "components/badges";
+@import "components/icons-material-design";
+@import "components/grid";
+@import "components/navbar";
+@import "components/typography";
+@import "components/transitions";
+@import "components/cards";
+@import "components/toast";
+@import "components/tabs";
+@import "components/tooltip";
+@import "components/buttons";
+@import "components/dropdown";
+@import "components/waves";
+@import "components/modal";
+@import "components/collapsible";
+@import "components/chips";
+@import "components/materialbox";
+@import "components/forms/forms";
+@import "components/table_of_contents";
+@import "components/sidenav";
+@import "components/preloader";
+@import "components/slider";
+@import "components/carousel";
+@import "components/tapTarget";
+@import "components/pulse";
+@import "components/datepicker";
+@import "components/timepicker";
+
+// customizations TBV
+@import "jcom_custom";
+@import "navbar";
+@import "jcom_acceptation";
+@import "button";
+@import "modal";
+@import "volumes";
+@import "jcom_articles";
+@import "badges";
+@import "badges_colors";
+@import "cards";
+@import "global";
+@import "jcom_special_issues";
+@import "flaticon";
+@import "jcom_home";
+@import "jcom_search";
+@import "input-fields";
+@import "cms";
+@import "sideNav";
+@import "input-fields";
