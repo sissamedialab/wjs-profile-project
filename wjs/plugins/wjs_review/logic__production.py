@@ -1,4 +1,5 @@
-"""Logic classes for production-related actions & co.
+"""
+Logic classes for production-related actions & co.
 
 This module should be *-imported into logic.py
 """
@@ -1566,7 +1567,8 @@ class BeginPublication:
             )
 
     def _store_prepared_source(self, file_data: BytesIO, file_name: str = None):
-        """Include the given file into the article source files zip, under the given file-name.
+        """
+        Include the given file into the article source files zip, under the given file-name.
 
         Defaults to replacing the tex source file (i.e. the file name will be something like JCOM_123.tex).
         """
@@ -1575,7 +1577,7 @@ class BeginPublication:
         file_name = (
             f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex" if file_name is None else file_name
         )
-        tempfiledesc, tempfilename = tempfile.mkstemp(dir=self.source_files.parent)
+        _tempfiledesc, tempfilename = tempfile.mkstemp(dir=self.source_files.parent)
         originalfile_was_in_archive = False
         with zipfile.ZipFile(self.source_files, "r") as original_zip:
             with zipfile.ZipFile(tempfilename, "w") as new_zip:
@@ -1610,57 +1612,55 @@ class BeginPublication:
         os.unlink(tempfilename)
 
     def _prepare_source(self, source_file: BytesIO) -> BytesIO:
-        r"""Set pubid, DOI and publication date into the given file and return it.
+        r"""
+        Set pubid, DOI and publication date into the given file and return it.
 
         Placeholders are expected as follow:
-        \published{???}
-        \publicationyear{xxxx}
-        \publicationvolume{xx}
-        \publicationissue{xx}
-        \publicationnum{xx}
-        \doiInfo{doi}{xxxxxxx}
+        \publicationData{23}{06}{A}{02}
+        \publicationDoi{10.22323/2.23060202}
+
+        Raises:
+          ValueError: if expected macros cannot be found in the given file.
 
         """
-        publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
-        publication_year = self.workflow.article.date_published.year
-        volume = f"{self.workflow.article.primary_issue.volume:02d}"
+        article = self.workflow.article
+        volume = f"{article.primary_issue.volume:02d}"
         # TODO: can it ever happen that issue.issue is not in the form "01"?
-        issue = f"{int(self.workflow.article.primary_issue.issue):02d}"
+        issue = f"{int(article.primary_issue.issue):02d}"
         # Page numbers should have been set when we set the pubid when we do set_article_identifiers()
-        num = self.workflow.article.page_numbers
-        assert num
-        # ATM, num has the form "A01", "Y02", ... (see AW.compute_eid())
-        # in the TeX source we need only the number "01", "02"...
-        num = num[-2:]
-        doi = self.workflow.article.get_doi()
-        assert doi
+        # ATM, they have the form "A01", "Y02", ... (see AW.compute_eid())
+        # in the TeX source we need them separately: the type "A", "Y"... and the counter "01", "02"...
+        type_and_counter = article.page_numbers
+        counter = type_and_counter[-2:]
+        type_code = type_and_counter[:1]
+        doi = article.get_doi()
+        if not doi:
+            raise ValueError(f"DOI for {article.id} shold already exist at begin-publication!")
         # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
         replacements = (
             # f-strings and latex macros don't dance well together...
-            (r"\published{???}", rf"\published{{{publication_date}}}"),
-            (r"\publicationyear{xxxx}", rf"\publicationyear{{{publication_year}}}"),
-            (r"\publicationvolume{xx}", rf"\publicationvolume{{{volume}}}"),
-            (r"\publicationissue{xx}", rf"\publicationissue{{{issue}}}"),
-            (r"\publicationnum{xx}", rf"\publicationnum{{{num}}}"),
-            (r"\doiInfo{doi}{xxxxxxx}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
+            (
+                rf"\publicationData{{00}}{{00}}{{{type_code}}}{{00}}",
+                rf"\publicationData{{{volume}}}{{{issue}}}{{{type_code}}}{{{counter}}}",
+            ),
+            (r"\publicationDoi{10.22323/0.00000000}", rf"\publicationDoi{{{doi}}}"),
         )
 
         source_file.seek(0)
         # we can safely assume that we are dealing with a utf8-encoded text file
         content = source_file.read().decode("utf-8")
 
-        # TODO: should I expect to always find all replacement?
-        # I.e. is it an error if some replacement cannot be found in the source?
+        # I expect to always find all the place-holders
         for old_string, new_string in replacements:
             if old_string in content:
                 content = content.replace(old_string, new_string, 1)
             else:
-                raise Exception(_("Missing variable in Automatic Preamble") + f": {old_string}")
-        processed_file = BytesIO(content.encode("utf-8"))
-        return processed_file
+                raise ValueError(f"""Missing macro "{old_string}" in Automatic Preamble of {article.id}""")
+        return BytesIO(content.encode("utf-8"))
 
     def _get_source_file(self) -> BytesIO:
-        """Extract the source file of the article galleys.
+        """
+        Extract the source file of the article galleys.
 
         Return the main TeX file, the one that contains the LaTeX preamble.
         """
