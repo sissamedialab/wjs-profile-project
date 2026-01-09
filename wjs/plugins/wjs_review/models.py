@@ -1704,6 +1704,7 @@ class EditorRevisionRequest(RevisionRequest):
     # fields here keep the same name of the article fields to be able to reuse the same form
     title = models.CharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
     abstract = JanewayBleachField(blank=True, null=True, verbose_name=_("Abstract"))
+    authors_contributions = models.TextField(blank=True, null=True, verbose_name=_("Authors contributions"))
 
     class Meta:
         ordering = ("date_requested",)
