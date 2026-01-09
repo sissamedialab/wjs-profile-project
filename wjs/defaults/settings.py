@@ -153,10 +153,10 @@ CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
     "/logout/",
 ]
 
-RESET_PASSWORD_SUBJECT = "Reset password"
+RESET_PASSWORD_SUBJECT = "Reset password"  # noqa: S105
 RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}
-"""
+"""  # noqa: S105
 
 # Functions that check if a just-submitted article might have issues
 # that would require EO attention before editor assigment

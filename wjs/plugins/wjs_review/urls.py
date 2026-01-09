@@ -192,11 +192,6 @@ urlpatterns = [
     path("review/<int:assignment_id>/declined/", ReviewDeclined.as_view(), name="wjs_declined_review"),
     path("article/<int:article_id>/revision/<int:revision_id>/", ArticleRevisionUpdate.as_view(), name="do_revisions"),
     path(
-        "article/<int:article_id>/revision/<int:revision_id>/confirm/",
-        ArticleRevisionUpdate.as_view(confirm_version=True),
-        name="confirm_version",
-    ),
-    path(
         "article/<int:article_id>/revision/<int:revision_id>/files/<str:file_type>/",
         ArticleRevisionFileUpdate.as_view(),
         name="revisions_use_files",

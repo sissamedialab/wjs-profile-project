@@ -24,6 +24,7 @@ from wjs.jcom_profile.utils import render_template_from_setting
 from .. import communication_utils
 from ..logic import (
     AccessModeSpecialRequestNotification,
+    AuthorHandleRevision,
     ConvertManuscriptToPdf,
     CreateReviewRound,
     VerifyProductionRequirements,
@@ -127,6 +128,18 @@ def restart_review_process_after_revision_submission(**kwargs) -> None:
     # NB: STAGE_ASSIGNED is the correct stage here, because the other candidate STAGE_UNDER_REVIEW is set by
     # review.logic.quick_assign() only when a review assigment is created.
     article.save()
+
+
+def process_submitted_revision(**kwargs) -> None:
+    """
+    When a new article revision is submitted, run the relative business logic.
+
+    This function is intended as handler of the WJSSubmissionEvent.ON_REVISION_SUBMISSION_COMPLETED event.
+    """
+    AuthorHandleRevision(
+        request=kwargs["request"],
+        article=kwargs["article"],
+    ).run()
 
 
 def notify_author_article_submission(**kwargs):

@@ -42,7 +42,7 @@ from .communication_utils import MESSAGE_TYPE_ICONS
 from .logic import (
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     DeselectReviewer,
     EvaluateReview,
     HandleDecision,
@@ -904,9 +904,9 @@ class BaseEditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
         self.confirm_previous_version = kwargs.pop("confirm_previous_version", None)
         super().__init__(*args, **kwargs)
 
-    def get_logic_instance(self) -> AuthorHandleRevision:
+    def get_logic_instance(self) -> AuthorHandleRevisionObsolete:
         """Instantiate :py:class:`AuthorHandleRevision` class."""
-        service = AuthorHandleRevision(
+        service = AuthorHandleRevisionObsolete(
             revision=self.instance,
             form_data=self.cleaned_data,
             user=self.user,
@@ -952,38 +952,6 @@ class EditMetadataForm(BaseEditorRevisionRequestEditForm):
         if not self.instance.author_note and not self.instance.cover_letter_file:
             errors.append(_("You should provide and save a cover letter."))
         return errors
-
-
-class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
-    confirm_version = forms.BooleanField(
-        label=_(
-            "I confirm that my cover letter to the Editor includes my reasons for asking for reconsideration "
-            "of this version."
-        ),
-    )
-
-    class Meta:
-        model = EditorRevisionRequest
-        fields = ["author_note", "confirm_previous_version"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.save_cover_letter or self.confirm_previous_version:
-            self.fields["confirm_version"].required = False
-
-    def check_for_potential_errors(self):
-        """Check if the user has confirmed all the required fields."""
-        errors = []
-        if not self.cleaned_data.get("confirm_version", False):
-            errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
-        if not self.instance.author_note and not self.instance.cover_letter_file:
-            errors.append(_("You should provide and save a cover letter."))
-        return errors
-
-    def finish(self) -> EditorRevisionRequest:
-        self.instance.confirm_previous_version = True
-        self.instance.save()
-        return super().finish()
 
 
 class EditorRevisionRequestEditForm(BaseEditorRevisionRequestEditForm):

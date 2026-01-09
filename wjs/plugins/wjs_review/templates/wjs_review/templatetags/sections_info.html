@@ -27,7 +27,8 @@
   document.addEventListener("DOMContentLoaded", (event) => {
     const selectElement = document.getElementById("id_section");
     const selectedValue = selectElement.value;
-    if (typeof selectedValue !== "undefined" && selectedValue !== null) {
+    if (typeof selectedValue !== "undefined" && selectedValue !== null && selectedValue != "") {
+      console.log(`id_section: ${selectedValue}.`)
       showSectionDescription(selectedValue);
     }
   });

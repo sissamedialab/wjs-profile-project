@@ -122,33 +122,6 @@ def get_review_url_with_code(action: "ReviewAssignmentAction", assignment: Revie
     return f"{url}?code={assignment.access_code}"
 
 
-def get_do_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
-    revision_request = conditions.pending_revision_request(workflow, user)
-    if revision_request:
-        return reverse(
-            "do_revisions",
-            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
-        )
-
-
-def get_confirm_version_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
-    revision_request = conditions.pending_revision_request(workflow, user)
-    if revision_request:
-        return reverse(
-            "confirm_version",
-            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
-        )
-
-
-def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
-    revision_request = conditions.pending_edit_metadata_request(workflow, user)
-    if revision_request:
-        return reverse(
-            "do_revisions",
-            kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
-        )
-
-
 def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     url = reverse(
         action.view_name,
@@ -800,24 +773,24 @@ class ToBeRevised(BaseState):
             permission=permissions.is_article_author,
             name="submits new version",
             label="Submit revision",
-            view_name="do_revisions",
-            custom_get_url=get_do_revision_url,
+            view_name="wjs_submission_revision_full",
+            custom_get_url=get_article_pk_url,
         ),
         ArticleAction(
             condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
             label="Confirm previous version",
-            view_name="do_revisions",
-            custom_get_url=get_confirm_version_url,
+            view_name="wjs_submission_revision_confirm",
+            custom_get_url=get_article_pk_url,
         ),
         ArticleAction(
             condition=conditions.pending_edit_metadata_request,
             permission=permissions.is_article_author,
             name="edit metadata",
             label="Update metadata",
-            view_name="do_revisions",
-            custom_get_url=get_edit_metadata_revision_url,
+            view_name="wjs_submission_revision_metadata",
+            custom_get_url=get_article_pk_url,
         ),
     ) + BaseState.article_actions
 
@@ -895,15 +868,16 @@ class UnderAppeal(BaseState):
             permission=permissions.is_article_author,
             name="author submits appeal",
             label="Submit revision",
-            view_name="do_revisions",
-            custom_get_url=get_do_revision_url,
+            view_name="wjs_submission_revision_full",
+            custom_get_url=get_article_pk_url,
         ),
         ArticleAction(
+            condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
             label="Confirm previous version",
-            view_name="do_revisions",
-            custom_get_url=get_confirm_version_url,
+            view_name="wjs_submission_revision_confirm",
+            custom_get_url=get_article_pk_url,
         ),
     ) + BaseState.article_actions
 

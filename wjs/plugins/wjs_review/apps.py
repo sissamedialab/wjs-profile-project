@@ -1,5 +1,4 @@
 from django.apps import AppConfig
-from plugins.wjs_submission.events import SubmissionEvent
 
 
 class WjsReviewConfig(AppConfig):
@@ -65,6 +64,7 @@ class WjsReviewConfig(AppConfig):
     def register_events(self):
         """Register our function in Janeway's events logic."""
         from events import logic as events_logic
+        from plugins.wjs_submission.events import SubmissionEvent
         from utils import transactional_emails
 
         from .events import ReviewEvent
@@ -77,6 +77,7 @@ class WjsReviewConfig(AppConfig):
             on_article_submission_start,
             perform_checks_at_acceptance,
             process_submission,
+            process_submitted_revision,
             restart_review_process_after_revision_submission,
             send_access_mode_special_requirements_notification_,
             send_notification_when_article_is_published,
@@ -101,6 +102,10 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED,
             process_submission,
+        )
+        events_logic.Events.register_for_event(
+            SubmissionEvent.ON_REVISION_SUBMISSION_COMPLETED,
+            process_submitted_revision,
         )
         events_logic.Events.register_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,
