@@ -119,7 +119,8 @@ class Version(Protocol):
 
 @dataclasses.dataclass
 class AuthorCoverLetter:
-    """Represent the cover letter from an author.
+    """
+    Represent the cover letter from an author.
 
     This can be either some text or a file or both.
     These info are saved in different models. See :py:class:`ReviewVersion`.
@@ -154,6 +155,9 @@ class ReviewVersion:
     all the involved elements.
     """
 
+    # FIXME: below I have RUF045 (assignment without annotation in dataclass),
+    # but if I add the annotation "str", the I have
+    # TypeError: non-default argument 'review_round' follows default argument
     label = _("Version")
 
     review_round: ReviewRound
@@ -233,7 +237,7 @@ class ReviewVersion:
         elif self.number in {1, -1}:
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
-                file=None,
+                file=self.review_round.article.submission_data.cover_letter_file,
                 object=self.review_round.article.articleworkflow,
             )
         else:
@@ -264,7 +268,7 @@ class ReviewVersion:
         elif self.number == 1 or self.latest:
             return self.review_round.article
 
-    def _get_revision_by_round(self, number) -> Optional["EditorRevisionRequest"]:
+    def _get_revision_by_round(self, number: int) -> Optional["EditorRevisionRequest"]:
         if self.revision_requests and number:
             requests = [
                 request
@@ -285,7 +289,7 @@ class ReviewVersion:
         """
         Return the revision request for the previous round of the version.
 
-        We need the previous revision request as it's the one that contains the the files and notes upon which
+        We need the previous revision request as it's the one that contains the files and notes upon which
         the current revision round is being evaluated.
 
         The previous round revision requests are filtered by type as Major and Minor revision requests are the "final"
@@ -315,10 +319,10 @@ class ReviewVersion:
                 decision
                 for decision in self.decisions
                 if decision.decision
-                not in (
+                not in {
                     ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
                     ArticleWorkflow.Decisions.OPEN_APPEAL.value,
-                )
+                }
             ]
             return decisions[0] if decisions else None
         return None

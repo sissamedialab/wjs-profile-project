@@ -16,7 +16,7 @@ from copy import copy
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Mapping, Optional
 
 import requests
 from asgiref.sync import async_to_sync
@@ -48,10 +48,17 @@ from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
+from plugins.wjs_submission.models import RevisionStorage
 from review.logic import assign_editor, quick_assign
 from review.models import ReviewRound
 from review.views import upload_review_file
-from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
+from submission.models import (
+    STAGE_ASSIGNED,
+    STAGE_UNDER_REVISION,
+    Article,
+    Field,
+    FieldAnswer,
+)
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -358,7 +365,7 @@ class BaseAssignToEditor:
             article=assignment.article,
         ).delete()
 
-    def _get_message_context(self, assignment: WjsEditorAssignment) -> Dict[str, Any]:
+    def _get_message_context(self, assignment: WjsEditorAssignment) -> dict[str, Any]:
         return {
             "article": self.article,
             "request": self.request,
@@ -374,7 +381,7 @@ class BaseAssignToEditor:
             ).processed_value,
         }
 
-    def _log_operation(self, context: Dict[str, Any], assignment_message: Optional[str] = None):
+    def _log_operation(self, context: dict[str, Any], assignment_message: Optional[str] = None):
         if not assignment_message:
             message_subject = render_template_from_setting(
                 setting_group_name="email_subject",
@@ -511,7 +518,7 @@ class AssignToReviewer:
     workflow: ArticleWorkflow
     reviewer: Account
     editor: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     assignment: Optional[WorkflowReviewAssignment] = None
     log_operation: bool = True
@@ -632,7 +639,7 @@ class AssignToReviewer:
             },
         )
 
-    def _get_message_context(self) -> Dict[str, Any]:
+    def _get_message_context(self) -> dict[str, Any]:
         """
         Return a dictionary with the context for default form message.
 
@@ -693,7 +700,7 @@ class AssignToReviewer:
             "acceptance_due_date": acceptance_due_date,
         }
 
-    def _log_operation(self, context: Dict[str, Any]):
+    def _log_operation(self, context: dict[str, Any]):
         if self.reviewer == self.editor:
             message_verbosity = Message.MessageVerbosity.TIMELINE
             message_subject_setting = "wjs_editor_i_will_review_message_subject"
@@ -797,7 +804,7 @@ class EvaluateReview:
     assignment: WorkflowReviewAssignment
     reviewer: Account
     editor: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     token: str
 
@@ -943,7 +950,7 @@ class EvaluateReview:
             self.assignment.date_due = date_due
             self.assignment.save()
 
-    def _get_postpone_too_far_in_the_future_message_context(self) -> Dict[str, Any]:
+    def _get_postpone_too_far_in_the_future_message_context(self) -> dict[str, Any]:
         default_review_days = self.assignment.article.journal.get_setting(
             group_name="general",
             setting_name="default_review_days",
@@ -960,7 +967,7 @@ class EvaluateReview:
             "original_date_due": default_date_due,
         }
 
-    def _get_accept_message_context(self) -> Dict[str, Any]:
+    def _get_accept_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -972,7 +979,7 @@ class EvaluateReview:
             # the `review_url` page)
         }
 
-    def _get_decline_message_context(self) -> Dict[str, Any]:
+    def _get_decline_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1171,7 +1178,7 @@ class InviteReviewer:
 
     workflow: ArticleWorkflow
     editor: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
 
     def _generate_token(self) -> str:
@@ -1320,7 +1327,7 @@ class SubmitReview:
                 **kwargs,
             )
 
-    def _get_editor_message_context(self) -> Dict[str, Any]:
+    def _get_editor_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1328,7 +1335,7 @@ class SubmitReview:
             "review_assignment": self.assignment,
         }
 
-    def _get_reviewer_message_context(self) -> Dict[str, Any]:
+    def _get_reviewer_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1461,9 +1468,9 @@ class SubmitReview:
 
 
 @dataclasses.dataclass
-class AuthorHandleRevision:
+class AuthorHandleRevisionObsolete:
     revision: EditorRevisionRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     user: Account  # TODO: not used? Please check and refactor!
     request: HttpRequest
 
@@ -1482,14 +1489,14 @@ class AuthorHandleRevision:
 
     @staticmethod
     def _trigger_complete_event(revision: EditorRevisionRequest, request: HttpRequest):
-        """Trigger the ON_REVIEW_COMPLETE event to comply with upstream review workflow."""
+        """Trigger the ON_REVISIONS_COMPLETE event to comply with upstream review workflow."""
         kwargs = {
             "revision": revision,
             "request": request,
         }
         events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
 
-    def _get_revision_submission_message_context(self) -> Dict[str, Any]:
+    def _get_revision_submission_message_context(self) -> dict[str, Any]:
         self.editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
         return {
             "article": self.revision.article,
@@ -1691,6 +1698,322 @@ class AuthorHandleRevision:
 
 
 @dataclasses.dataclass
+class AuthorHandleRevision:
+    """
+    Logic related to the submission of a revision.
+
+    Note that this class triggers ON_REVISIONS_COMPLETE when done.
+    """
+
+    request: HttpRequest
+    article: Article
+    revision: EditorRevisionRequest = dataclasses.field(init=False)
+    revision_storage: RevisionStorage = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        """Define article and revision_storage instance variables."""
+        self.revision = (
+            EditorRevisionRequest.objects.filter(
+                article=self.article,
+                date_completed__isnull=True,
+            )
+            .order_by("-date_requested")
+            .first()
+        )
+        self.revision_storage = RevisionStorage.objects.get(article=self.article)
+
+    def _store_data(self):
+        """
+        Copy article metadata from temporary RevisionStorage to the article.
+
+        Where necessary, keep the old value in EditorRevisionRequest.
+        Also save answers from additional submission fields.
+        """
+
+        if not self.revision_storage.data.get("submission_requirements"):
+            raise ValueError(
+                "Author did not confirm submission requirements: "
+                f"{self.article.submission_requirements=} / "
+                f"{self.revision_storage.data.get('submission_requirements')}",
+            )
+        if not self.article.submission_requirements:
+            # Some article might not have the submission-requirements checked.
+            # This looks like a business-logic flow: if the author does not agree with the journal
+            # requirements, why is he submitting a paper?
+            # Logging this as a non-blocking error, becaues I'm not sure if/when this can happen.
+            logger.error(
+                f"Article {self.article.journal.code}_{self.article.id} has submission_requirements NOT set."
+                " Please check. Proceeding anyway.",
+            )
+
+        # Keep history of data / snaphost data / versioning data
+        # ====================
+        #
+        # Please remember that files (manuscript, source files, etc.) have already been "copied" to the
+        # revision-request object, when the revision request was created.
+        #
+        # Old title and abstract are kept in the revision-request object
+        if new_title := self.revision_storage.data.get("title"):
+            self.revision.title = self.article.title
+            self.article.title = new_title
+        else:
+            self.revision.title = self.article.title
+
+        if new_abstract := self.revision_storage.data.get("abstract"):
+            self.revision.abstract = self.article.abstract
+            self.article.abstract = new_abstract
+        else:
+            self.revision.abstract = self.article.abstract
+
+        # Cover letter (note and file), manuscript and source-files are kept in the revision-request object
+        if cover_letter_note := self.revision_storage.data.get("comments_editor"):
+            self.revision.author_note = cover_letter_note
+        if file_id := self.revision_storage.data.get("cover_letter_file"):
+            self.revision.cover_letter_file = core_models.File.objects.get(id=file_id)
+
+        # The following fields directly overwrite existing values: no history is kept
+        if new_competing_interests := self.revision_storage.data.get("competing_interests"):
+            self.article.competing_interests = new_competing_interests
+
+        self.revision.save()
+        self.article.save()
+
+        # Additional submission fields
+        for additional_submission_field in Field.objects.filter(journal=self.article.journal).order_by("order"):
+            if additional_submission_field.name in self.revision_storage.data:
+                # Using "update_or_create" (instead of just "update"), because the author could have filled some answer
+                # that he had left empty during the first submission.
+                FieldAnswer.objects.update_or_create(
+                    article=self.article,
+                    field=additional_submission_field,
+                    defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
+                )
+
+        self.revision_storage.delete()
+
+        # To be continued...
+        if not self.revision_storage.data.get("confirm_previous_version"):
+            logger.critical("NON-CPV REVISION SUBMITTED! WRITEME!")
+
+    def _confirm_revision(self):
+        """
+        Mark the revision as completed.
+
+        The Article.stage / state are not changed here,
+        but by event-handlers registered with the ON_REVISIONS_COMPLETE event.
+
+        This allows for other code to hook-up to the event ON_REVISION_SUBMISSION_COMPLETED.
+        """
+        self.revision.date_completed = timezone.now()
+        self.revision.save()
+
+    @staticmethod
+    def _trigger_complete_event(revision: EditorRevisionRequest, request: HttpRequest) -> None:
+        """Trigger the ON_REVISIONS_COMPLETE event to comply with upstream review workflow."""
+        kwargs = {
+            "revision": revision,
+            "request": request,
+        }
+        events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
+
+    def _get_revision_submission_message_context(self) -> dict[str, Any]:
+        self.editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
+        return {
+            "article": self.revision.article,
+            "request": self.request,
+            "skip": False,
+            "revision": self.revision,
+            "editor": self.editor,
+            "default_editor_assign_reviewer_days": get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_editor_assign_reviewer_days",
+                journal=self.revision.article.journal,
+            ).processed_value,
+        }
+
+    def _was_under_appeal(self) -> bool:
+        """Return True if the paper was under appeal."""
+        return self.revision.type == ArticleWorkflow.Decisions.OPEN_APPEAL
+
+    def _was_technical_revision(self) -> bool:
+        """Return True if the revision was really a metadata-update."""
+        return self.revision.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION
+
+    def _notify_reviewers(self):
+        """
+        Send notifications to all reviewers of unsubmitted revisions.
+
+        Unsubmitted reviews are available only in case of technical revisions, because for major / minor revisions
+        reviewers are withdrawn when requesting the revision.
+        """
+        article = self.revision.article  # alias
+        reviewer_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="technicalrevisions_complete_reviewer_notification_subject",
+            journal=article.journal,
+        ).processed_value
+
+        context = self._get_revision_submission_message_context()
+        # NB: don't use Janeway's article.active_reviews since it includes "withdrawn" reviews.
+        current_round = article.current_review_round_object()
+        for assignment in WorkflowReviewAssignment.objects.filter(
+            article=article,
+            review_round=current_round,
+            is_complete=False,
+        ).not_withdrawn():
+            # customize message per-reviewer
+            context["reviewer"] = assignment.reviewer
+            reviewer_message_body = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="technicalrevisions_complete_reviewer_notification_body",
+                journal=article.journal,
+                request=self.request,
+                context=context,
+                template_is_setting=True,
+            )
+
+            communication_utils.log_operation(
+                actor=self.revision.editor,
+                article=self.revision.article,
+                message_subject=reviewer_message_subject,
+                message_body=reviewer_message_body,
+                recipients=[assignment.reviewer],
+                verbosity=Message.MessageVerbosity.FULL,
+                hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+                notify_actor=communication_utils.should_notify_actor(),
+                flag_as_read=False,
+                flag_as_read_by_eo=True,
+            )
+
+    def _notify_editor(self):
+        """Send notification to the editor."""
+        # we need to render the subject too,
+        # because it changes for major/minor and technical revision submissions
+        reviewer_message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_revisions_complete_editor_notification",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        reviewer_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="revisions_complete_editor_notification",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=None,
+            article=self.revision.article,
+            message_subject=reviewer_message_subject,
+            message_body=reviewer_message_body,
+            recipients=[self.revision.editor],
+            verbosity=Message.MessageVerbosity.FULL,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _notify_author(self):
+        """Send a receipt notification to the author."""
+        subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_revisions_complete_receipt",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="revisions_complete_receipt",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=None,
+            article=self.revision.article,
+            message_subject=subject,
+            message_body=body,
+            recipients=[self.revision.article.correspondence_author],
+            verbosity=Message.MessageVerbosity.FULL,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _notify_editor_with_appeal(self):
+        """Send notification to the editor informing that the paper was under appeal."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_submits_appeal_subject",
+            journal=self.revision.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_submits_appeal_body",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.revision.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[self.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _log_operation(self):
+        """Send notifications to editor and reviewers and a receipt to the author."""
+        if self._was_under_appeal():
+            self._notify_editor_with_appeal()
+        else:
+            self._notify_editor()
+        self._notify_reviewers()
+        if not self._was_technical_revision():
+            self._notify_author()
+
+    def _delete_author_reminders(self):
+        if self._was_technical_revision():
+            AuthorShouldSubmitTechnicalRevisionReminderManager(self.revision).delete()
+        elif self.revision.type == ArticleWorkflow.Decisions.MAJOR_REVISION:
+            AuthorShouldSubmitMajorRevisionReminderManager(self.revision).delete()
+        elif self.revision.type == ArticleWorkflow.Decisions.MINOR_REVISION:
+            AuthorShouldSubmitMinorRevisionReminderManager(self.revision).delete()
+
+    def _create_editor_should_select_reviewer_reminders(self):
+        """
+        Create reminders for the editor to select a reviewer.
+
+        When author submit a revision but not for appeal and technical revision.
+        """
+        if not self._was_under_appeal() and not self._was_technical_revision():
+            EditorShouldSelectReviewerReminderManager(self.revision.article, self.revision.editor).create()
+
+    def run(self):
+        with transaction.atomic():
+            self._store_data()
+            self._confirm_revision()
+            self._trigger_complete_event(self.revision, self.request)
+            self._delete_author_reminders()
+            self._create_editor_should_select_reviewer_reminders()
+            self._log_operation()
+            return self.revision
+
+
+@dataclasses.dataclass
 class DeselectReviewer:
     """
     Low-level logic to remove reviewer assignment.
@@ -1700,7 +2023,7 @@ class DeselectReviewer:
     actor: Account
     request: HttpRequest
     send_reviewer_notification: bool
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
 
     def _log_operation(self):
         """Log a message to the reviewer containing information about the motivation of the deassignment."""
@@ -1774,8 +2097,8 @@ class WithdrawIncompleteReviews:
     actor: Account
     subject_name: tuple[str, str] | None = None
     body_name: tuple[str, str] | None = None
-    context: Dict[str, Any] | None = None
-    extra_filters: Dict[str, Any] = None
+    context: dict[str, Any] | None = None
+    extra_filters: dict[str, Any] = None
     form_data: dict = None
     """If provided, use the form's data for the message body instead of getting it from a setting."""
 
@@ -1842,7 +2165,7 @@ class WithdrawIncompleteReviews:
 @dataclasses.dataclass
 class HandleDecision:
     workflow: ArticleWorkflow
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     user: Account
     request: HttpRequest
     admin_form: bool = False
@@ -1913,14 +2236,14 @@ class HandleDecision:
         handler_exists = self.form_data["decision"] in self._decision_handlers
         return editor_has_permissions and article_state and handler_exists
 
-    def _trigger_article_event(self, event: str, context: Dict[str, Any]):
+    def _trigger_article_event(self, event: str, context: dict[str, Any]):
         """Trigger the given event."""
         return events_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
 
     def _get_message_context(
         self,
         revision: Optional[EditorRevisionRequest] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         context = {
             "article": self.workflow.article,
             "request": self.request,
@@ -1948,7 +2271,7 @@ class HandleDecision:
             )
         return context
 
-    def _log_accept(self, context: Dict[str, Any]):
+    def _log_accept(self, context: dict[str, Any]):
         accept_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_decision_accept",
@@ -2094,7 +2417,7 @@ class HandleDecision:
             flag_as_read_by_eo=True,
         )
 
-    def _log_technical_revision_request(self, context: Dict[str, str]):
+    def _log_technical_revision_request(self, context: dict[str, str]):
         technical_revision_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="technical_revision_subject",
@@ -2335,7 +2658,7 @@ class HandleDecision:
         }
         revision.save()
 
-    def _withdraw_unfinished_review_requests(self, email_context: Dict[str, str]):
+    def _withdraw_unfinished_review_requests(self, email_context: dict[str, str]):
         """
         Mark unfinished review requests as withdrawn.
         """
@@ -2430,7 +2753,7 @@ class PostponeRevisionRequestDueDate:
     """
 
     revision_request: EditorRevisionRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     original_due_date: datetime.date
     """
@@ -2464,7 +2787,7 @@ class PostponeRevisionRequestDueDate:
 
         return new_date_greater_than_max_date(self.form_data["date_due"], setting_name)
 
-    def _get_message_context(self, original_due_date: datetime.date) -> Dict[str, Any]:
+    def _get_message_context(self, original_due_date: datetime.date) -> dict[str, Any]:
         return {
             "article": self.revision_request.article,
             "request": self.request,
@@ -2474,7 +2797,7 @@ class PostponeRevisionRequestDueDate:
             "original_due_date": original_due_date,
         }
 
-    def _log_eo_date_due_too_far_future(self, context: Dict[str, Any]):
+    def _log_eo_date_due_too_far_future(self, context: dict[str, Any]):
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="revision_request_date_due_far_future_subject",
@@ -2496,7 +2819,7 @@ class PostponeRevisionRequestDueDate:
             recipients=[get_eo_user(self.revision_request.article)],
         )
 
-    def _log_author_if_date_due_is_postponed(self, context: Dict[str, Any]):
+    def _log_author_if_date_due_is_postponed(self, context: dict[str, Any]):
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="revision_request_date_due_postponed_subject",
@@ -2560,7 +2883,7 @@ class PostponeRevisionRequestDueDate:
 @dataclasses.dataclass
 class HandleMessage:
     message: Message
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
 
     def __post_init__(self):
         if ContentType.objects.get_for_model(self.message.target) == Journal:
@@ -2829,14 +3152,14 @@ class AdminActions:
     def _get_message_context(
         self,
         workflow: Article,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         context = {
             "article": workflow.article,
             "request": self.request,
         }
         return context
 
-    def _log_reassign(self, context: Dict[str, str]):
+    def _log_reassign(self, context: dict[str, str]):
         requeue_article_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="requeue_article_subject",
@@ -2898,7 +3221,7 @@ class PostponeReviewerDueDate:
     assignment: WorkflowReviewAssignment
     editor: Account
     user: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     original_due_date: datetime.date
     """
@@ -2913,7 +3236,7 @@ class PostponeReviewerDueDate:
         ):
             return True
 
-    def _get_message_context(self) -> Dict[str, Any]:
+    def _get_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -3214,7 +3537,7 @@ class HandleEditorDeclinesAssignment:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     director: Optional[Account] = None
     """
     Director is loaded at runtime to send decline notifications. It's not meant to be set when initializing the class.
@@ -3420,7 +3743,7 @@ class WithdrawPreprint:
 
     workflow: ArticleWorkflow
     request: HttpRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
 
     def _check_user_conditions(self) -> bool:
         """Check if the user is the correspondence author."""
@@ -3493,7 +3816,7 @@ class WithdrawPreprint:
         """Return the current typesetting assignment (if any)."""
         return self.workflow.get_latest_typesetting_assignment(only_completed=False)
 
-    def _get_typesetter_context(self, assignment: TypesettingAssignment) -> Dict[str, Any]:
+    def _get_typesetter_context(self, assignment: TypesettingAssignment) -> dict[str, Any]:
         return {
             "article": self.workflow.article,
             "recipient": assignment.typesetter,

@@ -45,7 +45,7 @@ from ..events import ReviewEvent
 from ..logic import (
     AssignToEditor,
     AssignTypesetter,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     AuthorSendsCorrections,
     HandleDecision,
     OpenAppeal,
@@ -283,7 +283,7 @@ def _appeal_submitted_article(
     fake_request.user = author
 
     revision = EditorRevisionRequest.objects.filter(article=article).order_by().last()
-    AuthorHandleRevision(
+    AuthorHandleRevisionObsolete(
         revision=revision,
         form_data={},
         user=author,

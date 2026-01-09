@@ -29,6 +29,9 @@ from faker import Faker
 from journal import models as journal_models
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
+from plugins.wjs_submission.models import RevisionStorage
+from plugins.wjs_submission.revision import RevisionStartConfirmView
+from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder, Keyword
@@ -62,7 +65,7 @@ from ..logic import (
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     CreateReviewRound,
     DeselectReviewer,
     EvaluateReview,
@@ -2471,13 +2474,14 @@ def test_handle_editor_decision(
 
 
 @pytest.mark.parametrize(
-    "decision,confirm_version",
+    ("decision", "confirm_version"),
     (
         (ArticleWorkflow.Decisions.MINOR_REVISION, True),
         (ArticleWorkflow.Decisions.MINOR_REVISION, False),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, True),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, False),
-        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
+        # Tech-revision should never be solved by a confirm-previous-version!
+        # No! (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
         (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
         ("something", False),
     ),
@@ -2488,6 +2492,7 @@ def test_author_handle_revision(
     fake_request: HttpRequest,
     review_assignment: review_models.ReviewAssignment,
     decision: str,
+    *,
     confirm_version: bool,
 ):
     """
@@ -2518,6 +2523,7 @@ def test_author_handle_revision(
         request=fake_request,
     )
 
+    confirm_form_data = {}
     if decision not in HandleDecision._decision_handlers:
         with pytest.raises(ValidationError):
             handle.run()
@@ -2525,9 +2531,32 @@ def test_author_handle_revision(
         handle.run()
         assigned_article.refresh_from_db()
         revision = EditorRevisionRequest.objects.get(article=assigned_article)
-        view_obj = ArticleRevisionUpdate()
-        view_obj.object = revision
-        view_obj.confirm_version = confirm_version
+        if confirm_version:
+            # Setup the RevisionStorage:
+            revision_start_view = RevisionStartConfirmView()
+            revision_start_view._init_revision_flow(article_id=assigned_article.pk)
+
+            # When using wjs_submission to process a revision, the last form has no data.
+            # All data has already been collected in the step-forms.
+            rs = RevisionStorage.objects.get(article=assigned_article)
+            rs.data.update(
+                {
+                    "comments_editor": "author_note_confirm",
+                    "submission_requirements": True,
+                },
+            )
+            rs.save()
+
+            # Article should always have `submission_requirements` set
+            assigned_article.submission_requirements = True
+            assigned_article.save()
+
+            view_obj = SubmissionStep8View()
+            view_obj.object = assigned_article
+        else:
+            view_obj = ArticleRevisionUpdate()
+            view_obj.object = revision
+            view_obj.confirm_version = confirm_version
         form_class = view_obj.get_form_class()
 
         if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
@@ -2540,10 +2569,7 @@ def test_author_handle_revision(
             assert edit_form.is_valid()
             edit_form.save()
             if confirm_version:
-                confirm_form_data = {
-                    "author_note": "author_note_confirm",
-                    "confirm_version": "on",
-                }
+                pass
             else:
                 confirm_form_data = {
                     "author_note": "author_note_edit",
@@ -2551,10 +2577,7 @@ def test_author_handle_revision(
                 }
         else:
             if confirm_version:
-                confirm_form_data = {
-                    "author_note": "author_note_confirm",
-                    "confirm_version": "on",
-                }
+                pass
             else:
                 confirm_form_data = {
                     "author_note": "author_note_edit",
@@ -2563,11 +2586,14 @@ def test_author_handle_revision(
                     "confirm_blind": "on",
                     "confirm_cover": "on",
                 }
-        form = form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
+        if confirm_version:
+            form = form_class(data=confirm_form_data, instance=assigned_article, request=fake_request)
+        else:
+            form = form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
         assert form.is_valid()
         form.save()
-
-        form.finish()
+        if not confirm_version:
+            form.finish()
         assigned_article.refresh_from_db()
         revision.refresh_from_db()
         # we need a stable ordering of the messages because we pick them in specific order
@@ -2796,7 +2822,7 @@ def test_handle_multiple_revision_request_with_author_submission(
     form.save()
 
     author = assigned_article.correspondence_author
-    handler = AuthorHandleRevision(revision=revision, form_data=form_data, user=author, request=fake_request)
+    handler = AuthorHandleRevisionObsolete(revision=revision, form_data=form_data, user=author, request=fake_request)
     handler.run()
     assigned_article.refresh_from_db()
 
@@ -3983,7 +4009,7 @@ def test_author_submits_after_appeal(under_appeal_article: Article, fake_request
         "confirm_cover": "on",
     }
 
-    service = AuthorHandleRevision(
+    service = AuthorHandleRevisionObsolete(
         revision=revision_request,
         form_data=form_data,
         user=fake_request.user,
