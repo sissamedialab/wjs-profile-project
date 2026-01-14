@@ -2237,6 +2237,8 @@ class HandleDecision:
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_requires_a_revision()
         self.workflow.save()
+        self.workflow.article.stage = STAGE_UNDER_REVISION
+        self.workflow.article.save()
         revision = EditorRevisionRequest.objects.create(
             article=self.workflow.article,
             editor=self.user,

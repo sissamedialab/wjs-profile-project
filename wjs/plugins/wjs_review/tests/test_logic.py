@@ -2393,7 +2393,8 @@ def test_handle_editor_decision(
         else:
             assert reject_message_body in raw(reject_mail.body)
     elif decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-        assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+        # Article stage changes also for TRs; see wjs/specs#2267
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVISION
         assert assigned_article.articleworkflow.state == final_state
         # Prepare subject and body
         technical_revision_message_subject = render_template_from_setting(
@@ -2465,6 +2466,112 @@ def test_handle_editor_decision(
         assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
     else:
         assert editor_decision.decision_editor_report == ""
+
+
+@pytest.mark.xfail(reason="See wjs/specs#2268")
+@pytest.mark.django_db
+def test_multiple_metadata_changes(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: review_models.ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Test article "state" when multiple technical-revisions are done in the same version.
+
+    Expect that:
+    - A.stage changes to under-revision during TR and back to under-review when TR is completed
+    - AW.state does not change (?)
+    - At most one non-completed RevisionRequest exists at any moment
+    - The EditorDecision is ???
+
+    Ignoring, because tested elsewhere:
+    - messages and notifications
+    - existing review assignments are not closed
+
+    """
+    # Some aliases to ease the reader
+    article = assigned_article
+    author = article.correspondence_author
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    current_round = article.current_review_round_object()
+    ra_1 = review_assignment
+    reviewer = jcom_user
+
+    fake_request.user = reviewer
+    ra_2 = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
+        assigned_article=article,
+    )
+    _submit_review(ra_2, fake_request)
+
+    # Ensure initial data is consistent: ra_2 is accepted and complete, ra_1 is not
+    assert article.reviewassignment_set.all().count() == len({ra_1, ra_2})
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert article.reviewassignment_set.filter(date_declined__isnull=False).count() == 0
+    assert article.reviewassignment_set.filter(is_complete=True).count() == 1
+    assert article.reviewassignment_set.filter(decision="withdrawn").count() == 0
+
+    # Let the editor request/allow a metadata change:
+    fake_request.user = editor
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
+
+    # Sanity check: 1 revision-request and 1 editor-decision only:
+    assert EditorRevisionRequest.objects.filter(article=article, review_round=current_round).count() == 1
+    assert EditorDecision.objects.filter(workflow=article.articleworkflow, review_round=current_round).count() == 1
+
+    # Article stage changes also for TRs; see wjs/specs#2267
+    assert article.stage == submission_models.STAGE_UNDER_REVISION
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+
+    # Review assignment have not changed (same asserts as before):
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert article.reviewassignment_set.filter(date_declined__isnull=False).count() == 0
+    assert article.reviewassignment_set.filter(is_complete=True).count() == 1
+    assert article.reviewassignment_set.filter(decision="withdrawn").count() == 0
+
+    # Let the author perform the metadata change
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+    view_obj = ArticleRevisionUpdate()
+    view_obj.object = revision
+    view_obj.confirm_version = False
+
+    edit_form_class = view_obj._get_metadata_form_class()  # noqa: SLF001
+    edit_form_data = {"title": "title", "abstract": "abstract"}
+    edit_form = edit_form_class(data=edit_form_data, instance=revision)
+    assert edit_form.is_valid()
+    edit_form.save()
+
+    confirm_form_class = view_obj.get_form_class()
+    confirm_form_data = {"author_note": "author_note_edit", "confirm_cover_metadata": "on"}
+    confirm_form = confirm_form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
+    assert confirm_form.is_valid()
+    confirm_form.save()
+    confirm_form.finish()
+    assigned_article.refresh_from_db()
+    revision.refresh_from_db()
+
+    # Let the editor request/allow **another** metadata change:
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
 
 
 @pytest.mark.parametrize(
