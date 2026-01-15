@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand
 from wjs.jcom_profile.custom_settings_utils import (
     add_coauthors_submission_email_settings,
     add_general_facebook_handle_setting,
+    add_general_journal_motto_setting,
     add_generic_analytics_code_setting,
     add_publication_alert_settings,
     add_submission_figures_data_title,
@@ -32,3 +33,4 @@ class Command(BaseCommand):
             csv_writer.write_settings(add_generic_analytics_code_setting(force=options["force"]))
             # refs specs#640
             csv_writer.write_settings(add_general_facebook_handle_setting(force=options["force"]))
+            csv_writer.write_settings(add_general_journal_motto_setting(force=options["force"]))
