@@ -467,6 +467,33 @@ def add_general_facebook_handle_setting(force: bool = False) -> tuple[SettingVal
     )
 
 
+# refs specs#2294
+def add_general_journal_motto_setting(force: bool = False) -> tuple[SettingValue, ...]:
+    general_settings_group = get_group("general")
+    setting_params: SettingParams = {
+        "name": "journal_motto",
+        "group": general_settings_group,
+        "types": "text",
+        "pretty_name": "Journal motto",
+        "description": "Journal motto used in header.",
+        "is_translatable": False,
+    }
+    settingvalue_params: SettingValueParams = {
+        "journal": None,
+        "setting": None,
+        "value": "",
+        "translations": {},
+    }
+    return (
+        create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "journal motto",
+            force=force,
+        ),
+    )
+
+
 # refs specs#954
 def add_submission_settings(journal: Journal, force: bool = False) -> tuple[SettingValue, ...]:
     general_settings_group = get_group("general")
