@@ -1,4 +1,9 @@
 {% extends "wjs/base/base.html" %}
+{% load static %}
+
+{% block journal_css %}
+  <link rel="stylesheet" href="{% static "wjs-bootstrap/css/wjs_review.css?v=11" %}">
+{% endblock journal_css %}
 
 {% block breadcrumbs_wrapper %}
   <nav class="container d-flex justify-content-between mb-3{% if view.breadcrumbs %} pb-3 border-bottom{% endif %}">
