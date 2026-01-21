@@ -424,12 +424,35 @@ class ReviewerShouldEvaluateAssignmentReminderManager(ReminderManager):
             body="""Dear colleague,<br>
 <br>
 This is to remind you that I need your feedback regarding the invite to review I sent you on {{ date_requested }}.<br>
+<p><b>{{ article.section.name }} to review:</b><br>
+{{ article.title }}
+</p>
+<p><b>Please
+{% if reviewer.jcomprofile.invitation_token %}
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+{% else %}
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+{% endif %}
+            as soon as possible.</b></p>
+<p>
+{{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
+Its scope is available <a href="{{ base_url }}/site/about-jcom/#heading1">here</a>.
+<br><br>
+Its <a href="{{ base_url }}/site/editorial-team/">editorial board</a> relies on the
+goodwill of reviewers to ensure the quality of the manuscripts it
+publishes and hopes that you will be able to help on this occasion.
 <br>
-Please access all information and files about this {{ article.section.name }} and accept or decline the invite as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to let me know if I can count on your review.<br>
-<br>
-If you cannot review this manuscript at this time, please decline the invitation and we would be very grateful if you could suggest alternative reviewers.<br>
-<br>
-<br>
+More information about the Journal’s ethical policy is
+available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>.
+<br><br>
+It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
+All the necessary information and instructions to do the review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
+<br><br>
+If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
+<a href="{{ base_url }}/site/authors/">here</a>.
+<br><br>
+Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
+</p>
 Thank you and best regards,<br>
 <br>
 {{ current_editor.full_name }}<br>
@@ -446,17 +469,35 @@ Thank you and best regards,<br>
             body="""Dear colleague,<br>
 <br>
 Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
+<p><b>{{ article.section.name }} to review:</b><br>
+{{ article.title }}
+</p>
+<p><b>Please
+{% if reviewer.jcomprofile.invitation_token %}
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+{% else %}
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+{% endif %}
+            as soon as possible.</b></p>
+<p>
+{{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
+Its scope is available <a href="{{ base_url }}/site/about-jcom/#heading1">here</a>.
+<br><br>
+Its <a href="{{ base_url }}/site/editorial-team/">editorial board</a> relies on the
+goodwill of reviewers to ensure the quality of the manuscripts it
+publishes and hopes that you will be able to help on this occasion.
 <br>
-I would be very grateful if you could accept/decline our invitation to review urgently. Information and files about the {{ article.section.name }} are available via its <a href="{{ article.articleworkflow.url }}">web page</a>.<br>
-<br>
-If you cannot review this manuscript at this time, please decline the invitation and we would be very grateful if you could suggest alternative reviewers.<br>
-<br>
-{{ journal.code }} knows how important reviewers' work is and greatly appreciates their kind cooperation.<br>
-<br>
-<br>
-Thank you in advance and best regards,<br>
-<br>
-<br>
+More information about the Journal’s ethical policy is
+available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>.
+<br><br>
+It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
+All the necessary information and instructions to do the review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
+<br><br>
+If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
+<a href="{{ base_url }}/site/authors/">here</a>.
+<br><br>
+Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
+</p>
 {{ current_editor.full_name }}<br>
 {{ journal.code }} Editor
 """,
