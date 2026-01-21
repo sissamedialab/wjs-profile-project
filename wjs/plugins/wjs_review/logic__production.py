@@ -1616,14 +1616,16 @@ class BeginPublication:
         Set pubid, DOI and publication date into the given file and return it.
 
         Placeholders are expected as follow:
-        \publicationData{23}{06}{A}{02}
-        \publicationDoi{10.22323/2.23060202}
+        \published{???}
+        \publicationData{00}{00}{A}{00}
+        \publicationDoi{10.22323/0.00000000}
 
         Raises:
           ValueError: if expected macros cannot be found in the given file.
 
         """
         article = self.workflow.article
+        publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
         volume = f"{article.primary_issue.volume:02d}"
         # TODO: can it ever happen that issue.issue is not in the form "01"?
         issue = f"{int(article.primary_issue.issue):02d}"
@@ -1639,6 +1641,7 @@ class BeginPublication:
         # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
         replacements = (
             # f-strings and latex macros don't dance well together...
+            (r"\published{???}", rf"\published{{{publication_date}}}"),
             (
                 rf"\publicationData{{00}}{{00}}{{{type_code}}}{{00}}",
                 rf"\publicationData{{{volume}}}{{{issue}}}{{{type_code}}}{{{counter}}}",
