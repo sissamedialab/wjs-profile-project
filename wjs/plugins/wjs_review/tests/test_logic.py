@@ -71,6 +71,7 @@ from ..logic import (  # WithdrawPreprint,
     SubmitReview,
 )
 from ..logic__visibility import PermissionChecker
+from ..mixins import OpenReviewMixin
 from ..models import (
     ArticleWorkflow,
     EditorDecision,
@@ -2572,6 +2573,133 @@ def test_multiple_metadata_changes(
         request=fake_request,
     ).run()
     article.refresh_from_db()
+
+
+@pytest.mark.django_db
+def test_article_stage_and_metadata_change(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    jcom_user: JCOMProfile,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Test article stage during and after a technical-revision has been requested and done.
+
+    Expect that:
+    - when an article is assigned to the editor, the article's stage is STAGE_ASSIGNED
+    - after a reviewer is selected, the article stage is STAGE_UNDER_REVIEW
+    - when a TR is requested, the A.stage moves to UNDER_REVISION
+    - when a TR is submitted, the A.stage moves to ASSIGNED
+
+    """
+    # Some aliases to ease the reader
+    article = assigned_article
+    author = article.correspondence_author
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    current_round = article.current_review_round_object()
+    reviewer = jcom_user
+
+    # Check initial state: article is assigned to editor
+    assert article.stage == submission_models.STAGE_ASSIGNED
+
+    # Assign a reviewer
+    fake_request.user = reviewer
+    ra = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
+        assigned_article=article,
+    )
+    article.refresh_from_db()
+
+    # After reviewer is selected, article stage should be UNDER_REVIEW
+    assert article.stage == submission_models.STAGE_UNDER_REVIEW
+
+    # Create an OpenReviewMixin instance to test queryset filtering
+    class TestOpenReviewMixin(OpenReviewMixin):
+        def __init__(self, request, assignment_id):
+            self.request = request
+            self.kwargs = {"assignment_id": assignment_id}
+            # Note that incomplete_review_only is set to "False"
+            # only when OpenReviewMixin is used in views that show completed reviews.
+            self.incomplete_review_only = True
+            self.use_access_code = False
+            self.allow_editor_access = False
+            self.allow_typesetter_access = False
+
+    # Before the editor requests the metadata change, check that the OpenReviewMixin queryset contains "ra"
+    fake_request.user = reviewer.janeway_account
+    mixin_before = TestOpenReviewMixin(fake_request, ra.pk)
+    queryset_before = mixin_before.get_queryset()
+    assert ra in queryset_before
+
+    # Ensure initial data is consistent: ra is not complete
+    assert article.reviewassignment_set.all().count() == len({ra})
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+
+    # Let the editor request/allow a metadata change:
+    fake_request.user = editor
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
+
+    # Sanity check: 1 revision-request and 1 editor-decision only:
+    assert EditorRevisionRequest.objects.filter(article=article, review_round=current_round).count() == 1
+    assert EditorDecision.objects.filter(workflow=article.articleworkflow, review_round=current_round).count() == 1
+
+    # Article stage changes also for TRs; see wjs/specs#2267
+    assert article.stage == submission_models.STAGE_UNDER_REVISION
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+
+    # While waiting for the author, check that the OpenReviewMixin queryset is not empty:
+    # the article's stage is no longer UNDER_REVIEW, but it's not used anymore to filter review assignments.
+    fake_request.user = reviewer.janeway_account
+    mixin_during = TestOpenReviewMixin(fake_request, ra.pk)
+    queryset_during = mixin_during.get_queryset()
+    assert ra in queryset_during
+
+    # Review assignment have not changed (same asserts as before):
+    assert article.reviewassignment_set.all().count() == len({ra})
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+
+    # Let the author perform the metadata change
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+    view_obj = ArticleRevisionUpdate()
+    view_obj.object = revision
+    view_obj.confirm_version = False
+
+    edit_form_class = view_obj._get_metadata_form_class()  # noqa: SLF001
+    edit_form_data = {"title": "title", "abstract": "abstract"}
+    edit_form = edit_form_class(data=edit_form_data, instance=revision)
+    assert edit_form.is_valid()
+    edit_form.save()
+
+    confirm_form_class = view_obj.get_form_class()
+    confirm_form_data = {"author_note": "author_note_edit", "confirm_cover_metadata": "on"}
+    confirm_form = confirm_form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
+    assert confirm_form.is_valid()
+    confirm_form.save()
+    confirm_form.finish()
+    assigned_article.refresh_from_db()
+    revision.refresh_from_db()
+
+    # After the technical revision is submitted, the article stage should be under-review,
+    # because there are incomplete RAs
+    assert article.stage == submission_models.STAGE_UNDER_REVIEW
+
+    # After the author submits the revision, check that the OpenReviewMixin queryset is not empty
+    fake_request.user = reviewer.janeway_account
+    mixin_after = TestOpenReviewMixin(fake_request, ra.pk)
+    queryset_after = mixin_after.get_queryset()
+    assert ra in queryset_after
 
 
 @pytest.mark.parametrize(
