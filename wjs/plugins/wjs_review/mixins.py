@@ -99,7 +99,16 @@ class OpenReviewMixin(DetailView):
         queryset = super().get_queryset()
         if self.incomplete_review_only:
             queryset = queryset.filter(is_complete=False)
-            queryset = queryset.filter(article__stage=submission_models.STAGE_UNDER_REVIEW)
+            # Note: why we can "or" the following article stages:
+            # - technical revisions (metadata changes) do change the A.stage, but do _not_ stop review-assignments,
+            #   so one can have active review assignments with articles also in stage "under-reVISION"
+            # - (for completeness) the article moves from stage "assigned" to "under-review" when the first reviewer
+            #   is selected, but, if the reviewer declines the invite, the stage stays as "under-review";
+            #   this is sort-of wrong, because the two stages are almost identical.
+            queryset = queryset.filter(
+                Q(article__stage=submission_models.STAGE_UNDER_REVIEW)
+                | Q(article__stage=submission_models.STAGE_UNDER_REVISION),
+            )
         if self.access_code and self.use_access_code:
             queryset = queryset.filter(access_code=self.access_code)
         elif self.request.user.is_authenticated:
