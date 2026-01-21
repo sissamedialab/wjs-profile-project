@@ -1880,7 +1880,7 @@ class JCOMReportForm(forms.Form):
         recommendation = cleaned_data.get("recommendation")
         follow_up_action = cleaned_data.get("follow_up_action")
         author_review = cleaned_data.get("author_review")
-        author_file = cleaned_data.get("author_file")
+        author_file = cleaned_data.get("review_file")
         # follow_up_action is required only if recommendation is to revise_minor or revise_major
         if conflict_of_interest == "yes":
             self.add_error(
