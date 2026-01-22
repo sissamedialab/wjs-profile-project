@@ -696,6 +696,11 @@ class ArticleWorkflow(TimeStampedModel):
 
         ATM, eid is not computed (we should decide what to do and check WjsSection objects).
         """
+        # Al least, ensure that the article has a page number in the form X01
+        # because this is expected by BeginPublication._prepare_source()
+        if not self.article.page_numbers:
+            self.article.page_numbers = "X01"
+            self.article.save()
         return f"{self.article.journal.code}_{self.article.id}"
 
     def compute_eid(self, save_as_pagenumber: bool = False) -> str:
