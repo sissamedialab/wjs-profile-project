@@ -26,9 +26,33 @@
 {% endblock breadcrumbs_wrapper %}
 
 {% block header %}
+  <div id="js-loading-spinner" class="wjs-loading-spinner">
+    <span class="spinner-border text-primary"></span>
+  </div>
   {% include "wjs_review/base/elements/header.html" %}
 {% endblock header %}
 
 {% block footer %}
   {% include "wjs_review/base/elements/footer.html" %}
 {% endblock footer %}
+
+{% block js %}
+  <script>
+    const spinner = document.getElementById('js-loading-spinner');
+    const body = document.body;
+
+    function showSpinner() {
+      body.style.overflow = 'hidden';
+      spinner.style.display = 'flex';
+    }
+
+    function hideSpinner() {
+      body.style.overflow = 'scroll';
+      spinner.style.display = 'none';
+    }
+
+    document.body.addEventListener('htmx:beforeRequest', showSpinner);
+    document.body.addEventListener('htmx:afterRequest', hideSpinner);
+  </script>
+
+{% endblock js %}

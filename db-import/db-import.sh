@@ -26,6 +26,10 @@ update press_press set domain='press.local:8000', is_secure='f';
 update journal_journal set domain='jcom.local:8000', is_secure='f' where code='JCOM';
 update journal_journal set domain='jcomal.local:8000', is_secure='f' where code='JCOMAL';
 update journal_journal set domain='jquant.local:8000', is_secure='f' where code='JQUANT';
+update journal_journal set domain='jcap.local:8000', is_secure='f' where code='JCAP';
+update journal_journal set domain='jhep.local:8000', is_secure='f' where code='JHEP';
+update journal_journal set domain='jsts.local:8000', is_secure='f' where code='JSTAT';
+update journal_journal set domain='jinst.local:8000', is_secure='f' where code='JINST';
 EOF
 
 psql -U $user $host_connection $database <<EOF

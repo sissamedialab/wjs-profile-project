@@ -1728,7 +1728,7 @@ class OpenAppealForm(forms.ModelForm):
 
 
 class WithdrawPreprintForm(forms.Form):
-    """Form used by an author who wants to withdraw a preprint."""
+    """Form used by an author or owner who wants to withdraw a preprint."""
 
     notification_subject = forms.CharField(label=_("Subject"), disabled=True)
     notification_body = WjsMiniHTMLFormField(label=_("Body"))

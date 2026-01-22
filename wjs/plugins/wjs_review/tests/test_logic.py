@@ -8,6 +8,7 @@ from unittest import mock
 from unittest.mock import patch
 
 import freezegun
+import html2text
 import pycountry
 import pytest
 from core.files import save_file_to_article
@@ -61,7 +62,7 @@ from ..forms import (
     SupervisorAssignEditorForm,
     WithdrawPreprintForm,
 )
-from ..logic import (
+from ..logic import (  # WithdrawPreprint,
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
@@ -77,6 +78,7 @@ from ..logic import (
     SubmitReview,
 )
 from ..logic__visibility import PermissionChecker
+from ..mixins import OpenReviewMixin
 from ..models import (
     ArticleWorkflow,
     EditorDecision,
@@ -2399,7 +2401,8 @@ def test_handle_editor_decision(
         else:
             assert reject_message_body in raw(reject_mail.body)
     elif decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
-        assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
+        # Article stage changes also for TRs; see wjs/specs#2267
+        assert assigned_article.stage == submission_models.STAGE_UNDER_REVISION
         assert assigned_article.articleworkflow.state == final_state
         # Prepare subject and body
         technical_revision_message_subject = render_template_from_setting(
@@ -2471,6 +2474,239 @@ def test_handle_editor_decision(
         assert editor_decision.decision_editor_report == form_data["decision_editor_report"]
     else:
         assert editor_decision.decision_editor_report == ""
+
+
+@pytest.mark.xfail(reason="See wjs/specs#2268")
+@pytest.mark.django_db
+def test_multiple_metadata_changes(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    review_assignment: review_models.ReviewAssignment,
+    jcom_user: JCOMProfile,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Test article "state" when multiple technical-revisions are done in the same version.
+
+    Expect that:
+    - A.stage changes to under-revision during TR and back to under-review when TR is completed
+    - AW.state does not change (?)
+    - At most one non-completed RevisionRequest exists at any moment
+    - The EditorDecision is ???
+
+    Ignoring, because tested elsewhere:
+    - messages and notifications
+    - existing review assignments are not closed
+
+    """
+    # Some aliases to ease the reader
+    article = assigned_article
+    author = article.correspondence_author
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    current_round = article.current_review_round_object()
+    ra_1 = review_assignment
+    reviewer = jcom_user
+
+    fake_request.user = reviewer
+    ra_2 = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
+        assigned_article=article,
+    )
+    _submit_review(ra_2, fake_request)
+
+    # Ensure initial data is consistent: ra_2 is accepted and complete, ra_1 is not
+    assert article.reviewassignment_set.all().count() == len({ra_1, ra_2})
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert article.reviewassignment_set.filter(date_declined__isnull=False).count() == 0
+    assert article.reviewassignment_set.filter(is_complete=True).count() == 1
+    assert article.reviewassignment_set.filter(decision="withdrawn").count() == 0
+
+    # Let the editor request/allow a metadata change:
+    fake_request.user = editor
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
+
+    # Sanity check: 1 revision-request and 1 editor-decision only:
+    assert EditorRevisionRequest.objects.filter(article=article, review_round=current_round).count() == 1
+    assert EditorDecision.objects.filter(workflow=article.articleworkflow, review_round=current_round).count() == 1
+
+    # Article stage changes also for TRs; see wjs/specs#2267
+    assert article.stage == submission_models.STAGE_UNDER_REVISION
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+
+    # Review assignment have not changed (same asserts as before):
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+    assert article.reviewassignment_set.filter(date_declined__isnull=False).count() == 0
+    assert article.reviewassignment_set.filter(is_complete=True).count() == 1
+    assert article.reviewassignment_set.filter(decision="withdrawn").count() == 0
+
+    # Let the author perform the metadata change
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+    view_obj = ArticleRevisionUpdate()
+    view_obj.object = revision
+    view_obj.confirm_version = False
+
+    edit_form_class = view_obj._get_metadata_form_class()  # noqa: SLF001
+    edit_form_data = {"title": "title", "abstract": "abstract"}
+    edit_form = edit_form_class(data=edit_form_data, instance=revision)
+    assert edit_form.is_valid()
+    edit_form.save()
+
+    confirm_form_class = view_obj.get_form_class()
+    confirm_form_data = {"author_note": "author_note_edit", "confirm_cover_metadata": "on"}
+    confirm_form = confirm_form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
+    assert confirm_form.is_valid()
+    confirm_form.save()
+    confirm_form.finish()
+    assigned_article.refresh_from_db()
+    revision.refresh_from_db()
+
+    # Let the editor request/allow **another** metadata change:
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
+
+
+@pytest.mark.django_db
+def test_article_stage_and_metadata_change(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    jcom_user: JCOMProfile,
+    review_form: review_models.ReviewForm,
+):
+    """
+    Test article stage during and after a technical-revision has been requested and done.
+
+    Expect that:
+    - when an article is assigned to the editor, the article's stage is STAGE_ASSIGNED
+    - after a reviewer is selected, the article stage is STAGE_UNDER_REVIEW
+    - when a TR is requested, the A.stage moves to UNDER_REVISION
+    - when a TR is submitted, the A.stage moves to ASSIGNED
+
+    """
+    # Some aliases to ease the reader
+    article = assigned_article
+    author = article.correspondence_author
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    current_round = article.current_review_round_object()
+    reviewer = jcom_user
+
+    # Check initial state: article is assigned to editor
+    assert article.stage == submission_models.STAGE_ASSIGNED
+
+    # Assign a reviewer
+    fake_request.user = reviewer
+    ra = _create_review_assignment(
+        fake_request=fake_request,
+        reviewer_user=reviewer,
+        assigned_article=article,
+    )
+    article.refresh_from_db()
+
+    # After reviewer is selected, article stage should be UNDER_REVIEW
+    assert article.stage == submission_models.STAGE_UNDER_REVIEW
+
+    # Create an OpenReviewMixin instance to test queryset filtering
+    class TestOpenReviewMixin(OpenReviewMixin):
+        def __init__(self, request, assignment_id):
+            self.request = request
+            self.kwargs = {"assignment_id": assignment_id}
+            # Note that incomplete_review_only is set to "False"
+            # only when OpenReviewMixin is used in views that show completed reviews.
+            self.incomplete_review_only = True
+            self.use_access_code = False
+            self.allow_editor_access = False
+            self.allow_typesetter_access = False
+
+    # Before the editor requests the metadata change, check that the OpenReviewMixin queryset contains "ra"
+    fake_request.user = reviewer.janeway_account
+    mixin_before = TestOpenReviewMixin(fake_request, ra.pk)
+    queryset_before = mixin_before.get_queryset()
+    assert ra in queryset_before
+
+    # Ensure initial data is consistent: ra is not complete
+    assert article.reviewassignment_set.all().count() == len({ra})
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+
+    # Let the editor request/allow a metadata change:
+    fake_request.user = editor
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
+        "withdraw_notice": "notice",
+        "date_due": now().date() + datetime.timedelta(days=7),
+    }
+    HandleDecision(
+        workflow=article.articleworkflow,
+        form_data=form_data,
+        user=editor,
+        request=fake_request,
+    ).run()
+    article.refresh_from_db()
+
+    # Sanity check: 1 revision-request and 1 editor-decision only:
+    assert EditorRevisionRequest.objects.filter(article=article, review_round=current_round).count() == 1
+    assert EditorDecision.objects.filter(workflow=article.articleworkflow, review_round=current_round).count() == 1
+
+    # Article stage changes also for TRs; see wjs/specs#2267
+    assert article.stage == submission_models.STAGE_UNDER_REVISION
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.TO_BE_REVISED
+
+    # While waiting for the author, check that the OpenReviewMixin queryset is not empty:
+    # the article's stage is no longer UNDER_REVIEW, but it's not used anymore to filter review assignments.
+    fake_request.user = reviewer.janeway_account
+    mixin_during = TestOpenReviewMixin(fake_request, ra.pk)
+    queryset_during = mixin_during.get_queryset()
+    assert ra in queryset_during
+
+    # Review assignment have not changed (same asserts as before):
+    assert article.reviewassignment_set.all().count() == len({ra})
+    assert article.reviewassignment_set.filter(date_accepted__isnull=True).count() == 1
+
+    # Let the author perform the metadata change
+    revision = EditorRevisionRequest.objects.get(article=assigned_article)
+    view_obj = ArticleRevisionUpdate()
+    view_obj.object = revision
+    view_obj.confirm_version = False
+
+    edit_form_class = view_obj._get_metadata_form_class()  # noqa: SLF001
+    edit_form_data = {"title": "title", "abstract": "abstract"}
+    edit_form = edit_form_class(data=edit_form_data, instance=revision)
+    assert edit_form.is_valid()
+    edit_form.save()
+
+    confirm_form_class = view_obj.get_form_class()
+    confirm_form_data = {"author_note": "author_note_edit", "confirm_cover_metadata": "on"}
+    confirm_form = confirm_form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
+    assert confirm_form.is_valid()
+    confirm_form.save()
+    confirm_form.finish()
+    assigned_article.refresh_from_db()
+    revision.refresh_from_db()
+
+    # After the technical revision is submitted, the article stage should be under-review,
+    # because there are incomplete RAs
+    assert article.stage == submission_models.STAGE_UNDER_REVIEW
+
+    # After the author submits the revision, check that the OpenReviewMixin queryset is not empty
+    fake_request.user = reviewer.janeway_account
+    mixin_after = TestOpenReviewMixin(fake_request, ra.pk)
+    queryset_after = mixin_after.get_queryset()
+    assert ra in queryset_after
 
 
 @pytest.mark.parametrize(
@@ -3947,51 +4183,153 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
         "under_appeal_article",
     ],
 )
-def test_author_withdraws_preprint(
+def test_author_or_owner_withdraws_preprint(
     fixture_article,
     request,
     fake_request: HttpRequest,
     review_settings,
+    create_jcom_user,
 ):
-    """Check if author can Withdraw manuscript in different scenarios."""
-    article = request.getfixturevalue(fixture_article)
-    incomplete_submission = article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
-    under_appeal_state = article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
-    fake_request.user = article.correspondence_author
-    form_data = {
-        "notification_body": "Test body",
-    }
+    """Check if author or owner can Withdraw manuscript in different scenarios."""
+    new_owner = create_jcom_user("new_owner")
+    this_article = request.getfixturevalue(fixture_article)
+    incomplete_submission = this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
+    under_appeal_state = this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    this_article.owner = new_owner.janeway_account
+    # FIXME when the article fixtures *all* have the right type in the owner and correspondence_author fields (Account)
+    if hasattr(this_article.correspondence_author, "janeway_account"):
+        this_article.correspondence_author = this_article.correspondence_author.janeway_account
+    this_article.save()
+    this_article.refresh_from_db()
+    assert type(this_article.owner) is type(this_article.correspondence_author)
+    assert this_article.owner != this_article.correspondence_author
     # only assigned_article assigned_article_with_reviewer fixtures have reminders
     if fixture_article in ("assigned_article", "assigned_article_with_reviewer"):
         assert Reminder.objects.all().exists()
-    else:
+    for request_user in [this_article.owner, this_article.correspondence_author]:
+        fake_request.user = request_user
+        form_data = {
+            "notification_body": "Test body",
+        }
+
+        # Save the current state to reset it at the end of the loop, for the correspondence_author
+        # It's not the cleanest way to "reuse" (for the correspondence_author) the same article after the modification
+        # during the owner loop
+        previous_state = this_article.articleworkflow.state
+        form = WithdrawPreprintForm(
+            data=form_data,
+            request=fake_request,
+            instance=this_article.articleworkflow,
+            initial={"notification_subject": "Test subject"},
+        )
+
+        form.is_valid()
+        form.save()
+        this_article.refresh_from_db()
+        if incomplete_submission:
+            assert WjsEditorAssignment.objects.get_all(this_article).count() == 0
+        else:
+            assert WjsEditorAssignment.objects.get_all(this_article).count() == 1
+        if under_appeal_state:
+            assert this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.REJECTED
+        else:
+            assert this_article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
+
+        for assignment in this_article.reviewassignment_set.all():
+            assert assignment.is_complete
+
+        # No reminder survives the article withdrawal
+        # We are testing a simplified case here, as we should filter on the reminder linked to the related objects
+        # of the article. but as we only have 1 article, it's redundant and simplify test code a lot
         assert not Reminder.objects.all().exists()
+        # Reset the state like it was before the withdrawal, to "reset" the ArticleWorkflow, ready for the second loop
+        this_article.articleworkflow.state = previous_state
+        this_article.articleworkflow.save()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "fixture_article,num_mail_expected",
+    [
+        ("article", 1),
+        ("assigned_article", 1),
+        ("accepted_article", 2),
+        ("ready_for_typesetter_article", 2),
+        ("assigned_to_typesetter_article", 3),
+        ("stage_proofing_article", 3),
+        ("rfp_article", 5),
+        ("under_appeal_article", 1),
+    ],
+)
+def test_withdraw_preprint_press_notification(
+    fixture_article,
+    num_mail_expected: int,
+    request,
+    fake_request: HttpRequest,
+    review_settings,
+):
+    article = request.getfixturevalue(fixture_article)
+    fake_request.user = article.correspondence_author
+
+    context = {
+        "article": article,
+        "authors_string": article.articleworkflow.article_authors_string,
+    }
+    press_message_subject = render_template_from_setting(
+        setting_group_name="email_subject",
+        setting_name="article_withdrawn_press_subject",
+        journal=article.journal,
+        request=fake_request,
+        context=context,
+    )
+    press_message_body = render_template_from_setting(
+        setting_group_name="email",
+        setting_name="article_withdrawn_press_body",
+        journal=article.journal,
+        request=fake_request,
+        context=context,
+    )
+    press_message_body_text = html2text.html2text(press_message_body)
+
+    supervisor_message_subject = "Test subject"
+    form_data = {
+        "notification_body": "Test body",
+    }
+
     form = WithdrawPreprintForm(
         data=form_data,
         request=fake_request,
         instance=article.articleworkflow,
-        initial={"notification_subject": "Test subject"},
+        initial={"notification_subject": supervisor_message_subject},
     )
-
     form.is_valid()
     form.save()
-    article.refresh_from_db()
-    if incomplete_submission:
-        assert WjsEditorAssignment.objects.get_all(article).count() == 0
-    else:
-        assert WjsEditorAssignment.objects.get_all(article).count() == 1
-    if under_appeal_state:
-        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.REJECTED
-    else:
-        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.WITHDRAWN
 
-    for assignment in article.reviewassignment_set.all():
-        assert assignment.is_complete
+    # notifications sent: supervisor
+    if num_mail_expected == 1:
+        assert len(mail.outbox) == 1
+        assert supervisor_message_subject in mail.outbox[0].subject
 
-    # No reminder survives the article withdrawal
-    # We are testing a simplified case here, as we should filter on the reminder linked to the related objects of the
-    # article. but as we only have 1 article, it's redundant and simplify test code a lot
-    assert not Reminder.objects.all().exists()
+    # notifications sent: supervisor, press
+    elif num_mail_expected == 2:
+        assert len(mail.outbox) == 2
+        assert supervisor_message_subject in mail.outbox[0].subject
+        assert mail.outbox[1].subject == press_message_subject
+        assert mail.outbox[1].body == press_message_body_text
+
+    # notifications sent: supervisor, typesetter, press
+    elif num_mail_expected == 3:
+        assert len(mail.outbox) == 3
+        assert supervisor_message_subject in mail.outbox[0].subject
+        assert mail.outbox[2].subject == press_message_subject
+        assert mail.outbox[2].body == press_message_body_text
+
+    # notifications sent: 2 to typesetter (rfp_article), supervisor, typesetter, press
+    elif num_mail_expected == 5:
+        assert len(mail.outbox) == 5
+        assert supervisor_message_subject in mail.outbox[2].subject
+        assert mail.outbox[4].subject == press_message_subject
+        assert mail.outbox[4].body == press_message_body_text
 
 
 @pytest.mark.django_db

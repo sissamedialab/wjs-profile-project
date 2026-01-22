@@ -32,7 +32,10 @@
             <div class="col-md-3">
               {% bootstrap_field filter.form.content wrapper_class="w-100" %}
             </div>
-            <div class="col-md-6 d-flex justify-content-start gap-2 align-items-center align-self-end">
+            <div class="col-md-3">
+              {% bootstrap_field filter.form.important wrapper_class="w-100" %}
+            </div>
+            <div class="col-md-3 d-flex justify-content-start gap-2 align-items-center align-self-end">
               {% bootstrap_button id="id_filter_form_submit_button" name="filter" content=filter_label wrapper_class="me-3" %}
               <a href="{% url request.resolver_match.url_name %}" class="btn btn-outline-secondary me-3">{{ reset_label }}</a>
             </div>

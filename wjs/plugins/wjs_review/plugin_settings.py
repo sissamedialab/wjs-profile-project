@@ -1918,6 +1918,66 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    # refs specs#2032
+    def add_press_notification_when_article_is_withdrawn_settings() -> tuple[SettingValue, ...]:
+        email_settings_group = get_group("email")
+        email_subject_settings_group = get_group("email_subject")
+        setting_params: SettingParams = {
+            "name": "article_withdrawn_press_subject",
+            "group": email_subject_settings_group,
+            "types": "text",
+            "pretty_name": "Subject of the notification sent to press email when an article is withdrawn after acceptance",
+            "description": "Email subject",
+            "is_translatable": True,
+        }
+        settingvalue_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "[{{ article.journal.code }}] {{ article.section }} {{ article.id }} - Withdrawn after acceptance",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "article withdrawn press subject",
+            force=force,
+        )
+        setting_params: SettingParams = {
+            "name": "article_withdrawn_press_body",
+            "group": email_settings_group,
+            "types": "rich-text",
+            "pretty_name": "Body of the notification sent to press email when an article is withdrawn after acceptance",
+            "description": "Email body",
+            "is_translatable": True,
+        }
+        settingvalue_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """
+The following {{ article.section }} <a href="{{ article.articleworkflow.url }}">article web page</a> has been withdrawn from {{ article.journal.code }} after being previously accepted:
+<p>
+Authors:<br/>
+{{ authors_string }}
+</p>
+<p>
+Title:<br/>
+{{ article.title }}
+</p>
+<p>
+Abstract:<br/>
+{{ article.abstract | safe }}
+</p>
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "article withdrawn press body",
+            force=force,
+        )
+        return setting_1, setting_2
+
     def reviewer_report_type() -> tuple[SettingValue, ...]:
         reviewer_report_type_setting: SettingParams = {
             "name": "reviewer_report_type",
@@ -2028,6 +2088,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(editor_assignment_manual())
         csv_writer.write_settings(add_social_notification_when_article_is_published_settings())
         csv_writer.write_settings(add_coauthor_manually())
+        csv_writer.write_settings(add_press_notification_when_article_is_withdrawn_settings())
         csv_writer.write_settings(reviewer_report_type())
         csv_writer.write_settings(add_access_mode_request_notifications())
 

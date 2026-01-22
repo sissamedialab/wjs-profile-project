@@ -1,4 +1,5 @@
-"""Logic classes for production-related actions & co.
+"""
+Logic classes for production-related actions & co.
 
 This module should be *-imported into logic.py
 """
@@ -88,7 +89,7 @@ from .permissions import (
     is_article_typesetter,
 )
 from .utils import (
-    get_tex_source_file_from_archive,
+    get_tex_source_file_path_from_archive,
     guess_typesetted_texfile_name,
     tex_file_has_queries,
 )
@@ -428,7 +429,7 @@ def typesettertestsgalleygeneration_wrapper(
         msg += traceback.format_exc()
         msg = msg.replace("\n", "<br>")
         communication_utils.notify_async_event(
-            message_subject="Unexpected error during galley generation",
+            message_subject="Galleys generation error",
             message_body=msg,
             recipients=[assignment.typesetter],
             article=article,
@@ -479,9 +480,11 @@ class TypesettedFilesUpload:
     def _look_for_queries_in_archive(self):
         """Check if there are any queries in the archive's source tex file."""
         filename = guess_typesetted_texfile_name(self.assignment.round.article)
-        tex_file = get_tex_source_file_from_archive(self.file_to_upload, filename)
+        tmpdir = get_tex_source_file_path_from_archive(self.file_to_upload, filename)
+        tex_file = os.path.join(tmpdir, filename)
         self.assignment.round.article.articleworkflow.production_flag_no_queries = not tex_file_has_queries(tex_file)
         self.assignment.round.article.articleworkflow.save()
+        shutil.rmtree(tmpdir)
 
     def run(self):
         """Execute the file upload logic."""
@@ -881,6 +884,7 @@ class AttachGalleys:
         Create and use a temporary folder.
         The caller should clean up if necessary.
         """
+        # FIXME: this method is not currently used
         unpack_dir = tempfile.mkdtemp()
         # Use BytesIO to treat bytes data as a file
         with BytesIO(self.archive_with_galleys) as file_obj:
@@ -901,14 +905,13 @@ class AttachGalleys:
         Create and use a temporary folder.
         The caller should clean up if necessary.
         """
-        unpack_dir = tempfile.mkdtemp()
+        self.path = tempfile.mkdtemp()
         with zipfile.ZipFile(BytesIO(self.archive_with_galleys)) as archive:
-            archive.extractall(unpack_dir)
+            archive.extractall(self.path)
 
-        unpack_dir = Path(unpack_dir)
+        self.path = Path(self.path)
 
-        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
-        self.path = unpack_dir
+        logger.debug(f"...jcomassistant processed files are in {self.path}.")
         return self.path
 
     def reemit_info_and_up(self, unpack_dir: Path) -> bool:
@@ -1137,14 +1140,14 @@ class AttachGalleys:
             self._check_conditions()
             galleys_created.extend((self.save_epub(), self.save_html(), self.save_pdf()))
 
-        except (ConnectionError, ValueError, FileNotFoundError, RuntimeError) as e:
+        except Exception as e:
             # This logic is generally called asynchronously, so we don't
             # raise an exception here, but directly notify the typesetter.
             #
             # Errors should should have already been logged when they have happened.
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
             self.article.articleworkflow.save()
-            self.save_japrocessed_result()
+            galleys_created = self.save_japrocessed_result()
             message_subject = "Galleys generation error"
             message_body = f"""Please check
 <a href="{self.article.articleworkflow.url}">{self.article.id}</a>
@@ -1176,40 +1179,33 @@ Please go to the <a href="{self.article.articleworkflow.url}">web page</a>
         return galleys_created
 
     def save_japrocessed_result(self) -> list[Galley]:
-        # FIXME!
-        # - who is responsible for handling errors?
-        # - why don't I see the response among the galleys?
         """
         We save the given archive even if it has errors.
 
         We save it in the filesystem among the other article files and return it as a Galley object, so that
         our caller can process it easily (generally it will be linked to the TA or in the Article.galleys)
         """
-        logger.error("FIXME: Cannot save processed file as galley!")
-        return
         jcomassistant_response_content = File(
             BytesIO(self.archive_with_galleys),
             name="jcomassistant_response.tar.gz",
         )
-        logger.critical(f"{jcomassistant_response_content=}")
         processed_archive_as_galley = save_galley(
             article=self.article,
             request=self.request,
             uploaded_file=jcomassistant_response_content,
             is_galley=False,
-            public=self.public_galley,
             label="JA processed",
+            save_to_disk=True,
+            public=self.public_galley,
         )
-        logger.critical(f"{processed_archive_as_galley=}")
         # detach galley from article
         # refactor with TypesetterTestsGalleyGeneration?
-        self.article.galley_set.all().delete()
+        processed_archive_as_galley.article = None
+        processed_archive_as_galley.save()
+
+        # TODO: ensure that files on the filesystem are deleted/unlinked also!
         ta = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
-        ta.galleys_created.set([processed_archive_as_galley])
-        # This raises:
-        # insert or update on table "typesetting_typesettingassignment_galleys_created"
-        # violates foreign key constraint "typesetting_typesett_galley_id_04bba167_fk_core_gall"
-        # DETAIL: Key (galley_id)=(3326) is not present in table "core_galley"
+        ta.galleys_created.add(processed_archive_as_galley)
         return [processed_archive_as_galley]
 
 
@@ -1234,8 +1230,11 @@ class TypesetterTestsGalleyGeneration:
 
     def _clean_galleys(self) -> None:
         """
-        Clean existing galleys in case typesetter needs to render them again in the same typesetting round.
+        Clean existing galleys.
+
+        This allows for several tests/uploads in the same typesetting round.
         """
+        [g.unlink_files() for g in self.assignment.galleys_created.all()]
         self.assignment.galleys_created.all().delete()
         self.assignment.round.article.render_galley = None
         self.assignment.round.article.save()
@@ -1568,7 +1567,8 @@ class BeginPublication:
             )
 
     def _store_prepared_source(self, file_data: BytesIO, file_name: str = None):
-        """Include the given file into the article source files zip, under the given file-name.
+        """
+        Include the given file into the article source files zip, under the given file-name.
 
         Defaults to replacing the tex source file (i.e. the file name will be something like JCOM_123.tex).
         """
@@ -1577,7 +1577,7 @@ class BeginPublication:
         file_name = (
             f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex" if file_name is None else file_name
         )
-        tempfiledesc, tempfilename = tempfile.mkstemp(dir=self.source_files.parent)
+        _tempfiledesc, tempfilename = tempfile.mkstemp(dir=self.source_files.parent)
         originalfile_was_in_archive = False
         with zipfile.ZipFile(self.source_files, "r") as original_zip:
             with zipfile.ZipFile(tempfilename, "w") as new_zip:
@@ -1612,57 +1612,58 @@ class BeginPublication:
         os.unlink(tempfilename)
 
     def _prepare_source(self, source_file: BytesIO) -> BytesIO:
-        r"""Set pubid, DOI and publication date into the given file and return it.
+        r"""
+        Set pubid, DOI and publication date into the given file and return it.
 
         Placeholders are expected as follow:
         \published{???}
-        \publicationyear{xxxx}
-        \publicationvolume{xx}
-        \publicationissue{xx}
-        \publicationnum{xx}
-        \doiInfo{doi}{xxxxxxx}
+        \publicationData{00}{00}{A}{00}
+        \publicationDoi{10.22323/0.00000000}
+
+        Raises:
+          ValueError: if expected macros cannot be found in the given file.
 
         """
+        article = self.workflow.article
         publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
-        publication_year = self.workflow.article.date_published.year
-        volume = f"{self.workflow.article.primary_issue.volume:02d}"
+        volume = f"{article.primary_issue.volume:02d}"
         # TODO: can it ever happen that issue.issue is not in the form "01"?
-        issue = f"{int(self.workflow.article.primary_issue.issue):02d}"
+        issue = f"{int(article.primary_issue.issue):02d}"
         # Page numbers should have been set when we set the pubid when we do set_article_identifiers()
-        num = self.workflow.article.page_numbers
-        assert num
-        # ATM, num has the form "A01", "Y02", ... (see AW.compute_eid())
-        # in the TeX source we need only the number "01", "02"...
-        num = num[-2:]
-        doi = self.workflow.article.get_doi()
-        assert doi
+        # ATM, they have the form "A01", "Y02", ... (see AW.compute_eid())
+        # in the TeX source we need them separately: the type "A", "Y"... and the counter "01", "02"...
+        type_and_counter = article.page_numbers
+        counter = type_and_counter[-2:]
+        type_code = type_and_counter[:1]
+        doi = article.get_doi()
+        if not doi:
+            raise ValueError(f"DOI for {article.id} shold already exist at begin-publication!")
         # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
         replacements = (
             # f-strings and latex macros don't dance well together...
             (r"\published{???}", rf"\published{{{publication_date}}}"),
-            (r"\publicationyear{xxxx}", rf"\publicationyear{{{publication_year}}}"),
-            (r"\publicationvolume{xx}", rf"\publicationvolume{{{volume}}}"),
-            (r"\publicationissue{xx}", rf"\publicationissue{{{issue}}}"),
-            (r"\publicationnum{xx}", rf"\publicationnum{{{num}}}"),
-            (r"\doiInfo{doi}{xxxxxxx}", rf"\doiInfo{{https://doi.org/{doi}}}{{{doi}}}"),
+            (
+                rf"\publicationData{{00}}{{00}}{{{type_code}}}{{00}}",
+                rf"\publicationData{{{volume}}}{{{issue}}}{{{type_code}}}{{{counter}}}",
+            ),
+            (r"\publicationDoi{10.22323/0.00000000}", rf"\publicationDoi{{{doi}}}"),
         )
 
         source_file.seek(0)
         # we can safely assume that we are dealing with a utf8-encoded text file
         content = source_file.read().decode("utf-8")
 
-        # TODO: should I expect to always find all replacement?
-        # I.e. is it an error if some replacement cannot be found in the source?
+        # I expect to always find all the place-holders
         for old_string, new_string in replacements:
             if old_string in content:
                 content = content.replace(old_string, new_string, 1)
             else:
-                raise Exception(_("Missing variable in Automatic Preamble") + f": {old_string}")
-        processed_file = BytesIO(content.encode("utf-8"))
-        return processed_file
+                raise ValueError(f"""Missing macro "{old_string}" in Automatic Preamble of {article.id}""")
+        return BytesIO(content.encode("utf-8"))
 
     def _get_source_file(self) -> BytesIO:
-        """Extract the source file of the article galleys.
+        """
+        Extract the source file of the article galleys.
 
         Return the main TeX file, the one that contains the LaTeX preamble.
         """

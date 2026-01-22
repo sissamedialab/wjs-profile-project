@@ -456,6 +456,15 @@ class MessagesOverviewFilter(django_filters.FilterSet):
             (Message.MessageTypes.SYSTEM, _("System")),
         ),
     )
+    important = django_filters.ChoiceFilter(  # noqa: A003
+        field_name="subject",
+        label=_("Important events"),
+        empty_label=_("All"),
+        choices=(
+            ("Production Complete", _("Production Complete")),
+            ("Withdrawn", _("Withdrawn")),
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         """ """
@@ -478,6 +487,11 @@ class MessagesOverviewFilter(django_filters.FilterSet):
                 content_type=ContentType.objects.get_for_model(Article),
                 object_id__in=ArticleWorkflow.objects.filter(eo_in_charge=value).values("article__id"),
             )
+        return queryset
+
+    def filter_important(self, queryset: QuerySet, name: str, value: str):
+        if value:
+            queryset = queryset.filter(Q(subject=value))
         return queryset
 
 

@@ -18,6 +18,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
+import html2text
 import requests
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -35,6 +36,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files import File
 from django.core.files.uploadedfile import UploadedFile
+from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 from django.db.models.query import FlatValuesListIterable
@@ -2567,6 +2569,8 @@ class HandleDecision:
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_requires_a_revision()
         self.workflow.save()
+        self.workflow.article.stage = STAGE_UNDER_REVISION
+        self.workflow.article.save()
         revision = EditorRevisionRequest.objects.create(
             article=self.workflow.article,
             editor=self.user,
@@ -3746,8 +3750,8 @@ class WithdrawPreprint:
     form_data: dict[str, Any]
 
     def _check_user_conditions(self) -> bool:
-        """Check if the user is the correspondence author."""
-        return self.workflow.article.correspondence_author == self.request.user
+        """Check if the user is the correspondence author or owner."""
+        return self.request.user in [self.workflow.article.correspondence_author, self.workflow.article.owner]
 
     def _has_past_rejection(self) -> bool:
         """Check if the article was already rejected one time."""
@@ -3759,10 +3763,11 @@ class WithdrawPreprint:
     def _check_state_conditions(self) -> bool:
         """Check if the FSM transition can be made."""
         withdraw_without_rejection = (
-            can_proceed(self.workflow.author_withdraws_preprint) and not self._has_past_rejection()
+            can_proceed(self.workflow.author_or_owner_withdraws_preprint) and not self._has_past_rejection()
         )
         withdraw_after_a_rejection = (
-            can_proceed(self.workflow.author_withdraws_preprint_after_a_rejection) and self._has_past_rejection()
+            can_proceed(self.workflow.author_or_owner_withdraws_preprint_after_a_rejection)
+            and self._has_past_rejection()
         )
         return withdraw_without_rejection or withdraw_after_a_rejection
 
@@ -3784,10 +3789,12 @@ class WithdrawPreprint:
 
     def _update_state(self):
         """Run FSM transition."""
-        if self._has_past_rejection() and can_proceed(self.workflow.author_withdraws_preprint_after_a_rejection):
-            self.workflow.author_withdraws_preprint_after_a_rejection()
+        if self._has_past_rejection() and can_proceed(
+            self.workflow.author_or_owner_withdraws_preprint_after_a_rejection
+        ):
+            self.workflow.author_or_owner_withdraws_preprint_after_a_rejection()
         else:
-            self.workflow.author_withdraws_preprint()
+            self.workflow.author_or_owner_withdraws_preprint()
         self.workflow.save()
 
     def _log_supervisor(self):
@@ -3863,11 +3870,14 @@ class WithdrawPreprint:
             if not conditions:
                 raise ValueError(_("Transition conditions not met"))
             self._close_review_assignments()
+            # handler initialized before state update
+            handler = PressNotificationHandler(self.workflow, self.request)
             self._update_state()
             self._log_supervisor()
             self._delete_editor_reminders()
             if assignment := self._get_typesetting_assignment():
                 self._log_typesetter(assignment)
+            handler.run()
             return
 
 
@@ -4066,6 +4076,65 @@ class YakuninClient:
                 has_error_or_critical = True
                 break
         return not has_error_or_critical
+
+
+@dataclasses.dataclass
+class PressNotificationHandler:
+    """Send notification to journal press if required"""
+
+    workflow: ArticleWorkflow
+    request: HttpRequest
+
+    def __post_init__(self):
+        self._press_to_be_notified = self.workflow.state in states_when_article_is_considered_in_production
+
+    def run(self) -> None:
+        if self._press_to_be_notified:
+            self.notification_journalpress()
+
+    def notification_journalpress(self) -> None:
+        """Send notification to journal press via email when article is witdrawn after acceptance."""
+        article = self.workflow.article
+        try:
+            recipients = settings.WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS[article.journal.code]
+            enabled = settings.WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED[article.journal.code]
+            if not enabled:
+                return
+        except (AttributeError, KeyError) as e:
+            logger.error(
+                f"Article withdrawn after acceptance in {article.journal.code}, but no press email sent because "
+                f"WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS or "
+                f"WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED are not properly set: {e}"
+            )
+            return
+        authors_string = self.workflow.article_authors_string
+        context = {
+            "article": article,
+            "authors_string": authors_string,
+        }
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="article_withdrawn_press_subject",
+            journal=article.journal,
+            request=self.request,
+            context=context,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="article_withdrawn_press_body",
+            journal=article.journal,
+            request=self.request,
+            context=context,
+        )
+        message_body_text = html2text.html2text(message_body)
+        from_email = get_setting("general", "from_address", article.journal).processed_value
+        send_mail(
+            subject=message_subject,
+            message=message_body_text,
+            from_email=from_email,
+            recipient_list=recipients,
+            html_message=message_body,
+        )
 
 
 @dataclasses.dataclass

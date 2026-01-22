@@ -37,4 +37,4 @@ ports="$3"
 docker pull --quiet "$tag" && \
     (docker stop "$container_name" || true) && \
     (docker container rm "$container_name" || true) && \
-    docker run --quiet -p "$ports" --name $container_name -d --restart on-failure:5  $tag
+    docker run --quiet -p "$ports" --name $container_name -d --restart always  $tag

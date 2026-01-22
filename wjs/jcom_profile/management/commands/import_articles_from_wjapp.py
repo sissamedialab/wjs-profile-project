@@ -1,8 +1,11 @@
 """Import article from wjapp."""
 
+# profiling
+import cProfile
 import datetime
 import io
 import os
+import pstats
 import sys
 import tarfile
 import textwrap
@@ -96,6 +99,38 @@ from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
 
 
+def profile_command(func):
+    """Decorator to profile the management command"""
+
+    def wrapper(self, *args, **options):
+        if options.get("profile"):
+            pr = cProfile.Profile()
+            pr.enable()
+
+            try:
+                result = func(self, *args, **options)
+            finally:
+                pr.disable()
+
+                # define profiling result
+                s = io.StringIO()
+                ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
+                ps.print_stats()
+
+                # save to file
+                filename = f"command_profile_{options.get('preprintid')}.prof"
+                with open(f"/tmp/{filename}", "w") as f:
+                    f.write(s.getvalue())
+
+                self.stdout.write(self.style.SUCCESS("Profiling saved in {filename}"))
+
+            return result
+        else:
+            return func(self, *args, **options)
+
+    return wrapper
+
+
 class UnknownSection(Exception):
     """Unknown section / article-type."""
 
@@ -106,6 +141,7 @@ logger = get_logger(__name__)
 class Command(BaseCommand):
     help = "Connect to wjApp jcom database and read article data."  # noqa A003
 
+    @profile_command
     def handle(self, *args, **options):
         """Command entry point."""
 
@@ -140,6 +176,12 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Add arguments to command."""
+
+        parser.add_argument(
+            "--profile",
+            action="store_true",
+            help="activates the profiling of the command",
+        )
 
         parser.add_argument(
             "--preprintid",
@@ -689,20 +731,17 @@ class Command(BaseCommand):
                     )
 
         if ArticleWorkflow.objects.filter(article=article).exists():
-            for r in Reminder.objects.filter(disabled=False):
-                if article == r.get_related_article():
-                    if article.articleworkflow.state in (
-                        ArticleWorkflow.ReviewStates.PUBLISHED,
-                        ArticleWorkflow.ReviewStates.REJECTED,
-                        ArticleWorkflow.ReviewStates.WITHDRAWN,
-                        ArticleWorkflow.ReviewStates.NOT_SUITABLE,
-                    ):
-                        r.disabled = True
-                        r.save()
-                        logger.debug(
-                            f"forced disabled reminder for {article.id}/{preprintid}"
-                            f" in state {article.articleworkflow.state}"
-                        )
+            if article.articleworkflow.state in (
+                ArticleWorkflow.ReviewStates.PUBLISHED,
+                ArticleWorkflow.ReviewStates.REJECTED,
+                ArticleWorkflow.ReviewStates.WITHDRAWN,
+                ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+            ):
+                num_disabled = self.disable_reminders_for_article(article)
+                logger.debug(
+                    f"forced disabled of {num_disabled} reminder for {article.id}/{preprintid}"
+                    f" in state {article.articleworkflow.state}"
+                )
 
         if settings.DEBUG:
             self.debug_list_article_files_imported(article)
@@ -710,6 +749,36 @@ class Command(BaseCommand):
 
         self.connection.close()
         return 0
+
+    def disable_reminders_for_article(self, article):
+        """Disable reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
+
+        article_reminders = Q(
+            content_type=ContentType.objects.get_for_model(submission_models.Article),
+            object_id=article.pk,
+            disabled=False,
+        )
+        review_assignments = WorkflowReviewAssignment.objects.filter(article=article).values_list("pk")
+        reviewer_reminders = Q(
+            content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
+            object_id__in=review_assignments,
+            disabled=False,
+        )
+        editor_assignments = WjsEditorAssignment.objects.filter(article=article).values_list("pk")
+        editor_reminders = Q(
+            content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
+            object_id__in=editor_assignments,
+            disabled=False,
+        )
+        revision_requests = EditorRevisionRequest.objects.filter(article=article).values_list("pk")
+        author_reminders = Q(
+            content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
+            object_id__in=revision_requests,
+            disabled=False,
+        )
+        return Reminder.objects.filter(
+            article_reminders | editor_reminders | reviewer_reminders | author_reminders
+        ).update(disabled=True)
 
     #
     # http login to wjapp
