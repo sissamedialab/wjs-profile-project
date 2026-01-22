@@ -669,16 +669,34 @@ class ArticleWorkflow(TimeStampedModel):
         """
         # This function would probably be better placed in the Journal model,
         # but since we don't yet have a o2o/wrapper on that model I'm leaving it here.
-        if self.article.journal.code not in {"JCOM", "JCOMAL"}:
-            raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
-
-        # Feel free to fail badly.
+        #
+        # Also, feel free to fail badly.
         # Exceptions should be dealt with upstream.
+
+        func_name = f"_compute_pubid_{self.article.journal.code}"
+        if not hasattr(self, func_name):
+            raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
+        return getattr(self, func_name)(save_eid)
+
+    def _compute_pubid_JCOM(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JCOM_VVII_2026_A01."""
         volume = f"{self.article.issue.volume:02d}"
         issue = f"{int(self.article.issue.issue):02d}"
         eid = self.compute_eid(save_as_pagenumber=save_eid)
         pubid = f"{self.article.journal.code}_{volume}{issue}_{timezone.now().year}_{eid}"
         return pubid
+
+    def _compute_pubid_JCOMAL(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JCOM."""
+        return self._compute_pubid_JCOM(save_eid)
+
+    def _compute_pubid_JQUANT(self, save_eid: bool = False) -> str:  # noqa: N802
+        """
+        Compute temporary pubid for JQUANT.
+
+        ATM, eid is not computed (we should decide what to do and check WjsSection objects).
+        """
+        return f"{self.article.journal.code}_{self.article.id}"
 
     def compute_eid(self, save_as_pagenumber: bool = False) -> str:
         """Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
