@@ -87,7 +87,9 @@
                 </ul>
             </div>
         {% endif %}
-        {% include "journal/article_issue_list.html" %}
+        {% if article.primary_issue.is_published %}
+            {% include "journal/article_issue_list.html" %}
+        {% endif %}
         <div class="spacer">
             <div class="divider"></div>
         </div>
