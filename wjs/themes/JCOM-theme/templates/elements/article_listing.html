@@ -51,24 +51,26 @@
                 {% endfor %}
             </div>
         {% endif %}
-        <p class="article-listing-card-volume">
-            {% if article.issue %}
-                <i class="fa fa-book"></i>
-                <a class="issue-link" href="{{ article.issue.url }}">{{ article.issue|display_title }}</a>
-            {% endif %}
-            {% if article.issues.count > 1 %}
-                <p>
-                    <strong><i class="fa fa-info-circle"></i> {% trans "Also a part of:" %}</strong>
-                </p>
-                {% for other in article.issues.all %}
-                    {% if other != article.issue %}
-                        <p>
-                            <i class="fa fa-book"></i>
-                            <a class="issue-link" href="{{ other.url }}">{% trans other.issue_type.pretty_name %}: {{ other|display_title }}</a>
-                        </p>
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-        </p>
+        {% if article.primary_issue.is_published %}
+            <p class="article-listing-card-volume">
+                {% if article.issue %}
+                    <i class="fa fa-book"></i>
+                    <a class="issue-link" href="{{ article.issue.url }}">{{ article.issue|display_title }}</a>
+                {% endif %}
+                {% if article.issues.count > 1 %}
+                    <p>
+                        <strong><i class="fa fa-info-circle"></i> {% trans "Also a part of:" %}</strong>
+                    </p>
+                    {% for other in article.issues.all %}
+                        {% if other != article.issue %}
+                            <p>
+                                <i class="fa fa-book"></i>
+                                <a class="issue-link" href="{{ other.url }}">{% trans other.issue_type.pretty_name %}: {{ other|display_title }}</a>
+                            </p>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </p>
+        {% endif %}
     </div>
 </div>
