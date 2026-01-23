@@ -1774,8 +1774,23 @@ class AuthorHandleRevision:
         # The following fields directly overwrite existing values: no history is kept
         if new_competing_interests := self.revision_storage.data.get("competing_interests"):
             self.article.competing_interests = new_competing_interests
+        if correspondence_author := self.revision_storage.data.get("correspondence_author"):
+            self.article.correspondence_author_id = correspondence_author
+        if owner := self.revision_storage.data.get("owner"):
+            self.article.owner_id = owner
+        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
+            self.article.submission_data.affiliation_country_id = affiliation_country
+        if access_mode := self.revision_storage.data.get("access_mode"):
+            self.article.submission_data.access_mode_id = access_mode
+        if special_request := self.revision_storage.data.get("special_request"):
+            self.article.submission_data.special_request = special_request
+        if language := self.revision_storage.data.get("language"):
+            self.article.language = language
+        if section := self.revision_storage.data.get("section"):
+            self.article.section_id = section
 
         self.revision.save()
+        self.article.submission_data.save()
         self.article.save()
 
         # Additional submission fields
