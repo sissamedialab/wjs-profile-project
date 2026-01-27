@@ -45,6 +45,7 @@
           {% if form.decision_editor_report %}
             {% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}
             {% if tex_review_allowed %}
+            <div id="pdf_error" class="alert alert-danger d-none"></div>
             <div class="d-flex justify-content-end mt-1">
               <button
                   type="button"
@@ -60,7 +61,6 @@
                   Test PDF
               </button>
               </div>
-              <div id="pdf_error" class="text-danger small"></div>
             {% endif %}
           {% endif %}
           {% include "wjs_review/make_decision/elements/review_files_table.html" %}
@@ -121,10 +121,12 @@
 
   document.body.addEventListener("yakunin-error", ev => {
       document.getElementById("pdf_error").innerText = ev.detail.value;
+      document.getElementById("pdf_error").classList.remove("d-none");
   });
 
   function clearError() {
       document.getElementById("pdf_error").innerText = "";
+      document.getElementById("pdf_error").classList.add("d-none");
   }
 
   document.body.addEventListener("htmx:afterRequest", event => {
