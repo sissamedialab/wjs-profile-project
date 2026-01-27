@@ -1198,6 +1198,16 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
     context_object_name = "workflow"
     form_class = TimelineFilterForm
 
+    def get(self, request, *args, **kwargs):
+        "If necessary fix domain and redirect using article journal site url."
+
+        workflow = self.get_object()
+        if request.journal.site_url() != workflow.article.journal.site_url():
+            path = reverse("wjs_article_details", kwargs={"pk": workflow.pk})
+            redirect_url = workflow.article.journal.site_url(path=path)
+            return HttpResponseRedirect(redirect_url)
+        return super().get(request, *args, **kwargs)
+
     def test_func(self):
         """Allow access only one has permission on the article."""
 
@@ -2132,7 +2142,7 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
 
     def get_context_data(self, **kwargs) -> Context:
         context = super().get_context_data(**kwargs)
-        forms_service = MarkAsReadForms(request=self.request, queryset=self.get_queryset())
+        forms_service = MarkAsReadForms(request=self.request, queryset=context["messages_list"])
         context["forms"] = forms_service.get_forms()
         context["eo_forms"] = forms_service.get_eo_forms()
         return context
@@ -3631,11 +3641,12 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
     context_object_name = "workflow"
 
     def test_func(self):
-        """User must be corresponding author of the article."""
-        return self.model.objects.filter(
-            pk=self.kwargs["pk"],
-            article__correspondence_author=self.request.user,
-        ).exists()
+        """User must be corresponding author or owner of the article."""
+        return (
+            self.model.objects.filter(pk=self.kwargs["pk"])
+            .filter(Q(article__correspondence_author=self.request.user) | Q(article__owner=self.request.user))
+            .exists()
+        )
 
     @property
     def breadcrumbs(self) -> List["BreadcrumbItem"]:

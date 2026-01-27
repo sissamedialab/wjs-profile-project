@@ -427,16 +427,17 @@ def author_revision_is_late(article: Article) -> str:
 
     This is meant for the author.
     """
-    late_revision_requests = EditorRevisionRequest.objects.filter(
+    late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
+        date_completed__isnull=True,
         type__in=(
             ArticleWorkflow.Decisions.MAJOR_REVISION,
             ArticleWorkflow.Decisions.MINOR_REVISION,
         ),
-    ).order_by()
-    if late_revision_requests.exists():
-        expected = late_revision_requests.first().date_due
+    )
+    if late_revision_request.exists():
+        expected = late_revision_request.first().date_due
         days_late = (timezone.localtime(timezone.now()).date() - expected).days
         return f"The revision request is {days_late} days late (was expected by {expected})"
     else:
@@ -449,15 +450,16 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
     This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
     NB: if the a.c. string should be different, this needs refactoring!
     """
-    late_revision_requests = EditorRevisionRequest.objects.filter(
+    late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
+        date_completed__isnull=True,
         type__in=(
             ArticleWorkflow.Decisions.MAJOR_REVISION,
             ArticleWorkflow.Decisions.MINOR_REVISION,
         ),
-    ).order_by()
-    if revision_request := late_revision_requests.last():
+    )
+    if revision_request := late_revision_request.first():
         watched_reminders = (
             {
                 Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
@@ -479,7 +481,7 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
         )
 
         if expired_reminders.exists():
-            expected = late_revision_requests.first().date_due
+            expected = late_revision_request.first().date_due
             days_late = (timezone.localtime(timezone.now()).date() - expected).days
             return f"Revision is {days_late} days late. Pls consider reminding author"
 
@@ -491,13 +493,13 @@ def author_technicalrevision_is_late(article: Article) -> str:
 
     This is meant for the author.
     """
-    late_revision_requests = EditorRevisionRequest.objects.filter(
+    late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
+        date_completed__isnull=True,
         type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
-    ).order_by()
-
-    if late_revision_requests.exists():
+    )
+    if late_revision_request.exists():
         return "Editor allowed metadata update. Please take action"
     else:
         return ""
@@ -510,12 +512,13 @@ def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_a
     "Late" means that the author has not yet set metadata after the last reminder.
     This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
     """
-    late_revision_requests = EditorRevisionRequest.objects.filter(
+    late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
+        date_completed__isnull=True,
         type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
-    ).order_by()
-    if revision_request := late_revision_requests.last():
+    )
+    if revision_request := late_revision_request.first():
         watched_reminders = {
             Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
         }
@@ -537,13 +540,14 @@ def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_a
 
 def author_appealsubmission_is_late(article: Article) -> str:
     """Tell if the author is late in submission an appeal."""
-    late_revision_requests = EditorRevisionRequest.objects.filter(
+    late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
         date_due__lt=timezone.now().date(),
+        date_completed__isnull=True,
         type=ArticleWorkflow.Decisions.OPEN_APPEAL,
-    ).order_by()
-    if late_revision_requests.exists():
-        expected = late_revision_requests.first().date_due
+    )
+    if late_revision_request.exists():
+        expected = late_revision_request.first().date_due
         days_late = (timezone.localtime(timezone.now()).date() - expected).days
         # Warning: used by both author and EO, but EO appends ". Withdraw?" to this string
         # To be fixed in specs#1029

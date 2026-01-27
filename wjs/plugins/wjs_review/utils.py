@@ -1,4 +1,3 @@
-import os
 import re
 import tempfile
 import xml.etree.ElementTree as ET  # noqa
@@ -55,10 +54,10 @@ def get_other_review_assignments_for_this_round(
     )
 
 
-def get_tex_source_file_from_archive(source_files_archive, tex_source_name: str) -> IO:
+def get_tex_source_file_path_from_archive(source_files_archive, tex_source_name: str) -> str:
     """Extract the source file of the article galleys.
 
-    Return the main TeX file, the one that contains the LaTeX preamble.
+    Return the tmp folder containing the main TeX file, the one that contains the LaTeX preamble.
     """
     # TODO: talk with Elia on the opportunity of buildind a "texfile utils" library with similar functions
     tempdir = tempfile.mkdtemp()
@@ -69,7 +68,7 @@ def get_tex_source_file_from_archive(source_files_archive, tex_source_name: str)
             raise FileNotFoundError(
                 f"{tex_source_name} not found in the archive {source_files_archive}",
             )
-    return os.path.join(tempdir, tex_source_name)
+    return tempdir
 
 
 def guess_typesetted_texfile_name(article: Article) -> str:

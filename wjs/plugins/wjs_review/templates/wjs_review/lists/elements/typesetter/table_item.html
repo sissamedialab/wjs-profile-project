@@ -9,7 +9,7 @@
       {{ article.section.name }}
     </td>
     <td>
-      <a href="{% url 'wjs_article_details' workflow.pk %}" class="fw-bold">{{ article.pk }}</a>
+      <a href="{{ article.journal.site_url }}{% url 'wjs_article_details' workflow.pk %}" class="fw-bold">{{ article.pk }}</a>
     </td>
     <td>
       <span title="{% translate "Last status change" %}">{{ workflow.latest_state_change|days_since }} {% translate "days since last state change" %}</span>

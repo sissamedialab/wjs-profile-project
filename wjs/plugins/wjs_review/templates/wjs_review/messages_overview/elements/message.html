@@ -40,8 +40,8 @@
               title="{% translate "Filter by type" %}"
               class="text-primary"><i class="bi {{ message|message_type_icon }}"></i></a>
           </div>
-          <a href="{% url "wjs_article_messages" pk=message.target.articleworkflow.pk %}#message-item-{{ message.pk }}" title="{% translate "Go to timeline" %}" target="_blank">
-            <i class="bi bi-list-task"></i>
+          <a href="{% url "wjs_article_details" pk=message.target.articleworkflow.pk %}" title="{% translate "Go to article page" %}" target="_blank">
+            <i class="bi bi-clipboard2-data"></i>
           </a>
           {% if user in message.recipients.all and not user == message.actor %}
             {% include "wjs_review/article_messages/elements/toggle_message_read.html" with form=forms|keyvalue:message.pk %}

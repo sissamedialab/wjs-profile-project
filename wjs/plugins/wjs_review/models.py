@@ -1084,10 +1084,10 @@ class ArticleWorkflow(TimeStampedModel):
             ReviewStates.PUBLICATION_IN_PROGRESS,
         ),
         target=ReviewStates.WITHDRAWN,
-        permission=permissions.is_article_author,
+        permission=permissions.is_article_author_or_owner,
         # TODO: conditions=[],
     )
-    def author_withdraws_preprint(self):
+    def author_or_owner_withdraws_preprint(self):
         pass
 
     @transition(
@@ -1102,10 +1102,10 @@ class ArticleWorkflow(TimeStampedModel):
             ReviewStates.UNDER_APPEAL,
         ),
         target=ReviewStates.REJECTED,
-        permission=permissions.is_article_author,
+        permission=permissions.is_article_author_or_owner,
         # TODO: conditions=[],
     )
-    def author_withdraws_preprint_after_a_rejection(self):
+    def author_or_owner_withdraws_preprint_after_a_rejection(self):
         pass
 
     # EO initiates publication
@@ -2163,11 +2163,12 @@ class Reminder(models.Model):
         """
         # Reminder: get_setting() with journal=None returns the default value for that setting
         # and the default value for "from_address" is sound (ATM it's "no-reply@medialab.sissa.it")
-        journal = article.journal if (article := self.get_related_article()) else None
+        article = self.get_related_article()
+        journal = article.journal if article else None
         email_part = get_setting("general", "from_address", journal).processed_value
 
-        if self.get_related_article() and not permissions.can_see_other_user_name(
-            instance=self.get_related_article().articleworkflow,
+        if article and not permissions.can_see_other_user_name(
+            instance=article.articleworkflow,
             actor=self.actor,
             target=self.recipient,
         ):

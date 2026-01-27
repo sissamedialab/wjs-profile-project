@@ -124,9 +124,14 @@ def restart_review_process_after_revision_submission(**kwargs) -> None:
         assignment = WjsEditorAssignment.objects.get_current(article)
         CreateReviewRound(assignment=assignment).run()
     article.articleworkflow.save()
-    article.stage = submission_models.STAGE_ASSIGNED
-    # NB: STAGE_ASSIGNED is the correct stage here, because the other candidate STAGE_UNDER_REVIEW is set by
-    # review.logic.quick_assign() only when a review assigment is created.
+    # We must check if the article has any incomplete review-assignment.
+    # If it does, the appropriate stage is "assigned",
+    # otherwise it's "under review".
+    article.stage = (
+        submission_models.STAGE_UNDER_REVIEW
+        if ArticleWorkflow.objects.with_pending_reviews().filter(article=article).exists()
+        else submission_models.STAGE_ASSIGNED
+    )
     article.save()
 
 
