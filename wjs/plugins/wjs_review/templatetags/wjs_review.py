@@ -306,6 +306,12 @@ def editor_can_make_decision(article: Article) -> bool:
 
 
 @register.filter
+def eo_can_make_decision(article: Article) -> bool:
+    """Return True if the EO can make a decision as EO user."""
+    return article.articleworkflow.state in (ArticleWorkflow.ReviewStates.PAPER_MIGHT_HAVE_ISSUES,)
+
+
+@register.filter
 def waiting_author_actions(article: Article) -> bool:
     """Return True if the article is waiting for an author action."""
     return article.articleworkflow.state_value in (ArticleWorkflow.ReviewStates.TO_BE_REVISED,)
