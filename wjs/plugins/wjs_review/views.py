@@ -50,6 +50,7 @@ from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from plugins.wjs_submission.models import ArticleSubmission
 from review import logic as review_logic
 from submission.models import Article, FrozenAuthor
 from utils.logger import get_logger
@@ -1221,6 +1222,22 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             self.object,
             permission_type=PermissionAssignment.PermissionType.NO_NAMES,
         )
+
+    def get_object(self, queryset: QuerySet = None) -> ArticleWorkflow:
+        """
+        Verify that linked one-to-one models linked to article exists to ensure a smooth transtion to wjs-submission.
+
+        :param queryset: Filtered queryset (if not set, default is used).
+        :type: QuerySet
+        :return: selected ArticleWorkflow
+        :rtype: ArticleWorkflow
+        """
+        obj = super().get_object(queryset)
+        try:
+            obj.article.submission_data
+        except ArticleSubmission.DoesNotExist:
+            ArticleSubmission.objects.create(article=obj.article)
+        return obj
 
     @property
     def page_title(self):

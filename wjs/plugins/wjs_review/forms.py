@@ -1843,7 +1843,7 @@ class JCOMReportForm(forms.Form):
     author_review_tex = forms.CharField(
         label=_("Review (for the Author) in LaTeX"),
         required=False,
-        widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("LaTeX")}),
+        widget=forms.Textarea(attrs={"rows": 10, "placeholder": _("LaTeX")}),
     )
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(

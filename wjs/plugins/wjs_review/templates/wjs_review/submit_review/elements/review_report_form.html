@@ -69,6 +69,7 @@
           <div id="field_author_review_tex" {% if form.reviewer_report_type == 'tex+text' %}style="display:none;"{% endif %}>
           <!-- djlint:on -->
               {% bootstrap_field form.author_review_tex label_class="fw-bold" addon_before_class=None %}
+              <div id="pdf_error" class="alert alert-danger d-none"></div>
               <div class="d-flex justify-content-end mt-1">
               <button
                   type="button"
@@ -84,7 +85,6 @@
                   Test PDF
               </button>
               </div>
-              <div id="pdf_error" class="text-danger small"></div>
           </div>
           {% endif %}
           {% if form.reviewer_report_type == 'tex+text' or form.reviewer_report_type == 'text' %}
@@ -202,10 +202,12 @@ document.addEventListener("DOMContentLoaded", function() {
 
 document.body.addEventListener("yakunin-error", ev => {
     document.getElementById("pdf_error").innerText = ev.detail.value;
+    document.getElementById("pdf_error").classList.remove("d-none");
 });
 
 function clearError() {
     document.getElementById("pdf_error").innerText = "";
+    document.getElementById("pdf_error").classList.add("d-none");
 }
 
 document.body.addEventListener("htmx:afterRequest", event => {

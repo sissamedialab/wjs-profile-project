@@ -868,7 +868,8 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             "types": "boolean",
             "pretty_name": _("Whether the author of a paper can contact the director"),
             "description": _(
-                "The communication system will allow an author of a paper to directly contact the director of the journal only if this setting is true.",
+                "The communication system will allow an author of a paper to directly contact the director of the "
+                "journal only if this setting is true.",
             ),
             "is_translatable": False,
         }
@@ -1982,9 +1983,10 @@ Abstract:<br/>
         reviewer_report_type_setting: SettingParams = {
             "name": "reviewer_report_type",
             "group": wjs_review_settings_group,
-            "types": "char",
+            "types": "select",
+            "choices": ["text", "tex", "tex+text"],
             "pretty_name": _("Type of report allowed"),
-            "description": _('Type of reviewer report allowed ("text", "tex", "text+tex")'),
+            "description": _("Type of reviewer report allowed: rich text, LaTeX or both"),
             "is_translatable": False,
         }
         reviewer_report_type_setting_value: SettingValueParams = {
