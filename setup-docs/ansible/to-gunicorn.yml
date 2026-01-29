@@ -1,0 +1,172 @@
+# Enable Gunicorn in wjs-test instances.
+# See to-gunicorn-prod.yml for wjs-prod.
+---
+- name: Replace daphne with gunicorn
+  hosts: test
+  remote_user: root
+  become: yes
+  vars:
+    wjs_user_id: "1000"
+    # Define variables that can be passed through the CL, e.g.:
+    # ansible-playbook setup-docs/ansible/to-gunicorn.yml \
+    #   -e "instance_name=dev instance_venv_name=janeway-dev"
+    # Note: don't use the save name for the CL variable and for the yml variable
+    instance_name: "{{ instance | default('test', true) }}"
+    instance_venv_name: "{{ instance_venv | default('janeway-' + instance_name, true) }}"
+    instance_home_name: "{{ instance_home | default('janeway-' + instance_name, true) }}"
+
+
+  tasks:
+    - name: Enable mod_rewrite
+      apache2_module:
+        name: rewrite
+        state: present
+      notify: restart apache
+
+    - name: Copy Apache/application-server socket configuration
+      copy:
+        src: apache/apache-proxy-and-socket.inc
+        dest: /etc/apache2/conf-available/wjs/apache-proxy-and-socket.inc
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Render and copy Apache virtualhost configuration
+      # Note that the template "wjs-test.conf.j2" in "src" is called "wjs-test..."
+      # because it's a template for the "wjs-test.ud" machine.
+      # Don't confuse with the "test" instance 🙂
+      template:
+        src: apache/wjs-test.conf.j2
+        dest: /etc/apache2/sites-available/wjs-{{ instance_name }}.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+
+
+
+    - name: Copy wjs systemd tmpfiles configuration
+      copy:
+        src: systemd/wjs-rundir.conf
+        dest: /etc/tmpfiles.d/wjs-rundir.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create files specified in wjs-rundir.conf
+      command: systemd-tmpfiles --create /etc/tmpfiles.d/wjs-rundir.conf
+
+    - name: Ensure systemd user config directory exists for wjs user
+      file:
+        path: /home/wjs/.config/systemd/user
+        state: directory
+        owner: wjs
+        group: wjs
+        mode: '0755'
+
+    - name: Copy gunicorn systemd service to user config
+      template:
+        src: systemd/gunicorn.service.j2
+        dest: /home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service
+        owner: wjs
+        group: wjs
+        mode: '0644'
+      notify: reload user systemd
+
+    - name: Copy logrotate configuration for wjs
+      template:
+        src: etc/logrotate-wjs.conf.j2
+        dest: /etc/logrotate.d/wjs-{{ instance_name }}
+        owner: root
+        group: root
+        mode: '0644'
+
+
+
+    - name: Install python packages in virtualenv
+      # Note that this should not be necessary, because the new packages are
+      # explicit dependencies of our package, but doing it here allows us to
+      # not have any imposition on the order in which we do the switch-over
+      # (e.g. first install the code, then to the swithc-over or viceversa).
+      pip:
+        name:
+          - uvicorn
+          - uvicorn-worker
+          - gunicorn
+        virtualenv: /home/wjs/.virtualenvs/{{ instance_venv_name }}
+      become_user: wjs
+
+
+
+    - name: Disable the old Apache janeway-xxx.conf site (points to uwsgi)
+      command: a2dissite janeway-{{ instance_name }}.conf
+      ignore_errors: yes
+      # notify: reload apache  # NB: do not reload apache just yet!
+
+    - name: Enable Apache wjs-{{ instance_name }}.conf site (points to gunicorn)
+      command: a2ensite wjs-{{ instance_name }}.conf
+
+    - name: Add SECURE_PROXY_SSL_HEADER setting if missing
+      lineinfile:
+        path: /home/wjs/{{ instance_home_name }}/src/core/settings/__init__.py
+        line: "SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')"
+        state: present
+      become_user: wjs
+
+
+    # Obsolete
+    - name: Stop uwsgi, if running, by renaming the config file
+      command: mv /home/wjs/uwsgi/janeway-{{ instance_name }}.ini /home/wjs/uwsgi/DISABLED__janeway-{{ instance_name }}.ini
+      args:
+        creates: /home/wjs/uwsgi/DISABLED__janeway-{{ instance_name }}.ini
+      become_user: wjs
+      ignore_errors: yes
+
+
+    - name: Stop daphne service if running
+      ansible.builtin.systemd_service:
+        name: daphne-{{ instance_name }}.service
+        state: stopped
+        enabled: false
+        scope: user
+      become_user: wjs
+      ignore_errors: yes
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+
+    - name: Start gunicorn service as user wjs
+      ansible.builtin.systemd_service:
+        name: gunicorn-{{ instance_name }}.service
+        state: restarted
+        enabled: true
+        scope: user
+      become_user: wjs
+      # should not be necessary, because wjs is `loginctl enable-linger`, but...
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      tags: pesky
+
+
+
+    - name: Reload Apache configuration
+      service:
+        name: apache2
+        state: reloaded
+
+
+    - name: Fix service name in deploy script
+      replace:
+        path: /home/wjs/deploy.sh
+        regexp: 'daphne'
+        replace: 'gunicorn'
+      become_user: wjs
+
+
+  handlers:
+    - name: reload user systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: yes
+        scope: user
+      become_user: wjs
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"

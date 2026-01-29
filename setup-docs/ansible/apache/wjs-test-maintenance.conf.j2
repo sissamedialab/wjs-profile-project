@@ -1,0 +1,181 @@
+<VirtualHost *:80>
+    ServerName wjs-test-{{ instance_name }}-journals.wjapp.it
+    ServerAlias  wjs-test-{{ instance_name }}-jcom.wjapp.it
+    ServerAlias  wjs-test-{{ instance_name }}-jcomal.wjapp.it
+
+    DocumentRoot /var/www/hosts/test-journals/html
+    CustomLog ${APACHE_LOG_DIR}/janeway80-access.log combined
+    ErrorLog  ${APACHE_LOG_DIR}/janeway80-error.log
+
+    LogLevel alert rewrite:trace3
+
+    RewriteEngine On
+    RewriteRule ^(.*)$          https://%{SERVER_NAME}$1 [last,redirect=301]
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-journals
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME ${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jcom
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME ${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jcomal
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME ${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jquant
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jhep
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jcap
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jstat
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+
+<VirtualHost *:443>
+    Define NAME {{ instance_name }}-jinst
+    ServerName wjs-test-${NAME}.wjapp.it
+    Define LOG_NAME	${NAME}
+    DocumentRoot /var/www/maint-pages
+    RewriteEngine On
+    RewriteCond %{SCRIPT_FILENAME} !${NAME}.maintenance.html
+    RewriteRule ^(.*)$ /$1 [R=503,L]
+    ErrorDocument 503 /${NAME}.maintenance.html
+    Header Set Pragma "no-cache"
+    Header Set Expires "Thu, 1 Jan 1970 00:00:00 GMT"
+    Header Set Cache-Control "max-age=0, no-store, no-cache, must-revalidate"
+    Header Unset ETag
+    FileETag None
+
+    Include "conf-available/wjs/apache-log-and-ssl.inc"
+</VirtualHost>
+
+
+# vim: syntax=apache ts=4 sw=4 sts=4 sr et
