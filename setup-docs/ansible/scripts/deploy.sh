@@ -34,7 +34,7 @@ JANEWAY_ROOT=/home/wjs/janeway
 VENV_BIN=/home/wjs/.virtualenvs/janeway/bin
 
 # The WJS systemd unit to restart
-WJS_SERVICE=daphne.service
+WJS_SERVICE=gunicorn.service
 
 # The git branches where the code lives
 JANEWAY_BRANCH=wjs-develop
@@ -146,7 +146,7 @@ function deploy_submission() {
 function set_prod_variables() {
     JANEWAY_ROOT=/home/wjs/janeway
     VENV_BIN=/home/wjs/.virtualenvs/janeway-venv/bin
-    WJS_SERVICE="daphne.service"
+    WJS_SERVICE="gunicorn.service"
     JANEWAY_BRANCH=wjs-production
     QCLUSTER_SERVICE="qcluster.service"
 }
@@ -154,7 +154,7 @@ function set_prod_variables() {
 function set_pp_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-pp
     VENV_BIN=/home/wjs/.virtualenvs/janeway-pp/bin
-    WJS_SERVICE="daphne-pp.service"
+    WJS_SERVICE="gunicorn-pp.service"
     JANEWAY_BRANCH=wjs-production
     # Permit install pre-release pkgs in pre-prod
     # this allows us to test pkg install when needed.
@@ -165,7 +165,7 @@ function set_pp_variables() {
 function set_dev_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-dev
     VENV_BIN=/home/wjs/.virtualenvs/janeway-dev/bin
-    WJS_SERVICE="daphne-dev.service"
+    WJS_SERVICE="gunicorn-dev.service"
     JANEWAY_BRANCH=wjs-develop
     PIP_PRE="yes please"
     QCLUSTER_SERVICE="qcluster-dev.service"
@@ -174,7 +174,7 @@ function set_dev_variables() {
 function set_test_variables() {
     JANEWAY_ROOT=/home/wjs/janeway-test
     VENV_BIN=/home/wjs/.virtualenvs/janeway-test/bin
-    WJS_SERVICE="daphne-test.service"
+    WJS_SERVICE="gunicorn-test.service"
     JANEWAY_BRANCH=wjs-production
     PIP_PRE="yes please"
     QCLUSTER_SERVICE="qcluster-test.service"

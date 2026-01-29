@@ -1,0 +1,38 @@
+[Unit]
+Description=Application server for WJS, using Gunicorn with Uvicorn workers
+# See also https://gunicorn.org/deploy/#systemd
+After=network.target
+
+
+[Service]
+Type=notify
+NotifyAccess=main
+WorkingDirectory=/home/wjs/janeway/src
+
+# Runtime directory (/run/wjs) for socket is expected to exist!
+
+# Start Gunicorn with Uvicorn workers and Unix socket
+ExecStart=/home/wjs/.virtualenvs/janeway/bin/gunicorn \
+    --bind unix:/run/wjs/gunicorn.sock \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 3 \
+    --access-logfile /home/wjs/janeway/logs/app-access.log \
+    --error-logfile /home/wjs/janeway/logs/app-error.log \
+    wjs.channels.asgi:application
+ExecReload=kill -s HUP $MAINPID
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+# Process management
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
