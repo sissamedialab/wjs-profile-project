@@ -10,7 +10,11 @@ from wjs.jcom_profile.newsletter import views as newsletter_views
 from wjs.jcom_profile.views import AuthorSearchView, KeywordListView
 
 urlpatterns = [
-    path("profile/", views.edit_profile, name="core_edit_profile"),
+    path("profile/", views.ProfilePersonalEditView.as_view(), name="core_edit_profile"),
+    path("profile/email/", views.ProfileEmailEditView.as_view(), name="core_edit_profile_email"),
+    path("profile/password/", views.ProfilePasswordEditView.as_view(), name="core_edit_profile_password"),
+    path("profile/info/", views.ProfileAdditionalEditView.as_view(), name="core_edit_profile_additional"),
+    path("profile/interests/", views.ProfileInterestsEditView.as_view(), name="core_edit_profile_interests"),
     path("register/step/1/", views.register, name="core_register"),
     re_path(
         r"^register/activate/gdpr/(?P<token>.+)/",

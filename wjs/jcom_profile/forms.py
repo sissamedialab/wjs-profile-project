@@ -5,6 +5,7 @@ import uuid
 
 from core import models as core_models
 from core.forms import EditAccountForm
+from core.models import Account
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -91,6 +92,47 @@ def validate_orcid(value):
             _("ORCID ID must be in the format xxxx-xxxx-xxxx-xxxx (e.g., 0000-0000-0000-0000)"),
             code="invalid_orcid_format",
         )
+
+
+class WjsPasswordChangeForm(EditAccountForm):
+    """Form used to change password."""
+
+    current_password = forms.CharField(widget=forms.PasswordInput, label=_("Current Password"), required=False)
+    new_password_one = forms.CharField(widget=forms.PasswordInput, label=_("New Password"), required=False)
+    new_password_two = forms.CharField(widget=forms.PasswordInput, label=_("Repeat New Password"), required=False)
+
+    class Meta:
+        model = Account
+        fields = ("current_password",)
+        exclude = None
+
+
+class WjsInterestsForm(EditAccountForm):
+    """Form used to change password."""
+
+    keywords = forms.ModelChoiceField(label=_("Interests"), required=False, queryset=Keyword.objects.none())
+
+    class Meta:
+        model = Account
+        fields = ("keywords",)
+        exclude = None
+
+    def __init__(self, *args, **kwargs):
+        """Set the required fields."""
+        journal = kwargs.pop("journal")
+        super().__init__(*args, **kwargs)
+        self.fields["keywords"].queryset = journal.keywords.exclude(word_en="").order_by("word_en")
+
+
+class WjsEmailChangeForm(EditAccountForm):
+    """Form used to change password."""
+
+    email = forms.EmailField(label=_("Email change"), required=False)
+
+    class Meta:
+        model = Account
+        fields = ("email",)
+        exclude = None
 
 
 class JCOMProfileForm(EditAccountForm):
