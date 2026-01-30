@@ -1,0 +1,45 @@
+{% extends "wjs/base/base.html" %}
+{% load static %}
+{% block content_wrapper %}
+  {% url "core_edit_profile" as core_edit_profile %}
+  {% url "core_edit_profile_email" as core_edit_profile_email %}
+  {% url "core_edit_profile_password" as core_edit_profile_password %}
+  {% url "core_edit_profile_additional" as core_edit_profile_additional %}
+  {% url "core_edit_profile_interests" as core_edit_profile_interests %}
+  {% url "edit_newsletters" as edit_newsletters %}
+  <div class="container mb-3">
+    <div class="row">
+      <div class="col-sm-12 col-md-3">
+        <nav>
+          <ul>
+            <li class="{% if request.path == core_edit_profile %}active{% endif %}">
+              <a href="{{ core_edit_profile }}">Personal Details</a>
+            </li>
+            <li class="{% if request.path == core_edit_profile %}active{% endif %}">
+              <a href="{{ core_edit_profile }}">Affiliations</a>
+            </li>
+            <li class="{% if request.path == core_edit_profile_email %}active{% endif %}">
+              <a href="{{ core_edit_profile_email }}">Email</a>
+            </li>
+            <li class="{% if request.path == core_edit_profile_password %}active{% endif %}">
+              <a href="{{ core_edit_profile_password }}">Password</a>
+            </li>
+            <li class="{% if request.path == core_edit_profile_interests %}active{% endif %}">
+              <a href="{{ core_edit_profile_interests }}">Keywords</a>
+            </li>
+            <li class="{% if request.path == core_edit_profile_additional %}active{% endif %}">
+              <a href="{{ core_edit_profile_additional }}">Additional information</a>
+            </li>
+            <li class="{% if request.path == edit_newsletters %}active{% endif %}">
+              <a href="{{ edit_newsletters }}">Publication alert</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      <div class="col-sm-12 col-md-9">
+        {% block profile_form %}
+        {% endblock profile_form %}
+      </div>
+    </div>
+  </div>
+{% endblock content_wrapper %}

@@ -56,7 +56,16 @@ class JCOMProfile(Account):
     gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
     keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
-    usernotes = models.TextField(_("User notes"), blank=True, null=True, default="")
+    usernotes = models.TextField(_("User notes"), blank=True, default="")
+    records_scix = models.CharField(_("My Records on SciX"), max_length=500, default="", blank=True)
+    records_inspire = models.CharField(_("My Records on Inspire"), max_length=500, default="", blank=True)
+    records_arxiv = models.CharField(_("My Records on ArXiv"), max_length=500, default="", blank=True)
+    records_other = models.CharField(
+        _("Others (personal website, records on Google Scholar/ResearchGate, etc)"),
+        max_length=500,
+        default="",
+        blank=True,
+    )
 
     def save(self, *args, **kwargs):
         # is_admin is a flag of janeway which protects some manager site parts

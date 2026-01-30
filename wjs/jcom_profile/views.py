@@ -47,6 +47,7 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
+from .forms import WjsEmailChangeForm, WjsInterestsForm, WjsPasswordChangeForm
 from .mixins import HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, Recipient, StaffWorkloadParameters
 from .newsletter.service import NewsletterMailerService
@@ -54,6 +55,47 @@ from .permissions import get_hijacker
 from .utils import generate_token
 
 logger = get_logger(__name__)
+
+
+class ProfilePersonalEditView(LoginRequiredMixin, UpdateView):
+    model = Account
+    fields = ("first_name", "middle_name", "last_name", "orcid")
+    template_name = "wjs/profile/personal_edit.html"
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+
+class ProfileEmailEditView(ProfilePersonalEditView):
+    model = Account
+    form_class = WjsEmailChangeForm
+    template_name = "wjs/profile/personal_email_edit.html"
+    fields = None
+
+
+class ProfilePasswordEditView(ProfilePersonalEditView):
+    model = Account
+    form_class = WjsPasswordChangeForm
+    template_name = "wjs/profile/personal_password_edit.html"
+    fields = None
+
+
+class ProfileAdditionalEditView(ProfilePersonalEditView):
+    model = Account
+    fields = ("facebook", "linkedin", "twitter")
+    template_name = "wjs/profile/personal_info_edit.html"
+
+
+class ProfileInterestsEditView(ProfilePersonalEditView):
+    model = Account
+    form_class = WjsInterestsForm
+    fields = None
+    template_name = "wjs/profile/personal_interests_edit.html"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["journal"] = self.request.journal
+        return kwargs
 
 
 @login_required
