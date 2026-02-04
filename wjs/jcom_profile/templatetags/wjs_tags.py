@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pycountry
 from core.models import Account
 from django import template
+from django.forms import BoundField
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -320,3 +321,26 @@ def add_matomo_params(url):
     params["mtm_kwd"] = [localtime(now()).date().strftime("%Y%m%d")]
     new_query = urlencode(params, doseq=True)
     return urlunparse(parsed._replace(query=new_query))
+
+
+@register.filter
+def decorate_widgets_for_regroup(field: BoundField):
+    """
+    Add decoration to widgets for regrouping based on the first letter.
+
+    Iterate over the widgets in the provided `BoundField` and return a list of
+    decorated dictionaries. Each dictionary includes the first uppercase letter
+    of the choice label, the original choice label, and additional widget data
+    if the widget has a `value` in its data.
+
+    :param field: A `BoundField` containing widgets that need to be processed.
+    :return: A list of dictionaries representing decorated widgets.
+    :raises TypeError: If `field` is not an instance of `BoundField`.
+    """
+    if not field:
+        return []
+    return [
+        {"first_letter": widget.choice_label[0].upper(), "choice_label": widget.choice_label, **widget.data}
+        for widget in field
+        if widget.data["value"]
+    ]
