@@ -47,7 +47,13 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
-from .forms import WjsEmailChangeForm, WjsInterestsForm, WjsPasswordChangeForm
+from .forms import (
+    WjsAdditionalInfoForm,
+    WjsEmailChangeForm,
+    WjsInterestsForm,
+    WjsPasswordChangeForm,
+    WjsPersonalInfoForm,
+)
 from .mixins import HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, Recipient, StaffWorkloadParameters
 from .newsletter.service import NewsletterMailerService
@@ -59,11 +65,17 @@ logger = get_logger(__name__)
 
 class ProfilePersonalEditView(LoginRequiredMixin, UpdateView):
     model = Account
-    fields = ("first_name", "middle_name", "last_name", "orcid")
+    form_class = WjsPersonalInfoForm
     template_name = "wjs/profile/personal_edit.html"
 
     def get_object(self, queryset=None):
         return self.request.user
+
+
+class ProfileAffiliationsEditView(ProfilePersonalEditView):
+    model = Account
+    template_name = "wjs/profile/personal_affiliations_edit.html"
+    fields = None
 
 
 class ProfileEmailEditView(ProfilePersonalEditView):
@@ -82,8 +94,9 @@ class ProfilePasswordEditView(ProfilePersonalEditView):
 
 class ProfileAdditionalEditView(ProfilePersonalEditView):
     model = Account
-    fields = ("facebook", "linkedin", "twitter")
+    form_class = WjsAdditionalInfoForm
     template_name = "wjs/profile/personal_info_edit.html"
+    fields = None
 
 
 class ProfileInterestsEditView(ProfilePersonalEditView):

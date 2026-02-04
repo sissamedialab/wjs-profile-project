@@ -135,6 +135,46 @@ class WjsEmailChangeForm(EditAccountForm):
         exclude = None
 
 
+class WjsPersonalInfoForm(EditAccountForm):
+    """Form used to change personal info."""
+
+    first_name = forms.CharField(label=_("First name"), help_text=_("Required"), required=True)
+    middle_name = forms.CharField(label=_("Middle name"), required=False)
+    last_name = forms.CharField(label=_("Last name"), help_text=_("Required"), required=True)
+    orcid = forms.CharField(
+        label=_("ORCiD"),
+        validators=[validate_orcid],
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "0000-0000-0000-0000",
+                "pattern": ORCID_VALIDATION_REGEXP,
+                "title": _("Please provide the ORCID using only the id notation: 0000-0000-0000-0000"),
+                "minlength": "19",
+                "maxlength": "19",
+            }
+        ),
+        required=True,
+    )
+
+    class Meta:
+        model = Account
+        fields = ("first_name", "middle_name", "last_name", "orcid")
+        exclude = None
+
+
+class WjsAdditionalInfoForm(EditAccountForm):
+    """Form used to change personal info."""
+
+    facebook = forms.CharField(label=_("Facebook"), required=False)
+    linkedin = forms.CharField(label=_("LinkedIn"), required=False)
+    twitter = forms.CharField(label=_("Twitter"), required=False)
+
+    class Meta:
+        model = Account
+        fields = ("facebook", "linkedin", "twitter")
+        exclude = None
+
+
 class JCOMProfileForm(EditAccountForm):
     """Additional fields of the JCOM profile."""
 
