@@ -79,6 +79,20 @@ JOURNALS_DATA = {
         },
         "expected_languages": ("en"),
     },
+    "JCAP": {
+        "inception_year": 2002,
+        "correspondence_source": "jcap",
+        "wjapp_url": getattr(
+            settings,
+            "WJAPP_JCAP_URL",
+            "https://robur.medialab.sissa.it/jcap-sissa/jcap/services/jsonpublished",
+        ),
+        "wjapp_api_key": "WJAPP_JCAP_APIKEY",
+        "section_order": {
+            "Article": (2, "Articles"),
+        },
+        "expected_languages": ("en"),
+    },
 }
 
 

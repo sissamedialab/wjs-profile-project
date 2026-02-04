@@ -13,6 +13,9 @@ import traceback
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
+from itertools import chain
+from pathlib import Path
+from typing import Optional, Tuple
 
 import freezegun
 import mariadb
@@ -155,13 +158,11 @@ class Command(BaseCommand):
 
         if self.options["preprintid"].startswith("JHEP"):
             journal_code = "JHEP"
+        elif self.options["preprintid"].startswith("JCAP"):
+            journal_code = "JCAP"
         else:
             journal_code = self.options["preprintid"].split("_")[0].upper()
-        if journal_code in (
-            "JCOM",
-            "JCOMAL",
-            "JHEP",
-        ):
+        if journal_code in ("JCOM", "JCOMAL", "JHEP", "JCAP"):
             self.journal = Journal.objects.get(code=journal_code)
             self.journal_data = JOURNALS_DATA[journal_code]
             exitcode = self.import_data_article(**options)
@@ -203,19 +204,32 @@ class Command(BaseCommand):
             help="create only empty fake files for the article",
             required=False,
         )
+        parser.add_argument(
+            "--importfilesarchive",
+            default=False,
+            action="store_true",
+            help="import files from the archive on the file system",
+            required=False,
+        )
 
     def import_data_article(self, **options):
         """Process one article."""
 
         session = None
 
-        if self.options["importfilesfake"]:
-            logger.info("option --importfilesfake creates only fake files")
+        if self.options["importfilesarchive"] and self.journal.code.upper() not in ["JCAP"]:
+            logger.error(f"option import_files from archive is not enabled for {self.journal.code}.")
+            return 1
 
-        if self.options["importfilesweb"] and self.journal.code.upper() == "JHEP":
+        if self.options["importfilesfake"] and self.journal.code.upper() not in ["JHEP"]:
             logger.error(
-                f"option import_files from web is not enabled for {self.journal.code}."
-                f"use --importfilesfake instead."
+                f"option import fake files is not enabled for {self.journal.code}.",
+            )
+            return 1
+
+        if self.options["importfilesweb"] and self.journal.code.upper() not in ["JCOM", "JCOMAL"]:
+            logger.error(
+                f"option import_files from web is not enabled for {self.journal.code}.",
             )
             return 1
 
@@ -307,7 +321,7 @@ class Command(BaseCommand):
         document_cod = current_version_row["documentCod"]
         preprintid = current_version_row["preprintId"]
         publicationid = current_version_row["publicationId"]
-        if self.journal.code.upper() in ("JHEP"):
+        if self.journal.code.upper() in ("JHEP", "JCAP"):
             publication_date = current_version_row["publicationDate"]
         document_revision_dead_line = current_version_row["revisionDeadline"]
         section = current_version_row["documentType"]
@@ -472,7 +486,7 @@ class Command(BaseCommand):
             author_data = self.read_document_author_data(document_cod)
 
             # main author profession from article
-            if author_data:
+            if author_data and author_data["professionCod"]:
                 main_author.jcomprofile.profession = author_data["professionCod"] - 1
                 main_author.jcomprofile.save()
                 main_author.save()
@@ -570,7 +584,7 @@ class Command(BaseCommand):
                             imported_version_num=imported_version_num,
                             imported_version_cod=imported_version_cod,
                             imported_version_state_cod=imported_version_state_cod,
-                            importfiles=self.options["importfilesfake"],
+                            importfiles=self.options["importfilesarchive"],
                             imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                             action_triggers_import_files=False,
                             imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
@@ -620,7 +634,7 @@ class Command(BaseCommand):
                     article=article,
                     imported_version_num=imported_version_num,
                     imported_version_cod=imported_version_cod,
-                    importfiles=self.options["importfilesfake"],
+                    importfiles=self.options["importfilesarchive"],
                     imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                 ).run()
 
@@ -698,7 +712,7 @@ class Command(BaseCommand):
 
         # for published import restore the article status
         if publicationid:
-            if self.journal.code.upper() != "JHEP":
+            if self.journal.code.upper() not in ["JHEP", "JCAP"]:
                 self.restore_article_status(article)
             else:
                 article.date_published = rome_timezone.localize(publication_date)
@@ -743,7 +757,7 @@ class Command(BaseCommand):
                     f" in state {article.articleworkflow.state}"
                 )
 
-        if settings.DEBUG and self.journal.code.upper() != "JHEP":
+        if settings.DEBUG and self.journal.code.upper() not in ["JHEP", "JCAP"]:
             self.debug_list_article_files_imported(article)
             self.debug_list_reminder(article)
 
@@ -1250,6 +1264,7 @@ WHERE
     def reset_article_data(self, article, publicationid):
         """Reset article data for re-import of the article."""
 
+        logger.debug("reset_article_data")
         for reminder in Reminder.objects.all():
             if reminder.get_related_article() == article:
                 reminder.delete()
@@ -1566,10 +1581,10 @@ WHERE
         # JCOM_004N_1024 ---
 
         # default for jhep when not defined
-        if not language and article.journal.code == "JHEP":
+        if not language and article.journal.code in ["JHEP", "JCAP"]:
             article.language = "eng"
             article.save()
-            logger.debug(f"jhep {article.id} undefined language saved as 'eng'")
+            logger.debug(f"{article.journal.code} {article.id} undefined language saved as 'eng'")
             return
 
         # default for jcom when not defined
@@ -2557,7 +2572,7 @@ class ImportCorrespondenceManager:
                 )
 
             if m["documentLayerType"] in self.types_skipped:
-                # demoted to warning for JHEPST, if considered error, the execution must be stopped
+                # demoted to warning for JHEPST/JCAPST, if considered error, the execution must be stopped
                 # with an exception
                 logger.warning(
                     f"msg {m['documentLayerCod']} type skipped {self.article.id} {m['documentLayerSubject']}"
@@ -2573,8 +2588,8 @@ class ImportCorrespondenceManager:
                 author = get_eo_user(self.journal)
             else:
 
-                # Note: only for jhep stress test
-                if self.journal.code == "JHEP" and not author_from_wjapp:
+                # Note: only for jhep/jcap stress test
+                if self.journal.code in ["JHEP", "JCAP"] and not author_from_wjapp:
                     author = get_eo_user(self.journal)
                     logger.debug(f"added author JST:{author}")
                 else:
@@ -2620,8 +2635,8 @@ class ImportCorrespondenceManager:
                     logger.debug(f"msg {m['documentLayerCod']} add recipient eo_user {document_layer_subject}")
 
                 for msg_rec in message_recipients_no_bcc:
-                    # Note: only for jhep stress test
-                    if self.journal.code == "JHEP" and not msg_rec["userCod"]:
+                    # Note: only for jhep/jcap stress test
+                    if self.journal.code in ["JHEP", "JCAP"] and not msg_rec["userCod"]:
                         recipient = get_eo_user(self.journal)
                         logger.debug(f"added recipient JST:{recipient}")
                     else:
@@ -2652,10 +2667,10 @@ class ImportCorrespondenceManager:
 
                 # error if no recipients at all from wjapp and not added eo_user
                 if not msg.recipients.all():
-                    # Note: Only for JHEP stress test
-                    if self.journal.code == "JHEP":
+                    # Note: Only for jhep/jcap stress test
+                    if self.journal.code in ["JHEP", "JCAP"]:
                         msg.recipients.add(get_eo_user(self.journal))
-                        logger.debug("add recipient eo for JHEPST")
+                        logger.debug(f"add recipient eo for {self.journal.code.upper()}ST")
                     else:
                         raise RuntimeError(
                             f"msg {m['documentLayerCod']} without recipients: {self.article.id}"
@@ -2758,8 +2773,8 @@ AND ur.userType!='readerBCC'
             },
         )
         if cursor_all_message_author_recipients.rowcount == 0:
-            # Note: only for JHEPST
-            if self.journal.code == "JHEP":
+            # Note: only for JHEP/JCAP ST
+            if self.journal.code in ["JHEP", "JCAP"]:
                 logger.debug(
                     f"Found {cursor_all_message_author_recipients.rowcount} users for message {document_layer_cod}"
                     f" {self.preprintid}/{self.imported_version_num}"
@@ -2817,697 +2832,6 @@ class BaseActionManager:
             logger.error(f"editor not set for {self.preprintid} {self.article.id}")
             self.connection.close()
             raise Exception
-
-    def import_files_fake(self, production_version=False):
-        """Save fake files for imported version."""
-
-        # TBV: action admin resets editor will be skip in the import. New version is created when
-        #     the editor is assigned. Verify that the import of the files is coerent in wjapp
-        # TODO: import files is different for imported_version_state_cod published
-        #       pubid.pdf instead of preprintid.pdf (fake files)
-        #
-        # fake pdf published version pubid.pdf (no source): "PDF", "pdf",
-        #   JCOM_003N_0623/8/JCOM_2305_2024_N03.pdf&fileType=pdf
-        #
-        # published version: create fake tar.gz loaded by typesetter from previous version
-        #       JCOM_003N_0623/7/submission/JCOM_003N_0623.tar.gz
-        # TODO: also download and add (to be decided how) to the tar.gz from current_hidden
-        #       JCOM_003N_0623.tex which has the placeholders replaced
-        #
-        # fake preprintid.docx, preprintid.pdf for not published version: "ZIP", "zip"
-        #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
-        #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
-        #
-        #   TBV if necessary:
-        #   Note: other fake files like Figure1.docx submitted by the author
-        #         created also a fake source file produduction/JCOM_003N_0623.zip which
-        #         contains submission/
-        #
-        # attachments read data from db for each attachment (no source file name)
-        #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
-        # and create fake files
-
-        # wjapp version state 22 is the published version
-        if self.imported_version_state_cod == 22:
-            # TBV:
-            # we don't want to import files for the published version because the final
-            # galleys and supplementary are already imported when the published paper
-            # has been imported
-            return
-
-        elif production_version:
-            logger.debug(f"production version: {production_version}")
-            fake_pdf_file = self.create_minimal_djangofile(f"{self.preprintid}.pdf", "pdf")
-            self.save_pdf_galley(fake_pdf_file)
-
-        else:
-            fake_pdf_file = self.create_minimal_djangofile(f"{self.preprintid}.pdf", "pdf")
-            self.save_manuscript(fake_pdf_file)
-
-            # remove previous source files relations already saved as historical files
-            # necessary to clear() when the version import files starts because
-            # there are two files preprintid.docx and submit.zip
-            self.article.source_files.clear()
-
-            fake_tex_file = self.create_minimal_djangofile(f"{self.preprintid}.tex", "tex")
-            self.save_source(fake_tex_file, "tex")
-
-            # we want to create the fake source files sent by the author,
-            # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
-            fake_zip_file = self.create_minimal_djangofile(f"{self.preprintid}.zip", "zip")
-            self.save_source(fake_zip_file, "zip")
-
-        # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
-        # the original name of the attachment file is not imported but it is not relevant
-        if not production_version:
-            self.article.data_figure_files.clear()
-        wjapp_attachments = self.read_attachments_data()
-        wjapp_fake_prod_attachments = []
-        for dff_data in wjapp_attachments:
-            dff_dj = self.create_minimal_djangofile(
-                f"{dff_data['attachID']}.{dff_data['attachFormat']}", f"{dff_data['attachFormat']}"
-            )
-            if production_version:
-                ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(
-                    only_completed=False,
-                )
-                dff_file = files.save_file_to_article(
-                    dff_dj,
-                    self.article,
-                    ta_assignment.typesetter,
-                )
-                dff_file.label = dff_data["attachType"]
-                dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
-                dff_file.save()
-                # for a production version, each attachment is as SF in a list
-                wjapp_fake_prod_attachments.append(SupplementaryFile.objects.create(file=dff_file))
-            else:
-                # in review version each attachments is saved as DFF
-                self.save_data_figure_file(dff_dj, dff_data)
-
-        # if the production version is not of a published paper
-        # the prepared list is saved as SF list
-        if production_version and not self.publicationid and wjapp_fake_prod_attachments:
-            self.article.supplementary_files.set(wjapp_fake_prod_attachments)
-
-    def create_minimal_djangofile(self, filename: str, filetype: str) -> DjangoFile:
-        """
-        Create and return a minimal DjangoFile for the specified type.
-        Supported filetype values: 'pdf', 'tex', 'zip', 'tar.gz', 'tar', 'targz', 'jpg', 'jpeg', 'png'
-        """
-        ft = filetype.lower()
-        if ft == "pdf":
-            content = (
-                b"%PDF-1.1\n%\xE2\xE3\xCF\xD3\n1 0 obj\n"
-                b"<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-                b"xref\n0 1\n0000000000 65535 f \n"
-                b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
-            )
-            return DjangoFile(ContentFile(content), name=filename)
-
-        if ft == "tex":
-            tex_text = r"""\documentclass{article}
-\begin{document}
-Minimal TeX file.
-\end{document}
-"""
-            return DjangoFile(ContentFile(tex_text.encode("utf-8")), name=filename)
-
-        if ft in ("zip",):
-            buf = io.BytesIO()
-            with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr("readme.txt", "Minimal ZIP content\n")
-            buf.seek(0)
-            return DjangoFile(ContentFile(buf.read()), name=filename)
-
-        if ft in ("tar.gz", "targz", "tar"):
-            buf = io.BytesIO()
-            with tarfile.open(fileobj=buf, mode="w:gz") as tf:
-                info = tarfile.TarInfo("readme.txt")
-                data = b"Minimal tar.gz content\n"
-                info.size = len(data)
-                tf.addfile(info, io.BytesIO(data))
-            buf.seek(0)
-            return DjangoFile(ContentFile(buf.read()), name=filename)
-
-        if ft in ("jpg", "jpeg"):
-            # Minimal valid JPEG (JFIF) header with no image data — decoders accept it as a small image.
-            jpeg = (
-                b"\xFF\xD8"  # SOI
-                b"\xFF\xE0\x00\x10"  # APP0 marker, length 16
-                b"JFIF\x00"  # Identifier
-                b"\x01\x01\x00\x00\x01\x00\x01\x00"  # Version, density, thumbnail
-                b"\xFF\xD9"  # EOI
-            )
-            return DjangoFile(ContentFile(jpeg), name=filename)
-
-        if ft == "png":
-            # Minimal valid PNG: signature + IHDR chunk (1x1, truecolor, no compression/filter/interlace)
-            # + IDAT empty + IEND
-            png = (
-                b"\x89PNG\r\n\x1a\n"
-                b"\x00\x00\x00\x0dIHDR"
-                b"\x00\x00\x00\x01"  # width:1
-                b"\x00\x00\x00\x01"  # height:1
-                b"\x08"  # bit depth
-                b"\x02"  # color type: truecolor
-                b"\x00\x00\x00"  # compression, filter, interlace
-                b"\x90wS\xde"  # CRC (precomputed for this IHDR)
-                b"\x00\x00\x00\x0aIDAT"
-                b"\x08\xd7c\xf8\x0f\x00\x01\x01\x01\x00"  # small deflate data (may be accepted)
-                b"\x00\x00\x00\x00IEND\xaeB`\x82"
-            )
-            return DjangoFile(ContentFile(png), name=filename)
-
-        # fallback: empty binary
-        return DjangoFile(ContentFile(b""), name=filename)
-
-    def file_fake_source_prod(self):
-        "save minimal fake targz file loaded by typesetter."
-
-        return self.create_minimal_djangofile(f"{self.preprintid}.tar.gz", "tat.gz")
-
-    def import_files_from_web(self, production_version=False):
-        """Downloads and save files for imported version."""
-
-        # TBV: action admin resets editor will be skip in the import. New version is created when
-        #     the editor is assigned. Verify that the import of the files is coerent in wjapp
-        # TODO: import files is different for imported_version_state_cod published
-        #       pubid.pdf instead of preprintid.pdf
-        #
-        # pdf published version pubid.pdf (no source): "PDF", "pdf",
-        #   JCOM_003N_0623/8/JCOM_2305_2024_N03.pdf&fileType=pdf
-        #
-        # published version: download tar.gz loaded by typesetter from previous version
-        #       JCOM_003N_0623/7/submission/JCOM_003N_0623.tar.gz
-        # TODO: also download and add (to be decided how) to the tar.gz from current_hidden
-        #       JCOM_003N_0623.tex which has the placeholders replaced
-        #
-        # download preprintid.docx, preprintid.pdf for not published version: "ZIP", "zip"
-        #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
-        #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
-        #
-        #   Note: to not loose other files like Figure1.docx submitted by the author
-        #         imported also as source file produduction/JCOM_003N_0623.zip which
-        #         contains submission/
-        #
-        # attachments read data from db for each attachment (no source file name)
-        #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
-
-        # wjapp version state 22 is the published version
-        if self.imported_version_state_cod == 22:
-            # we don't want to import files for the published version because the final
-            # galleys and supplementary are already imported when the published paper
-            # has been imported
-            return
-
-        elif production_version:
-            logger.debug(f"production version: {production_version}")
-            response_pdf_galley_prod = self.download_pdf_galley_prod()
-
-            if response_pdf_galley_prod.headers["Content-Length"] != "0":
-                pdf_galley_prod_dj = file_from_response(response_pdf_galley_prod, f"{self.preprintid}.pdf")
-                self.save_pdf_galley(pdf_galley_prod_dj)
-
-        else:
-            known_missing_manuscript = {("JCOM_001E_0422", 1), ("JCOM_002A_0717", 1), ("JCOM_018A_0923", 1)}
-            if (self.preprintid, self.imported_version_num) in known_missing_manuscript:
-                logger.debug(f"{self.preprintid} / {self.imported_version_num} (missing manuscript - known case)")
-            else:
-                response_manuscript = self.download_manuscript()
-                if response_manuscript.headers["Content-Length"] != "0":
-                    manuscript_dj = file_from_response(response_manuscript, f"{self.preprintid}.pdf")
-                    self.save_manuscript(manuscript_dj)
-
-            # remove previous source files relations already saved as historical files
-            # necessary to clear() when the version import files starts because
-            # there are two files preprintid.docx and submit.zip
-            self.article.source_files.clear()
-
-            (response_source, doc_type) = self.download_source()
-            if response_source.headers["Content-Length"] != "0":
-                source_dj = file_from_response(response_source, f"{self.preprintid}.{doc_type}")
-                self.save_source(source_dj, doc_type)
-
-            # we want to download all the source files sent by the author,
-            # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
-            (response_source_compressed, doc_type_compressed) = self.download_source_compressed_archive()
-            if response_source_compressed.headers["Content-Length"] != "0":
-                # returns a zip "submit.zip" containing only the  subdirectory "submission/" of the production zip
-                # with the originals files sent by the author
-                submit_source_compressed_dj = self.extract_subdirectory_to_zip(
-                    response_source_compressed, f"{self.preprintid}/submission/", f"submit.{doc_type_compressed}"
-                )
-                self.save_source(submit_source_compressed_dj, doc_type_compressed)
-
-        # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
-        # the original name of the attachment file is not imported but it is not relevant
-
-        if not production_version:
-            self.article.data_figure_files.clear()
-        wjapp_attachments = self.read_attachments_data()
-        wjapp_prod_attachments = []
-        for dff_data in wjapp_attachments:
-            dff_response = self.download_wjapp_attachment(dff_data)
-            if dff_response.headers["Content-Length"] != "0":
-                dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
-                if production_version:
-                    ta_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(
-                        only_completed=False,
-                    )
-                    dff_file = files.save_file_to_article(
-                        dff_dj,
-                        self.article,
-                        ta_assignment.typesetter,
-                    )
-                    dff_file.label = dff_data["attachType"]
-                    dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
-                    dff_file.save()
-                    # for a production version, each attachment is as SF in a list
-                    wjapp_prod_attachments.append(SupplementaryFile.objects.create(file=dff_file))
-                else:
-                    # in review version each attachments is saved as DFF
-                    self.save_data_figure_file(dff_dj, dff_data)
-
-        # if the production version is not of a published paper
-        # the prepared list is saved as SF list
-        if production_version and not self.publicationid and wjapp_prod_attachments:
-            self.article.supplementary_files.set(wjapp_prod_attachments)
-
-    def extract_subdirectory_to_zip(self, response, subdirectory, name):
-        """return a DF zip containing only the subdirectory"""
-
-        memory_zip = BytesIO()
-
-        with zipfile.ZipFile(BytesIO(response.content), "r") as zip_ref:
-            # Create a new ZIP file in memory
-            with zipfile.ZipFile(memory_zip, "w") as new_zip:
-                # List all files in the zip file
-                for file_info in zip_ref.infolist():
-                    # Check if the file is in the specified subdirectory i.e. JCOM_002N_1122/submission/
-                    logger.debug(f"file name: {file_info} {subdirectory}")
-                    if file_info.filename.startswith(subdirectory):
-                        try:
-                            # Read the file into memory
-                            with zip_ref.open(file_info.filename) as file:
-                                # Read the content safely
-                                content = file.read()
-
-                                # Write the file to the new ZIP archive in memory
-                                new_zip.writestr(file_info.filename, content)
-
-                        except Exception as e:
-                            logger.error(f"Error processing file {file_info.filename}: {e}")
-                            raise ValueError("Error processing file")
-
-        return DjangoFile(memory_zip, name)
-
-    # manuscript
-    def download_manuscript(self):
-        """Download pdf manuscript for imported version."""
-
-        file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
-        logger.debug(f"{file_url=}")
-        response = self.session.get(file_url)
-        assert response.status_code == 200, f"Got {response.status_code}!"
-        if response.headers["Content-Length"] == "0":
-            logger.error(
-                f"check wjapp login credentials empty file pdf downloaded: {response.headers['Content-Length']}"
-            )
-            raise ValueError("Empty pdf downloaded")
-        return response
-
-    # production version files
-
-    def download_pdf_galley_prod(self):
-        """Download pdf galley for production imported version."""
-
-        file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}.pdf&fileType=pdf"
-
-        if self.preprintid == "JCOM_003A_0615" and self.imported_version_num == 5:
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}"
-                f"/publication/currentHidden/{self.preprintid}.pdf&fileType=pdf"
-            )
-            logger.warning(
-                f"used currentHidden/JCOM_003A_0615.pdf for {self.preprintid}/"
-                f"{self.imported_version_num} (fix file name - known case)."
-            )
-
-        logger.debug(f"{file_url=}")
-        response = self.session.get(file_url)
-        assert response.status_code == 200, f"Got {response.status_code}!"
-        if response.headers["Content-Length"] == "0":
-            logger.error(
-                f"check wjapp login credentials empty pdf galley downloaded: {response.headers['Content-Length']}"
-            )
-            raise ValueError("Empty pdf galley downloaded")
-        return response
-
-    def save_pdf_galley(self, pdf_galley_dj):
-        """Save PDF production version in TA.galleys_created"""
-
-        assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
-
-        # necessary to avoid errors until action "back to typesetter"
-        # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
-        # in JCOM_017A_0624
-        assignment.galleys_created.clear()
-
-        assert not assignment.galleys_created.exists(), (
-            f"We have {assignment.galleys_created.count()} galleys on the TA "
-            f"for round {assignment.round.round_number}. Expected none!"
-        )
-
-        pdf_galley_file = files.save_file_to_article(
-            pdf_galley_dj,
-            self.article,
-            assignment.typesetter,
-        )
-        pdf_galley = Galley.objects.create(
-            file=pdf_galley_file, label="PDF", type="pdf", article=self.article, public=False
-        )
-        assignment.galleys_created.add(pdf_galley)
-
-        assignment.round.article.articleworkflow.save()
-
-        return
-
-    # production version source TARGZ
-    def file_source_prod(self):
-
-        # typesetter uploaded a docx replaced with empty tar.gz
-        missing_cases = {
-            ("JCOM_004C_1020", 3),
-        }
-        if (self.preprintid, self.imported_version_num) in missing_cases:
-            logger.warning(f"for {self.preprintid}/{self.imported_version_num} - docx source prod tar.gz known case")
-            empty_source_prod_dj = DjangoFile(BytesIO(b""), f"{self.preprintid}.tar.gz")
-            return empty_source_prod_dj
-
-        (response_source_prod, file_type) = self.download_source_prod()
-        if response_source_prod.headers["Content-Length"] != "0":
-            if file_type == "tar.gz":
-                source_prod_dj = file_from_response(response_source_prod, f"{self.preprintid}.{file_type}")
-            elif file_type == "tex":
-                source_prod_dj = build_targz_archive_from_tex_response(response_source_prod, f"{self.preprintid}")
-        return source_prod_dj
-
-    def download_source_prod(self):
-        """Download tar gz source from production imported version."""
-
-        file_url = (
-            f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-            f"submission/{self.preprintid}.tar.gz&fileType=gz"
-        )
-
-        # preprintid of file different from the preprintid of article due to
-        # wjapp maintenance change of article type or other type of manual maintenance
-
-        if self.preprintid == "JCOM_003C_0622" and self.imported_version_num in (2, 3):
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/JCOM_002E_0622.tar.gz&fileType=gz"
-            )
-            logger.warning(
-                f"used JCOM_002E_0622.tar.gz for {self.preprintid}/"
-                f"{self.imported_version_num} (change preprint type - known case)."
-            )
-        if self.preprintid == "JCOM_001C_0922" and self.imported_version_num == 3:
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/JCOM_001E_0922.tar.gz&fileType=gz"
-            )
-            logger.warning(
-                f"used JCOM_001E_0922.tar.gz for {self.preprintid}/"
-                f"{self.imported_version_num} (change preprint type - known case)."
-            )
-        if self.preprintid == "JCOM_004N_0918" and self.imported_version_num in (3, 4):
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/JCOM_001C_0918.tar.gz&fileType=gz"
-            )
-            logger.warning(
-                f"used JCOM_001C_0918.tar.gz for {self.preprintid}/"
-                f"{self.imported_version_num} (change preprint type - known case)."
-            )
-
-        if self.preprintid == "JCOM_005A_1116" and self.imported_version_num == 3:
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/JCOM_002A_1216.tar.gz&fileType=gz"
-            )
-            logger.warning(
-                f"used JCOM_002A_1216.tar.gz for {self.preprintid}/"
-                f"{self.imported_version_num} (change preprint type - known case)."
-            )
-
-        if self.preprintid == "JCOM_013A_0215" and self.imported_version_num == 3:
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/JCOM_1402_2015_A-king-proof.tar.gz&fileType=gz"
-            )
-            logger.warning(
-                f"used JCOM_1402_2015_A-king-proof.tar.gz for {self.preprintid}/"
-                f"{self.imported_version_num} (change preprint type - known case)."
-            )
-
-        if self.preprintid == "JCOM_008A_0215" and self.imported_version_num == 4:
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/JCOM_402_2015_A03.tar.gz&fileType=gz"
-            )
-            logger.warning(
-                f"used JCOM_402_2015_A03.tar.gz for {self.preprintid}/" f"{self.imported_version_num} (- known case)."
-            )
-
-        special_cases = {
-            ("JCOMAL_003A_0520", 4): "JCOMAL_001N_0520.tar.gz",
-            ("JCOMAL_003A_0520", 5): "JCOMAL_001N_0520.tar.gz",
-            ("JCOMAL_001A_1118", 3): "JCOMAL-Orozco.v2.tar.gz",
-            ("JCOMAL_001A_1118", 4): "JCOMAL-Orozco.v3.tar.gz",
-            ("JCOMAL_002A_1118", 3): "JCOMAL-Marandino_et_al.v2.1.tar.gz",
-            ("JCOMAL_002A_1118", 4): "JCOMAL-Marandino_et_al.v3.tar.gz",
-            ("JCOMAL_003A_1118", 4): "JCOMAL_003A_1118-proof.tar.gz",
-            ("JCOMAL_003A_1118", 5): "JCOMAL-Da_Silva_Lima_Moschem.v3.tar.gz",
-            ("JCOMAL_004A_1118", 4): "JCOMAL_003A_1118-proof.tar.gz",
-            ("JCOMAL_004A_1118", 5): "JCOMAL-Costa-v3.tar.gz",
-            ("JCOMAL_001Y_1118", 2): "JCOMAL_001Y_1118-proof.tar.gz",
-            ("JCOMAL_001Y_1118", 3): "JCOMAL-CastilhosAlmeida-v3.tar.gz",
-            ("JCOMAL_002Y_1118", 3): "JCOMAL-Cortassa.v2.tar.gz",
-            ("JCOMAL_002Y_1118", 4): "JCOMAL-Cortassa.v3.tar.gz",
-            ("JCOMAL_001R_1118", 2): "JCOMAL-Poenaru.v2.tar.gz",
-            ("JCOMAL_005A_1118", 3): "JCOMAL-NegreteRosenblatt.v2.tar.gz",
-            ("JCOMAL_006A_1118", 4): "JCOMAL_006A_1118-proof.tar.gz",
-            ("JCOMAL_006A_1118", 5): "JCOMAL-Lima.v3.tar.gz",
-            ("JCOMAL_004A_0320", 4): "JCOMAL_001N_0320.tar.gz",
-            ("JCOMAL_004A_0320", 5): "JCOMAL_001N_0320.tar.gz",
-            ("JCOMAL_001A_1018", 4): "JCOMAL_001A_1018-proof.tar.gz",
-            ("JCOMAL_001A_1018", 5): "JCOMAL-Massarani-v4.tar.gz",
-        }
-        if (self.preprintid, self.imported_version_num) in special_cases.keys():
-            fixed_filename = special_cases[(self.preprintid, self.imported_version_num)]
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/{fixed_filename}&fileType=gz"
-            )
-            logger.warning(
-                f"used {fixed_filename} for {self.preprintid}/" f"{self.imported_version_num} (- known case)."
-            )
-
-        file_type = "tar.gz"
-        logger.debug(f"production source: {file_url=}")
-        response = self.session.get(file_url)
-        assert response.status_code == 200, f"Got {response.status_code}!"
-        if response.headers["Content-Length"] == "0":
-            logger.warning(
-                f"production submission tar.gz empty file: {self.article.id} / {self.preprintid} try tex format"
-            )
-            file_url = (
-                f"{self.url_base}{self.preprintid}/{self.imported_version_num}/"
-                f"submission/{self.preprintid}.tex&fileType=tex"
-            )
-            response = self.session.get(file_url)
-            assert response.status_code == 200, f"Got {response.status_code}!"
-            file_type = "tex"
-            logger.debug(f"production source: {file_url=}")
-            if response.headers["Content-Length"] == "0":
-                logger.error(
-                    f"production submission: also tex empty file downloaded: {self.article.id} / {self.preprintid}"
-                )
-                raise ValueError("Tex empty file downloaded")
-        return (response, file_type)
-
-    # review files
-
-    def download_source(self):
-        """Download docx/doc source for imported version."""
-
-        doc_type = "docx"
-        url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/{self.preprintid}"
-        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
-
-        special_cases = {("JCOMAL_001A_1218", 1)}
-        if (self.preprintid, self.imported_version_num) in special_cases:
-            url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/submission/00-art_div_vf"
-            file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
-            logger.warning(
-                f"used 00-art_div_vf.docx for {self.preprintid}/"
-                f"{self.imported_version_num} (data problem on wjapp- known case)."
-            )
-
-        logger.debug(f"{file_url=}")
-        response = self.session.get(file_url)
-
-        if response.status_code == 200:
-            if response.headers["Content-Length"] == "0":
-                logger.debug(
-                    f"check wjapp login data empty file {doc_type} downloaded: {response.headers['Content-Length']}"
-                )
-            else:
-                return (response, doc_type)
-        else:
-            logger.warning(f"With docx got {response.status_code}!")
-
-        # try with doc instead of docx
-        doc_type = "doc"
-        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
-        logger.debug(f"retry with {doc_type} {file_url=}")
-        response = self.session.get(file_url)
-        assert response.status_code == 200, f"Got {response.status_code}!"
-
-        if response.headers["Content-Length"] == "0":
-            logger.error(
-                f"check wjapp login credentials empty file {doc_type} downloaded: {response.headers['Content-Length']}"
-            )
-            raise ValueError("Empty doc/docx file downloaded")
-        return (response, doc_type)
-
-    def regenerate_production_archives(self):
-        """Necessary to regenerate the production archives."""
-
-        # Before to download the production zip it could be necessary to regenerate it.
-        # It is done doing a request to the preprint wjapp "All versions" page
-        # without to read the response, e.g. url:
-        # https://jcom.sissa.it/jcom/admin/docPage.jsp?docPgType=versions&docId=JCOM_001A_0823
-        #
-        # To read the response is not important, but wjapp server seems randomly
-        # to "chunck" it, therefore has been except ChunkedEncodingError and only logged it as ERROR.
-        # This exception does not block the regeneration of the production archives, which is the
-        # reason of the request.
-
-        # i.e. JCOM_014A_0524: broken wjapp version page repaired on wjapp side.
-        # This problem is independent by the management of the exception ChunkedEncodingError
-
-        file_url_versions_page = (
-            f"{self.session.login_base_url}/admin/docPage.jsp?docPgType=versions&docId={self.preprintid}"
-        )
-        try:
-            response = self.session.get(file_url_versions_page)
-            assert response.status_code == 200, f"Got {response.status_code}!"
-        except requests.exceptions.ChunkedEncodingError:
-            # known cases: JCOM_003A_0724 JCOM_004N_1024 JCOM_008A_0125 JCOM_014A_0524
-            logger.error(f"Exception: ChunkedEncodingError {file_url_versions_page}")
-            raise RuntimeError("ChunkedEncodingError ")
-
-    def download_source_compressed_archive(self):
-        """Download compressed zip with submission folder for imported version."""
-
-        doc_type = "zip"
-        url_first_part = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/production/{self.preprintid}"
-        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
-        logger.debug(f"{file_url=}")
-        response = self.session.get(file_url)
-
-        assert response.status_code == 200, f"Got {response.status_code}!"
-        if response.headers["Content-Length"] == "0":
-            logger.warning(
-                f"check data empty file {doc_type} downloaded: {response.headers['Content-Length']} try regeneration "
-            )
-            # the regeneration of the zip archive could be necessary also after the
-            # first wjapp version, if for example the zip file is missing only in version 2
-            # if the zip files have already been regenerated this if branch is not executed
-            # in the next versions
-            self.regenerate_production_archives()
-            logger.debug(f"production archives regenerated during import of version {self.imported_version_num}")
-            response = self.session.get(file_url)
-            if response.headers["Content-Length"] == "0":
-                logger.error(
-                    f"check wjapp login data empty file {doc_type}downloaded: {response.headers['Content-Length']}"
-                )
-                raise ValueError("Empty zip downloaded")
-        return (response, doc_type)
-
-    def save_manuscript(self, manuscript_dj):
-        """Save PDF manuscript"""
-
-        # remove previous files relations already saved as historical files
-        # the manuscript has only the current files
-        self.article.manuscript_files.clear()
-
-        manuscript_file = files.save_file_to_article(
-            manuscript_dj,
-            self.article,
-            self.article.correspondence_author,
-        )
-        self.article.manuscript_files.add(manuscript_file)
-        manuscript_file.label = "PDF"
-        manuscript_file.description = ""
-        manuscript_file.save()
-        self.article.save()
-
-        return
-
-    def save_source(self, source_dj, doc_type):
-        """Save docx/doc as source file"""
-
-        # there is more than one source file for version, therefore
-        # they are not clear()
-
-        source_file = files.save_file_to_article(
-            source_dj,
-            self.article,
-            self.article.correspondence_author,
-        )
-        self.article.source_files.add(source_file)
-        source_file.label = doc_type.upper()
-        source_file.description = ""
-        source_file.save()
-        self.article.save()
-
-        return
-
-    # wjapp attachments - data figurs files
-    def download_wjapp_attachment(self, dff_data):
-        """Download one wjapp attachment for imported version."""
-
-        # url ex: JCOM_001A_0524/2/attachments/JCOM_001A_0524_ATTACH00360924.docx&fileType=Attachment
-
-        url_end_part = f"{dff_data['attachID']}.{dff_data['attachFormat']}&fileType={dff_data['attachType']}"
-        file_url = f"{self.url_base}{self.preprintid}/{self.imported_version_num}/attachments/{url_end_part}"
-        logger.debug(f"{file_url=}")
-        response = self.session.get(file_url)
-        assert response.status_code == 200, f"Got {response.status_code}!"
-        if response.headers["Content-Length"] == "0":
-            logger.error(f"check wjapp login credentials empty DFF downloaded: {response.headers['Content-Length']}")
-            raise ValueError("Empty DFF downloaded")
-        return response
-
-    def save_data_figure_file(self, dff_dj, dff_data):
-        """Save wjapp attachment as data figure file"""
-
-        dff_file = files.save_file_to_article(
-            dff_dj,
-            self.article,
-            self.article.correspondence_author,
-        )
-        self.article.data_figure_files.add(dff_file)
-        dff_file.label = dff_data["attachType"]
-        dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
-        dff_file.save()
-        self.article.save()
-
-        return
 
     def read_attachments_data(self):
         """Read wjapp attachments data for the imported version."""
@@ -3620,7 +2944,7 @@ ORDER BY reminderDate
         # YYYY3 due_date can be earlier than YYYY1 and YYY2.
         # Chosen to remove YYYY3. Better to shift it with some criteria?
         # i.e. JCOM_028A_0724
-        # TODO: FIXME for JHEP: (e.g. YYYY3.due_date = YYYY2.due_date + 2days)
+        # TODO: FIXME for JHEP/JCAP: (e.g. YYYY3.due_date = YYYY2.due_date + 2days)
         # TODO: ATM the code ignores the case when we have more reminders in wjapp that in wjs
         #       this is because the configuration of JCOM does not allow it.
 
@@ -3754,7 +3078,7 @@ class EditorAssignmentAction(BaseActionManager):
             # for example more attachments of the base version,or the files of the new version could have been
             # replaced with a maintenance operation.
             if self.action_triggers_import_files and self.importfiles:
-                self.import_files_fake()
+                ImportFileManager(self).import_version_files()
 
     # TODO: check why new review_round is not created
     def set_editor(
@@ -3852,8 +3176,11 @@ WHERE editorCod=%(editor_cod)s
 
         if not editor_maxworkload:
             editor_maxworkload = 1
-            logger.warning(f"JHEP ST: Missing editor max workload, forced to 1 {self.article.id} / {self.preprintid}")
-            # import JHEP ST exception not raised ValueError("Missing editor max workload")
+            logger.warning(
+                f"{self.journal.code.upper()} ST: Missing editor max workload, forced to 1 "
+                f"{self.article.id} / {self.preprintid}"
+            )
+            # import JHEP/JCAP ST exception not raised ValueError("Missing editor max workload")
 
         if editor_maxworkload == 9999:
             logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
@@ -4079,8 +3406,8 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
             service.run()
 
             # do again import_files because there is a new review round
-            if self.import_files_fake:
-                self.import_files_fake()
+            if self.importfiles:
+                ImportFileManager(self).import_version_files()
 
         if not WjsEditorAssignment.objects.filter(article=self.article).exists():
             # i.e. JCOM_005A_0523 editor decline
@@ -4341,7 +3668,7 @@ ORDER BY dl.submissionDate
                     f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
                 )
                 author_withdrawn_message = None
-                # added for JHEPST
+                # added for JHEP/JCAP ST
                 raise ValueError("Not found author withdrawn messages")
         else:
             author_withdrawn_message = cursor_author_withdrawn_message.fetchone()
@@ -4569,7 +3896,7 @@ ORDER BY dl.submissionDate
                     f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
                 )
                 editor_decline_message = None
-                # added for JHEPST
+                # added for JHEP/JCAP ST
                 raise ValueError("Missing editor decline message")
         else:
             editor_decline_message = cursor_editor_decline_message.fetchone()
@@ -4853,7 +4180,7 @@ ORDER BY dl.submissionDate
         if cursor_reviewer_message.rowcount != 1:
             logger.error(f"Found {cursor_reviewer_message.rowcount} reviewer assignment messages: {self.preprintid}")
             reviewer_message = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found reviewer assignment message")
         else:
             reviewer_message = cursor_reviewer_message.fetchone()
@@ -5079,8 +4406,8 @@ ORDER BY dl.submissionDate
                     r.save()
                     logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
-                # Note: for JHEP import stress test
-                if self.journal.code == "JHEP":
+                # Note: for JHEP/JCAP import stress test
+                if self.journal.code in ["JHEP", "JCAP"]:
                     if reviewer_data["report_due_date"]:
                         r.date_due = rome_timezone.localize(reviewer_data["report_due_date"]).date()
                         logger.debug(f"due_date change {r.code} {r.date_due} to {r.recipient}")
@@ -5104,8 +4431,8 @@ ORDER BY dl.submissionDate
                     r.save()
                     logger.debug(f"reminder {r} modified date_sent:{r.date_sent}")
 
-                # Note: for JHEP import stress test
-                if self.journal.code == "JHEP":
+                # Note: for JHEP/JCAP import stress test
+                if self.journal.code in ["JHEP", "JCAP"]:
                     if reviewer_data["report_due_date"]:
                         r.date_due = (
                             rome_timezone.localize(reviewer_data["report_due_date"])
@@ -5284,7 +4611,7 @@ ORDER BY dl.submissionDate
                     f"Found {cursor_deselect_reviewer_message.rowcount} deselect reviewer messages: {self.preprintid}"
                 )
                 deselect_reviewer_message = None
-                # added for JHEPST
+                # added for JHEP/JCAP ST
                 raise ValueError("Not found deselect reviewer message")
         else:
             deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
@@ -5401,7 +4728,7 @@ ORDER BY dl.submissionDate
                 f"Found {cursor_reviewer_decline_message.rowcount} reviewer decline messages: {self.preprintid}"
             )
             reviewer_decline_message = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found reviewer decline message")
         else:
             reviewer_decline_message = cursor_reviewer_decline_message.fetchone()
@@ -5576,7 +4903,7 @@ ORDER BY dl.submissionDate
         if cursor_reviewer_report_message.rowcount != 1:
             logger.error(f"Found {cursor_reviewer_report_message.rowcount} reviewer report: {self.preprintid}")
             reviewer_report_message = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found reviewer report message")
         else:
             reviewer_report_message = cursor_reviewer_report_message.fetchone()
@@ -5797,7 +5124,7 @@ class EditorDecisionAction(BaseActionManager):
         assert response.status_code == 200, f"Got {response.status_code}!"
         if response.headers["Content-Length"] == "0":
             logger.error(f"empty {document_layer_id} file downloaded: {response.headers['Content-Length']}")
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found edrep file")
         return response.text
 
@@ -5843,7 +5170,7 @@ ORDER BY dl.submissionDate
         if cursor_editor_report_message.rowcount != 1:
             logger.error(f"Found {cursor_editor_report_message.rowcount} editor report: {self.preprintid}")
             editor_report_message = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found editor report")
         else:
             editor_report_message = cursor_editor_report_message.fetchone()
@@ -6148,7 +5475,7 @@ class AuthorSubmitRevisionAction(BaseActionManager):
         }
 
         if self.importfiles:
-            self.import_files_fake()
+            ImportFileManager(self).import_version_files()
 
         self.check_and_fix_all_reminder()
 
@@ -6214,7 +5541,7 @@ ORDER BY dl.submissionDate
         if cursor_cover_letter_message.rowcount != 1:
             logger.error(f"Found {cursor_cover_letter_message.rowcount} cover letter: {self.preprintid}")
             cover_letter_message = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found cover letter")
         else:
             cover_letter_message = cursor_cover_letter_message.fetchone()
@@ -6257,7 +5584,7 @@ class AU_SUB_REV_ED_CH(AuthorSubmitRevisionAction):  # noqa N801
                 f"case not managed {self.action['actHistCod']} AU_SUB_REV_ED_CH "
                 f"for {self.preprintid}/{self.imported_version_num}."
             )
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("case not managed AU_SUB_REV_ED_CH")
         else:
             logger.warning(
@@ -6509,12 +5836,14 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
 
         # get typesetter file tar.gz
         if self.importfiles:
-            source_prod_dj = self.file_fake_source_prod()
+            source_prod_dj = ImportFileManager(self).get_production_source()
+            # TODO: (delete) source_prod_dj = self.file_fake_source_prod()
         else:
             # empty tar.gz when importfiles is disabled
             # the logic action requires a file
             source_prod_dj = DjangoFile(BytesIO(b""), f"{self.preprintid}.tar.gz")
 
+        # TODO: better "application/gzip"?
         source_prod_dj.content_type = "application/zip"
 
         fake_request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
@@ -6538,7 +5867,8 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
 
         # e.g. JCOM_017A_0624
         if self.importfiles:
-            self.import_files_fake(production_version=True)
+            # the production source has already been manage in the action
+            ImportFileManager(self).import_version_files(production_version=True)
 
 
 class Requestproofs(BaseActionManager):
@@ -6680,12 +6010,12 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
         author_proofs.save()
 
         # get author anotation file if it exists
-        if self.importfiles and self.journal.code.upper() in ("JCOM", "JCOMAL"):
-            (extension, author_annotation_file_dj) = self.get_author_annotation_file(
-                author_annotation_data.get("documentLayerID")
+        if self.importfiles and self.journal.code.upper() in ("JCAP", "JHEP", "JCOM", "JCOMAL"):
+            (extension, author_annotation_file_dj) = ImportFileManager(self).get_author_annotation_file(
+                author_annotation=author_annotation_data.get("documentLayerID")
             )
             if author_annotation_file_dj and extension:
-                logger.debug(f"downloaded not empty annotation file {author_annotation_file_dj=}")
+                logger.debug(f"Found annotation file {author_annotation_file_dj=}")
                 author_annotation_file_dj.content_type = f"application/{extension}"
 
             if author_annotation_file_dj:
@@ -6766,7 +6096,7 @@ ORDER BY dl.submissionDate DESC
         if cursor_author_annotation.rowcount == 0:
             logger.error(f"Found {cursor_author_annotation.rowcount} author annotation: {self.preprintid}")
             author_annotation = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found author annotation")
         else:
             # JCOM_023A_0623 has two AUANN in the same version (data error) in any case we take the
@@ -6792,7 +6122,7 @@ ORDER BY dl.submissionDate DESC
             )
         else:
             logger.error(f"Empty AUANN file downloaded for {document_layer_id=}!")
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Empty AUANN file downloaded")
 
     def extract_annotation_file_extension(self, document_layer_id):
@@ -6828,13 +6158,13 @@ ORDER BY dl.submissionDate DESC
             logger.error(
                 f"check wjapp login credentials empty production zip: {response.headers['Content-Length']} {file_url=}"
             )
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Empty production zip downloaded")
         try:
             files_zip = zipfile.ZipFile(BytesIO(response.content))
         except zipfile.BadZipFile:
             logger.error(f"file not open: {file_url}")
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("zip file not open")
 
         for filepath in files_zip.namelist():
@@ -6896,7 +6226,7 @@ ORDER BY dl.submissionDate DESC
             logger.error(
                 f"check wjapp login credentials empty AUANN file downloaded: {response.headers['Content-Length']}"
             )
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Empty AUANN file downloaded")
         return response
 
@@ -7001,7 +6331,7 @@ ORDER BY dl.submissionDate
                 f"{self.preprintid}/{self.imported_version_num}"
             )
             pub_manager_annotation = None
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("Not found publication manager annotation")
         else:
             pub_manager_annotation = cursor_pub_manager_annotation.fetchone()
@@ -7307,7 +6637,7 @@ class PM_REQ_ED_CHECK(BaseActionManager):  # noqa N801
             pass
         else:
             logger.error(f"PM_REQ_ED_CHECK not managed for {self.preprintid} {self.article.id}")
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("PM_REQ_ED_CHECK not managed")
 
 
@@ -7330,7 +6660,7 @@ class ED_RESTARTS_REV(BaseActionManager):  # noqa N801
             pass
         else:
             logger.error(f"ED_RESTARTS_REV not managed for {self.preprintid} {self.article.id}")
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("ED_RESTARTS_REV not managed")
 
 
@@ -7355,5 +6685,1252 @@ class PM_UPLOADS_FORMAT_V(BaseActionManager):  # noqa N801
             pass
         else:
             logger.error(f"PM_UPLOADS_FORMAT_V not managed for {self.preprintid} {self.article.id}")
-            # added for JHEPST
+            # added for JHEP/JCAP ST
             raise ValueError("PM_UPLOADS_FORMAT_V not managed")
+
+
+@dataclass
+class ImportFileManager:
+    """Data class that manages the import of the files from the filesystem."""
+
+    # This manager has as argument an instance of a subclass of BaseActionManager
+    # for example AuthorSubmitRevisionAction(BaseActionManager)
+    # corresponding to an action that must import the files of related version, for example
+    # the author revision submission of the version 2 of the preprintid JCAP_001P_0123
+    # Also the class manages the import of the edrep and repep files.
+    action_manager: Optional["BaseActionManager"] = None  # obsolete syntax
+    file_types: Tuple[str, ...] = (  # Tuple -> tuple
+        "tex",  # file preprintid.tex
+        "pdf",  # file preprintid.pdf
+        "source_tex",  # any source tex file not the "main"
+        "source_zip",  # zip submitted by the author for each version
+        "source_targz",  # targz submitted by the author for each version
+        "figure",  # any figure file of the latex archive
+        "edrep_tex",
+        "edrep_pdf",
+        "rerep_tex",
+        "rerep_pdf",
+        "attachment",  # wjapp attachments
+        "author_annotation",  # file uploded by the author when sends the corrections
+        "production_source",  # production tar.gz uploded by the typesetter
+        "production_pdf",  # production pdf generated on wjapp
+    )
+
+    # Note: the archives contained in "preprintid/production/" should not be necessary
+    # because reading the directory "submission/" we can import the correct
+    # author source archive
+
+    def __post_init__(self):
+        """Set file archives paths."""
+
+        archive_path_current_orig = getattr(
+            settings, f"WJAPP_{self.action_manager.journal.code.upper()}_IMPORT_ARCHIVE_CURRENT", None
+        )
+        self.archive_path_current = self.clean_archive_directory(archive_path_current_orig)
+        archive_path_old_orig = getattr(
+            settings, f"WJAPP_{self.action_manager.journal.code.upper()}_IMPORT_ARCHIVE_OLD", None
+        )
+        self.archive_path_old = self.clean_archive_directory(archive_path_old_orig)
+        logger.debug(f"{self.file_types=}")
+
+    def import_version_files(self, production_version=False):
+        """Manages the import the files of the imported_version.
+
+        The EDREP and REREP, AUANN, production_source are imported separately.
+        """
+
+        # remove previous source files relations already saved as historical files
+        # necessary to clear() when the version import files starts because
+        # there are two files preprintid.docx and submit.zip.
+        # If the version is a production version the manual clear() must not be executed.
+        if not production_version:
+            self.action_manager.article.source_files.clear()
+            self.action_manager.article.data_figure_files.clear()
+
+        for data in self.get_list_of_files_to_import(
+            production_version=production_version,
+        ):
+            djfile = self.read_file_from_archive(**data)
+            logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
+
+            if data["filetype"] == "pdf":
+                self.save_manuscript_pdf(djfile)
+                continue
+            if data["filetype"] == "tex":
+                self.save_source_file(djfile, "TEX", "TEX manuscript file")
+                continue
+            if data["filetype"] == "source_zip":
+                self.save_source_file(djfile, "ZIP", "ZIP source archive")
+                continue
+            if data["filetype"] == "source_targz":
+                self.save_source_file(djfile, "TARGZ", "TARGZ source archive")
+                continue
+            if data["filetype"] == "production_pdf":
+                self.save_pdf_galley(djfile)
+                continue
+
+            # attachments
+            if data["filetype"] == "attachment" and production_version:
+                ta_assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+                    only_completed=False,
+                )
+                dff_file = files.save_file_to_article(
+                    djfile,
+                    self.action_manager.article,
+                    ta_assignment.typesetter,
+                )
+                dff_file.label = data["attachType"]
+                dff_file.description = f"{data['attachTitle']} {data['attachDescription']}"
+                dff_file.save()
+                # for a production version, each attachment is a SF
+                # TODO: verify the case of published version
+                if not self.publicationid:
+                    self.action_manager.article.supplementary_files.add(
+                        SupplementaryFile.objects.create(file=dff_file)
+                    )
+                continue
+
+            # for a review version the attachment is a data figure file
+            if data["filetype"] == "attachment" and not production_version:
+                self.save_data_figure_file(djfile, data)
+
+    def clean_archive_directory(self, orig_path):
+        """run optimization of the directory content creating a tmp directory without duplicated files."""
+        tmp_cleaned_dir_path = orig_path
+        return tmp_cleaned_dir_path
+
+    def get_list_of_files_to_import(self, production_version=False):
+        """Read archive and for the current preprintid an version extract the list of file and file type to import"""
+
+        # production version: PREPRINT.pdf to be saved as galley
+        if production_version:
+            return [
+                {
+                    "subdir": "",
+                    "filename": f"{self.action_manager.preprintid}.pdf",
+                    "filetype": "production_pdf",
+                    "description": None,
+                    "title": None,
+                },
+            ]
+
+        # PREPRINT.tex PREPRINT.pdf
+        files_list = [
+            {
+                "subdir": "",
+                "filename": f"{self.action_manager.preprintid}.tex",
+                "filetype": "tex",
+                "description": None,
+                "title": None,
+            },
+            {
+                "subdir": "",
+                "filename": f"{self.action_manager.preprintid}.pdf",
+                "filetype": "pdf",
+                "description": None,
+                "title": None,
+            },
+        ]
+
+        # source submission archive (tar.gz or .zip)
+        submission_archive_list = []
+
+        path_sub_arch_current = (
+            Path(self.archive_path_current)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num} / 'submission'"
+        )
+
+        # search in current
+        for item in chain(path_sub_arch_current.rglob("*.tar.gz"), path_sub_arch_current.rglob("*.zip")):
+            if item.is_file():
+                submission_archive_list.append(item)
+                logger.debug(f"submission archive in current: {item=}")
+
+        # search in old
+        if not submission_archive_list:
+            year_dir = self.get_year_dir(self.action_manager.preprintid)
+            path_sub_arch_old = Path(
+                f"{self.archive_path_old}/{year_dir}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/submission"
+            ).resolve()
+            for item in chain(path_sub_arch_old.rglob("*.tar.gz"), path_sub_arch_old.rglob("*.zip")):
+                if item.is_file():
+                    submission_archive_list.append(item)
+                    logger.debug(f"submission archive in old: {item=}")
+
+        # build item to add the submission archive to the files list
+        if not submission_archive_list:
+            logger.warning(f"Not found submission archive {submission_archive_list}")
+        elif len(submission_archive_list) > 1:
+            logger.warning(f"Found {len(submission_archive_list)} submission archives {submission_archive_list}")
+        else:
+            exts = submission_archive_list[0].suffixes
+            ext = "".join(exts)
+            if ext in [".tar.gz"]:
+                filetype = "source_targz"
+            if ext in [".zip"]:
+                filetype = "source_zip"
+            submission_archive = {
+                "subdir": "submission",
+                "filename": f"{submission_archive_list[0].name}",
+                "filetype": filetype,
+                "description": None,
+                "title": None,
+            }
+            files_list.append(submission_archive)
+
+        # read attachments data from wjapp database and add the file files to the list
+        # with the same format, pdf, zip, ...
+        # the original name of the attachment file is not imported but it is not relevant
+
+        wjapp_attachments = self.action_manager.read_attachments_data()
+        # in wjapp the base path of the attachment file is different if there is only one attachment
+        if len(wjapp_attachments) == 1:
+            files_list.append(
+                {
+                    "subdir": "attachments",
+                    "filename": f"{wjapp_attachments[0]['attachID']}.{wjapp_attachments[0]['attachFormat']}",
+                    "filetype": "attachment",
+                    "description": wjapp_attachments[0]["attachDescription"],
+                    "title": wjapp_attachments[0]["attachTitle"],
+                },
+            )
+        else:
+            for dff_data in wjapp_attachments:
+                files_list.append(
+                    {
+                        "subdir": f"attachments/{dff_data['attachID']}",
+                        "filename": f"{dff_data['attachID']}.{dff_data['attachFormat']}",
+                        "filetype": "attachment",
+                        "description": dff_data["attachDescription"],
+                        "title": dff_data["attachTitle"],
+                    },
+                )
+
+        return files_list
+
+    def get_year_dir(self, preprintid):
+        """return part of the file path in the archive old"""
+        return f"{preprintid[:4]}20{preprintid[-2:]}preprints"
+
+    def read_file_from_archive(
+        self, subdir: str, filename: str, filetype: str, description: str, title: str
+    ) -> DjangoFile:
+        """
+        Read a file stored inside an archive directory on the filesystem and return it as a DjangoFile.
+        The archive here is a directory on disk (not necessarily a zip). This function does NOT open
+        nested zip files — it only reads the raw bytes of the target file and wraps them in a DjangoFile
+        ready to be saved via a Django model FileField or storage.
+        If the file is not in the current archive, try on the old archive.
+        Parameters
+        - archive_path_current: full path to the archive directory on disk.
+        - subdir: the subdirectory, e.g. 'submission' dir
+        - filename: the name of the file
+        - filetype: one of the allowed file types; validated against the predefined list.
+
+        Returns
+        - DjangoFile wrapping a ContentFile containing the file bytes, with name set to filename.
+
+        Raises
+        - FileNotFoundError: if archive directory or target file does not exist.
+        - ValueError: if filetype is not allowed.
+        """
+
+        # Validate filetype
+        if filetype not in self.file_types:
+            raise ValueError(f"Unknown filetype: {filetype!r}. Allowed types: {', '.join(self.file_types)}")
+
+        # search in the current archive directory
+        candidate = Path(
+            f"{self.archive_path_current}/{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+        ).resolve()
+        logger.debug(f"search candidate {filetype} in archive current: {candidate=}")
+
+        if not candidate.exists() or not candidate.is_file():
+            year_dir = self.get_year_dir(self.action_manager.preprintid)
+            candidate = Path(
+                f"{self.archive_path_old}/{year_dir}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+            ).resolve()
+            logger.debug(f"search candidate {filetype} in the archive old: {candidate}")
+            if not candidate.exists() or not candidate.is_file():
+                raise FileNotFoundError(f"File {filetype} not found: {filename}")
+
+        # Read bytes
+        with candidate.open("rb") as f:
+            content = f.read()
+
+        # Return DjangoFile wrapping ContentFile
+        return DjangoFile(ContentFile(content), name=filename)
+
+    # import report files
+    def import_edrep_file(
+        self,
+    ):
+        """Import the edrep files of the imported_version during the review action.
+
+        The edrep file is imported during the related decision actions, not
+        when the version paper files are imported.
+        """
+        return
+
+    def import_rerep_file(
+        self,
+    ):
+        """Import the rerep files of the specific referee of the imported_version.
+
+        The rerep file is imported during the related review actions, not
+        when the version paper files are imported.
+        """
+        return
+
+    def get_production_source(
+        self,
+    ):
+        """Get the production source archive which is managed by the typesetter upload action."""
+
+        data = {
+            "subdir": "submission",
+            "filename": f"{self.action_manager.preprintid}.tar.gz",
+            "filetype": "production_source",
+            "description": None,
+            "title": None,
+        }
+        djfile = self.read_file_from_archive(**data)
+        logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
+        return djfile
+
+    def get_author_annotation_file(self, author_annotation):
+        """Get the author annotation file.
+
+        return: (mime type, file)"""
+
+        # author annotation: to be managed by the author send corrections action
+        path_auann_current = (
+            Path(self.archive_path_current)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "AUANN"
+            / f"{author_annotation}"
+        )
+
+        # search in current
+        found = path_auann_current.rglob(f"{author_annotation}.*")
+        data = {}
+        if found:
+            for item in found:
+                if item.is_file():
+                    logger.debug(f"auann in current: {item=}")
+                    data = {
+                        "subdir": f"AUANN/{author_annotation}",
+                        "filename": f"{item.name}",
+                        "filetype": "author_annotation",
+                        "description": None,
+                        "title": None,
+                    }
+        else:
+            year_dir = self.get_year_dir(self.action_manager.preprintid)
+            path_auann_old = (
+                Path(self.archive_path_old)
+                / f"{year_dir}"
+                / f"{self.action_manager.preprintid}"
+                / f"{self.action_manager.imported_version_num}"
+                / "AUANN"
+                / f"{author_annotation}"
+            ).resolve()
+            for item_old in path_auann_old.rglob(f"{author_annotation}.*"):
+                if item_old.is_file():
+                    logger.debug(f"auann in old: {item_old=}")
+                    data = {
+                        "subdir": f"AUANN/{author_annotation}",
+                        "filename": f"{item_old.name}",
+                        "filetype": "author_annotation",
+                        "description": None,
+                        "title": None,
+                    }
+
+        if not data:
+            logger.error(f"author annotation not found {author_annotation}")
+            return
+
+        djfile = self.read_file_from_archive(**data)
+        logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
+
+        # TODO: extension management used also for contentype
+        parts = djfile.name.split(".")
+        # FIX: extension is used as mime type application/extension
+        # check action AU_SENDS_CORRECT
+        extension = ".".join(parts[-2:]) if len(parts) > 2 else parts[-1]
+        if extension == "tar.gz":
+            extension = "gzip"
+        logger.warning(f"extension to be verified also for mime type: {extension}")
+        return (extension, djfile)
+
+    def save_source_file(self, source_dj, label, desc):
+        """Save tex, zip/tar.gz as source archive"""
+
+        # there is more than one source file for version, therefore
+        # they are not clear()
+
+        source_file = files.save_file_to_article(
+            source_dj,
+            self.action_manager.article,
+            self.action_manager.article.correspondence_author,
+        )
+        self.action_manager.article.source_files.add(source_file)
+        source_file.label = label
+        source_file.description = desc
+        source_file.save()
+        self.action_manager.article.save()
+        logger.debug(f"saved {desc}: {source_dj}")
+        return
+
+    def save_manuscript_pdf(self, manuscript_dj):
+        """Save PDF manuscript"""
+
+        # remove previous files relations already saved as historical files
+        # the manuscript has only the current files
+        self.action_manager.article.manuscript_files.clear()
+
+        manuscript_file = files.save_file_to_article(
+            manuscript_dj,
+            self.action_manager.article,
+            self.action_manager.article.correspondence_author,
+        )
+        self.action_manager.article.manuscript_files.add(manuscript_file)
+        manuscript_file.label = "PDF"
+        manuscript_file.description = "PDF manuscript"
+        manuscript_file.save()
+        self.action_manager.article.save()
+        logger.debug(f"saved pdf file {manuscript_dj}")
+        return
+
+    def save_pdf_galley(self, pdf_galley_dj):
+        """Save PDF production version in TA.galleys_created"""
+
+        assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+            only_completed=False
+        )
+
+        # necessary to avoid errors until action "back to typesetter"
+        # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
+        # in JCOM_017A_0624
+        assignment.galleys_created.clear()
+
+        assert not assignment.galleys_created.exists(), (
+            f"We have {assignment.galleys_created.count()} galleys on the TA "
+            f"for round {assignment.round.round_number}. Expected none!"
+        )
+
+        pdf_galley_file = files.save_file_to_article(
+            pdf_galley_dj,
+            self.action_manager.article,
+            assignment.typesetter,
+        )
+        pdf_galley = Galley.objects.create(
+            file=pdf_galley_file, label="PDF", type="pdf", article=self.action_manager.article, public=False
+        )
+        assignment.galleys_created.add(pdf_galley)
+
+        assignment.round.article.articleworkflow.save()
+        logger.debug(f"saved production pdf file {pdf_galley_dj}")
+        return
+
+    def save_data_figure_file(self, dff_dj, data):
+        """Save wjapp attachment as data figure file"""
+
+        dff_file = files.save_file_to_article(
+            dff_dj,
+            self.action_manager.article,
+            self.action_manager.article.correspondence_author,
+        )
+        self.action_manager.article.data_figure_files.add(dff_file)
+        dff_file.label = data["filetype"]
+        dff_file.description = f"{data['title']} {data['description']}"
+        dff_file.save()
+        self.action_manager.article.save()
+        logger.debug(f"saved attachment {dff_dj}")
+        return
+
+
+@dataclass
+class ImportFileFakeManager:
+    """Data class that manages the import of the files as fake files."""
+
+    # LEGACY. Needs validation before to use.
+
+    # This manager has as argument an instance of a subclass of BaseActionManager
+    # for example AuthorSubmitRevisionAction(BaseActionManager)
+    # corresponding to an action that must import the files of related version, for example
+    # the author revision submission of the version 2 of the preprintid JCAP_001P_0123
+    # Also the class manages the import of the edrep and rerep files.
+    action_manager: Optional["BaseActionManager"] = None  # obsolete syntax
+
+    def import_files_fake(self, production_version=False):
+        """Save fake files for imported version."""
+
+        # TBV: action admin resets editor will be skip in the import. New version is created when
+        #     the editor is assigned. Verify that the import of the files is coerent in wjapp
+        # TODO: import files is different for imported_version_state_cod published
+        #       pubid.pdf instead of preprintid.pdf (fake files)
+        #
+        # fake pdf published version pubid.pdf (no source): "PDF", "pdf",
+        #   JCOM_003N_0623/8/JCOM_2305_2024_N03.pdf&fileType=pdf
+        #
+        # published version: create fake tar.gz loaded by typesetter from previous version
+        #       JCOM_003N_0623/7/submission/JCOM_003N_0623.tar.gz
+        # TODO: also download and add (to be decided how) to the tar.gz from current_hidden
+        #       JCOM_003N_0623.tex which has the placeholders replaced
+        #
+        # fake preprintid.docx, preprintid.pdf for not published version: "ZIP", "zip"
+        #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
+        #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
+        #
+        #   TBV if necessary:
+        #   Note: other fake files like Figure1.docx submitted by the author
+        #         created also a fake source file produduction/JCOM_003N_0623.zip which
+        #         contains submission/
+        #
+        # attachments read data from db for each attachment (no source file name)
+        #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
+        # and create fake files
+
+        # wjapp version state 22 is the published version
+        if self.action_manager.imported_version_state_cod == 22:
+            # TBV:
+            # we don't want to import files for the published version because the final
+            # galleys and supplementary are already imported when the published paper
+            # has been imported
+            return
+
+        elif production_version:
+            logger.debug(f"production version: {production_version}")
+            fake_pdf_file = self.action_manager.create_minimal_djangofile(
+                f"{self.action_manager.preprintid}.pdf", "pdf"
+            )
+            ImportFileWebManager(self.action_manager).save_pdf_galley(fake_pdf_file)
+
+        else:
+            fake_pdf_file = self.action_manager.create_minimal_djangofile(
+                f"{self.action_manager.preprintid}.pdf", "pdf"
+            )
+            ImportFileWebManager(self.action_manager).save_manuscript(fake_pdf_file)
+
+            # remove previous source files relations already saved as historical files
+            # necessary to clear() when the version import files starts because
+            # there are two files preprintid.docx and submit.zip
+            self.action_manager.article.source_files.clear()
+
+            fake_tex_file = self.action_manager.create_minimal_djangofile(
+                f"{self.action_manager.preprintid}.tex", "tex"
+            )
+            ImportFileWebManager(self.action_manager).save_source(fake_tex_file, "tex")
+
+            # we want to create the fake source files sent by the author,
+            # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
+            fake_zip_file = self.action_manager.create_minimal_djangofile(
+                f"{self.action_manager.preprintid}.zip", "zip"
+            )
+            ImportFileWebManager(self.action_manager).save_source(fake_zip_file, "zip")
+
+        # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
+        # the original name of the attachment file is not imported but it is not relevant
+        if not production_version:
+            self.action_manager.article.data_figure_files.clear()
+        wjapp_attachments = self.action_manager.read_attachments_data()
+        wjapp_fake_prod_attachments = []
+        for dff_data in wjapp_attachments:
+            dff_dj = self.action_manager.create_minimal_djangofile(
+                f"{dff_data['attachID']}.{dff_data['attachFormat']}", f"{dff_data['attachFormat']}"
+            )
+            if production_version:
+                ta_assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+                    only_completed=False,
+                )
+                dff_file = files.save_file_to_article(
+                    dff_dj,
+                    self.action_manager.article,
+                    ta_assignment.typesetter,
+                )
+                dff_file.label = dff_data["attachType"]
+                dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
+                dff_file.save()
+                # for a production version, each attachment is as SF in a list
+                wjapp_fake_prod_attachments.append(SupplementaryFile.objects.create(file=dff_file))
+            else:
+                # in review version each attachments is saved as DFF
+                ImportFileWebManager(self.action_manager).save_data_figure_file(dff_dj, dff_data)
+
+        # if the production version is not of a published paper
+        # the prepared list is saved as SF list
+        if production_version and not self.action_manager.publicationid and wjapp_fake_prod_attachments:
+            self.action_manager.article.supplementary_files.set(wjapp_fake_prod_attachments)
+
+    def create_minimal_djangofile(self, filename: str, filetype: str) -> DjangoFile:
+        """
+        Create and return a minimal DjangoFile for the specified type.
+        Supported filetype values: 'pdf', 'tex', 'zip', 'tar.gz', 'tar', 'targz', 'jpg', 'jpeg', 'png'
+        """
+        ft = filetype.lower()
+        if ft == "pdf":
+            content = (
+                b"%PDF-1.1\n%\xE2\xE3\xCF\xD3\n1 0 obj\n"
+                b"<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                b"xref\n0 1\n0000000000 65535 f \n"
+                b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+            )
+            return DjangoFile(ContentFile(content), name=filename)
+
+        if ft == "tex":
+            tex_text = r"""\documentclass{article}
+\begin{document}
+Minimal TeX file.
+\end{document}
+"""
+            return DjangoFile(ContentFile(tex_text.encode("utf-8")), name=filename)
+
+        if ft in ("zip",):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("readme.txt", "Minimal ZIP content\n")
+            buf.seek(0)
+            return DjangoFile(ContentFile(buf.read()), name=filename)
+
+        if ft in ("tar.gz", "targz", "tar"):
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+                info = tarfile.TarInfo("readme.txt")
+                data = b"Minimal tar.gz content\n"
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+            buf.seek(0)
+            return DjangoFile(ContentFile(buf.read()), name=filename)
+
+        if ft in ("jpg", "jpeg"):
+            # Minimal valid JPEG (JFIF) header with no image data — decoders accept it as a small image.
+            jpeg = (
+                b"\xFF\xD8"  # SOI
+                b"\xFF\xE0\x00\x10"  # APP0 marker, length 16
+                b"JFIF\x00"  # Identifier
+                b"\x01\x01\x00\x00\x01\x00\x01\x00"  # Version, density, thumbnail
+                b"\xFF\xD9"  # EOI
+            )
+            return DjangoFile(ContentFile(jpeg), name=filename)
+
+        if ft == "png":
+            # Minimal valid PNG: signature + IHDR chunk (1x1, truecolor, no compression/filter/interlace)
+            # + IDAT empty + IEND
+            png = (
+                b"\x89PNG\r\n\x1a\n"
+                b"\x00\x00\x00\x0dIHDR"
+                b"\x00\x00\x00\x01"  # width:1
+                b"\x00\x00\x00\x01"  # height:1
+                b"\x08"  # bit depth
+                b"\x02"  # color type: truecolor
+                b"\x00\x00\x00"  # compression, filter, interlace
+                b"\x90wS\xde"  # CRC (precomputed for this IHDR)
+                b"\x00\x00\x00\x0aIDAT"
+                b"\x08\xd7c\xf8\x0f\x00\x01\x01\x01\x00"  # small deflate data (may be accepted)
+                b"\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+            return DjangoFile(ContentFile(png), name=filename)
+
+        # fallback: empty binary
+        return DjangoFile(ContentFile(b""), name=filename)
+
+    def file_fake_source_prod(self):
+        "save minimal fake targz file loaded by typesetter."
+
+        return self.action_manager.create_minimal_djangofile(f"{self.action_manager.preprintid}.tar.gz", "tar.gz")
+
+
+@dataclass
+class ImportFileWebManager:
+    """Data class that manages the import of the files from web site."""
+
+    # LEGACY. Needs validation before to use.
+
+    # This manager has as argument an instance of a subclass of BaseActionManager
+    # for example AuthorSubmitRevisionAction(BaseActionManager)
+    # corresponding to an action that must import the files of related version, for example
+    # the author revision submission of the version 2 of the preprintid JCAP_001P_0123
+    # Also the class manages the import of the edrep and rerep files.
+    action_manager: Optional["BaseActionManager"] = None  # obsolete syntax
+
+    def import_files_from_web(self, production_version=False):
+        """Downloads and save files for imported version."""
+
+        # TBV: action admin resets editor will be skip in the import. New version is created when
+        #     the editor is assigned. Verify that the import of the files is coerent in wjapp
+        # TODO: import files is different for imported_version_state_cod published
+        #       pubid.pdf instead of preprintid.pdf
+        #
+        # pdf published version pubid.pdf (no source): "PDF", "pdf",
+        #   JCOM_003N_0623/8/JCOM_2305_2024_N03.pdf&fileType=pdf
+        #
+        # published version: download tar.gz loaded by typesetter from previous version
+        #       JCOM_003N_0623/7/submission/JCOM_003N_0623.tar.gz
+        # TODO: also download and add (to be decided how) to the tar.gz from current_hidden
+        #       JCOM_003N_0623.tex which has the placeholders replaced
+        #
+        # download preprintid.docx, preprintid.pdf for not published version: "ZIP", "zip"
+        #   JCOM_003N_0623/7/JCOM_003N_0623.docx&fileType=docx
+        #   JCOM_003N_0623/7/JCOM_003N_0623.pdf&fileType=pdf
+        #
+        #   Note: to not loose other files like Figure1.docx submitted by the author
+        #         imported also as source file produduction/JCOM_003N_0623.zip which
+        #         contains submission/
+        #
+        # attachments read data from db for each attachment (no source file name)
+        #   JCOM_003N_0623/1/attachments/JCOM_011A_0623_ATTACH00060623.pdf&fileType=Table
+
+        # wjapp version state 22 is the published version
+        if self.action_manager.imported_version_state_cod == 22:
+            # we don't want to import files for the published version because the final
+            # galleys and supplementary are already imported when the published paper
+            # has been imported
+            return
+
+        elif production_version:
+            logger.debug(f"production version: {production_version}")
+            response_pdf_galley_prod = self.action_manager.download_pdf_galley_prod()
+
+            if response_pdf_galley_prod.headers["Content-Length"] != "0":
+                pdf_galley_prod_dj = file_from_response(
+                    response_pdf_galley_prod, f"{self.action_manager.preprintid}.pdf"
+                )
+                self.action_manager.save_pdf_galley(pdf_galley_prod_dj)
+
+        else:
+            known_missing_manuscript = {("JCOM_001E_0422", 1), ("JCOM_002A_0717", 1), ("JCOM_018A_0923", 1)}
+            if (self.action_manager.preprintid, self.action_manager.imported_version_num) in known_missing_manuscript:
+                logger.debug(
+                    f"{self.action_manager.preprintid} / {self.action_manager.imported_version_num} "
+                    f"(missing manuscript - known case)"
+                )
+            else:
+                response_manuscript = self.action_manager.download_manuscript()
+                if response_manuscript.headers["Content-Length"] != "0":
+                    manuscript_dj = file_from_response(response_manuscript, f"{self.action_manager.preprintid}.pdf")
+                    self.action_manager.save_manuscript(manuscript_dj)
+
+            # remove previous source files relations already saved as historical files
+            # necessary to clear() when the version import files starts because
+            # there are two files preprintid.docx and submit.zip
+            self.action_manager.article.source_files.clear()
+
+            (response_source, doc_type) = self.action_manager.download_source()
+            if response_source.headers["Content-Length"] != "0":
+                source_dj = file_from_response(response_source, f"{self.action_manager.preprintid}.{doc_type}")
+                self.action_manager.save_source(source_dj, doc_type)
+
+            # we want to download all the source files sent by the author,
+            # e.g. JCOM_008A_0125: Figure1.docx, Figure2.docx ...
+            (response_source_compressed, doc_type_compressed) = (
+                self.action_manager.download_source_compressed_archive()
+            )
+            if response_source_compressed.headers["Content-Length"] != "0":
+                # returns a zip "submit.zip" containing only the  subdirectory "submission/" of the production zip
+                # with the originals files sent by the author
+                submit_source_compressed_dj = self.action_manager.extract_subdirectory_to_zip(
+                    response_source_compressed,
+                    f"{self.action_manager.preprintid}/submission/",
+                    f"submit.{doc_type_compressed}",
+                )
+                self.action_manager.save_source(submit_source_compressed_dj, doc_type_compressed)
+
+        # read attachments data from wjapp and save each esm with the same format, pdf, zip, ...
+        # the original name of the attachment file is not imported but it is not relevant
+
+        if not production_version:
+            self.action_manager.article.data_figure_files.clear()
+        wjapp_attachments = self.action_manager.read_attachments_data()
+        wjapp_prod_attachments = []
+        for dff_data in wjapp_attachments:
+            dff_response = self.action_manager.download_wjapp_attachment(dff_data)
+            if dff_response.headers["Content-Length"] != "0":
+                dff_dj = file_from_response(dff_response, f"{dff_data['attachID']}.{dff_data['attachFormat']}")
+                if production_version:
+                    ta_assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+                        only_completed=False,
+                    )
+                    dff_file = files.save_file_to_article(
+                        dff_dj,
+                        self.action_manager.article,
+                        ta_assignment.typesetter,
+                    )
+                    dff_file.label = dff_data["attachType"]
+                    dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
+                    dff_file.save()
+                    # for a production version, each attachment is as SF in a list
+                    wjapp_prod_attachments.append(SupplementaryFile.objects.create(file=dff_file))
+                else:
+                    # in review version each attachments is saved as DFF
+                    self.action_manager.save_data_figure_file(dff_dj, dff_data)
+
+        # if the production version is not of a published paper
+        # the prepared list is saved as SF list
+        if production_version and not self.action_manager.publicationid and wjapp_prod_attachments:
+            self.action_manager.article.supplementary_files.set(wjapp_prod_attachments)
+
+    def extract_subdirectory_to_zip(self, response, subdirectory, name):
+        """return a DF zip containing only the subdirectory"""
+
+        memory_zip = BytesIO()
+
+        with zipfile.ZipFile(BytesIO(response.content), "r") as zip_ref:
+            # Create a new ZIP file in memory
+            with zipfile.ZipFile(memory_zip, "w") as new_zip:
+                # List all files in the zip file
+                for file_info in zip_ref.infolist():
+                    # Check if the file is in the specified subdirectory i.e. JCOM_002N_1122/submission/
+                    logger.debug(f"file name: {file_info} {subdirectory}")
+                    if file_info.filename.startswith(subdirectory):
+                        try:
+                            # Read the file into memory
+                            with zip_ref.open(file_info.filename) as file:
+                                # Read the content safely
+                                content = file.read()
+
+                                # Write the file to the new ZIP archive in memory
+                                new_zip.writestr(file_info.filename, content)
+
+                        except Exception as e:
+                            logger.error(f"Error processing file {file_info.filename}: {e}")
+                            raise ValueError("Error processing file")
+
+        return DjangoFile(memory_zip, name)
+
+    # manuscript
+    def download_manuscript(self):
+        """Download pdf manuscript for imported version."""
+
+        file_url = (
+            f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/"
+            f"{self.action_manager.preprintid}.pdf&fileType=pdf"
+        )
+        logger.debug(f"{file_url=}")
+        response = self.action_manager.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty file pdf downloaded: {response.headers['Content-Length']}"
+            )
+            raise ValueError("Empty pdf downloaded")
+        return response
+
+    # production version files
+
+    def download_pdf_galley_prod(self):
+        """Download pdf galley for production imported version."""
+
+        file_url = (
+            f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/{self.action_manager.preprintid}.pdf&fileType=pdf"
+        )
+
+        if self.action_manager.preprintid == "JCOM_003A_0615" and self.action_manager.imported_version_num == 5:
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}"
+                f"/publication/currentHidden/{self.action_manager.preprintid}.pdf&fileType=pdf"
+            )
+            logger.warning(
+                f"used currentHidden/JCOM_003A_0615.pdf for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (fix file name - known case)."
+            )
+
+        logger.debug(f"{file_url=}")
+        response = self.action_manager.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty pdf galley downloaded: {response.headers['Content-Length']}"
+            )
+            raise ValueError("Empty pdf galley downloaded")
+        return response
+
+    def save_pdf_galley(self, pdf_galley_dj):
+        """Save PDF production version in TA.galleys_created"""
+
+        assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+            only_completed=False
+        )
+
+        # necessary to avoid errors until action "back to typesetter"
+        # is implemented, if action TYP_UPLOADS_FOR_PM happens twice like
+        # in JCOM_017A_0624
+        assignment.galleys_created.clear()
+
+        assert not assignment.galleys_created.exists(), (
+            f"We have {assignment.galleys_created.count()} galleys on the TA "
+            f"for round {assignment.round.round_number}. Expected none!"
+        )
+
+        pdf_galley_file = files.save_file_to_article(
+            pdf_galley_dj,
+            self.action_manager.article,
+            assignment.typesetter,
+        )
+        pdf_galley = Galley.objects.create(
+            file=pdf_galley_file, label="PDF", type="pdf", article=self.action_manager.article, public=False
+        )
+        assignment.galleys_created.add(pdf_galley)
+
+        assignment.round.article.articleworkflow.save()
+
+        return
+
+    # production version source TARGZ
+    def file_source_prod(self):
+
+        # typesetter uploaded a docx replaced with empty tar.gz
+        missing_cases = {
+            ("JCOM_004C_1020", 3),
+        }
+        if (self.action_manager.preprintid, self.action_manager.imported_version_num) in missing_cases:
+            logger.warning(
+                f"for {self.action_manager.preprintid}/{self.action_manager.imported_version_num} "
+                f"- docx source prod tar.gz known case"
+            )
+            empty_source_prod_dj = DjangoFile(BytesIO(b""), f"{self.action_manager.preprintid}.tar.gz")
+            return empty_source_prod_dj
+
+        (response_source_prod, file_type) = self.action_manager.download_source_prod()
+        if response_source_prod.headers["Content-Length"] != "0":
+            if file_type == "tar.gz":
+                source_prod_dj = file_from_response(
+                    response_source_prod, f"{self.action_manager.preprintid}.{file_type}"
+                )
+            elif file_type == "tex":
+                source_prod_dj = build_targz_archive_from_tex_response(
+                    response_source_prod, f"{self.action_manager.preprintid}"
+                )
+        return source_prod_dj
+
+    def download_source_prod(self):
+        """Download tar gz source from production imported version."""
+
+        file_url = (
+            f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/"
+            f"submission/{self.action_manager.preprintid}.tar.gz&fileType=gz"
+        )
+
+        # preprintid of file different from the preprintid of article due to
+        # wjapp maintenance change of article type or other type of manual maintenance
+
+        if self.action_manager.preprintid == "JCOM_003C_0622" and self.action_manager.imported_version_num in (2, 3):
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/JCOM_002E_0622.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_002E_0622.tar.gz for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (change preprint type - known case)."
+            )
+        if self.action_manager.preprintid == "JCOM_001C_0922" and self.action_manager.imported_version_num == 3:
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/JCOM_001E_0922.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_001E_0922.tar.gz for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (change preprint type - known case)."
+            )
+        if self.action_manager.preprintid == "JCOM_004N_0918" and self.action_manager.imported_version_num in (3, 4):
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/JCOM_001C_0918.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_001C_0918.tar.gz for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (change preprint type - known case)."
+            )
+
+        if self.action_manager.preprintid == "JCOM_005A_1116" and self.action_manager.imported_version_num == 3:
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/JCOM_002A_1216.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_002A_1216.tar.gz for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (change preprint type - known case)."
+            )
+
+        if self.action_manager.preprintid == "JCOM_013A_0215" and self.action_manager.imported_version_num == 3:
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/JCOM_1402_2015_A-king-proof.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_1402_2015_A-king-proof.tar.gz for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (change preprint type - known case)."
+            )
+
+        if self.action_manager.preprintid == "JCOM_008A_0215" and self.action_manager.imported_version_num == 4:
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/JCOM_402_2015_A03.tar.gz&fileType=gz"
+            )
+            logger.warning(
+                f"used JCOM_402_2015_A03.tar.gz for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (- known case)."
+            )
+
+        special_cases = {
+            ("JCOMAL_003A_0520", 4): "JCOMAL_001N_0520.tar.gz",
+            ("JCOMAL_003A_0520", 5): "JCOMAL_001N_0520.tar.gz",
+            ("JCOMAL_001A_1118", 3): "JCOMAL-Orozco.v2.tar.gz",
+            ("JCOMAL_001A_1118", 4): "JCOMAL-Orozco.v3.tar.gz",
+            ("JCOMAL_002A_1118", 3): "JCOMAL-Marandino_et_al.v2.1.tar.gz",
+            ("JCOMAL_002A_1118", 4): "JCOMAL-Marandino_et_al.v3.tar.gz",
+            ("JCOMAL_003A_1118", 4): "JCOMAL_003A_1118-proof.tar.gz",
+            ("JCOMAL_003A_1118", 5): "JCOMAL-Da_Silva_Lima_Moschem.v3.tar.gz",
+            ("JCOMAL_004A_1118", 4): "JCOMAL_003A_1118-proof.tar.gz",
+            ("JCOMAL_004A_1118", 5): "JCOMAL-Costa-v3.tar.gz",
+            ("JCOMAL_001Y_1118", 2): "JCOMAL_001Y_1118-proof.tar.gz",
+            ("JCOMAL_001Y_1118", 3): "JCOMAL-CastilhosAlmeida-v3.tar.gz",
+            ("JCOMAL_002Y_1118", 3): "JCOMAL-Cortassa.v2.tar.gz",
+            ("JCOMAL_002Y_1118", 4): "JCOMAL-Cortassa.v3.tar.gz",
+            ("JCOMAL_001R_1118", 2): "JCOMAL-Poenaru.v2.tar.gz",
+            ("JCOMAL_005A_1118", 3): "JCOMAL-NegreteRosenblatt.v2.tar.gz",
+            ("JCOMAL_006A_1118", 4): "JCOMAL_006A_1118-proof.tar.gz",
+            ("JCOMAL_006A_1118", 5): "JCOMAL-Lima.v3.tar.gz",
+            ("JCOMAL_004A_0320", 4): "JCOMAL_001N_0320.tar.gz",
+            ("JCOMAL_004A_0320", 5): "JCOMAL_001N_0320.tar.gz",
+            ("JCOMAL_001A_1018", 4): "JCOMAL_001A_1018-proof.tar.gz",
+            ("JCOMAL_001A_1018", 5): "JCOMAL-Massarani-v4.tar.gz",
+        }
+        if (self.action_manager.preprintid, self.action_manager.imported_version_num) in special_cases.keys():
+            fixed_filename = special_cases[(self.action_manager.preprintid, self.action_manager.imported_version_num)]
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/{fixed_filename}&fileType=gz"
+            )
+            logger.warning(
+                f"used {fixed_filename} for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (- known case)."
+            )
+
+        file_type = "tar.gz"
+        logger.debug(f"production source: {file_url=}")
+        response = self.action_manager.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.warning(
+                f"production submission tar.gz empty file: {self.action_manager.article.id} / "
+                f"{self.action_manager.preprintid} try tex format"
+            )
+            file_url = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/"
+                f"submission/{self.action_manager.preprintid}.tex&fileType=tex"
+            )
+            response = self.action_manager.session.get(file_url)
+            assert response.status_code == 200, f"Got {response.status_code}!"
+            file_type = "tex"
+            logger.debug(f"production source: {file_url=}")
+            if response.headers["Content-Length"] == "0":
+                logger.error(
+                    f"production submission: also tex empty file downloaded: {self.action_manager.article.id} "
+                    f"/ {self.action_manager.preprintid}"
+                )
+                raise ValueError("Tex empty file downloaded")
+        return (response, file_type)
+
+    # review files
+
+    def download_source(self):
+        """Download docx/doc source for imported version."""
+
+        doc_type = "docx"
+        url_first_part = (
+            f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/{self.action_manager.preprintid}"
+        )
+        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+
+        special_cases = {("JCOMAL_001A_1218", 1)}
+        if (self.action_manager.preprintid, self.action_manager.imported_version_num) in special_cases:
+            url_first_part = (
+                f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/submission/00-art_div_vf"
+            )
+            file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+            logger.warning(
+                f"used 00-art_div_vf.docx for {self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num} (data problem on wjapp- known case)."
+            )
+
+        logger.debug(f"{file_url=}")
+        response = self.action_manager.session.get(file_url)
+
+        if response.status_code == 200:
+            if response.headers["Content-Length"] == "0":
+                logger.debug(
+                    f"check wjapp login data empty file {doc_type} downloaded: {response.headers['Content-Length']}"
+                )
+            else:
+                return (response, doc_type)
+        else:
+            logger.warning(f"With docx got {response.status_code}!")
+
+        # try with doc instead of docx
+        doc_type = "doc"
+        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+        logger.debug(f"retry with {doc_type} {file_url=}")
+        response = self.action_manager.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+
+        if response.headers["Content-Length"] == "0":
+            logger.error(
+                f"check wjapp login credentials empty file {doc_type} downloaded: {response.headers['Content-Length']}"
+            )
+            raise ValueError("Empty doc/docx file downloaded")
+        return (response, doc_type)
+
+    def regenerate_production_archives(self):
+        """Necessary to regenerate the production archives."""
+
+        # Before to download the production zip it could be necessary to regenerate it.
+        # It is done doing a request to the preprint wjapp "All versions" page
+        # without to read the response, e.g. url:
+        # https://jcom.sissa.it/jcom/admin/docPage.jsp?docPgType=versions&docId=JCOM_001A_0823
+        #
+        # To read the response is not important, but wjapp server seems randomly
+        # to "chunck" it, therefore has been except ChunkedEncodingError and only logged it as ERROR.
+        # This exception does not block the regeneration of the production archives, which is the
+        # reason of the request.
+
+        # i.e. JCOM_014A_0524: broken wjapp version page repaired on wjapp side.
+        # This problem is independent by the management of the exception ChunkedEncodingError
+
+        file_url_versions_page = (
+            f"{self.action_manager.session.login_base_url}/admin/docPage.jsp?"
+            f"docPgType=versions&docId={self.action_manager.preprintid}"
+        )
+        try:
+            response = self.action_manager.session.get(file_url_versions_page)
+            assert response.status_code == 200, f"Got {response.status_code}!"
+        except requests.exceptions.ChunkedEncodingError:
+            # known cases: JCOM_003A_0724 JCOM_004N_1024 JCOM_008A_0125 JCOM_014A_0524
+            logger.error(f"Exception: ChunkedEncodingError {file_url_versions_page}")
+            raise RuntimeError("ChunkedEncodingError ")
+
+    def download_source_compressed_archive(self):
+        """Download compressed zip with submission folder for imported version."""
+
+        doc_type = "zip"
+        url_first_part = (
+            f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/production/{self.action_manager.preprintid}"
+        )
+        file_url = f"{url_first_part}.{doc_type}&fileType={doc_type}"
+        logger.debug(f"{file_url=}")
+        response = self.action_manager.session.get(file_url)
+
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.warning(
+                f"check data empty file {doc_type} downloaded: {response.headers['Content-Length']} try regeneration "
+            )
+            # the regeneration of the zip archive could be necessary also after the
+            # first wjapp version, if for example the zip file is missing only in version 2
+            # if the zip files have already been regenerated this if branch is not executed
+            # in the next versions
+            self.action_manager.regenerate_production_archives()
+            logger.debug(
+                f"production archives regenerated during import of version {self.action_manager.imported_version_num}"
+            )
+            response = self.action_manager.session.get(file_url)
+            if response.headers["Content-Length"] == "0":
+                logger.error(
+                    f"check wjapp login data empty file {doc_type}downloaded: {response.headers['Content-Length']}"
+                )
+                raise ValueError("Empty zip downloaded")
+        return (response, doc_type)
+
+    def save_manuscript(self, manuscript_dj):
+        """Save PDF manuscript"""
+
+        # remove previous files relations already saved as historical files
+        # the manuscript has only the current files
+        self.action_manager.article.manuscript_files.clear()
+
+        manuscript_file = files.save_file_to_article(
+            manuscript_dj,
+            self.action_manager.article,
+            self.action_manager.article.correspondence_author,
+        )
+        self.action_manager.article.manuscript_files.add(manuscript_file)
+        manuscript_file.label = "PDF"
+        manuscript_file.description = ""
+        manuscript_file.save()
+        self.action_manager.article.save()
+
+        return
+
+    def save_source(self, source_dj, doc_type):
+        """Save docx/doc as source file"""
+
+        # there is more than one source file for version, therefore
+        # they are not clear()
+
+        source_file = files.save_file_to_article(
+            source_dj,
+            self.action_manager.article,
+            self.action_manager.article.correspondence_author,
+        )
+        self.action_manager.article.source_files.add(source_file)
+        source_file.label = doc_type.upper()
+        source_file.description = ""
+        source_file.save()
+        self.action_manager.article.save()
+
+        return
+
+    # wjapp attachments - data figurs files
+    def download_wjapp_attachment(self, dff_data):
+        """Download one wjapp attachment for imported version."""
+
+        # url ex: JCOM_001A_0524/2/attachments/JCOM_001A_0524_ATTACH00360924.docx&fileType=Attachment
+
+        url_end_part = f"{dff_data['attachID']}.{dff_data['attachFormat']}&fileType={dff_data['attachType']}"
+        file_url = (
+            f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/attachments/{url_end_part}"
+        )
+        logger.debug(f"{file_url=}")
+        response = self.action_manager.session.get(file_url)
+        assert response.status_code == 200, f"Got {response.status_code}!"
+        if response.headers["Content-Length"] == "0":
+            logger.error(f"check wjapp login credentials empty DFF downloaded: {response.headers['Content-Length']}")
+            raise ValueError("Empty DFF downloaded")
+        return response
+
+    def save_data_figure_file(self, dff_dj, dff_data):
+        """Save wjapp attachment as data figure file"""
+
+        dff_file = files.save_file_to_article(
+            dff_dj,
+            self.action_manager.article,
+            self.action_manager.article.correspondence_author,
+        )
+        self.action_manager.article.data_figure_files.add(dff_file)
+        dff_file.label = dff_data["attachType"]
+        dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
+        dff_file.save()
+        self.action_manager.article.save()
+
+        return
