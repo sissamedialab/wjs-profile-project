@@ -15,6 +15,7 @@ urlpatterns = [
     path("profile/password/", views.ProfilePasswordEditView.as_view(), name="core_edit_profile_password"),
     path("profile/info/", views.ProfileAdditionalEditView.as_view(), name="core_edit_profile_additional"),
     path("profile/interests/", views.ProfileInterestsEditView.as_view(), name="core_edit_profile_interests"),
+    path("profile/affiliations/", views.ProfileAffiliationsEditView.as_view(), name="core_edit_profile_affiliations"),
     path("register/step/1/", views.register, name="core_register"),
     re_path(
         r"^register/activate/gdpr/(?P<token>.+)/",
