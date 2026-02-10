@@ -3612,6 +3612,7 @@ class ConvertManuscriptToPdf:
         This is used to control the position of the watermark that yakunin overlays on the PDF and what to write on it.
 
         """
+        extra_config = getattr(settings, "YAKUNIN_CONFIG", "")
         # Warning: we can be called during submission, in which case there exists no version of the paper, so we are
         # generating the first PDF (v1) or we can be called during the revision-submission process. In the second case,
         # a version already exists, and we are working on the PDF for the next version (that will be created when the
@@ -3622,11 +3623,12 @@ class ConvertManuscriptToPdf:
             # the first submission phase.
             version_number += 1
         ini_content = f"""
-    [wjs]
-    text = Not for distribution {self.article.journal.code} {self.article.id} v{version_number}
-    x = {settings.WATERMARK_X_POSITION}
-    y = {settings.WATERMARK_Y_POSITION}
-    """
+[wjs]
+text = Not for distribution {self.article.journal.code} {self.article.id} v{version_number}
+x = {settings.WATERMARK_X_POSITION}
+y = {settings.WATERMARK_Y_POSITION}
+{extra_config}
+"""
 
         ini_file = BytesIO(ini_content.encode("utf-8"))
         ini_file.name = "wj.ini"
