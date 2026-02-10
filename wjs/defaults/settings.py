@@ -380,6 +380,13 @@ PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
 JCOMASSISTANT_URL = "http://wjs-services.ud.sissamedialab.it:1234/jcomassistant/"
 YAKUNIN_URL = "http://wjs-services.ud.sissamedialab.it:1235/watermark/"
 
+# Extra configuration to be added to the .ini file sent to yakunin
+# for the compilation of submitted files.
+# See also kwargs used in yakunin.archive.
+YAKUNIN_CONFIG = """
+timeout_compilation = 131
+"""
+
 # Useful in development: set this to the path of a file that mimics what Jcomassistant would generate.
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
 JCOMASSISTANT_MOCK_FILE = ""
