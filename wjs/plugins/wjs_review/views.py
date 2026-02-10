@@ -59,7 +59,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
-from wjs.jcom_profile.mixins import HtmxMixin
+from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
 from wjs.jcom_profile.models import IssueParameters
 from wjs.jcom_profile.utils import get_eo_user
 
@@ -123,7 +123,6 @@ from .mixins import (
     AuthenticatedUserPassesTest,
     EditorRequiredMixin,
     OpenReviewMixin,
-    PaginatedViewMixin,
     ReviewerRequiredMixin,
 )
 from .models import (
