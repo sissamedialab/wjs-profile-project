@@ -150,18 +150,3 @@ class OpenReviewMixin(DetailView):
 class ArticleAssignedEditorMixin:
     def get_queryset(self) -> QuerySet[ArticleWorkflow]:
         return super().get_queryset().filter(article__editorassignment__editor=self.request.user)
-
-
-class PaginatedViewMixin:
-    """Mixin to provide querystring to the context for pagination template."""
-
-    def get_context_data(self, **kwargs) -> Context:
-        context = super().get_context_data(**kwargs)
-        context["querystring"] = self._clean_querystring()
-        return context
-
-    def _clean_querystring(self):
-        querystring = self.request.GET.copy()
-        if "page" in querystring:
-            del querystring["page"]
-        return querystring

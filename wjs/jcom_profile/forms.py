@@ -16,6 +16,7 @@ from django.utils.functional import cached_property
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from easy_select2.widgets import Select2Multiple
+from identifiers.models import identifier_choices
 from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
 from journal.models import ArticleOrdering, Issue
@@ -49,7 +50,8 @@ logger = get_logger(__name__)
 
 
 class GDPRAcceptanceForm(forms.Form):
-    """A GDPR form, consisting in a checkbox.
+    """
+    A GDPR form, consisting in a checkbox.
 
     It is sued by JCOMRegistrationForm to let user explicitly accept
     the GDPR Policy.
@@ -79,7 +81,7 @@ def _get_privacy_url(journal):
 
 
 def validate_orcid(value):
-    """Validator for ORCID ID format xxxx-xxxx-xxxx-xxxx"""
+    """Validator for ORCID ID format xxxx-xxxx-xxxx-xxxx."""
     # ORCID format is XXXX-XXXX-XXXX-XXXX where X can be 0-9 or X
     # The last character can be 'X' which is used as a checksum
     pattern = re.compile(ORCID_VALIDATION_REGEXP)
@@ -114,7 +116,7 @@ class JCOMProfileForm(EditAccountForm):
                 "title": _("Please provide the ORCID using only the id notation: 0000-0000-0000-0000"),
                 "minlength": "19",
                 "maxlength": "19",
-            }
+            },
         ),
         required=False,
     )
@@ -154,7 +156,8 @@ class JCOMProfileForm(EditAccountForm):
 
 
 class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
-    """A form that creates a user.
+    """
+    A form that creates a user.
 
     With no privileges, from the given username and password.
 
@@ -246,7 +249,7 @@ class UpdateAssignmentParametersForm(forms.ModelForm):
 
         kwds = self.cleaned_data["keywords"]
         for kwd in kwds:
-            through, _ = StaffKeyword.objects.get_or_create(keyword=kwd, parameters=instance)
+            StaffKeyword.objects.get_or_create(keyword=kwd, parameters=instance)
             # don't look at weight, because the editor does not set it
             # (it is managed by the director).
             # ... through.weight = ...
@@ -297,7 +300,8 @@ EditorKeywordFormset = inlineformset_factory(
 
 
 class IMUForm(forms.Form):
-    """Import Many Users.
+    """
+    Import Many Users.
 
     Let the op upload a spreadsheet with author/title data.
     """
@@ -370,7 +374,8 @@ class IMUEditExistingAccounts(forms.ModelForm):
 
 
 class IMUHelperForm(forms.Form):
-    """Form to help in the validation of user data from step 2 used in step 3.
+    """
+    Form to help in the validation of user data from step 2 used in step 3.
 
     Fields should agree with fields of core.Account collected from the ods.
     """
@@ -434,7 +439,8 @@ class NewsletterTopicForm(forms.ModelForm):
             del self.fields["language"]
 
     def clean(self):
-        """Log a warning if the user choose no topics and no news.
+        """
+        Log a warning if the user choose no topics and no news.
 
         We do _not_ raise a Validation error untill specs#474 is done.
         """
@@ -475,7 +481,7 @@ class SearchForm(JanewaySearchForm):
         required=False,
     )
     sections = forms.ModelMultipleChoiceField(
-        label=_("Filter by section"),
+        label=_("Filter by article type"),
         queryset=Section.objects.all(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
@@ -497,6 +503,42 @@ class SearchForm(JanewaySearchForm):
         choices=[(item, item) for item in (10, 25, 50, 100)],
     )
     page = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    # Advanced Search Form
+    article_identifier = forms.CharField(
+        label=_("Article identifier"),
+        min_length=3,
+        max_length=100,
+        required=False,
+    )
+    identifier_type = forms.ChoiceField(
+        label=_("Identifier type"),
+        choices=identifier_choices,
+        required=False,
+    )
+    article_title = forms.CharField(
+        label=_("Article title"),
+        min_length=3,
+        max_length=100,
+        required=False,
+    )
+    article_abstract = forms.CharField(
+        label=_("Article abstract"),
+        required=False,
+    )
+    article_authors = forms.CharField(
+        label=_("Article authors"),
+        required=False,
+    )
+    date_from = forms.DateField(
+        label=_("From"),
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    date_to = forms.DateField(
+        label=_("To"),
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
 
     def __init__(self, *args, **kwargs):
         """Populate the sections and keywords queryset."""
@@ -523,23 +565,33 @@ class SearchForm(JanewaySearchForm):
             .order_by("word")
         )
 
-    def get_search_filters(self):
-        """Generates a dictionary of search_filters from a search form"""
-        return {
-            "full_text": self.cleaned_data["article_search"],
-            "title": self.cleaned_data["article_search"],
-            "authors": self.cleaned_data["article_search"],
-            "abstract": self.cleaned_data["article_search"],
-            "keywords__word": self.cleaned_data["article_search"],
-            "orcid": self.cleaned_data["article_search"],
-        }
+    def get_search_filters(self) -> dict[str, str]:
+        """Generate a dictionary of search_filters from a search form."""
+        if self.cleaned_data.get("article_search"):
+            return {
+                "full_text": self.cleaned_data["article_search"],
+                "title": self.cleaned_data["article_search"],
+                "authors": self.cleaned_data["article_search"],
+                "abstract": self.cleaned_data["article_search"],
+                "keywords__word": self.cleaned_data["article_search"],
+                "orcid": self.cleaned_data["article_search"],
+            }
+        return {}
+
+    def get_author_filter(self) -> dict[str, str]:
+        """Generate the search filter for authors field."""
+        if self.cleaned_data.get("article_authors"):
+            return {"authors": self.cleaned_data.get("article_authors")}
+        return {}
 
     @cached_property
-    def has_filter(self):
-        """Determines if the user has selected at least one search filter
+    def has_filter(self) -> bool:
+        """
+        Determine if the user has selected at least one search filter.
+
         :return: Boolean indicating if there are any search filters selected
         """
-        return self.data.get("article_search", "")
+        return bool(self.data.get("article_search", "") or self.data.get("article_authors", ""))
 
     def clean_year(self):
         """Check if the year is a valid year."""
@@ -566,9 +618,7 @@ class SearchForm(JanewaySearchForm):
 class IssueModelChoiceField(forms.ModelChoiceField):
 
     def label_from_instance(self, obj):
-        """
-        Return a value as it should appear when rendered in a template.
-        """
+        """Return a value as it should appear when rendered in a template."""
         if obj is None:
             return None
         return display_title(obj)
@@ -633,7 +683,8 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
     def clean_keywords(self):
         keywords = self.cleaned_data.get("keywords")
         keywords_limits = settings.WJS_ARTICLE_KEYWORDS_LIMITS.get(
-            self.instance.journal, settings.WJS_ARTICLE_KEYWORDS_LIMITS.get(None)
+            self.instance.journal,
+            settings.WJS_ARTICLE_KEYWORDS_LIMITS.get(None),
         )
         if len(keywords) < keywords_limits["min"]:
             raise forms.ValidationError(_(f"You must select at least {keywords_limits['min']} keywords."))
@@ -670,7 +721,9 @@ class KeywordSelectionArticleInfoSubmit(ArticleInfoSubmit):
                         field_answer.save()
                     except submission_models.FieldAnswer.DoesNotExist:
                         field_answer = submission_models.FieldAnswer.objects.create(
-                            article=instance, field=field, answer=answer
+                            article=instance,
+                            field=field,
+                            answer=answer,
                         )
 
             if self.pop_disabled_fields:
@@ -688,6 +741,6 @@ class WjsArticleStart(ArticleStart):
         label=_("Competing interests"),
         height="15rem",
         help_text=_(
-            "If you have any conflict of interests in the publication of this article please state them here."
+            "If you have any conflict of interests in the publication of this article please state them here.",
         ),
     )
