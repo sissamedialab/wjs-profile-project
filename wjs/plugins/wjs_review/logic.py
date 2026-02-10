@@ -4583,13 +4583,14 @@ class ConvertReviewerLatexReport:
 
 @dataclasses.dataclass
 class AccessModeSpecialRequestNotification:
+    # TODO specs#2157: convert to submission-check and create attention condition
     submission_data: ArticleSubmission
 
     def _check_conditions(self):
         return self.submission_data.special_request
 
     def _send_notification(self):
-        """Logs a message to the typesetter containing information about the withdrawal."""
+        """Log a message to the EO containing information about a special request related to access-mode."""
         from utils.management.commands.test_fire_event import create_fake_request
 
         fake_request = create_fake_request(user=None, journal=self.submission_data.article.journal)
