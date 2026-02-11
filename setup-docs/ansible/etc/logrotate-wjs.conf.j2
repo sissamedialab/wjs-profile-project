@@ -1,0 +1,8 @@
+/home/wjs/janeway-{{ instance_name }}/logs/*log {
+   rotate 2
+   missingok
+   sharedscripts
+   postrotate
+      /usr/bin/systemctl --user --machine wjs@.host reload gunicorn-{{ instance_name }}.service 2>/dev/null || true
+   endscript
+}

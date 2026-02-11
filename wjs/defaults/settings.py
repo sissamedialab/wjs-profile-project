@@ -276,7 +276,12 @@ WJAPP_JCOMAL_IMPORT_CONNECTION_PARAMS = {
     "host": "",
     "database": "",
 }
-
+WJAPP_JCAP_IMPORT_CONNECTION_PARAMS = {
+    "user": "",
+    "password": "",
+    "host": "",
+    "database": "",
+}
 
 # http wjapp login data to import files from wjapp
 # (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
@@ -298,6 +303,11 @@ WJAPP_JCOMAL_IMPORT_LOGIN_PARAMS = {
 # base url for files import from wjapp (one for journal)
 WJAPP_JCOM_BASE_URL = "https://old.wjapp.it/jcom/common/archiveFile?filePath="
 WJAPP_JCOMAL_BASE_URL = "https://old.wjapp.it/jcomal/common/archiveFile?filePath="
+
+
+# JCAP settings for import files from the filesystem
+WJAPP_JCAP_IMPORT_ARCHIVE_CURRENT = ""
+WJAPP_JCAP_IMPORT_ARCHIVE_OLD = ""
 
 
 NO_NOTIFICATION = False
@@ -381,6 +391,13 @@ PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
 
 JCOMASSISTANT_URL = "http://wjs-services.ud.sissamedialab.it:1234/jcomassistant/"
 YAKUNIN_URL = "http://wjs-services.ud.sissamedialab.it:1235/"
+
+# Extra configuration to be added to the .ini file sent to yakunin
+# for the compilation of submitted files.
+# See also kwargs used in yakunin.archive.
+YAKUNIN_CONFIG = """
+timeout_compilation = 131
+"""
 
 # Useful in development: set this to the path of a file that mimics what Jcomassistant would generate.
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
