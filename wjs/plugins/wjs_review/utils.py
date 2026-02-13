@@ -94,7 +94,7 @@ def get_report_form(journal_code: str):
 
 
 def remove_existing_files_from_filesystem(article_id: int, filename: str):
-    """Delete from the filesystem all the files with a given name and relate to a given article"""
+    """Delete from the filesystem all the files with a given name and relate to a given article."""
     files = core_models.File.objects.filter(article_id=article_id, original_filename=filename)
     for file in files:
         file.delete()

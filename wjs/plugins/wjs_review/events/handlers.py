@@ -4,8 +4,6 @@ Handlers functions.
 Generally registered onto some event in the `app` module.
 """
 
-from typing import Optional
-
 import html2text
 from django.conf import settings
 from django.core.cache import cache as django_cache
@@ -327,27 +325,37 @@ def clean_prophy_candidates(**kwargs) -> None:
 
 def _run_conversion(
     article_id: int,
-    feedback_ws_url: Optional[str] = None,
-    feedback_ws_name: Optional[str] = None,
+    feedback_ws_url: str | None = None,
+    feedback_ws_name: str | None = None,
+    *,
+    is_revision: bool = False,
 ):
     conversion = ConvertManuscriptToPdf(
         article_id=article_id,
         feedback_ws_url=feedback_ws_url,
         feedback_ws_name=feedback_ws_name,
+        is_revision=is_revision,
     )
     conversion.run()
 
 
 def convert_manuscript_to_pdf(**kwargs) -> None:
-    """This responds to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
+    """Respond to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
     article = kwargs["article"]
     file_type = kwargs["file_type"]
-    feedback_ws_url = kwargs.get("feedback_ws_url", None)
-    feedback_ws_name = kwargs.get("feedback_ws_name", None)
+    feedback_ws_url = kwargs.get("feedback_ws_url")
+    feedback_ws_name = kwargs.get("feedback_ws_name")
+    is_revision = kwargs.get("is_revision", False)
 
     if file_type.startswith("manuscript"):
         if file_type.endswith(":async"):
-            async_task(_run_conversion, article.pk, feedback_ws_url, feedback_ws_name)
+            async_task(
+                _run_conversion,
+                article_id=article.pk,
+                feedback_ws_url=feedback_ws_url,
+                feedback_ws_name=feedback_ws_name,
+                is_revision=is_revision,
+            )
         else:
             _run_conversion(article.pk)
     elif file_type == "data":

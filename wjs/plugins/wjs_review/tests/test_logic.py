@@ -3057,8 +3057,16 @@ def test_handle_multiple_revision_request_with_author_submission(
     assert form.is_valid()
     form.save()
 
+    # TODO specs#2347: remove the lines and fix revision initialization
     author = assigned_article.correspondence_author
     handler = AuthorHandleRevisionObsolete(revision=revision, form_data=form_data, user=author, request=fake_request)
+
+    # specs#2347 handler = AuthorHandleRevision(request=fake_request, article=assigned_article)
+    # specs#2347 handler.run()
+    # specs#2347 assigned_article.refresh_from_db()
+    # specs#2347 plugins.wjs_submission.revision.logic.SetupRevisionStorageFull()
+    # specs#2347 ...
+
     handler.run()
     assigned_article.refresh_from_db()
 

@@ -1791,6 +1791,24 @@ class AuthorHandleRevision:
         if section := self.revision_storage.data.get("section"):
             self.article.section_id = section
 
+        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+            # store cas, das and files
+            self.article.submission_data.cas = self.revision_storage.data.get("cas")
+            self.article.submission_data.das = self.revision_storage.data.get("das")
+
+            # files
+            # (remember that the files from the previous version have already been saved to revision-request
+            # object when the revision was requested by the editor)
+            self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
+            self.article.source_files.set([self.revision_storage.data["source_files"]])
+
+            # data-figure and supplementary files:
+            # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
+            self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
+            self.article.supplementary_files.set(self.revision_storage.data["supplementary_files"])
+
+            # TODO: specs#2330 probably nothing to do for "administrative files"
+
         self.revision.save()
         self.article.submission_data.save()
         self.article.save()
@@ -1807,10 +1825,6 @@ class AuthorHandleRevision:
                 )
 
         self.revision_storage.delete()
-
-        # To be continued...
-        if not self.revision_storage.data.get("confirm_previous_version"):
-            logger.critical("NON-CPV REVISION SUBMITTED! WRITEME!")
 
     def _confirm_revision(self):
         """
@@ -4154,9 +4168,16 @@ class PressNotificationHandler:
 
 @dataclasses.dataclass
 class ConvertManuscriptToPdf:
+    """
+    Convert an article's manuscript sources to PDF.
+
+    This class deals differently with new submissions and revisions.
+    """
+
     article_id: int
     feedback_ws_url: str | None
     feedback_ws_name: str | None
+    is_revision: bool = False
 
     _failed_conversion_log = "Failed conversion log ConvertManuscriptToPdf"
 
@@ -4197,13 +4218,12 @@ class ConvertManuscriptToPdf:
         """
         tmpdir = None
         ini = self._create_in_memory_ini_file()
-        filename = self.article.source_files.first().original_filename
-        file_bytes = self.article.source_files.first().get_file(self.article, as_bytes=True)
+        filename, file_bytes, file_obj = self._get_source_file()
         try:
             client = YakuninClient(file=file_bytes, filename=filename)
             tmpdir, log_content = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
             self.logfile = self._save_yakunin_logs(log_content)
-            generated_file = self._handle_generated_pdf(tmpdir)
+            generated_file = self._handle_generated_pdf(tmpdir, source_file=file_obj)
             return generated_file
         except YakuninPDFGenerationError as e:
             log_content = getattr(client, "_log", None)
@@ -4287,23 +4307,36 @@ y = {settings.WATERMARK_Y_POSITION}
             label=self._failed_conversion_log,
         )
 
-    def _handle_generated_pdf(self, tmpdir: Path) -> File:
+    def _handle_generated_pdf(self, tmpdir: Path, source_file: File) -> File:
         """
-        Handles the generated PDF, processes it, and saves it appropriately
-        to the manuscript files of an article. This method updates the article's
+        Handle the generated PDF.
+
+        Processes it, and save it appropriately.
+
+        For new submissions, this method updates the article's
         file associations, placing the generated PDF in the correct slot while
         clearing and reassigning other related files.
 
+        For revisions, this method updates the revision_storage data,
+        clearing eventually replaced files.
+
         :param tmpdir: Temporary directory path containing the generated PDF
         :type tmpdir: Path
-        :return: The first manuscript file of the article after processing
+        :param source_file: The name of the source file. Used to generate the name of the PDF
+        :type source_file: File
+        :return: The converted file
         :rtype: File
         """
         generated_pdf_path = next(tmpdir.glob("*.pdf"), None)
         # Let's call the PDF that we are storing in Janeway the same as the source file that originated it,
         # but with extension ".pdf"
-        generated_pdf_filename = Path(self.article.source_files.first().original_filename).with_suffix(".pdf")
-        remove_existing_files_from_filesystem(self.article.pk, generated_pdf_filename)
+        generated_pdf_filename = Path(source_file.original_filename).with_suffix(".pdf")
+        if not self.is_revision:
+            # We must remove eventual existing files before creating a new one, becase we are
+            # re-using the same original filename.
+            remove_existing_files_from_filesystem(self.article.pk, generated_pdf_filename)
+            # HELP: can we simply remove the file currently associated to self.article.manuscript_files.first()?
+
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
             generated_manuscript = core_files.save_file_to_article(
@@ -4312,12 +4345,58 @@ y = {settings.WATERMARK_Y_POSITION}
                 owner=self.article.correspondence_author,
                 label="Manuscript File",
             )
-        self.article.manuscript_files.clear()
-        self.article.manuscript_files.add(generated_manuscript)
-        self.article.save()
+
+        if not self.is_revision:
+            # Remove the association to old files. The File objects themselves have been removed obove.
+            self.article.manuscript_files.add(generated_manuscript)
+            self.article.save()
+        else:
+            # Remove eventual existing files.
+            revision_storage = RevisionStorage.objects.get(article=self.article)
+            if existing_manuscript_id := revision_storage.data["manuscript_files"]:
+                core_models.File.objects.get(pk=existing_manuscript_id).delete()
+                # Note that File.delete() also unlinks the file from the filesystem!
+
+            # Do not remove here the source files: they have been already dealt with during upload
+
+            # Store the new one in the revision_storage.
+            # It will be moved to the article in step-8.
+            revision_storage.data["manuscript_files"] = generated_manuscript.pk
+            revision_storage.save()
+
         # Remove any log file from failed conversion
-        core_models.File.objects.filter(article_id=self.article_id, label=self._failed_conversion_log).delete()
-        return self.article.manuscript_files.first()
+        # Note that we cannot use queryset.delete(), because that does not call the model's delete() method
+        # (which unlinks the files)
+        [
+            f.delete()
+            for f in core_models.File.objects.filter(
+                article_id=self.article_id,
+                label=self._failed_conversion_log,
+            )
+        ]
+
+        return generated_pdf
+
+    def _get_source_file(self) -> tuple[str, str]:
+        """
+        Get the source file to convert.
+
+        Take it directly from the article in case of normal submission.
+        For revisions, use the RevisionStorage associated to the article.
+
+        Return the file name and content.
+        """
+        if not self.is_revision:
+            file_obj = self.article.source_files.first()
+            filename = file_obj.original_filename
+            file_bytes = file_obj.get_file(self.article, as_bytes=True)
+        else:
+            revision_storage = RevisionStorage.objects.get(article=self.article)
+            # fields in revision_storage.data only contains id of the core.models.File objects
+            file_obj = core_models.File.objects.get(pk=revision_storage.data.get("source_files"))
+            filename = file_obj.original_filename
+            file_bytes = file_obj.get_file(self.article, as_bytes=True)
+        return (filename, file_bytes, file_obj)
 
 
 @dataclasses.dataclass
