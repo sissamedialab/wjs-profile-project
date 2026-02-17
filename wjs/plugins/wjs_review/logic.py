@@ -4175,6 +4175,7 @@ class ConvertManuscriptToPdf:
     """
 
     article_id: int
+    file_id: int
     feedback_ws_url: str | None
     feedback_ws_name: str | None
     is_revision: bool = False
@@ -4377,7 +4378,7 @@ y = {settings.WATERMARK_Y_POSITION}
 
         return generated_pdf
 
-    def _get_source_file(self) -> tuple[str, str]:
+    def _get_source_file(self) -> tuple[str, str, core_models.File]:
         """
         Get the source file to convert.
 
@@ -4386,17 +4387,10 @@ y = {settings.WATERMARK_Y_POSITION}
 
         Return the file name and content.
         """
-        if not self.is_revision:
-            file_obj = self.article.source_files.first()
-            filename = file_obj.original_filename
-            file_bytes = file_obj.get_file(self.article, as_bytes=True)
-        else:
-            revision_storage = RevisionStorage.objects.get(article=self.article)
-            # fields in revision_storage.data only contains id of the core.models.File objects
-            file_obj = core_models.File.objects.get(pk=revision_storage.data.get("source_files"))
-            filename = file_obj.original_filename
-            file_bytes = file_obj.get_file(self.article, as_bytes=True)
-        return (filename, file_bytes, file_obj)
+        file_obj = core_models.File.objects.get(pk=self.file_id)
+        filename = file_obj.original_filename
+        file_bytes = file_obj.get_file(self.article, as_bytes=True)
+        return filename, file_bytes, file_obj
 
 
 @dataclasses.dataclass

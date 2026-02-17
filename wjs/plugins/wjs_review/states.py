@@ -6,8 +6,9 @@ import dataclasses
 import urllib
 from typing import Callable, Optional, Type
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.urls import NoReverseMatch, reverse
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
@@ -122,6 +123,99 @@ def get_review_url_with_code(action: "ReviewAssignmentAction", assignment: Revie
     return f"{url}?code={assignment.access_code}"
 
 
+def get_do_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str | None:
+    """
+    Generate the URL for performing a revision action depending on the workflow's journal configuration.
+
+    Use wjs-submission revision or legacy revision according to WJS_USE_WJS_SUBMISSION.
+
+    :param action: The action associated with the article.
+    :type action: ArticleAction
+    :param workflow: The workflow object handling article progression.
+    :type workflow: ArticleWorkflow
+    :param user: The user performing the revision action.
+    :type user: Account
+    :return: The URL for the revision action.
+    :rtype: str
+    :raises KeyError: If the journal code is not found in the settings configuration.
+    :raises AttributeError: If the article object or related attributes are not properly defined.
+    """
+    if settings.WJS_USE_WJS_SUBMISSION.get(workflow.article.journal.code, settings.WJS_USE_WJS_SUBMISSION[None]):
+        return reverse(
+            "wjs_submission_revision_full",
+            kwargs={"article_id": workflow.article_id},
+        )
+    else:
+        revision_request = conditions.pending_revision_request(workflow, user)
+        if revision_request:
+            return reverse(
+                "do_revisions",
+                kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+            )
+
+
+def get_confirm_version_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str | None:
+    """
+    Generate the URL for performing a confirm revision action depending on the workflow's journal configuration.
+
+    Use wjs-submission revision or legacy revision according to WJS_USE_WJS_SUBMISSION.
+
+    :param action: The article action that requires confirmation
+    :type action: ArticleAction
+    :param workflow: The article workflow containing the article details and states
+    :type workflow: ArticleWorkflow
+    :param user: The account of the user making the request
+    :type user: Account
+    :return: The URL for confirmation of the article version
+    :rtype: str
+    :raises KeyError: If settings configuration keys are missing
+    :raises AttributeError: If required attributes are not found in workflow or article objects
+    """
+    if settings.WJS_USE_WJS_SUBMISSION.get(workflow.article.journal.code, settings.WJS_USE_WJS_SUBMISSION[None]):
+        return reverse(
+            "wjs_submission_revision_confirm",
+            kwargs={"article_id": workflow.article_id},
+        )
+    else:
+        revision_request = conditions.pending_revision_request(workflow, user)
+        if revision_request:
+            return reverse(
+                "confirm_version",
+                kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+            )
+
+
+def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str | None:
+    """
+    Generate the URL for performing a change metadata action depending on the workflow's journal configuration.
+
+    Use wjs-submission revision or legacy revision according to WJS_USE_WJS_SUBMISSION.
+
+    :param action: The article action that requires confirmation
+    :type action: ArticleAction
+    :param workflow: The article workflow containing the article details and states
+    :type workflow: ArticleWorkflow
+    :param user: The account of the user making the request
+    :type user: Account
+    :return: The URL for confirmation of the article version
+    :rtype: str
+    :raises KeyError: If settings configuration keys are missing
+    :raises AttributeError: If required attributes are not found in workflow or article objects
+    """
+    if settings.WJS_USE_WJS_SUBMISSION.get(workflow.article.journal.code, settings.WJS_USE_WJS_SUBMISSION[None]):
+        return reverse(
+            "wjs_submission_revision_metadata",
+            kwargs={"article_id": workflow.article_id},
+        )
+    else:
+        revision_request = conditions.pending_edit_metadata_request(workflow, user)
+        if revision_request:
+            return reverse(
+                "do_revisions",
+                kwargs={"article_id": workflow.article_id, "revision_id": revision_request.pk},
+            )
+
+
 def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
     url = reverse(
         action.view_name,
@@ -136,7 +230,7 @@ def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", use
 
 
 def get_resume_submission_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
-    try:
+    if settings.WJS_USE_WJS_SUBMISSION.get(workflow.article.journal.code, settings.WJS_USE_WJS_SUBMISSION[None]):
         view_name = "wjs_submission_continue"
         url = reverse(
             view_name,
@@ -144,7 +238,7 @@ def get_resume_submission_url(action: "ArticleAction", workflow: "ArticleWorkflo
                 "article_id": workflow.article.pk,
             },
         )
-    except NoReverseMatch:
+    else:
         # If above resolution fails, it means the new submission is not available and we revert to the old one
         view_name = "submit_info"
         url = reverse(
@@ -773,24 +867,24 @@ class ToBeRevised(BaseState):
             permission=permissions.is_article_author,
             name="submits new version",
             label="Submit revision",
-            view_name="wjs_submission_revision_full",
-            custom_get_url=get_article_pk_url,
+            view_name="wjs_submission_revision_full",  # unused, kept for compatibility
+            custom_get_url=get_do_revision_url,
         ),
         ArticleAction(
             condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
             label="Confirm previous version",
-            view_name="wjs_submission_revision_confirm",
-            custom_get_url=get_article_pk_url,
+            view_name="wjs_submission_revision_confirm",  # unused, kept for compatibility
+            custom_get_url=get_confirm_version_url,
         ),
         ArticleAction(
             condition=conditions.pending_edit_metadata_request,
             permission=permissions.is_article_author,
             name="edit metadata",
             label="Update metadata",
-            view_name="wjs_submission_revision_metadata",
-            custom_get_url=get_article_pk_url,
+            view_name="wjs_submission_revision_metadata",  # unused, kept for compatibility
+            custom_get_url=get_edit_metadata_revision_url,
         ),
     ) + BaseState.article_actions
 
@@ -868,16 +962,16 @@ class UnderAppeal(BaseState):
             permission=permissions.is_article_author,
             name="author submits appeal",
             label="Submit revision",
-            view_name="wjs_submission_revision_full",
-            custom_get_url=get_article_pk_url,
+            view_name="wjs_submission_revision_full",  # unused, kept for compatibility
+            custom_get_url=get_do_revision_url,
         ),
         ArticleAction(
             condition=conditions.pending_revision_request,
             permission=permissions.is_article_author,
             name="confirms previous manuscript",
             label="Confirm previous version",
-            view_name="wjs_submission_revision_confirm",
-            custom_get_url=get_article_pk_url,
+            view_name="wjs_submission_revision_confirm",  # unused, kept for compatibility
+            custom_get_url=get_confirm_version_url,
         ),
     ) + BaseState.article_actions
 
