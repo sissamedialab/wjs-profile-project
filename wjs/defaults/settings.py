@@ -463,3 +463,12 @@ WJS_ALLOW_HIJACK_SU_ACCOUNTS = True
 """
 Allow EO to hijack superusers.
 """
+
+WJS_USE_WJS_SUBMISSION = {
+    None: True,
+    "JCOM": False,
+    "JCOMAL": False,
+}
+"""
+Use custom submission/revision process or the standard one.
+"""

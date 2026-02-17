@@ -1949,6 +1949,38 @@ class JCOMReportForm(forms.Form):
         return self.instance
 
 
+class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
+    confirm_version = forms.BooleanField(
+        label=_(
+            "I confirm that my cover letter to the Editor includes my reasons for asking for reconsideration "
+            "of this version."
+        ),
+    )
+
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["author_note", "confirm_previous_version"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.save_cover_letter or self.confirm_previous_version:
+            self.fields["confirm_version"].required = False
+
+    def check_for_potential_errors(self):
+        """Check if the user has confirmed all the required fields."""
+        errors = []
+        if not self.cleaned_data.get("confirm_version", False):
+            errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
+        if not self.instance.author_note and not self.instance.cover_letter_file:
+            errors.append(_("You should provide and save a cover letter."))
+        return errors
+
+    def finish(self) -> EditorRevisionRequest:
+        self.instance.confirm_previous_version = True
+        self.instance.save()
+        return super().finish()
+
+
 class EditorDeclinesAssignmentForm(forms.Form):
     """Form to decline an editor's decision."""
 

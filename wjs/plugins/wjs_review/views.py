@@ -78,6 +78,7 @@ from .filters import (
 from .forms import (
     ArticleExtraInformationUpdateForm,
     AssignEoForm,
+    ConfirmVersionForm,
     DecisionForm,
     DeclineReviewForm,
     DeselectReviewerForm,
@@ -2889,6 +2890,7 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
     template_name = "wjs_review/revision/revision_form.html"
     context_object_name = "revision_request"
     meta_data_fields = ["title", "abstract"]
+    confirm_version = False
 
     def load_initial(self, request, *args, **kwargs):
         """Store a reference to the article for easier processing."""
@@ -2904,6 +2906,8 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
 
     @property
     def title(self):
+        if self.confirm_version:
+            return _("Confirm previous version")
         if self.object.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             return _("Update Metadata")
         return _("Submit Revision")
@@ -2950,6 +2954,8 @@ class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
         Each form handle saving author note and confirm_previous_version flag, and it provides different checklist
         fields based on the revision request type.
         """
+        if self.confirm_version:
+            return ConfirmVersionForm
         if self.object.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             return EditMetadataForm
         return EditorRevisionRequestEditForm

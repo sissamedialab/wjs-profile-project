@@ -325,6 +325,7 @@ def clean_prophy_candidates(**kwargs) -> None:
 
 def _run_conversion(
     article_id: int,
+    file_id: int,
     feedback_ws_url: str | None = None,
     feedback_ws_name: str | None = None,
     *,
@@ -332,6 +333,7 @@ def _run_conversion(
 ):
     conversion = ConvertManuscriptToPdf(
         article_id=article_id,
+        file_id=file_id,
         feedback_ws_url=feedback_ws_url,
         feedback_ws_name=feedback_ws_name,
         is_revision=is_revision,
@@ -343,6 +345,7 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
     """Respond to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
     article = kwargs["article"]
     file_type = kwargs["file_type"]
+    file_obj = kwargs["file_id"]  # Upstream misnomer
     feedback_ws_url = kwargs.get("feedback_ws_url")
     feedback_ws_name = kwargs.get("feedback_ws_name")
     is_revision = kwargs.get("is_revision", False)
@@ -352,12 +355,13 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
             async_task(
                 _run_conversion,
                 article_id=article.pk,
+                file_id=file_obj.pk,
                 feedback_ws_url=feedback_ws_url,
                 feedback_ws_name=feedback_ws_name,
                 is_revision=is_revision,
             )
         else:
-            _run_conversion(article.pk)
+            _run_conversion(article.pk, file_id=file_obj.pk)
     elif file_type == "data":
         pass
 
