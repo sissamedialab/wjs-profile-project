@@ -829,8 +829,10 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
                 article__reviewassignment__is_complete=False,
             )
             .annotate(
+                # get last date_due value because we can't put multiple values in sort_date annotation.
+                # (wjs/specs/-/issues/2324)
                 sort_date=Subquery(
-                    latest_assignment.values("date_due"),
+                    latest_assignment.values("date_due")[:1],
                 )
             )
         )
