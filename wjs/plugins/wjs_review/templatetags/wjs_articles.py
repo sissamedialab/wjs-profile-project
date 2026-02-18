@@ -252,9 +252,9 @@ def article_completed_review_by_user(article: Article, user: Account) -> Optiona
 def article_pending_review_by_user(article: Article, user: Account) -> Optional[WorkflowReviewAssignment]:
     """Get pending review assignment if user is reviewer of the last review round of the article."""
     try:
-        return WorkflowReviewAssignment.objects.get(
+        return WorkflowReviewAssignment.objects.filter(
             article=article, reviewer=user, date_complete__isnull=True, date_declined__isnull=True
-        )
+        ).latest("date_requested")
     except WorkflowReviewAssignment.DoesNotExist:
         pass
 
