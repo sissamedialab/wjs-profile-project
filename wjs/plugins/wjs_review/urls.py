@@ -324,4 +324,5 @@ urlpatterns = [
         ConvertTextToLatex.as_view(),
         name="text-to-latex",
     ),
+    path("api/v1/", include("plugins.wjs_review.api.urls")),
 ]

@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "django_q",
     "wjs.themes",
     "wjs.advanced_admin",
+    "rest_framework.authtoken",
 ]
 
 try:
