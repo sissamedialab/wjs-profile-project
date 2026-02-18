@@ -1,0 +1,30 @@
+{% load static wjs_review %}
+<div class="accordion-item">
+  <h2 class="accordion-header" id="heading-fundings">
+    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-fundings" aria-expanded="false" aria-controls="collapse-fundings">
+      {% translate "Fundings" %}
+    </button>
+  </h2>
+  <div id="collapse-fundings" class="accordion-collapse collapse" aria-labelledby="heading-fundings" data-bs-parent="#metadata">
+    <div class="accordion-body">
+      <table class="table table-sm" id="funding-table">
+        <thead>
+        <tr>
+          <th width="30%">Name</th>
+          <th width="15%">Country</th>
+          <th width="30%">Grant / award number</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for funding in article_fundings %}
+          <tr>
+            <td>{{ funding.name }}</td>
+            <td>{{ funding.country|default:"" }}</td>
+            <td>{{ funding.funding_id|default:"" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
