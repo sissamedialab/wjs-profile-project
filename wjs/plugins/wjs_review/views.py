@@ -50,7 +50,7 @@ from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
 from journal.models import Issue, IssueType, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
-from plugins.wjs_submission.models import ArticleSubmission
+from plugins.wjs_submission.models import ArticleSubmission, SubmissionArticleFunding
 from review import logic as review_logic
 from submission.models import Article, FrozenAuthor
 from utils.logger import get_logger
@@ -1337,6 +1337,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             # During production we want to show review versions too (for authorized users)
             context["review"] = True
         context["review_versions"] = self.object.get_review_versions(self.request.user)
+        context["article_fundings"] = SubmissionArticleFunding.objects.filter(article=self.object.article)
         # We explicitly set the article in the context because it is often used in templatetags
         # and, when the view answers to an HTMX request, the rendered templates might not define it
         # (as in `{% with article=workflow.article %}...`)

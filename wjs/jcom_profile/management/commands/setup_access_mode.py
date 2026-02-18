@@ -48,6 +48,7 @@ class Command(BaseCommand):
             "subscription": "Available upon subscription – Not OA",
             "open-access-paid": "Open Access (paid by author)",
             "oa-cern": "Open Access – CERN Collaborations",
+            "oa-cern-affiliated": "Open Access – CERN-affiliated co-author(s)",
             "oa-transformative-agreement": "Open Access - Transformative agreements",
             "open-access": "Open Access",
         }
@@ -77,7 +78,7 @@ class Command(BaseCommand):
                     "licence": "most-rights",
                     "copyright": "Publisher",
                 },
-                "open-access": {
+                "open-access-paid": {
                     "licence": "CC BY 4.0",
                     "copyright": "Authors",
                 },
@@ -91,7 +92,7 @@ class Command(BaseCommand):
                     "licence": "most-rights",
                     "copyright": "Publisher",
                 },
-                "open-access": {
+                "open-access-paid": {
                     "licence": "CC BY 4.0",
                     "copyright": "Authors",
                 },
@@ -105,11 +106,19 @@ class Command(BaseCommand):
                     "licence": "most-rights",
                     "copyright": "Publisher",
                 },
+                "open-access-paid": {
+                    "licence": "CC BY 4.0",
+                    "copyright": "Authors",
+                },
                 "oa-transformative-agreement": {
                     "licence": "CC BY 4.0",
                     "copyright": "Authors",
                 },
                 "oa-cern": {
+                    "licence": "CC BY 4.0",
+                    "copyright": "CERN for the benefit of the collaboration",
+                },
+                "oa-cern-affiliated": {
                     "licence": "CC BY 4.0",
                     "copyright": "CERN",
                 },
@@ -127,9 +136,9 @@ class Command(BaseCommand):
                 },
             },
         }
-        if options["clear-all"]:
+        if options["clear_all"]:
             AccessMode.objects.all().delete()
-        if options["clear-all"] or options["clear-journal-access-modes"]:
+        if options["clear_all"] or options["clear_journal_access_modes"]:
             AccessModeJournal.objects.all().delete()
         for journal_code, configuration in journals.items():
             journal = Journal.objects.get(code=journal_code)
@@ -137,8 +146,10 @@ class Command(BaseCommand):
                 licence, __ = Licence.objects.get_or_create(
                     journal=journal, short_name=data["licence"], defaults={"name": data["licence"]}
                 )
+                user_selectable = access_mode_code in ["open-access", "subscription"]
                 access_mode, __ = AccessMode.objects.get_or_create(
-                    code=access_mode_code, defaults={"name": access_modes[access_mode_code], "user_selectable": True}
+                    code=access_mode_code,
+                    defaults={"name": access_modes[access_mode_code], "user_selectable": user_selectable},
                 )
                 AccessModeJournal.objects.update_or_create(
                     access_mode=access_mode, journal=journal, licence=licence, copyright=data["copyright"]

@@ -50,7 +50,11 @@ from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
-from plugins.wjs_submission.models import RevisionStorage
+from plugins.wjs_submission.models import (
+    RevisionStorage,
+    RevisionSubmissionArticleFunding,
+    SubmissionArticleFunding,
+)
 from review.logic import assign_editor, quick_assign
 from review.models import ReviewRound
 from review.views import upload_review_file
@@ -1823,6 +1827,19 @@ class AuthorHandleRevision:
                     field=additional_submission_field,
                     defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
                 )
+
+        SubmissionArticleFunding.objects.filter(article=self.article).delete()
+        fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
+        for funding in fundings:
+            SubmissionArticleFunding.objects.create(
+                pk=funding.pk,
+                article=self.article,
+                name=funding.name,
+                fundref_id=funding.fundref_id,
+                funding_id=funding.funding_id,
+                funding_statement=funding.funding_statement,
+                country=funding.country,
+            )
 
         self.revision_storage.delete()
 
@@ -4673,11 +4690,14 @@ class AccessModeSpecialRequestNotification:
             "article": self.submission_data.article,
             "submission_data": self.submission_data,
         }
-        message_subject = get_setting(
+        message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="access_mode_special_request_notification_subject",
             journal=self.submission_data.article.journal,
-        ).processed_value
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="access_mode_special_request_notification_body",
