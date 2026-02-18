@@ -63,11 +63,12 @@ from .views import (
     ToggleIssueBatch,
     ToggleMessageReadByEOView,
     ToggleMessageReadView,
+    TypesetterWorkOnIssue,
     UpdateReviewerDueDate,
     UploadRevisionFile,
     WriteMessage,
 )
-from .views__production import (  # noqa F401
+from .views__production import (  # noqa F401;
     BeginPublicationView,
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
@@ -117,6 +118,7 @@ urlpatterns = [
     path("typesetter/pending/", TypesetterPending.as_view(), name="wjs_review_typesetter_pending"),
     path("typesetter/workingon/", TypesetterWorkingOn.as_view(), name="wjs_review_typesetter_workingon"),
     path("typesetter/archived/", TypesetterArchived.as_view(), name="wjs_review_typesetter_archived"),
+    path("typesetter/issues/", TypesetterWorkOnIssue.as_view(), name="wjs_review_typesetter_issues_list"),
     # Both authors and typs can set a paper ready for publication; the following is just an alias:
     path("typesetter/rfp/<int:pk>/", ReadyForPublicationView.as_view(), name="wjs_review_rfp"),
     path("issues/<int:pk>/sections/order/", UpdateSectionOrder.as_view(), name="wjs_order_sections"),
