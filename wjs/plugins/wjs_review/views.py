@@ -48,7 +48,7 @@ from django.views.generic import (
 from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
-from journal.models import Issue, Journal
+from journal.models import Issue, IssueType, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_submission.models import ArticleSubmission
 from review import logic as review_logic
@@ -194,6 +194,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
             "wjs_review_typesetter_pending": _("Pending preprints"),
             "wjs_review_typesetter_archived": _("Archived preprints"),
             "wjs_review_typesetter_workingon": _("Working on"),
+            "wjs_review_typesetter_issues_list": _("Pending Issues"),
         },
     }
     extra_links: Dict[str, str]
@@ -575,6 +576,27 @@ class DirectorWorkOnIssue(BaseWorkOnIssue):
     def test_func(self):
         """Allow access only to director."""
         return base_permissions.has_director_role(self.request.journal, self.request.user)
+
+
+class TypesetterWorkOnIssue(BaseWorkOnIssue):
+    role = constants.TYPESETTER_ROLE
+    read_only = True
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(issue_type=IssueType.objects.get(journal=self.request.journal, code="collection"))
+            .order_by("date")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        return context
+
+    def test_func(self):
+        """Allow access only to Typesetter"""
+        return base_permissions.has_typesetter_role_on_any_journal(self.request.user)
 
 
 class EditorWorkOnIssue(BaseWorkOnIssue):

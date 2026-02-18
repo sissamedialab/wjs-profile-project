@@ -6,7 +6,7 @@
     <td>
       <input type="hidden" name="articles[]" value="{{ article.pk }}" />
       <div class="d-flex">
-        {% if issue.issue_type.code == "collection" %}
+        {% if issue.issue_type.code == "collection" and not view.read_only %}
           <i class="bi bi-grip-vertical sort-grip"></i>
         {% endif %}
         <div>
