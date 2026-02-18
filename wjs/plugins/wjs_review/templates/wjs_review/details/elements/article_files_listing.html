@@ -1,4 +1,4 @@
-{% load wjs_permissions %}
+{% load wjs_permissions wjs_review wjs_tags %}
 <ul class="list-group mb-3">
   {% if production %}
     {% if article.galley_set.exists %}
@@ -11,7 +11,7 @@
                 <a class="btn btn-link" href="{% url 'download_single_file' article.pk galley.file_id %}" target="_blank">{{ galley.file.original_filename }} {{ galley.label }}</a>
               </li>
             {% endif %}
-            {% empty %}
+          {% empty %}
             <li class="list-group-item">
               {% translate "no galleys yet" %}
             </li>
@@ -95,4 +95,36 @@
     </li>
   {% endif %}
 
+    <li class="list-group-item fw-bold">
+      {% translate "CAS Declaration" %}
+      <ul class="list-group mb-1">
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ article.submission_data.get_cas_display }}<br>{% if article.submission_data.cas_url %}<a href="{{ article.submission_data.cas_url }}" target="_blank">{{ article.submission_data.cas_url }}</a>{% endif %}
+          </li>
+      </ul>
+    </li>
+
+    <li class="list-group-item fw-bold">
+      {% translate "DAS Declaration" %}
+      <ul class="list-group mb-1">
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            {{ article.submission_data.get_das_display }}<br>{% if article.submission_data.das_url %}<a href="{{ article.submission_data.das_url }}" target="_blank">{{ article.submission_data.das_url }}</a>{% endif %}
+          </li>
+      </ul>
+    </li>
+
+  {% if article.submission_data.administrative_files.exists %}
+    {% if request.user|is_user_eo or workflow|is_user_article_author:request.user %}
+      <li class="list-group-item fw-bold">
+        {% translate "Administrative Files" %}
+        <ul class="list-group mb-1">
+          {% for file in article.submission_data.administrative_files.all %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </li>
+    {% endif %}
+  {% endif %}
 </ul>
