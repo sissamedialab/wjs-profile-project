@@ -990,6 +990,8 @@ class BaseActionManager:
     """flag used when not all actions of a family have to import files"""
     imported_doclayer_check_visibility: dict
     url_base: str  # = getattr(settings, "WJAPP_JCOM_BASE_URL", None)
+    current_archive: str
+    old_archive: str
 
     def run(self):
         raise NotImplementedError
@@ -3035,6 +3037,7 @@ class REF_SENDS_REP(BaseActionManager):  # noqa N801
         query_reviewer_report_message = """
 SELECT
 dl.documentLayerCod,
+dl.documentLayerId,
 dl.documentLayerText,
 dl.documentLayerOnlyTex
 FROM Document_Layer dl
@@ -3178,6 +3181,17 @@ ORDER BY dl.submissionDate
             )
             wra = submit.run()
 
+            if review_file := import_file_manager.ImportFileManager(self).import_rerep_file_pdf(
+                wjapp_report.get("documentLayerId")
+            ):
+                new_file = files.save_file_to_article(
+                    review_file,
+                    wra.article,
+                    wra.reviewer,
+                )
+                wra.review_file = new_file
+                wra.save()
+
             editor_message_subject = render_template_from_setting(
                 setting_group_name="email_subject",
                 setting_name="subject_review_complete_acknowledgement",
@@ -3314,6 +3328,7 @@ class EditorDecisionAction(BaseActionManager):
         query_editor_report_message = """
 SELECT
 dl.documentLayerCod,
+dl.documentLayerId,
 dl.documentLayerText,
 dl.documentLayerOnlyTex
 FROM Document_Layer dl
@@ -3375,7 +3390,16 @@ ORDER BY dl.submissionDate
                 f"fix missing edrep in documentLayerOnlyTeX: {wjapp_editor_report.get('documentLayerCod')=}"
             )
         else:
-            wjapp_editor_report_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
+
+            # TODO: adapt to the new jcap review page with provides fields for edrep.tex and erep.pdf
+            # As temporary solution the content of the file edrep.tex is attached to the text cover
+            # letter of wjapp edrep to bulid the entire "editor report message"
+            logger.debug(f"{wjapp_editor_report.get('documentLayerId')=}")
+            wjapp_editor_report_message = newlines_text_to_html(
+                import_file_manager.ImportFileManager(self).import_edrep_file_source(
+                    wjapp_editor_report.get("documentLayerId")
+                )
+            )
 
         editor_report_message = "<br><br><br><br>".join(
             filter(None, [wjapp_editor_cover_letter_message, wjapp_editor_report_message])

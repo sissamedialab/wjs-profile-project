@@ -41,6 +41,7 @@ from review.models import (
 from submission import models as submission_models
 from submission.models import Licence
 
+import wjs.jcom_profile.import_file_manager as import_file_manager
 import wjs.jcom_profile.import_logic as import_logic
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
@@ -281,6 +282,14 @@ class Command(BaseCommand):
         version_cod = current_version_row["versionCod"]
         article_expected_final_state = current_version_row["stateID"]
         # current_version -> row  "versionNumber"
+
+        current_archive = ""
+        old_archive = ""
+        if self.options["importfilesarchive"] and self.journal.code.upper() in ["JCAP"]:
+            (current_archive, old_archive) = import_file_manager.ImportFileManager.dedup_archive_directory(
+                self.journal, preprintid
+            )
+            import_logic.logger.debug(f"{current_archive=} {old_archive=}")
 
         import_logic.logger.info(f"""Importing {preprintid}""")
 
@@ -542,6 +551,8 @@ class Command(BaseCommand):
                             action_triggers_import_files=False,
                             imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
                             url_base=getattr(settings, f"WJAPP_{self.journal.code.upper()}_BASE_URL", None),
+                            current_archive=current_archive,
+                            old_archive=old_archive,
                         ).run()
                     else:
                         # ADMIN_RESETS_ED is skipped, only loaded the message as correspondence
@@ -715,6 +726,9 @@ class Command(BaseCommand):
                     f"forced disabled of {num_disabled} reminder for {article.id}/{preprintid}"
                     f" in state {article.articleworkflow.state}"
                 )
+
+        if self.options["importfilesarchive"]:
+            import_file_manager.ImportFileManager().reset_preprintid_dedup(self.journal, preprintid)
 
         if settings.DEBUG and self.journal.code.upper() not in ["JHEP", "JCAP"]:
             self.debug_list_article_files_imported(article)

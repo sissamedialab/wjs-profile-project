@@ -296,7 +296,9 @@ WJAPP_JCOMAL_BASE_URL = "https://old.wjapp.it/jcomal/common/archiveFile?filePath
 # JCAP settings for import files from the filesystem
 WJAPP_JCAP_IMPORT_ARCHIVE_CURRENT = ""
 WJAPP_JCAP_IMPORT_ARCHIVE_OLD = ""
-
+WJAPP_JCAP_IMPORT_ARCHIVE_CURRENT_DEDUP = ""
+WJAPP_JCAP_IMPORT_ARCHIVE_OLD_DEDUP = ""
+WJAPP_JCAP_IMPORT_DEDUP_SCRIPT = ""
 
 NO_NOTIFICATION = False
 
