@@ -48,6 +48,7 @@ class ImportFileManager:
         "author_annotation",  # file uploded by the author when sends the corrections
         "production_source",  # production tar.gz uploded by the typesetter
         "production_pdf",  # production pdf generated on wjapp
+        "publication_pdf",  # publication pdf generated on wjapp
     )
 
     # Note: the archives contained in "preprintid/production/" should not be necessary
@@ -186,6 +187,9 @@ class ImportFileManager:
             if data["filetype"] == "production_pdf":
                 self.save_pdf_galley(djfile)
                 continue
+            if data["filetype"] == "publication_pdf":
+                self.save_pdf_galley(djfile, public=True)
+                continue
 
             # attachments
             if data["filetype"] == "attachment" and production_version:
@@ -215,17 +219,35 @@ class ImportFileManager:
     def get_list_of_files_to_import(self, production_version=False):
         """Read archive and for the current preprintid an version extract the list of file and file type to import"""
 
-        # production version: PREPRINT.pdf to be saved as galley
+        # For the production version not publication version we save
+        # PREPRINT.pdf as TA.galleys_created public=False
+        #
+        # For the publication version:
+        #
+        # ATM we import for the published version only the PUBLICATIONID.pdf
+        # as TA.galleys_created public=True
+        #
+        # TODO: final supplementary supplementary have to be imported
+        # TODO: publication source has to be imported (with placeholders replaced)
         if production_version:
+            publication_version = self.action_manager.imported_version_state_cod == 22
+            import_logic.logger.debug(f"{publication_version=}")
+            if publication_version:
+                filename = f"{self.action_manager.publicationid}.pdf"
+                filetype = "publication_pdf"
+            else:
+                filename = f"{self.action_manager.preprintid}.pdf"
+                filetype = "production_pdf"
+
             return [
                 {
                     "archive_path": None,
                     "subdir": "",
-                    "filename": f"{self.action_manager.preprintid}.pdf",
-                    "filetype": "production_pdf",
+                    "filename": filename,
+                    "filetype": filetype,
                     "description": None,
                     "title": None,
-                },
+                }
             ]
 
         # PREPRINT.pdf. PREPRINTID.tex is not imported because we want to have in wjs only the author source
@@ -394,8 +416,13 @@ class ImportFileManager:
         return zip_path
 
     def build_production_source_targz_from_main_directory(self, archive=None):
-        """Create production targz source in build_archive_dir from main dir and submission dir.
+        """Create production targz source in build_archive_dir from
+           - base preprint dir
+           - submission/
+           - publication/currentHidden/
 
+        Adding currentHidden to the archive we are sure to import also the typesetter source
+        file with the placeholders replaced.
         The deduplication lets in submission dir files which are different from the preprintid dir files.
         """
 
@@ -428,7 +455,6 @@ class ImportFileManager:
             "REREP",
             "AUANN",
             "production",
-            "publication",
             "pitstop",
             "build_archive_dir",
         }
@@ -459,7 +485,7 @@ class ImportFileManager:
                     continue
 
                 # add file/directory to tar
-                tar.add(item, arcname=rel_path)
+                tar.add(item, arcname=rel_path, recursive=False)
                 import_logic.logger.debug(f"ADDED:  {rel_path=}")
 
         return targz_path
@@ -605,9 +631,7 @@ class ImportFileManager:
             }
             return self.read_file_from_archive(**data)
 
-    def get_production_source(
-        self,
-    ):
+    def get_production_source(self):
         """Get the production source archive which is managed by the typesetter upload action."""
 
         archive_dir = "submission/"
@@ -755,7 +779,7 @@ class ImportFileManager:
         import_logic.logger.debug(f"saved pdf file {manuscript_dj}")
         return
 
-    def save_pdf_galley(self, pdf_galley_dj):
+    def save_pdf_galley(self, pdf_galley_dj, public=False):
         """Save PDF production version in TA.galleys_created"""
 
         assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
@@ -778,12 +802,12 @@ class ImportFileManager:
             assignment.typesetter,
         )
         pdf_galley = Galley.objects.create(
-            file=pdf_galley_file, label="PDF", type="pdf", article=self.action_manager.article, public=False
+            file=pdf_galley_file, label="PDF", type="pdf", article=self.action_manager.article, public=public
         )
         assignment.galleys_created.add(pdf_galley)
 
         assignment.round.article.articleworkflow.save()
-        import_logic.logger.debug(f"saved production pdf file {pdf_galley_dj}")
+        import_logic.logger.debug(f"saved production/publication pdf file {pdf_galley_dj}")
         return
 
     def save_data_figure_file(self, dff_dj, data):
