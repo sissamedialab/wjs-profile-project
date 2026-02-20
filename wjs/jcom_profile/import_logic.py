@@ -4737,6 +4737,9 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
                 flag_as_read_by_eo=True,
             )
 
+            if self.importfiles:
+                import_file_manager.ImportFileManager(self).import_version_files(production_version=True)
+
 
 @dataclass
 class ACC_CPRGHT_TRNSFR(BaseActionManager):  # noqa N801
