@@ -277,7 +277,7 @@ class EditorShouldSelectReviewerReminderManager(ReminderManager):
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
             subject=_("Reminder: reviewers to select"),
-            body="""Dear Dr. {{ recipient.full_name }},<br>
+            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
 <br>
 kindly select 2 reviewers as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
 <br>
@@ -296,7 +296,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
             subject=_("Reminder: reviewers to select urgently"),
-            body="""Dear Dr. {{ recipient.full_name }},<br>
+            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
 <br>
 This is to remind you that this {{ article.section.name }} needs to be assigned to 2 reviewers urgently.<br>
 <a href="{{ article.articleworkflow.url }}">Go to web page</a><br>
@@ -314,7 +314,7 @@ Thank you very much and best regards,<br>
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
             subject=_("Reminder: editor's delay in selecting reviewers"),
-            body="""Dear Editor-in-chief,<br>
+            body="""{%load fqdn %}Dear Editor-in-chief,<br>
 <br>
 This {{ article.section.name }} was assigned to {{ current_editor.full_name }} on {{ assigned }} but they have not yet selected any reviewer.<br>
 <br>
@@ -348,7 +348,7 @@ class EditorShouldMakeDecisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
             subject=_("Reminder: decision to make"),
-            body="""Dear Dr. {{ recipient.full_name }},<br>
+            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
 <br>
 You action is needed to either make a decision or contact another reviewer from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
 <br>
@@ -367,7 +367,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
             subject=_("Reminder: decision to make urgently"),
-            body="""Dear Dr. {{ recipient.full_name }},<br>
+            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
 <br>
 This is to remind you that your editor decision is needed urgently. If needed, kindly select another reviewer.<br>
 <br>
@@ -386,7 +386,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3: ReminderSetting(
             code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
             subject=_("Reminder: editor's delay in making decision"),
-            body="""Dear Editor-in-chief,<br>
+            body="""{%load fqdn %}Dear Editor-in-chief,<br>
 <br>
 {{ current_editor.full_name }} has received at least one review but has neither made a decision nor selected additional reviewers.<br>
 <br>
@@ -421,35 +421,36 @@ class ReviewerShouldEvaluateAssignmentReminderManager(ReminderManager):
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
             subject=_("Reminder: Accept/decline Editor's invite"),
-            body="""Dear colleague,<br>
+            body="""{%load fqdn %}Dear colleague,<br>
 <br>
 This is to remind you that I need your feedback regarding the invite to review I sent you on {{ date_requested }}.<br>
 <p><b>{{ article.section.name }} to review:</b><br>
 {{ article.title }}
 </p>
-<p><b>Please
 {% if reviewer.jcomprofile.invitation_token %}
-            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+    {% external_journal_url journal 'wjs_evaluate_review' target.id reviewer.jcomprofile.invitation_token as fqdn_evaluate_review_url %}
 {% else %}
-            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+    {% external_journal_url journal 'wjs_evaluate_review' target.id as fqdn_evaluate_review_url %}
 {% endif %}
-            as soon as possible.</b></p>
+<p>
+    <b>Please <a href="{{ fqdn_evaluate_review_url }}?access_code={{ target.access_code }}">accept/decline this invite to review</a> as soon as possible.</b></p>
+</p>
 <p>
 {{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
-Its scope is available <a href="{{ base_url }}/site/about-jcom/#heading1">here</a>.
+Its scope is available <a href="{{ journal.site_url }}/site/about-jcom/#heading1">here</a>.
 <br><br>
-Its <a href="{{ base_url }}/site/editorial-team/">editorial board</a> relies on the
+Its <a href="{{ journal.site_url }}/site/editorial-team/">editorial board</a> relies on the
 goodwill of reviewers to ensure the quality of the manuscripts it
 publishes and hopes that you will be able to help on this occasion.
 <br>
 More information about the Journal’s ethical policy is
-available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>.
+available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
 <br><br>
 It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
-All the necessary information and instructions to do the review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
+All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
 <br><br>
 If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
-<a href="{{ base_url }}/site/authors/">here</a>.
+<a href="{{ journal.site_url }}/site/authors/">here</a>.
 <br><br>
 Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
 </p>
@@ -466,35 +467,36 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
             subject=_("Reminder: Accept/decline Editor's invite (urgent)"),
-            body="""Dear colleague,<br>
+            body="""{%load fqdn %}Dear colleague,<br>
 <br>
 Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
 <p><b>{{ article.section.name }} to review:</b><br>
 {{ article.title }}
 </p>
-<p><b>Please
 {% if reviewer.jcomprofile.invitation_token %}
-            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+    {% external_journal_url journal 'wjs_evaluate_review' target.id reviewer.jcomprofile.invitation_token as fqdn_evaluate_review_url %}
 {% else %}
-            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+    {% external_journal_url journal 'wjs_evaluate_review' target.id as fqdn_evaluate_review_url %}
 {% endif %}
-            as soon as possible.</b></p>
+<p>
+    <b>Please <a href="{{ fqdn_evaluate_review_url }}?access_code={{ target.access_code }}">accept/decline this invite to review</a> as soon as possible.</b>
+</p>
 <p>
 {{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
-Its scope is available <a href="{{ base_url }}/site/about-jcom/#heading1">here</a>.
+Its scope is available <a href="{{ journal.site_url }}/site/about-jcom/#heading1">here</a>.
 <br><br>
-Its <a href="{{ base_url }}/site/editorial-team/">editorial board</a> relies on the
+Its <a href="{{ journal.site_url }}/site/editorial-team/">editorial board</a> relies on the
 goodwill of reviewers to ensure the quality of the manuscripts it
 publishes and hopes that you will be able to help on this occasion.
 <br>
 More information about the Journal’s ethical policy is
-available <a href="{{ base_url }}/site/about-jcom/#heading4">here</a>.
+available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
 <br><br>
 It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
-All the necessary information and instructions to do the review are available <a href="{{ base_url }}/site/reviewers/">here</a>.
+All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
 <br><br>
 If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
-<a href="{{ base_url }}/site/authors/">here</a>.
+<a href="{{ journal.site_url }}/site/authors/">here</a>.
 <br><br>
 Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
 </p>
@@ -509,7 +511,7 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
             subject=_("Reviewer's delay in accepting invite"),
-            body="""Dear Dr. {{ recipient.full_name }},<br>
+            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
 <br>
 The reviewer {{ reviewer.full_name }} has not yet accepted/declined your invite to review this {{ article.section.name }}.<br>
 <br>
@@ -542,7 +544,7 @@ class ReviewerShouldWriteReviewReminderManager(ReminderManager):
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
             subject=_("Reminder: your review due date expires today"),
-            body="""Dear colleague,<br>
+            body="""{%load fqdn %}Dear colleague,<br>
 <br>
 We hope that you will be able to send us your review by the end of the day from this  <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
 <br>
@@ -564,7 +566,7 @@ Thank you very much in advance for your cooperation and kind regards,<br>
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
             subject=_("Reminder: late review"),
-            body="""Dear Dr. {{ recipient.full_name }},<br>
+            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
 <br>
 Unfortunately Dr. {{ reviewer.full_name }} has not yet sent us their review, despite our reminder.<br>
 <br>
@@ -596,7 +598,7 @@ class AuthorShouldSubmitMajorRevisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1,
             subject=_("Reminder: revision to submit soon"),
-            body="""Dear Author,<br>
+            body="""{%load fqdn %}Dear Author,<br>
 <br>
 This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
 <br>
@@ -619,7 +621,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
             subject=_("Reminder: revision due date expires today"),
-            body="""Dear Author,<br>
+            body="""{%load fqdn %}Dear Author,<br>
 <br>
 This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
 <br>
@@ -652,7 +654,7 @@ class AuthorShouldSubmitMinorRevisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1,
             subject=_("Reminder: revision to submit soon"),
-            body="""Dear Author,<br>
+            body="""{%load fqdn %}Dear Author,<br>
 <br>
 This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
 <br>
@@ -675,7 +677,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
             subject=_("Reminder: revision due date expires today"),
-            body="""Dear Author,<br>
+            body="""{%load fqdn %}Dear Author,<br>
 <br>
 This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
 <br>
@@ -708,7 +710,7 @@ class AuthorShouldSubmitTechnicalRevisionReminderManager(ReminderManager):
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
             subject=_("Reminder: metadata to update"),
-            body="""Dear Author,<br>
+            body="""{%load fqdn %}Dear Author,<br>
 <br>
 On {{ date_requested }} I allowed you to update your {{ article.section.name }} metadata.<br>
 <br>
@@ -726,7 +728,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2: ReminderSetting(
             code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
             subject=_("Reminder: metadata to update urgently"),
-            body="""Dear Author,<br>
+            body="""{%load fqdn %}Dear Author,<br>
 <br>
 Please update your {{ article.section.name }} metadata urgently from its <a href="{{ article.articleworkflow.url }}">web page</a>.<br>
 <br>
@@ -753,7 +755,7 @@ class DirectorShouldAssignEditorReminderManager(ReminderManager):
         Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1: ReminderSetting(
             code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1,
             subject=_("Reminder: editor to select"),
-            body="""Dear Editor-in-chief,<br>
+            body="""{%load fqdn %}Dear Editor-in-chief,<br>
 <br>
 This is to remind you that this {{ article.section.name }} needs to be assigned to an editor in charge as soon as possible.<br>
 <br>
@@ -771,7 +773,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2: ReminderSetting(
             code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2,
             subject=_("Reminder: editor to select soon"),
-            body="""Dear Editor-in-chief,<br>
+            body="""{%load fqdn %}Dear Editor-in-chief,<br>
 <br>
 This is another reminder to kindly ask you to assign this {{ article.section.name }} to an editor in charge as soon as possible.<br>
 <br>
