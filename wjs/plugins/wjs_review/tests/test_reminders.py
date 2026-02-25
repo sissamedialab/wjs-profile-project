@@ -254,6 +254,9 @@ def test_assign_reviewer_creates_reminders(
     """Test that when a reviewer is assigned, reviwer reminders are created and editor reminders are deleted."""
     fake_request.user = section_editor.janeway_account
 
+    from django.urls import reverse
+
+    print(reverse("wjs_evaluate_review", kwargs={"assignment_id": 34}))
     acceptance_due_date = timezone.now().date() + datetime.timedelta(days=7)
 
     service = AssignToReviewer(
@@ -302,16 +305,19 @@ def test_assign_reviewer_creates_reminders(
     assert r_1.recipient == service.reviewer
     assert r_1_date == 0
     assert r_1.date_due == acceptance_due_date
+    assert assigned_article.journal.site_url() in r_1.message_body
 
     r_2 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2)
     assert r_2.actor == service.editor
     assert r_2.recipient == service.reviewer
     assert r_2.date_due == acceptance_due_date + datetime.timedelta(days=r_2_date)
+    assert assigned_article.journal.site_url() in r_2.message_body
 
     r_3 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3)
     assert r_3.actor == get_eo_user(assigned_article.journal)
     assert r_3.recipient == service.editor
     assert r_3.date_due == acceptance_due_date + datetime.timedelta(days=r_3_date)
+    assert assigned_article.journal.site_url() in r_3.message_body
 
 
 @pytest.mark.django_db
