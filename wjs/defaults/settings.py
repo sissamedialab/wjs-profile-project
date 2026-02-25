@@ -473,3 +473,12 @@ WJS_USE_WJS_SUBMISSION = {
 """
 Use custom submission/revision process or the standard one.
 """
+
+ISSUE_TRACKER_URLS = {
+    "wjs-help": "https://gitlab.sissamedialab.it/wjs/wjs-help/-/issues/",
+    "rogne": "https://gitlab.sissamedialab.it/calderan/rogne/-/issues/",
+    "post-production": "https://gitlab.sissamedialab.it/calderan/pipicor/-/issues/",
+}
+"""
+URLs of the issue trackers used for the "Open Issue" button in actions section.
+"""
