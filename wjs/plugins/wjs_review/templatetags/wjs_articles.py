@@ -16,12 +16,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from journal.models import ArticleOrdering, Issue
-from plugins.typesetting.models import (
-    GalleyProofing,
-    TypesettingAssignment,
-    TypesettingRound,
-)
 from submission.models import Article
+from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 
 from wjs.jcom_profile.constants import EO_GROUP
 

@@ -22,11 +22,11 @@ from django.urls import reverse
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
-from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Article, Keyword, Section
+from typesetting.models import GalleyProofing
 from utils import setting_handler
 
 from wjs.jcom_profile import constants

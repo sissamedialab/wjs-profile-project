@@ -7,8 +7,8 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from journal.models import Issue, SectionOrdering
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from submission import models as submission_models
+from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from wjs.jcom_profile.models import WjsMiniHTMLFormField
 

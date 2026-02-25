@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
         ("journal", "0066_issue_type_bleach_20240507_1359"),
         ("jcom_profile", "0036_add_usernotes"),
         ("core", "0099_alter_accountrole_options"),
-        ("submission", "0084_remove_article_jats_article_type_and_more"),
+        # ("submission", "0084_remove_article_jats_article_type_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ("review", "0023_auto_20240312_0922"),
         ("contenttypes", "0002_remove_content_type_name"),

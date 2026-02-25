@@ -33,9 +33,9 @@ from events import logic as events_logic
 from identifiers.models import Identifier
 from journal.models import Issue, Journal
 from PIL import Image
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
 from submission.models import Article, Section
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils import setting_handler
 from utils.install import update_settings
 

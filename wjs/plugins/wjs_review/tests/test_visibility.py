@@ -9,9 +9,9 @@ from django.utils import timezone
 from faker import Faker
 from freezegun import freeze_time
 from journal.models import Issue
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
+from typesetting.models import TypesettingAssignment, TypesettingRound
 
 from wjs.jcom_profile import constants
 

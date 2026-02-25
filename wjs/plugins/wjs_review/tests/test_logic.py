@@ -28,7 +28,6 @@ from django.utils.timezone import localtime, now
 from events import logic as events_logic
 from faker import Faker
 from journal import models as journal_models
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
 from plugins.wjs_submission.models import RevisionStorage
 from plugins.wjs_submission.revision import RevisionStartConfirmView
@@ -36,6 +35,7 @@ from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder, Keyword
+from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils import setting_handler
 from utils.setting_handler import get_setting
 

@@ -179,9 +179,9 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
             "first_name",
             "middle_name",
             "last_name",
-            "department",
-            "institution",
-            "country",
+            # "department",
+            # "institution",
+            # "country",
             "profession",
             "gdpr_checkbox",
         )
@@ -369,7 +369,7 @@ class IMUEditExistingAccounts(forms.ModelForm):
             "middle_name",
             "last_name",
             "email",
-            "institution",
+            # "institution",
         ]
 
 
