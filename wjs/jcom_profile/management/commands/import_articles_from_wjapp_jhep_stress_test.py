@@ -30,11 +30,6 @@ from django.db.models import Q
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Issue, IssueType, Journal
-from plugins.typesetting.models import (
-    GalleyProofing,
-    TypesettingAssignment,
-    TypesettingRound,
-)
 from plugins.wjs_review import communication_utils
 from plugins.wjs_review.logic import (
     AssignToEditor,
@@ -80,6 +75,7 @@ from review.models import (
 )
 from submission import models as submission_models
 from submission.models import Licence
+from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 

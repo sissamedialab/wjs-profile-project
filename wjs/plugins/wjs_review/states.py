@@ -12,9 +12,9 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
-from plugins.typesetting.models import GalleyProofing
 from review.models import ReviewAssignment
 from submission.models import Article
+from typesetting.models import GalleyProofing
 
 from wjs.jcom_profile import permissions as base_permissions
 

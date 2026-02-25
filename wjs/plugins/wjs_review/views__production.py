@@ -21,7 +21,7 @@ from django.views.generic import DetailView, FormView, TemplateView, UpdateView,
 from django_fsm import has_transition_perm
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.mixins import HtmxMixin

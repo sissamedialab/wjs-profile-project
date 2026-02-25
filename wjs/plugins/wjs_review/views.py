@@ -57,10 +57,10 @@ from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
 from journal.models import Issue, IssueType, Journal
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_submission.models import ArticleSubmission, SubmissionArticleFunding
 from review import logic as review_logic
 from submission.models import Article, FrozenAuthor
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 

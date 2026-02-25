@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from django.contrib.auth import get_user_model
 from django.utils.timezone import now
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
+from typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions

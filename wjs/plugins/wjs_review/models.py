@@ -26,7 +26,6 @@ from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_submission.models import RevisionStorage
 from review.const import EditorialDecisions
 from review.models import (
@@ -36,6 +35,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
+from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 

@@ -21,11 +21,6 @@ from django.core.files import File as DjangoFile
 from django.db.models import Q
 from django.utils import timezone
 from journal.models import Journal
-from plugins.typesetting.models import (
-    GalleyProofing,
-    TypesettingAssignment,
-    TypesettingRound,
-)
 from plugins.wjs_review import communication_utils
 from plugins.wjs_review.logic import (
     AssignToEditor,
@@ -64,6 +59,7 @@ from plugins.wjs_review.permissions import is_article_typesetter
 from plugins.wjs_review.utils import get_report_form
 from review.models import ReviewRound
 from submission import models as submission_models
+from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 

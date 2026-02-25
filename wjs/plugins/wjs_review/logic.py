@@ -50,7 +50,6 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
 from plugins.wjs_submission.conversion import (
     TASK_LOG_PREFIX,
     get_feedback_logfile,
@@ -77,6 +76,7 @@ from submission.models import (
     Field,
     FieldAnswer,
 )
+from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
