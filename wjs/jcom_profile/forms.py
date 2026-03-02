@@ -146,9 +146,6 @@ class JCOMProfileForm(EditAccountForm):
         self.journal = kwargs.pop("journal")
         super().__init__(*args, **kwargs)
         privacy_url = _get_privacy_url(self.journal)
-        self.fields["department"].required = False
-        self.fields["institution"].required = True
-        self.fields["country"].required = True
         self.fields["keywords"].queryset = Keyword.objects.exclude(word_en="").order_by("word_en")
         self.fields["gdpr_checkbox"].label = mark_safe(
             _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
@@ -179,9 +176,6 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
             "first_name",
             "middle_name",
             "last_name",
-            # "department",
-            # "institution",
-            # "country",
             "profession",
             "gdpr_checkbox",
         )
@@ -369,7 +363,6 @@ class IMUEditExistingAccounts(forms.ModelForm):
             "middle_name",
             "last_name",
             "email",
-            # "institution",
         ]
 
 

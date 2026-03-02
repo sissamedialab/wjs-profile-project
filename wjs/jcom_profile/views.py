@@ -326,7 +326,7 @@ class DirectorStaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
         return reverse("assignment_parameters", args=(self.kwargs.get("editor_pk"),))
 
 
-ODSLine = namedtuple("ODSLine", ["first_name", "middle_name", "last_name", "email", "institution"])
+ODSLine = namedtuple("ODSLine", ["first_name", "middle_name", "last_name", "email"])
 
 
 @dataclass
@@ -404,7 +404,6 @@ class ContributionLine:
         self.middle_name = line["middle_name"]
         self.last_name = line["last_name"]
         self.email = line["email"]
-        self.institution = line["institution"]
         self.title = line["title"]
         self.index = line["index"]
         self.suggestions = []
@@ -506,7 +505,7 @@ class IMUStep1(TemplateView):
         """Prepare data file to be presented in the input/merge form."""
         result_lines = []
 
-        columns_names = ("first_name", "middle_name", "last_name", "email", "institution", "title")
+        columns_names = ("first_name", "middle_name", "last_name", "email", "title")
         sheet_index = 0
         df = pd.read_excel(
             data_file.read(),
@@ -565,7 +564,6 @@ class IMUStep1(TemplateView):
                 "middle_name": row.middle_name,
                 "last_name": row.last_name,
                 "email": row.email,
-                "institution": row.institution,
                 "title": row.title,
             },
         )
@@ -704,7 +702,6 @@ class IMUStep2(TemplateView):
                 "middle_name": self.request.POST[f"middle_name_{index}"],
                 "last_name": self.request.POST[f"last_name_{index}"],
                 "email": self.request.POST[f"email_{index}"],
-                "institution": self.request.POST[f"institution_{index}"],
             },
         )
         if not form.is_valid():
@@ -720,14 +717,12 @@ class IMUStep2(TemplateView):
             author.first_name = form.cleaned_data["first_name"]
             author.middle_name = form.cleaned_data["middle_name"]
             author.last_name = form.cleaned_data["last_name"]
-            author.institution = form.cleaned_data["institution"]
             author.save()
         else:
             if (
                 author.first_name != form.cleaned_data["first_name"]
                 or author.middle_name != form.cleaned_data["middle_name"]
                 or author.last_name != form.cleaned_data["last_name"]
-                or author.institution != form.cleaned_data["institution"]
             ):
                 self.add_line(
                     index,
@@ -769,7 +764,6 @@ class IMUStep2(TemplateView):
             middle_name=self.request.POST[f"middle_name_{index}"],
             last_name=self.request.POST[f"last_name_{index}"],
             email=self.request.POST[f"email_{index}"],
-            institution=self.request.POST[f"institution_{index}"],
         )
         self.accounts_new_data[pk] = odsline
         self.add_line(index, msg=f"EDIT - {article} by {author}", must_edit=True)

@@ -649,7 +649,6 @@ def review_form(journal: Journal) -> review_models.ReviewForm:
             name="Review",
             kind="text",
             order=1,
-            width="full",
             required=True,
         )
         review_form.elements.add(review_form_element)
