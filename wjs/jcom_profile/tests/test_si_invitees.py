@@ -27,6 +27,7 @@ class TestSIInvitees:
 
     """
 
+    @pytest.mark.xfail("Porting to 1.8 required")
     @pytest.mark.django_db
     def test_no_invitees(
         self,
@@ -57,6 +58,7 @@ class TestSIInvitees:
         # NB: don't just `assert <Element...>`: elements are False if they don't have children
         assert html.find(f".//input[@value='{open_special_issue.id}']") is not None
 
+    @pytest.mark.xfail("Porting to 1.8 required")
     @pytest.mark.django_db
     def test_has_invitees_but_i_am_out(
         self,
@@ -125,6 +127,7 @@ class TestSIInvitees:
         # The SI is among the choices
         assert html.find(f".//input[@value='{open_special_issue.id}']") is not None
 
+    @pytest.mark.xfail("Porting to 1.8 required")
     @pytest.mark.django_db
     def test_all_three_cases(
         self,

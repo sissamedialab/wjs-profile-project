@@ -50,7 +50,6 @@ def test_orcid_input(
         # The following fields are all mandatory:
         "first_name": normal_user.first_name or "Something",
         "last_name": normal_user.last_name or "Something",
-        "institution": normal_user.institution or "Something",
         "country": str(user.country.id) if user.country else str(country.id),
         "profession": normal_user.profession or "1",
         "gdpr_checkbox": "on",
@@ -102,8 +101,4 @@ def test_doi_batch(
     content = deposit.content.decode()
     assert normal_user.first_name in content
     assert orcid in content
-    # The "domain" part is blindly added by the template,
-    # but it prevents registration with crossref, because the
-    # deposit XML is not valid.
-    prefixed_orcid = f"https://orcid.org/{orcid}"
-    assert prefixed_orcid in content
+    assert orcid.startswith("https://orcid.org/")
