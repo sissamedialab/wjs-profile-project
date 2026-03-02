@@ -357,6 +357,37 @@ def truncate_with_ellipsis(s):
     return textwrap.shorten(s, width=6, placeholder="...")
 
 
+def get_reminders_for_article(article, only_enabled=False, code_startswith=None):
+    """Get reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
+
+    article_reminders = Q(
+        content_type=ContentType.objects.get_for_model(submission_models.Article),
+        object_id=article.pk,
+    )
+    review_assignments = WorkflowReviewAssignment.objects.filter(article=article).values_list("pk")
+    reviewer_reminders = Q(
+        content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
+        object_id__in=review_assignments,
+    )
+    editor_assignments = WjsEditorAssignment.objects.filter(article=article).values_list("pk")
+    editor_reminders = Q(
+        content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
+        object_id__in=editor_assignments,
+    )
+    revision_requests = EditorRevisionRequest.objects.filter(article=article).values_list("pk")
+    author_reminders = Q(
+        content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
+        object_id__in=revision_requests,
+    )
+
+    qs = Reminder.objects.filter(article_reminders | editor_reminders | reviewer_reminders | author_reminders)
+    if only_enabled:
+        qs = qs.filter(disabled=False)
+    if code_startswith:
+        qs = qs.filter(code__startswith=code_startswith)
+    return qs
+
+
 #
 # End global variables and functions section
 #
@@ -1127,9 +1158,8 @@ ORDER BY reminderDate
             return
 
         wjs_reminder_list = []
-        for r_wjs in Reminder.objects.filter(code__startswith=f"{wjs_type}"):
-            if r_wjs.get_related_article() == self.article:
-                wjs_reminder_list.append(r_wjs)
+        for r_wjs in get_reminders_for_article(self.article, code_startswith=f"{wjs_type}"):
+            wjs_reminder_list.append(r_wjs)
         if not wjs_reminder_list:
             return
 
@@ -4738,7 +4768,7 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
             )
 
             if self.importfiles:
-                import_file_manager.ImportFileManager(self).import_version_files(production_version=True)
+                import_file_manager.ImportFileManager(self).get_publication_pdf()
 
 
 @dataclass
