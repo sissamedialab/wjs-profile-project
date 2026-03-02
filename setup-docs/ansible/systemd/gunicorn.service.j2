@@ -7,17 +7,17 @@ After=network.target
 [Service]
 Type=notify
 NotifyAccess=main
-WorkingDirectory=/home/wjs/janeway-{{ instance_name }}/src
+WorkingDirectory=/home/wjs/{{ full_name }}/src
 
 # Runtime directory (/run/wjs) for socket is expected to exist!
 
 # Start Gunicorn with Uvicorn workers and Unix socket
-ExecStart=/home/wjs/.virtualenvs/janeway-{{ instance_name }}/bin/gunicorn \
+ExecStart={{ venv_root }}/bin/gunicorn \
     --bind unix:/run/wjs/gunicorn-{{ instance_name }}.sock \
     --worker-class uvicorn.workers.UvicornWorker \
     --workers 2 \
-    --access-logfile /home/wjs/janeway-{{ instance_name }}/logs/app-access.log \
-    --error-logfile  /home/wjs/janeway-{{ instance_name }}/logs/app-error.log \
+    --access-logfile /home/wjs/{{ full_name }}/logs/app-access.log \
+    --error-logfile  /home/wjs/{{ full_name }}/logs/app-error.log \
     wjs.channels.asgi:application
 ExecReload=kill -s HUP $MAINPID
 
