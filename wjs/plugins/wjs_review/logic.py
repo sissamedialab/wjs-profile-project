@@ -4364,11 +4364,9 @@ y = {settings.WATERMARK_Y_POSITION}
                 label="Manuscript File",
             )
 
-        if not self.is_revision:
-            # Remove the association to old files. The File objects themselves have been removed obove.
-            self.article.manuscript_files.add(generated_manuscript)
-            self.article.save()
-        else:
+        # This is the wjs-submission revision which passes an explicit flag to ConvertManuscripToPdf
+        # to use revision_storage
+        if self.is_revision:
             # Remove eventual existing files.
             revision_storage = RevisionStorage.objects.get(article=self.article)
             if existing_manuscript_id := revision_storage.data["manuscript_files"]:
@@ -4381,6 +4379,21 @@ y = {settings.WATERMARK_Y_POSITION}
             # It will be moved to the article in step-8.
             revision_storage.data["manuscript_files"] = generated_manuscript.pk
             revision_storage.save()
+        else:
+            # TODO: check can be removed once we will port wjs-submission to production
+            # this is where wjs-submission and legacy submission and revision ends
+            use_wjs_submission = settings.WJS_USE_WJS_SUBMISSION.get(
+                self.article.journal.code, settings.WJS_USE_WJS_SUBMISSION[None]
+            )
+            if not use_wjs_submission:
+                # In case of legacy submission/revision, the author uploads a source-file into the
+                # Article.manuscript_files (Janeway's default) we take it, generate the "real" manuscript and place
+                # everything in its correct place.
+                self.article.source_files.clear()
+                self.article.source_files.set(self.article.manuscript_files.all())
+            self.article.manuscript_files.clear()
+            self.article.manuscript_files.add(generated_manuscript)
+            self.article.save()
 
         # Remove any log file from failed conversion
         # Note that we cannot use queryset.delete(), because that does not call the model's delete() method
