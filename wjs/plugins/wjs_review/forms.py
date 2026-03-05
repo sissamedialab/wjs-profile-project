@@ -33,7 +33,7 @@ from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
-from wjs.jcom_profile.models import WjsSimpleBleach
+from wjs.jcom_profile.models import WjsMiniHTMLFormField, WjsSimpleBleach
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
@@ -42,7 +42,7 @@ from .communication_utils import MESSAGE_TYPE_ICONS
 from .logic import (
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     DeselectReviewer,
     EvaluateReview,
     HandleDecision,
@@ -67,7 +67,6 @@ from .models import (
     ProphyAccount,
     Reminder,
     WjsEditorAssignment,
-    WjsMiniHTMLFormField,
     WorkflowReviewAssignment,
 )
 
@@ -735,6 +734,11 @@ class DecisionForm(forms.ModelForm):
             del self.fields["withdraw_notice"]
         elif not self.has_pending_reviews:
             del self.fields["withdraw_notice"]
+        reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value
+        if "tex" in reviewer_report_type:
+            self.fields["decision_editor_report"].widget = forms.Textarea()
         if kwargs["initial"].get("decision", None) == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             del self.fields["decision_editor_report"]
             if "withdraw_notice" in self.fields:
@@ -900,9 +904,9 @@ class BaseEditorRevisionRequestEditForm(ConfirmableForm, forms.ModelForm):
         self.confirm_previous_version = kwargs.pop("confirm_previous_version", None)
         super().__init__(*args, **kwargs)
 
-    def get_logic_instance(self) -> AuthorHandleRevision:
+    def get_logic_instance(self) -> AuthorHandleRevisionObsolete:
         """Instantiate :py:class:`AuthorHandleRevision` class."""
-        service = AuthorHandleRevision(
+        service = AuthorHandleRevisionObsolete(
             revision=self.instance,
             form_data=self.cleaned_data,
             user=self.user,
@@ -948,38 +952,6 @@ class EditMetadataForm(BaseEditorRevisionRequestEditForm):
         if not self.instance.author_note and not self.instance.cover_letter_file:
             errors.append(_("You should provide and save a cover letter."))
         return errors
-
-
-class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
-    confirm_version = forms.BooleanField(
-        label=_(
-            "I confirm that my cover letter to the Editor includes my reasons for asking for reconsideration "
-            "of this version."
-        ),
-    )
-
-    class Meta:
-        model = EditorRevisionRequest
-        fields = ["author_note", "confirm_previous_version"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.save_cover_letter or self.confirm_previous_version:
-            self.fields["confirm_version"].required = False
-
-    def check_for_potential_errors(self):
-        """Check if the user has confirmed all the required fields."""
-        errors = []
-        if not self.cleaned_data.get("confirm_version", False):
-            errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
-        if not self.instance.author_note and not self.instance.cover_letter_file:
-            errors.append(_("You should provide and save a cover letter."))
-        return errors
-
-    def finish(self) -> EditorRevisionRequest:
-        self.instance.confirm_previous_version = True
-        self.instance.save()
-        return super().finish()
 
 
 class EditorRevisionRequestEditForm(BaseEditorRevisionRequestEditForm):
@@ -1861,7 +1833,18 @@ class JCOMReportForm(forms.Form):
             ),
         },
     )
+    review_choice = forms.ChoiceField(
+        choices=[("tex", _("TeX Review")), ("rich_text", _("Rich Text Review"))],
+        widget=forms.RadioSelect,
+        required=False,
+        label=_("Choose to submit your report in TeX or Rich Text"),
+    )
     author_review = WjsMiniHTMLFormField(label=_("Review (for the Author)"), required=False)
+    author_review_tex = forms.CharField(
+        label=_("Review (for the Author) in LaTeX"),
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 10, "placeholder": _("LaTeX")}),
+    )
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(
         label="File (to be sent to Author)", required=False, widget=forms.ClearableFileInput()
@@ -1872,7 +1855,21 @@ class JCOMReportForm(forms.Form):
         self.instance = kwargs.pop("review_assignment", None)
         self.submit_final = kwargs.pop("submit_final", None)
         self.request = kwargs.pop("request", None)
+        # This kwarg may be redundant but is useful when we call the form just to retrieve the fields and we need
+        # minimal initialization (and review assignments may be unavailable/not submitted yet)
+        self.journal = kwargs.pop("journal", None)
         super().__init__(*args, **kwargs)
+        self.reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.journal
+        ).value
+        if self.reviewer_report_type == "tex":
+            self.fields["review_choice"].initial = "tex"
+            del self.fields["author_review"]
+        elif self.reviewer_report_type == "text":
+            self.fields["review_choice"].initial = "rich_text"
+            del self.fields["author_review_tex"]
+        elif self.reviewer_report_type == "tex+text":
+            self.fields["review_choice"].required = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1881,6 +1878,7 @@ class JCOMReportForm(forms.Form):
         follow_up_action = cleaned_data.get("follow_up_action")
         author_review = cleaned_data.get("author_review")
         author_file = cleaned_data.get("review_file")
+        author_review_tex = cleaned_data.get("author_review_tex")
         # follow_up_action is required only if recommendation is to revise_minor or revise_major
         if conflict_of_interest == "yes":
             self.add_error(
@@ -1895,11 +1893,34 @@ class JCOMReportForm(forms.Form):
         if recommendation in ["revise_minor", "revise_major"]:
             if not follow_up_action:
                 self.add_error("follow_up_action", _("This field is required if the recommendation is to revise."))
-        if not author_review and not author_file:
-            self.add_error(
-                "author_review",
-                _('Please provide either "Review (to be sent to Authors)" and/or "Files (to be sent to Authors)'),
-            )
+        if self.reviewer_report_type == "tex+text":
+            if not (author_review or author_file or author_review_tex):
+                self.add_error(
+                    "author_review",
+                    _(
+                        'Please provide either "Review (to be sent to Authors)" or "Files (to be sent to Authors)", '
+                        "or LaTeX review."
+                    ),
+                )
+                self.add_error(
+                    "author_review_tex",
+                    _(
+                        'Please provide either "Review (to be sent to Authors)" or "Files (to be sent to Authors)", '
+                        "or LaTeX review."
+                    ),
+                )
+        elif self.reviewer_report_type == "text":
+            if not (author_review or author_file):
+                self.add_error(
+                    "author_review",
+                    _('Please provide either "Review (to be sent to Authors)" or "Files (to be sent to Authors)".'),
+                )
+        elif self.reviewer_report_type == "tex":
+            if not author_review_tex:
+                self.add_error(
+                    "author_review_tex",
+                    _("Please provide the LaTeX review."),
+                )
         return cleaned_data
 
     def get_logic_instance(self) -> SubmitReview:
@@ -1926,6 +1947,38 @@ class JCOMReportForm(forms.Form):
             raise
         self.instance.refresh_from_db()
         return self.instance
+
+
+class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):
+    confirm_version = forms.BooleanField(
+        label=_(
+            "I confirm that my cover letter to the Editor includes my reasons for asking for reconsideration "
+            "of this version."
+        ),
+    )
+
+    class Meta:
+        model = EditorRevisionRequest
+        fields = ["author_note", "confirm_previous_version"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.save_cover_letter or self.confirm_previous_version:
+            self.fields["confirm_version"].required = False
+
+    def check_for_potential_errors(self):
+        """Check if the user has confirmed all the required fields."""
+        errors = []
+        if not self.cleaned_data.get("confirm_version", False):
+            errors.append(_("You must confirm that the cover letter includes reasons for reconsideration."))
+        if not self.instance.author_note and not self.instance.cover_letter_file:
+            errors.append(_("You should provide and save a cover letter."))
+        return errors
+
+    def finish(self) -> EditorRevisionRequest:
+        self.instance.confirm_previous_version = True
+        self.instance.save()
+        return super().finish()
 
 
 class EditorDeclinesAssignmentForm(forms.Form):

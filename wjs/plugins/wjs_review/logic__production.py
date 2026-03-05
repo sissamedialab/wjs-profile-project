@@ -1572,7 +1572,7 @@ class BeginPublication:
 
         Defaults to replacing the tex source file (i.e. the file name will be something like JCOM_123.tex).
         """
-        # TODO: talk with Elian on the opportunity of buildind a "texfile utils" library with similar functions
+        # TODO: talk with Elia about the opportunity of buildind a "texfile utils" library with similar functions
         # TODO: refactor with utils.guess_tex_filename()
         file_name = (
             f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex" if file_name is None else file_name

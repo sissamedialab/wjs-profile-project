@@ -119,7 +119,8 @@ class Version(Protocol):
 
 @dataclasses.dataclass
 class AuthorCoverLetter:
-    """Represent the cover letter from an author.
+    """
+    Represent the cover letter from an author.
 
     This can be either some text or a file or both.
     These info are saved in different models. See :py:class:`ReviewVersion`.
@@ -154,6 +155,9 @@ class ReviewVersion:
     all the involved elements.
     """
 
+    # FIXME: below I have RUF045 (assignment without annotation in dataclass),
+    # but if I add the annotation "str", the I have
+    # TypeError: non-default argument 'review_round' follows default argument
     label = _("Version")
 
     review_round: ReviewRound
@@ -233,7 +237,7 @@ class ReviewVersion:
         elif self.number in {1, -1}:
             return AuthorCoverLetter(
                 text=self.review_round.article.comments_editor,
-                file=None,
+                file=self.review_round.article.submission_data.cover_letter_file,
                 object=self.review_round.article.articleworkflow,
             )
         else:
@@ -264,7 +268,7 @@ class ReviewVersion:
         elif self.number == 1 or self.latest:
             return self.review_round.article
 
-    def _get_revision_by_round(self, number) -> Optional["EditorRevisionRequest"]:
+    def _get_revision_by_round(self, number: int) -> Optional["EditorRevisionRequest"]:
         if self.revision_requests and number:
             requests = [
                 request
@@ -285,7 +289,7 @@ class ReviewVersion:
         """
         Return the revision request for the previous round of the version.
 
-        We need the previous revision request as it's the one that contains the the files and notes upon which
+        We need the previous revision request as it's the one that contains the files and notes upon which
         the current revision round is being evaluated.
 
         The previous round revision requests are filtered by type as Major and Minor revision requests are the "final"
@@ -315,10 +319,10 @@ class ReviewVersion:
                 decision
                 for decision in self.decisions
                 if decision.decision
-                not in (
+                not in {
                     ArticleWorkflow.Decisions.TECHNICAL_REVISION.value,
                     ArticleWorkflow.Decisions.OPEN_APPEAL.value,
-                )
+                }
             ]
             return decisions[0] if decisions else None
         return None
@@ -496,8 +500,6 @@ class ArticleWorkflow(TimeStampedModel):
 
     social_media_short_description = models.TextField(_("Short description for social media"), null=True, blank=True)
 
-    arxiv_category = models.CharField(max_length=30, verbose_name=_("Arxiv category"), null=True, blank=True)
-
     objects = ArticleWorkflowQuerySet.as_manager()
 
     class Meta:
@@ -667,16 +669,39 @@ class ArticleWorkflow(TimeStampedModel):
         """
         # This function would probably be better placed in the Journal model,
         # but since we don't yet have a o2o/wrapper on that model I'm leaving it here.
-        if self.article.journal.code not in {"JCOM", "JCOMAL"}:
-            raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
-
-        # Feel free to fail badly.
+        #
+        # Also, feel free to fail badly.
         # Exceptions should be dealt with upstream.
+
+        func_name = f"_compute_pubid_{self.article.journal.code}"
+        if not hasattr(self, func_name):
+            raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
+        return getattr(self, func_name)(save_eid)
+
+    def _compute_pubid_JCOM(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JCOM_VVII_2026_A01."""
         volume = f"{self.article.issue.volume:02d}"
         issue = f"{int(self.article.issue.issue):02d}"
         eid = self.compute_eid(save_as_pagenumber=save_eid)
         pubid = f"{self.article.journal.code}_{volume}{issue}_{timezone.now().year}_{eid}"
         return pubid
+
+    def _compute_pubid_JCOMAL(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JCOM."""
+        return self._compute_pubid_JCOM(save_eid)
+
+    def _compute_pubid_JQUANT(self, save_eid: bool = False) -> str:  # noqa: N802
+        """
+        Compute temporary pubid for JQUANT.
+
+        ATM, eid is not computed (we should decide what to do and check WjsSection objects).
+        """
+        # Al least, ensure that the article has a page number in the form X01
+        # because this is expected by BeginPublication._prepare_source()
+        if not self.article.page_numbers:
+            self.article.page_numbers = "X01"
+            self.article.save()
+        return f"{self.article.journal.code}_{self.article.id}"
 
     def compute_eid(self, save_as_pagenumber: bool = False) -> str:
         """Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
@@ -1258,6 +1283,14 @@ class EditorDecision(TimeStampedModel):
     review_round = models.ForeignKey("review.ReviewRound", verbose_name=_("Review round"), on_delete=models.PROTECT)
     decision = models.CharField(max_length=255, choices=ArticleWorkflow.Decisions.choices)
     decision_editor_report = models.TextField(blank=True, null=True)
+    decision_editor_report_pdf = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Editor report in PDF"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="editor_report_pdf_files",
+    )
 
     class Meta:
         verbose_name = _("Editor decision")
@@ -1610,6 +1643,14 @@ class MessageThread(models.Model):
 
 class WjsEditorAssignment(EditorAssignment):
     review_rounds = models.ManyToManyField("review.ReviewRound", verbose_name=_("Managed review rounds"), blank=True)
+    editor_report_pdf_draft = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Editor report in PDF draft version"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="editor_report_pdf_files_draft",
+    )
 
     objects = WjsEditorAssignmentQuerySet.as_manager()
 
@@ -1686,6 +1727,7 @@ class EditorRevisionRequest(RevisionRequest):
     # fields here keep the same name of the article fields to be able to reuse the same form
     title = models.CharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
     abstract = JanewayBleachField(blank=True, null=True, verbose_name=_("Abstract"))
+    authors_contributions = models.TextField(blank=True, null=True, verbose_name=_("Authors contributions"))
 
     class Meta:
         ordering = ("date_requested",)
@@ -1724,6 +1766,14 @@ class WorkflowReviewAssignment(ReviewAssignment):
     #  Quando si aggiungono nuovi campi modificare il metodo AssignToReviewer._assign_reviewer per evitare di ottenere
     #  errori nel salvataggio.
     report_form_answers = models.JSONField(default=dict, verbose_name=_("Report form answers"))
+    tex_report_pdf = models.ForeignKey(
+        "core.File",
+        verbose_name=_("Tex report PDF file"),
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tex_report_files",
+    )
     editor_invite_message = models.ForeignKey(
         Message,
         null=True,
@@ -2257,6 +2307,15 @@ class LatexPreamble(models.Model):
 
     journal = models.ForeignKey(Journal, on_delete=models.CASCADE)
     preamble = models.TextField(null=False, blank=False)
+    report_preamble = models.TextField(
+        null=False,
+        blank=False,
+        help_text=_(
+            "LaTeX preamble prepended to reviewers and "
+            "editors reports. Please note that it "
+            "should end with \\begin{document}."
+        ),
+    )
 
     class Meta:
         verbose_name = _("LaTeX preamble")

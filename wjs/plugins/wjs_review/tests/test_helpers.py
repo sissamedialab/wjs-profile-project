@@ -73,6 +73,7 @@ def _submit_review(
         review_assignment=review_assignment,
         submit_final=submit_final,
         request=fake_request,
+        journal=fake_request.journal,
     )
     assert form.is_valid()
     submit = SubmitReview(

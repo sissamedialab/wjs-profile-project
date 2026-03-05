@@ -4,6 +4,7 @@ from collections import namedtuple
 from unittest.mock import MagicMock
 
 import pytest
+from django.apps import apps
 from submission.models import FrozenAuthor
 
 from wjs.jcom_profile.permissions import has_eo_role
@@ -156,3 +157,26 @@ def test_eo_permission(eo_user, jcom_user):
     """Test the EO membership."""
     assert has_eo_role(eo_user)
     assert not has_eo_role(jcom_user)
+
+
+@pytest.mark.django_db
+def test_email_setting(settings):
+    """Ensure EMAIL_BACKEND is forced to console if DEBUG = True."""
+    bkup = {
+        "debug": settings.DEBUG,
+        "email_backend": settings.EMAIL_BACKEND,
+        "nl_backend": getattr(settings, "NEWSLETTER_EMAIL_BACKEND", None),
+    }
+    settings.DEBUG = True
+    app_config = apps.get_app_config("jcom_profile")
+    app_config._prevent_public_email_send()
+
+    if settings.EMAIL_PORT == 1025:
+        assert bkup["email_backend"] == settings.EMAIL_BACKEND
+        assert bkup["nl_backend"] == getattr(settings, "NEWSLETTER_EMAIL_BACKEND", None)
+    else:
+        # Overridden configuration
+        assert settings.EMAIL_BACKEND == "django.core.mail.backends.console.EmailBackend"
+        assert bkup["email_backend"] == settings.NEWSLETTER_EMAIL_BACKEND
+
+    settings.DEBUG = bkup["debug"]

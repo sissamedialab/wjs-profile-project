@@ -2,7 +2,7 @@
   tags:
     - fast-test
   stage: test
-  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:production
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
 
   # NB: Must match with test_settings.DATABASES
   variables:
@@ -24,8 +24,8 @@
     - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
       alias: db
       command: [
-      "postgres",
-      "-c", "max_locks_per_transaction=2048"
+        "postgres",
+        "-c", "max_locks_per_transaction=2048"
       ]
 
 

@@ -33,7 +33,7 @@ from plugins.wjs_review import communication_utils
 from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     DeselectReviewer,
     EditorRevisionRequest,
     EvaluateReview,
@@ -3750,7 +3750,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
 
             revision_request = EditorRevisionRequest.objects.get(article=self.article)
             form_data = {"author_note": revision_request.author_note}
-            service = AuthorHandleRevision(
+            service = AuthorHandleRevisionObsolete(
                 revision=revision_request,
                 form_data=form_data,
                 user=self.article.correspondence_author,
@@ -5776,7 +5776,7 @@ class AuthorSubmitRevisionAction(BaseActionManager):
             # the automated message is not disabled on purpose to have
             # the timeline
             # AuthorHandleRevision._log_operation = noop #noqa
-            service = AuthorHandleRevision(
+            service = AuthorHandleRevisionObsolete(
                 revision=revision_request,
                 form_data=form_data,
                 user=self.article.correspondence_author,

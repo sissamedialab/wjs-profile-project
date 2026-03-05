@@ -1,9 +1,11 @@
+import copy
 import csv
 from contextlib import contextmanager
-from typing import Any, Optional, TypedDict, Union
+from typing import Any, NotRequired, Optional, TypedDict, Union
 
 from core.models import Setting, SettingGroup, SettingValue
 from django.conf import settings
+from django.utils.functional import Promise
 from django.utils.translation import gettext as _
 from journal.models import Journal
 from utils.logger import get_logger
@@ -30,9 +32,10 @@ class SettingParams(TypedDict):
     name: str
     group: SettingGroup
     types: str  # E.g. "rich-text", "text", "boolean",... (TODO: make full list)
-    pretty_name: str
-    description: str
+    pretty_name: str | Promise
+    description: str | Promise
     is_translatable: bool
+    choices: NotRequired[list]
 
 
 class SettingValueParams(TypedDict):
@@ -86,10 +89,13 @@ def create_customization_setting(
     """Command to create a Setting, with its SettingValue."""
     # capitalize() will make the first letter of a string capitalized but all the other letters lowercase
     name_for_messages_capitalized = name_for_messages[0].upper() + name_for_messages[1:]
+    pruned_setting_params = copy.deepcopy(setting_params)
+    if "choices" in pruned_setting_params:
+        del pruned_setting_params["choices"]
     setting, _setting_created = Setting.objects.get_or_create(
         name=setting_params["name"],
         group=setting_params["group"],
-        defaults=setting_params,
+        defaults=pruned_setting_params,
     )
     try:
         setting = SettingValue.objects.get(journal=None, setting=setting)
@@ -462,6 +468,33 @@ def add_general_facebook_handle_setting(force: bool = False) -> tuple[SettingVal
             setting_params,
             settingvalue_params,
             "journal's facebook handle",
+            force=force,
+        ),
+    )
+
+
+# refs specs#2294
+def add_general_journal_motto_setting(force: bool = False) -> tuple[SettingValue, ...]:
+    general_settings_group = get_group("general")
+    setting_params: SettingParams = {
+        "name": "journal_motto",
+        "group": general_settings_group,
+        "types": "text",
+        "pretty_name": "Journal motto",
+        "description": "Journal motto used in header.",
+        "is_translatable": False,
+    }
+    settingvalue_params: SettingValueParams = {
+        "journal": None,
+        "setting": None,
+        "value": "",
+        "translations": {},
+    }
+    return (
+        create_customization_setting(
+            setting_params,
+            settingvalue_params,
+            "journal motto",
             force=force,
         ),
     )

@@ -11,13 +11,17 @@ import shutil
 import tarfile
 import tempfile
 import time
+import xml.etree.ElementTree as ET  # noqa
 from copy import copy
+from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Mapping, Optional
 
 import html2text
 import requests
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
@@ -46,10 +50,21 @@ from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
+from plugins.wjs_submission.models import (
+    RevisionStorage,
+    RevisionSubmissionArticleFunding,
+    SubmissionArticleFunding,
+)
 from review.logic import assign_editor, quick_assign
 from review.models import ReviewRound
 from review.views import upload_review_file
-from submission.models import STAGE_ASSIGNED, STAGE_UNDER_REVISION, Article
+from submission.models import (
+    STAGE_ASSIGNED,
+    STAGE_UNDER_REVISION,
+    Article,
+    Field,
+    FieldAnswer,
+)
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -63,6 +78,7 @@ from wjs.jcom_profile.utils import (
     render_template_from_setting,
 )
 
+from ..wjs_submission.models import ArticleSubmission
 from . import communication_utils, permissions
 from .events.assignment import dispatch_assignment
 from .logic__production import (  # noqa F401
@@ -79,6 +95,7 @@ from .models import (
     ArticleWorkflow,
     EditorDecision,
     EditorRevisionRequest,
+    LatexPreamble,
     Message,
     PastEditorAssignment,
     PermissionAssignment,
@@ -106,6 +123,7 @@ from .reminders.settings import (
 from .utils import (
     get_not_withdrawn_review_assignments_for_this_round,
     get_other_review_assignments_for_this_round,
+    remove_existing_files_from_filesystem,
 )
 
 logger = get_logger(__name__)
@@ -295,6 +313,7 @@ class BaseAssignToEditor:
         # class and setting the id of the pointer field to the id of the original model.
         assignment_id = assignment.pk
         assignment.__class__ = WjsEditorAssignment
+        assignment.editor_report_pdf_draft = None
         assignment.editorassignment_ptr_id = assignment_id
         assignment.save()
         current_review_round_object = self.article.current_review_round_object()
@@ -352,7 +371,7 @@ class BaseAssignToEditor:
             article=assignment.article,
         ).delete()
 
-    def _get_message_context(self, assignment: WjsEditorAssignment) -> Dict[str, Any]:
+    def _get_message_context(self, assignment: WjsEditorAssignment) -> dict[str, Any]:
         return {
             "article": self.article,
             "request": self.request,
@@ -368,7 +387,7 @@ class BaseAssignToEditor:
             ).processed_value,
         }
 
-    def _log_operation(self, context: Dict[str, Any], assignment_message: Optional[str] = None):
+    def _log_operation(self, context: dict[str, Any], assignment_message: Optional[str] = None):
         if not assignment_message:
             message_subject = render_template_from_setting(
                 setting_group_name="email_subject",
@@ -505,7 +524,7 @@ class AssignToReviewer:
     workflow: ArticleWorkflow
     reviewer: Account
     editor: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     assignment: Optional[WorkflowReviewAssignment] = None
     log_operation: bool = True
@@ -594,6 +613,7 @@ class AssignToReviewer:
             assignment.reviewassignment_ptr_id = assignment_id
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.editor_invite_message = None
+            assignment.tex_report_pdf = None
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -625,7 +645,7 @@ class AssignToReviewer:
             },
         )
 
-    def _get_message_context(self) -> Dict[str, Any]:
+    def _get_message_context(self) -> dict[str, Any]:
         """
         Return a dictionary with the context for default form message.
 
@@ -686,7 +706,7 @@ class AssignToReviewer:
             "acceptance_due_date": acceptance_due_date,
         }
 
-    def _log_operation(self, context: Dict[str, Any]):
+    def _log_operation(self, context: dict[str, Any]):
         if self.reviewer == self.editor:
             message_verbosity = Message.MessageVerbosity.TIMELINE
             message_subject_setting = "wjs_editor_i_will_review_message_subject"
@@ -790,7 +810,7 @@ class EvaluateReview:
     assignment: WorkflowReviewAssignment
     reviewer: Account
     editor: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     token: str
 
@@ -936,7 +956,7 @@ class EvaluateReview:
             self.assignment.date_due = date_due
             self.assignment.save()
 
-    def _get_postpone_too_far_in_the_future_message_context(self) -> Dict[str, Any]:
+    def _get_postpone_too_far_in_the_future_message_context(self) -> dict[str, Any]:
         default_review_days = self.assignment.article.journal.get_setting(
             group_name="general",
             setting_name="default_review_days",
@@ -953,7 +973,7 @@ class EvaluateReview:
             "original_date_due": default_date_due,
         }
 
-    def _get_accept_message_context(self) -> Dict[str, Any]:
+    def _get_accept_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -965,7 +985,7 @@ class EvaluateReview:
             # the `review_url` page)
         }
 
-    def _get_decline_message_context(self) -> Dict[str, Any]:
+    def _get_decline_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1164,7 +1184,7 @@ class InviteReviewer:
 
     workflow: ArticleWorkflow
     editor: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
 
     def _generate_token(self) -> str:
@@ -1313,7 +1333,7 @@ class SubmitReview:
                 **kwargs,
             )
 
-    def _get_editor_message_context(self) -> Dict[str, Any]:
+    def _get_editor_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1321,7 +1341,7 @@ class SubmitReview:
             "review_assignment": self.assignment,
         }
 
-    def _get_reviewer_message_context(self) -> Dict[str, Any]:
+    def _get_reviewer_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1454,9 +1474,9 @@ class SubmitReview:
 
 
 @dataclasses.dataclass
-class AuthorHandleRevision:
+class AuthorHandleRevisionObsolete:
     revision: EditorRevisionRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     user: Account  # TODO: not used? Please check and refactor!
     request: HttpRequest
 
@@ -1475,14 +1495,14 @@ class AuthorHandleRevision:
 
     @staticmethod
     def _trigger_complete_event(revision: EditorRevisionRequest, request: HttpRequest):
-        """Trigger the ON_REVIEW_COMPLETE event to comply with upstream review workflow."""
+        """Trigger the ON_REVISIONS_COMPLETE event to comply with upstream review workflow."""
         kwargs = {
             "revision": revision,
             "request": request,
         }
         events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
 
-    def _get_revision_submission_message_context(self) -> Dict[str, Any]:
+    def _get_revision_submission_message_context(self) -> dict[str, Any]:
         self.editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
         return {
             "article": self.revision.article,
@@ -1684,6 +1704,364 @@ class AuthorHandleRevision:
 
 
 @dataclasses.dataclass
+class AuthorHandleRevision:
+    """
+    Logic related to the submission of a revision.
+
+    Note that this class triggers ON_REVISIONS_COMPLETE when done.
+    """
+
+    request: HttpRequest
+    article: Article
+    revision: EditorRevisionRequest = dataclasses.field(init=False)
+    revision_storage: RevisionStorage = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        """Define article and revision_storage instance variables."""
+        self.revision = (
+            EditorRevisionRequest.objects.filter(
+                article=self.article,
+                date_completed__isnull=True,
+            )
+            .order_by("-date_requested")
+            .first()
+        )
+        self.revision_storage = RevisionStorage.objects.get(article=self.article)
+
+    def _store_data(self):
+        """
+        Copy article metadata from temporary RevisionStorage to the article.
+
+        Where necessary, keep the old value in EditorRevisionRequest.
+        Also save answers from additional submission fields.
+        """
+
+        if not self.revision_storage.data.get("submission_requirements"):
+            raise ValueError(
+                "Author did not confirm submission requirements: "
+                f"{self.article.submission_requirements=} / "
+                f"{self.revision_storage.data.get('submission_requirements')}",
+            )
+        if not self.article.submission_requirements:
+            # Some article might not have the submission-requirements checked.
+            # This looks like a business-logic flow: if the author does not agree with the journal
+            # requirements, why is he submitting a paper?
+            # Logging this as a non-blocking error, becaues I'm not sure if/when this can happen.
+            logger.error(
+                f"Article {self.article.journal.code}_{self.article.id} has submission_requirements NOT set."
+                " Please check. Proceeding anyway.",
+            )
+
+        # Keep history of data / snaphost data / versioning data
+        # ====================
+        #
+        # Please remember that files (manuscript, source files, etc.) have already been "copied" to the
+        # revision-request object, when the revision request was created.
+        #
+        # Old title and abstract are kept in the revision-request object
+        if new_title := self.revision_storage.data.get("title"):
+            self.revision.title = self.article.title
+            self.article.title = new_title
+        else:
+            self.revision.title = self.article.title
+
+        if new_abstract := self.revision_storage.data.get("abstract"):
+            self.revision.abstract = self.article.abstract
+            self.article.abstract = new_abstract
+        else:
+            self.revision.abstract = self.article.abstract
+
+        # Cover letter (note and file), manuscript and source-files are kept in the revision-request object
+        if cover_letter_note := self.revision_storage.data.get("comments_editor"):
+            self.revision.author_note = cover_letter_note
+        if file_id := self.revision_storage.data.get("cover_letter_file"):
+            self.revision.cover_letter_file = core_models.File.objects.get(id=file_id)
+
+        # The following fields directly overwrite existing values: no history is kept
+        if new_competing_interests := self.revision_storage.data.get("competing_interests"):
+            self.article.competing_interests = new_competing_interests
+        if correspondence_author := self.revision_storage.data.get("correspondence_author"):
+            self.article.correspondence_author_id = correspondence_author
+        if owner := self.revision_storage.data.get("owner"):
+            self.article.owner_id = owner
+        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
+            self.article.submission_data.affiliation_country_id = affiliation_country
+        if access_mode := self.revision_storage.data.get("access_mode"):
+            self.article.submission_data.access_mode_id = access_mode
+        if special_request := self.revision_storage.data.get("special_request"):
+            self.article.submission_data.special_request = special_request
+        if language := self.revision_storage.data.get("language"):
+            self.article.language = language
+        if section := self.revision_storage.data.get("section"):
+            self.article.section_id = section
+
+        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+            # store cas, das and files
+            self.article.submission_data.cas = self.revision_storage.data.get("cas")
+            self.article.submission_data.das = self.revision_storage.data.get("das")
+
+            # files
+            # (remember that the files from the previous version have already been saved to revision-request
+            # object when the revision was requested by the editor)
+            self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
+            self.article.source_files.set([self.revision_storage.data["source_files"]])
+
+            # data-figure and supplementary files:
+            # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
+            self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
+            self.article.supplementary_files.set(self.revision_storage.data["supplementary_files"])
+
+            # TODO: specs#2330 probably nothing to do for "administrative files"
+
+        self.revision.save()
+        self.article.submission_data.save()
+        self.article.save()
+
+        # Additional submission fields
+        for additional_submission_field in Field.objects.filter(journal=self.article.journal).order_by("order"):
+            if additional_submission_field.name in self.revision_storage.data:
+                # Using "update_or_create" (instead of just "update"), because the author could have filled some answer
+                # that he had left empty during the first submission.
+                FieldAnswer.objects.update_or_create(
+                    article=self.article,
+                    field=additional_submission_field,
+                    defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
+                )
+
+        SubmissionArticleFunding.objects.filter(article=self.article).delete()
+        fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
+        for funding in fundings:
+            SubmissionArticleFunding.objects.create(
+                pk=funding.pk,
+                article=self.article,
+                name=funding.name,
+                fundref_id=funding.fundref_id,
+                funding_id=funding.funding_id,
+                funding_statement=funding.funding_statement,
+                country=funding.country,
+            )
+
+        self.revision_storage.delete()
+
+    def _confirm_revision(self):
+        """
+        Mark the revision as completed.
+
+        The Article.stage / state are not changed here,
+        but by event-handlers registered with the ON_REVISIONS_COMPLETE event.
+
+        This allows for other code to hook-up to the event ON_REVISION_SUBMISSION_COMPLETED.
+        """
+        self.revision.date_completed = timezone.now()
+        self.revision.save()
+
+    @staticmethod
+    def _trigger_complete_event(revision: EditorRevisionRequest, request: HttpRequest) -> None:
+        """Trigger the ON_REVISIONS_COMPLETE event to comply with upstream review workflow."""
+        kwargs = {
+            "revision": revision,
+            "request": request,
+        }
+        events_logic.Events.raise_event(events_logic.Events.ON_REVISIONS_COMPLETE, **kwargs)
+
+    def _get_revision_submission_message_context(self) -> dict[str, Any]:
+        self.editor = WjsEditorAssignment.objects.get_current(article=self.revision.article).editor
+        return {
+            "article": self.revision.article,
+            "request": self.request,
+            "skip": False,
+            "revision": self.revision,
+            "editor": self.editor,
+            "default_editor_assign_reviewer_days": get_setting(
+                setting_group_name="wjs_review",
+                setting_name="default_editor_assign_reviewer_days",
+                journal=self.revision.article.journal,
+            ).processed_value,
+        }
+
+    def _was_under_appeal(self) -> bool:
+        """Return True if the paper was under appeal."""
+        return self.revision.type == ArticleWorkflow.Decisions.OPEN_APPEAL
+
+    def _was_technical_revision(self) -> bool:
+        """Return True if the revision was really a metadata-update."""
+        return self.revision.type == ArticleWorkflow.Decisions.TECHNICAL_REVISION
+
+    def _notify_reviewers(self):
+        """
+        Send notifications to all reviewers of unsubmitted revisions.
+
+        Unsubmitted reviews are available only in case of technical revisions, because for major / minor revisions
+        reviewers are withdrawn when requesting the revision.
+        """
+        article = self.revision.article  # alias
+        reviewer_message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="technicalrevisions_complete_reviewer_notification_subject",
+            journal=article.journal,
+        ).processed_value
+
+        context = self._get_revision_submission_message_context()
+        # NB: don't use Janeway's article.active_reviews since it includes "withdrawn" reviews.
+        current_round = article.current_review_round_object()
+        for assignment in WorkflowReviewAssignment.objects.filter(
+            article=article,
+            review_round=current_round,
+            is_complete=False,
+        ).not_withdrawn():
+            # customize message per-reviewer
+            context["reviewer"] = assignment.reviewer
+            reviewer_message_body = render_template_from_setting(
+                setting_group_name="wjs_review",
+                setting_name="technicalrevisions_complete_reviewer_notification_body",
+                journal=article.journal,
+                request=self.request,
+                context=context,
+                template_is_setting=True,
+            )
+
+            communication_utils.log_operation(
+                actor=self.revision.editor,
+                article=self.revision.article,
+                message_subject=reviewer_message_subject,
+                message_body=reviewer_message_body,
+                recipients=[assignment.reviewer],
+                verbosity=Message.MessageVerbosity.FULL,
+                hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+                notify_actor=communication_utils.should_notify_actor(),
+                flag_as_read=False,
+                flag_as_read_by_eo=True,
+            )
+
+    def _notify_editor(self):
+        """Send notification to the editor."""
+        # we need to render the subject too,
+        # because it changes for major/minor and technical revision submissions
+        reviewer_message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_revisions_complete_editor_notification",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        reviewer_message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="revisions_complete_editor_notification",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=None,
+            article=self.revision.article,
+            message_subject=reviewer_message_subject,
+            message_body=reviewer_message_body,
+            recipients=[self.revision.editor],
+            verbosity=Message.MessageVerbosity.FULL,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _notify_author(self):
+        """Send a receipt notification to the author."""
+        subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_revisions_complete_receipt",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="revisions_complete_receipt",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            actor=None,
+            article=self.revision.article,
+            message_subject=subject,
+            message_body=body,
+            recipients=[self.revision.article.correspondence_author],
+            verbosity=Message.MessageVerbosity.FULL,
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _notify_editor_with_appeal(self):
+        """Send notification to the editor informing that the paper was under appeal."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_submits_appeal_subject",
+            journal=self.revision.article.journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="author_submits_appeal_body",
+            journal=self.revision.article.journal,
+            request=self.request,
+            context=self._get_revision_submission_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.revision.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[self.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _log_operation(self):
+        """Send notifications to editor and reviewers and a receipt to the author."""
+        if self._was_under_appeal():
+            self._notify_editor_with_appeal()
+        else:
+            self._notify_editor()
+        self._notify_reviewers()
+        if not self._was_technical_revision():
+            self._notify_author()
+
+    def _delete_author_reminders(self):
+        if self._was_technical_revision():
+            AuthorShouldSubmitTechnicalRevisionReminderManager(self.revision).delete()
+        elif self.revision.type == ArticleWorkflow.Decisions.MAJOR_REVISION:
+            AuthorShouldSubmitMajorRevisionReminderManager(self.revision).delete()
+        elif self.revision.type == ArticleWorkflow.Decisions.MINOR_REVISION:
+            AuthorShouldSubmitMinorRevisionReminderManager(self.revision).delete()
+
+    def _create_editor_should_select_reviewer_reminders(self):
+        """
+        Create reminders for the editor to select a reviewer.
+
+        When author submit a revision but not for appeal and technical revision.
+        """
+        if not self._was_under_appeal() and not self._was_technical_revision():
+            EditorShouldSelectReviewerReminderManager(self.revision.article, self.revision.editor).create()
+
+    def run(self):
+        with transaction.atomic():
+            self._store_data()
+            self._confirm_revision()
+            self._trigger_complete_event(self.revision, self.request)
+            self._delete_author_reminders()
+            self._create_editor_should_select_reviewer_reminders()
+            self._log_operation()
+            return self.revision
+
+
+@dataclasses.dataclass
 class DeselectReviewer:
     """
     Low-level logic to remove reviewer assignment.
@@ -1693,7 +2071,7 @@ class DeselectReviewer:
     actor: Account
     request: HttpRequest
     send_reviewer_notification: bool
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
 
     def _log_operation(self):
         """Log a message to the reviewer containing information about the motivation of the deassignment."""
@@ -1767,8 +2145,8 @@ class WithdrawIncompleteReviews:
     actor: Account
     subject_name: tuple[str, str] | None = None
     body_name: tuple[str, str] | None = None
-    context: Dict[str, Any] | None = None
-    extra_filters: Dict[str, Any] = None
+    context: dict[str, Any] | None = None
+    extra_filters: dict[str, Any] = None
     form_data: dict = None
     """If provided, use the form's data for the message body instead of getting it from a setting."""
 
@@ -1835,7 +2213,7 @@ class WithdrawIncompleteReviews:
 @dataclasses.dataclass
 class HandleDecision:
     workflow: ArticleWorkflow
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     user: Account
     request: HttpRequest
     admin_form: bool = False
@@ -1906,14 +2284,14 @@ class HandleDecision:
         handler_exists = self.form_data["decision"] in self._decision_handlers
         return editor_has_permissions and article_state and handler_exists
 
-    def _trigger_article_event(self, event: str, context: Dict[str, Any]):
+    def _trigger_article_event(self, event: str, context: dict[str, Any]):
         """Trigger the given event."""
         return events_logic.Events.raise_event(event, task_object=self.workflow.article, **context)
 
     def _get_message_context(
         self,
         revision: Optional[EditorRevisionRequest] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         context = {
             "article": self.workflow.article,
             "request": self.request,
@@ -1941,7 +2319,7 @@ class HandleDecision:
             )
         return context
 
-    def _log_accept(self, context: Dict[str, Any]):
+    def _log_accept(self, context: dict[str, Any]):
         accept_message_subject = render_template_from_setting(
             setting_group_name="email_subject",
             setting_name="subject_review_decision_accept",
@@ -2087,7 +2465,7 @@ class HandleDecision:
             flag_as_read_by_eo=True,
         )
 
-    def _log_technical_revision_request(self, context: Dict[str, str]):
+    def _log_technical_revision_request(self, context: dict[str, str]):
         technical_revision_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="technical_revision_subject",
@@ -2330,7 +2708,7 @@ class HandleDecision:
         }
         revision.save()
 
-    def _withdraw_unfinished_review_requests(self, email_context: Dict[str, str]):
+    def _withdraw_unfinished_review_requests(self, email_context: dict[str, str]):
         """
         Mark unfinished review requests as withdrawn.
         """
@@ -2355,6 +2733,13 @@ class HandleDecision:
             decision_editor_report=self.form_data["decision_editor_report"],
         )
         return decision
+
+    def _handle_latex_pdf(self, decision):
+        """If decision contains a report and It has a latex version we save it in EditorDecision."""
+        assignment = WjsEditorAssignment.objects.get_current(self.workflow.article)
+        if self.form_data.get("decision_editor_report", []) and assignment.editor_report_pdf_draft:
+            decision.decision_editor_report_pdf = assignment.editor_report_pdf_draft
+            decision.save()
 
     def _mark_send_review_file(self):
         """Fix permissions on review-files for the author, based on the editor's selections."""
@@ -2402,6 +2787,7 @@ class HandleDecision:
             if not conditions:
                 raise ValidationError(_("Decision conditions not met"))
             decision = self._store_decision()
+            self._handle_latex_pdf(decision)
             self._mark_send_review_file()
             handler = self._decision_handlers.get(self.form_data["decision"], None)
             if handler:
@@ -2417,7 +2803,7 @@ class PostponeRevisionRequestDueDate:
     """
 
     revision_request: EditorRevisionRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     original_due_date: datetime.date
     """
@@ -2451,7 +2837,7 @@ class PostponeRevisionRequestDueDate:
 
         return new_date_greater_than_max_date(self.form_data["date_due"], setting_name)
 
-    def _get_message_context(self, original_due_date: datetime.date) -> Dict[str, Any]:
+    def _get_message_context(self, original_due_date: datetime.date) -> dict[str, Any]:
         return {
             "article": self.revision_request.article,
             "request": self.request,
@@ -2461,7 +2847,7 @@ class PostponeRevisionRequestDueDate:
             "original_due_date": original_due_date,
         }
 
-    def _log_eo_date_due_too_far_future(self, context: Dict[str, Any]):
+    def _log_eo_date_due_too_far_future(self, context: dict[str, Any]):
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="revision_request_date_due_far_future_subject",
@@ -2483,7 +2869,7 @@ class PostponeRevisionRequestDueDate:
             recipients=[get_eo_user(self.revision_request.article)],
         )
 
-    def _log_author_if_date_due_is_postponed(self, context: Dict[str, Any]):
+    def _log_author_if_date_due_is_postponed(self, context: dict[str, Any]):
         message_subject = get_setting(
             setting_group_name="wjs_review",
             setting_name="revision_request_date_due_postponed_subject",
@@ -2547,7 +2933,7 @@ class PostponeRevisionRequestDueDate:
 @dataclasses.dataclass
 class HandleMessage:
     message: Message
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
 
     def __post_init__(self):
         if ContentType.objects.get_for_model(self.message.target) == Journal:
@@ -2816,14 +3202,14 @@ class AdminActions:
     def _get_message_context(
         self,
         workflow: Article,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         context = {
             "article": workflow.article,
             "request": self.request,
         }
         return context
 
-    def _log_reassign(self, context: Dict[str, str]):
+    def _log_reassign(self, context: dict[str, str]):
         requeue_article_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="requeue_article_subject",
@@ -2885,7 +3271,7 @@ class PostponeReviewerDueDate:
     assignment: WorkflowReviewAssignment
     editor: Account
     user: Account
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     request: HttpRequest
     original_due_date: datetime.date
     """
@@ -2900,7 +3286,7 @@ class PostponeReviewerDueDate:
         ):
             return True
 
-    def _get_message_context(self) -> Dict[str, Any]:
+    def _get_message_context(self) -> dict[str, Any]:
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -3201,7 +3587,7 @@ class HandleEditorDeclinesAssignment:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
     director: Optional[Account] = None
     """
     Director is loaded at runtime to send decline notifications. It's not meant to be set when initializing the class.
@@ -3407,7 +3793,7 @@ class WithdrawPreprint:
 
     workflow: ArticleWorkflow
     request: HttpRequest
-    form_data: Dict[str, Any]
+    form_data: dict[str, Any]
 
     def _check_user_conditions(self) -> bool:
         """Check if the user is the correspondence author or owner."""
@@ -3483,7 +3869,7 @@ class WithdrawPreprint:
         """Return the current typesetting assignment (if any)."""
         return self.workflow.get_latest_typesetting_assignment(only_completed=False)
 
-    def _get_typesetter_context(self, assignment: TypesettingAssignment) -> Dict[str, Any]:
+    def _get_typesetter_context(self, assignment: TypesettingAssignment) -> dict[str, Any]:
         return {
             "article": self.workflow.article,
             "recipient": assignment.typesetter,
@@ -3539,6 +3925,203 @@ class WithdrawPreprint:
                 self._log_typesetter(assignment)
             handler.run()
             return
+
+
+class YakuninPDFGenerationError(Exception):
+    """Raised when Yakunin fails to generate the PDF due to content or processing issues."""
+
+    pass
+
+
+class YakuninRequestError(Exception):
+    """Raised when the request to Yakunin fails (network, timeout, HTTP errors)."""
+
+    pass
+
+
+@dataclasses.dataclass
+class YakuninClient:
+    file: bytes
+    filename: str
+
+    def _handle_mock_file(self):
+        """
+        Handles the processing of a mock file designated by the YAKUNIN_MOCK_FILE
+        setting. The file is processed by reading its content, unpacking it, and
+        returning a temporary directory along with a predefined message. Thi is
+        returned instead of a file deriving from the real execution.
+
+        :return: A tuple containing the temporary directory created during unpacking
+                 and a string message simulating a successful log.
+        :rtype: tuple
+        """
+        with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
+            tmpdir = self._unpack_response_file(mock_file.read())
+            return tmpdir, "No logs for mock file"
+
+    def _request(
+        self, endpoint: str, files: dict[str, tuple[str, bytes]], data: Optional[Mapping[str, str]] = None
+    ) -> tuple[Path, str]:
+        """
+        Sends a POST request to the specified endpoint with files and data, processes the response, and
+        handles potential issues such as network errors or problems with the response content. The method
+        is specifically used for interactions with the Yakunin system for generating PDFs.
+
+        :param endpoint: Endpoint URL path to which the request is sent.
+        :type endpoint: str
+        :param files: Dictionary of files to send in the request. Keys represent file field names, and
+                      values are tuples containing the file name and the file's content in bytes.
+        :type files: dict[str, tuple[str, bytes]]
+        :param data: Optional dictionary of data to send in the request. Each key-value pair represents
+                     form data sent along with the files.
+        :type data: Optional[Mapping[str, str]]
+        :return: A tuple containing the path to the unpacked directory (as a Path object) and the
+                 Yakunin log string extracted from the response.
+        :rtype: tuple[Path, str]
+        :raises ValidationError: If there is an issue with the network connection, the request times out,
+                                  or the server returns an HTTP error.
+        :raises ValueError: If the Yakunin logs indicate an error during PDF generation.
+        """
+        if getattr(settings, "YAKUNIN_MOCK_FILE", None):
+            tmpdir, log = self._handle_mock_file()
+            return tmpdir, log
+
+        url = settings.YAKUNIN_URL + endpoint
+        try:
+            response = requests.post(url, files=files, data=data)
+            response.raise_for_status()
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+            raise YakuninRequestError(str(e)) from e
+
+        tmpdir = self._unpack_response_file(response.content)
+        log = self._extract_yakunin_logs(tmpdir)
+        # store logs in a class variable to be able to access them later even if ValueError is raised
+        self._log = log
+        if not self._report_yakunin_errors(log):
+            shutil.rmtree(tmpdir)
+            raise YakuninPDFGenerationError(
+                _("Error generating the PDF file. A log file containing diagnostic details has been downloaded.")
+            )
+        return tmpdir, log
+
+    # This method is not currently used bud could be useful, maybe?
+    def call_yakunin_mkpdf(self) -> tuple[Path, str]:
+        """
+        Calls the 'mkpdf/' endpoint to generate a PDF file using the provided file
+        data and filename. This method wraps the request and retrieves the result
+        including the file path and additional metadata.
+
+        :return: A tuple containing the path to the generated PDF file and metadata
+                 as a string.
+        :rtype: tuple[Path, str]
+        """
+        files = {
+            "file": (
+                self.filename,
+                self.file,
+            ),
+        }
+        return self._request("mkpdf/", files)
+
+    def call_yakunin_watermark(self, ini_file: BytesIO, feedback_ws_url: str | None = None) -> tuple[Path, str]:
+        """
+        Calls the Yakunin watermark service.
+
+        This method sends files and their configuration settings to a specific Yakunin
+        watermarking service endpoint. Depending on whether a feedback WebSocket URL
+        is provided, it either interacts with the feedback-enabled endpoint or the
+        basic one. The method processes the input files, constructs the necessary
+        payload, and internally calls the service.
+
+        :param ini_file: Configuration file provided as a BytesIO object for the
+            watermarking process.
+        :type ini_file: BytesIO
+        :param feedback_ws_url: WebSocket URL string for processing feedback data
+            during watermarking.
+        :type feedback_ws_url: str
+        :return: A tuple containing the resulting file path and a response string
+            from the watermarking service.
+        :rtype: tuple[Path, str]
+        """
+        files = {
+            "file": (
+                self.filename,
+                self.file,
+            ),
+            "ini": (ini_file.name, ini_file.getvalue()),
+        }
+
+        if feedback_ws_url:
+            return self._request("watermark/ws/", files, {"feedback_ws_url": feedback_ws_url})
+        return self._request("watermark/", files)
+
+    def _unpack_response_file(self, content: bytes) -> Path:
+        """
+        Unpacks the content of a tar.gz file into a temporary directory.
+
+        This function creates a temporary directory, unpacks the provided compressed
+        content (in tar.gz format) into it, and returns the path of the created
+        temporary directory.
+
+        :param content: The tar.gz file content to unpack.
+        :type content: bytes
+        :return: Path to the temporary directory where the content is unpacked.
+        :rtype: Path
+        """
+        unpack_dir = tempfile.mkdtemp()
+
+        with BytesIO(content) as file_obj:
+            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+                tar.extractall(path=unpack_dir)
+        unpack_dir = Path(unpack_dir)
+
+        return unpack_dir
+
+    def _extract_yakunin_logs(self, tmpdir: Path) -> str:
+        """
+        Extracts the content of a specific Yakunin log file located in a given temporary
+        directory. This method searches for the first occurrence of a log file named
+        'yakunin-task.log', reads its binary content, and decodes it into a string.
+
+        :param tmpdir: A pathlib.Path object pointing to the temporary directory where
+                       the Yakunin log file is expected to reside.
+        :type tmpdir: Path
+        :return: The decoded content of the Yakunin log file as a string.
+        :rtype: str
+        """
+        yakunin_log_file = next(tmpdir.glob("yakunin-task.log"), None)
+        with open(yakunin_log_file, "rb") as log_file:
+            log_content = log_file.read()
+            return log_content.decode("utf-8")
+
+    def _report_yakunin_errors(self, log: str) -> bool:
+        """
+        Analyzes the given log for critical or error-level messages and
+        determines whether any such messages are present.
+
+        This function inspects each line of the given log string. If it encounters
+        a line that starts with "ERROR" or "CRITICAL", it sets a flag indicating
+        the presence of such messages and stops further inspection. The final
+        decision is then returned as a boolean value indicating the absence of
+        "errors" or "critical" messages.
+
+        :param log: The log string to be analyzed line by line.
+        :type log: str
+        :return: A boolean value indicating the absence of "ERROR" or
+            "CRITICAL" messages. Returns True if no such messages exist,
+            otherwise False.
+        :rtype: bool
+        """
+        has_error_or_critical = False
+
+        for line in log.splitlines():
+            if line.startswith("ERROR"):
+                has_error_or_critical = True
+                break
+            elif line.startswith("CRITICAL"):
+                has_error_or_critical = True
+                break
+        return not has_error_or_critical
 
 
 @dataclasses.dataclass
@@ -3602,15 +4185,100 @@ class PressNotificationHandler:
 
 @dataclasses.dataclass
 class ConvertManuscriptToPdf:
-    """Use Yakunin service to convert the manuscript file uploaded by the author into a PDF."""
+    """
+    Convert an article's manuscript sources to PDF.
 
-    article: Article
+    This class deals differently with new submissions and revisions.
+    """
 
-    def create_in_memory_ini_file(self) -> BytesIO:
-        """Create wjs.ini file.
+    article_id: int
+    file_id: int
+    feedback_ws_url: str | None
+    feedback_ws_name: str | None
+    is_revision: bool = False
 
-        This is used to control the position of the watermark that yakunin overlays on the PDF and what to write on it.
+    _failed_conversion_log = "Failed conversion log ConvertManuscriptToPdf"
 
+    @cached_property
+    def article(self) -> Article:
+        return Article.objects.get(pk=self.article_id)
+
+    @property
+    def yakunin_log_filename(self):
+        return f"conversion-task_{self.article}.log"
+
+    def _report_error_via_ws(self, status: str, error_description: str, log_file=None):
+        channel_layer = get_channel_layer()
+        payload = {
+            "status": status,
+            "text": error_description,
+        }
+        if log_file:
+            payload["data"] = log_file
+        async_to_sync(channel_layer.group_send)(
+            f"group_{self.feedback_ws_name}", {"type": "error.log", "message": payload}
+        )
+
+    def run(self):
+        """
+        Run the watermarking process for the manuscript file of an article.
+
+        This method creates an in-memory INI file for configuration and retrieves the
+        first manuscript file associated with the article. The file's content and name
+        are passed to the YakuninClient to generate a watermarked version of the PDF
+        file. Logs generated during the process are saved, and the resulting watermarked
+        PDF is handled appropriately. Temporary directories used during the process
+        are cleaned up to ensure no residual data remains.
+
+        :raises ValueError: If an error occurs during the Yakunin watermarking process.
+
+        :return: The generated watermarked PDF file.
+        """
+        tmpdir = None
+        ini = self._create_in_memory_ini_file()
+        filename, file_bytes, file_obj = self._get_source_file()
+        try:
+            client = YakuninClient(file=file_bytes, filename=filename)
+            tmpdir, log_content = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
+            self.logfile = self._save_yakunin_logs(log_content)
+            generated_file = self._handle_generated_pdf(tmpdir, source_file=file_obj)
+            return generated_file
+        except YakuninPDFGenerationError as e:
+            log_content = getattr(client, "_log", None)
+            if not log_content:
+                log_content = str(e)
+            self.logfile = self._save_yakunin_logs(log_content)
+            log_file_url = reverse(
+                "download_single_file", kwargs={"file_id": self.logfile.id, "article_id": self.article_id}
+            )
+            self._report_error_via_ws("error", str(e), log_file_url)
+            raise
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            self.logfile = self._save_yakunin_logs(str(e))
+            log_file_url = reverse(
+                "download_single_file", kwargs={"file_id": self.logfile.id, "article_id": self.article_id}
+            )
+            self._report_error_via_ws("error", str(msg), log_file_url)
+            raise
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+    def _create_in_memory_ini_file(self) -> BytesIO:
+        """
+        Creates an in-memory .ini file containing metadata related to the current article version.
+
+        The method generates a `.ini` configuration file in memory that stores information concerning
+        the article being processed, such as its journal code, unique identifier, version number, and
+        positioning settings for a watermark. The generated `.ini` file is designed to be used
+        internally to aid in the submission or revision-submission workflow. It handles both initial
+        submission and revision-submission scenarios by considering whether the article already belongs
+        to a review round.
+
+        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
+        :rtype: BytesIO
         """
         extra_config = getattr(settings, "YAKUNIN_CONFIG", "")
         # Warning: we can be called during submission, in which case there exists no version of the paper, so we are
@@ -3635,57 +4303,58 @@ y = {settings.WATERMARK_Y_POSITION}
         ini_file.seek(0)
         return ini_file
 
-    def ask_yakunin_to_process(self, ini_file: BytesIO) -> bytes:
-        if getattr(settings, "YAKUNIN_MOCK_FILE", None):
-            with open(settings.YAKUNIN_MOCK_FILE, "rb") as mock_file:
-                return mock_file.read()
-        url = settings.YAKUNIN_URL
+    def _save_yakunin_logs(self, log: str) -> core_models.File:
+        """
+        Saves the Yakunin logs associated with a specific conversion task. This function
+        takes a string containing log data, encodes it, and saves the log file as part
+        of an article's associated files. The file is saved with a standardized name
+        including the associated article's information.
 
-        files = {
-            "file": (
-                self.article.manuscript_files.first().original_filename,
-                self.article.manuscript_files.first().get_file(self.article, as_bytes=True),
-            ),
-            "ini": (ini_file.name, ini_file.getvalue()),
-        }
+        :param log: The log content to save, provided as a string.
+        :type log: str
+        :return: None
+        """
+        remove_existing_files_from_filesystem(self.article.pk, self.yakunin_log_filename)
+        log_file = BytesIO(log.encode("utf-8"))
+        log_content_file = File(log_file, name=self.yakunin_log_filename)
 
-        response = requests.post(url, files=files)
-        if response.status_code != 200:
-            raise ValueError(_(f"Unexpected status code {response.status_code}."))
+        return core_files.save_file_to_article(
+            file_to_handle=log_content_file,
+            article=self.article,
+            owner=self.article.correspondence_author,
+            label=self._failed_conversion_log,
+        )
 
-        return response.content
+    def _handle_generated_pdf(self, tmpdir: Path, source_file: File) -> File:
+        """
+        Handle the generated PDF.
 
-    def unpack_response_file(self, content: bytes) -> Path:
-        unpack_dir = tempfile.mkdtemp()
+        Processes it, and save it appropriately.
 
-        with BytesIO(content) as file_obj:
-            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-                tar.extractall(path=unpack_dir)
-        unpack_dir = Path(unpack_dir)
+        For new submissions, this method updates the article's
+        file associations, placing the generated PDF in the correct slot while
+        clearing and reassigning other related files.
 
-        return unpack_dir
+        For revisions, this method updates the revision_storage data,
+        clearing eventually replaced files.
 
-    def check_yakunin_logs(self, unpack_dir: Path) -> bool:
-        has_error_or_critical = False
-        # Assuming the file is always present if response.status_code is 200
-        yakunin_log_file = next(unpack_dir.glob("yakunin-task.log"), None)
-
-        with open(yakunin_log_file) as log_file:
-            for line in log_file:
-                if line.startswith("ERROR"):
-                    has_error_or_critical = True
-                    break
-                elif line.startswith("CRITICAL"):
-                    has_error_or_critical = True
-                    break
-        return not has_error_or_critical
-
-    def handle_generated_pdf(self, unpack_dir: Path):
-        # Assuming the pdf is always present if no error or critical in logs
-        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        :param tmpdir: Temporary directory path containing the generated PDF
+        :type tmpdir: Path
+        :param source_file: The name of the source file. Used to generate the name of the PDF
+        :type source_file: File
+        :return: The converted file
+        :rtype: File
+        """
+        generated_pdf_path = next(tmpdir.glob("*.pdf"), None)
         # Let's call the PDF that we are storing in Janeway the same as the source file that originated it,
         # but with extension ".pdf"
-        generated_pdf_filename = Path(self.article.manuscript_files.first().original_filename).with_suffix(".pdf")
+        generated_pdf_filename = Path(source_file.original_filename).with_suffix(".pdf")
+        if not self.is_revision:
+            # We must remove eventual existing files before creating a new one, becase we are
+            # re-using the same original filename.
+            remove_existing_files_from_filesystem(self.article.pk, generated_pdf_filename)
+            # HELP: can we simply remove the file currently associated to self.article.manuscript_files.first()?
+
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
             generated_manuscript = core_files.save_file_to_article(
@@ -3694,21 +4363,370 @@ y = {settings.WATERMARK_Y_POSITION}
                 owner=self.article.correspondence_author,
                 label="Manuscript File",
             )
-        # Move what's in the A.manuscript into A.source
-        # and fill A.manuscript with the generated PDF.
-        # The idea is that the author uploads a source-file into the A.manuscript slot (Janeway's default)
-        # we take it, generate the "real" manuscript and place everything in its correct place.
-        self.article.source_files.clear()
-        self.article.source_files.set(self.article.manuscript_files.all())
-        self.article.manuscript_files.clear()
-        self.article.manuscript_files.add(generated_manuscript)
-        self.article.save()
+
+        # This is the wjs-submission revision which passes an explicit flag to ConvertManuscripToPdf
+        # to use revision_storage
+        if self.is_revision:
+            # Remove eventual existing files.
+            revision_storage = RevisionStorage.objects.get(article=self.article)
+            if existing_manuscript_id := revision_storage.data["manuscript_files"]:
+                core_models.File.objects.get(pk=existing_manuscript_id).delete()
+                # Note that File.delete() also unlinks the file from the filesystem!
+
+            # Do not remove here the source files: they have been already dealt with during upload
+
+            # Store the new one in the revision_storage.
+            # It will be moved to the article in step-8.
+            revision_storage.data["manuscript_files"] = generated_manuscript.pk
+            revision_storage.save()
+        else:
+            # TODO: check can be removed once we will port wjs-submission to production
+            # this is where wjs-submission and legacy submission and revision ends
+            use_wjs_submission = settings.WJS_USE_WJS_SUBMISSION.get(
+                self.article.journal.code, settings.WJS_USE_WJS_SUBMISSION[None]
+            )
+            if not use_wjs_submission:
+                # In case of legacy submission/revision, the author uploads a source-file into the
+                # Article.manuscript_files (Janeway's default) we take it, generate the "real" manuscript and place
+                # everything in its correct place.
+                self.article.source_files.clear()
+                self.article.source_files.set(self.article.manuscript_files.all())
+            self.article.manuscript_files.clear()
+            self.article.manuscript_files.add(generated_manuscript)
+            self.article.save()
+
+        # Remove any log file from failed conversion
+        # Note that we cannot use queryset.delete(), because that does not call the model's delete() method
+        # (which unlinks the files)
+        [
+            f.delete()
+            for f in core_models.File.objects.filter(
+                article_id=self.article_id,
+                label=self._failed_conversion_log,
+            )
+        ]
+
+        return generated_pdf
+
+    def _get_source_file(self) -> tuple[str, str, core_models.File]:
+        """
+        Get the source file to convert.
+
+        Take it directly from the article in case of normal submission.
+        For revisions, use the RevisionStorage associated to the article.
+
+        Return the file name and content.
+        """
+        file_obj = core_models.File.objects.get(pk=self.file_id)
+        filename = file_obj.original_filename
+        file_bytes = file_obj.get_file(self.article, as_bytes=True)
+        return filename, file_bytes, file_obj
+
+
+@dataclasses.dataclass
+class ConvertEditorLatexReport:
+    report_text: str
+    instance: WjsEditorAssignment
+
+    _failed_conversion_log = "Failed conversion log ConvertEditorLatexReport"
+
+    @property
+    def yakunin_log_filename(self):
+        return f"conversion-EA_{self.instance}.log"
+
+    def _create_in_memory_ini_file(self) -> BytesIO:
+        """
+        Creates an in-memory .ini file containing metadata related to the current article version.
+
+        Yet to be decides the caratheristics of the ini file.
+
+        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
+        :rtype: BytesIO
+        """
+        ini_content = f"""
+        [wjs]
+        text = Not for distribution ...WRITEME...
+        x = {settings.WATERMARK_X_POSITION}
+        y = {settings.WATERMARK_Y_POSITION}
+        """
+
+        ini_file = BytesIO(ini_content.encode("utf-8"))
+        ini_file.name = "wj.ini"
+        ini_file.seek(0)
+        return ini_file
 
     def run(self):
-        content = self.ask_yakunin_to_process(self.create_in_memory_ini_file())
-        unpack_dir = self.unpack_response_file(content)
-        if not self.check_yakunin_logs(unpack_dir):
-            raise ValueError(_("Error in generating the PDF file."))
-        self.handle_generated_pdf(unpack_dir)
-        # cleanup temporary dir created by unzip_response_file
-        shutil.rmtree(unpack_dir)
+        """
+        Executes the process for generating, handling, and processing a LaTeX file using the Yakunin client service.
+
+        The method prepares a temporary directory for the process, creates required files, and interacts with the
+        Yakunin client to apply a watermark and handle the resulting files, ensuring clean up is performed after
+        execution. Error handling should be extended for robustness.
+
+        :return: Result of the `_handle_generated_file` method which processes the generated file.
+        :rtype: Any
+        """
+        tmpdir = None
+        try:
+            self.filename = f"latex_editor_report_EA-{self.instance.pk}"
+            tex_file = self._prepare_tex_file()
+            client = YakuninClient(file=tex_file, filename=self.filename)
+            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
+            self.logfile = self._save_yakunin_logs(log)
+            return self._handle_generated_file(tmpdir)
+        except YakuninPDFGenerationError:
+            log = getattr(client, "_log", None)
+            self._save_yakunin_logs(log)
+            raise
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            raise YakuninRequestError(msg) from e
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+    def _prepare_tex_file(self) -> bytes:
+        """
+        Prepares the LaTeX file content as a byte-encoded string. This method combines a preamble retrieved
+        from a database and the report text, then appends the LaTeX document end command. The resulting
+        content is encoded into UTF-8.
+
+        :return: The complete LaTeX document as a UTF-8 encoded byte string.
+        :rtype: bytes
+        """
+        preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
+        full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
+        return full_text.encode("utf-8")
+
+    def _save_yakunin_logs(self, log: str) -> core_models.File:
+        """
+        Saves Yakunin logs into a file and associates it with an article.
+
+        This function takes a string representing the log content, converts it into
+        a file object, and saves it as a log file associated with a specific article.
+        The file is owned by the correspondence author of the article. It is labeled
+        appropriately to indicate it contains conversion logs.
+
+        :param log: The log content as a UTF-8 encoded string.
+        :type log: str
+        :return: A reference to the saved file.
+        :rtype: core_models.File
+        """
+        remove_existing_files_from_filesystem(self.instance.article.pk, self.yakunin_log_filename)
+        log_file = BytesIO(log.encode("utf-8"))
+        log_content_file = File(log_file, name=self.yakunin_log_filename)
+
+        return core_files.save_file_to_article(
+            file_to_handle=log_content_file,
+            article=self.instance.article,
+            owner=self.instance.editor,
+            label=self._failed_conversion_log,
+        )
+
+    def _handle_generated_file(self, unpack_dir: Path) -> File:
+        """
+        Handles a generated PDF file within the specified unpack directory, processes it,
+        and associates it with the relevant article.
+
+        :param unpack_dir: A directory containing the unpacked files including the
+            generated PDF.
+        :type unpack_dir: Path
+        :return: A processed file associated with the article, labeled as "Yakunin
+            generated file".
+        :rtype: File
+        """
+        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        generated_pdf_filename = f"{self.filename}.pdf"
+        remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
+        with generated_pdf_path.open("rb") as pdf_file:
+            generated_pdf = File(pdf_file, name=generated_pdf_filename)
+            generated_tex = core_files.save_file_to_article(
+                file_to_handle=generated_pdf,
+                article=self.instance.article,
+                owner=self.instance.editor,
+                label="Yakunin generated file",
+            )
+        self.instance.editor_report_pdf_draft = generated_tex
+        self.instance.save()
+        return generated_tex
+
+
+@dataclasses.dataclass
+class ConvertReviewerLatexReport:
+    report_text: str
+    instance: WorkflowReviewAssignment
+
+    _failed_conversion_log = "Failed conversion log ConvertReviewerLatexReport"
+
+    @property
+    def yakunin_log_filename(self):
+        return f"conversion-RA_{self.instance}.log"
+
+    def _create_in_memory_ini_file(self) -> BytesIO:
+        """
+        Creates an in-memory .ini file containing metadata related to the current article version.
+
+        Yet to be decides the caratheristics of the ini file.
+
+        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
+        :rtype: BytesIO
+        """
+        ini_content = f"""
+        [wjs]
+        text = Not for distribution ...WRITEME...
+        x = {settings.WATERMARK_X_POSITION}
+        y = {settings.WATERMARK_Y_POSITION}
+        """
+
+        ini_file = BytesIO(ini_content.encode("utf-8"))
+        ini_file.name = "wj.ini"
+        ini_file.seek(0)
+        return ini_file
+
+    def run(self):
+        """
+        Executes the process to generate and handle a LaTeX report with Yakunin's watermarking process.
+
+        This method prepares the necessary LaTeX file, interacts with the Yakunin client to
+        apply a watermark, processes the logs, and handles the final output file. Temporary
+        directories are safely cleaned up upon completion.
+
+        :return: The result of the `_handle_generated_file` method, which processes the
+            final generated file.
+        :rtype: Any
+
+        :raises ValueError: Propagates an exception related to value errors encountered
+            during processing.
+        """
+        tmpdir = None
+        try:
+            self.filename = f"latex_report_RA-{self.instance.pk}"
+            tex_file = self._prepare_tex_file()
+            client = YakuninClient(file=tex_file, filename=self.filename)
+            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
+            self.logfile = self._save_yakunin_logs(log)
+            return self._handle_generated_file(tmpdir)
+        except YakuninPDFGenerationError:
+            log = getattr(client, "_log", None)
+            self._save_yakunin_logs(log)
+            raise
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            raise YakuninRequestError(msg) from e
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+    def _prepare_tex_file(self) -> bytes:
+        """
+        Prepares and returns a LaTeX report file content as bytes.
+
+        This method generates a LaTeX document by combining a journal-specific
+        preamble and the report text, appending the necessary LaTeX document
+        ending sequence. The final content is then encoded into bytes.
+
+        :return: Bytes representing the LaTeX report file content.
+        :rtype: bytes
+        """
+        preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
+        full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
+        return full_text.encode("utf-8")
+
+    def _save_yakunin_logs(self, log: str) -> core_models.File:
+        """
+        Saves Yakunin logs to a file associated with the current article instance.
+
+        The method processes the provided log string, encodes it into bytes,
+        creates a file with a specific naming convention, and saves it using
+        the associated article details for proper organization and access.
+
+        :param log: The log content to be saved, provided as a string.
+        :type log: str
+        :return: A File object representing the saved log file.
+        :rtype: core_models.File
+        """
+        remove_existing_files_from_filesystem(self.instance.article.pk, self.yakunin_log_filename)
+        log_file = BytesIO(log.encode("utf-8"))
+        log_content_file = File(log_file, name=self.yakunin_log_filename)
+
+        return core_files.save_file_to_article(
+            file_to_handle=log_content_file,
+            article=self.instance.article,
+            owner=self.instance.reviewer,
+            label=self._failed_conversion_log,
+        )
+
+    def _handle_generated_file(self, unpack_dir: Path) -> File:
+        """
+        Handles a generated PDF file located in the given unpack directory and processes it
+        to save it as part of the associated article. This method assigns the processed file
+        to the current instance for further usage.
+
+        :param unpack_dir: The directory in which the generated PDF file can be found
+                          (path should point to a directory containing the PDF file).
+        :type unpack_dir: Path
+        :return: The processed PDF file saved and linked to the article.
+        :rtype: File
+        """
+        generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
+        generated_pdf_filename = f"{self.filename}.pdf"
+        remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
+        with generated_pdf_path.open("rb") as pdf_file:
+            generated_pdf = File(pdf_file, name=generated_pdf_filename)
+            generated_tex = core_files.save_file_to_article(
+                file_to_handle=generated_pdf,
+                article=self.instance.article,
+                owner=self.instance.reviewer,
+                label="Yakunin generated file",
+            )
+        self.instance.tex_report_pdf = generated_tex
+        self.instance.save()
+        return generated_tex
+
+
+@dataclasses.dataclass
+class AccessModeSpecialRequestNotification:
+    # TODO specs#2157: convert to submission-check and create attention condition
+    submission_data: ArticleSubmission
+
+    def _check_conditions(self):
+        return self.submission_data.special_request
+
+    def _send_notification(self):
+        """Log a message to the EO containing information about a special request related to access-mode."""
+        from utils.management.commands.test_fire_event import create_fake_request
+
+        fake_request = create_fake_request(user=None, journal=self.submission_data.article.journal)
+        context = {
+            "article": self.submission_data.article,
+            "submission_data": self.submission_data,
+        }
+        message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="access_mode_special_request_notification_subject",
+            journal=self.submission_data.article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="access_mode_special_request_notification_body",
+            journal=self.submission_data.article.journal,
+            request=fake_request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.submission_data.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=self.submission_data.article.correspondence_author,
+            recipients=[get_eo_user(self.submission_data.article)],
+        )
+
+    def run(self):
+        if self._check_conditions():
+            self._send_notification()

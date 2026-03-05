@@ -1,4 +1,5 @@
-"""Default WJS settings.
+"""
+Default WJS settings.
 
 For details on how to use this, see
 https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
@@ -21,6 +22,9 @@ INSTALLED_APPS = [
     "hijack.contrib.admin",
     "django_filters",
     "django_q",
+    "wjs.themes",
+    "wjs.advanced_admin",
+    "rest_framework.authtoken",
 ]
 
 try:
@@ -28,6 +32,15 @@ try:
 
     INSTALLED_APPS.append(
         "wjs_mgmt_cmds",
+    )
+except ImportError:
+    pass
+
+try:
+    import wjs.user_search
+
+    INSTALLED_APPS.append(
+        "wjs.user_search",
     )
 except ImportError:
     pass
@@ -141,10 +154,10 @@ CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS = [
     "/logout/",
 ]
 
-RESET_PASSWORD_SUBJECT = "Reset password"
+RESET_PASSWORD_SUBJECT = "Reset password"  # noqa: S105
 RESET_PASSWORD_BODY = """Dear {} {}, please add your password to complete
 the registration process before first login: click here {}
-"""
+"""  # noqa: S105
 
 # Functions that check if a just-submitted article might have issues
 # that would require EO attention before editor assigment
@@ -380,7 +393,7 @@ PROOFING_ASSIGNMENT_MIN_DUE_DAYS = 3
 PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
 
 JCOMASSISTANT_URL = "http://wjs-services.ud.sissamedialab.it:1234/jcomassistant/"
-YAKUNIN_URL = "http://wjs-services.ud.sissamedialab.it:1235/watermark/"
+YAKUNIN_URL = "http://wjs-services.ud.sissamedialab.it:1235/"
 
 # Extra configuration to be added to the .ini file sent to yakunin
 # for the compilation of submitted files.
@@ -400,7 +413,10 @@ WJS_TYPESET_REVISION_MOCK_FILE = ""
 # our own customizations
 # We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact
 # for now as it's just the dashboard css
-BOOTSTRAP5 = {"css_url": "/static/JCOM-theme/css/wjs_review.css"}
+BOOTSTRAP5 = {
+    "css_url": "/static/wjs-bootstrap/css/wjs_review.css",
+    "hyphenate_attribute_prefixes": ["data", "hx", "aria"],
+}
 
 # The list of journals that supports multiple languages and needs base english for display on the website
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
@@ -449,4 +465,22 @@ Allow directors to hijack other users.
 WJS_ALLOW_HIJACK_SU_ACCOUNTS = True
 """
 Allow EO to hijack superusers.
+"""
+
+WJS_USE_WJS_SUBMISSION = {
+    None: True,
+    "JCOM": False,
+    "JCOMAL": False,
+}
+"""
+Use custom submission/revision process or the standard one.
+"""
+
+ISSUE_TRACKER_URLS = {
+    "wjs-help": "https://gitlab.sissamedialab.it/wjs/wjs-help/-/issues/",
+    "rogne": "https://gitlab.sissamedialab.it/calderan/rogne/-/issues/",
+    "post-production": "https://gitlab.sissamedialab.it/calderan/pipicor/-/issues/",
+}
+"""
+URLs of the issue trackers used for the "Open Issue" button in actions section.
 """

@@ -1,16 +1,17 @@
-"""Handlers functions.
+"""
+Handlers functions.
 
 Generally registered onto some event in the `app` module.
 """
-
-from typing import Optional
 
 import html2text
 from django.conf import settings
 from django.core.cache import cache as django_cache
 from django.core.mail import send_mail
 from django.utils.module_loading import import_string
+from django_q.tasks import async_task
 from events import logic as events_logic
+from plugins.wjs_submission.models import ArticleSubmission
 from submission import logic as submission_logic
 from submission import models as submission_models
 from utils import setting_handler
@@ -20,6 +21,8 @@ from wjs.jcom_profile.utils import render_template_from_setting
 
 from .. import communication_utils
 from ..logic import (
+    AccessModeSpecialRequestNotification,
+    AuthorHandleRevision,
     ConvertManuscriptToPdf,
     CreateReviewRound,
     VerifyProductionRequirements,
@@ -78,7 +81,7 @@ def process_submission(**kwargs) -> None:
     workflow.save()
 
 
-def dispatch_checks(article: submission_models.Article) -> Optional[bool]:
+def dispatch_checks(article: submission_models.Article) -> bool | None:
     """
     Run sanity checks on article.
 
@@ -128,6 +131,18 @@ def restart_review_process_after_revision_submission(**kwargs) -> None:
         else submission_models.STAGE_ASSIGNED
     )
     article.save()
+
+
+def process_submitted_revision(**kwargs) -> None:
+    """
+    When a new article revision is submitted, run the relative business logic.
+
+    This function is intended as handler of the WJSSubmissionEvent.ON_REVISION_SUBMISSION_COMPLETED event.
+    """
+    AuthorHandleRevision(
+        request=kwargs["request"],
+        article=kwargs["article"],
+    ).run()
 
 
 def notify_author_article_submission(**kwargs):
@@ -245,7 +260,7 @@ def send_notification_when_article_is_published(**kwargs):
         except (AttributeError, KeyError) as e:
             logger.error(
                 f"Article published in {article.journal.code}, but no social email sent because "
-                f"WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS is not properly set: {e}"
+                f"WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS is not properly set: {e}",
             )
             return
         request = kwargs["request"]
@@ -279,7 +294,8 @@ def send_notification_when_article_is_published(**kwargs):
 
 
 def perform_checks_at_acceptance(**kwargs):
-    """Check if a paper can go to the workflow state READY_FOR_TYPESETTER.
+    """
+    Check if a paper can go to the workflow state READY_FOR_TYPESETTER.
 
     This function should be called just after the paper has been accepted.
     """
@@ -307,15 +323,56 @@ def clean_prophy_candidates(**kwargs) -> None:
         ProphyAccount.objects.filter(prophycandidate__isnull=True).delete()
 
 
+def _run_conversion(
+    article_id: int,
+    file_id: int,
+    feedback_ws_url: str | None = None,
+    feedback_ws_name: str | None = None,
+    *,
+    is_revision: bool = False,
+):
+    conversion = ConvertManuscriptToPdf(
+        article_id=article_id,
+        file_id=file_id,
+        feedback_ws_url=feedback_ws_url,
+        feedback_ws_name=feedback_ws_name,
+        is_revision=is_revision,
+    )
+    conversion.run()
+
+
 def convert_manuscript_to_pdf(**kwargs) -> None:
-    """This responds to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
+    """Respond to ON_ARTICLE_FILE_UPLOAD Event coming from Janeway's submission module."""
     article = kwargs["article"]
     file_type = kwargs["file_type"]
+    file_obj = kwargs["file_id"]  # Upstream misnomer
+    feedback_ws_url = kwargs.get("feedback_ws_url")
+    feedback_ws_name = kwargs.get("feedback_ws_name")
+    is_revision = kwargs.get("is_revision", False)
 
-    if file_type == "manuscript":
-        ConvertManuscriptToPdf(article).run()
+    if file_type.startswith("manuscript"):
+        if file_type.endswith(":async"):
+            async_task(
+                _run_conversion,
+                article_id=article.pk,
+                file_id=file_obj.pk,
+                feedback_ws_url=feedback_ws_url,
+                feedback_ws_name=feedback_ws_name,
+                is_revision=is_revision,
+            )
+        else:
+            _run_conversion(article.pk, file_id=file_obj.pk)
     elif file_type == "data":
         pass
+
+
+def send_access_mode_special_requirements_notification_(**kwargs) -> None:
+    """
+    Handle wjs_submission.events.SubmissionEvent.ON_ACCESS_MODE_SELECTION Event.
+    """
+    submission_data: ArticleSubmission = kwargs["submission_data"]
+
+    AccessModeSpecialRequestNotification(submission_data).run()
 
 
 def clear_cache(**kwargs) -> None:

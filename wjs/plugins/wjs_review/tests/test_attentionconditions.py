@@ -14,7 +14,7 @@ from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review import conditions, states
 from plugins.wjs_review.logic import (
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
@@ -330,7 +330,7 @@ def test_author_technicalrevision_is_late_with_revision(
     author = article.correspondence_author
     section_editor = WjsEditorAssignment.objects.get_current(article).editor
 
-    AuthorHandleRevision(
+    AuthorHandleRevisionObsolete(
         revision=editor_revision,
         form_data={"author_noe": "any"},
         user=author,
