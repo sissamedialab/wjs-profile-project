@@ -1054,7 +1054,6 @@ class AttachGalleys:
             label=label,
             save_to_disk=True,
             public=self.public_galley,
-            html_prettify=False,
         )
         self._check_html_galley_mimetype(galley)
         self.mangle_images(galley)
