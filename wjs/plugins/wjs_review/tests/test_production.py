@@ -1543,6 +1543,7 @@ def test_identifiers_on_eo_sends_back_to_typesetter(
     assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
 
 
+@pytest.mark.xfail(reason="Since Janeway 1.8 authors are frozen when added to the article")
 @pytest.mark.django_db
 def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: HttpRequest):
     """Verify that authors are frozen (snapshotted) at acceptance."""
