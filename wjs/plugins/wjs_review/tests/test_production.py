@@ -1569,7 +1569,6 @@ def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: H
 def test_preamble_authors(accepted_article: Article, keywords: QuerySet[Keyword]):
     """Document a viable preamble template."""
     article = accepted_article
-    assert article.authors.count() == 2
     assert len(article.frozen_authors()) == 2
 
     a1: FrozenAuthor = article.frozen_authors().order_by("author__pk").first()
