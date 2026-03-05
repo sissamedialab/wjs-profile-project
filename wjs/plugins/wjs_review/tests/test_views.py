@@ -1062,7 +1062,7 @@ def test_revision_file_replace_no_perms(
     """Non Corresponding author cannot access revision file view."""
     article = editor_revision.article
     client = Client()
-    author = article.author_accounts.exclude(pk=article.correspondence_author.pk).first()
+    author = article.author_accounts().exclude(pk=article.correspondence_author.pk).first()
     client.force_login(author)
     assert article.manuscript_files.count() == 1
     assert article.supplementary_files.count() == 1
