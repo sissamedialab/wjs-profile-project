@@ -25,7 +25,7 @@ from journal.models import Journal
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Article, Keyword, Section
+from submission.models import Article, FrozenAuthor, Keyword, Section
 from typesetting.models import GalleyProofing
 from utils import setting_handler
 
@@ -1568,16 +1568,15 @@ def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: H
 def test_preamble_authors(accepted_article: Article, keywords: QuerySet[Keyword]):
     """Document a viable preamble template."""
     article = accepted_article
-    assert article.authors.count() == 2
     assert len(article.frozen_authors()) == 2
 
-    a1: Account = article.authors.order_by("id").first()
+    a1: FrozenAuthor = article.frozen_authors().order_by("author__pk").first()
     # Note that here we modify the account, not the froze-author object,
     # but FrozenAuthor objects have `orcid` and `biography` properties (and other)
     # that fallback to the account values if values from FA are missing.
-    a1.orcid = "1234-0000-0000-000X"
-    a1.biography = "Vita, morte e miracoli."
-    a1.save()
+    a1.author.orcid = "1234-0000-0000-000X"
+    a1.author.biography = "Vita, morte e miracoli."
+    a1.author.save()
 
     for kwd in keywords[:3]:
         article.keywords.add(kwd)

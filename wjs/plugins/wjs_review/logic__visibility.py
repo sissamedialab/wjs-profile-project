@@ -274,7 +274,7 @@ class DirectorPermissionChecker(BasePermissionChecker):
         unsubmitted = self.workflow.state != ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
         if not unsubmitted and secondary_permission:
             return False
-        if self.workflow.article.authors.filter(pk=self.user.pk).exists():
+        if self.workflow.article.author_accounts.filter(pk=self.user.pk).exists():
             return False
         return base_permissions.has_director_role(self.workflow.article.journal, self.user)
 

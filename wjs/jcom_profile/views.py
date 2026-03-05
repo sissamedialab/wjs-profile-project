@@ -33,7 +33,7 @@ from journal import decorators as journal_decorators
 from journal.models import Issue, PinnedArticle
 from security.decorators import has_journal
 from submission import models as submission_models
-from submission.models import Keyword, Section
+from submission.models import FrozenAuthor, Keyword, Section
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -801,7 +801,8 @@ class IMUStep2(TemplateView):
             stage=submission_models.STAGE_UNSUBMITTED,
         )
         article.save()  # why doesn't it get saved using `create`?!?
-        article.authors.set([author])
+        FrozenAuthor.objects.all().delete()
+        FrozenAuthor.objects.create(article=article, author=author)
         self.special_issue.articles.add(article)
         article.refresh_from_db()
         return article

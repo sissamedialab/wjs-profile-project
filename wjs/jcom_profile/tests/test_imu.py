@@ -41,7 +41,7 @@ def make_ods(data):
     return f
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_one_existing_one_new(
     journal,
@@ -101,7 +101,7 @@ def test_si_imu_upload_one_existing_one_new(
     assert a2.value == "new"
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_two_identical_lines(
     journal,
@@ -174,7 +174,7 @@ def test_si_imu_upload_two_identical_lines(
     assert error_msg.text == "Line 2 is the same as 1"
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_iequal_emails(
     journal,
@@ -238,7 +238,7 @@ def test_si_imu_upload_iequal_emails(
     assert a2.value == "new"
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_new_author_two_contributions(
     journal,
@@ -295,7 +295,7 @@ def test_si_imu_upload_new_author_two_contributions(
     assert a2.value == "new"
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_new_author_two_contributions_iequal_emails(
     journal,
@@ -362,7 +362,7 @@ WRONG_DATA = (
 )
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.parametrize("wrong_data", WRONG_DATA)
 @pytest.mark.django_db
 def test_si_imu_upload_two_authors_same_email_different_metadata(
@@ -501,7 +501,7 @@ def test_si_imu_new_author_same_as_exising(
     assert article.owner == author
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.parametrize("wrong_data", WRONG_DATA)
 @pytest.mark.django_db
 def test_si_imu_new_author_same_as_exising_but_different_data(
@@ -557,7 +557,7 @@ def test_si_imu_new_author_same_as_exising_but_different_data(
     assert not article
 
 
-@pytest.mark.xfail("Porting to 1.8 required")
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.parametrize("modified_data", WRONG_DATA)
 @pytest.mark.django_db
 def test_si_imu_edit_exising(

@@ -279,7 +279,9 @@ def list_non_correspondence_authors(article):
     Returns a comma-separated list of authors from the article,
     excluding the correspondence author.
     """
-    authors = [author.full_name() for author in article.authors.all() if author != article.correspondence_author]
+    authors = [
+        author.full_name() for author in article.author_accounts.all() if author != article.correspondence_author
+    ]
     return ", ".join(authors)
 
 

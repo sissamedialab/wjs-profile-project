@@ -1002,12 +1002,12 @@ def test_email_are_sent_to_author_and_coauthors_after_article_submission_(
     client.force_login(admin)
     url = reverse("submit_review", args=(article.pk,))
     coauthors_email = list(
-        article.authors.exclude(email=article.correspondence_author.email).values_list("email", flat=True),
+        article.author_accounts.exclude(email=article.correspondence_author.email).values_list("email", flat=True),
     )
 
     response = client.post(url, data={"next_step": "next_step"})
     assert response.status_code == 302
-    assert len(mail.outbox) == article.authors.count()
+    assert len(mail.outbox) == article.author_accounts.count()
 
     subject_of_message_to_coauthors = render_template_from_setting(
         setting_group_name="email_subject",
@@ -1062,7 +1062,8 @@ def test_revision_file_replace_no_perms(
     """Non Corresponding author cannot access revision file view."""
     article = editor_revision.article
     client = Client()
-    client.force_login(article.authors.exclude(pk=article.correspondence_author.pk).first())
+    author = article.author_accounts().exclude(pk=article.correspondence_author.pk).first()
+    client.force_login(author)
     assert article.manuscript_files.count() == 1
     assert article.supplementary_files.count() == 1
     assert article.data_figure_files.count() == 1

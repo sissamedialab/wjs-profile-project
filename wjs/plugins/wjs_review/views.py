@@ -3464,7 +3464,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
         The list is filtered by removing current editor, if any.
         """
-        article_authors = self.object.article.authors.all()
+        article_authors = self.object.article.author_accounts.all()
         try:
             current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
         except WjsEditorAssignment.DoesNotExist:

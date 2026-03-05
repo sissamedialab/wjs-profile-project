@@ -194,7 +194,7 @@ def notify_coauthors_article_submission(**kwargs):
     #  notify coauthors
     article = kwargs["article"]
     request = kwargs["request"]
-    if article.authors.count() == 1:
+    if article.author_accounts.count() == 1:
         # no co-authors (only the correspondence author)
         return
 
@@ -212,7 +212,7 @@ def notify_coauthors_article_submission(**kwargs):
     )
 
     # Send per-coauthor customized notifications
-    coauthors = [c for c in article.authors.all() if c != article.correspondence_author]
+    coauthors = [c for c in article.author_accounts if c != article.correspondence_author]
     for coauthor in coauthors:
         # we call the recipient "author" because thus the template is easier to read
         context["author"] = coauthor
