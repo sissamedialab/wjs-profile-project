@@ -14,7 +14,6 @@ from events import logic as events_logic
 from plugins.wjs_submission.models import ArticleSubmission
 from submission import logic as submission_logic
 from submission import models as submission_models
-from utils import setting_handler
 from utils.logger import get_logger
 
 from wjs.jcom_profile.utils import render_template_from_setting
@@ -56,22 +55,13 @@ def on_article_submission_start(**kwargs) -> None:
     """Assign current user as main author."""
     article = kwargs["article"]
     request = kwargs["request"]
-    user_automatically_author = setting_handler.get_setting(
-        "general",
-        "user_automatically_author",
-        request.journal,
-    ).processed_value
-    user_automatically_main_author = setting_handler.get_setting(
-        "general",
-        "user_automatically_main_author",
-        request.journal,
-    ).processed_value
 
-    if user_automatically_main_author and user_automatically_author:
-        submission_logic.add_user_as_author(request.user, article)
-        if user_automatically_main_author:
-            article.correspondence_author = request.user
-            article.save()
+    # Janeway 1.8 always add the current user as correspondence author
+    # FIXME: Article.authors and related methods has been deprecated. To reduce the impact of the migration we are
+    #   going to keep its usage, removing in the future
+    submission_logic.add_user_as_author(request.user, article)
+    article.correspondence_author = request.user
+    article.save()
 
 
 def process_submission(**kwargs) -> None:
