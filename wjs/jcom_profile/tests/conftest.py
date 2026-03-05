@@ -482,7 +482,7 @@ def jcom_doi_prefix(journal: Journal):
 
 
 @pytest.fixture
-def journal_factory(press):
+def journal_factory(press, roles):
     """Provide a factory to create a journal."""
 
     def create_journal(code):
