@@ -25,6 +25,7 @@ from journal import models as journal_models
 from journal.models import Issue, IssueType, Journal
 from press.models import Press
 from submission import models as submission_models
+from submission.logic import add_author_using_email
 from submission.models import Section
 from utils import setting_handler
 from utils.install import (
@@ -522,7 +523,8 @@ def _article(author, coauthor, journal, sections, submitted=False):
         section=random.choice(sections),
         language="eng",
     )
-    article.authors.add(author, coauthor)
+    add_author_using_email(author.email, article)
+    add_author_using_email(coauthor.email, article)
     for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:
         file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
         article.manuscript_files.add(file_obj)

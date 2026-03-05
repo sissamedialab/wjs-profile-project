@@ -1,9 +1,9 @@
 {% load wjs_tags %}
 {{ workflow.article.correspondence_author }}
-{% if workflow.article.authors.count > 1 %}
+{% if workflow.article.author_accounts.count > 1 %}
   <a href="#" class="{% if attention_flag %}fw-bolder{% endif %}" data-bs-toggle="modal" data-bs-target="#author_modal_{{ workflow.article.pk }}">et al.</a>
 {% endif %}
-{% if workflow.article.authors.count > 1 %}
+{% if workflow.article.author_accounts.count > 1 %}
   {% with author_modal_id="author_modal_"|concat:workflow.article.pk %}
     {% include "wjs_review/base/elements/modal.html" with modal_id=author_modal_id modal_title="Authors" include_path="wjs_review/lists/elements/corresponding_author_list.html" %}
   {% endwith %}

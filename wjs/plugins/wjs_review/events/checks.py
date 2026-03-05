@@ -13,4 +13,4 @@ def always_reject(article: submission_models.Article) -> bool:
 
 def at_least_one_author(article: submission_models.Article) -> bool:
     """At least two authors."""
-    return article.authors.count() >= 1
+    return article.author_accounts.count() >= 1

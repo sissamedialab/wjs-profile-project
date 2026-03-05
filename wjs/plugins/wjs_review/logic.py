@@ -3838,7 +3838,7 @@ class OpenAppeal:
 
     def _is_articles_author(self) -> bool:
         """Check if selected Editor is the article's author."""
-        return self.article.authors.filter(id=self.new_editor.id).exists()
+        return self.article.author_accounts.filter(id=self.new_editor.id).exists()
 
     def _has_another_past_rejection(self) -> bool:
         return (

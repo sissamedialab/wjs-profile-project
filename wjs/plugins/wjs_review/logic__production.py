@@ -51,6 +51,7 @@ from submission.models import (
     STAGE_TYPESETTING,
     Article,
     ArticleAuthorOrder,
+    FrozenAuthor,
     Keyword,
     KeywordArticle,
 )
@@ -65,7 +66,6 @@ from wjs.jcom_profile.import_utils import (
     decide_galley_label,
     evince_language_from_filename_and_article,
     process_body,
-    sync_frozen_authors_with_authors,
 )
 from wjs.jcom_profile.models import Correspondence
 from wjs.jcom_profile.permissions import has_eo_role
@@ -2099,9 +2099,7 @@ class MetadataFromTeX:
         if self._data["authors_errors"]:
             raise ValueError(self._data["authors_errors"])
 
-        # 🤔 article.authors.clear() does not delete records in the "through" table!?
-        self.workflow.article.authors.clear()
-        ArticleAuthorOrder.objects.filter(article=self.workflow.article).delete()
+        FrozenAuthor.objects.filter(article=self.workflow.article).delete()
         for order, am in enumerate(self._data["authors_map"]):
             if am.must_be_created:
                 author = Account.objects.create(
@@ -2121,11 +2119,7 @@ class MetadataFromTeX:
                 # - orcid
                 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1804
 
-            # ???? why do I need both authors.add(author) and AAO.create(author...) ????
-            self.workflow.article.authors.add(author)
-            ArticleAuthorOrder.objects.create(article=self.workflow.article, order=order, author=author)
-
-        sync_frozen_authors_with_authors(self.workflow.article)
+            FrozenAuthor.objects.create(article=self.workflow.article, order=order, author=author)
 
     # TODO: refactor with logic__production.BeginPublication._get_source_file()
     def _get_source_file(self) -> BytesIO:
@@ -2240,7 +2234,7 @@ class MetadataFromTeX:
                 author__id=OuterRef("id"),
             ).values_list("order"),
         )
-        db_authors = article.authors.all().annotate(order=subq).order_by("order")
+        db_authors = article.author_accounts.all().annotate(order=subq).order_by("order")
 
         # 🤔 ugly code: side effect in a method that returns something...
         self._data["authors_db"] = db_authors
@@ -2321,7 +2315,7 @@ class MetadataFromTeX:
         similaraccounts_warning = """Similar accounts: either set the orcid on the existing account (if the TeX has
         it), or create/edit a "correspondence" (a mapping) with the TeX email."""
         try:
-            wjapp_mapping = self.workflow.article.authors.get(
+            wjapp_mapping = self.workflow.article.author_accounts.get(
                 first_name=tex_author["first_name"],
                 last_name=tex_author["surname"],
             )
@@ -2330,7 +2324,7 @@ class MetadataFromTeX:
         except Account.MultipleObjectsReturned:
             # Any other euristics after this would contain these accounts also.
             # So we can stop here and ask for help.
-            similar_accounts = self.workflow.article.authors.filter(
+            similar_accounts = self.workflow.article.author_accounts.filter(
                 first_name=tex_author["first_name"],
                 last_name=tex_author["surname"],
             )
@@ -2347,7 +2341,7 @@ class MetadataFromTeX:
             )
 
         try:
-            wjapp_mapping = self.workflow.article.authors.get(
+            wjapp_mapping = self.workflow.article.author_accounts.get(
                 last_name=tex_author["surname"],
             )
         except Account.DoesNotExist:
@@ -2355,7 +2349,7 @@ class MetadataFromTeX:
         except Account.MultipleObjectsReturned:
             # Any other euristics after this would contain these accounts also.
             # So we can stop here and ask for help.
-            similar_accounts = self.workflow.article.authors.filter(
+            similar_accounts = self.workflow.article.author_accounts.filter(
                 last_name=tex_author["surname"],
             )
             return MetadataFromTeX.AuthorStruct(

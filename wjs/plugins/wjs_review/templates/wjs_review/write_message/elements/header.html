@@ -2,7 +2,7 @@
   <p>
     {{ article.section }} {{ article.pk }}<br>
     {% translate "Title" %}: {{ article.title }}
-    {% if show_authors %}<br>{% if article.authors.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}:
+    {% if show_authors %}<br>{% if article.author_accounts.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}:
     {% for ao in article.articleauthororder_set.all %}
     {{ ao.author }}{% if not forloop.last %}, {% endif %}
     {% endfor %}

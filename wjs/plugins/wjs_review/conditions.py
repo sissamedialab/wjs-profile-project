@@ -326,7 +326,7 @@ def article_has_old_unread_message(
     if exclude_aus_and_revs:
         # ignore messages whose recipient is an author of the article
         messages = messages.exclude(
-            messagerecipients__recipient__in=article.authors.all().values_list("id"),
+            messagerecipients__recipient__in=article.author_accounts.all().values_list("id"),
         )
         messages = messages.exclude(
             messagerecipients__recipient__in=article.reviewassignment_set.all().values_list("reviewer__id"),

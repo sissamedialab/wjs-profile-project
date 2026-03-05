@@ -1705,7 +1705,7 @@ class OpenAppealForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
         super().__init__(*args, **kwargs)
-        author_ids = self.instance.article.authors.values_list("id", flat=True)
+        author_ids = self.instance.article.author_accounts.values_list("id", flat=True)
         self.fields["editor"].queryset = Account.objects.filter(
             accountrole__role__slug=SECTION_EDITOR_ROLE,
             accountrole__journal=self.instance.article.journal,

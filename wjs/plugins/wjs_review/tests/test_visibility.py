@@ -220,7 +220,7 @@ def test_article_detail_permission_author(
     """Access to article detail view is allowed only for authors of the article itself."""
     view_obj = ArticleDetails()
     if expected:
-        fake_request.user = assigned_article.authors.first()
+        fake_request.user = assigned_article.author_accounts.first()
     else:
         fake_request.user = normal_user
     view_obj.setup(fake_request, pk=assigned_article.pk)

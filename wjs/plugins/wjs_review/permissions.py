@@ -552,7 +552,7 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     :rtype: bool
     """
     is_correspondence_author = instance.article.correspondence_author == user
-    is_any_author = instance.article.authors.filter(pk=user.pk).exists()
+    is_any_author = instance.article.author_accounts.filter(pk=user.pk).exists()
     return is_correspondence_author | is_any_author
 
 

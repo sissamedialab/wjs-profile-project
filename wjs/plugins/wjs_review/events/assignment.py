@@ -87,7 +87,7 @@ def default_assign_editors_to_articles(article: Article, **kwargs) -> Optional["
             role=Role.objects.get(slug=SECTION_EDITOR_ROLE),
         ).values_list("user")
         parameters = StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=editors, workload__gt=0)
-    parameters = parameters.exclude(user__in=article.authors.all())
+    parameters = parameters.exclude(user__in=article.author_accounts.all())
     if parameters:
         request = get_current_request()
         user = get_selected_editor_by_workload(parameters, journal=article.journal)
@@ -114,7 +114,7 @@ def jcom_assign_editors_to_articles(article: Article, **kwargs) -> Optional["Wjs
         parameters = StaffWorkloadParameters.objects.filter(
             journal=article.journal, user__in=directors, workload__gt=0
         )
-    parameters = parameters.exclude(user__in=article.authors.all())
+    parameters = parameters.exclude(user__in=article.author_accounts.all())
     if parameters:
         request = get_current_request()
         user = get_selected_editor_by_workload(parameters, journal=article.journal)
