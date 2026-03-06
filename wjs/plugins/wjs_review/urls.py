@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .plugin_settings import MANAGER_URL
 from .views import (
@@ -17,6 +17,7 @@ from .views import (
     AuthorArchived,
     AuthorPending,
     AuthorWithdrawPreprint,
+    ConvertTextToLatex,
     DeleteRevisionFile,
     DeselectReviewer,
     DirectorArchived,
@@ -32,6 +33,8 @@ from .views import (
     EditorDeclineAssignmentView,
     EditorPending,
     EditorWorkOnIssue,
+    ElaborateLatexEditorReportView,
+    ElaborateLatexReportView,
     EOArchived,
     EOPending,
     EOProduction,
@@ -60,11 +63,12 @@ from .views import (
     ToggleIssueBatch,
     ToggleMessageReadByEOView,
     ToggleMessageReadView,
+    TypesetterWorkOnIssue,
     UpdateReviewerDueDate,
     UploadRevisionFile,
     WriteMessage,
 )
-from .views__production import (  # noqa F401
+from .views__production import (  # noqa F401;
     BeginPublicationView,
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
@@ -87,6 +91,10 @@ from .views__production import (  # noqa F401
 from .views__visibility import EditUserPermissions
 
 urlpatterns = [
+    path(
+        "advanced_admin/",
+        include("wjs.advanced_admin.urls"),
+    ),
     path("manager/", Manager.as_view(), name=MANAGER_URL),
     path("editor/pending/", EditorPending.as_view(), name="wjs_review_list"),
     path("editor/archived/", EditorArchived.as_view(), name="wjs_review_archived_papers"),
@@ -110,6 +118,7 @@ urlpatterns = [
     path("typesetter/pending/", TypesetterPending.as_view(), name="wjs_review_typesetter_pending"),
     path("typesetter/workingon/", TypesetterWorkingOn.as_view(), name="wjs_review_typesetter_workingon"),
     path("typesetter/archived/", TypesetterArchived.as_view(), name="wjs_review_typesetter_archived"),
+    path("typesetter/issues/", TypesetterWorkOnIssue.as_view(), name="wjs_review_typesetter_issues_list"),
     # Both authors and typs can set a paper ready for publication; the following is just an alias:
     path("typesetter/rfp/<int:pk>/", ReadyForPublicationView.as_view(), name="wjs_review_rfp"),
     path("issues/<int:pk>/sections/order/", UpdateSectionOrder.as_view(), name="wjs_order_sections"),
@@ -304,4 +313,18 @@ urlpatterns = [
     path("open_appeal/<int:pk>/", AdminOpensAppealView.as_view(), name="wjs_open_appeal"),
     path("withdraw/<int:pk>/", AuthorWithdrawPreprint.as_view(), name="wjs_author_withdraw_preprint"),
     path("issue/<int:pk>/toggle-batch/", ToggleIssueBatch.as_view(), name="toggle-issue-batch"),
+    path(
+        "elaborate_latex_report/<int:assignment_id>", ElaborateLatexReportView.as_view(), name="elaborate-latex-report"
+    ),
+    path(
+        "elaborate_editor_latex_report/<int:workflow_id>",
+        ElaborateLatexEditorReportView.as_view(),
+        name="elaborate-latex-editor-report",
+    ),
+    path(
+        "text_to_latex/<int:assignment_id>",
+        ConvertTextToLatex.as_view(),
+        name="text-to-latex",
+    ),
+    path("api/v1/", include("plugins.wjs_review.api.urls")),
 ]

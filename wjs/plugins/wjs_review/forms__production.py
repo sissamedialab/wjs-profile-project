@@ -10,6 +10,8 @@ from journal.models import Issue, SectionOrdering
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from submission import models as submission_models
 
+from wjs.jcom_profile.models import WjsMiniHTMLFormField
+
 from .logic__production import (
     HandleCreateAnnotatedFile,
     HandleCreateSupplementaryFile,
@@ -17,7 +19,7 @@ from .logic__production import (
     HandleEOSendBackToTypesetter,
     TypesettedFilesUpload,
 )
-from .models import ArticleWorkflow, Message, WjsMiniHTMLFormField
+from .models import ArticleWorkflow, Message
 
 Account = get_user_model()
 

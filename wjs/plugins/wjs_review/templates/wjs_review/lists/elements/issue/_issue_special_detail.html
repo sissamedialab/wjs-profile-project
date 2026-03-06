@@ -94,7 +94,9 @@
           {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body|safe %}
         {% endwith %}
       {% endif %}
-      {% bootstrap_button button_class="btn-outline-primary" content=add_note %}
+      {% if not view.read_only %}
+        {% bootstrap_button button_class="btn-outline-primary" content=add_note %}
+      {% endif %}
     </td>
   </tr>
 </table>

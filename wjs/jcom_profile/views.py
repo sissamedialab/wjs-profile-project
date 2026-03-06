@@ -1,6 +1,5 @@
 """My views. Looking for a way to "enrich" Janeway's `edit_profile`."""
 
-import re
 from collections import namedtuple
 from dataclasses import dataclass
 from typing import Iterable
@@ -48,7 +47,7 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
-from .mixins import HtmxMixin
+from .mixins import HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, Recipient, StaffWorkloadParameters
 from .newsletter.service import NewsletterMailerService
 from .permissions import get_hijacker
@@ -996,7 +995,7 @@ def issues(request):
     return render(request, template, context)
 
 
-class PublishedArticlesListView(FormMixin, ListView):
+class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
     """
     A list of published articles that can be searched,
     sorted, and filtered
@@ -1029,24 +1028,36 @@ class PublishedArticlesListView(FormMixin, ListView):
         return self.form.cleaned_data.get("show", self.paginate_by)
 
     def _get_filters(self):
-        """Collect constraints on the queryset.
+        """
+        Collect constraints on the queryset.
 
         Some limitations are from the search form (first batch),
         some are from the filters (filter-by-kwd, etc.; second batch),
         and the rest are common for this journal's published articles.
+
+        authors are excluded from this search because we will use full-text search on the authors' fields alone to be
+        able to match full names, initials, etc.
         """
         filters = {
             "keywords__in": self.form.cleaned_data.get("keywords"),
             "section__in": self.form.cleaned_data.get("sections"),
             "date_published__year": self.form.cleaned_data.get("year", None),
-            "search_term": self.form.cleaned_data.get("article_search", None),
-            "section": self.kwargs.get("section", None),
-            "keywords__pk": self.kwargs.get("keyword", None),
+            "section": self.kwargs.get("section", self.form.cleaned_data.get("article_type", None)),
+            "keywords__pk": self.kwargs.get("keyword"),
             "authors": self.kwargs.get("author", None),
             "journal": self.request.journal,
             "stage": submission_models.STAGE_PUBLISHED,
-            "date_published__lte": timezone.now(),
+            "identifier__id_type": self.form.cleaned_data.get("identifier_type", None),
+            "identifier__identifier": self.form.cleaned_data.get("article_identifier", None),
+            "title__icontains": self.form.cleaned_data.get("article_title", None),
+            "abstract__icontains": self.form.cleaned_data.get("article_abstract", None),
         }
+        if self.form.cleaned_data.get("date_from", None):
+            filters["date_published__gte"] = self.form.cleaned_data.get("date_from")
+        if self.form.cleaned_data.get("date_to", None):
+            filters["date_published__lte"] = self.form.cleaned_data.get("date_to")
+        if not self.form.cleaned_data.get("date_from", None) and not self.form.cleaned_data.get("date_to", None):
+            filters["date_published__lte"] = timezone.now()
         return {item: value for item, value in filters.items() if value}
 
     def _get_pinned_articles(self):
@@ -1056,17 +1067,21 @@ class PublishedArticlesListView(FormMixin, ListView):
         filters = self._get_filters()
         pinned_article_pks = [article.pk for article in self._get_pinned_articles()]
 
-        search_term = filters.pop("search_term", "")
-        if search_term:
-            escaped = re.escape(search_term)
-            # checks titles, keywords and subtitles first,
-            # then matches author based on below regex split search term.
-            split_term = [re.escape(word) for word in search_term.split(" ")]
-            split_term.append(escaped)
+        search_term = ""
+        global_filters = self.form.get_search_filters()
+        author_filter = self.form.get_author_filter()
 
+        if global_filters:
+            search_term = next(iter(global_filters.values()))
+            search_filters = global_filters
+        elif author_filter:
+            search_term = next(iter(author_filter.values()))
+            search_filters = author_filter
+
+        if search_term:
             articles = self.model.objects.search(
                 search_term,
-                self.form.get_search_filters(),
+                search_filters,
                 sort=self.get_order_by(search_term),
                 site=self.request.site_object,
             )

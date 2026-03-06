@@ -6,16 +6,18 @@
       <div class="row">
         <div class="col-s-12">
           <div class="d-flex justify-content-between py-2">
-            <a href="{{ request.journal.site_url }}" class="d-flex align-items-center">
-              {% if request.journal.header_image %}
-                {% svg_or_image request.journal.header_image css_class="header-override-image" %}
-              {% else %}
-                <img src="{% static "common/img/sample/janeway.png" %}" alt="{% trans "Logo Janeway" %}">
-              {% endif %}
-            </a>
-            <div class="d-flex flex-column">
+            <div class="col-8 col-lg-5">
+              <a href="{{ request.journal.site_url }}" class="wjs-brand-logo">
+                {% if request.journal.header_image %}
+                  {% svg_or_image request.journal.header_image css_class="header-override-image" %}
+                {% else %}
+                  <img src="{% static "common/img/sample/janeway.png" %}" alt="{% trans "Logo Janeway" %}">
+                {% endif %}
+              </a>
+            </div>
+            <div class="col-4 col-lg-6 align-items-end flex-column d-none d-lg-flex justify-content-end">
               {% if core_edit_profile and request.user.is_authenticated %}
-               <a class="btn btn-link d-flex align-items-center text-decoration-none" href="{{ core_edit_profile }}">{{ request.user.get_full_name }} <span class="fs-3 ms-3"><i class="bi bi-person-circle"></i></span></a>
+               <a class="btn btn-outline-primary btn-sm d-flex gap-2 align-items-center" href="{{ core_edit_profile }}">{{ request.user.get_full_name }} <span class="fs-3 ms-3"><i class="bi bi-person-circle"></i></span></a>
               {% endif %}
             </div>
           </div>
@@ -28,12 +30,12 @@
       <div class="row">
         <div class="col-s-12">
           <div class="d-flex justify-content-between">
-            <nav class="pre-header__internal mb-2">
+            <nav class="pre-header__internal">
               <ul class="nav">
                 {% if view.extra_links %}
                   {% for url, title in view.extra_links.items %}
-                    <li class="nav-item">
-                      {% bootstrap_button button_type="link" button_class="btn-link ps-0" name="more" content=title href=url size="sm" extra_classes="mx-1" %}
+                    <li class="nav-item wjs-nav-item">
+                      {% bootstrap_button button_type="link" button_class="nav-link rounded-0" name="more" content=title href=url size="sm" %}
                     </li>
                   {% endfor %}
                 {% elif request.user.is_anonymous %}
@@ -45,7 +47,7 @@
                 {% endif %}
               </ul>
             </nav>
-              <nav>
+              <nav class="d-flex align-items-center">
                 <ul class="nav">
                   {% block top_menu %}
                   {% endblock top_menu %}

@@ -868,7 +868,8 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             "types": "boolean",
             "pretty_name": _("Whether the author of a paper can contact the director"),
             "description": _(
-                "The communication system will allow an author of a paper to directly contact the director of the journal only if this setting is true.",
+                "The communication system will allow an author of a paper to directly contact the director of the "
+                "journal only if this setting is true.",
             ),
             "is_translatable": False,
         }
@@ -1978,6 +1979,87 @@ Abstract:<br/>
         )
         return setting_1, setting_2
 
+    def reviewer_report_type() -> tuple[SettingValue, ...]:
+        reviewer_report_type_setting: SettingParams = {
+            "name": "reviewer_report_type",
+            "group": wjs_review_settings_group,
+            "types": "select",
+            "choices": ["text", "tex", "tex+text"],
+            "pretty_name": _("Type of report allowed"),
+            "description": _("Type of reviewer report allowed: rich text, LaTeX or both"),
+            "is_translatable": False,
+        }
+        reviewer_report_type_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "text",
+            "translations": {},
+        }
+        return (
+            create_customization_setting(
+                reviewer_report_type_setting,
+                reviewer_report_type_setting_value,
+                reviewer_report_type_setting["name"],
+                force=force,
+            ),
+        )
+
+    def add_access_mode_request_notifications():
+        """Add settings for notifications for special request for access mode on submission."""
+        setting_parms: SettingParams = {
+            "name": "access_mode_special_request_notification_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of notifications for special request for access mode on submission"),
+            "description": _(
+                "Subject of the notification sent to EO when corresponding author fill the special request"
+                " field in submission Step 7.",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "{{ article.journal.code }}-{{ article.pk }}: Access mode special request",  # noqa: RUF001
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        setting_parms: SettingParams = {
+            "name": "access_mode_special_request_notification_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of notifications for special request for access mode on submission"),
+            "description": _(
+                "Body of the notification sent to EO when corresponding author fill the special request"
+                " field in submission Step 7.",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear EO,
+<br><br>
+corresponding author {{ article.correspondence_author.full_name }} as submitted the following Access Mode Request for
+article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
+<br><br>
+{{ submission_data.special_request }}
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -2009,6 +2091,8 @@ Abstract:<br/>
         csv_writer.write_settings(add_social_notification_when_article_is_published_settings())
         csv_writer.write_settings(add_coauthor_manually())
         csv_writer.write_settings(add_press_notification_when_article_is_withdrawn_settings())
+        csv_writer.write_settings(reviewer_report_type())
+        csv_writer.write_settings(add_access_mode_request_notifications())
 
 
 def ensure_workflow_elements():

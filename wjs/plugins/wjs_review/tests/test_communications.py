@@ -26,7 +26,7 @@ from plugins.wjs_review import views
 from plugins.wjs_review.forms import MessageForm, SupervisorAssignEditorForm
 from plugins.wjs_review.logic import (
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     HandleDecision,
     HandleMessage,
 )
@@ -1503,7 +1503,7 @@ def test_role_for_article(
         "confirm_cover": "on",
     }
     revision = EditorRevisionRequest.objects.get(article=article)
-    AuthorHandleRevision(
+    AuthorHandleRevisionObsolete(
         revision=revision,
         form_data=form_data,
         user=None,

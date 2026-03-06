@@ -1,7 +1,7 @@
-"""Websocket routing."""
+from django.urls import path
 
-# Currently just a stub,
-# to be filled by https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/merge_requests/1131
+from . import consumers
 
-
-websocket_urlpatterns = []
+websocket_urlpatterns = [
+    path("ws/feedback/<str:feedback_wsname>/", consumers.FeedbackConsumer.as_asgi()),
+]

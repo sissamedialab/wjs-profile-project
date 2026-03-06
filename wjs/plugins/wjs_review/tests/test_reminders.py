@@ -26,7 +26,7 @@ from ..conditions import any_reviewer_is_late_after_reminder
 from ..logic import (
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     EvaluateReview,
     HandleDecision,
     HandleEditorDeclinesAssignment,
@@ -171,7 +171,7 @@ def test_edsr_reminder_rendering(
         assigned_article, fake_request, ArticleWorkflow.Decisions.MAJOR_REVISION, cleanup_side_effects=True
     )
     revision = EditorRevisionRequest.objects.filter(article=assigned_article).latest("date_requested")
-    service = AuthorHandleRevision(
+    service = AuthorHandleRevisionObsolete(
         revision=revision,
         form_data={},
         user=assigned_article.correspondence_author,
@@ -1450,7 +1450,11 @@ def test_three_papers_three_reviewers(
     # --------------------------------------------
     report_form = get_report_form(journal.code)
     rf = report_form(
-        data=jcom_report_form_data, review_assignment=assignment_D_r1, request=fake_request, submit_final=True
+        data=jcom_report_form_data,
+        review_assignment=assignment_D_r1,
+        request=fake_request,
+        journal=fake_request.journal,
+        submit_final=True,
     )
     assert rf.is_valid()
     SubmitReview(

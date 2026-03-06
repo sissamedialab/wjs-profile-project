@@ -2,6 +2,7 @@
 
 from django.template.loader import render_to_string
 from django.utils.translation import gettext as _
+from plugins.wjs_review.models import WjsSection
 
 from . import permissions
 
@@ -48,5 +49,26 @@ def extra_edit_subscription_hook(request_context):
             "url_name": _("edit_newsletters"),
             "button_text": _("Edit my subscription"),
         },
+    )
+    return rendered
+
+
+def wjs_section_information(request_context):
+    """
+    Retrieve and render the information about sections for a specific journal from the request context.
+
+    :param request_context: Dictionary containing request and journal context data.
+    :type request_context: dict
+    :return: Rendered HTML string for the sections information template.
+    :rtype: str
+    :raises KeyError: If "request" key is not found in request_context.
+    """
+    request = request_context["request"]
+    sections = WjsSection.objects.filter(journal=request.journal)
+    context = {"sections": sections, "default_section": 0}
+    template_name = "wjs_review/templatetags/sections_info.html"
+    rendered = render_to_string(
+        template_name,
+        context,
     )
     return rendered

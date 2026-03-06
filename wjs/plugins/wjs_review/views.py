@@ -1,9 +1,11 @@
 import dataclasses
 import datetime
+import json
 from itertools import chain
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
+import pypandoc
 from core import files as core_files
 from core import models as core_models
 from django import forms
@@ -46,8 +48,9 @@ from django.views.generic import (
 from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
-from journal.models import Issue, Journal
+from journal.models import Issue, IssueType, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from plugins.wjs_submission.models import ArticleSubmission, SubmissionArticleFunding
 from review import logic as review_logic
 from submission.models import Article, FrozenAuthor
 from utils.logger import get_logger
@@ -56,7 +59,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
-from wjs.jcom_profile.mixins import HtmxMixin
+from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
 from wjs.jcom_profile.models import IssueParameters
 from wjs.jcom_profile.utils import get_eo_user
 
@@ -102,7 +105,11 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
+    ConvertEditorLatexReport,
+    ConvertReviewerLatexReport,
     HandleMessage,
+    YakuninPDFGenerationError,
+    YakuninRequestError,
     render_template_from_setting,
     states_when_article_is_considered_archived,
     states_when_article_is_considered_archived_with_under_appeal,
@@ -117,11 +124,11 @@ from .mixins import (
     AuthenticatedUserPassesTest,
     EditorRequiredMixin,
     OpenReviewMixin,
-    PaginatedViewMixin,
     ReviewerRequiredMixin,
 )
 from .models import (
     ArticleWorkflow,
+    EditorDecision,
     EditorRevisionRequest,
     Message,
     MessageRecipients,
@@ -187,6 +194,7 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
             "wjs_review_typesetter_pending": _("Pending preprints"),
             "wjs_review_typesetter_archived": _("Archived preprints"),
             "wjs_review_typesetter_workingon": _("Working on"),
+            "wjs_review_typesetter_issues_list": _("Pending Issues"),
         },
     }
     extra_links: Dict[str, str]
@@ -570,6 +578,27 @@ class DirectorWorkOnIssue(BaseWorkOnIssue):
         return base_permissions.has_director_role(self.request.journal, self.request.user)
 
 
+class TypesetterWorkOnIssue(BaseWorkOnIssue):
+    role = constants.TYPESETTER_ROLE
+    read_only = True
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(issue_type=IssueType.objects.get(journal=self.request.journal, code="collection"))
+            .order_by("date")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        return context
+
+    def test_func(self):
+        """Allow access only to Typesetter"""
+        return base_permissions.has_typesetter_role_on_any_journal(self.request.user)
+
+
 class EditorWorkOnIssue(BaseWorkOnIssue):
     role = constants.SECTION_EDITOR_ROLE
 
@@ -822,8 +851,10 @@ class ReviewerPending(ArticleWorkflowBaseMixin):
                 article__reviewassignment__is_complete=False,
             )
             .annotate(
+                # get last date_due value because we can't put multiple values in sort_date annotation.
+                # (wjs/specs/-/issues/2324)
                 sort_date=Subquery(
-                    latest_assignment.values("date_due"),
+                    latest_assignment.values("date_due")[:1],
                 )
             )
         )
@@ -1216,6 +1247,22 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             permission_type=PermissionAssignment.PermissionType.NO_NAMES,
         )
 
+    def get_object(self, queryset: QuerySet = None) -> ArticleWorkflow:
+        """
+        Verify that linked one-to-one models linked to article exists to ensure a smooth transtion to wjs-submission.
+
+        :param queryset: Filtered queryset (if not set, default is used).
+        :type: QuerySet
+        :return: selected ArticleWorkflow
+        :rtype: ArticleWorkflow
+        """
+        obj = super().get_object(queryset)
+        try:
+            obj.article.submission_data
+        except ArticleSubmission.DoesNotExist:
+            ArticleSubmission.objects.create(article=obj.article)
+        return obj
+
     @property
     def page_title(self):
         return f"{self.title}: {self.object.article.title}"
@@ -1290,6 +1337,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
             # During production we want to show review versions too (for authorized users)
             context["review"] = True
         context["review_versions"] = self.object.get_review_versions(self.request.user)
+        context["article_fundings"] = SubmissionArticleFunding.objects.filter(article=self.object.article)
         # We explicitly set the article in the context because it is often used in templatetags
         # and, when the view answers to an HTMX request, the rendered templates might not define it
         # (as in `{% with article=workflow.article %}...`)
@@ -1298,7 +1346,6 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
 
 
 class ReviewerDeclineReview(HtmxMixin, OpenReviewMixin, UpdateView):
-
     title = _("Decline review")
     form_class = DeclineReviewForm
     template_name = "wjs_review/details/decline_review.html"
@@ -1556,7 +1603,8 @@ class ReviewEnd(BaseRelatedViewsMixin, OpenReviewMixin):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        assignment = WorkflowReviewAssignment.objects.get(pk=self.kwargs.get("assignment_id"))
+        context["form_fields"] = get_report_form(self.object.article.journal.code)(review_assignment=assignment).fields
         return context
 
 
@@ -1616,6 +1664,7 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
             review_assignment=self.object,
             submit_final=self._submitting_report_final,
             request=self.request,
+            journal=self.request.journal,
             **self._get_report_data(),
         )
 
@@ -1625,6 +1674,7 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         if "report_form" not in context:
             context["report_form"] = self._get_report_form()
         context["allow_draft"] = self.allow_draft
+        context["assignment"] = self.object
         return context
 
     def _process_report(self) -> Union[HttpResponseRedirect, HttpResponse]:
@@ -1636,6 +1686,27 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         report_form = self._get_report_form()
         if report_form.is_valid():
             try:
+                if self.request.POST.get("author_review_tex", None):
+                    client = ConvertReviewerLatexReport(
+                        report_text=self.request.POST.get("author_review_tex"),
+                        instance=self.object.workflowreviewassignment,
+                    )
+                    try:
+                        client.run()
+                    except YakuninPDFGenerationError:
+                        logfile = core_models.File.objects.get(
+                            article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                        )
+                        download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
+                        link_html = (
+                            f"Error generating the report. A diagnostic log is available: "
+                            f'<a href="{download_url}" target="_blank">Download log</a>'
+                        )
+                        report_form.add_error(None, mark_safe(link_html))
+                        return self.render_to_response(self.get_context_data(report_form=report_form))
+                    except YakuninRequestError as e:
+                        report_form.add_error(None, mark_safe(str(e)))
+                        return self.render_to_response(self.get_context_data(report_form=report_form))
                 report_form.save()
                 return HttpResponseRedirect(self.get_success_url())
             except (ValueError, ValidationError) as e:
@@ -1773,6 +1844,29 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
         Even if the form is valid, checks in logic.HandleDecision -called by form.save- may fail as well.
         """
         try:
+            if get_setting(
+                setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+            ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
+                assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
+                client = ConvertEditorLatexReport(
+                    report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
+                )
+                try:
+                    client.run()
+                except YakuninPDFGenerationError:
+                    logfile = core_models.File.objects.get(
+                        article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                    )
+                    download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
+                    link_html = (
+                        f"Error generating the report. A diagnostic log is available:"
+                        f' <a href="{download_url}" target="_blank">Download log</a>'
+                    )
+                    form.add_error(None, mark_safe(link_html))
+                    return self.render_to_response(self.get_context_data(form=form))
+                except YakuninRequestError as e:
+                    form.add_error(None, mark_safe(str(e)))
+                    return self.render_to_response(self.get_context_data(form=form))
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -1782,7 +1876,10 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["submitted_reviews"] = self.submitted_reviews
-        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        context["form_fields"] = get_report_form(self.object.article.journal.code)(journal=self.request.journal).fields
+        context["tex_review_allowed"] = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value in ["tex", "tex+text"]
         return context
 
 
@@ -1873,6 +1970,29 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
         Even if the form is valid, checks in logic.HandleDecision -called by form.save- may fail as well.
         """
         try:
+            if get_setting(
+                setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+            ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
+                assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
+                client = ConvertEditorLatexReport(
+                    report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
+                )
+                try:
+                    client.run()
+                except YakuninPDFGenerationError:
+                    logfile = core_models.File.objects.get(
+                        article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                    )
+                    download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
+                    link_html = (
+                        f"Error generating the report. A diagnostic log is available:"
+                        f' <a href="{download_url}" target="_blank">Download log</a>'
+                    )
+                    form.add_error(None, mark_safe(link_html))
+                    return self.render_to_response(self.get_context_data(form=form))
+                except YakuninRequestError as e:
+                    form.add_error(None, mark_safe(str(e)))
+                    return self.render_to_response(self.get_context_data(form=form))
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -1904,11 +2024,14 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["submitted_reviews"] = self.submitted_reviews
-        context["form_fields"] = get_report_form(self.object.article.journal.code)().fields
+        context["form_fields"] = get_report_form(self.object.article.journal.code)(journal=self.request.journal).fields
         context["pending_reviewers_list"] = ", ".join([review.reviewer.full_name() for review in self.pending_reviews])
         context["not_metadata_change"] = (
             self.request.GET.get("decision", None) != ArticleWorkflow.Decisions.TECHNICAL_REVISION
         )
+        context["tex_review_allowed"] = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value in ["tex", "tex+text"]
         return context
 
 
@@ -2785,6 +2908,8 @@ class DeleteRevisionFile(AuthenticatedUserPassesTest, DeleteView):
 
 
 class ArticleRevisionUpdate(BaseRelatedViewsMixin, UpdateView):
+    """Obsolete! View that allows an author to submit a revision."""
+
     model = EditorRevisionRequest
     pk_url_kwarg = "revision_id"
     template_name = "wjs_review/revision/revision_form.html"
@@ -2986,8 +3111,8 @@ class ArticleRevisionFileUpdate(AuthenticatedUserPassesTest, View):
         from the selected version (technically an EditorRevisionRequest linked to a certain review round),
         and set them as the Article.TYPE_files.
         """
-        src_file_attr = getattr(self.object, f'{self.kwargs["file_type"]}_files')
-        dst_file_attr = getattr(self.object.article, f'{self.kwargs["file_type"]}_files')
+        src_file_attr = getattr(self.object, f"{self.kwargs['file_type']}_files")
+        dst_file_attr = getattr(self.object.article, f"{self.kwargs['file_type']}_files")
         dst_file_attr.set(src_file_attr.all())
         messages.success(self.request, "Files replaced.")
         return HttpResponseRedirect(
@@ -3387,7 +3512,6 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
 
 class JournalEditorsView(BaseRelatedViewsMixin, ListView):
-
     title = _("Journal Editors")
     model = Account
     template_name = "wjs_review/journal_editors/editor_list.html"
@@ -3654,6 +3778,8 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
 
     def test_func(self):
         """Check if the user can see(download) the file. Both full permission and NO_NAME grant access to files."""
+        if self.request.user == self.attachment.owner:
+            return True
         related_instances = self._get_related_instances()
         for instance, primary in related_instances:
             if primary:
@@ -3707,6 +3833,16 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         # Add a tuple to related_instances with the second item being if use the primary  permission (True) or the
         # Secondary permission (False)
 
+        # EditorDecision's files
+        for ed in [EditorDecision.objects.filter(decision_editor_report_pdf__pk=self.attachment.pk).first()]:
+            if ed:
+                related_instances.append((ed, True))
+
+        # WjsEditorAssignment's files
+        for wja in [WjsEditorAssignment.objects.filter(editor_report_pdf_draft__pk=self.attachment.pk).first()]:
+            if wja:
+                related_instances.append((wja, True))
+
         # EditorRevisionRequest's files
         for err in [
             EditorRevisionRequest.objects.filter(manuscript_files__pk=self.attachment.pk).first(),
@@ -3723,8 +3859,12 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
                 related_instances.append((err, False))
 
         # WorkflowReviewAssignment's files (reviewers' report files)
-        if wra := WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first():
-            related_instances.append((wra, False))
+        for wra in [
+            WorkflowReviewAssignment.objects.filter(review_file__pk=self.attachment.pk).first(),
+            WorkflowReviewAssignment.objects.filter(tex_report_pdf__pk=self.attachment.pk).first(),
+        ]:
+            if wra:
+                related_instances.append((wra, False))
 
         # TypesettingAssignment's files
         for ta in [
@@ -3833,3 +3973,106 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         self.workflow.article.snapshot_authors()
 
         return context
+
+
+class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.assignment = WorkflowReviewAssignment.objects.get(pk=kwargs["assignment_id"])
+
+    def test_func(self):
+        return permissions.is_article_reviewer(self.assignment.article.articleworkflow, self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            client = ConvertReviewerLatexReport(
+                report_text=self.request.POST.get("author_review_tex"),
+                instance=self.assignment,
+            )
+            generated_tex_review = client.run()
+        except YakuninPDFGenerationError as e:
+            logfile = core_models.File.objects.get(
+                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
+            )
+            download_url = reverse(
+                "download_single_file",
+                args=[self.assignment.article.pk, logfile.pk],
+            )
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            response["HX-Redirect"] = download_url
+            return response
+        except YakuninRequestError as e:
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            return response
+
+        download_url = reverse(
+            "download_single_file",
+            args=[self.assignment.article.pk, generated_tex_review.pk],
+        )
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = download_url
+        return response
+
+
+class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        workflow = ArticleWorkflow.objects.get(pk=kwargs["workflow_id"])
+        self.assignment = WjsEditorAssignment.objects.get_current(workflow)
+
+    def test_func(self):
+        return permissions.is_article_editor_or_eo(self.assignment.article.articleworkflow, self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            client = ConvertEditorLatexReport(
+                report_text=self.request.POST.get("decision_editor_report"),
+                instance=self.assignment,
+            )
+            generated_tex_review = client.run()
+        except YakuninPDFGenerationError as e:
+            logfile = core_models.File.objects.get(
+                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
+            )
+            download_url = reverse(
+                "download_single_file",
+                args=[self.assignment.article.pk, logfile.pk],
+            )
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            response["HX-Redirect"] = download_url
+            return response
+        except YakuninRequestError as e:
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            return response
+
+        download_url = reverse(
+            "download_single_file",
+            args=[self.assignment.article.pk, generated_tex_review.pk],
+        )
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = download_url
+        return response
+
+
+class ConvertTextToLatex(HtmxMixin, AuthenticatedUserPassesTest, View):
+    """HTMX view to convert text to latex."""
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.assignment = WorkflowReviewAssignment.objects.get(pk=self.kwargs["assignment_id"])
+
+    def test_func(self):
+        return permissions.is_article_editor_or_eo(self.assignment.article.articleworkflow, self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        author_review = self.assignment.report_form_answers.get("author_review")
+        latex_author_review = pypandoc.convert_text(author_review, "latex", format="html")
+        response = HttpResponse(latex_author_review, status=200)
+        response["Content-Type"] = "text/plain; charset=utf-8"
+        return response

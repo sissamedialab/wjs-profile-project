@@ -1,7 +1,0 @@
-{% load static %}
-<script src="{% static "js/htmx.min.js" %}"></script>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<link rel="stylesheet" href="{% static "JCOM-theme/css/" %}{{ journal.code|lower }}_nav.css">
-<div class="submit-section">
-  {% include "core/nav.html" with hide_account=True %}
-</div>

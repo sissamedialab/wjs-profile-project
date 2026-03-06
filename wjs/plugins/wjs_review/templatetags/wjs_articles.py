@@ -4,6 +4,7 @@ For generic tags and filters, see module wjs_review.
 
 """
 
+import warnings
 from datetime import datetime
 from typing import Optional
 
@@ -251,9 +252,9 @@ def article_completed_review_by_user(article: Article, user: Account) -> Optiona
 def article_pending_review_by_user(article: Article, user: Account) -> Optional[WorkflowReviewAssignment]:
     """Get pending review assignment if user is reviewer of the last review round of the article."""
     try:
-        return WorkflowReviewAssignment.objects.get(
+        return WorkflowReviewAssignment.objects.filter(
             article=article, reviewer=user, date_complete__isnull=True, date_declined__isnull=True
-        )
+        ).latest("date_requested")
     except WorkflowReviewAssignment.DoesNotExist:
         pass
 
@@ -272,6 +273,11 @@ def get_ordered_articles(issue: Issue) -> QuerySet[Article]:
 @register.inclusion_tag("wjs_review/templatetags/sections_info.html", takes_context=True)
 def wjs_section_information(context, default_section=None):
     """Return the section information."""
+    warnings.warn(
+        "wjs_section_information is deprecated, it is replaced by " "wjs.jcom_profile.hooks.wjs_section_information",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     request = context["request"]
     sections = WjsSection.objects.filter(journal=request.journal)
     return {"sections": sections, "default_section": int(default_section) if default_section else 0}

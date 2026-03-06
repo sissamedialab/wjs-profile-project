@@ -19,18 +19,24 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files import File
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone, translation
 from django.utils.timezone import localtime, now
+from events import logic as events_logic
 from faker import Faker
 from journal import models as journal_models
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
+from plugins.wjs_submission.models import RevisionStorage
+from plugins.wjs_submission.revision import RevisionStartConfirmView
+from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder, Keyword
+from utils import setting_handler
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile.models import JCOMProfile
@@ -40,6 +46,7 @@ from wjs.jcom_profile.utils import (
     render_template_from_setting,
 )
 
+from ...wjs_submission.events import SubmissionEvent
 from .. import permissions
 from ..communication_utils import get_system_user
 from ..events.handlers import (
@@ -59,7 +66,7 @@ from ..logic import (  # WithdrawPreprint,
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     CreateReviewRound,
     DeselectReviewer,
     EvaluateReview,
@@ -2703,13 +2710,14 @@ def test_article_stage_and_metadata_change(
 
 
 @pytest.mark.parametrize(
-    "decision,confirm_version",
+    ("decision", "confirm_version"),
     (
         (ArticleWorkflow.Decisions.MINOR_REVISION, True),
         (ArticleWorkflow.Decisions.MINOR_REVISION, False),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, True),
         (ArticleWorkflow.Decisions.MAJOR_REVISION, False),
-        (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
+        # Tech-revision should never be solved by a confirm-previous-version!
+        # No! (ArticleWorkflow.Decisions.TECHNICAL_REVISION, True),
         (ArticleWorkflow.Decisions.TECHNICAL_REVISION, False),
         ("something", False),
     ),
@@ -2720,6 +2728,7 @@ def test_author_handle_revision(
     fake_request: HttpRequest,
     review_assignment: review_models.ReviewAssignment,
     decision: str,
+    *,
     confirm_version: bool,
 ):
     """
@@ -2750,6 +2759,7 @@ def test_author_handle_revision(
         request=fake_request,
     )
 
+    confirm_form_data = {}
     if decision not in HandleDecision._decision_handlers:
         with pytest.raises(ValidationError):
             handle.run()
@@ -2757,9 +2767,32 @@ def test_author_handle_revision(
         handle.run()
         assigned_article.refresh_from_db()
         revision = EditorRevisionRequest.objects.get(article=assigned_article)
-        view_obj = ArticleRevisionUpdate()
-        view_obj.object = revision
-        view_obj.confirm_version = confirm_version
+        if confirm_version:
+            # Setup the RevisionStorage:
+            revision_start_view = RevisionStartConfirmView()
+            revision_start_view._init_revision_flow(article_id=assigned_article.pk)
+
+            # When using wjs_submission to process a revision, the last form has no data.
+            # All data has already been collected in the step-forms.
+            rs = RevisionStorage.objects.get(article=assigned_article)
+            rs.data.update(
+                {
+                    "comments_editor": "author_note_confirm",
+                    "submission_requirements": True,
+                },
+            )
+            rs.save()
+
+            # Article should always have `submission_requirements` set
+            assigned_article.submission_requirements = True
+            assigned_article.save()
+
+            view_obj = SubmissionStep8View()
+            view_obj.object = assigned_article
+        else:
+            view_obj = ArticleRevisionUpdate()
+            view_obj.object = revision
+            view_obj.confirm_version = confirm_version
         form_class = view_obj.get_form_class()
 
         if decision == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
@@ -2772,10 +2805,7 @@ def test_author_handle_revision(
             assert edit_form.is_valid()
             edit_form.save()
             if confirm_version:
-                confirm_form_data = {
-                    "author_note": "author_note_confirm",
-                    "confirm_version": "on",
-                }
+                pass
             else:
                 confirm_form_data = {
                     "author_note": "author_note_edit",
@@ -2783,10 +2813,7 @@ def test_author_handle_revision(
                 }
         else:
             if confirm_version:
-                confirm_form_data = {
-                    "author_note": "author_note_confirm",
-                    "confirm_version": "on",
-                }
+                pass
             else:
                 confirm_form_data = {
                     "author_note": "author_note_edit",
@@ -2795,11 +2822,14 @@ def test_author_handle_revision(
                     "confirm_blind": "on",
                     "confirm_cover": "on",
                 }
-        form = form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
+        if confirm_version:
+            form = form_class(data=confirm_form_data, instance=assigned_article, request=fake_request, step=8)
+        else:
+            form = form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
         assert form.is_valid()
         form.save()
-
-        form.finish()
+        if not confirm_version:
+            form.finish()
         assigned_article.refresh_from_db()
         revision.refresh_from_db()
         # we need a stable ordering of the messages because we pick them in specific order
@@ -3027,8 +3057,16 @@ def test_handle_multiple_revision_request_with_author_submission(
     assert form.is_valid()
     form.save()
 
+    # TODO specs#2347: remove the lines and fix revision initialization
     author = assigned_article.correspondence_author
-    handler = AuthorHandleRevision(revision=revision, form_data=form_data, user=author, request=fake_request)
+    handler = AuthorHandleRevisionObsolete(revision=revision, form_data=form_data, user=author, request=fake_request)
+
+    # specs#2347 handler = AuthorHandleRevision(request=fake_request, article=assigned_article)
+    # specs#2347 handler.run()
+    # specs#2347 assigned_article.refresh_from_db()
+    # specs#2347 plugins.wjs_submission.revision.logic.SetupRevisionStorageFull()
+    # specs#2347 ...
+
     handler.run()
     assigned_article.refresh_from_db()
 
@@ -3755,7 +3793,11 @@ def test_deassign_reviewer_existing_assignment(
     elif extra_assignment_state == "completed":
         report_form = get_report_form(fake_request.journal.code)
         rf = report_form(
-            data=jcom_report_form_data, review_assignment=extra_assignment, request=fake_request, submit_final=True
+            data=jcom_report_form_data,
+            review_assignment=extra_assignment,
+            request=fake_request,
+            journal=fake_request.journal,
+            submit_final=True,
         )
         assert rf.is_valid()
         SubmitReview(
@@ -4313,7 +4355,7 @@ def test_author_submits_after_appeal(under_appeal_article: Article, fake_request
         "confirm_cover": "on",
     }
 
-    service = AuthorHandleRevision(
+    service = AuthorHandleRevisionObsolete(
         revision=revision_request,
         form_data=form_data,
         user=fake_request.user,
@@ -4920,3 +4962,90 @@ def test_typesetting_rounds_and_assignments_with_files(
     service = MetadataFromTeX(article.articleworkflow)
     tex_file = service._get_source_file()  # noqa: SLF001
     assert tex_file.read() == b"B"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "tex_review_setting, author_review, review_file, author_review_tex, should_be_valid",
+    [
+        # Scenario: Only TeX allowed → must provide LaTeX review
+        ("tex", None, None, "LaTeX review", True),  # valid: LaTeX review provided
+        ("tex", "Some review", None, None, False),  # invalid: only rich text provided
+        ("tex", None, "file.pdf", None, False),  # invalid: only file provided
+        # Scenario: Only text allowed → must provide rich text or review file
+        ("text", "Some review", None, None, True),  # valid: rich text review provided
+        ("text", None, "file.pdf", None, True),  # valid: review file provided
+        ("text", None, None, None, False),  # invalid: nothing provided
+        ("text", None, None, "LaTeX review", False),  # invalid: LaTeX review provided, not allowed
+        # Scenario: Both TeX and text allowed → any combination of valid fields accepted
+        ("tex+text", None, None, None, False),  # invalid: nothing provided
+        ("tex+text", "Some review", None, None, True),  # valid: rich text review provided
+        ("tex+text", None, "file.pdf", None, True),  # valid: review file provided
+        ("tex+text", None, None, "LaTeX review", True),  # valid: LaTeX review provided
+    ],
+)
+def test_rich_text_or_tex_validation(
+    review_assignment,
+    fake_request,
+    tex_review_setting,
+    author_review,
+    review_file,
+    author_review_tex,
+    should_be_valid,
+):
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="reviewer_report_type",
+        journal=review_assignment.article.journal,
+        value=tex_review_setting,
+    )
+
+    data = jcom_report_form_data.copy()
+    data["review_choice"] = "tex" if tex_review_setting in ("tex", "tex+text") else "rich_text"
+
+    if author_review is not None:
+        data["author_review"] = author_review
+    else:
+        data.pop("author_review", None)
+
+    if author_review_tex is not None:
+        data["author_review_tex"] = author_review_tex
+    else:
+        data.pop("author_review_tex", None)
+
+    files = {}
+    if review_file is not None:
+        files["review_file"] = SimpleUploadedFile(review_file, b"dummy content")
+
+    report_form = get_report_form(fake_request.journal.code)
+    form = report_form(
+        data=data,
+        files=files,
+        review_assignment=review_assignment,
+        submit_final=True,
+        request=fake_request,
+        journal=fake_request.journal,
+    )
+
+    assert form.is_valid() == should_be_valid
+
+
+@pytest.mark.parametrize("special_request", ("some message", ""))
+@pytest.mark.django_db
+def test_submission_special_request(article: Article, review_settings, special_request: str):
+    """If ArticleSubmission.special_request is set, a notification is sent to EO."""
+    article.submission_data.special_request = special_request
+    article.submission_data.save()
+    Message.objects.all().delete()
+    events_logic.Events.raise_event(
+        SubmissionEvent.ON_ACCESS_MODE_SELECTION, article=article, submission_data=article.submission_data
+    )
+    if special_request:
+        assert Message.objects.all().count() == 1
+        message = Message.objects.all().get()
+        assert "Access mode" in message.subject
+        assert special_request in message.body
+        assert list(message.recipients.all()) == [get_eo_user(article)]
+        assert message.actor == article.correspondence_author.janeway_account
+    else:
+        assert not Message.objects.all().exists()

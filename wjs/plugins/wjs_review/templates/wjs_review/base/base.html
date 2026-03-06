@@ -1,82 +1,34 @@
-{% extends "wjs_review/base/elements/bootstrap.html" %}
-{% load django_bootstrap5 static %}
-{% block bootstrap5_extra_head %}
-  <script src="{% static "js/htmx.min.js" %}"></script>
-  <script src="{% static "common/js/tinymce/tinymce.min.js" %}"></script>
-  <script src="{% static "django_tinymce/init_tinymce.js" %}"></script>
-  <script src="{% static "js/htmx_tinymce.js" %}"></script>
-  <link rel="stylesheet" href="{% static "admin/css/admin.css" %}">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  {% if request.journal.favicon %}
-    <link rel="icon" href="{{ journal.favicon.url }}" type="image/vnd.microsoft.icon" />
-  {% elif request.repository.favicon %}
-    <link rel="icon" href="{{ request.repository.favicon.url }}" type="image/vnd.microsoft.icon" />
-  {% endif %}
-{% endblock bootstrap5_extra_head %}
-{% block bootstrap5_content %}
-  <div id="js-loading-spinner" class="wjs-loading-spinner">
-    <span class="spinner-border text-primary"></span>
-  </div>
-  <div class="bg-body" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    {% include "wjs_review/base/elements/modal_htmx.html" %}
-    {% block header %}
-      {% include "wjs_review/base/elements/header.html" %}
-    {% endblock header %}
+{% extends "wjs/base/base.html" %}
+{% load static %}
 
-    {% autoescape off %}
-      {% bootstrap_messages %}
-    {% endautoescape %}
+{% block journal_css %}
+  <link rel="stylesheet" href="{% static "wjs-bootstrap/css/wjs_review.css?v=11" %}">
+{% endblock journal_css %}
 
-    {% block breadcrumbs_wrapper %}
-      <nav class="container d-flex justify-content-between mb-3{% if view.breadcrumbs %} pb-3 border-bottom{% endif %}">
-        <ul class="nav breadcrumbs">
-          {% block breadcrumbs %}
-            {% if view.breadcrumbs %}
-              {% for link in view.breadcrumbs %}
-                {% include "wjs_review/base/elements/breadcrumb_items.html" with url=link.url title=link.title current=link.current %}
-              {% endfor %}
-            {% else %}
-              <div class="text-bg-warning">
-                DEFINE <span class="font-monospace">block breadcrumbs</span> in {{ view.template_name }}
-              </div>
-            {% endif %}
-          {% endblock breadcrumbs %}
-        </ul>
-        {% block breadcrumbs_right %}
-        {% endblock breadcrumbs_right %}
-      </nav>
-    {% endblock breadcrumbs_wrapper %}
+{% block breadcrumbs_wrapper %}
+  <nav class="container d-flex justify-content-between mb-3{% if view.breadcrumbs %} pb-3 border-bottom{% endif %}">
+    <ul class="nav breadcrumbs">
+      {% block breadcrumbs %}
+        {% if view.breadcrumbs %}
+          {% for link in view.breadcrumbs %}
+            {% include "wjs/base/elements/breadcrumb_items.html" with url=link.url title=link.title current=link.current %}
+          {% endfor %}
+        {% else %}
+          <div class="text-bg-warning">
+            DEFINE <span class="font-monospace">block breadcrumbs</span> in {{ view.template_name }}
+          </div>
+        {% endif %}
+      {% endblock breadcrumbs %}
+    </ul>
+    {% block breadcrumbs_right %}
+    {% endblock breadcrumbs_right %}
+  </nav>
+{% endblock breadcrumbs_wrapper %}
 
-    {% block content_wrapper %}
-      <div class="container">
-        {% block content %}
-        {% endblock content %}
-      </div>
-    {% endblock content_wrapper %}
+{% block header %}
+  {% include "wjs_review/base/elements/header.html" %}
+{% endblock header %}
 
-    {% block footer %}
-      {% include "wjs_review/base/elements/footer.html" %}
-    {% endblock footer %}
-
-    {% block js %}
-      <script>
-        const spinner = document.getElementById('js-loading-spinner');
-        const body = document.body;
-
-        function showSpinner() {
-          body.style.overflow = 'hidden';
-          spinner.style.display = 'flex';
-        }
-
-        function hideSpinner() {
-          body.style.overflow = 'scroll';
-          spinner.style.display = 'none';
-        }
-
-        document.body.addEventListener('htmx:beforeRequest', showSpinner);
-        document.body.addEventListener('htmx:afterRequest', hideSpinner);
-      </script>
-
-    {% endblock js %}
-  </div>
-{% endblock bootstrap5_content %}
+{% block footer %}
+  {% include "wjs_review/base/elements/footer.html" %}
+{% endblock footer %}

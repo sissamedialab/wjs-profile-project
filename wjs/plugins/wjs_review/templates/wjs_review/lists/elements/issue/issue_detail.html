@@ -5,7 +5,7 @@
       <h6 class="d-flex justify-content-between">
         <b>{{ issue|display_title:True }}</b>
         <div id="issue-actions">
-          {% if request.user|is_user_eo %}
+          {% if request.user|is_user_eo and not view.read_only %}
             {% url 'wjs_review_issueparameter_edit' issue.issueparameters.pk as issueparameter_edit_url %}
             {% url 'manage_issues_id' issue.pk as manage_issue_url %}
             {% url 'toggle-issue-batch' issue.pk as toggle_mode_url %}
