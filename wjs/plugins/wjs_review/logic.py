@@ -51,6 +51,9 @@ from events import logic as events_logic
 from journal.models import Journal
 from plugins.typesetting.models import TypesettingAssignment
 from plugins.wjs_submission.models import (
+    ArticleCollaboration,
+    RevisionArticleAuthorOrder,
+    RevisionArticleCollaboration,
     RevisionStorage,
     RevisionSubmissionArticleFunding,
     SubmissionArticleFunding,
@@ -62,6 +65,7 @@ from submission.models import (
     STAGE_ASSIGNED,
     STAGE_UNDER_REVISION,
     Article,
+    ArticleAuthorOrder,
     Field,
     FieldAnswer,
 )
@@ -1703,6 +1707,162 @@ class AuthorHandleRevisionObsolete:
             return self.revision
 
 
+@dataclasses.dataclass()
+class PopulateRevisionSteps:
+    article: Article
+    revision: EditorRevisionRequest
+    revision_storage: RevisionStorage
+
+    def run(self):
+        PopulateRevisionStep1(
+            article=self.article, revision=self.revision, revision_storage=self.revision_storage
+        ).run()
+        if self.revision_storage.revision_flow_type in (
+            RevisionStorage.RevisionFlowType.FULL,
+            RevisionStorage.RevisionFlowType.METADATA,
+        ):
+            PopulateRevisionStep4(
+                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+            ).run()
+        if self.revision_storage.revision_flow_type in (
+            RevisionStorage.RevisionFlowType.FULL,
+            RevisionStorage.RevisionFlowType.METADATA,
+        ):
+            PopulateRevisionStep5(
+                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+            ).run()
+        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+            PopulateRevisionStep6(
+                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+            ).run()
+        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+            PopulateRevisionStep7(
+                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+            ).run()
+        self.revision.revision_flow_type = self.revision_storage.revision_flow_type
+
+
+@dataclasses.dataclass()
+class BasePopulateRevisionStep:
+    article: Article
+    revision: EditorRevisionRequest
+    revision_storage: RevisionStorage
+
+    def run(self):
+        raise NotImplementedError()
+
+
+class PopulateRevisionStep1(BasePopulateRevisionStep):
+    def run(self):
+        if cover_letter_note := self.revision_storage.data.get("comments_editor"):
+            self.revision.author_note = cover_letter_note
+        if file_id := self.revision_storage.data.get("cover_letter_file"):
+            self.revision.cover_letter_file = core_models.File.objects.get(id=file_id)
+        if new_competing_interests := self.revision_storage.data.get("competing_interests"):
+            self.article.competing_interests = new_competing_interests
+        # Additional submission fields
+        for additional_submission_field in Field.objects.filter(journal=self.article.journal).order_by("order"):
+            if additional_submission_field.name in self.revision_storage.data:
+                # Using "update_or_create" (instead of just "update"), because the author could have filled some answer
+                # that he had left empty during the first submission.
+                FieldAnswer.objects.update_or_create(
+                    article=self.article,
+                    field=additional_submission_field,
+                    defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
+                )
+
+
+class PopulateRevisionStep4(BasePopulateRevisionStep):
+    def run(self):
+        if correspondence_author := self.revision_storage.data.get("correspondence_author"):
+            self.article.correspondence_author_id = correspondence_author
+        if owner := self.revision_storage.data.get("owner"):
+            self.article.owner_id = owner
+        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
+            self.article.submission_data.affiliation_country_id = affiliation_country
+
+        ArticleAuthorOrder.objects.filter(article=self.article).delete()
+        article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
+        for article_author in article_authors:
+            ArticleAuthorOrder.objects.create(
+                article=self.article,
+                author=article_author.author,
+                order=article_author.order,
+            )
+        self.article.authors.set(
+            ArticleAuthorOrder.objects.filter(article=self.article).values_list("author", flat=True)
+        )
+        ArticleCollaboration.objects.filter(article=self.article).delete()
+        article_collaborations = RevisionArticleCollaboration.objects.filter(revision_storage=self.revision_storage)
+        for article_collaboration in article_collaborations:
+            ArticleCollaboration.objects.create(
+                article=self.article,
+                collaboration=article_collaboration.collaboration,
+                relation=article_collaboration.relation,
+                order=article_collaboration.order,
+            )
+
+
+class PopulateRevisionStep5(BasePopulateRevisionStep):
+
+    def run(self):
+        if new_title := self.revision_storage.data.get("title"):
+            self.revision.title = self.article.title
+            self.article.title = new_title
+        else:
+            self.revision.title = self.article.title
+
+        if new_abstract := self.revision_storage.data.get("abstract"):
+            self.revision.abstract = self.article.abstract
+            self.article.abstract = new_abstract
+        else:
+            self.revision.abstract = self.article.abstract
+        if language := self.revision_storage.data.get("language"):
+            self.article.language = language
+        if section := self.revision_storage.data.get("section"):
+            self.article.section_id = section
+
+
+class PopulateRevisionStep6(BasePopulateRevisionStep):
+
+    def run(self):
+        # store cas, das and files
+        self.article.submission_data.cas = self.revision_storage.data.get("cas")
+        self.article.submission_data.das = self.revision_storage.data.get("das")
+
+        # files
+        # (remember that the files from the previous version have already been saved to revision-request
+        # object when the revision was requested by the editor)
+        self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
+        self.article.source_files.set([self.revision_storage.data["source_files"]])
+
+        # data-figure and supplementary files:
+        # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
+        self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
+        self.article.supplementary_files.set(self.revision_storage.data["supplementary_files"])
+
+
+class PopulateRevisionStep7(BasePopulateRevisionStep):
+    def run(self):
+        if access_mode := self.revision_storage.data.get("access_mode"):
+            self.article.submission_data.access_mode_id = access_mode
+        if special_request := self.revision_storage.data.get("special_request"):
+            self.article.submission_data.special_request = special_request
+
+        SubmissionArticleFunding.objects.filter(article=self.article).delete()
+        fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
+        for funding in fundings:
+            SubmissionArticleFunding.objects.create(
+                pk=funding.pk,
+                article=self.article,
+                name=funding.name,
+                fundref_id=funding.fundref_id,
+                funding_id=funding.funding_id,
+                funding_statement=funding.funding_statement,
+                country=funding.country,
+            )
+
+
 @dataclasses.dataclass
 class AuthorHandleRevision:
     """
@@ -1758,90 +1918,14 @@ class AuthorHandleRevision:
         # Please remember that files (manuscript, source files, etc.) have already been "copied" to the
         # revision-request object, when the revision request was created.
         #
-        # Old title and abstract are kept in the revision-request object
-        if new_title := self.revision_storage.data.get("title"):
-            self.revision.title = self.article.title
-            self.article.title = new_title
-        else:
-            self.revision.title = self.article.title
-
-        if new_abstract := self.revision_storage.data.get("abstract"):
-            self.revision.abstract = self.article.abstract
-            self.article.abstract = new_abstract
-        else:
-            self.revision.abstract = self.article.abstract
-
-        # Cover letter (note and file), manuscript and source-files are kept in the revision-request object
-        if cover_letter_note := self.revision_storage.data.get("comments_editor"):
-            self.revision.author_note = cover_letter_note
-        if file_id := self.revision_storage.data.get("cover_letter_file"):
-            self.revision.cover_letter_file = core_models.File.objects.get(id=file_id)
-
-        # The following fields directly overwrite existing values: no history is kept
-        if new_competing_interests := self.revision_storage.data.get("competing_interests"):
-            self.article.competing_interests = new_competing_interests
-        if correspondence_author := self.revision_storage.data.get("correspondence_author"):
-            self.article.correspondence_author_id = correspondence_author
-        if owner := self.revision_storage.data.get("owner"):
-            self.article.owner_id = owner
-        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
-            self.article.submission_data.affiliation_country_id = affiliation_country
-        if access_mode := self.revision_storage.data.get("access_mode"):
-            self.article.submission_data.access_mode_id = access_mode
-        if special_request := self.revision_storage.data.get("special_request"):
-            self.article.submission_data.special_request = special_request
-        if language := self.revision_storage.data.get("language"):
-            self.article.language = language
-        if section := self.revision_storage.data.get("section"):
-            self.article.section_id = section
-
-        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
-            # store cas, das and files
-            self.article.submission_data.cas = self.revision_storage.data.get("cas")
-            self.article.submission_data.das = self.revision_storage.data.get("das")
-
-            # files
-            # (remember that the files from the previous version have already been saved to revision-request
-            # object when the revision was requested by the editor)
-            self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
-            self.article.source_files.set([self.revision_storage.data["source_files"]])
-
-            # data-figure and supplementary files:
-            # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
-            self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
-            self.article.supplementary_files.set(self.revision_storage.data["supplementary_files"])
-
-            # TODO: specs#2330 probably nothing to do for "administrative files"
+        PopulateRevisionSteps(
+            article=self.article, revision=self.revision, revision_storage=self.revision_storage
+        ).run()
 
         self.revision.save()
         self.article.submission_data.save()
-        self.article.save()
-
-        # Additional submission fields
-        for additional_submission_field in Field.objects.filter(journal=self.article.journal).order_by("order"):
-            if additional_submission_field.name in self.revision_storage.data:
-                # Using "update_or_create" (instead of just "update"), because the author could have filled some answer
-                # that he had left empty during the first submission.
-                FieldAnswer.objects.update_or_create(
-                    article=self.article,
-                    field=additional_submission_field,
-                    defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
-                )
-
-        SubmissionArticleFunding.objects.filter(article=self.article).delete()
-        fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
-        for funding in fundings:
-            SubmissionArticleFunding.objects.create(
-                pk=funding.pk,
-                article=self.article,
-                name=funding.name,
-                fundref_id=funding.fundref_id,
-                funding_id=funding.funding_id,
-                funding_statement=funding.funding_statement,
-                country=funding.country,
-            )
-
         self.revision_storage.delete()
+        self.article.save()
 
     def _confirm_revision(self):
         """

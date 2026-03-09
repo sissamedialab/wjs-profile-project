@@ -39,6 +39,14 @@
           <tr>
             <td colspan="3">{{ article.rights }}</td>
           </tr>
+        {% if review_versions.0.revision_requests and review_versions.0.revision_requests.0.authors_contributions %}
+          <tr>
+            <th colspan="3">{% translate "Authors' contributions" %}</th>
+          </tr>
+          <tr>
+            <td colspan="3">{{ review_versions.0.revision_requests.0.authors_contributions|safe }}</td>
+          </tr>
+        {% endif %}
       </table>
       {% include "wjs_review/details/elements/metadata_fundings.html" %}
     </div>
