@@ -94,7 +94,7 @@
       </ul>
     </li>
   {% endif %}
-
+  {% if article.submission_data.cas %}
     <li class="list-group-item fw-bold">
       {% translate "CAS Declaration" %}
       <ul class="list-group mb-1">
@@ -103,7 +103,9 @@
           </li>
       </ul>
     </li>
+  {% endif %}
 
+  {% if article.submission_data.das %}
     <li class="list-group-item fw-bold">
       {% translate "DAS Declaration" %}
       <ul class="list-group mb-1">
@@ -112,6 +114,7 @@
           </li>
       </ul>
     </li>
+  {% endif %}
 
   {% if article.submission_data.administrative_files.exists %}
     {% if request.user|is_user_eo or workflow|is_user_article_author:request.user %}
