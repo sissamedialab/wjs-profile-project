@@ -27,6 +27,7 @@ from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
+from plugins.wjs_submission.models import RevisionStorage
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -620,7 +621,59 @@ class ArticleWorkflow(TimeStampedModel):
             return self.ReviewStates(value).label
         return value
 
+    @property
+    def revision_flow_type(self) -> str | None:
+        """
+        Retrieve the revision flow type from the last completed revision request.
+
+        :return: Revision flow type if available, otherwise None
+        :rtype: str | None:
+        """
+        if self.last_completed_revision_request:
+            return self.last_completed_revision_request.revision_flow_type
+        return None
+
+    @property
+    def revision_flow_label(self) -> str | None:
+        """
+        Retrieve the display label of the revision flow type for the last completed revision request.
+
+        :return: Display label of the revision flow type, or None if no revision request is completed.
+        :rtype: str | None
+        """
+        if self.last_completed_revision_request:
+            return self.last_completed_revision_request.get_revision_flow_type_display()
+        return None
+
+    @cached_property
+    def last_completed_revision_request(self):
+        """
+        Retrieve the most recent completed editor revision request for the associated article.
+
+        :return: The most recent completed EditorRevisionRequest instance or None
+                 if no completed request exists.
+        :rtype: EditorRevisionRequest | None
+        :raises EditorRevisionRequest.DoesNotExist: Raised when no completed
+                                                     revision request is found.
+        """
+        try:
+            return EditorRevisionRequest.objects.filter(
+                article=self.article,
+                date_completed__isnull=False,
+            ).latest("date_completed")
+        except EditorRevisionRequest.DoesNotExist:
+            return None
+
     def pending_revision_request(self):
+        """
+        Retrieve a pending revision request for the associated article.
+
+        :return: An instance of EditorRevisionRequest if found, or None if no
+                 pending request exists.
+        :rtype: EditorRevisionRequest or None
+        :raises EditorRevisionRequest.DoesNotExist: If the requested object
+                does not exist in the database.
+        """
         try:
             return EditorRevisionRequest.objects.get(
                 article=self.article,
@@ -1157,6 +1210,8 @@ class ArticleWorkflow(TimeStampedModel):
         Versions are checked against the user's permissions to ensure that only the versions the user has rights on are
         returned.
 
+        Versions are returned in inverted order, with the most recent version first.
+
         :param user: The user for which the versions are generated.
         :type user: Account
         :return: The list of versions the user has rights on.
@@ -1166,7 +1221,7 @@ class ArticleWorkflow(TimeStampedModel):
 
         versions = []
         for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
-            decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round)
+            decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round).order_by("-created")
             review_assignments = self._get_sorted_review_assignments(review_round)
             editor_assigment = WjsEditorAssignment.objects.filter(
                 article=self.article, review_rounds=review_round
@@ -1208,7 +1263,9 @@ class ArticleWorkflow(TimeStampedModel):
                     )
                 )
             if has_permission:
-                revisions = EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
+                revisions = EditorRevisionRequest.objects.filter(
+                    article=self.article, review_round=review_round
+                ).order_by("-date_requested")
                 if review_round.round_number > 1:
                     revisions |= EditorRevisionRequest.objects.filter(
                         article=self.article, review_round__round_number=review_round.round_number - 1
@@ -1728,6 +1785,9 @@ class EditorRevisionRequest(RevisionRequest):
     title = models.CharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
     abstract = JanewayBleachField(blank=True, null=True, verbose_name=_("Abstract"))
     authors_contributions = models.TextField(blank=True, null=True, verbose_name=_("Authors contributions"))
+    revision_flow_type = models.CharField(
+        _("Revision flow type"), max_length=10, choices=RevisionStorage.RevisionFlowType.choices
+    )
 
     class Meta:
         ordering = ("date_requested",)
