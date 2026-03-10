@@ -2,8 +2,11 @@
 <div class="card mb-4">
   <div class="card-body">
     <div class="card-title">
-      <h6 class="d-flex justify-content-between">
-        <b>{{ issue|display_title:True }}</b>
+      <div class="d-flex justify-content-between align-items-center">
+      <h2 class="fw-bold fs-6">
+        {{ issue|display_title:True }}
+      </h2>
+
         <div id="issue-actions">
           {% if request.user|is_user_eo and not view.read_only %}
             {% url 'wjs_review_issueparameter_edit' issue.issueparameters.pk as issueparameter_edit_url %}
@@ -19,7 +22,7 @@
             {% endif %}
           {% endif %}
         </div>
-      </h6>
+      </div>
       {% if issue.issue_type.code == "collection" %}
         {% include "wjs_review/lists/elements/issue/_issue_special_detail.html" %}
       {% else %}

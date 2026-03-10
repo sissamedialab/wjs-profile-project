@@ -5,7 +5,7 @@
   {% translate "Go to all messages and notes" as list_label %}
   {% url "wjs_article_messages" pk=workflow.pk as list_url %}
   <div class="nav">
-    {% include "wjs_review/base/elements/breadcrumb_items.html" with url=list_url title=list_label %}
+    {% include "wjs_review/base/elements/breadcrumb_items.html" with url=list_url title=list_label is_in_list=False %}
   </div>
 {% endblock breadcrumbs_right %}
 
@@ -41,6 +41,7 @@
       const select_input = row.find("select")[0];
       select_input.addEventListener("change", update_selectable_options);
       update_selectable_options(null);
+      select_input.focus();
     }
 
     function removed_callback(row) {
@@ -53,8 +54,8 @@
         {
           prefix: "recipientsFS",
           formTemplate: $("#recipients_formset_template").contents()[0],
-          addText: "<button class=\"btn btn-secondary\" >{% translate "Add a recipient" %} <i class=\"bi bi-person-fill-add\"></i></button>",
-          deleteText: "<button class=\"btn btn-outline-secondary rounded-0 rounded-end\" ><i class=\"bi bi-x-circle-fill\"></i></button>",
+          addText: "<span class=\"btn btn-secondary\" >{% translate "Add a recipient" %} <i class=\"bi bi-person-fill-add\"></i></span>",
+          deleteText: "<span class=\"btn btn-outline-secondary rounded-0 rounded-end\" ><i class=\"bi bi-x-circle-fill\"></i></span>",
           added: added_callback,
           removed: removed_callback,
         });

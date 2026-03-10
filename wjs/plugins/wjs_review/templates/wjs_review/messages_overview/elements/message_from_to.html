@@ -1,6 +1,6 @@
 {% load wjs_review %}
 
-<div class="text-black-50 mb-2">
+<div class="text-black mb-2">
   <small><i class="bi bi-clock"></i> <i>{{ message.created|date:DATETIME_FORMAT_NO_SECONDS }}</i></small>
   {% if message.actor != user %}
     {% translate "From" %}: {% hide_real_name message.actor to=user on=article %}

@@ -8,7 +8,7 @@
           {% translate "From" %}:
           <a
             href="?actor_recipients={{ message.actor.id }}"
-            title="{% translate "Filter by sender" %}"
+            aria-label="{% translate "Filter by sender" %}"
             class="text-primary">
             {{ message.actor }}
           </a>
@@ -18,7 +18,7 @@
             {# djlint:off #}
             <a
               href="?actor_recipients={{ recipient.id }}"
-              title="{% translate "Filter by recipient" %}"
+              aria-label="{% translate "Filter by recipient" %}"
               class="text-primary">
               {{ recipient }}
             </a>
@@ -31,16 +31,16 @@
             <i class="bi bi-funnel-fill"></i>
             <a
               href="?article_id={{ message.object_id }}"
-              title="{% translate "Filter by article" %}"
+              aria-label="{% translate "Filter by article" %}"
               class="text-primary">
               [ {{ message.target.articleworkflow }} ]
             </a>
             <a
               href="?type={{ message.message_type }}"
-              title="{% translate "Filter by type" %}"
+              aria-label="{% translate "Filter by type" %}"
               class="text-primary"><i class="bi {{ message|message_type_icon }}"></i></a>
           </div>
-          <a href="{% url "wjs_article_details" pk=message.target.articleworkflow.pk %}" title="{% translate "Go to article page" %}" target="_blank">
+          <a href="{% url "wjs_article_details" pk=message.target.articleworkflow.pk %}" aria-label="{% translate "Go to article page" %}" target="_blank">
             <i class="bi bi-clipboard2-data"></i>
           </a>
           {% if user in message.recipients.all and not user == message.actor %}
@@ -52,7 +52,7 @@
         </div>
 
       </div>
-      <h6>{% translate "Subject" %}: <b>{{ message.subject }}</b></h6>
+      <h3 class="fs-6">{% translate "Subject" %}: <b>{{ message.subject }}</b></h3>
       <div class="body">{{ message.body|safe }}</div>
       {% if message.attachments.exists %}
         <div class="d-flex mt-1">

@@ -14,16 +14,17 @@
 {% endblock bootstrap5_extra_head %}
 
 {% block content_wrapper %}
-  <div class="container mb-3">
+<main class="container">
+  <div class="mb-3">
     <div class="row">
       <div class="col-sm-12">
-        <h2>{{ view.title }}</h2>
+        <h1 class="page-title">{{ view.title }}</h1>
       </div>
     </div>
   </div>
   {% if view.show_filters %}
     {% if filter %}
-      <div class="container mb-3">
+      <div class="mb-3">
         <form id="id_filter_form" method="get">
           {% if request.GET.o %}<input type="hidden" name="o" value="{{ request.GET.o }}">{% endif %}
           {% include filter.template_name %}
@@ -31,7 +32,8 @@
       </div>
     {% endif %}
   {% endif %}
-  <div class="container mb-3">
+  <div class="mb-3">
     {% include view.template_table %}
   </div>
+</main>
 {% endblock content_wrapper %}

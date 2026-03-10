@@ -3,13 +3,12 @@
 {% with doi=article.get_doi pubid=article.get_pubid %}
   <div class="d-flex justify-content-between">
     <div class="d-flex align-items-center gap-3">
-      <h3>
+      <h1 class="page-title">
         {% if article.section %}<span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span> -{% endif %}
         {% if pubid %}{{ pubid }} -{% endif %}
         {{ workflow }}
-      </h3>
+      </h1>
       {% if workflow|is_user_article_manager:request.user or workflow|is_user_article_author:request.user %}
-        <h5>
         <span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">
           {{ workflow.state_label }}<br>
           {% with status_date=workflow.article|get_status_date_label %}
@@ -18,7 +17,6 @@
             {% endif %}
           {% endwith %}
         </span>
-        </h5>
       {% endif %}
     </div>
     <div class="d-flex align-items-center gap-3">

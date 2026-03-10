@@ -2,9 +2,16 @@
 {% translate "Search" as filter_label %}
 {% translate "Reset filters" as reset_label %}
 {% url "wjs_article_messages" pk=workflow.pk as filter_url %}
+{% url request.resolver_match.url_name workflow.pk as reset_url %}
 <script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
 <script>
   EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
+
+  document.addEventListener('click', function(event) {
+    if (event.target && event.target.id === 'id_reset_filter_button') {
+      window.location.href = '{{ reset_url|escapejs }}';
+    }
+  });
 </script>
 
 <div id="messages-list">
@@ -18,14 +25,14 @@
           {% bootstrap_field filter.form.type show_label=False wrapper_class="me-3" %}
           {% bootstrap_field filter.form.content show_label=False wrapper_class="me-3" %}
           {% bootstrap_button id="id_filter_form_submit_button" name="filter" content=filter_label wrapper_class="me-3" %}
-          <a href="{% url request.resolver_match.url_name workflow.pk %}" class="btn btn-outline-secondary ms-1">{{ reset_label }}</a>
+          {% bootstrap_button button_type="button" id="id_reset_filter_button" content=reset_label button_class="btn-outline-secondary ms-1" %}
         </div>
       </form>
     </div>
   </div>
   {% regroup messages_list by date as messages_by_day %}
   {% for by_day in messages_by_day %}
-    <h6 class="text-center"><b>{{ by_day.grouper }}</b></h6>
+    <h2 class="text-center"><b>{{ by_day.grouper }}</b></h2>
     {% for message in by_day.list %}
       {% include "wjs_review/article_messages/elements/message.html" %}
     {% endfor %}
